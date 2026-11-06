@@ -31,7 +31,7 @@ public sealed class InvitationEmailStager(IUnitOfWork unit, ProducerExecution pr
             || !Uri.TryCreate(entryOrigin, UriKind.Absolute, out var uri) || uri.Scheme != "https"
             || uri.GetLeftPart(UriPartial.Authority) != entryOrigin || uri.UserInfo.Length != 0
             || locale is not { Length: > 0 and <= LocaleTag.MaxLength } || !LocaleTag.IsWellFormed(locale)
-            || tenantLabel.Length is < 1 or > 200 || tenantLabel.Any(char.IsControl)
+            || !InvitationDisplayLabel.TryNormalize(tenantLabel, out var label)
             || lifetimeDays is < 1 or > 30)
             throw new InvalidOperationException("Invitation email staging refused.");
         try { await privacy.RequireAsync(cancellationToken).ConfigureAwait(false); }
@@ -58,8 +58,8 @@ public sealed class InvitationEmailStager(IUnitOfWork unit, ProducerExecution pr
                 || locale.StartsWith("tr-", StringComparison.OrdinalIgnoreCase);
             var title = turkish ? "LearnStack daveti" : "LearnStack invitation";
             var lead = turkish ? "Daveti inceleyin:" : "Review your invitation:";
-            var text = tenantLabel + "\n" + lead + "\n" + link + "\n\n" + cleanLink + "\n" + code;
-            var html = "<p>" + WebUtility.HtmlEncode(tenantLabel) + "</p><p>" + lead + "</p><p><a href=\""
+            var text = label + "\n" + lead + "\n" + link + "\n\n" + cleanLink + "\n" + code;
+            var html = "<p>" + WebUtility.HtmlEncode(label) + "</p><p>" + lead + "</p><p><a href=\""
                 + WebUtility.HtmlEncode(link) + "\">" + title + "</a></p><p>" + WebUtility.HtmlEncode(cleanLink)
                 + "</p><p>" + WebUtility.HtmlEncode(code) + "</p>";
             var key = origin.Announcement.OrganizationId is null ? "identity.invitation_email_tenant.v1" : "identity.invitation_email_organization.v1";

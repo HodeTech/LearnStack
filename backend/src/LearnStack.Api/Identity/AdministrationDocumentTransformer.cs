@@ -75,10 +75,15 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
     private static void Describe(OpenApiDocument document, IOpenApiPathItem path, OpenApiOperation operation, Contract contract)
     {
         operation.OperationId = contract.Operation;
-        operation.Security = [new OpenApiSecurityRequirement
+        var requirement = new OpenApiSecurityRequirement
         {
             [new OpenApiSecuritySchemeReference(TenantAuthenticationRegistration.Scheme, document)] = [],
-        }];
+        };
+        // Recipient entry runs behind the native source: InvitationEntrySource refuses a request without it,
+        // so a client generated from this document must send both credentials on every call.
+        if (contract.InvitationEntry)
+            requirement[new OpenApiSecuritySchemeReference(NativeEntryDocumentTransformer.SourceScheme, document)] = [];
+        operation.Security = [requirement];
         operation.Description = contract.Body is null
             ? "Current live scoped read. No request body; only the declared query fields are accepted. Protected configuration and other-person reads commit their MUST read audit before disclosure. Own context/capability/profile navigation is Off. No-store; capability flags are advisory and never authorization."
             : "Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried.";

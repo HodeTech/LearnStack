@@ -44,6 +44,8 @@ import type { AdministrationShape } from './administration-policy.js';
 import { appError, parseProblem } from './response-policy.js';
 
 export type * from './administration-contract.js';
+/** The invitation API's mailbox grammar, for callers that must refuse a recipient before sending. */
+export { invitationEmail as isInvitationEmail } from './administration-policy.js';
 
 class BodyLimit extends Error {
   constructor() {

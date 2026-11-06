@@ -155,15 +155,51 @@ function mutationEdits(
     ? `<section aria-labelledby="submitted-edits"><h2 id="submitted-edits">${escape(copy('mutation.edits_title'))}</h2><p>${escape(copy('mutation.edits_copy'))}</p>${edits}</section>`
     : '';
 }
+/**
+ * A refused invitation form is shown again as an editable form: the submitted value kept, the
+ * field marked and named, and the error tied to it. The chosen role travels as a hidden value.
+ * Actions with no editable field are told so plainly rather than pointing at fields that are
+ * not on the page.
+ */
+function invitationValidationContent(
+  page: Extract<BffPage, { kind: 'mutation_error' }>,
+  copy: AuthCopy,
+  locale: string,
+): string {
+  const { admin } = createAdministrationTranslator(locale);
+  const values = new Map(page.fields);
+  const invalid = new Set(page.invalidFields ?? []);
+  const back = `<p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>`;
+  const proof = (names: readonly string[]) =>
+    names
+      .filter((name) => values.has(name))
+      .map((name) => hidden(name, values.get(name)!))
+      .join('');
+  const required = ` (${escape(admin('invitations.required'))})`;
+  if (page.action === '/api/studio/invitation-create') {
+    if (invalid.has('offeredRole') || !values.has('offeredRole'))
+      return `<p role="alert">${escape(admin('invitations.invalid_role'))}</p>${back}`;
+    // The email is the only field the person can correct here; when the cause is unnamed, mark it.
+    return `<p role="alert">${escape(copy('mutation.invitation_validation'))}</p><form action="${escape(page.action)}" method="post">${proof(['csrfToken', 'idempotencyKey', 'offeredRole'])}
+      <p><label for="invitation-email">${escape(admin('invitations.recipient'))}${required}</label><br><input id="invitation-email" name="email" type="email" value="${escape(values.get('email') ?? '')}" maxlength="254" required aria-required="true" autocomplete="off" spellcheck="false" aria-invalid="true" aria-describedby="invitation-email-hint invitation-email-error"></p>
+      <p id="invitation-email-hint">${escape(admin('invitations.email_hint'))}</p><p id="invitation-email-error">${escape(admin('invitations.invalid_email'))}</p>
+      <p>${escape(admin('invitations.role_kept'))}</p><button type="submit">${escape(admin('invitations.send'))}</button></form>${back}`;
+  }
+  if (page.action === '/api/studio/invitation-policy') {
+    return `<p role="alert">${escape(copy('mutation.invitation_validation'))}</p><form action="${escape(page.action)}" method="post">${proof(['csrfToken', 'idempotencyKey', 'presence', 'version'])}
+      <p><label for="invitation-lifetime">${escape(admin('invitations.policy_days'))}${required}</label><br><input id="invitation-lifetime" name="days" type="number" min="1" max="30" step="1" value="${escape(values.get('days') ?? '')}" required aria-required="true" aria-invalid="true" aria-describedby="invitation-lifetime-error"></p>
+      <p id="invitation-lifetime-error">${escape(admin('invitations.policy_range'))}</p><button type="submit">${escape(admin('invitations.policy_save'))}</button></form>${back}`;
+  }
+  return `<p role="alert">${escape(copy('mutation.invitation_refused'))}</p>${back}`;
+}
 function mutationContent(
   page: Extract<BffPage, { kind: 'mutation_error' }>,
   copy: AuthCopy,
   locale: string,
   site: PageSite,
 ): string {
-  if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-')) {
-    return `<p role="alert">${escape(copy('mutation.validation'))}</p>${mutationEdits(page, copy, locale)}<p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>`;
-  }
+  if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-'))
+    return invitationValidationContent(page, copy, locale);
   if (page.reason === 'validation') {
     const { profile } = createAdministrationTranslator(locale);
     const values = new Map(page.fields);

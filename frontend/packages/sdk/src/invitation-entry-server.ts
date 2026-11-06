@@ -66,8 +66,9 @@ function success(value: unknown, inspection: boolean, id: string): boolean {
       (value.disposition === 'created' || value.disposition === 'already_member')
     );
   return (
-    text(value.tenantLabel, 200) &&
-    (value.organizationLabel === null || text(value.organizationLabel, 200)) &&
+    // Tenancy accepts control characters in a stored name; the renderer shows one clean line.
+    text(value.tenantLabel, 200, false, true) &&
+    (value.organizationLabel === null || text(value.organizationLabel, 200, false, true)) &&
     identifier(value.roleId) &&
     roles.has(String(value.roleKey) + ':' + String(value.roleScope)) &&
     (value.roleScope === 'Tenant'

@@ -595,3 +595,121 @@ it.each([
   );
   expect(document.querySelector('main > p')?.textContent).toContain(expected);
 });
+
+describe('refused invitation forms are shown again as editable, field-marked forms', () => {
+  const csrfToken = 'A'.repeat(43);
+  const idempotencyKey = 'B'.repeat(43);
+  const role = '019a154b-0000-7000-8000-000000000022.9223372036854775807';
+  const parse = (locale: string, page: Parameters<typeof renderBffDocument>[1]) =>
+    new DOMParser().parseFromString(
+      renderBffDocument({ ...site(), defaultLocale: locale }, page),
+      'text/html',
+    );
+  const described = (document: Document, element: Element) =>
+    (element.getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .map((id) => document.getElementById(id)?.textContent ?? '');
+
+  it.each([
+    ['en', 'ASCII characters only', 'profile'],
+    ['tr', 'yalnızca ASCII karakterler', 'profil'],
+  ])(
+    'keeps the submitted recipient, marks it and ties the error to it in %s',
+    (locale, error, profileWord) => {
+      const document = parse(locale, {
+        kind: 'mutation_error',
+        action: '/api/studio/invitation-create',
+        destination: '/studio/invitations',
+        reason: 'validation',
+        invalidFields: ['email'],
+        retryable: false,
+        fields: [
+          ['csrfToken', csrfToken],
+          ['idempotencyKey', idempotencyKey],
+          ['email', 'a..b@example.com'],
+          ['offeredRole', role],
+        ],
+      });
+      const form = document.querySelector('form[action="/api/studio/invitation-create"]');
+      expect(form).not.toBeNull();
+      const email = form!.querySelector<HTMLInputElement>('input[name="email"]')!;
+      expect(email.value).toBe('a..b@example.com');
+      expect(email.getAttribute('aria-invalid')).toBe('true');
+      expect(email.required).toBe(true);
+      expect(document.querySelector(`label[for="${email.id}"]`)).not.toBeNull();
+      expect(described(document, email).join(' ')).toContain(error);
+      expect(
+        [...form!.querySelectorAll<HTMLInputElement>('input[type="hidden"]')].map((input) => [
+          input.name,
+          input.value,
+        ]),
+      ).toEqual([
+        ['csrfToken', csrfToken],
+        ['idempotencyKey', idempotencyKey],
+        ['offeredRole', role],
+      ]);
+      expect(document.querySelector('[role="alert"]')?.textContent?.toLowerCase()).not.toContain(
+        profileWord,
+      );
+      expect(document.querySelector('textarea')).toBeNull();
+      expect(form!.querySelector('button[type="submit"]')).not.toBeNull();
+    },
+  );
+
+  it('marks the lifetime in days and keeps the policy precondition hidden', () => {
+    const document = parse('en', {
+      kind: 'mutation_error',
+      action: '/api/studio/invitation-policy',
+      destination: '/studio/invitation-policy',
+      reason: 'validation',
+      invalidFields: ['days'],
+      retryable: false,
+      fields: [
+        ['csrfToken', csrfToken],
+        ['idempotencyKey', idempotencyKey],
+        ['presence', 'present'],
+        ['version', '7'],
+        ['days', '31'],
+      ],
+    });
+    const days = document.querySelector<HTMLInputElement>('input[name="days"]')!;
+    expect(days.value).toBe('31');
+    expect([days.min, days.max]).toEqual(['1', '30']);
+    expect(days.getAttribute('aria-invalid')).toBe('true');
+    expect(described(document, days).join(' ')).toContain('whole number from 1 to 30');
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>('input[type="hidden"]')].map(
+        (input) => input.name,
+      ),
+    ).toEqual(['csrfToken', 'idempotencyKey', 'presence', 'version']);
+  });
+
+  it('says plainly when no role was submitted or the action has no editable field', () => {
+    const missing = parse('en', {
+      kind: 'mutation_error',
+      action: '/api/studio/invitation-create',
+      destination: '/studio/invitations',
+      reason: 'validation',
+      invalidFields: ['offeredRole'],
+      retryable: false,
+      fields: [
+        ['csrfToken', csrfToken],
+        ['email', 'person@example.test'],
+        ['offeredRole', ''],
+      ],
+    });
+    expect(missing.querySelector('form')).toBeNull();
+    expect(missing.querySelector('[role="alert"]')?.textContent).toContain('choose a role');
+    const refused = parse('en', {
+      kind: 'mutation_error',
+      action: '/api/studio/invitation-revoke',
+      destination: '/studio/invitations/019a154b-0000-7000-8000-000000000022',
+      reason: 'validation',
+      retryable: false,
+      fields: [['csrfToken', csrfToken]],
+    });
+    expect(refused.querySelector('form')).toBeNull();
+    expect(refused.querySelector('[role="alert"]')?.textContent).toContain('refused as invalid');
+    expect(refused.body.textContent).not.toContain('marked');
+  });
+});

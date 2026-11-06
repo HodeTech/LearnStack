@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { isInvitationEmail } from '@learnstack/sdk/administration-server';
 import { describe, expect, it } from 'vitest';
 
 import { bffAdministrationForm, BffInvitationInputError } from './http-forms';
@@ -54,6 +55,50 @@ describe('strict invitation administration form input', () => {
         new URLSearchParams({ ...common, presence: 'absent', days: '31' }),
       ),
     ).toThrow(BffInvitationInputError);
+  });
+  it('refuses before sending exactly what the SDK and API mailbox grammar refuse', () => {
+    const accepted = [
+      'person@example.test',
+      "O'Name+tag@School.Example",
+      'a.b-c_d@learn-stack.local',
+      'x@y',
+      'a'.repeat(64) + '@example.test',
+    ];
+    const refused = [
+      'a..b@example.com',
+      '.a@example.com',
+      'a.@example.com',
+      'a@@example.com',
+      'a@example..com',
+      'a@-example.com',
+      'a b@example.com',
+      'ü@example.com',
+      'person@exämple.test',
+      'a'.repeat(65) + '@example.test',
+      'a@' + 'b'.repeat(250) + '.test',
+      'no-at-sign',
+      '@example.test',
+      'person@',
+    ];
+    for (const email of [...accepted, ...refused]) {
+      const attempt = () =>
+        bffAdministrationForm(
+          '/api/studio/invitation-create',
+          new URLSearchParams({ ...create, email }),
+        );
+      expect(isInvitationEmail(email), email).toBe(accepted.includes(email));
+      if (accepted.includes(email))
+        expect(attempt(), email).toMatchObject({ operation: { kind: 'createInvitation' } });
+      else {
+        try {
+          attempt();
+          throw new Error('Expected ' + email + ' to be refused');
+        } catch (error) {
+          expect(error, email).toBeInstanceOf(BffInvitationInputError);
+          expect((error as BffInvitationInputError).invalidFields).toEqual(['email']);
+        }
+      }
+    }
   });
   it.each(['revoke', 'reissue'])('binds %s to an exact UUID and strong version', (action) => {
     expect(

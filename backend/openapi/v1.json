@@ -4602,7 +4602,8 @@
         },
         "security": [
           {
-            "TenantBearer": []
+            "TenantBearer": [],
+            "NativeSessionSource": []
           }
         ],
         "x-version-introduced": "v1"
@@ -4908,7 +4909,8 @@
         },
         "security": [
           {
-            "TenantBearer": []
+            "TenantBearer": [],
+            "NativeSessionSource": []
           }
         ],
         "x-version-introduced": "v1"
@@ -5201,7 +5203,8 @@
         },
         "security": [
           {
-            "TenantBearer": []
+            "TenantBearer": [],
+            "NativeSessionSource": []
           }
         ],
         "x-version-introduced": "v1"

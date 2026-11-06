@@ -1,4 +1,4 @@
-import type { GrantInput } from '@learnstack/sdk/administration-server';
+import { isInvitationEmail, type GrantInput } from '@learnstack/sdk/administration-server';
 
 import { BffInputError } from './input-error.js';
 import type { NativeScope } from './native-contract.js';
@@ -196,13 +196,8 @@ export function bffAdministrationForm(
       throw new BffInputError();
     const offeredRole = required(fields, 'offeredRole');
     const invalid: ('email' | 'offeredRole')[] = [];
-    if (
-      !email ||
-      email.length > 254 ||
-      !/^[\x21-\x7e]+$/.test(email) ||
-      !/^[^@]+@[^@]+$/.test(email)
-    )
-      invalid.push('email');
+    // The same grammar the SDK and API enforce, so nothing the form accepts is refused after it.
+    if (!isInvitationEmail(email)) invalid.push('email');
     if (!offeredRole) invalid.push('offeredRole');
     if (invalid.length) throw new BffInvitationInputError(Object.freeze(invalid));
     const choice = offeredRole.split('.');

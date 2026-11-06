@@ -17,6 +17,35 @@ public sealed class InvitationDomainTests
     private static readonly UserId Invitee = UserId.From(Guid.CreateVersion7());
 
     [Theory]
+    [InlineData("Merkez Sube", "Merkez Sube")]
+    [InlineData("Merkez\nSube", "Merkez Sube")]
+    [InlineData("  Merkez\r\n\t Sube \u0085 ", "Merkez Sube")]
+    [InlineData("\u0001A\u0007\u0007B\u007f", "A B")]
+    public void Display_label_shows_one_clean_line_for_a_name_holding_control_characters(string input, string expected)
+    {
+        InvitationDisplayLabel.TryNormalize(input, out var actual).Should().BeTrue();
+        actual.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("\u0001\u0002")]
+    [InlineData("\n \t")]
+    public void Display_label_refuses_an_empty_or_control_only_name(string? input)
+    {
+        InvitationDisplayLabel.TryNormalize(input, out var actual).Should().BeFalse();
+        actual.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Display_label_keeps_the_stored_length_bound()
+    {
+        InvitationDisplayLabel.TryNormalize(new string('a', InvitationDisplayLabel.MaximumLength), out _).Should().BeTrue();
+        InvitationDisplayLabel.TryNormalize(new string('a', InvitationDisplayLabel.MaximumLength + 1), out _).Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("Person+tag@School.Example", "person+tag@school.example")]
     [InlineData("O'Name@EXAMPLE.COM", "o'name@example.com")]
     [InlineData("a.b-c_d@learn-stack.local", "a.b-c_d@learn-stack.local")]

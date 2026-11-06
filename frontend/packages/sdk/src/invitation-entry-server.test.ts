@@ -189,6 +189,29 @@ describe('closed recipient entry SDK', () => {
       ).toBe('invalid-response');
     },
   );
+  it('accepts a stored tenant or branch name that Tenancy allows to hold control characters', async () => {
+    const body = {
+      ...inspection,
+      roleKey: 'OrgAdmin',
+      roleScope: 'Organization',
+      tenantLabel: 'Merkez\n\u0301Okul',
+      organizationLabel: 'Merkez\r\n\u0007Sube',
+    };
+    const result = await createInvitationEntryServerSdk(async () =>
+      response(body),
+    ).inspectInvitation(input);
+    expect(result.kind).toBe('success');
+    // Names the database cannot store, and malformed text, stay refused.
+    for (const label of ['Bad\u0000name', '\ud800', ' \n ', 'x'.repeat(201)]) {
+      expect(
+        (
+          await createInvitationEntryServerSdk(async () =>
+            response({ ...body, tenantLabel: label }),
+          ).inspectInvitation(input)
+        ).kind,
+      ).toBe('invalid-response');
+    }
+  });
   it.each(['email', 'role', 'organization', 'session'])(
     'refuses an inspection outside the exact recipient DTO: %s',
     async (mutation) => {

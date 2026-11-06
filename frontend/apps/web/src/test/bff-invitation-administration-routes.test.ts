@@ -280,15 +280,26 @@ describe('native invitation administrator HTTP and actual SDK dispatch', () => {
       expect(response.status).toBe(400);
       const rendered = await document(response);
       expect(rendered.querySelector('[role="alert"]')).not.toBeNull();
-      expect(rendered.querySelector('form')).toBeNull();
-      expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-email')?.value).toBe(
-        invalidEmail,
-      );
-      expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-email')?.readOnly).toBe(
-        true,
-      );
+      // The refused form comes back editable, the value kept and the field marked.
+      const form = rendered.querySelector(`form[action="${createPath}"]`);
+      expect(form).not.toBeNull();
+      const field = form!.querySelector<HTMLInputElement>('input[name="email"]');
+      expect(field?.value).toBe(invalidEmail);
+      expect(field?.getAttribute('aria-invalid')).toBe('true');
+      expect(field?.required).toBe(true);
+      expect(rendered.querySelector('textarea')).toBeNull();
       expect(rendered.querySelector('unsafe')).toBeNull();
       expect(rendered.querySelector('a[href="/studio/invitations"]')).not.toBeNull();
+      // The chosen role and proof travel hidden; the idempotency key is a fresh one, never the refused request's.
+      const hidden = Object.fromEntries(
+        [...form!.querySelectorAll<HTMLInputElement>('input[type="hidden"]')].map((input) => [
+          input.name,
+          input.value,
+        ]),
+      );
+      expect(Object.keys(hidden).sort()).toEqual(['csrfToken', 'idempotencyKey', 'offeredRole']);
+      expect(hidden.offeredRole).toBe(f.create.offeredRole);
+      expect(hidden.idempotencyKey).not.toBe(key);
       expect(f.transport).not.toHaveBeenCalled();
     },
   );
@@ -303,13 +314,18 @@ describe('native invitation administrator HTTP and actual SDK dispatch', () => {
     expect(response.status).toBe(400);
     const rendered = await document(response);
     expect(rendered.querySelector('[role="alert"]')).not.toBeNull();
-    expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-days')?.value).toBe('31');
-    expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-days')?.readOnly).toBe(true);
-    expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-presence')?.value).toContain(
-      'default lifetime is 14 days',
-    );
+    const days = rendered.querySelector<HTMLInputElement>('input[name="days"]');
+    expect(days?.value).toBe('31');
+    expect(days?.getAttribute('aria-invalid')).toBe('true');
+    expect(rendered.querySelector('textarea')).toBeNull();
+    // The stored-or-default precondition is carried as submitted, never rewritten.
     expect(
-      rendered.querySelector('form, input[name="displayName"], select[name="preferredLocale"]'),
+      rendered
+        .querySelector('form[action="/api/studio/invitation-policy"] input[name="presence"]')
+        ?.getAttribute('value'),
+    ).toBe('absent');
+    expect(
+      rendered.querySelector('input[name="displayName"], select[name="preferredLocale"]'),
     ).toBeNull();
     expect(rendered.querySelector('a[href="/studio/invitation-policy"]')).not.toBeNull();
     expect(f.transport).not.toHaveBeenCalled();

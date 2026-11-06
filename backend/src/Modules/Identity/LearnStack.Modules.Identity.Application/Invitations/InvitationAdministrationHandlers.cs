@@ -117,11 +117,14 @@ public sealed class InvitationAdministrationHandlers(IInvitationAdministrationSt
             return Fail<Page<InvitationDto>>("lockey_validation_failed");
         var rows = await store.ListAsync(after, request.Limit + 1, cancellationToken);
         var items = new List<InvitationDto>();
+        var page = rows.Take(request.Limit).ToList();
         using var pageBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         pageBudget.CancelAfter(TimeSpan.FromSeconds(5));
         try
         {
-            foreach (var row in rows.Take(request.Limit)) items.Add(await ProjectAsync(row, pageBudget.Token));
+            // One statement for the whole page: a statement per row multiplied database latency by the page size.
+            var delivery = await status.ReadManyAsync(page.Select(row => row.CurrentDeliveryJobId).ToArray(), pageBudget.Token);
+            foreach (var row in page) items.Add(Project(row, delivery[row.CurrentDeliveryJobId]));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && pageBudget.IsCancellationRequested)
         { unit.MarkRollbackOnly(); throw new InfrastructureException("Invitation page delivery status unavailable."); }
@@ -137,7 +140,7 @@ public sealed class InvitationAdministrationHandlers(IInvitationAdministrationSt
         if (!ValidId(request.InvitationId)) return Fail<InvitationDto>("lockey_validation_failed");
         var target = await store.ReadAsync(InvitationId.From(request.InvitationId), cancellationToken);
         if (target is null) return Fail<InvitationDto>("lockey_not_found");
-        var result = await ProjectAsync(target, cancellationToken);
+        var result = Project(target, await status.ReadAsync(target.CurrentDeliveryJobId, cancellationToken));
         var check = await authorization.RecheckAsync(request, admission.Value, cancellationToken);
         if (check.IsFailure) return Result<InvitationDto>.Fail(check.Error);
         subject.Designate(target); return Result.Ok(result);
@@ -169,10 +172,10 @@ public sealed class InvitationAdministrationHandlers(IInvitationAdministrationSt
         if (target is null) return Fail<None>("lockey_not_found");
         subject.Designate(target); return Result.Ok(None.Value);
     }
-    private async Task<InvitationDto> ProjectAsync(Invitation target, CancellationToken cancellationToken) => new(target.Id.Value,
+    private InvitationDto Project(Invitation target, InvitationEmailDeliveryStatus delivery) => new(target.Id.Value,
         target.RecipientEmail, target.OrganizationId, target.RoleId.Value, target.PinnedRoleVersion,
         target.IsExpired(clock.UtcNow) ? "Expired" : target.Status.ToString(), target.ExpiresAt, target.Version,
-        (await status.ReadAsync(target.CurrentDeliveryJobId, cancellationToken)).ToString(),
+        delivery.ToString(),
         target.AcceptanceDisposition switch
         {
             InvitationAcceptanceDisposition.Created => "created",

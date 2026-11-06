@@ -35,6 +35,9 @@ public sealed partial class OpenApiContractTests
             dirty["paths"]![path]!["post"]!["parameters"] = new JsonArray(new JsonObject { ["name"] = "Idempotency-Key", ["in"] = "header" });
             InvitationEntryContractErrors(dirty).Should().Contain("entry-headers");
             dirty = clean.DeepClone();
+            dirty["paths"]![path]!["post"]!["security"]![0]!.AsObject().Remove("NativeSessionSource");
+            InvitationEntryContractErrors(dirty).Should().Contain("entry-security");
+            dirty = clean.DeepClone();
             dirty["paths"]![path]!["post"]!["responses"]!["200"]!["headers"]!["Location"] = new JsonObject();
             InvitationEntryContractErrors(dirty).Should().Contain("entry-success");
         }
@@ -47,6 +50,9 @@ public sealed partial class OpenApiContractTests
             if (document["paths"]?[path] is not JsonObject methods || methods.Count != 1 || methods["post"] is not JsonObject operation)
             { errors.Add("entry-operations"); continue; }
             if (operation["operationId"]?.GetValue<string>() != name || operation["security"]?[0]?["TenantBearer"] is not JsonArray { Count: 0 }) errors.Add("entry-operations");
+            // The runtime also requires the native source credential in the same requirement; the document must say so.
+            if (operation["security"] is not JsonArray { Count: 1 } security || security[0] is not JsonObject requirement || requirement.Count != 2
+                || requirement["NativeSessionSource"] is not JsonArray { Count: 0 }) errors.Add("entry-security");
             if (operation["requestBody"]?["required"]?.GetValue<bool>() != true || operation["requestBody"]?["content"]?["application/json"]?["schema"]?["$ref"]?.GetValue<string>() != "#/components/schemas/InvitationEntryInput") errors.Add("entry-body");
             var parameters = operation["parameters"]?.AsArray() ?? [];
             if (name == "AcceptInvitation" ? parameters.Count != 1 || parameters[0]?["name"]?.GetValue<string>() != "If-Match"

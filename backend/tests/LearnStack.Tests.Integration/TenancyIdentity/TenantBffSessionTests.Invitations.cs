@@ -64,6 +64,7 @@ public sealed partial class TenantBffSessionTests
         var credential = await inviter.RedeemAsync(authorized);
         credential.StatusCode.Should().Be(HttpStatusCode.OK);
         var mail = await CreateAndDeliverInvitationAsync(database, api, provider, tenant, credential.AccessToken, secret, nativeSecret, email);
+        await AssertListedDeliveryStatusMatchesDetailAsync(api, tenant, credential.AccessToken, secret, nativeSecret, mail.InvitationId);
         await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(), NativeConfiguration(provider, database, api, secret, nativeSecret));
         if (registration) await native.InvitationBrowserAsync(host, mail.Code);
         using var browser = provider.Browser();
@@ -303,6 +304,29 @@ public sealed partial class TenantBffSessionTests
         if (link.GetLeftPart(UriPartial.Authority) != "https://" + tenant.Host + ":3000" || link.Query.Length != 0 || link.Fragment.Length != 81)
             throw new InvalidOperationException("Invitation email lacks its exact native fragment landing.");
         return (id.ToString("D"), link.Fragment[1..]);
+    }
+
+    /// <summary>
+    /// The page reads every row's delivery status in one statement and the detail reads one; against the real
+    /// database both must classify the same job the same way, and a delivered job is never Unavailable.
+    /// </summary>
+    private static async Task AssertListedDeliveryStatusMatchesDetailAsync(ApiHost api, SeedTenant tenant, string credential,
+        string secret, string nativeSecret, string invitationId)
+    {
+        using var detail = await InvitationAdminRequestAsync(api, tenant, credential, secret, nativeSecret,
+            HttpMethod.Get, "/api/v1/identity/invitations/" + invitationId);
+        detail.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var detailBody = await JsonDocument.ParseAsync(await detail.Content.ReadAsStreamAsync());
+        var single = detailBody.RootElement.GetProperty("deliveryStatus").GetString();
+        using var list = await InvitationAdminRequestAsync(api, tenant, credential, secret, nativeSecret,
+            HttpMethod.Get, "/api/v1/identity/invitations?limit=100");
+        list.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var listBody = await JsonDocument.ParseAsync(await list.Content.ReadAsStreamAsync());
+        var row = listBody.RootElement.GetProperty("items").EnumerateArray()
+            .Single(item => item.GetProperty("invitationId").GetString() == invitationId);
+        var batched = row.GetProperty("deliveryStatus").GetString();
+        batched.Should().Be(single, "one statement for the page classifies each job exactly as the single read does");
+        batched.Should().Be("SubmissionAccepted", "the real provider has accepted this invitation's message");
     }
 
     private static async Task<HttpResponseMessage> InvitationAdminRequestAsync(ApiHost api, SeedTenant tenant, string credential,

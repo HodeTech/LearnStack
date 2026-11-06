@@ -29,7 +29,7 @@ public sealed class InvitationAdministrationBoundaryTests
         {
             var types = modules.SelectMany(module => module.Types.SelectMany(Flatten)).ToArray();
             Offenders(types).Should().BeEmpty("Fix: create/reissue use the actual stager, and only current authorized List/Get roots read exact-job status");
-            foreach (var (port, method) in new[] { (Stager, "StageAsync"), (Status, "ReadAsync") })
+            foreach (var (port, method) in new[] { (Stager, "StageAsync"), (Status, "ReadAsync"), (Status, "ReadManyAsync") })
             {
                 var site = Sites(types, port, method).Single();
                 var opcode = site.Instruction.OpCode;
@@ -55,7 +55,7 @@ public sealed class InvitationAdministrationBoundaryTests
                 try { Offenders(types).Should().NotBeEmpty("the real IRequestHandler root must remain present"); }
                 finally { handler.Interfaces.Add(contract); }
             }
-            foreach (var site in Sites(types, Handler, "MutateAsync").Concat(Sites(types, Handler, "ProjectAsync")).ToArray())
+            foreach (var site in Sites(types, Handler, "MutateAsync").Concat(Sites(types, Handler, "Project")).ToArray())
             {
                 var opcode = site.Instruction.OpCode;
                 site.Instruction.OpCode = OpCodes.Nop;
@@ -90,6 +90,16 @@ public sealed class InvitationAdministrationBoundaryTests
             dirty.Should().NotBe(handlers);
             SourceIsBound(staging, dirty).Should().BeFalse("the status selector is the loaded root's actual current job, never a supplied or substitute ID");
         }
+        // The page read is bound the same way: only the loaded rows' own current jobs, once, with the page budget.
+        foreach (var replacement in new[] { "row => default", "row => row.Id", "_ => Guid.Empty" })
+        {
+            var dirty = handlers.Replace("row => row.CurrentDeliveryJobId", replacement, StringComparison.Ordinal);
+            dirty.Should().NotBe(handlers);
+            SourceIsBound(staging, dirty).Should().BeFalse("the page selectors are the loaded rows' actual current jobs, never supplied or substitute IDs");
+        }
+        var unbudgeted = handlers.Replace("ToArray(), pageBudget.Token)", "ToArray(), cancellationToken)", StringComparison.Ordinal);
+        unbudgeted.Should().NotBe(handlers);
+        SourceIsBound(staging, unbudgeted).Should().BeFalse("the page status read keeps its own finite budget");
     }
 
     private static string[] Offenders(TypeDefinition[] types)
@@ -110,9 +120,10 @@ public sealed class InvitationAdministrationBoundaryTests
             if (roots.Length != 1 || roots[0].FullName != Handler) errors.Add("Exact invitation root missing or expanded: " + request);
         }
         Check(Stager, "StageAsync", [Handler + "::MutateAsync(System.Object)"], OpCodes.Callvirt);
-        Check(Status, "ReadAsync", [Handler + "::ProjectAsync(LearnStack.Modules.Identity.Domain.Invitation)"], OpCodes.Callvirt);
+        Check(Status, "ReadAsync", [Root(Get)], OpCodes.Callvirt);
+        Check(Status, "ReadManyAsync", [Root(List)], OpCodes.Callvirt);
         Check(Handler, "MutateAsync", [Root(Create), Root(Reissue), Root(Revoke)], OpCodes.Call);
-        Check(Handler, "ProjectAsync", [Root(List), Root(Get)], OpCodes.Call);
+        Check(Handler, "Project", [Root(List), Root(Get)], OpCodes.Call);
         return errors.ToArray();
 
         static string Root(string request) => Handler + "::Handle(" + request + ")";
@@ -152,6 +163,9 @@ public sealed class InvitationAdministrationBoundaryTests
         var assembly = stager.DescendantNodes().OfType<BinaryExpressionSyntax>().Where(expression => expression.IsKind(SyntaxKind.NotEqualsExpression)
             && expression.Left.ToString() == "origin.OperationType.Assembly" && expression.Right.ToString() == "typeof(InvitationEmailParameters).Assembly").ToArray();
         var reads = owner.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call => call.Expression.ToString() == "status.ReadAsync").ToArray();
+        var pageReads = owner.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call => call.Expression.ToString() == "status.ReadManyAsync").ToArray();
+        static string HandledRequest(SyntaxNode node) => node.Ancestors().OfType<MethodDeclarationSyntax>().First()
+            .ParameterList.Parameters[0].Type!.ToString();
         var capture = stager.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call => call.Expression.ToString() == "producer.CaptureJobOrigin").ToArray();
         var recheck = stager.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call => call.Expression.ToString() == "producer.RequireJobOrigin").ToArray();
         return whitelist.Length == 1 && SyntaxFactory.AreEquivalent(whitelist[0], SyntaxFactory.ParseExpression(
@@ -160,7 +174,13 @@ public sealed class InvitationAdministrationBoundaryTests
             && SyntaxFactory.AreEquivalent(capture[0], SyntaxFactory.ParseExpression("producer.CaptureJobOrigin(unit)"))
             && SyntaxFactory.AreEquivalent(recheck[0], SyntaxFactory.ParseExpression("producer.RequireJobOrigin(origin, unit)"))
             && reads.Length == 1
-            && reads[0].Ancestors().OfType<MethodDeclarationSyntax>().First().Identifier.ValueText == "ProjectAsync"
-            && SyntaxFactory.AreEquivalent(reads[0], SyntaxFactory.ParseExpression("status.ReadAsync(target.CurrentDeliveryJobId, cancellationToken)"));
+            && reads[0].Ancestors().OfType<MethodDeclarationSyntax>().First().Identifier.ValueText == "Handle"
+            && HandledRequest(reads[0]) == "GetInvitationQuery"
+            && SyntaxFactory.AreEquivalent(reads[0], SyntaxFactory.ParseExpression("status.ReadAsync(target.CurrentDeliveryJobId, cancellationToken)"))
+            && pageReads.Length == 1
+            && pageReads[0].Ancestors().OfType<MethodDeclarationSyntax>().First().Identifier.ValueText == "Handle"
+            && HandledRequest(pageReads[0]) == "ListInvitationsQuery"
+            && SyntaxFactory.AreEquivalent(pageReads[0], SyntaxFactory.ParseExpression(
+                "status.ReadManyAsync(page.Select(row => row.CurrentDeliveryJobId).ToArray(), pageBudget.Token)"));
     }
 }

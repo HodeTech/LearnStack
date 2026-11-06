@@ -74,12 +74,32 @@ describe('native invitation documents and complete authored copy', () => {
     expect(document.querySelector('noscript')?.textContent).toContain('/invitations');
     expect(document.querySelector('main')?.lang).toBe('tr');
     expect(document.documentElement.lang).toBe('tr-TR');
-    expect(document.querySelector('[aria-describedby]')?.getAttribute('aria-describedby')).toBe(
+    // The hidden error is a description only once it is shown, so a clean landing has none.
+    expect(document.querySelector('[aria-describedby]')).toBeNull();
+    expect(document.querySelector('#invitation-invalid')?.hasAttribute('hidden')).toBe(true);
+    const invalid = parse(render({ kind: 'landing', locale: 'en', csrfToken, invalid: true }));
+    expect(invalid.querySelector('#invitation-code')?.getAttribute('aria-describedby')).toBe(
       'invitation-invalid',
     );
+    expect(invalid.querySelector('#invitation-code')?.getAttribute('aria-invalid')).toBe('true');
+    expect(invalid.querySelector('#invitation-invalid')?.hasAttribute('hidden')).toBe(false);
     expect(
       document.querySelector('script[src],link[rel=preload],link[rel=prefetch],img,iframe'),
     ).toBeNull();
+  });
+
+  it('refuses to render a landing form whose CSRF proof is not the exact opaque token', () => {
+    for (const token of [
+      '',
+      'short',
+      'c'.repeat(42),
+      'c'.repeat(44),
+      'c'.repeat(42) + '"',
+      undefined,
+    ])
+      expect(() =>
+        render({ kind: 'landing', locale: 'en', csrfToken: token } as unknown as InvitationPage),
+      ).toThrow('Invitation response unavailable');
   });
 
   it.each([
@@ -133,6 +153,24 @@ describe('native invitation documents and complete authored copy', () => {
     ).toHaveLength(0);
     expect(document.body.textContent).toContain(en.confirm.offered_role);
     expect(html).not.toContain(inspection.roleId);
+  });
+
+  it('shows a stored name that holds line breaks as one escaped line', () => {
+    const html = render(
+      page({
+        state: 'ready',
+        inspection: {
+          ...inspection,
+          tenantLabel: 'Merkez\n<b>Okul</b>\r\n',
+          organizationLabel: '\u0001Sube\t&\u0085Birim',
+        },
+      }),
+    );
+    const values = [...parse(html).querySelectorAll('dd bdi')].map((node) => node.textContent);
+    expect(values).toContain('Merkez <b>Okul</b>');
+    expect(values).toContain('Sube & Birim');
+    expect(html).toContain('Merkez &lt;b&gt;Okul&lt;/b&gt;');
+    expect(parse(html).body.querySelector('b')).toBeNull();
   });
 
   it('keeps login and bootstrap on their existing explicit native routes with separate proofs', () => {
@@ -253,6 +291,11 @@ describe('actual inline invitation fragment and history source', () => {
       expect(fixture.input.value).toBe('');
       expect(fixture.invalid.hidden).toBe(false);
       expect(fixture.input.setAttribute).toHaveBeenCalledWith('aria-invalid', 'true');
+      // The error becomes the field's description only now that it is shown.
+      expect(fixture.input.setAttribute).toHaveBeenCalledWith(
+        'aria-describedby',
+        'invitation-invalid',
+      );
     },
   );
 

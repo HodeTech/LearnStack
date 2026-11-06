@@ -21,7 +21,7 @@ const proof = (value: unknown): value is string =>
 
 // This is the first script and precedes all UI, styles and other script execution.
 // Only the bounded fragment is copied. Scrubbing happens before parsing or reporting.
-export const INVITATION_LANDING_SCRIPT = `(()=>{let code=location.hash.length===81?location.hash.slice(1):'';const had=location.hash!=='';try{history.replaceState(null,'','/invitations')}catch{code='';location.replace('/invitations');return}let leaving=false;addEventListener('pagehide',()=>{leaving=true;code='';const input=document.getElementById('invitation-code');if(input)input.value='';document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving){document.documentElement.style.visibility='hidden';location.replace('/invitations')}});addEventListener('DOMContentLoaded',()=>{if(!had)return;const form=document.getElementById('invitation-capture');const input=document.getElementById('invitation-code');const error=document.getElementById('invitation-invalid');if(!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(code)){code='';if(error)error.hidden=false;if(input){input.setAttribute('aria-invalid','true');input.focus()}return}try{input.value=code;code='';HTMLFormElement.prototype.submit.call(form)}catch{if(error)error.hidden=false}finally{code='';if(input)input.value=''}})})();`;
+export const INVITATION_LANDING_SCRIPT = `(()=>{let code=location.hash.length===81?location.hash.slice(1):'';const had=location.hash!=='';try{history.replaceState(null,'','/invitations')}catch{code='';location.replace('/invitations');return}let leaving=false;addEventListener('pagehide',()=>{leaving=true;code='';const input=document.getElementById('invitation-code');if(input)input.value='';document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving){document.documentElement.style.visibility='hidden';location.replace('/invitations')}});addEventListener('DOMContentLoaded',()=>{if(!had)return;const form=document.getElementById('invitation-capture');const input=document.getElementById('invitation-code');const error=document.getElementById('invitation-invalid');if(!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(code)){code='';if(error)error.hidden=false;if(input){input.setAttribute('aria-invalid','true');input.setAttribute('aria-describedby','invitation-invalid');input.focus()}return}try{input.value=code;code='';HTMLFormElement.prototype.submit.call(form)}catch{if(error)error.hidden=false;if(input)input.setAttribute('aria-describedby','invitation-invalid')}finally{code='';if(input)input.value=''}})})();`;
 
 export const INVITATION_CONFIRM_SCRIPT = `(()=>{try{history.replaceState(null,'','/invitations/confirm')}catch{document.documentElement.style.visibility='hidden';location.replace('/invitations/confirm');return}let leaving=false;addEventListener('pagehide',()=>{leaving=true;document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving){document.documentElement.style.visibility='hidden';location.replace('/invitations/confirm')}})})();`;
 
@@ -70,7 +70,24 @@ function confirmation(
       };
       const row = (label: string, value: string) =>
         `<dt>${escape(label)}</dt><dd><bdi>${escape(value)}</bdi></dd>`;
-      return `<p>${escape(invitation('confirm.ready'))}</p><dl>${row(invitation('confirm.email'), offer.verifiedEmail)}${row(invitation('confirm.institution'), offer.tenantLabel)}${row(invitation('confirm.branch'), offer.organizationLabel ?? invitation('confirm.tenant_scope'))}${row(invitation('confirm.offered_role'), roles[offer.roleKey])}${row(invitation('confirm.expires'), new Intl.DateTimeFormat(page.locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(offer.expiresAt)) + ' UTC')}</dl>${action('accept', invitation('confirm.accept'), hidden('version', offer.version))}${inspect()}${signout()}`;
+      // A stored name may carry line breaks or other controls; show one clean line.
+      const line = (value: string) => {
+        let shown = '';
+        let gap = false;
+        for (const character of value) {
+          const code = character.codePointAt(0)!;
+          if (code < 32 || (code >= 127 && code <= 159)) {
+            gap = true;
+            continue;
+          }
+          // A run of controls becomes one space, and only where no space already separates the text.
+          if (gap && shown !== '' && !shown.endsWith(' ') && character !== ' ') shown += ' ';
+          gap = false;
+          shown += character;
+        }
+        return shown.trim();
+      };
+      return `<p>${escape(invitation('confirm.ready'))}</p><dl>${row(invitation('confirm.email'), offer.verifiedEmail)}${row(invitation('confirm.institution'), line(offer.tenantLabel))}${row(invitation('confirm.branch'), offer.organizationLabel === null ? invitation('confirm.tenant_scope') : line(offer.organizationLabel))}${row(invitation('confirm.offered_role'), roles[offer.roleKey])}${row(invitation('confirm.expires'), new Intl.DateTimeFormat(page.locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(offer.expiresAt)) + ' UTC')}</dl>${action('accept', invitation('confirm.accept'), hidden('version', offer.version))}${inspect()}${signout()}`;
     }
     case 'accepted':
       if (page.disposition !== 'created' && page.disposition !== 'already_member')
@@ -100,8 +117,9 @@ export function createInvitationRenderer(catalogues: InvitationCatalogues) {
     };
     const direction = info.getTextInfo?.().direction === 'rtl' ? 'rtl' : 'ltr';
     const landing = page.kind === 'landing';
+    if (landing && !proof(page.csrfToken)) throw new Error('Invitation response unavailable');
     const content = landing
-      ? `<p>${escape(invitation('landing.description'))}</p><p id="invitation-invalid" role="alert"${page.invalid ? '' : ' hidden'}>${escape(invitation('landing.invalid'))}</p><form id="invitation-capture" action="/api/auth/invitation/capture" method="post">${hidden('csrfToken', page.csrfToken)}<label for="invitation-code">${escape(invitation('landing.code_label'))} (${escape(invitation('common.required'))})</label><input id="invitation-code" name="code" type="text" required aria-required="true" maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="invitation-invalid"${page.invalid ? ' aria-invalid="true"' : ''}><button type="submit">${escape(invitation('landing.continue'))}</button></form><noscript><p>${escape(invitation('landing.no_script'))}</p></noscript>`
+      ? `<p>${escape(invitation('landing.description'))}</p><p id="invitation-invalid" role="alert"${page.invalid ? '' : ' hidden'}>${escape(invitation('landing.invalid'))}</p><form id="invitation-capture" action="/api/auth/invitation/capture" method="post">${hidden('csrfToken', page.csrfToken)}<label for="invitation-code">${escape(invitation('landing.code_label'))} (${escape(invitation('common.required'))})</label><input id="invitation-code" name="code" type="text" required aria-required="true" maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"${page.invalid ? ' aria-invalid="true" aria-describedby="invitation-invalid"' : ''}><button type="submit">${escape(invitation('landing.continue'))}</button></form><noscript><p>${escape(invitation('landing.no_script'))}</p></noscript>`
       : confirmation(page, invitation) +
         form('/api/auth/invitation/cancel', page.csrfToken, invitation('common.cancel'));
     const observation = landing
