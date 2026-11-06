@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { browserFailureDetail } from './admission-browser.mjs';
 import { createPrivateScanner } from './fixture-support.mjs';
 import { createBffShutdownValidator } from './framework-proof-relay.mjs';
-import { assertUnforcedTestChildStop, stopTestChild } from './stop-test-child.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 /** Preserve only the readiness helper's branded, finite observations. */
 export function bffDevToolsFailureStage(error) {
@@ -37,30 +37,42 @@ export function bffDevToolsStalled(error) {
 
 /**
  * Start an owned browser and wait for its DevTools port, replacing a stalled
- * browser at most once.
+ * browser at most twice.
  *
  * Hosted runners occasionally leave a live stock Chromium without a port file for
- * the whole window (observed in several unrelated fixtures; the cause is not
- * established). Browser launch is test tooling, not the behaviour under proof, so
- * one fresh process with a fresh profile is a legitimate infrastructure retry.
- * Only the proven stall signature qualifies, only after the stalled process is
- * stopped without force, and nothing after the DevTools port is ever retried. If
- * the stalled process cannot be stopped cleanly, its own closed failure stands and
- * no replacement starts; if the replacement also fails, that second closed
- * failure is the one reported.
+ * the whole window, and the stalled process has not yet answered SIGTERM when the
+ * fixture stops it. The cause is not established. Hosted evidence only says that
+ * the stalls are not tied to one fact: of three identified ones, two ran in the
+ * shard whose first `google-chrome --version` was the slowest of twelve (9 and 4
+ * seconds against 0-3), and one did not (1 second). Browser launch is test
+ * tooling, not the behaviour under proof, so a fresh process with a fresh profile
+ * is a legitimate infrastructure retry; if the first start was merely cold, the
+ * next one finds a warm page cache.
+ *
+ * Only the proven stall signature qualifies and nothing after the DevTools port is
+ * ever retried. A stalled browser still inside its start-up does not run the loop
+ * that handles SIGTERM, so retiring it may need the group's SIGKILL; that is
+ * accepted because `retire` resolves only once the whole group is confirmed
+ * absent. If a stalled group cannot be confirmed absent, its own closed failure
+ * stands and no replacement starts; if the last replacement also stalls, that last
+ * closed failure is the one reported.
  *
  * `launch(attempt)` must spawn through the fixture owner and return `{ child }`.
  * `wait(launched)` resolves with the port or rejects with the branded readiness
- * failure.
+ * failure. `retire(child)` resolves when the child's group is confirmed absent;
+ * fixtures pass `owner.retireChild` so the final cleanup does not count the
+ * retired browser again.
  */
 export async function startBffBrowser({
   launch,
   wait,
-  attempts = 2,
+  attempts = 3,
   stalled = bffDevToolsStalled,
-  stop = stopTestChild,
+  retire = async (child) => {
+    await stopTestChild(child);
+  },
 }) {
-  assert.ok(Number.isInteger(attempts) && attempts >= 1 && attempts <= 2, 'closed launch bound');
+  assert.ok(Number.isInteger(attempts) && attempts >= 1 && attempts <= 3, 'closed launch bound');
   for (let attempt = 1; ; attempt++) {
     const launched = launch(attempt);
     try {
@@ -68,7 +80,7 @@ export async function startBffBrowser({
     } catch (error) {
       if (attempt >= attempts || !stalled(error)) throw error;
       try {
-        assertUnforcedTestChildStop(launched.child, await stop(launched.child));
+        await retire(launched.child);
       } catch {
         throw error;
       }

@@ -236,7 +236,10 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         var lastStage = "input";
         using var responseBudget = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
-        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" or "entry_browser" or "invitation_browser" ? 90 : phase == "browser_result" ? 150 : 40));
+        // A browser start may be replaced twice after a 20-second DevTools wait each; 150 seconds leave the
+        // observation itself room after the worst accepted start. The fixture's own 4-minute deadline still bounds it.
+        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" ? 90
+            : phase is "entry_browser" or "invitation_browser" or "browser_result" ? 150 : 40));
         try
         {
             for (var count = 0; count < 8; ++count)

@@ -5,9 +5,9 @@ export function bffDevToolsStalled(error: unknown): boolean;
 export function startBffBrowser<T extends { readonly child: ChildProcess }>(options: {
   readonly launch: (attempt: number) => T;
   readonly wait: (launched: T) => Promise<number>;
-  readonly attempts?: 1 | 2;
+  readonly attempts?: 1 | 2 | 3;
   readonly stalled?: (error: unknown) => boolean;
-  readonly stop?: (child: ChildProcess) => Promise<{ readonly forced: boolean }>;
+  readonly retire?: (child: ChildProcess) => Promise<unknown>;
 }): Promise<T & { readonly port: number }>;
 export function bffListenerFailureDetail(error: unknown): Readonly<{
   reason: 'closed' | 'deadline' | 'error' | 'shape';

@@ -262,9 +262,10 @@ try {
         assertActive: () => owner.assertActive(),
         isLive,
         readPort: () => readBrowserDevToolsPort(portFile),
-        timeout: 10_000,
+        timeout: 20_000,
       });
     },
+    retire: (stalled) => owner.retireChild(stalled),
   });
   stage = 'browser-connect';
   browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, {

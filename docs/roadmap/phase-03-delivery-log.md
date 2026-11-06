@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,951 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 2,021 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -387,6 +387,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)](#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06) — 53 lines
   - [P03-4 Step 7 review corrections (2026-11-06)](#p03-4-step-7-review-corrections-2026-11-06) — 58 lines
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
+  - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17733,3 +17734,73 @@ The architecture guard, the classification controls and both real-database nativ
 invitation flows, which now check the listed status against the detail, pass again on
 the corrected source. Complete same-source hosted A/B and original-archive qualification
 remain open.
+
+### P03-4 Step 7 browser-start retirement correction (2026-11-06)
+
+[Hosted run 42238072858, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42238072858)
+binds head `93fd1f59` and finishes with 23 successful jobs, one failed ordinary
+partition, one cancelled Architecture partition and the two aggregates that refuse
+them. The analyzer correction holds: every shard builds, and meta, OpenAPI diff,
+secret scan, frontend and public demo pass. One case fails in the whole run and no
+shard reaches its test window. Two unrelated things are red.
+
+Ordinary 0 fails the invitation-registration case with the closed reason
+`browser-devtools_cleanup_failed` at `bff_native_driver` lines 213 and 287: the
+fixture reports stage `browser-devtools` and then a failed session cleanup. This is
+the Chromium start stall again, and the previous correction never took effect.
+`stopTestChild` sends SIGTERM to the owned group and SIGKILL when the group is still
+present after two seconds, and reports that stop as forced. The correction required an
+unforced stop before replacing a stalled browser, so a stalled browser that did not
+answer SIGTERM got no replacement, and the final disposal counted the same cached
+forced stop as failed cleanup. Its unit control for the refusal encoded the same
+assumption. With real owned processes, the previous code reproduces exactly that pair
+for a start-up that ignores SIGTERM, and the corrected code starts the replacement and
+disposes cleanly.
+
+The stall cause is still not established. In the failing shard even
+`google-chrome --version` took nine seconds where the other eleven shards took zero to
+six. Of the three stalls that can be identified (the two earlier browser/session
+records and this one), two ran in the shard with the slowest of those twelve
+measurements and one, at one second, did not. A cold start may explain some stalls but
+not all, so the correction does not rest on it.
+
+The correction widens the retry and keeps the proof. `retireChild` on the fixture owner
+releases one child once its whole group is confirmed absent, forced or not; `dispose`
+is unchanged and still keeps the tree after a forced stop of any other child.
+`startBffBrowser` retires a stalled browser through it and allows up to two
+replacements, three launches in all, instead of one. Each DevTools wait is 20 seconds
+instead of ten: the helper's maximum, and the window the public-admission fact already
+uses without a stall in any inspected run. Nothing after the DevTools port is retried,
+and a stalled group that cannot be confirmed absent keeps its closed failure. The
+native driver's response budget for the entry and invitation browser phases is 150
+seconds instead of 90, as it already was for the browser/session result; the
+fixtures' 180- and 240-second deadlines and the driver's four-minute deadline are
+unchanged. The passing browser/session fact takes 90.8 seconds on hosted, so the worst
+accepted start (two full waits with their retirements, then a slow third start) ends
+near 155 seconds. This is the infrastructure-flake retry that
+[Testing Standards § Flaky Tests](../standards/06-testing.md#flaky-tests) allows with a
+logged justification, on the same grounds as before: launching the test tool is not the
+behaviour under proof. It supersedes the "without force", "at most once" and
+"ten-second" statements of the
+[previous record](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06),
+which stays as what was believed then.
+
+New controls cover a real owner retiring a start-up that ignores SIGTERM and then
+disposing cleanly, the same owner still failing disposal for an unretired child that
+needed SIGKILL, the three-launch bound and its closure, refusal when retirement cannot
+be confirmed, and the owner's refusal of unowned children and of a closed owner. The
+real invitation-registration fact passes locally in 45 seconds, and in 66 seconds when
+its first browser is replaced by a start-up that ignores SIGTERM (the stand-in ran
+twice, so the replacement ran). The browser/session fact was not run locally because
+port 3000 is held by the maintainer's dev server.
+
+Architecture 5 passes its cases and ends its execution step at 15:09:33. Its evidence
+upload then starts and never ends: the step's own one-minute timeout does not fire,
+GitHub cuts the job at the 45-minute ceiling and no log exists for any step. In the
+four most recent runs every other upload step takes at most two seconds, and no
+repository code runs in that step. This is recorded as a hosted-runner loss, not
+repaired. The shard's evidence is missing, so the aggregates refuse and the run
+cannot count toward qualification.
+
+The stall cause and hosted behaviour of this retry remain unproven. Complete same-source
+hosted A/B and original-archive qualification remain open.

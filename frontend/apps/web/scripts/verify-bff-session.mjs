@@ -268,9 +268,10 @@ async function observeNativeBrowser(host, config, command, privateValues) {
             assertActive: () => owner.assertActive(),
             isLive,
             readPort: () => readBrowserDevToolsPort(portFile),
-            timeout: 10000,
+            timeout: 20_000,
           });
         },
+        retire: (stalled) => owner.retireChild(stalled),
       });
       stage = 'browser-connect';
       browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, {
