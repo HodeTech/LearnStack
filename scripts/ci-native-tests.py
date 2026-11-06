@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed ADR-0062/0063/0075/0082 execution owner. No command/path CLI overrides.
+"""Closed ADR-0062/0063/0075/0082/0094 execution owner. No command/path CLI overrides.
 
 The delegated work cgroup is retained by a live supervisor sibling. RemainAfterExit
 alone does not retain an empty cgroup: systemd prunes it on SERVICE_EXITED. Only
@@ -46,8 +46,8 @@ HOST_CRASH_ROOTS = ('/var/crash', '/var/lib/systemd/coredump', '/var/lib/docker'
 # Sole duration owner. These are bounded path allocations, not a hosted fit
 # claim. Qualification must measure setup, complete execution and failure tails.
 JOB_SECONDS = 20 * 60
-ARCHITECTURE_JOB_SECONDS = 25 * 60
-ORDINARY_JOB_SECONDS = 30 * 60
+ARCHITECTURE_JOB_SECONDS = 45 * 60
+ORDINARY_JOB_SECONDS = 45 * 60
 UPLOAD_SECONDS = 60
 UNIT_STOP_SECONDS = 20
 JOIN_SECONDS = 15

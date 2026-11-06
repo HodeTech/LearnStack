@@ -141,7 +141,7 @@ class AggregateControls(unittest.TestCase):
             (lambda rows: rows[-1].update(steps=['PRIVATE-CANARY']), 'producer_gate_not_successful'),
             (lambda rows: rows[-1]['steps'].pop(), 'producer_gate_not_successful'),
             (lambda rows: rows[-1]['steps'].append(copy.deepcopy(rows[-1]['steps'][0])), 'producer_gate_not_successful'),
-            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:26:02Z'), 'producer_ceiling_exceeded'),
+            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:46:02Z'), 'producer_ceiling_exceeded'),
             (lambda rows: rows[0]['steps'][-1].update(conclusion='cancelled'), 'producer_gate_not_successful'),
             (lambda rows: rows[0]['steps'].pop(), 'producer_gate_not_successful'),
             (lambda rows: (rows[-1]['steps'][0].update(status='in_progress', conclusion=None),
@@ -488,9 +488,10 @@ class AggregateControls(unittest.TestCase):
             self.assertEqual(index + 1, sum(call.args[0][0] == RESULTS.OWNER.DOCKER
                                           for call in command.call_args_list))
             self.assertEqual('', output.getvalue())
-        # This instant exhausted the old ordinary window. Pulls now share the
-        # longer job window, while their 110/55-second caps remain unchanged.
-        for elapsed in (1000, 1260, 1297, 1560, 1596):
+        # 1,597 and 1,800 seconds exhausted the former 1,800 and 1,500 second
+        # windows. Pulls share the 2,700 second window; their 110/55-second caps
+        # remain unchanged.
+        for elapsed in (1000, 1260, 1297, 1560, 1596, 1597, 1800, 2400, 2496):
             with self.fixture_preparation(elapsed=elapsed) as (command, _):
                 self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
                 pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
@@ -506,7 +507,7 @@ class AggregateControls(unittest.TestCase):
             with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images):
                 self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images, 'ordinary-0')
                 self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
-        with self.fixture_preparation(elapsed=1597) as (command, _):
+        with self.fixture_preparation(elapsed=2497) as (command, _):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
             self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
 
@@ -645,9 +646,9 @@ class AggregateControls(unittest.TestCase):
         jobs = self.documents['.github/workflows/ci.yml']['jobs']
         for job_id in RESULTS.JOB_IDS.values():
             expected = {'backend-base': 20, 'backend-native': 20,
-                        'backend-architecture': 25, 'backend-integration-tests': 30}[job_id]
+                        'backend-architecture': 45, 'backend-integration-tests': 45}[job_id]
             self.assertEqual(expected, jobs[job_id]['timeout-minutes'])
-            for minutes in (19, 20, 24, 25, 26, 29, 30, 31):
+            for minutes in (19, 20, 24, 25, 26, 29, 30, 31, 44, 46):
                 if minutes == expected:
                     continue
                 with self.subTest(job=job_id, minutes=minutes):
@@ -704,8 +705,7 @@ class AggregateControls(unittest.TestCase):
             owner = 'native' if mode == 'native-shard' else mode
             with self.subTest(owner=owner), mock.patch.object(RESULTS.OWNER, 'job_seconds',
                     wraps=RESULTS.OWNER.job_seconds) as policy:
-                self.assertEqual((1800 if owner.startswith('ordinary-') else
-                               1500 if owner.startswith('architecture-') else 1200),
+                self.assertEqual((2700 if owner.startswith(('ordinary-', 'architecture-')) else 1200),
                                  RESULTS.producer_seconds(owner, self.plan))
                 policy.assert_called_once_with(mode, job, self.plan['counts'])
         for owner in ('native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',
@@ -722,9 +722,8 @@ class AggregateControls(unittest.TestCase):
         for scope in ('backend', 'integration'):
             clean = self.jobs(scope)
             for index, job in enumerate(clean):
-                ceiling = (1800 if job['name'].startswith('backend ordinary-') else
-                           1500 if job['name'].startswith('backend architecture-') else 1200)
-                for seconds in (1200, 1201, 1499, 1500, 1501, 1799, 1800, 1801):
+                ceiling = (2700 if job['name'].startswith(('backend ordinary-', 'backend architecture-')) else 1200)
+                for seconds in (1200, 1201, 1499, 1500, 1501, 1799, 1800, 1801, 2699, 2700, 2701):
                     with self.subTest(scope=scope, owner=job['name'], seconds=seconds):
                         rows = copy.deepcopy(clean)
                         start = datetime.datetime.fromisoformat(rows[index]['started_at'].removesuffix('Z'))
@@ -738,7 +737,7 @@ class AggregateControls(unittest.TestCase):
     def test_seconds_observations_require_an_explicit_finite_owner_ceiling(self):
         with self.assertRaises(TypeError):
             RESULTS.finite_seconds(1)
-        for ceiling in (1200, 1500, 1800):
+        for ceiling in (1200, 2700):
             for value in (0, 0.5, 1200, ceiling):
                 self.assertTrue(RESULTS.finite_seconds(value, ceiling))
             for value in (ceiling + 0.001, -1, True, False, float('nan'), float('inf'),
@@ -746,9 +745,9 @@ class AggregateControls(unittest.TestCase):
                 with self.subTest(ceiling=ceiling, value=value):
                     self.assertFalse(RESULTS.finite_seconds(value, ceiling))
         self.assertFalse(RESULTS.finite_seconds(1250, 1200))
-        self.assertTrue(RESULTS.finite_seconds(1250, 1500))
-        self.assertFalse(RESULTS.finite_seconds(1550, 1500))
-        self.assertTrue(RESULTS.finite_seconds(1550, 1800))
+        self.assertTrue(RESULTS.finite_seconds(1250, 2700))
+        self.assertFalse(RESULTS.finite_seconds(2750, 2700))
+        self.assertTrue(RESULTS.finite_seconds(1801, 2700))
 
     def test_producer_refusal_retains_only_closed_owner_and_state_diagnostics(self):
         context = self.context()
@@ -969,10 +968,9 @@ class AggregateControls(unittest.TestCase):
                 owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
                 for owner in owners:
                     path = paths[owner]; clean = RESULTS.read_json(path / 'result.json')
-                    ceiling = (1800 if owner.startswith('ordinary-') else
-                               1500 if owner.startswith('architecture-') else 1200)
+                    ceiling = (2700 if owner.startswith(('ordinary-', 'architecture-')) else 1200)
                     for key in keys:
-                        for value in (1200, 1250, 1499, 1500, 1501, 1550, 1799, 1800, 1801, -1, True, False,
+                        for value in (1200, 1250, 1499, 1500, 1501, 1550, 1799, 1800, 1801, 2699, 2700, 2701, -1, True, False,
                                       float('nan'), float('inf'), -float('inf')):
                             with self.subTest(scope=scope, owner=owner, key=key, value=value):
                                 result = {**clean, **dict.fromkeys(keys, 0), key: value}
@@ -1039,14 +1037,13 @@ class AggregateControls(unittest.TestCase):
                 owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
                 for owner in owners:
                     path = paths[owner]; clean = RESULTS.read_json(path / 'measurements.json')
-                    ceiling = (1800 if owner.startswith('ordinary-') else
-                               1500 if owner.startswith('architecture-') else 1200)
+                    ceiling = (2700 if owner.startswith(('ordinary-', 'architecture-')) else 1200)
                     for key in (*phase_keys, 'firstResultSeconds', 'testProcessSeconds'):
                         values = (ceiling + 0.001, -1, True, False, float('nan'), float('inf'), -float('inf'))
                         if ceiling == 1200:
                             values += (1250,)
-                        elif ceiling == 1500:
-                            values += (1550,)
+                        elif ceiling == 2700:
+                            values += (2750,)
                         for value in values:
                             with self.subTest(scope=scope, owner=owner, key=key, value=value):
                                 measured = copy.deepcopy(clean)
