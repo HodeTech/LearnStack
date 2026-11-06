@@ -14,6 +14,9 @@
     { "pattern": "frontend/packages/*" }
   ],
 
+  "// dotnet": "Open the one canonical solution. Without it the C# extension and C# Dev Kit discover every .csproj under the workspace (ignored local evidence under artifacts/ and agent worktrees under .claude/worktrees included, 350+ in all) and warn that more than 100 projects need a solution.",
+  "dotnet.defaultSolution": "backend/LearnStack.slnx",
+
   "// formatter": "Project default is Prettier (frontend) + dotnet-format (backend); avoid auto-formatting C# with Prettier.",
   "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
   "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
