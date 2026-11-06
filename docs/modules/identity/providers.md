@@ -51,7 +51,11 @@ the English fallback, following the
 such as `tr-TR` or `en-US` does not require a separate literal `tr` or `en` tenant
 locale. The frozen tag and enabled content locales are not rewritten by copy
 fallback. Email links use the fixed `/invitations` path, with the code only in
-the fragment; no content-locale prefix selects an invitation route.
+the fragment; no content-locale prefix selects an invitation route. The message
+body also prints the code on its own line, after the clean path, so a recipient
+without JavaScript can paste it into the clean form
+([ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)).
+Only that stored, encrypted message copy and the recipient's own mailbox hold it.
 
 ## Deployment configuration
 

@@ -5752,7 +5752,11 @@ unavailable, never provider messages. A successful missing-job read may return
 Unavailable; an actual SQL failure or private five-second timeout marks the
 shared owner rollback-only and fails the complete sensitive read with 503.
 Caller cancellation retains its meaning. A page shares one five-second status
-budget, clipped by its request deadline, rather than one budget per row.
+budget, clipped by its request deadline, rather than one budget per row. It reads
+its at most 100 loaded rows' own CurrentDeliveryJobId values in one statement
+(`ReadManyAsync`), with the single read's predicate and classifier, instead of one
+statement per row; a job the owner cannot see is Unavailable in either form
+([ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)).
 This supplies visible uncertainty before a
 module finalizer can run. It uses no second owner or external denied-scope access.
 

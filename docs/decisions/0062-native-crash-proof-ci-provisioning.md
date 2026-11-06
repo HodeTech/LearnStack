@@ -377,6 +377,17 @@ passing qualification follows from this compatibility change. This Decision
 stays unchanged. Sources: [GitHub's cloud-host contract](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners#cloud-hosts-used-by-github-hosted-runners)
 and [systemd's VM identifiers](https://www.freedesktop.org/software/systemd/man/250/systemd-detect-virt.html).
 
+### Amendment 5 — Forty-five-minute Architecture and ordinary windows (2026-11-06)
+
+Accepted [ADR-0094](0094-forty-five-minute-backend-execution-windows.md)
+supersedes Amendment 3's twenty-five-minute Architecture and thirty-minute
+ordinary windows with forty-five minutes for both. Base and native execution
+remain twenty minutes. Native provisioning, collector authority and every other
+boundary remain unchanged. This record's body, metadata and earlier rationale
+remain historical. The [Phase 03 record](../roadmap/phase-03-delivery-log.md#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06)
+owns implementation; complete final-source A/B proof is a separate requirement,
+not a consequence of acceptance.
+
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).

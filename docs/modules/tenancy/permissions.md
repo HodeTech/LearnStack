@@ -180,4 +180,3 @@ never direct Tenancy SQL. [Standard 19](../../standards/19-permissions.md#invita
 owns grant adoption semantics and the
 [API standard](../../standards/04-api-design.md#verified-invitation-transport)
 owns exact transport/replay consumers.
-

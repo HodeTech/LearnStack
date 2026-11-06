@@ -8,9 +8,9 @@ Accepted
 **Deciders:** @cemil
 **Bounded supersession:** [ADR-0082](0082-current-source-ci-execution-windows.md)'s
 twenty-five-minute Architecture and thirty-minute ordinary whole-job ceilings,
-and the clauses of ADR-0063 and ADR-0075 they restate. Dated amendments in
-ADR-0063 and ADR-0082 disclose this change; their historical bodies, statuses
-and dates remain intact.
+and the clauses of ADR-0062, ADR-0063 and ADR-0075 they restate. Dated
+amendments in ADR-0062, ADR-0063, ADR-0075 and ADR-0082 disclose this change;
+their historical bodies, statuses and dates remain intact.
 
 The maintainer directs a 45-minute window so that hosted fit stops being a
 recurring cause of failure. Only the two whole-job ceilings and their dependent
@@ -138,6 +138,10 @@ above 2,700; base and native stay at 1,200. The workflow must carry exactly 45
 minutes for the two producers and the former 25/30 values must be refused as
 drift. Individual observations allow the inclusive ceiling; disjoint receipt
 intervals sum strictly below it.
+
+## Amendments
+
+None.
 
 ## References
 

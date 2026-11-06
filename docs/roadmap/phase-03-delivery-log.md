@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,871 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,929 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -384,7 +384,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 15 lines
   - [P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) — 23 lines
   - [P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) — 65 lines
-  - [P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)](#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06) — 52 lines
+  - [P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)](#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06) — 53 lines
+  - [P03-4 Step 7 review corrections (2026-11-06)](#p03-4-step-7-review-corrections-2026-11-06) — 57 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17651,3 +17652,61 @@ cases) after their pins move to 1,200/2,700/2,700 and the boundary values 2,699,
 the new source exists yet. No independent review round has examined this
 correction. Complete same-source hosted A/B and original-archive qualification
 remain open before delivery/merge.
+
+
+### P03-4 Step 7 review corrections (2026-11-06)
+
+Three reviews of PR #41 are read against HEAD, two at `602c57af` and one at `82573d60`.
+Every citation is re-opened; nothing is applied from memory of the review. One review
+compared against the wrong base (916 commits, 2,704 files against the PR's 414), so
+findings in files this PR does not change are not PR defects. `Membership.cs`,
+`Role.cs`, the idempotency store and filter and the public-lesson query handler are
+outside the PR diff and are not evaluated here.
+
+[Hosted run 42216265810](https://github.com/HodeTech/LearnStack/actions/runs/42216265810)
+at `602c57af` passes all eighteen Architecture and ordinary producers: the 45-minute
+window removes the deadline class. Its two red jobs are corrected. The web
+workflow-ceiling control still expected 25 and 30 minutes for the two producers; the
+earlier full web run preceded that workflow change and was not repeated. One base case,
+`A_Rejection_Is_Counted_And_A_Served_Host_Is_Not`, listened to a process-wide counter by
+name, so any concurrent host refusal moves it; its listener is now bound to the fixture
+host's own meter scope, and a control that increments the same name from an unscoped
+meter fails without that scope.
+
+Confirmed and corrected. A stored tenant or branch name may hold control characters
+because Tenancy only requires non-blank text, yet the SDK refused such an inspection and
+the email stager threw, so every create or reissue for that tenant returned 500; both
+now show one clean escaped line. A refused invitation form showed read-only text and
+pointed at profile fields that were not on the page; it is now an editable form with the
+value kept, the field named, the error tied to it and the chosen role carried hidden,
+and the BFF uses the SDK's own mailbox grammar so `a..b@example.com` is refused before
+sending. The three recipient operations required the native source at runtime but not in
+the OpenAPI document; the contract now states both credentials and a control fails
+without the second. The invitation list read each row's delivery status with its own
+statement inside one five-second budget; it now reads the page in one statement, shares
+one classifier with the detail read, and a real-database test requires the listed and
+detailed status to agree. The landing form now has the same CSRF-proof guard as every
+other form, and its hidden error is described to assistive technology only once it is
+shown. `providers.md` now says the message body also prints the code, as ADR-0093
+intends. ADR-0094 named ADR-0062 and ADR-0075 as changed but they carried no dated
+amendment; both do now.
+
+One statement in the browser-start record above is wrong. It cites Testing Standards §
+Flaky Tests as allowing an infrastructure-flake retry with a logged justification. That
+section states no such rule; the nearby sentence belongs to the Phase 06 Playwright
+flows. The replacement of a stalled browser rests on that record's own reasons, not on a
+standard, and stays a maintainer-visible exception.
+
+Not accepted. The SMTP options record already overrides `ToString`. The entry lookup
+already rethrows caller cancellation, and every caller of the privacy check re-raises
+it. The issuer must end with `/realms/learnstack`, so the UserInfo URL cannot gain a
+double slash. The code line in the message is intended by ADR-0093.
+
+Open for the maintainer, unchanged: the reach of `tenancy.setting.write` to built-in
+roles, a send budget for create and reissue, the Keycloak `verifyEmail` and
+changed-email proof, SQL-level reach of the admission token and the SMTP claim function
+with its ADR text, envelope retention, the process-wide fence after a failed SMTP
+cleanup and its readiness signal, authentication failures classified as permanent,
+`executing` shown as unresolved, the independent-review rule for CI-gate changes, status
+records in module documents that the base already carries, the mutation-proven test
+gaps, the stale candidate in the PR description and the PR's size against the bot limit.
