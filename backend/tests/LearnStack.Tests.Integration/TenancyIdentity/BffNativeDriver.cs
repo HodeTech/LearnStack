@@ -30,6 +30,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private int _expectedExit;
     private string? _shutdownDiagnostic;
     private string? _browserObservation;
+    private Exception? _failure;
     private readonly bool _browserCounter;
 
     private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false,
@@ -82,7 +83,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         }
         catch (Exception error) when (Catchable(error))
         {
-            try { await driver.DisposeAsync(); }
+            try { await driver.DisposeStrictAsync(); }
             catch (Exception cleanup) when (Catchable(cleanup))
             {
                 try { secondaryCleanupFailure?.Invoke(); }
@@ -106,7 +107,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         {
             // Always attempt actual disposal. A second cleanup error must not
             // replace the first failure; cleanup-only failure still propagates.
-            try { await driver.DisposeAsync(); }
+            try { await driver.DisposeStrictAsync(); }
             catch (Exception error) when (bodyFailed && Catchable(error))
             {
                 try { secondaryCleanupFailure?.Invoke(); }
@@ -282,6 +283,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             if (_shutdownDiagnostic is not null) failure.Data["BffBrowserShutdown"] = _shutdownDiagnostic;
             if (_browserObservation is not null && CoherentBrowserObservation(_browserObservation, _shutdownDiagnostic, reason))
                 failure.Data["BffBrowserObservation"] = _browserObservation;
+            _failure ??= failure;
             throw failure;
         }
     }
@@ -397,7 +399,24 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         return "unexpected_output";
     }
 
-    public ValueTask DisposeAsync() => new(_disposal ??= DisposeCoreAsync());
+    /// <summary>
+    /// <c>await using</c> replaces the exception already in flight with whatever disposal throws. Once this driver
+    /// has raised a failure, that failure stays authoritative and a cleanup error only marks it; a cleanup error
+    /// with no earlier failure still propagates. <see cref="StartAsync"/> and <see cref="BrowserAsync"/> use the strict
+    /// form because they route cleanup errors to their own observers.
+    /// </summary>
+    public ValueTask DisposeAsync() => new(DisposeKeepingFirstFailureAsync());
+
+    private async Task DisposeKeepingFirstFailureAsync()
+    {
+        try { await DisposeStrictAsync(); }
+        catch (Exception cleanup) when (_failure is not null && Catchable(cleanup))
+        {
+            _failure.Data["BffCleanupFailed"] = true;
+        }
+    }
+
+    private Task DisposeStrictAsync() => _disposal ??= DisposeCoreAsync();
 
     private async Task DisposeCoreAsync()
     {

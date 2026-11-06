@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { browserFailureDetail } from './admission-browser.mjs';
 import { createPrivateScanner } from './fixture-support.mjs';
 import { createBffShutdownValidator } from './framework-proof-relay.mjs';
-import { stopTestChild } from './stop-test-child.mjs';
+import { assertUnforcedTestChildStop, stopTestChild } from './stop-test-child.mjs';
 
 /** Preserve only the readiness helper's branded, finite observations. */
 export function bffDevToolsFailureStage(error) {
@@ -18,6 +18,62 @@ export function bffDevToolsFailureStage(error) {
       [' browser-devtools deadline-malformed', 'browser-devtools-malformed'],
     ]).get(browserFailureDetail(error)) ?? 'browser-devtools'
   );
+}
+
+const stalledDevToolsStages = new Set([
+  'browser-devtools-missing',
+  'browser-devtools-empty',
+  'browser-devtools-malformed',
+]);
+
+/**
+ * A browser that stayed live through the whole readiness window without ever
+ * publishing a usable port file never became controllable. Browser death, owner
+ * closure and unreadable state are different facts and are never "stalls".
+ */
+export function bffDevToolsStalled(error) {
+  return stalledDevToolsStages.has(bffDevToolsFailureStage(error));
+}
+
+/**
+ * Start an owned browser and wait for its DevTools port, replacing a stalled
+ * browser at most once.
+ *
+ * Hosted runners occasionally leave a live stock Chromium without a port file for
+ * the whole window (observed in several unrelated fixtures; the cause is not
+ * established). Browser launch is test tooling, not the behaviour under proof, so
+ * one fresh process with a fresh profile is a legitimate infrastructure retry.
+ * Only the proven stall signature qualifies, only after the stalled process is
+ * stopped without force, and nothing after the DevTools port is ever retried. If
+ * the stalled process cannot be stopped cleanly, its own closed failure stands and
+ * no replacement starts; if the replacement also fails, that second closed
+ * failure is the one reported.
+ *
+ * `launch(attempt)` must spawn through the fixture owner and return `{ child }`.
+ * `wait(launched)` resolves with the port or rejects with the branded readiness
+ * failure.
+ */
+export async function startBffBrowser({
+  launch,
+  wait,
+  attempts = 2,
+  stalled = bffDevToolsStalled,
+  stop = stopTestChild,
+}) {
+  assert.ok(Number.isInteger(attempts) && attempts >= 1 && attempts <= 2, 'closed launch bound');
+  for (let attempt = 1; ; attempt++) {
+    const launched = launch(attempt);
+    try {
+      return { ...launched, port: await wait(launched) };
+    } catch (error) {
+      if (attempt >= attempts || !stalled(error)) throw error;
+      try {
+        assertUnforcedTestChildStop(launched.child, await stop(launched.child));
+      } catch {
+        throw error;
+      }
+    }
+  }
 }
 
 const catalogues = {

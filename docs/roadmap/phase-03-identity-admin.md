@@ -20,7 +20,7 @@
 > Step 7 implementation and both final review rounds are closed
 > ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
 > P03-4's [second correction reviews](phase-03-delivery-log.md#p03-4-step-7-second-correction-review-closeout-2026-11-05) are closed, including the verified diagnostic fix.
-> The [entry-browser diagnostic review closeout](phase-03-delivery-log.md#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) closes both fresh review rounds with no actionable finding; final-source proof remains open.
+> The [hosted browser-start and cleanup-masking correction](phase-03-delivery-log.md#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) is implemented with passing offline controls; independent reviews and final-source proof remain open.
 > Complete same-source hosted A/B and original-archive qualification remain mandatory
 > before delivery/merge; actual source-bound results accompany the PR and its
 > [workflow evidence](https://github.com/HodeTech/LearnStack/actions/workflows/ci.yml?query=branch%3Adevelopment).

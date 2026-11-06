@@ -14,7 +14,12 @@ import {
   withBrowserCleanup,
 } from './admission-browser.mjs';
 import { startBffProof } from './bff-proof-host.mjs';
-import { bffPageKind, createBffCookieScanner, withProofWaiters } from './bff-proof-support.mjs';
+import {
+  bffPageKind,
+  createBffCookieScanner,
+  startBffBrowser,
+  withProofWaiters,
+} from './bff-proof-support.mjs';
 import {
   createFixtureOwner,
   createPrivateScanner,
@@ -190,65 +195,82 @@ async function observeNativeBrowser(host, config, command, privateValues) {
       }),
     )
     .digest('base64');
-  const profile = mkdtempSync(join(root, 'entry-browser-profile-'));
-  const artifacts = join(profile, 'artifacts');
-  mkdirSync(artifacts, { mode: 0o700 });
-  owner.assertActive();
-  stage = 'browser-spawn';
-  const child = owner.ownChild(
-    spawn(
-      executable,
-      [
-        '--headless=new',
-        '--remote-debugging-address=127.0.0.1',
-        '--remote-debugging-port=0',
-        '--user-data-dir=' + profile,
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-background-networking',
-        '--disable-component-update',
-        '--disable-sync',
-        '--disable-breakpad',
-        '--password-store=basic',
-        '--use-mock-keychain',
-        '--no-proxy-server',
-        '--host-resolver-rules=MAP ' + site.host + ' 127.0.0.1:' + host.listenerPort(),
-        '--ignore-certificate-errors-spki-list=' + fingerprint,
-        'about:blank',
-      ],
-      {
-        env: fixtureEnvironment({ root }),
-        detached: process.platform !== 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    ),
-  );
-  const output = createPrivateScanner(privateValues);
-  const cookieOutput = createBffCookieScanner(host.cookieCanaries);
-  host.scanners.push(output, cookieOutput);
-  for (const stream of [child.stdout, child.stderr]) {
-    stream.on('data', (chunk) => {
-      output.push(chunk);
-      cookieOutput.push(chunk);
+  // One launch, or at most one replacement of a browser that stalled before it
+  // published its DevTools port. Each attempt owns a fresh profile inside `root`.
+  let child;
+  const launchBrowser = () => {
+    const profile = mkdtempSync(join(root, 'entry-browser-profile-'));
+    const artifacts = join(profile, 'artifacts');
+    mkdirSync(artifacts, { mode: 0o700 });
+    owner.assertActive();
+    stage = 'browser-spawn';
+    const spawned = owner.ownChild(
+      spawn(
+        executable,
+        [
+          '--headless=new',
+          '--remote-debugging-address=127.0.0.1',
+          '--remote-debugging-port=0',
+          '--user-data-dir=' + profile,
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-background-networking',
+          '--disable-component-update',
+          '--disable-sync',
+          '--disable-breakpad',
+          '--password-store=basic',
+          '--use-mock-keychain',
+          '--no-proxy-server',
+          '--host-resolver-rules=MAP ' + site.host + ' 127.0.0.1:' + host.listenerPort(),
+          '--ignore-certificate-errors-spki-list=' + fingerprint,
+          'about:blank',
+        ],
+        {
+          env: fixtureEnvironment({ root }),
+          detached: process.platform !== 'win32',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      ),
+    );
+    child = spawned;
+    const output = createPrivateScanner(privateValues);
+    const cookieOutput = createBffCookieScanner(host.cookieCanaries);
+    host.scanners.push(output, cookieOutput);
+    for (const stream of [spawned.stdout, spawned.stderr]) {
+      stream.on('data', (chunk) => {
+        output.push(chunk);
+        cookieOutput.push(chunk);
+      });
+      stream.once('end', () => {
+        output.finish();
+        cookieOutput.finish();
+      });
+    }
+    let failed = false;
+    spawned.once('error', () => {
+      failed = true;
     });
-    stream.once('end', () => {
-      output.finish();
-      cookieOutput.finish();
-    });
-  }
-  let failed = false;
-  child.once('error', () => {
-    failed = true;
-  });
+    return {
+      child: spawned,
+      artifacts,
+      portFile: join(profile, 'DevToolsActivePort'),
+      isLive: () => !failed && spawned.exitCode === null && spawned.signalCode === null,
+    };
+  };
   let browser;
   return withBrowserCleanup(
     async () => {
-      stage = 'browser-devtools';
-      const port = await waitForBrowserDevTools({
-        assertActive: () => owner.assertActive(),
-        isLive: () => !failed && child.exitCode === null && child.signalCode === null,
-        readPort: () => readBrowserDevToolsPort(join(profile, 'DevToolsActivePort')),
-        timeout: 10000,
+      const { port, artifacts } = await startBffBrowser({
+        launch: launchBrowser,
+        wait: ({ portFile, isLive }) => {
+          stage = 'browser-devtools';
+          return waitForBrowserDevTools({
+            assertActive: () => owner.assertActive(),
+            isLive,
+            readPort: () => readBrowserDevToolsPort(portFile),
+            timeout: 10000,
+          });
+        },
       });
       stage = 'browser-connect';
       browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, {
@@ -356,7 +378,7 @@ async function observeNativeBrowser(host, config, command, privateValues) {
         failures.push(true);
       }
       try {
-        if ((await stopTestChild(child)).forced) failures.push(true);
+        if (child !== undefined && (await stopTestChild(child)).forced) failures.push(true);
       } catch {
         failures.push(true);
       }

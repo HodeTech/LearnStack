@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,753 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,818 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -382,7 +382,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 32 lines
   - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 34 lines
   - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 15 lines
-  - [P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) — 22 lines
+  - [P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) — 23 lines
+  - [P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) — 64 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17531,3 +17532,68 @@ custody, not a demonstrated original-cause defect. PR #41 remains ready for
 review at the maintainer's request; successful same-source hosted A/B and
 independent original-archive qualification remain open before delivery/merge.
 Manual accessibility acceptance remains valid; user runtime/output is untouched.
+
+
+### P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)
+
+[Hosted run 42123447985, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42123447985)
+binds head `82573d60` and finishes with 24 successful jobs and three failures:
+ordinary 2, ordinary 3 and the integration aggregate they refuse. Every
+Architecture partition passes, so the census repairs hold. Ordinary 2 records
+the browser/session fact at `browser-devtools-missing`; ordinary 3 records the
+invitation-registration fact at `retained_tree`. No other case fails.
+
+Both facts, and the entry-pagination fact, are the cases that start stock
+Chromium, and they recur. Of the seven hosted runs on this PR whose retained
+results were inspected, four contain one: `browser-devtools-missing` in runs
+41977090425 and 42123447985 (it is also the 2026-10-26 record above),
+`retained_tree` in 41957367950 and 42123447985, and an entry-pagination failure
+with no retained reason in 42057464800 attempt 3. The public-admission browser
+fact does not fail in the retained results. Failing and passing observations
+occur on the same runner images and kernel, so neither correlates. Each fact was
+met with a diagnostic and a clean local recheck; none with a change to the
+failing path.
+
+The retained evidence shows what can be said. In ordinary 2 the browser fact
+runs alone from 22:55:12 to 22:55:48 and is the shard's first Chromium. Its
+cleanup ends with the process terminated by a signal and no forced stop, so the
+owned browser was live and responsive but published no port file in ten
+seconds: a stall, not a crash. A probe with the same flags publishes the port in
+about 0.4 seconds locally (Brave on macOS). Why it stalls on hosted runners is
+not established.
+
+`retained_tree` has a mechanism that is established. The invitation facts hold
+the driver in `await using`, and C# replaces the exception in flight with the
+one disposal throws. A control that fails after `ready` and leaves a private
+directory makes the previous driver throw exactly the hosted message in place of
+the fixture's own closed failure. The failure it hid in ordinary 3 cannot be
+recovered from the retained artifacts. The Chromium step is the one thing the
+registration fact has and the existing-identity fact (passing in all six
+observations) lacks, but that is a correlation, not a proof.
+
+The correction changes two things and no budget. `startBffBrowser` replaces a
+browser that stayed live through the readiness window without a usable port file
+(missing, empty or malformed) at most once: the stalled owned group is stopped
+without force, then a fresh process starts on a fresh profile. Browser death,
+owner closure, unreadable state and every failure after the DevTools port stay
+single-shot, and a stall that cannot be stopped cleanly keeps its original closed
+failure. The ten-second window, flags, sandbox, environment and cleanup limits
+are unchanged. This is the infrastructure-flake retry that
+[Testing Standards § Flaky Tests](../standards/06-testing.md#flaky-tests) allows
+only with a logged justification: launching the test tool is not the behaviour
+under proof, and the stall is independent of the product. Both native Chromium
+fixtures use it. Separately, driver disposal keeps the first failure it raised
+and only marks it when cleanup also fails; a cleanup-only failure still throws,
+and `StartAsync`/`BrowserAsync` keep their strict form for their own observers.
+
+Twelve new controls cover the stall predicate, the one-replacement bound, the
+refusals above and an actual owned process group. The full web suite passes 3,753
+cases; typecheck, lint and formatting pass. The disposal control passes and fails
+without the driver change. The real invitation-registration fact passes locally in
+36 seconds, and in 45 seconds when its first Chromium is forced to publish no port:
+the first browser is stopped unforced, a second starts and the private tree is
+removed. The browser/session fact itself was not run locally because port 3000
+is held by the maintainer's running dev server, which is untouched.
+
+The stall cause and hosted behaviour remain unproven. Same-source hosted A/B and
+independent original-archive qualification remain open before delivery/merge.
