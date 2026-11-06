@@ -180,10 +180,16 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
         // because Serilog is wired without writeToProviders, so an ILoggerProvider
         // registered in DI here receives nothing at all.
         var counted = 0L;
+        // The middleware creates its Meter through this host's IMeterFactory, and a
+        // Meter carries that factory as its Scope. Listening by name alone sees every
+        // host in the process, so a refusal from any concurrently running test would
+        // move this count; the scope pins the listener to this fixture's host only.
+        var meterFactory = fixture.Services.GetRequiredService<IMeterFactory>();
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Name == HostClassificationMiddleware.RejectedCounterName)
+            if (instrument.Name == HostClassificationMiddleware.RejectedCounterName
+                && ReferenceEquals(instrument.Meter.Scope, meterFactory))
             {
                 listener.EnableMeasurementEvents(instrument);
             }
@@ -205,6 +211,11 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
 
         meterListener.RecordObservableInstruments();
         Interlocked.Read(ref counted).Should().Be(1, "one refused host, one increment");
+
+        // Control: the same instrument name from another, unscoped host is not counted.
+        using var foreign = new Meter(LoggingTenantAssertionRecorder.MeterName);
+        foreign.CreateCounter<long>(HostClassificationMiddleware.RejectedCounterName).Add(5);
+        Interlocked.Read(ref counted).Should().Be(1, "a refusal by another host is not this host's");
     }
 
     [Fact]

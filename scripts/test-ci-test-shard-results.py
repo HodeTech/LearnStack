@@ -599,6 +599,26 @@ class AggregateControls(unittest.TestCase):
             path.write_text('jobs: {}')
             self.assertEqual({'jobs': {}}, RESULTS.yaml_document(path))
 
+    def test_workflow_reader_allows_a_cold_runner_thirty_seconds_and_still_refuses_a_missing_or_slow_reader(self):
+        # Ordinary 6 once refused at exactly five seconds, before any case ran, because a
+        # cold runner right after the build could not start Ruby in time. The bound is a
+        # parser-availability allowance, not a test deadline.
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'workflow.yml'
+            path.write_text('jobs: {}')
+            real = subprocess.run
+            with mock.patch.object(RESULTS.subprocess, 'run', wraps=real) as run:
+                self.assertEqual({'jobs': {}}, RESULTS.yaml_document(path))
+            self.assertEqual(30, run.call_args.kwargs['timeout'])
+            for failure in (subprocess.TimeoutExpired('ruby', 30), FileNotFoundError('ruby')):
+                with self.subTest(failure=type(failure).__name__), \
+                        mock.patch.object(RESULTS.subprocess, 'run', side_effect=failure):
+                    self.refuses('workflow_parser_unavailable', RESULTS.yaml_document, path)
+            # A reader that fails (non-zero exit) is a refusal of the document, never "unavailable".
+            failed = subprocess.CompletedProcess(['ruby'], 1, stdout=b'', stderr=b'')
+            with mock.patch.object(RESULTS.subprocess, 'run', return_value=failed):
+                self.refuses('workflow_yaml_refused', RESULTS.yaml_document, path)
+
     def test_topology_rejects_wrong_counts_authority_gates_permissions_and_canonical_collisions(self):
         mutations = [
             ('workflow_matrix_invalid', lambda jobs: jobs['backend-architecture']['strategy']['matrix']['index'].pop()),

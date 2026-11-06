@@ -169,8 +169,8 @@ it('preserves every other whole-job ceiling', () => {
     );
   const expected = {
     'backend-base': 20,
-    'backend-architecture': 25,
-    'backend-integration-tests': 30,
+    'backend-architecture': 45,
+    'backend-integration-tests': 45,
     'backend-native': 20,
     backend: 5,
     'backend-integration': 5,
