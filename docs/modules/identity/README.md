@@ -703,10 +703,11 @@ permission cache/session grant cannot replace a fresh check.
 
 Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own
 live delegation, default deny/revocation, reader handoff and trusted evidence.
-Those mechanisms and the bounded scope transitions/DTOs are implemented;
+Those mechanisms and the bounded scope transitions/DTOs are implemented, as are the
+verified invitation writers of [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
 [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification.
-P03-4 invitations, P03-5 dynamic values, P03-9 production first-admin/recovery and
-P03-10 closure/locators remain named later writers, not implicit foundation authority.
+P03-5 dynamic values, P03-9 production first-admin/recovery and P03-10
+closure/locators remain named later writers, not implicit foundation authority.
 
 | Subject/control | Current state | Owner / scope |
 |---|---|---|

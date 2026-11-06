@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 2,021 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 2,082 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -388,6 +388,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 review corrections (2026-11-06)](#p03-4-step-7-review-corrections-2026-11-06) — 58 lines
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
+  - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17804,3 +17805,64 @@ cannot count toward qualification.
 
 The stall cause and hosted behaviour of this retry remain unproven. Complete same-source
 hosted A/B and original-archive qualification remain open.
+
+### P03-4 merge and delivery closeout (2026-11-06)
+
+The maintainer merges [PR #41](https://github.com/HodeTech/LearnStack/pull/41) at
+20:10:56 Europe/Istanbul (17:10:56 UTC). Reviewed head is `29381545`; the squash
+merge is `570c4cca`. Both have tree `992e0b88`, and so does the merge source
+`bc143da7` that the pull-request run tested. GitHub PR metadata and the fetched
+objects independently confirm the merge and the identical source tree. P03-4
+implementation delivery, including D06, is complete and merged. The phase Status
+block owns packet state; this record owns the closeout evidence.
+
+Delivered behavior:
+
+- A delegated administrator offers a scoped invitation in Studio, follows its email
+  submission, revokes or reissues it and configures its lifetime. The operator's SMTP
+  service sends it automatically under encrypted custody, identifier-only jobs and
+  immutable attempt receipts; SMTP acceptance means submission, never inbox delivery.
+- A recipient opens the link, signs in or registers through Keycloak and deliberately
+  accepts a pinned Role after current delegation, tenant/branch lifecycle and the
+  verified current email are rechecked. An existing active member keeps their Roles
+  and profile, and an accepted link recovers its original result.
+- The native English/Turkish flow captures a fragment-only code and supports
+  no-JavaScript forms within the existing session, CSRF and lifetime limits.
+- Invitation, Membership and both MUST audit events commit in one transaction;
+  session admission stays separate. No new general directory, permission pair or
+  provider-administrator credential is introduced.
+
+Evidence and its limits:
+
+- Final-head [PR run 42252617289](https://github.com/HodeTech/LearnStack/actions/runs/42252617289),
+  attempt 1/A, completes all 27 jobs successfully. The jobs API independently
+  matches every job to `29381545`, the run and attempt; none is pending and no
+  non-post step is skipped. Both aggregates report variant A and plan digest
+  `f020bedf`, with 4,679 backend-scope and 3,634 integration-scope cases (8,313).
+  The frontend passes 3,767 web cases (120 files) and 192 SDK cases (11 files).
+- This is the first fully green run on the PR. Earlier hosted attempts failed for
+  causes recorded above: shard windows (ADR-0094), the parser timeout, a Chromium
+  start stall, the analyzer gate and, in run 42238072858, a stall whose replacement
+  was refused after SIGKILL together with a hosted-runner loss in one Architecture
+  partition.
+- All three Chromium-starting cases and their non-browser sibling Pass here (91,
+  84, 91 and 69 seconds). The retained results do not show whether a replacement
+  ran, so one green run establishes neither the stall cause nor the retry's effect.
+- Final-head B and the final-head original-archive audit are not established by the
+  observed run; the merge does not substitute for the required qualification. They
+  remain open follow-ups beside P03-3's, for P03-11 to reconcile before phase exit.
+  The post-merge `main` push run 42259256643 was still queued when this was written
+  and no result from it is asserted.
+- The maintainer's manual accessibility acceptance covers the application at
+  `0fcc486a`. The later label, form-error and landing changes had no manual recheck,
+  and the corrections after the step reviews did not receive two fresh independent
+  review rounds. The [review corrections](#p03-4-step-7-review-corrections-2026-11-06)
+  state what was accepted, what was not and which decisions remain the maintainer's
+  call.
+
+No next packet is selected by this closeout. P03-5 through P03-11 have not started.
+By packet order P03-5 is next; P03-5 through P03-9 depend only on P03-1–3, so
+none blocks another, while P03-10 waits for P03-5 and P03-9. Gates G9–G14
+are Open and each must close before its packet's first writer, and production
+first-admin and issuer-rebind onboarding remains gated by P03-9. This closeout
+starts no implementation and accepts no decision.
