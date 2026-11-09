@@ -389,6 +389,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 159 lines
+  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 157 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17866,3 +17868,162 @@ none blocks another, while P03-10 waits for P03-5 and P03-9. Gates G9–G14
 are Open and each must close before its packet's first writer, and production
 first-admin and issuer-rebind onboarding remains gated by P03-9. This closeout
 starts no implementation and accepts no decision.
+
+## P03-5 — Custom fields and privacy classification
+
+### P03-5 proposed custom-field contract and plan (2026-11-10)
+
+**Proposed; no implementation or gate acceptance.** The maintainer selects
+P03-5 through `implement-task`, development only, with a document/code decision
+pass before implementation. Each meaningful step has an implementation commit,
+two fresh independent review rounds and committed verified corrections. No
+Astra reviewer is selected. A new architectural decision requires explicit
+maintainer approval; routine implementation choices within it do not.
+
+The inspected baseline is `d012e75a` on development with a clean working tree;
+its P03-4 merge and closeout are local commits ahead of the last observed remote
+tracking ref. No checkout, reset, merge, runtime/configuration mutation or CI
+dispatch is part of this decision pass. Prior packet evidence and manual-check
+limitations remain as recorded in their own closeouts.
+
+#### Reverified existing contract and action list
+
+- P03-5 depends on delivered P03-2/3, not the later provider/operator packets.
+  G9 is Open. D07/D08 and C09/C10/C20 own definitions, values, classification,
+  privacy and usable localized forms; P03-10 owns fulfillment, not this schema.
+- Customization owns immutable target-qualified definitions; Identity owns
+  values inside MembershipProfile. No such definition/value/consent model or
+  writer exists at this baseline. The User model stays free of tenant data.
+- ADR-0043 and the actual validator require nonempty object-root properties.
+  A one-property `value` envelope reuses all four admission gates. The proposed
+  finite nested form profile narrows admission without changing the evaluator.
+- Existing Customization base/mapping cannot be reused unchanged: published
+  labels can be renamed and indexes lack target. The new aggregate freezes all
+  interpretive metadata and uses target-qualified historical/live constraints.
+- Exact definitions already have uncached same-ambient, Active-at-read eligibility.
+  Immutable historical pins permit that boundary without a new cross-module
+  publication/commit guarantee.
+- Existing Membership creation makes an empty Profile, including invitations and
+  seed. Required custom fields are proposed as form-completion requirements,
+  not retroactive membership, sign-in or invitation prerequisites.
+- Data Protection assigns append-only purpose consent to Tenancy, but supplies
+  no executable consent writer. A real, closed personal capture/withdrawal slice
+  is proposed here. Existing OwnMembershipRead explicitly grants no write power.
+- Current admin APIs/native/SDK strictly parse scalar profile fields, finite
+  operations and nine advisory capabilities. New payloads need explicit typed
+  extensions; no arbitrary JSON proxy or tenth capability follows implicitly.
+- The general 256 KiB schema ceiling does not fit a 16 KiB native form. The
+  proposed profile uses smaller logical input/actual encoded limits and bounded
+  pages/values. Missing/null/default, nested shape and history behavior are
+  explicit choices rather than assumed JSON Schema side effects.
+- Existing grant registration is distinct from adoption. Proposed registry v3
+  grants only the new Tenant definition-admin pair through explicit adoption;
+  warm seed and startup never restore or expand grants.
+
+These checks use the phase contract; Architecture 13/23/32; Customization,
+Identity and Tenancy module specs/matrices; ADR-0043/0073–0079; applicable
+Standards 04/05/07/08/11/16/18/19/21; and the current aggregate, schema validator,
+authorization, audit, SDK and Studio/native implementations. Independent initial
+reviews cover contract/privacy and experience/transport. They are static reviews,
+not database, provider, browser or performance qualification.
+
+#### Maintainer decision surface
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md) proposes
+one coupled decision:
+
+- Membership-only, tenant-wide definitions; immutable successor revisions and
+  exact value pins. Retired entries stay interpretable, read-only and removable;
+  no key reuse, auto-migration or carryover to a revoked Membership's successor.
+- A finite scalar/nested form profile, explicit required PII category with no
+  default, no Payment or materialized defaults; requiredness does not block
+  account/membership admission. The visual general builder remains Phase 06.
+- Tenancy-owned personal sensitive-purpose consent with explicit withdrawal,
+  sequence/predecessor fencing and separate truthful commits. Withdrawal hides
+  retained values; it is not erasure or a recall of already disclosed bytes.
+- One Tenant definition-admin pair with opt-in v3 grants. Existing profile-write
+  holders gain custom-value writes within their existing exact target ceiling.
+- Finite authoring/storage/transport limits, conservative whole-value diagnostic
+  exclusion, current replay/disclosure authority and unchanged CI/runtime clocks.
+
+No technical policy question is delegated to an implementation reviewer. If a
+later verified finding needs a different accepted decision, its concrete change
+returns to the maintainer before the affected writer, rather than being silently
+introduced as a review correction.
+
+#### Four implementation steps after acceptance
+
+| Step | Coherent deliverable | Principal proof |
+|---|---|---|
+| 1 | Accept/reconcile G9 carriers, implement immutable definition lifecycle/admitted form profile and independent append-only personal consent foundation | Domain/validator dirty-clean cases, target-qualified indexes, real app-role isolation/publication and consent sequencing/admission, same-transaction audit failure |
+| 2 | Add MembershipProfile pins/value commands, exact contract readers, revision-aware disclosure/consent checks and diagnostic protection | Historical successors/retirement, required/null/remove behavior, withdrawal/write races, no raw JSONB path, actual nested canaries and positive sink/capture controls |
+| 3 | Generate OpenAPI/SDK, activate exact native operations and scoped Studio/member/self-consent experience | Actual native HTTPS/provider/browser and non-JS paths where applicable, finite payload/Origin/CSRF/ETag/replay/session fences, enabled-locale/a11y/recovery behavior |
+| 4 | Qualify combined packet, update delivered docs and prepare the P03-5 PR | Relevant complete local suites, two fresh review rounds, complete final-source CI A/B and original-archive reconciliation; truthful manual proof and open-boundary reporting |
+
+The decision is accepted before Step 1's code. Each step is committed before its
+first review; verified findings are fixed/committed and the second round uses
+different reviewers. Security, correctness, privacy, UX/accessibility and bounded
+performance are assigned to the relevant round, not multiplied into tiny steps.
+No next step waits for another user prompt unless an actual decision/blocker needs
+the maintainer. P03-5 finishes before its PR is opened; no merge is authorized.
+
+#### Proposed HTTP and application census
+
+All paths below have `/api/v1` as their prefix. Identity/tenancy scope comes only
+from admitted context. The native dispatcher exposes distinct same-origin POST
+operations bound to these exact API methods; it admits no caller-supplied URL.
+Reads retain their actual API GET/HEAD treatment and explicit audit policy.
+
+| API method and suffix | Exact request family | Admission |
+|---|---|---|
+| GET `/customization/custom-field-definitions` | `ListCustomFieldDefinitionsQuery` | Tenant custom-field admin; bounded cursor/status filter |
+| GET `/customization/custom-field-definitions/{id}` | `GetCustomFieldDefinitionQuery` | Tenant custom-field admin; exact retained revision |
+| POST `/customization/custom-field-definitions` | `RegisterCustomFieldDefinitionCommand` | Tenant custom-field admin, orgless; creates Draft |
+| PUT `/customization/custom-field-definitions/{id}` | `ReviseCustomFieldDefinitionDraftCommand` | Same; Draft only, strong If-Match |
+| POST `/customization/custom-field-definitions/{id}/publication` | `PublishCustomFieldDefinitionCommand` | Same; strong If-Match and exact expected incumbent/absence |
+| POST `/customization/custom-field-definitions/{id}/retirement` | `RetireCustomFieldDefinitionCommand` | Same; Active only, strong If-Match |
+| POST `/customization/custom-field-definitions/{id}/discard` | `DiscardCustomFieldDefinitionDraftCommand` | Same; Draft only, strong If-Match, no hard delete/key reuse |
+| GET `/identity/memberships/{id}/custom-fields` | `GetMembershipCustomFieldsQuery` | Existing exact admin member-read predicate; MUST sensitive read |
+| GET `/identity/memberships/own/custom-fields` | `GetOwnMembershipCustomFieldsQuery` | Exact current own Membership read; Off |
+| PUT `/identity/memberships/{id}/custom-fields` | `SetMembershipCustomFieldsCommand` | Existing profile-write self/admin predicates; strong Membership If-Match |
+| GET `/tenancy/membership-field-consents/own` | `GetOwnMembershipFieldConsentQuery` | Own Membership only; exact definition pin, Off |
+| POST `/tenancy/membership-field-consents/grants` | `GrantOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
+| POST `/tenancy/membership-field-consents/withdrawals` | `WithdrawOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
+
+Every mutation is MUST-audited and idempotent with freshly authorized replay.
+Definition publication binds both the Draft version and expected incumbent; the
+absent-incumbent case is explicit. Duplicate/unknown operation names, keys, pins,
+targets and fields refuse before mutation. A value request carries bounded
+explicit set/remove operations and a complete-required-field assertion checked
+against the server's effective result; omitted stored slots are not removed.
+Definition schemas used by a form travel through Identity's authorized projection,
+not an unaudited broad definition directory exposed to every learner.
+
+#### Acceptance and reconciliation inventory
+
+Step 1 lands the ADR acceptance and G9 answer first, then current canonical
+carriers before their writers. No Accepted body is rewritten. Checklist owners
+are the named module/application boundary or the P03-5 implementation owner.
+
+- [ ] ADR-0095, decision index, Phase 03 G9/Status and this package: approval and
+      exact accepted choices; amendments use next available numbers.
+- [ ] ADR-0043/0073/0074/0076/0078/0079: dated navigation Amendments naming each
+      bounded consumer/profile/authority/registry extension; earlier bodies stay
+      historical. ADR-0042's exact two-handler exception list stays unchanged.
+- [ ] Customization specification/permissions/audit: specialized definition
+      history, admitted form grammar, live uniqueness and publication designation.
+- [ ] Identity specification/permissions/audit: exact value pins/limits,
+      self/admin and retained-history predicates, consent consumption, snapshots
+      and P03-10 reference inventory.
+- [ ] Tenancy specification/permissions/audit: append-only consent lifecycle,
+      own-consent admission, exact grants, monotonic predecessor and withdrawal.
+- [ ] Architecture 13/23/32 and glossary: actual form/consent ownership,
+      categories/history/retained copies, lifecycle diagrams and terminology.
+- [ ] Standards 04/05/07/08/09/11/15/16/18/19/21: finite route/policy/receipt
+      census, DDL/RLS/grants/locks, payload/locale/form rules, errors, privacy,
+      adopted v3 delta, tenth capability and actual catalogue subjects.
+- [ ] Generated OpenAPI/SDK, native manifests/exact parsers and tests update
+      together in Step 3; no dormant route activation in the foundation steps.
+- [ ] Step 4 evidence records exact source/toolchain/result populations, manual
+      observation provenance and archive/CI outcomes without promoting partial
+      or inherited evidence into complete qualification.

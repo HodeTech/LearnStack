@@ -20,6 +20,8 @@
 > and its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04);
 > its [review corrections](phase-03-delivery-log.md#p03-4-step-7-review-corrections-2026-11-06)
 > list the decisions that remain the maintainer's call.
+> P03-5's [proposed contract and four-step plan](phase-03-delivery-log.md#p03-5-proposed-custom-field-contract-and-plan-2026-11-10)
+> await approval under Proposed [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
 > P03-5 through P03-11 implementation has not started. Phase 03 remains in progress.
 >
 > | Packet | Title | State |
@@ -29,7 +31,7 @@
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
-> | P03-5 | Custom fields and privacy classification | Not started |
+> | P03-5 | Custom fields and privacy classification | Decision pass — ADR-0095 Proposed; no runtime changes |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |
 > | P03-8 | Tenant federation | Not started |
