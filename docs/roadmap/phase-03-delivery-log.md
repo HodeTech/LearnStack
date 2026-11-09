@@ -389,10 +389,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 227 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 252 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 168 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
+  - [P03-5 proposal correction verification and approval readiness (2026-11-10)](#p03-5-proposal-correction-verification-and-approval-readiness-2026-11-10) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18097,3 +18098,28 @@ separately from legitimate authorized value responses. Structural error indices
 do not echo tenant-authored keys or labels. This is a static contract correction;
 runtime safety, actual user journeys and performance remain implementation proof.
 ADR-0095 stays Proposed and G9 stays Open pending the maintainer's explicit choice.
+
+### P03-5 proposal correction verification and approval readiness (2026-11-10)
+
+The two round-2 reviewers independently verify their respective corrections in
+`a55cf09a`: latest-Granted requiredness, discoverable consent-only history and
+numeric round-trip boundaries close the verified findings without a contradictory
+replacement. Their verification is bounded and static, not a third broad review
+or runtime qualification. Both round-1 findings are also covered by the revised
+contract and the named dirty/clean implementation cases.
+
+Document controls pass: 3,470 Markdown fragment links resolve, roadmap structure
+conforms, all three delivery indexes are current and ADR-0095 reports Proposed.
+The changed paths are exactly the ADR, decision index, glossary, phase Status and
+this log. Development remains selected; tracked source is unchanged and the
+working tree is clean at the correction checkpoint. The preexisting editor
+settings hash and stash identities match their initial observations.
+
+The maintainer is asked to approve ADR-0095 and the four-step package, including
+immutable Membership-only fields, bounded nested forms, requiredness independent
+of admission, separate personal consent/withdrawal, explicit registry-v3 grant
+adoption and the stated size/numeric/history costs. No schema, runtime writer,
+configuration change, application start, CI dispatch, push or PR is performed by
+this decision pass. After approval, implementation continues on development with
+the requested commit/two-fresh-review cycle and stops only for an actual new
+decision or external blocker. Existing packet evidence follow-ups stay separate.
