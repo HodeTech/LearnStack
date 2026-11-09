@@ -389,8 +389,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 159 lines
-  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 157 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 193 lines
+  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 165 lines
+  - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17984,7 +17985,7 @@ Reads retain their actual API GET/HEAD treatment and explicit audit policy.
 | POST `/customization/custom-field-definitions/{id}/retirement` | `RetireCustomFieldDefinitionCommand` | Same; Active only, strong If-Match |
 | POST `/customization/custom-field-definitions/{id}/discard` | `DiscardCustomFieldDefinitionDraftCommand` | Same; Draft only, strong If-Match, no hard delete/key reuse |
 | GET `/identity/memberships/{id}/custom-fields` | `GetMembershipCustomFieldsQuery` | Existing exact admin member-read predicate; MUST sensitive read |
-| GET `/identity/memberships/own/custom-fields` | `GetOwnMembershipCustomFieldsQuery` | Exact current own Membership read; Off |
+| GET `/identity/me/custom-fields` | `GetOwnMembershipCustomFieldsQuery` | Exact current own Membership read; Off |
 | PUT `/identity/memberships/{id}/custom-fields` | `SetMembershipCustomFieldsCommand` | Existing profile-write self/admin predicates; strong Membership If-Match |
 | GET `/tenancy/membership-field-consents/own` | `GetOwnMembershipFieldConsentQuery` | Own Membership only; exact definition pin, Off |
 | POST `/tenancy/membership-field-consents/grants` | `GrantOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
@@ -17996,8 +17997,16 @@ absent-incumbent case is explicit. Duplicate/unknown operation names, keys, pins
 targets and fields refuse before mutation. A value request carries bounded
 explicit set/remove operations and a complete-required-field assertion checked
 against the server's effective result; omitted stored slots are not removed.
+Explicit removal-only requests bypass completeness and expose the remaining
+missing-field state; an unanswered field cannot prevent clearing another value.
 Definition schemas used by a form travel through Identity's authorized projection,
 not an unaudited broad definition directory exposed to every learner.
+Studio owns `/studio/custom-fields` and its exact-revision detail editor; the
+existing `/studio/members/{membershipId}` detail receives the member form. The
+existing `/portal/profile` receives own values, purpose notices and personal
+consent controls without requiring Studio access. Schema payloads are JSON
+objects, not recursively escaped JSON strings; projection/page serialization
+retains the actual 256 KiB response and existing shared snapshot budget guards.
 
 #### Acceptance and reconciliation inventory
 
@@ -18027,3 +18036,29 @@ are the named module/application boundary or the P03-5 implementation owner.
 - [ ] Step 4 evidence records exact source/toolchain/result populations, manual
       observation provenance and archive/CI outcomes without promoting partial
       or inherited evidence into complete qualification.
+
+### P03-5 proposal review round 1 and corrections (2026-11-10)
+
+Two fresh independent reviewers inspect proposal commit `94f5a6d6` against the
+current corpus/code: Sol high for contract/privacy/authorization and Terra high
+for experience/transport/performance. This is static proposal review, not runtime
+qualification. They verify two Major defects; both are corrected before approval:
+
+- The 4 KiB submission limit and complete-required-set rule allowed definitions
+  that no empty Profile could answer: one required 4,096-character string, or
+  twenty required 256-character strings, already exceed the budget with pins.
+  The proposal now requires a conservative per-field admission and aggregate
+  publication proof including canonical serialization/escaping/encoded overhead.
+  An impossible/unprovable required set refuses before replacing the incumbent.
+  Actual byte checks remain; no staged-save or larger transport is introduced.
+- Consent eligibility did not distinguish a new grant from withdrawal. A grant
+  could commit, its later value save fail, and retirement leave no retained pin,
+  preventing withdrawal. Existing exact consent tuple reads/withdrawals now
+  require neither a retained value nor an Active definition. New grants for
+  Deprecated revisions still require a retained pin. Reconsent's effect on
+  retained-value disclosure is explicit; the original write evidence is immutable.
+
+The plan adds behavioral boundary/rollback cases for both findings and a 32 KiB
+stored collection limit. Proposed own-consent admission requires a current Active
+Membership; post-membership-loss subject request authority stays with P03-10.
+No schema, runtime writer or Accepted ADR body changes in this correction.

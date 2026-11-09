@@ -150,11 +150,13 @@ No value is silently inserted because a schema contains a default annotation.
 Requiredness applies to explicit custom-field form submission. Publication
 neither invalidates existing/new Memberships nor changes invitation, seed,
 sign-in or ordinary name/locale edits. The form shows missing required fields.
-Each custom-field submission supplies a complete Active-required-field answer,
-plus explicit changes/removals; a historical pin does not satisfy a different
-required Active revision. Required sensitive fields do not make personal consent
-compulsory: declining consent leaves the custom-field form incomplete and leaves
-the person's existing account/membership access intact.
+Each set/update submission leaves a complete Active-required-field answer in the
+server's effective result; unchanged current pins count, and a historical pin
+does not satisfy a different required Active revision. Explicit removal-only
+requests can leave an incomplete form; they collect no new value and cannot be
+blocked by another unanswered field. Required sensitive fields do not make
+personal consent compulsory: declining consent leaves the custom-field form
+incomplete and leaves the person's existing account/membership access intact.
 
 ### Finite authoring and storage budgets
 
@@ -169,6 +171,7 @@ These are application limits, not measured latency or plan-entitlement claims:
 | One sensitive-purpose notice per locale | 512 UTF-8 bytes |
 | One complete definition authoring input, before form encoding | 4 KiB of UTF-8 |
 | One custom-value submission, including pins and envelope | 4 KiB of UTF-8 |
+| Complete stored custom-value collection, including pins | 32 KiB of UTF-8 |
 | Actual native encoded request | Existing 16 KiB; reject before dispatch |
 | Definition/history list page | 20 rows; opaque cursor, no search |
 
@@ -179,6 +182,19 @@ enforce the same logical limits; the larger general customization-row ceiling
 does not grant a larger custom-field input. History remains paged rather than
 loading every retained revision. A full slot set needs an explicit removal
 before adding another field; retirement alone releases no stored-value slot.
+
+Admission also proves usability within these bounds. Every scalar/container has
+an explicit finite value bound. A conservative canonical-serialization upper
+bound includes JSON escaping, field keys, complete operation/pin metadata and
+native encoding overhead. An individual field whose maximum answer cannot fit
+one request refuses. Publication computes the same bound for the complete
+resulting Active-required set, including an initially empty Profile; it refuses
+an impossible set before replacing the incumbent. Unknown/unprovable bounds
+refuse. Optional fields can be saved separately after required answers exist;
+the existing effective-result validation preserves omitted slots. Tests include
+one 4,096-character required string, twenty 256-character required strings,
+multibyte/escaped text and exact passing/failing boundaries. No extra timer,
+larger transport or incomplete staged-save authority is inferred.
 
 ### Personal consent without cross-module writes
 
@@ -197,8 +213,14 @@ confirmation. They require no admin or profile-write grant, grant no general own
 mutation power and cannot be dispatched under OwnMembershipRead. Identity's
 Application.Contracts supplies exact owned-Membership eligibility; Customization
 supplies the exact purpose/notice revision. Another person's ID or an admin
-checkbox cannot authorize capture. Deprecated revisions are consent-eligible
-only for a retained exact pin on that person's Membership.
+checkbox cannot authorize capture. A new grant for a Deprecated revision requires
+a retained exact value pin on that person's Membership. Reading or withdrawing
+an existing exact consent tuple requires no retained value or Active definition:
+a successful grant followed by a failed save, value removal, retirement or
+Draft discard cannot strand a person's consent. The ordinary admission ceiling
+still requires their own current Active Membership; access after membership
+loss remains within P03-10's separately authorized subject-request contract.
+Drafts admit no grant. New grants otherwise require an Active definition.
 
 Capture/withdrawal has an expected latest-consent token; a stale confirmation
 cannot overwrite a newer withdrawal. Each command writes only its Tenancy root
@@ -228,6 +250,12 @@ opening a form. Withdrawal is not erasure: values and immutable evidence remain
 discoverable to the separately authorized P03-10 fulfillment inventory. P03-10
 owns erasure/export authority and exact retained linkage; Phase 11 owns later
 purge/backup operations. Neither is claimed implemented by this proposal.
+
+The stored consent ID records the original write's authority, not a mutable
+"current consent" flag. Ordinary disclosure additionally checks the latest state
+of that same tuple. Explicit reconsent can restore disclosure of a retained value;
+the confirmation says so. It does not rewrite the historical evidence ID or
+authorize a different revision or purpose.
 
 ### Authorization, audit and protected transport
 
