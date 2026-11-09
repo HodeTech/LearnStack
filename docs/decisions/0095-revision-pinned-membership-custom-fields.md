@@ -20,13 +20,20 @@ remain intact and the records remain Accepted outside these bounded changes:
   and a narrower form profile become its first Membership consumer.
 - ADR-0073's profile acquires revision-pinned values; no global User column,
   cross-module foreign key or additional multi-root write exception is admitted.
-- ADR-0074's existing fence protocol gains named Customization definition and
-  Tenancy consent consumers; existing Identity lock-mode derivation is unchanged.
+- Standard 05 owns the fence protocol and gains named Customization definition
+  and Tenancy consent consumers under this ADR. ADR-0074 receives navigation
+  only; its Membership-admission timing and Identity mode derivation are unchanged.
 - ADR-0076/0078 gain exact custom-field operations and two self-consent writes.
   The existing own-Membership **read** policy grants no mutation authority.
 - ADR-0079 gains one assignable Tenant pair through explicit registry v3 adoption,
   one advisory capability and the closed protected receipt/transport consumers.
   Existing profile-write holders gain the bounded custom-value operation.
+
+The consent-only recovery entry below also requires dated Amendments in
+ADR-0003, ADR-0036, ADR-0040 and ADR-0072 for the exact new function/origin/setter
+censuses. ADR-0037's generic replay and ADR-0044/0077's central audit/designation/
+denial mechanisms apply unchanged; their new consumers are reconciled in the
+canonical matrices/catalogues, not presented as changes to those decisions.
 
 ## Decision Drivers
 
@@ -92,10 +99,13 @@ Each MembershipProfile slot retains concept key, exact definition ID/version,
 JSON value and any consent evidence ID. Identity resolves definitions through
 Customization Application.Contracts on its existing ambient owner; no join,
 navigation, FK into another module, second business transaction or raw setter is
-added. Exact revision reads are uncached and tenant-filtered. New binding uses
-Active-at-read eligibility, as the existing exact-definition contract does;
-concurrent later retirement does not invalidate the admitted pin. This is not
-an Active-at-COMMIT guarantee.
+added. Exact revision reads are uncached and tenant-filtered. For these new
+writers the final Active read follows the shared Tenant fence, retained through
+commit; definition retirement/publication takes its exclusive counterpart. If
+the value writer wins, retirement waits until that commit; if retirement wins,
+the post-wait read refuses a new pin to that revision. Existing historical pins
+survive later retirement. This stronger custom-field boundary does not change
+the older content-type/taxonomy reader's Active-at-read contract.
 
 Existing pins remain interpretable after successor publication or retirement.
 They are read-only when their revision is no longer Active; explicit removal or
@@ -141,6 +151,37 @@ controls and a direct API-to-Portal-to-write round trip. This profile provides
 no payment, arbitrary-precision integer or exact-decimal field type.
 
 The field profile is an allowlist in addition to all existing ADR-0043 gates.
+Its closed keyword set is:
+
+| Schema position | Permitted keywords and constraints |
+|---|---|
+| Envelope | `$schema`, `type: object`, `properties` containing only `value`, `required: [value]`, `additionalProperties: false` |
+| String | `type: string`, explicit `minLength`/`maxLength` within 1–256, optional nonempty unique string `enum` of at most twenty valid choices |
+| Integer / number | `type`, explicit inclusive `minimum`/`maximum` in the supported numeric range |
+| Boolean | `type: boolean` |
+| Object | `type: object`, nonempty `properties` of at most ten children, `required` listing only unique declared children, `additionalProperties: false` |
+| Array | `type: array`, one `items` schema, explicit `minItems`/`maxItems`, with `0 <= minItems <= maxItems <= 10` and `maxItems >= 1` |
+
+All other keywords refuse, including every `format`, `const`, `default`,
+`title`, `description`, `examples`, `$comment`, `readOnly` and `deprecated`.
+Localized form metadata lives in the typed definition, not schema annotations.
+Container depth counts object/array value nodes, starting at one when `value`
+itself is a container: object→array→string is two; object→array→object is three
+and refuses. ADR-0043's independent raw JSON depth ceiling still applies.
+Field/property keys use bounded ASCII customization-key grammar and reject the
+reserved names `constructor`, `prototype` and `__proto__`; parsed maps never use
+prototype-inheriting assignment of arbitrary keys.
+
+The additional admission proves nonemptiness for every node, including optional
+children. It constructs a finite witness from intersecting length/range bounds,
+valid enum choices and recursively satisfiable required children/items, then
+validates the complete witness through the same admitted-schema validator. Empty
+intersections, invalid/empty enum choices, contradictory nested requirements or
+an unprovable witness refuse before persistence/publication. The proof uses only
+this finite grammar, not a general JSON Schema satisfiability solver. Publication
+rechecks nonemptiness and the combined-required-set budget together. Contradictory
+string/numeric/enum/nested schemas have positive and refusal controls.
+
 Unknown form-profile keywords refuse even where the general schema dialect
 would ignore them. The editor supplies type-specific controls, localized labels,
 validation hints and a preview; it does not present a general visual builder.
@@ -154,6 +195,12 @@ Payment and unrecognized values refuse. One category covers the complete field
 value, including every nested child. Sensitive definitions also require an
 immutable purpose key and localized notice. A successor is needed to change
 that purpose/notice or classification.
+
+Here "sensitive" means exactly `pii_category = PII-Sensitive`. Identity and
+Behaviour values retain their normal authorization/privacy protections but gain
+no invented consent requirement. None is an explicit non-PII declaration, never
+inferred or defaulted; its values still receive conservative diagnostic redaction.
+None does not automatically exclude a subject-linked value from P03-10 fulfillment.
 
 Missing and explicit null are different. Omission leaves an existing slot
 unchanged; an explicit remove clears it. Null is rejected as a field value; an
@@ -175,15 +222,17 @@ that exact tuple is Granted. Withdrawal makes its retained pin incomplete as
 well as withheld. Mixed set/remove requests use the set/update rule; reconsent
 can restore eligibility without changing the historical write evidence.
 
-### Finite authoring and storage budgets
+### Per-operation budgets and retained growth
 
 These are application limits, not measured latency or plan-entitlement claims:
 
 | Subject | Selected bound |
 |---|---|
 | Active definitions for Membership in one tenant | 20 |
+| Retained concept keys / revisions per tenant, including discarded drafts | 100 / 1,000 |
+| Live Draft revisions per tenant | 20 |
 | Stored slots in one MembershipProfile, including retired pins | 20 |
-| One envelope schema | 4 KiB of UTF-8 |
+| One envelope schema | 2 KiB of UTF-8, included in the complete-input limit |
 | One localized label | 128 UTF-8 bytes; enabled locales only |
 | One sensitive-purpose notice per locale | 512 UTF-8 bytes |
 | One complete definition authoring input, before form encoding | 4 KiB of UTF-8 |
@@ -199,6 +248,38 @@ enforce the same logical limits; the larger general customization-row ceiling
 does not grant a larger custom-field input. History remains paged rather than
 loading every retained revision. A full slot set needs an explicit removal
 before adding another field; retirement alone releases no stored-value slot.
+
+These independent ceilings reserve no sum: schema, labels, notices and metadata
+together must fit 4 KiB. The editor shows remaining authoring/value capacity and
+the exact blocking limit. Authored locales are an enabled-locale subset containing
+the default locale; display fallback carries its actual authored locale. Eight
+512-byte notices cannot all fit one definition input and correctly refuse. The
+4,096-character and twenty-256-character examples below are refusal controls.
+Optional values share the 32 KiB stored budget, including historical pins; the
+form shows usage and explicit removal/replacement, never truncates or hides pins.
+Pure removal remains usable even when another required answer or capacity blocks
+collection. Tests isolate encoded/aggregate/stored limits with exact passing
+boundaries, multibyte values and preserved historical slots.
+
+Retained definition limits are checked under the exclusive Tenant fence.
+Discard releases a live-Draft slot only, not a reserved concept/revision. At the
+history limit, editing/publishing an existing Draft, retirement, removal and
+consent withdrawal remain available; new revisions refuse with honest capacity
+copy. No purge or automatic key reuse is inferred. P03-9 owns any later admitted
+operator capacity override; this packet supplies no pretend recovery command.
+
+Consent/audit history has no lifetime row cap or automatic compaction in this
+packet. It is retained personal evidence, not a finite total-storage claim.
+Repeated same-state requests return their existing result and append no record;
+new grants/reconsents require sixty seconds since the previous grant for that
+tuple, enforced from durable evidence under the fence across replicas. Withdrawal
+has no such cooldown and does not reserve grant capacity. Existing visitor,
+verified-subject (600/minute/instance), concurrency and request deadlines apply;
+they grant no deployment-wide throughput or lifetime storage bound. Indexed
+sequence/history pages and per-tenant definition usage expose bounded working
+sets; the operator runbook includes scoped retained-row/index-size inspection.
+Phase 11 owns operational retention/monitoring/backup purge, while P03-10 owns
+subject fulfillment; neither may drop current consent or unresolved replay facts.
 
 Admission also proves usability within these bounds. Every scalar/container has
 an explicit finite value bound. A conservative canonical-serialization upper
@@ -223,8 +304,37 @@ nor UUID ordering choose the current state. Subject/actor references and audit
 attribution remain personal data. There is no provider token, email, profile
 value or freeform notice copy in the consent record.
 
-Two exact self-consent commands receive a new closed own-consent admission
-policy. They require the authenticated actor's own current Active Membership,
+`MembershipFieldConsentId` is a strongly typed UUID; the root is an
+`AuditableEntity<MembershipFieldConsentId>` with no update/delete domain method.
+Its `[TenantOwned]`/`[OrganizationScoped]` mapping, EF filter and canonical FORCE
+RLS/WithCheck retain all ordinary isolation layers. Tenant, subject and nullable
+organization are derived from Identity's exact owning Membership contract at
+grant; NULL organization is valid only for a NULL-org Membership. Body fields
+cannot select actor, tenant or organization. IDs into Identity/Customization are
+values, never cross-module FK/navigation/join. Each record is the consent root's
+own MUST audit subject, not the Tenant aggregate.
+
+Purpose keys are explicit lowercase ASCII slugs, 1–64 characters, namespaced by
+the tenant/target/concept. The exact definition revision disambiguates their
+meaning; equal purpose text/keys never transfer consent across fields/revisions.
+Evidence pins the displayed authored `notice_locale`, exact definition/notice
+revision and domain-separated SHA-256 of that locale's immutable UTF-8 notice.
+Locale is evidence, not another consent-state partition. Confirmation binds this
+exact notice; a stale/disabled or substituted notice cannot grant consent. A
+withdrawal can show its historically pinned notice even if that locale is later
+disabled, with the actual `lang`; it cannot become inaccessible for that reason.
+
+`membership_profiles.custom_fields` has static PersonalDataCategory.Sensitive
+plus whole-property `[PiiSensitive]`, separately from per-revision classification.
+Consent subject/actor IDs are Identity; Membership/definition/purpose/notice
+linkage is Sensitive. Record state/sequence/timestamps are Audit, with remaining
+mapped technical fields explicitly declared under the existing census rules.
+Snapshot redaction preserves each marked property/diff with
+`SensitiveTokenCatalog.RedactedValue`; no new redaction literal or dropped-property
+convention is introduced. This records that a value changed without its contents.
+
+Two exact self-consent commands receive closed, distinct admission rules.
+Grant requires the authenticated actor's own current Active Membership,
 admitted tenant/org lifecycle, the actual current host/session and explicit
 confirmation. They require no admin or profile-write grant, grant no general own
 mutation power and cannot be dispatched under OwnMembershipRead. Identity's
@@ -234,9 +344,10 @@ checkbox cannot authorize capture. A new grant for a Deprecated revision require
 a retained exact value pin on that person's Membership. Reading or withdrawing
 an existing exact consent tuple requires no retained value or Active definition:
 a successful grant followed by a failed save, value removal, retirement or
-Draft discard cannot strand a person's consent. The ordinary admission ceiling
-still requires their own current Active Membership; access after membership
-loss remains within P03-10's separately authorized subject-request contract.
+Draft discard cannot strand a person's consent. Withdrawal/history use the
+separate subject entry below and remain usable after Membership suspension or
+revocation, Tenant suspension and Organization archive. No administrative grant
+or current Active Membership is required for those two purposes.
 Drafts admit no grant. New grants otherwise require an Active definition.
 
 A bounded own-consent history lists the latest state for each of the current
@@ -248,13 +359,64 @@ Portal profile exposes that history and withdrawal controls independently of
 Active fields and stored values. Fresh navigation cannot lose the only way to
 discover an existing grant.
 
-Capture/withdrawal has an expected latest-consent token; a stale confirmation
-cannot overwrite a newer withdrawal. Each command writes only its Tenancy root
+Capture/withdrawal supplies `{sequence, evidenceId}` from the last own-state
+projection; zero/null means no predecessor. Sequence is a nonnegative safe
+integer; all other null/ID combinations refuse. A stale confirmation cannot
+overwrite a newer withdrawal. Protected idempotency binds that predecessor,
+actor, tuple and resulting record: an exact same-key replay returns the original
+version receipt after fresh own-subject authorization, never performs another
+transition, and is not a statement that the old state remains current. A new
+key with stale predecessor conflicts; same-state requests append no record.
+Each command writes only its Tenancy root
 and its MUST audit on one transaction. The app principal gets ordinary RLS-bound
 SELECT/INSERT, with UPDATE/DELETE/TRUNCATE denied and immutable-record backstops.
 No consent operation also mutates Membership. Successful consent followed by a
 failed value save is reported as two distinct acts; no atomic cross-module
 promise or hidden retry is made.
+
+### Consent-only entry after lifecycle loss
+
+A separate `OwnConsentEntry` policy and `HostAndConsentSubject` origin admit
+only host-capped own retained-scope discovery, exact history and withdrawal.
+They require a verified provider subject, quota admission, existing Active
+global binding and an independently classified still-live Tenant/Organization
+host. They do not require an Active Membership, tenant administration lifecycle,
+AccountSite or a successful public-site snapshot. Disabled/released/unknown
+hosts remain unavailable; global Closing/Closed identity and terminated-host
+recovery remain P03-9/10 subjects, not a global directory exemption.
+
+One migration-owned Tenancy function, `fn_tenancy_own_field_consent_scope`, reads
+only retained consent linkage for the verified actor and independently resolved
+host ceiling. Its actor is taken from completed binding normalization, never a
+request field. Closed list/exact-selection modes return at most twenty distinct
+owned Membership/tenant/org scope keys, no values, grants, profile or provider
+data. An Organization host cannot discover another branch. The function has a
+fixed search path, exact app EXECUTE/PUBLIC revoke, owner/RLS exception and
+body/caller census; it contains no cross-module join or extra login role.
+
+`ConsentSubjectScope` consumes a single-use immutable operation/actor/subject/
+real-host/scope/mode witness on the actual owner. History uses physical ReadOnly;
+withdrawal uses ordinary ReadWrite. This is the twelfth logical tenant setter,
+implemented by the same four physical context writers, and the function is the
+twelfth confined definer. It supplies no Membership, native ordinary session,
+tenant-wide `app.scope`, custom-value disclosure or generic scope override.
+Withdrawal derives its exact tuple/org from retained consent, so revocation or
+deletion of the Membership cannot turn it into a NULL-org or foreign-subject row.
+After taking the Tenant fence, the owning Identity contract freshly rechecks
+the existing binding's global admission state before withdrawal. It uses the
+existing state-only eligibility function; the Tenancy function gains no Identity
+table read. This follows the global closure's User-before-Tenant fence rather
+than treating an earlier Active observation as irrevocable admission.
+
+Native `/account/consents` uses an existing bounded credentialed entry handle
+and a fixed consent-only HTML shell, reachable after fresh sign-in with no
+Membership. The enumerated consent entry POSTs use Origin/CSRF and the existing
+entry owner/lifetime/capacity; they do not call CurrentSession or read branding/
+public configuration. A missing/expired handle restarts sign-in, never bootstrap
+or Membership creation. Ordinary active Portal can link to this same surface.
+Real controls cover Suspended/Revoked Memberships, Suspended tenant, Archived
+organization, removed values, failed saves, wrong subject/host/org and late
+old-entry publication. No new registry or capacity allowance is inferred.
 
 Consent changes take the existing exclusive Tenant fence. Custom-value writes
 take its shared mode, then the Membership lock, freshly revalidate live
@@ -263,8 +425,10 @@ retain the fence through commit. Definition writers also take the exclusive
 Tenant fence before concept/root locks, serializing Active-count admission and
 publication. These are named new consumers; existing User-before-Tenant order,
 strongest-plan/no-upgrade rule and existing Identity transition modes remain.
-Profile-only writes add no User lock. No new DB role, definer, connection lane,
-tenant setter or context writer is introduced.
+Profile-only writes add no User lock. Definition/value/ordinary consent writers
+add no bypass or physical connector. Only the separately enumerated consent-only
+entry adds the one definer/logical setter above; existing roles, the four physical
+writers and three global-self descriptors are unchanged.
 
 A sensitive value requires the exact latest Granted evidence; successor pins
 require their own consent. Withdrawal prevents later writes using the old
@@ -293,11 +457,34 @@ Existing Tenant/Organization `identity.membership_profile.write` holders gain
 custom-value writes only under the existing self/admin target predicates; no
 general directory, cross-org mutation or provider/global profile power follows.
 
-Definition register, draft edit, publish, retire and discard are MUST. Publication
-designates its successor when two instances of the same root are tracked. Value
+| Registry | Exact assignable set | Tenant Admin adoption |
+|---|---|---|
+| v1 | Historical five Identity scoped pairs | Historical finite v1 manifest |
+| v2 | v1 plus the historical three Tenant Tenancy pairs | Existing explicit v1→v2 delta; unchanged fingerprint/transition |
+| v3 | v2 plus Tenant `customization.custom_field.admin` | Only explicit v2→v3; adds exactly that pair |
+
+A v1 role must first deliberately adopt v2; a direct v1→v3 jump refuses. Only
+the exact orgless built-in Tenant Admin can adopt; source marker/fingerprint,
+requested release/fingerprint, ETag and current role-admin authority must match.
+The v3 fingerprint uses the existing length-framed SHA-256 algorithm over domain
+`learnstack.identity.role.release.v3`, the exact v2 fingerprint, `TenantAdmin:Tenant`
+and the ordered v3 delta `Tenant:customization.custom_field.admin:True`.
+The marker advances atomically from exact v2 to exact v3 with the delta and MUST
+audit. Same-release replay follows the existing outcome contract; downgrade,
+unknown/mismatched release, custom/org role or stale source refuses.
+Previously removed nonkernel v1/v2 grants stay removed; v3 is not a manifest
+restore. Both exact transitions remain discoverable in the registry UI/DTO.
+A forward migration installs v3 checks/guards without changing shipped v2 helper
+behavior or fingerprints on a fresh migration chain. Warm seed/completion accepts
+valid v3 state without restoring grants. Definition registration grants nothing.
+
+Definition register, draft edit, publish, retire and discard are MUST. Lifecycle
+is Draft→Active→Deprecated; retirement means Active→Deprecated, not a fourth
+status. Publication retires its incumbent, activates the successor and calls
+`IAuditSubject.Designate(successor)` when both instances are tracked. Value
 writes remain Membership-root MUST; consent capture/withdrawal are Tenancy-root
 MUST. Other-person custom-value reads are MUST sensitive reads before disclosure;
-own reads and nonsensitive definition configuration reads use explicit Off
+own reads and definition configuration reads use explicit Off
 catalogue entries with their independent authorization. Refusals preserve the
 existing audit ownership and 403/404-on-audit-fault rules.
 
@@ -316,6 +503,55 @@ write context; exact parsers, operation manifests and stale-session controls
 change together. Per-member controls still use actual target eligibility. New
 screens share existing entry/scope navigation; a learner can manage personal
 consent outside Studio without receiving administration authority.
+
+The pair is defined once in SharedKernel's bounded permission definitions and
+registered by Customization's module policy source. Identity's advisory
+projection evaluates that registered pair against current facts/catalogue and
+orgless context, without importing Customization.Domain or treating registration
+as a grant. DTO/OpenAPI/SDK/native parsers, labels, manifests and exact capability
+tests change in the same activation commit. Both API and application admission
+remain authoritative after a stale or revoked UI flag.
+
+### Derived replay fingerprints
+
+An unkeyed body fingerprint is derived personal data, even when no raw value is
+stored. Low-entropy answers can be guessed if the remaining request/context and
+digest are known; applying SHA-256 twice does not remove that risk. P03-5's new
+body-bearing protected operations therefore use HMAC-SHA256 with a versioned,
+domain-separated, length-framed actor/scope/operation/precondition/method/path/
+query/body input. Historical generic/P03-3/P03-4 digests stay byte-identical; no
+new P03-5 operation falls back to them. No intermediate unkeyed digest is stored
+or logged. Early replay admission and the filter use one implementation.
+
+The existing ISecretProvider supplies a deployment-shared independent random
+32-byte key ring: one current key and at most three retained keys, with immutable
+nonsecret ASCII key IDs. The fingerprint text carries version/key ID/HMAC only.
+Configuration names are `Idempotency:CustomFields:CurrentKeyId` and the closed
+`Idempotency:CustomFields:Keys:<id>` ring; secrets are base64 of exactly 32 bytes.
+All IDs are distinct ASCII `[a-z0-9-]`, 1–32 characters, and current must exist.
+No committed example contains a usable key. Only new P03-5 mutation admission
+depends on this configuration; unrelated/public existing routes retain behavior.
+A narrow tenant-bound store metadata read selects the incumbent key ID before
+recomputation, including logically expired rows; it exposes no body or receipt.
+Unknown/missing/malformed key material fails closed before claim/disclosure.
+Existing 1,000 physical tenant slots and logical expiry/recycling rules remain;
+24-hour expiry does not mean physical deletion or permission to drop a key.
+
+Rotation first distributes the new key with old read keys to every replica,
+then switches the shared current ID. A retired runtime key is removed only after
+no physically retained row needs it; snapshot restore includes its matching key
+ring. IDs/material are never silently reused/regenerated. Loss requires restore
+of the same key; compromise requires operator-led write quiescence, resolution
+of in-flight outcomes and an explicit decision on invalidating historical replay
+before replacement. The runbook never deletes unresolved rows merely to rotate.
+Historical backup keys remain in operator custody through backup retention.
+
+Keyed fingerprints still carry Sensitive personal linkage; app/platform access,
+WAL/backups, recycling and P03-10 inventory include them. HMAC reduces dictionary
+exposure without anonymizing linkage or defending a compromised live key. Tests
+cover candidate guessing without the key, both call sites, existing digest
+compatibility, changed body/precondition, replicas/restarts/rotation, unknown keys,
+expired retained rows and absence of raw/unkeyed copies in persisted evidence.
 
 ### Diagnostics and retained copies
 
@@ -353,6 +589,8 @@ event. No new provider, background job or durable-value cache is selected.
 
 - New Customization and Tenancy tables, an Identity JSONB column, authorization
   policies, a registry adoption and more privacy tests increase packet scope.
+- The consent-only entry adds one confined definer and logical scope setter;
+  keyed fingerprints need an independently retained deployment key ring.
 - Twenty slots include historical pins. Finite input and form-profile limits
   can require simplifying a field; they are deliberate MVP usability bounds.
 - Publication/consent changes hold an exclusive Tenant fence. Actual latency is
@@ -380,7 +618,7 @@ rounds; verified corrections are committed before the next step. The package
 owns exact route/request census, SQL constraints/grants, module APIs and tests.
 
 Reconcile Customization, Identity and Tenancy specifications, permission/audit
-matrices and diagrams; Architecture 13/23/32; Standards 04/05/07/08/09/11/15/16/
+matrices and diagrams; Architecture 13/23/32; Standards 04/05/07/08/09/10/11/15/16/
 18/19/21; glossary; decision index; Phase 03 G9/Status and append-only delivery
 records. Amend each named predecessor with a dated link and the exact bounded
 extension, using the next available amendment number at acceptance. Do not
@@ -389,15 +627,20 @@ rewrite prior review verdicts or historical Accepted decisions.
 ## Architecture Tests
 
 - Activate `Every_TenantCustomFieldDef_Declares_PiiCategory` only with its actual
-  aggregate/migration and missing/invalid/Payment counterexamples.
+  aggregate/migration, explicit None positive control and missing/invalid/Payment
+  counterexamples. None is no automatic subject-export/erasure exclusion.
 - Extend `Mapped_Properties_Have_Explicit_Personal_Data_Classification`,
   `User_Aggregate_Has_No_TenantScoped_Columns`, module/aggregate ownership,
   RLS/WithCheck, native operation/policy, permission/audit and diagnostics rules.
-  No new multi-root exception, context setter or role bypass is inferred.
+  No new multi-root exception or role bypass is inferred. The one enumerated
+  consent-entry function/setter and its owner/RLS/caller census are explicit.
 - Real app-role PostgreSQL controls cover concurrent publication, requiredness,
   retained pins, classification change, removal/slot reuse, consent sequence,
   stale confirmation, withdrawal versus value commit, audit-fault rollback,
   cross-tenant/org/person access and direct mutation refusal.
+- Both definition/value fence winner orders, finite satisfiability witnesses,
+  inactive-membership consent-only entry and keyed replay compatibility have
+  real subjects/dirty controls, not only source literal assertions.
 - Real native/SDK controls cover supported nested forms, body/payload limits,
   Origin/CSRF, stale ETag/idempotent replay, revoked authority, late old-session
   publication, outages, localized errors and learner-only consent.

@@ -389,11 +389,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 252 lines
-  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 168 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 334 lines
+  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
   - [P03-5 proposal correction verification and approval readiness (2026-11-10)](#p03-5-proposal-correction-verification-and-approval-readiness-2026-11-10) — 25 lines
+  - [P03-5 maintainer review disposition and revised contract (2026-11-10)](#p03-5-maintainer-review-disposition-and-revised-contract-2026-11-10) — 66 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17979,8 +17980,9 @@ Reads retain their actual API GET/HEAD treatment and explicit audit policy.
 
 | API method and suffix | Exact request family | Admission |
 |---|---|---|
-| GET `/customization/custom-field-definitions` | `ListCustomFieldDefinitionsQuery` | Tenant custom-field admin; bounded cursor/status filter |
+| GET `/customization/custom-field-definitions` | `ListCustomFieldDefinitionsQuery` | Tenant custom-field admin; concept summaries, bounded cursor/status filter |
 | GET `/customization/custom-field-definitions/{id}` | `GetCustomFieldDefinitionQuery` | Tenant custom-field admin; exact retained revision |
+| GET `/customization/custom-field-definitions/{id}/revisions` | `ListCustomFieldDefinitionRevisionsQuery` | Tenant custom-field admin; exact target/concept, cursor 20 |
 | POST `/customization/custom-field-definitions` | `RegisterCustomFieldDefinitionCommand` | Tenant custom-field admin, orgless; creates Draft |
 | PUT `/customization/custom-field-definitions/{id}` | `ReviseCustomFieldDefinitionDraftCommand` | Same; Draft only, strong If-Match |
 | POST `/customization/custom-field-definitions/{id}/publication` | `PublishCustomFieldDefinitionCommand` | Same; strong If-Match and exact expected incumbent/absence |
@@ -17988,13 +17990,19 @@ Reads retain their actual API GET/HEAD treatment and explicit audit policy.
 | POST `/customization/custom-field-definitions/{id}/discard` | `DiscardCustomFieldDefinitionDraftCommand` | Same; Draft only, strong If-Match, no hard delete/key reuse |
 | GET `/identity/memberships/{id}/custom-fields` | `GetMembershipCustomFieldsQuery` | Existing exact admin member-read predicate; MUST sensitive read |
 | GET `/identity/me/custom-fields` | `GetOwnMembershipCustomFieldsQuery` | Exact current own Membership read; Off |
-| PUT `/identity/memberships/{id}/custom-fields` | `SetMembershipCustomFieldsCommand` | Existing profile-write self/admin predicates; strong Membership If-Match |
+| PATCH `/identity/memberships/{id}/custom-fields` | `SetMembershipCustomFieldsCommand` | Existing exact admin profile-write predicate; strong Membership If-Match |
+| PATCH `/identity/me/custom-fields` | `SetOwnMembershipCustomFieldsCommand` | Existing exact own profile-write predicate; no client-selected Membership; strong If-Match |
 | GET `/tenancy/membership-field-consents/own` | `GetOwnMembershipFieldConsentQuery` | Own Membership only; exact definition pin, Off |
-| GET `/tenancy/membership-field-consents/own/history` | `ListOwnMembershipFieldConsentsQuery` | Own current Membership only; latest state per exact tuple, cursor 20, Off |
+| GET `/tenancy/membership-field-consents/own/scopes` | `ListOwnFieldConsentScopesQuery` | Host-capped retained subject scopes under OwnConsentEntry, cursor 20, Off |
+| GET `/tenancy/membership-field-consents/own/history` | `ListOwnMembershipFieldConsentsQuery` | Exact retained owned scope under OwnConsentEntry; latest tuple state, cursor 20, Off |
 | POST `/tenancy/membership-field-consents/grants` | `GrantOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
-| POST `/tenancy/membership-field-consents/withdrawals` | `WithdrawOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
+| POST `/tenancy/membership-field-consents/withdrawals` | `WithdrawOwnMembershipFieldConsentCommand` | OwnConsentEntry retained subject scope; expected predecessor and explicit confirmation, no Active Membership |
 
 Every mutation is MUST-audited and idempotent with freshly authorized replay.
+Consent POSTs use the same protected keyed replay family, including their exact
+predecessor; an exact replay does not append and is a historical receipt, while
+a different-key stale predecessor conflicts. New P03-5 bodies use the versioned
+HMAC path selected in ADR-0095; all historical fingerprints remain unchanged.
 Definition publication binds both the Draft version and expected incumbent; the
 absent-incumbent case is explicit. Duplicate/unknown operation names, keys, pins,
 targets and fields refuse before mutation. A value request carries bounded
@@ -18012,6 +18020,10 @@ objects, not recursively escaped JSON strings; projection/page serialization
 retains the actual 256 KiB response and existing shared snapshot budget guards.
 Own-consent history remains reachable from Portal even when no Active definition
 or stored value points to that grant; withdrawal is not a hidden exact-ID API.
+After lifecycle loss, `/account/consents` and the closed native entry POSTs
+`/api/auth/entry/consents` and `/api/auth/entry/consents/withdraw` use an existing
+credentialed entry handle and fixed consent-only shell, independent of public
+site/CurrentSession admission. Ordinary grant still requires Active Membership.
 
 #### Acceptance and reconciliation inventory
 
@@ -18021,9 +18033,12 @@ are the named module/application boundary or the P03-5 implementation owner.
 
 - [ ] ADR-0095, decision index, Phase 03 G9/Status and this package: approval and
       exact accepted choices; amendments use next available numbers.
-- [ ] ADR-0043/0073/0074/0076/0078/0079: dated navigation Amendments naming each
+- [ ] ADR-0003/0036/0040/0043/0072/0073/0074/0076/0078/0079: dated Amendments naming each
       bounded consumer/profile/authority/registry extension; earlier bodies stay
       historical. ADR-0042's exact two-handler exception list stays unchanged.
+      Standard 05 owns the new fence consumers; ADR-0074 is navigation only.
+      ADR-0037/0044/0077 mechanisms apply unchanged, with their actual new
+      replay/audit/designation/denial consumers recorded in canonical matrices.
 - [ ] Customization specification/permissions/audit: specialized definition
       history, admitted form grammar, live uniqueness and publication designation.
 - [ ] Identity specification/permissions/audit: exact value pins/limits,
@@ -18033,9 +18048,11 @@ are the named module/application boundary or the P03-5 implementation owner.
       own-consent admission, exact grants, monotonic predecessor and withdrawal.
 - [ ] Architecture 13/23/32 and glossary: actual form/consent ownership,
       categories/history/retained copies, lifecycle diagrams and terminology.
-- [ ] Standards 04/05/07/08/09/11/15/16/18/19/21: finite route/policy/receipt
+- [ ] Standards 04/05/07/08/09/10/11/15/16/18/19/21: finite route/policy/receipt
       census, DDL/RLS/grants/locks, payload/locale/form rules, errors, privacy,
       adopted v3 delta, tenth capability and actual catalogue subjects.
+      Include the one new definer/logical setter, consent-only shell admission,
+      HMAC configuration/key lifecycle and fixed diagnostic-sink controls.
 - [ ] Generated OpenAPI/SDK, native manifests/exact parsers and tests update
       together in Step 3; no dormant route activation in the foundation steps.
 - [ ] Step 4 evidence records exact source/toolchain/result populations, manual
@@ -18123,3 +18140,69 @@ configuration change, application start, CI dispatch, push or PR is performed by
 this decision pass. After approval, implementation continues on development with
 the requested commit/two-fresh-review cycle and stops only for an actual new
 decision or external blocker. Existing packet evidence follow-ups stay separate.
+
+### P03-5 maintainer review disposition and revised contract (2026-11-10)
+
+The maintainer supplies external reviews and directs the implementation owner
+to verify findings, correct the documents, accept the result and proceed. This
+is conditional approval of the corrected coupled contract, not acceptance of
+every suggested mechanism or a runtime-proof claim. The owner compares the
+findings with real schema, permission, replay, entry and scope implementations;
+two focused read-only Sol/Terra investigations corroborate the new authority and
+fingerprint seams. Verified corrections are:
+
+- The finite form profile has a closed per-type keyword grammar, no formats or
+  schema annotations, explicit container units and constructive nonemptiness
+  witnesses validated by the actual existing evaluator. Both satisfiability and
+  individual/combined serialization feasibility precede publication.
+- Standard 05 owns the new lock consumers. Shared value and exclusive definition
+  fencing provide final-read-through-COMMIT Active eligibility; the older content
+  reader contract remains unchanged. Both winner orders need real PostgreSQL proof.
+- Consent withdrawal/history no longer depends on Active Membership, live public
+  content or an ordinary BFF session. A separate retained-subject entry has one
+  confined Tenancy-only definer and one logical setter, giving twelve of each
+  while preserving four physical writers, existing roles and three global-self
+  descriptors. Its fixed shell/entry owner cannot disclose values or confer scope.
+- Consent scope derives from authoritative Membership at grant and retained
+  consent at withdrawal. Exact notice locale/hash, purpose grammar, typed root,
+  RLS/filter/marker/grant/census and root-specific audit semantics are explicit.
+- New body-bearing P03-5 replay uses a scoped versioned HMAC key ring; existing
+  fingerprint bytes remain unchanged. Derived linkage, expired physical rows,
+  key loss/rotation/restore, WAL/backups and P03-10 ownership are accounted for.
+- Registry v3 is exactly v2 plus one pair; v2 must precede v3. Its single-key
+  delta preserves earlier nonkernel removals. SQL/seed/fingerprint history and
+  both discoverable transitions require forward-compatible implementation.
+- Partial value mutation is PATCH with distinct own/admin requests. A bounded
+  concept revision-history route avoids client-wide scans. Consent predecessor
+  and same-key replay semantics, tenth-capability source/activation and Standard
+  10 diagnostic ownership are included in the exact reconciliation inventory.
+- Schema/input caps are independent aggregate ceilings, not reservations. The
+  schema sublimit is 2 KiB; full input stays 4 KiB. Remaining capacity, encoded
+  bytes, optional-value 32 KiB sharing and pure-removal remediation are visible.
+- Retained definitions have 100 concepts/1,000 revisions/20 live Drafts, without
+  pretending discard frees history. Consent history deliberately remains retained
+  lifetime evidence; same-state no-append and a durable sixty-second grant
+  cooldown bound toggling. Withdrawal has no grant cooldown; existing subject/
+  visitor limits remain. Phase 11 owns operational retention, not automatic
+  compaction of evidence; P03-10 owns separately authorized subject fulfillment.
+
+Suggestions rejected or narrowed with evidence:
+
+- None is already an explicit PersonalDataCategory and is permitted by G9.
+  Excluding all None values from DSAR/erasure is not authorized: subject linkage
+  and purpose still matter. Add a positive None control, not an export bypass.
+- `IAuditSubject.Designate(successor)` is required when publication tracks two
+  same-type roots; replacing that sentence with lifecycle prose would remove a
+  real audit invariant. The corrected wording retains both lifecycle and call.
+- Standards receive canonical updates derived from ADR-0095, not ADR amendment
+  headings. ADR-0074 gets navigation only. ADR-0037/0044/0077 mechanics apply
+  unchanged; new consumers/slugs go into their owning matrices/catalogues.
+- An unconditional switch to per-tuple locking would not fence consent withdrawal
+  against existing Tenant-fenced value writes. This packet retains the coupled
+  shared/exclusive protocol and acknowledges serialization/storage costs.
+
+No code or migration is included in this disposition. It supersedes proposal
+claims in earlier records where explicitly different, without rewriting those
+historical review verdicts. The corrected ADR and current package govern the
+four coherent steps; implementation still owes actual source-bound proof and
+the requested two fresh review rounds per step.

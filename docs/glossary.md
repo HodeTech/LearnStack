@@ -275,7 +275,7 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 |------|------------|
 | **Durable asynchronous store** | Persisted event/job envelope, execution or completion history that outlives its request/process, including linkable control identifiers. The [canonical inventory](architecture/23-data-protection.md#durable-asynchronous-store-inventory) distinguishes those stores from ordinary module tables and volatile BFF custody. |
 | **Retained copy** | A separate provider, diagnostic, database/WAL or backup copy whose removal is not established by deleting its source row or invalidating a local session. Its retention and completion evidence belong to the inventory's named owner. |
-| **PII Category** | One of `PII-Identity`, `PII-Behaviour`, `PII-Sensitive`, `Payment`, `Audit`. Each category has its own redaction, retention, and erasure rules. |
+| **PII Category** | One of `PII-Identity`, `PII-Behaviour`, `PII-Sensitive`, `Payment`, `Audit`. `None` is a separate explicit nonpersonal-data declaration, never a default or an automatic exclusion of subject-linked data from fulfillment. Each category has its own redaction, retention, and erasure rules. |
 | **Data Controller** | The tenant. Decides what personal data is collected and why. |
 | **Data Processor** | LearnStack. Processes personal data on the controller's instructions. |
 | **Right of Access** | The user's KVKK/GDPR right to receive an export of their personal data. |
