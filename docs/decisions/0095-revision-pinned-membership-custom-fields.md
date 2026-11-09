@@ -2,17 +2,18 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-10
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
-This proposal answers P03-5/G9. It authorizes no migration, permission grant,
-consent writer or runtime route before maintainer acceptance. The
+Accepted after the maintainer's conditional approval and verified review
+corrections on 2026-11-10. This decision answers P03-5/G9; acceptance establishes
+the contract, not implementation or qualification. The
 [decision package](../roadmap/phase-03-delivery-log.md#p03-5-proposed-custom-field-contract-and-plan-2026-11-10)
 owns the four implementation steps and their proof obligations.
 
-On acceptance, dated Amendments in ADR-0043, ADR-0073, ADR-0074, ADR-0076,
+Acceptance includes dated Amendments in ADR-0043, ADR-0073, ADR-0074, ADR-0076,
 ADR-0078 and ADR-0079 link the exact extensions below. Their historical bodies
 remain intact and the records remain Accepted outside these bounded changes:
 

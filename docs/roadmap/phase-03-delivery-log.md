@@ -389,12 +389,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 334 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 359 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
   - [P03-5 proposal correction verification and approval readiness (2026-11-10)](#p03-5-proposal-correction-verification-and-approval-readiness-2026-11-10) — 25 lines
   - [P03-5 maintainer review disposition and revised contract (2026-11-10)](#p03-5-maintainer-review-disposition-and-revised-contract-2026-11-10) — 66 lines
+  - [P03-5 conditional acceptance and Step 1 start (2026-11-10)](#p03-5-conditional-acceptance-and-step-1-start-2026-11-10) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18206,3 +18207,28 @@ claims in earlier records where explicitly different, without rewriting those
 historical review verdicts. The corrected ADR and current package govern the
 four coherent steps; implementation still owes actual source-bound proof and
 the requested two fresh review rounds per step.
+
+### P03-5 conditional acceptance and Step 1 start (2026-11-10)
+
+**Accepted — 2026-11-10.** The maintainer's instruction to correct the reviewed
+documents, accept them and proceed closes G9 after source verification. The
+corrected decision is [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md),
+with the four-step package above and the explicitly superseding maintainer-review
+disposition. The predecessor review records remain historical.
+
+Two fresh focused Sol/Terra reviewers verify the corrected contract against the
+real source/corpus and report no remaining verified Blocker/Major. They confirm
+constructive nonemptiness/size proofs, commit-spanning locks, scoped consent-only
+recovery, v3 transition and HMAC compatibility; they execute no runtime tests and
+claim none. Document controls resolve 3,472 links, conform to roadmap structure
+and keep three indexes current at correction commit `7a4ee829`.
+
+The acceptance commit precedes the first affected schema or application writer.
+Step 1 now reconciles named canonical carriers and implements definitions/form
+profile, explicit v3 foundation and independent consent storage/entry groundwork.
+No new data is placed in User; no unrelated runtime clock, CI ceiling or provider
+policy changes. Step 2 owns values/privacy; Step 3 owns endpoint/native/UI
+activation; Step 4 owns combined proof/PR preparation. Each still owes an
+implementation commit, two fresh independent rounds, verified correction commits
+and truthful test records. The maintainer is not asked to approve the same decision
+again; an actual different architectural choice remains a separate approval.

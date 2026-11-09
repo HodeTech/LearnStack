@@ -137,13 +137,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0092 | [SDK Completion and Frontend Job Windows](0092-sdk-completion-and-frontend-job-windows.md) | Accepted 2026-11-04 under maintainer closure delegation: canonical SDK aggregate 360, shared cold-prefix stop 150, both case thresholds 160 seconds and frontend job 30 minutes; exact proof/ownership and complete A/B remain. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery and qualification. |
 | 0093 | [Verified Invitation Acceptance and Durable Email Handoff](0093-verified-invitation-acceptance-and-handoff.md) | Accepted 2026-11-04 after maintainer selection of automatic email/review corrections: confined verified-recipient entry, atomic Invitation/Membership, encrypted SMTP custody and exact external source; no runtime proof implied. [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation. |
 | 0094 | [Forty-Five-Minute Backend Execution Windows](0094-forty-five-minute-backend-execution-windows.md) | Accepted 2026-11-06 at maintainer direction: verified Architecture and ordinary Docker producers get a 45-minute (2,700-second) whole-job ceiling and matching observation bounds; base/native twenty, reserve, operation limits, counts, plan and complete fresh A/B stay fixed. Dated ADR-0062, ADR-0063, ADR-0075 and ADR-0082 amendments preserve predecessor history. |
+| 0095 | [Revision-Pinned Membership Custom Fields](0095-revision-pinned-membership-custom-fields.md) | Accepted 2026-11-10 after maintainer review corrections: immutable Membership definitions/value pins, finite satisfiable forms, personal consent and retained-subject withdrawal entry, explicit v3 adoption and scoped keyed replay. Implementation/qualification stays in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0095 | [Revision-Pinned Membership Custom Fields](0095-revision-pinned-membership-custom-fields.md) | Immutable definitions/value pins, bounded nested forms, personal consent and explicit registry v3 adoption; approval pending | P03-5/G9 before its first schema or runtime writer |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
