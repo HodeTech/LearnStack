@@ -389,9 +389,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 193 lines
-  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 165 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 227 lines
+  - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 168 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
+  - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17988,6 +17989,7 @@ Reads retain their actual API GET/HEAD treatment and explicit audit policy.
 | GET `/identity/me/custom-fields` | `GetOwnMembershipCustomFieldsQuery` | Exact current own Membership read; Off |
 | PUT `/identity/memberships/{id}/custom-fields` | `SetMembershipCustomFieldsCommand` | Existing profile-write self/admin predicates; strong Membership If-Match |
 | GET `/tenancy/membership-field-consents/own` | `GetOwnMembershipFieldConsentQuery` | Own Membership only; exact definition pin, Off |
+| GET `/tenancy/membership-field-consents/own/history` | `ListOwnMembershipFieldConsentsQuery` | Own current Membership only; latest state per exact tuple, cursor 20, Off |
 | POST `/tenancy/membership-field-consents/grants` | `GrantOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
 | POST `/tenancy/membership-field-consents/withdrawals` | `WithdrawOwnMembershipFieldConsentCommand` | Closed own-consent policy; expected predecessor and explicit confirmation |
 
@@ -18007,6 +18009,8 @@ existing `/portal/profile` receives own values, purpose notices and personal
 consent controls without requiring Studio access. Schema payloads are JSON
 objects, not recursively escaped JSON strings; projection/page serialization
 retains the actual 256 KiB response and existing shared snapshot budget guards.
+Own-consent history remains reachable from Portal even when no Active definition
+or stored value points to that grant; withdrawal is not a hidden exact-ID API.
 
 #### Acceptance and reconciliation inventory
 
@@ -18062,3 +18066,34 @@ The plan adds behavioral boundary/rollback cases for both findings and a 32 KiB
 stored collection limit. Proposed own-consent admission requires a current Active
 Membership; post-membership-loss subject request authority stays with P03-10.
 No schema, runtime writer or Accepted ADR body changes in this correction.
+
+### P03-5 proposal review round 2 and corrections (2026-11-10)
+
+Two different fresh reviewers inspect `ebb33739`: Terra high for security,
+privacy and ownership; Sol high for experience, numeric fidelity and transport.
+They verify the first-round corrections and identify three further Major gaps.
+The proposal and exact census now address all three:
+
+- An unchanged sensitive pin counts toward requiredness only while the latest
+  consent for its exact tuple is Granted. Withdrawal makes it both withheld and
+  incomplete. Mixed set/remove and explicit reconsent receive behavioral cases;
+  removal-only remains independent of completeness.
+- Exact-pin consent read/withdrawal eligibility was insufficient for discovery.
+  The packet adds `ListOwnMembershipFieldConsentsQuery` and a bounded own-history
+  route/Portal control, including successful grant plus failed save plus later
+  retirement with no retained value. Current-Membership tuple pages resolve
+  retained notices in an owning-contract batch, without a broad directory or
+  N+1 query. A person can find and withdraw that grant after fresh navigation.
+- Finite JSON numbers alone do not preserve browser fidelity: the current SDK
+  and snapshot paths use JSON.parse/stringify and can round unsafe integers.
+  The selected profile uses safe integers and explicit finite binary64 number
+  semantics, rejects overflow/underflow/integer precision loss, and requires
+  normalized schema/value round trips through actual server/native/form paths.
+  Boundary, nested and direct API-to-Portal controls qualify this policy in code;
+  no arbitrary-precision/exact-decimal field or larger body is selected.
+
+Whole-value diagnostic exclusion also names validation/L1 error responses
+separately from legitimate authorized value responses. Structural error indices
+do not echo tenant-authored keys or labels. This is a static contract correction;
+runtime safety, actual user journeys and performance remain implementation proof.
+ADR-0095 stays Proposed and G9 stays Open pending the maintainer's explicit choice.

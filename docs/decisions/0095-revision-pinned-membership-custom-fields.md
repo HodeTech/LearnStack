@@ -123,9 +123,22 @@ The additional field profile admits:
   localized metadata, rendered as literal text.
 - Bounded string length and numeric/array bounds. No references, composition,
   conditionals, regex, executable renderer, HTML, upload, external lookup or
-  unsupported annotation is admitted by this profile. Dates are plain strings
-  unless the selected profile explicitly supplies a validated date control;
-  this proposal selects no date-format assertion.
+  unsupported annotation is admitted by this profile. Date-like input uses a
+  bounded plain text field; date-format assertions/controls are not admitted.
+
+Numeric schemas and values share the browser's representation contract at every
+boundary. Integers stay within -9,007,199,254,740,991 through
+9,007,199,254,740,991. Numbers use finite IEEE-754 binary64 semantics, not exact
+decimal arithmetic; integral numbers outside that safe-integer range also
+refuse. Admission normalizes numeric bounds and values once to the supported
+representation before schema validation and storage. Overflow, nonfinite values,
+underflow of a nonzero input to zero, and integer precision loss refuse rather
+than silently changing the answer. Admitted numbers must round-trip through the
+actual API/SDK/native/form serializers without further value change. Direct API
+and nested inputs have the same guard; no client-only safe-range claim suffices.
+Tests include both safe-integer edges, each unsafe neighbor, exponent/precision
+controls and a direct API-to-Portal-to-write round trip. This profile provides
+no payment, arbitrary-precision integer or exact-decimal field type.
 
 The field profile is an allowlist in addition to all existing ADR-0043 gates.
 Unknown form-profile keywords refuse even where the general schema dialect
@@ -157,6 +170,10 @@ requests can leave an incomplete form; they collect no new value and cannot be
 blocked by another unanswered field. Required sensitive fields do not make
 personal consent compulsory: declining consent leaves the custom-field form
 incomplete and leaves the person's existing account/membership access intact.
+For a sensitive field, an unchanged pin counts only while the latest consent for
+that exact tuple is Granted. Withdrawal makes its retained pin incomplete as
+well as withheld. Mixed set/remove requests use the set/update rule; reconsent
+can restore eligibility without changing the historical write evidence.
 
 ### Finite authoring and storage budgets
 
@@ -221,6 +238,15 @@ Draft discard cannot strand a person's consent. The ordinary admission ceiling
 still requires their own current Active Membership; access after membership
 loss remains within P03-10's separately authorized subject-request contract.
 Drafts admit no grant. New grants otherwise require an Active definition.
+
+A bounded own-consent history lists the latest state for each of the current
+Membership's exact consent tuples, including consent-only tuples after a failed
+value save or definition retirement. It has cursor pages of twenty, no search
+or foreign-Membership selection. A bounded owning-contract batch resolves the
+retained notice revisions; no per-row directory lookup or N+1 query is inferred.
+Portal profile exposes that history and withdrawal controls independently of
+Active fields and stored values. Fresh navigation cannot lose the only way to
+discover an existing grant.
 
 Capture/withdrawal has an expected latest-consent token; a stale confirmation
 cannot overwrite a newer withdrawal. Each command writes only its Tenancy root
@@ -298,7 +324,8 @@ events, validation messages, audit snapshots/diffs, traces, error archives and
 Sentry payloads. Classification still governs storage/disclosure/fulfillment;
 it is not permission to log a tenant's arbitrary value. Definition schema,
 labels and notices receive the same payload exclusion. Fixed error codes and
-bounded field locations replace attempted values and provider exception text.
+fixed structural locations/indices replace attempted values and provider
+exception text; errors do not echo tenant-authored keys, labels or notices.
 This conservatively extends the category-driven baseline without claiming
 general secrecy for unrelated application exceptions.
 
@@ -306,7 +333,9 @@ Mapped-property PII census declarations, contained-child capture, protected
 receipts and local/native response custody are extended with their first
 writers. Real nested canaries and nonempty safe controls exercise immediate
 and deferred database failures, validation, serialized logs, spans, local error
-archives, Sentry envelopes, API responses and audit capture. Consent linkage is
+archives, Sentry envelopes, validation/L1 error responses and audit capture.
+Authorized successful value disclosure retains its separate positive tests.
+Consent linkage is
 classified; no profile value is copied into consent audit or an integration
 event. No new provider, background job or durable-value cache is selected.
 
