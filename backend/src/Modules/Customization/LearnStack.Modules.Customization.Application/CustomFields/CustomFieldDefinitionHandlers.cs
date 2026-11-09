@@ -112,7 +112,7 @@ public sealed class CustomFieldDefinitionCommandHandlers(ICustomFieldDefinitionS
             else if (request is PublishCustomFieldDefinitionCommand)
             {
                 if (target!.Status != CustomizationStatus.Draft) return Fail<CustomFieldDefinitionDto>("lockey_business_rule_violation");
-                var schema = profile.Admit(target.JsonSchema);
+                var schema = profile.RevalidateStored(target.JsonSchema);
                 if (schema.IsFailure || schema.Value.MaximumValueBytes != target.MaximumValueBytes) return Fail<CustomFieldDefinitionDto>("lockey_validation_failed");
                 var localization = await locales.ReadAsync(cancellationToken);
                 if (localization.IsFailure) return Result<CustomFieldDefinitionDto>.Fail(localization.Error);

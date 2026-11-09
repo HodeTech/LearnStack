@@ -28,9 +28,16 @@ public sealed class CustomFieldFormProfile(IJsonSchemaValidator schemas) : ICust
     public const int RevisionLimit = 1000;
     public const int DraftLimit = 20;
 
-    public Result<AdmittedCustomFieldSchema> Admit(string schema)
+    public Result<AdmittedCustomFieldSchema> Admit(string schema) => AdmitCore(schema, storedRepresentation: false);
+
+    // jsonb adds whitespace and expands exponent notation. Revalidate its semantics
+    // and the normalized byte budget without treating its physical text as author input.
+    internal Result<AdmittedCustomFieldSchema> RevalidateStored(string schema) => AdmitCore(schema, storedRepresentation: true);
+
+    private Result<AdmittedCustomFieldSchema> AdmitCore(string schema, bool storedRepresentation)
     {
-        if (string.IsNullOrWhiteSpace(schema) || Encoding.UTF8.GetByteCount(schema) > SchemaByteLimit) return Refuse<AdmittedCustomFieldSchema>();
+        if (string.IsNullOrWhiteSpace(schema)
+            || !storedRepresentation && Encoding.UTF8.GetByteCount(schema) > SchemaByteLimit) return Refuse<AdmittedCustomFieldSchema>();
         // Suppress the general validator's tenant-authored pointer names at this boundary.
         if (schemas.AdmitSchema(schema).IsFailure) return Refuse<AdmittedCustomFieldSchema>();
         try

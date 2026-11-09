@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 435 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 477 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -398,6 +398,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 conditional acceptance and Step 1 start (2026-11-10)](#p03-5-conditional-acceptance-and-step-1-start-2026-11-10) — 25 lines
   - [P03-5 Step 1 source correction and foundation boundary (2026-11-10)](#p03-5-step-1-source-correction-and-foundation-boundary-2026-11-10) — 28 lines
   - [P03-5 Step 1 implementation and first review handoff (2026-11-10)](#p03-5-step-1-implementation-and-first-review-handoff-2026-11-10) — 48 lines
+  - [P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)](#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18310,3 +18311,45 @@ The broad architecture attempt is deliberately cancelled in favor of the affecte
 families after checking the prior 35-minute full-suite cost; it earns no passing
 credit. Step 4 still owns the complete combined suite and final-source hosted A/B.
 No implementation review or packet completion is claimed by this handoff.
+
+### P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)
+
+The foundation implementation is `41872b4b` on development. Its hooks scan 110
+staged files and format 73 C# files; the post-format Release build passes. Targeted
+post-format confirmation passes 72 unit, 43 architecture/corpus and 22 PostgreSQL
+cases, with zero skips. Workstation settings and the pre-existing stashes remain
+unchanged. No branch/worktree, push, PR or CI dispatch is part of this step.
+
+Round 1 uses two fresh independent Sol/Terra high reviewers for definitions/form/
+registry and consent/privacy/storage. Neither reports a verified finding. Round 2
+uses two different fresh Terra/Sol high reviewers for adversarial contract and
+forms/consent. Terra reports no verified finding; Sol verifies one Major:
+
+- Publication reapplies the external raw 2 KiB schema gate to PostgreSQL's
+  rendered `jsonb`. A lawful 2,044-byte enum becomes 2,080 bytes after database
+  whitespace expansion, so registration succeeds and publication incorrectly
+  refuses. A real app-role command regression reproduces that refusal before
+  repair. Whitespace compaction alone is insufficient: `jsonb` also expands
+  small exponent lexemes into long decimal notation.
+- A stored-only revalidation path retains the existing general admission gates,
+  finite grammar, numeric normalization, constructive witness and final canonical
+  2 KiB proof. External author input retains its raw 2 KiB gate and the complete
+  4 KiB budget. Publication changes no stored schema or published metadata.
+  Actual PostgreSQL enum and nested small-number cases now register, read and
+  publish successfully. A separate refusal control preserves the external raw
+  byte limit even when excess whitespace could be compacted.
+
+The correction passes the Release build, the complete 3,684-case unit project and
+all six definition-command PostgreSQL cases, with zero skips. The finding owner
+independently checks the stored-only repair approach. Both review rounds are
+static source/corpus reviews; neither reruns the root's suites or claims hosted
+qualification. No verified finding remains after the correction.
+
+Step 1 closes for its foundation scope and Step 2 proceeds automatically. The
+remaining proof is explicit work inside P03-5: Step 2 covers command-level capacity
+edges and competing definition/consent/value commit orders alongside values and
+diagnostic sinks; Step 3 emits normalized admitted schemas for editor roundtrips,
+including numeric normalization rather than whitespace-only compaction, and proves
+actual serialized/encoded payload bounds. Step 4 still owes the complete combined
+suite and final-source hosted A/B/original archives. These are not inherited or
+completed by the foundation results.

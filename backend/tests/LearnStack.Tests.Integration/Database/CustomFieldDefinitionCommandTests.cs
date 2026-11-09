@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Globalization;
+using System.Text;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Validation;
@@ -34,6 +36,43 @@ public sealed class CustomFieldDefinitionCommandTests(CustomFieldCommandFixture 
     private static CustomFieldDefinitionInput Input(string key, int version = 1) => new(
         "Membership", key, version, Schema, new Dictionary<string, string> { ["en"] = "Authored label canary" },
         PersonalDataCategory.None, false, 0, null, null);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Admitted_schemas_publish_after_PostgreSQL_expands_stored_whitespace_or_exponents(bool numericExpansion)
+    {
+        var choices = Enumerable.Range(0, 20).Select(index => index.ToString("D2", CultureInfo.InvariantCulture)
+            + new string('x', 87)).ToArray();
+        var schema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"value":{"type":"string","minLength":1,"maxLength":100,"enum":""" + JsonSerializer.Serialize(choices) + """}},"required":["value"],"additionalProperties":false}""";
+        if (numericExpansion)
+        {
+            var properties = string.Join(',', Enumerable.Range(0, 10).Select(index =>
+                JsonSerializer.Serialize("field-" + index.ToString(CultureInfo.InvariantCulture))
+                + """:{"type":"number","minimum":1e-300,"maximum":1e-299}"""));
+            schema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"value":{"type":"object","properties":{""" + properties + """},"required":[],"additionalProperties":false}},"required":["value"],"additionalProperties":false}""";
+        }
+        var key = "jsonb-" + Guid.NewGuid().ToString("N");
+        var input = Input(key) with
+        {
+            JsonSchema = schema,
+            FormLabels = numericExpansion ? Enumerable.Range(0, 10).Select(index => new CustomFieldControlLabels(
+                "/" + index.ToString(CultureInfo.InvariantCulture), new Dictionary<string, string> { ["en"] = "Field " + index.ToString(CultureInfo.InvariantCulture) })).ToArray()
+                : [new("/", null, choices.Select((_, index) =>
+                (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { ["en"] = "Choice " + index.ToString(CultureInfo.InvariantCulture) }).ToArray())],
+        };
+        var created = await fixture.SendAsync(new RegisterCustomFieldDefinitionCommand(Guid.CreateVersion7(), input), "field-jsonb-register");
+        Assert.True(created.IsSuccess);
+        Assert.True(Encoding.UTF8.GetByteCount(created.Value.JsonSchema) <= CustomFieldFormProfile.SchemaByteLimit);
+        if (!numericExpansion) Assert.Equal(2044, Encoding.UTF8.GetByteCount(created.Value.JsonSchema));
+        var stored = await fixture.SendAsync(new GetCustomFieldDefinitionQuery(created.Value.DefinitionId), "field-jsonb-read");
+        Assert.True(stored.IsSuccess);
+        Assert.True(Encoding.UTF8.GetByteCount(stored.Value.JsonSchema) > CustomFieldFormProfile.SchemaByteLimit);
+        var published = await fixture.SendAsync(new PublishCustomFieldDefinitionCommand(created.Value.DefinitionId,
+            created.Value.Version, null, null), "field-jsonb-publish");
+        Assert.True(published.IsSuccess);
+        Assert.Equal("Active", published.Value.Status);
+    }
 
     [Fact]
     public async Task Discard_preserves_the_permanent_revision_reservation_in_actual_EF_reads()

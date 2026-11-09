@@ -15,6 +15,14 @@ public sealed class CustomFieldFormProfileTests
         {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"value":
         """ + field + "},\"required\":[\"value\"],\"additionalProperties\":false}";
     private const string Text = """{"type":"string","minLength":1,"maxLength":20}""";
+
+    [Fact]
+    public void External_schema_input_keeps_its_raw_byte_limit_even_when_whitespace_could_be_compacted()
+    {
+        var valid = Envelope("""{"type":"boolean"}""");
+        _profile.Admit(valid).IsSuccess.Should().BeTrue();
+        _profile.Admit(valid + new string(' ', CustomFieldFormProfile.SchemaByteLimit)).IsFailure.Should().BeTrue();
+    }
     private static CustomFieldDefinitionDto Definition(string schema) => new(Guid.CreateVersion7(), "Membership", "field", 1,
         "Active", 0, false, schema, new Dictionary<string, string> { ["en"] = "Label" }, PersonalDataCategory.None, false, 0, null, null, 242);
 
