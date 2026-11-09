@@ -96,3 +96,14 @@ another's renderer. There is no `organization_id` on either table and no
 restrictive write guard, which is
 [Database Standards § Table classes](../../standards/05-database.md)'s answer for
 this class rather than an omission.
+
+## Membership field definitions (planned)
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+adds the Tenant pair `customization.custom_field.admin`, registered by the
+Customization policy source. Only current authority in orgless context admits
+definition administration. Explicit audited v2→v3 Tenant Admin adoption adds only
+this pair, preserving previously removed grants; v1 first adopts v2. Registration,
+seed and migration grant nothing. The tenth advisory capability
+`canManageCustomFields` evaluates the registered pair against current facts and is
+not authorization. Phase 03 owns activation and proof.

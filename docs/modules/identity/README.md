@@ -266,7 +266,7 @@ No unused contact field is collected. Missing values use explicit safe UI fallba
 global fields on reads. NULL-org profiles contain no branch-private notes;
 organization profiles are independent. Self/admin changes allow those fields
 only, never canonical email/verification, global identity, Role bindings,
-arbitrary settings or consent evidence. The implemented Membership contracts
+arbitrary settings or consent evidence in the existing profile. The implemented Membership contracts
 below carry these exact fields; P03-5/G9 owns dynamic fields/revisions. No dormant
 custom-fields column lands in the foundation.
 
@@ -574,12 +574,25 @@ from the joint decision package. UI hints are not grants; actual API/application
 checks remain authoritative. Acceptance closes no runtime, race, provider,
 browser or accessibility proof by itself.
 
+### Revision-pinned custom fields (accepted contract)
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+places custom slots in MembershipProfile, never global User. Each slot retains
+concept, exact definition ID/version, value and original consent evidence ID.
+Definitions and current consent are resolved in bounded owning-contract batches;
+no cross-module join, navigation or FK is introduced. A shared Tenant fence and
+Membership lock protect final admission through commit. Historical values keep their
+classification; withdrawal withholds sensitive values from ordinary DTOs without
+erasing them. `None` does not automatically exclude subject-linked values from
+P03-10 fulfillment. The phase Status owns implementation and qualification.
+
 ## Entity-relationship diagram
 
 ```mermaid
 erDiagram
     User ||--o{ Membership : "stable identity reference"
     Membership ||--|| MembershipProfile : contains
+    MembershipProfile ||--o{ CustomFieldPin : "planned contained value"
     Membership ||--o{ MembershipRoleAssignment : contains
     Role ||--o{ MembershipRoleAssignment : "tenant-composite reference"
     Role ||--o{ RolePermissionGrant : contains
@@ -597,7 +610,8 @@ erDiagram
 ```
 
 Text fallback: User has contextual Memberships; each contains Profile and
-assignments to tenant-wide Roles. Roles contain grants. OrganizationId is a
+assignments to tenant-wide Roles. Roles contain grants. Planned Profile pins reference
+Customization revisions by value only. OrganizationId is a
 Membership value, without a cross-module FK/navigation.
 
 ## State diagrams
@@ -664,7 +678,7 @@ global/provider adoption remains ADR-0072's confined owner.
 
 P03-1 publishes no Identity integration event and activates no provider ingress,
 Invitation or closure consumer. P03-4 defines the bounded invitation writers
-above without an email-bearing integration event; P03-6/10 own later consent/
+above without an email-bearing integration event; P03-6/10 own other later consent/
 closure contracts. Framework domain-event dispatch does not imply a published
 contract.
 

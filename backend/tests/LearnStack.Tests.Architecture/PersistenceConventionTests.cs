@@ -866,6 +866,10 @@ public sealed partial class PersistenceConventionTests
             "a tenant slug is a hostname; its reissue is Phase 02c's decision",
         ["User.ux_users_authority_id_subject_key"] =
             "ADR-0072 retains the exact authority/subject binding after closure to refuse recreation",
+        ["TenantCustomFieldDef.ux_tenant_custom_field_defs_tenant_target_key_version"] =
+            "ADR-0095 permanently reserves every definition revision, including discarded Drafts",
+        ["MembershipFieldConsent.ux_membership_field_consents_tuple_sequence"] =
+            "ADR-0095 retains immutable consent history and its exact tuple sequence; no soft-delete writer exists",
     };
 
     private static bool IsSoftDeletable(IReadOnlyEntityType entity) =>

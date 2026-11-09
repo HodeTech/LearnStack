@@ -26,3 +26,7 @@ public readonly partial record struct TenantDomainId : IStronglyTypedId<Guid>;
 /// </remarks>
 [ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
 public readonly partial record struct TenantSettingId : IStronglyTypedId<Guid>;
+
+/// <summary>Identifies an immutable membership field consent act.</summary>
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct MembershipFieldConsentId : IStronglyTypedId<Guid>;

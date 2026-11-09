@@ -390,3 +390,19 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 7 — Revision-pinned Membership values and independent consent (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds immutable
+Customization definition pins and values to MembershipProfile, plus separate
+append-only Tenancy consent roots. References across these owners are typed
+values/contracts, never cross-module FK, navigation or SQL join. Historical pins
+remain interpretable and explicit removal/replacement never converts values or
+transfers consent. A Revoked Membership's successor inherits neither values nor
+consent. No global User column or new multi-root business-write exception is
+admitted; [Standard 05](../standards/05-database.md#custom-field-and-consent-storage)
+owns persistence, isolation and commit-spanning fences.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

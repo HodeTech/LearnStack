@@ -405,6 +405,21 @@ public sealed partial class TenancySchemaTests
     /// </remarks>
     public static readonly Dictionary<string, string> ForeignTenantWrites = new(StringComparer.Ordinal)
     {
+        ["tenant_custom_field_defs"] =
+            """
+            INSERT INTO tenant_custom_field_defs(id,tenant_id,target_entity,key,schema_version,status,json_schema,
+                labels_json,pii_category,is_required,sort,maximum_value_bytes,created_at,created_by,row_version)
+            VALUES(uuidv7(),@foreign,'Membership','foreign-proof',1,'Draft','{}','{"en-US":"Field"}',
+                'None',false,0,64,clock_timestamp(),@actor,0)
+            """,
+        ["membership_field_consents"] =
+            """
+            INSERT INTO membership_field_consents(id,tenant_id,membership_id,subject_user_id,actor_user_id,
+                definition_id,definition_version,purpose_key,notice_locale,notice_hash,sequence,state,
+                predecessor_sequence,created_by,row_version)
+            VALUES(uuidv7(),@foreign,uuidv7(),@actor,@actor,uuidv7(),1,'foreign-proof','en-US',
+                repeat('a',64),1,'Granted',0,@actor,0)
+            """,
         ["background_jobs"] =
             """
             INSERT INTO background_jobs (id, tenant_id, definition_key, profile, queue, capacity_group,
@@ -641,6 +656,21 @@ public sealed partial class TenancySchemaTests
     [MemberData(nameof(TablesWithAWithCheck))]
     public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
     {
+        if (table is "tenant_custom_field_defs" or "membership_field_consents")
+        {
+            // The BEFORE fence guard refuses a foreign context before WITH CHECK.
+            // Remove only that guard in a disposable schema to independently prove RLS.
+            await using var database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
+            await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            {
+                var trigger = table == "tenant_custom_field_defs"
+                    ? "tg_tenant_custom_field_defs_guard" : "tg_membership_field_consents_insert";
+                await SchemaQueries.ExecuteAsync(owner, null, $"DROP TRIGGER {trigger} ON public.{table}");
+            }
+            await ExpectForeignWriteRefusedAsync(ForeignTenantWrites[table], database.AppConnectionString);
+            return;
+        }
+
         if (table is "background_job_attempts" or "background_job_reservations" or "background_job_recipients")
         {
             // The invoker parent check otherwise refuses the hidden parent first.
@@ -1309,6 +1339,8 @@ public sealed partial class TenancySchemaTests
             .Concat(["learnstack_app identity_authority SELECT", "learnstack_app users SELECT",
                 "learnstack_app memberships INSERT,SELECT,UPDATE",
                 "learnstack_app invitations INSERT,SELECT,UPDATE",
+                "learnstack_app tenant_custom_field_defs INSERT,SELECT,UPDATE",
+                "learnstack_app membership_field_consents INSERT,SELECT",
                 "learnstack_app membership_profiles INSERT,SELECT,UPDATE",
                 "learnstack_app roles INSERT,SELECT,UPDATE",
                 "learnstack_app membership_role_assignments DELETE,INSERT,SELECT",

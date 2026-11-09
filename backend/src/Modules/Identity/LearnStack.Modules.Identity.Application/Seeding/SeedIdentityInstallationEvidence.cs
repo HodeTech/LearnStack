@@ -11,12 +11,10 @@ public static class SeedIdentityInstallationEvidence
     public static bool RoleIsInstalled(RoleSeedDto row, Guid id, TenantId tenant, BuiltInRoleKey key, PermissionScope scope)
     {
         ArgumentNullException.ThrowIfNull(row);
-        var release = IdentityRoleRelease.Version2;
         return row.Id == id && row.TenantId == tenant && row.BuiltInKey == key && row.PermissionScope == scope
             && row.GraphIsValid && ValidStamps(row.Evidence, row.Version, row.DeletedAt, row.DeletedBy)
-            && (row.AdoptedReleaseVersion == 1 && row.AdoptedReleaseFingerprint == IdentityFoundationManifest.Version1.Fingerprint
-                || key == BuiltInRoleKey.TenantAdmin && scope == PermissionScope.Tenant && row.Version > 0
-                    && row.AdoptedReleaseVersion == release.Version && row.AdoptedReleaseFingerprint == release.Fingerprint)
+            && IdentityRoleRelease.Current.IsValidAdoptionState(key, scope, row.AdoptedReleaseVersion, row.AdoptedReleaseFingerprint)
+            && (row.AdoptedReleaseVersion == 1 || row.Version > 0)
             && (row.Version > 0 || RoleIsPristine(row));
     }
 

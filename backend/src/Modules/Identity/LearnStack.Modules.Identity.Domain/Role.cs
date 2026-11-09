@@ -52,7 +52,7 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
     {
         ArgumentNullException.ThrowIfNull(definitions);
         var manifest = IdentityFoundationManifest.Version1;
-        var registry = IdentityRoleRelease.Version2;
+        var registry = IdentityRoleRelease.Current;
         return !IsDeleted && manifest.FindTemplate(BuiltInKey, PermissionScope) is not null && registry.IsValidAdoptionState(this)
             && definitions.Count <= registry.Definitions.Length
             && definitions.All(definition => definition is { IsActive: true }
@@ -78,16 +78,16 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
         return Result<None>.Ok(None.Value);
     }
 
-    /// <summary>Adopts only the first exact release delta, preserving every prior grant removal.</summary>
+    /// <summary>Adopts only the next exact release delta, preserving prior grant removals.</summary>
     public Result<None> AdoptRelease(int version, string fingerprint, DateTimeOffset at, UserId actor)
     {
-        var release = IdentityRoleRelease.Version2;
-        if (!release.CanFirstAdopt(this, version, fingerprint)) return IdentityFailures.BusinessRule();
+        var release = IdentityRoleRelease.Find(version);
+        if (release is null || !release.CanFirstAdopt(this, version, fingerprint)) return IdentityFailures.BusinessRule();
         var desired = _grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))
             .Union(release.TenantAdminDelta).ToArray();
         if (!CanReplaceGrants(desired)) return IdentityFailures.BusinessRule();
         // The marker itself is a real root change even if an ordinary authorized
-        // edit already installed all three keys before explicit adoption.
+        // edit already installed the delta before explicit adoption.
         MarkUpdated(at, actor);
         foreach (var definition in release.TenantAdminDelta)
             if (!_grants.Any(grant => grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key))

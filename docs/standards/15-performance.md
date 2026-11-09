@@ -188,3 +188,14 @@ Tests run against staging weekly and before a major launch.
 - Calling external providers inside a database transaction.
 - Loading whole tables into memory ("just to filter in code").
 - Building dashboards that query without `tenant_id` as the first WHERE column.
+
+## Membership custom-field working sets
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+bounds active definitions and stored slots to 20, retained concepts to 100,
+revisions to 1,000 and live Drafts to 20 per tenant. History pages have at most
+20 rows; owning-contract batches resolve retained revisions and notices without
+per-row lookups. Consent/audit history has no lifetime cap or automatic compaction;
+the durable sixty-second grant cooldown does not delay withdrawal. These are
+application bounds, not latency or throughput claims. Phase 11 owns operational
+retention and monitoring; P03-10 owns subject fulfillment.

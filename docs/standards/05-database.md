@@ -51,6 +51,10 @@ Fixed-seed prerequisite authority and the complete tenant-bound seed-write proof
 additionally derive from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 
+Custom-field storage, consent recovery, fencing and replay-key custody additionally
+derive from Accepted
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+
 PostgreSQL schema, EF Core, and migration conventions.
 
 ## Database
@@ -1930,7 +1934,7 @@ recycling and its separate owner/lock lifetime.
 CREATE TABLE idempotency_keys (
     tenant_id    uuid        NOT NULL,
     key          text        NOT NULL,      -- client-chosen nonce inside the tenant's key space
-    fingerprint  text        NOT NULL,      -- opaque digest; compared ordinally, never interpreted
+    fingerprint  text        NOT NULL,      -- ordinal comparison; P03-5 alone has version/key-ID metadata
     claim_token  uuid        NOT NULL,      -- the fence Complete/Abandon must present
     state        text        NOT NULL,      -- in_flight | completed | unreplayable
     status_code  int         NULL,          -- IdempotentResponse, set only when state = 'completed'
@@ -5543,7 +5547,7 @@ or inspect real provider/business logs as a qualification shortcut.
 
 ### Two confined provider functions
 
-The total admitted Identity/invitation SECURITY DEFINER census is **eleven**:
+The ADR-0093 Identity/invitation SECURITY DEFINER slice is **eleven**:
 the existing eight, the exact invitation-entry function and these two provider
 functions. They execute as `learnstack_migration` under FORCE RLS with fixed
 `search_path = pg_catalog`, schema-qualified relations, no dynamic SQL and PUBLIC
@@ -5628,8 +5632,10 @@ rewriting the selected terminal status.
 Accepted P03-4 contract; schema, source and runtime backfill remain pending in the
 phase Status block. This section extends the earlier global/contextual contracts;
 the earlier eight-function/ten-setter counts describe their historical slices.
-Current total is eleven confined definers, eleven logical tenant setters and four
-physical context writers. SMTP adds no tenant setter.
+The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
+setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
+registers twelve definers/twelve logical setters, preserving those four physical
+writers; acceptance alone does not install them. SMTP adds no tenant setter.
 
 ### Invitation root and constrained transitions
 
@@ -5771,3 +5777,200 @@ Revoked successor and MUST rollback; both commit orders for revoke/accept/expiry
 reissue/global closure; stale receipt/result identities and unknown COMMIT; pooled
 reuse/cancellation/cleanup. SMTP custody additionally obeys the preceding separate
 provider-store contract. Acceptance alone qualifies none of these behaviors.
+
+
+## Custom-field and consent storage
+
+**Derives from:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+**Accepted contract; implementation and qualification remain in the
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md).** This is the
+canonical storage, scope-function and fence annex; acceptance is no applied-schema
+or runtime-proof claim. Existing content-type/taxonomy readers retain their
+Active-at-read contract.
+
+### Definition and value persistence
+
+`tenant_custom_field_defs` is Customization-owned, tenant-wide storage for
+Membership-only definition revisions. It uses typed UUID IDs, tenant/target/key/
+positive-version uniqueness, permanent concept/revision reservations, canonical
+audit/concurrency columns, marker/filter and ENABLE/FORCE RLS. A partial unique
+index permits at most one Active revision per tenant/target/concept. Draft,
+Active and Deprecated are the closed states; retirement is Active→Deprecated.
+Published schema, localized metadata, classification, purpose, notice,
+requiredness and order are immutable; a successor is a new revision. Discard
+releases only the live-Draft slot. No hard deletion or reservation reuse follows.
+
+Admission and publication enforce the [finite envelope/profile and constructive
+witness](../decisions/0095-revision-pinned-membership-custom-fields.md#a-form-profile-within-the-existing-validator)
+and the [retained/input/serialization budgets](../decisions/0095-revision-pinned-membership-custom-fields.md#per-operation-budgets-and-retained-growth).
+They use the existing validator for both schemas and `value` envelopes. The
+exclusive Tenant fence serializes counts, reservations and Active publication;
+unknown/nonempty-witness/maximum-serialization proofs refuse closed. The schema
+2 KiB sublimit and complete-input 4 KiB limit are independent aggregate checks,
+not capacity reservations. No schema annotation grants storage or a renderer.
+
+`membership_profiles.custom_fields` retains typed concept/definition ID/version,
+JSON value and original consent-evidence ID per slot. Exact uncached revision
+and current-consent reads use owning Application.Contracts on the same ambient
+owner, never cross-module FK, navigation or SQL joins. Static Sensitive mapped
+classification plus whole-property `[PiiSensitive]` supplements per-revision
+classification. Snapshot capture uses `SensitiveTokenCatalog.RedactedValue` for
+the marked property and diffs. Historical pins do not change meaning, inherit
+successor consent or satisfy another required Active revision. No User storage
+or automatic Membership-successor copy is introduced.
+
+### Append-only consent root and privileges
+
+Tenancy owns `membership_field_consents` and the typed auditable root
+`MembershipFieldConsentId`. Its exact state key is tenant/nullable organization,
+Membership ID, subject User ID, definition ID/version and immutable purpose/
+notice revision. A positive monotonic sequence, unique within that tuple with
+NULLS NOT DISTINCT organization semantics, orders Granted/Withdrawn evidence.
+Locale is evidence, not another state partition. Timestamps or UUID ordering
+never decide the latest state. Subject/actor references are Identity personal
+data; Membership/definition/purpose/notice linkage is Sensitive; state, sequence
+and timestamps are Audit. Remaining technical mapped properties receive explicit
+census declarations.
+
+Grant derives actor, tenant and organization from the exact owning Identity
+Membership contract; NULL org is lawful only for its NULL-org Membership.
+Withdrawal derives the immutable tuple from retained consent, including after
+Membership loss, and cannot replace a missing Membership with NULL org. IDs into
+Identity/Customization are values with no cross-module FK/navigation/join. Each
+new record is its own MUST audit subject on the same Tenancy transaction; no
+consent command mutates Membership or the Tenant aggregate.
+
+Evidence records the exact authored notice locale, definition/notice pin and
+domain-separated SHA-256 of that immutable locale's UTF-8 notice. Purpose is an
+explicit 1–64-character lowercase ASCII slug namespaced by tenant/target/concept.
+It stores no provider token, email, profile value or copied freeform notice.
+Retained historical notice display remains available after locale disablement.
+
+Use the canonical tenant/org marker, EF filter and single ENABLE/FORCE RLS
+isolation policy with explicit exact-scope WITH CHECK. Only its narrowly
+role-qualified migration-owner USING arm below supports subject discovery; it
+adds no owner INSERT arm or general tenant read hatch. App INSERT is admitted
+only in the exact announced tenant/org. Immutable-record UPDATE/DELETE guards
+also bind the table owner; no domain update/delete method, soft-delete writer or
+TRUNCATE grant is admitted. Append-only sequence/predecessor validation and the
+sixty-second durable grant cooldown run under the exclusive fence. Same-state
+requests append nothing; withdrawal has no grant cooldown or required-value gate.
+
+| Accepted P03-5 relation | `learnstack_app` | `learnstack_platform` / `learnstack_outbox_admin` |
+|---|---|---|
+| `tenant_custom_field_defs` | RLS SELECT/INSERT/UPDATE; no DELETE/TRUNCATE | No new grants |
+| `membership_field_consents` | RLS SELECT/INSERT; no UPDATE/DELETE/TRUNCATE | No new grants |
+
+The ordinary consent policy does not authenticate JWTs. The verified-subject,
+operation and exact-target restrictions are independent application/source
+controls, with real app-role isolation and hostile-call proofs. P03-10 owns
+separately authorized fulfillment; Phase 11 owns operational retention/backup
+purge. This packet introduces no blanket erasure bypass or lifetime row cap.
+
+### Confined consent-subject function and owner
+
+The one new migration-owned SECURITY DEFINER contract is:
+
+`fn_tenancy_own_field_consent_scope(p_actor uuid, p_host_tenant uuid,
+p_host_organization uuid, p_mode text, p_membership_id uuid,
+p_after_membership uuid, p_limit integer)` → rows of
+`(membership_id uuid, tenant_id uuid, organization_id uuid)`.
+
+Only normalized verified binding state supplies `p_actor`; independently
+classified actual host supplies its tenant/org ceiling. Submitted actor/scope,
+provider claims alone and a caller-selected origin are not evidence. Modes are
+exactly `list` and `select`, limit 1–20. List requires NULL membership selection
+and uses an optional actor-bound after-Membership cursor. Select requires the
+exact Membership ID and no cursor, freshly proving a retained owned tuple.
+Both return at most twenty distinct owned scope keys, ordered by Membership ID,
+within that host's tenant. A non-NULL host organization requires exact consent
+organization, excluding NULL-org and other branches. An orgless Tenant host may
+select only the subject's retained scopes in that tenant.
+
+Its static, schema-qualified body reads **only
+`public.membership_field_consents`** and repeats actor/host/mode predicates.
+No Identity/Membership/User/Customization/host table, value, grant, profile or
+provider data is read/projected. Fixed `search_path = pg_catalog`, VOLATILE,
+NOBYPASSRLS migration ownership, same-transaction PUBLIC EXECUTE revoke and exact
+app EXECUTE grant are mandatory. The relation's owner-only visibility arm and
+function/body/ACL/caller census are checked together; table ownership is not a
+column-grant restriction. No dynamic SQL, context setter or extra login role is
+introduced. SQL scope proof is not JWT verification.
+
+The preliminary physically ReadOnly guarded app-role owner closes before
+publishing the captured witness. `ConsentSubjectScope` consumes that immutable
+single-use operation/actor/subject/real-host/retained-scope/mode witness on the
+actual subsequent owner. Discovery/history is physical ReadOnly; withdrawal is
+ordinary ReadWrite. It neither joins/retargets global ownership nor supplies a
+Membership, ordinary native session or tenant-wide `app.scope`. This is the
+accepted twelfth logical tenant setter and twelfth confined definer; the same
+four physical context writers, existing roles and three global-self descriptors
+remain. Exact allowed application/native consumers are in the accepted package;
+no general-purpose selector, callback, SQL executor or proxy follows.
+
+### Custom-field commit fence
+
+This section owns the named new consumers of the existing canonical Tenant key.
+ADR-0074 provides navigation only; existing Identity transition-mode derivation,
+User-before-Tenant ordering and strongest-complete-plan/no-upgrade rules remain.
+
+| Consumer | Mode and retained boundary |
+|---|---|
+| Definition register/revise/publish/retire/discard | EXCLUSIVE Tenant fence before concept/root locks; recheck usage, reservations, exact revision/incumbent and publication feasibility after waiting; retain through COMMIT/rollback |
+| Custom-value set/update/remove | SHARED Tenant fence, then Membership lock; fresh owning-contract live admission, exact Active definition and latest consent observations after the wait; retain through COMMIT/rollback |
+| Ordinary consent grant/withdrawal and retained-entry withdrawal | EXCLUSIVE Tenant fence before exact tuple/root work; fresh grant Membership/lifecycle or retained withdrawal ownership, predecessor and applicable grant cooldown; retain through COMMIT/rollback |
+
+A final Active revision read occurs after SHARED acquisition. If the value writer
+wins, retirement/publication/withdrawal waits for its commit. If the exclusive
+writer wins, the waiting value writer observes the new state and refuses an
+ineligible new pin/evidence. Historical pins remain interpretable; neither order
+converts or deletes them. The completed pre-entry Active global binding lookup
+is the global admission observation under ADR-0076. A retained-entry withdrawal
+rechecks subject/tuple/org/witness/predecessor and audit after the Tenant fence;
+already-admitted withdrawal may finish after concurrent closure as retained
+revocation evidence. It grants nothing and discloses no value. P03-10 must settle
+or reconcile such owners and unknown commits before fulfillment attestation;
+one pass taking Tenant fences does not settle a waiting withdrawal. The Tenancy
+definer gains no Identity read, no admin-state function is reused and profile-only
+writes add no User key. See ADR-0095 Amendment 1.
+
+Use READ COMMITTED, separate fresh post-wait reads, canonical transaction-level
+advisory APIs and existing two-second lock timeout/request deadline. Strongest
+plans precede writes; no shared upgrade, cached Active/consent observation,
+second business owner or arbitrary per-tuple substitute is admitted. Real
+PostgreSQL tests must cover both winner orders and failed MUST/commit rollback;
+source scans alone cannot establish the commit boundary.
+
+### Custom-field replay key custody
+
+Only new body-bearing P03-5 protected mutations use the versioned HMAC-SHA256
+fingerprint. Historical generic/P03-3/P03-4 fingerprint bytes, claim/recycle and
+capacity semantics remain unchanged. The new fingerprint is prefixed text
+carrying version, immutable nonsecret key ID and HMAC only, using the
+[ADR-0095 length-framed/domain-separated input](../decisions/0095-revision-pinned-membership-custom-fields.md#derived-replay-fingerprints).
+Early replay admission and the filter share one implementation; no unkeyed body
+digest or raw schema/value/notice is persisted or logged.
+
+A narrow tenant-bound store metadata read selects only the incumbent key ID
+before recomputation, including logically expired physical rows. It reads no
+body/receipt, returns no generic directory and uses the existing durable store
+setter/short owner; it adds no logical setter or connector. Missing, malformed
+or unavailable current/read key fails closed before claim/disclosure. Existing
+1,000 physical tenant slots and expiry/recycling rules remain: 24-hour logical
+expiry is not physical deletion or key-retirement evidence.
+
+`ISecretProvider` supplies `Idempotency:CustomFields:CurrentKeyId` and the closed
+`Idempotency:CustomFields:Keys:<id>` ring: one current plus at most three retained
+independent random keys, each base64 of exactly 32 bytes; distinct immutable IDs
+match ASCII `[a-z0-9-]`, 1–32 characters, and current must exist. Only admission
+of new P03-5 mutations depends on this configuration. No committed usable example,
+implicit key generation, ID/material reuse or old-hash fallback is admitted.
+
+Rotation distributes the new/current and retained read keys to all replicas
+before switching current ID. Remove a runtime read key only when no physically
+retained row needs it; backup restore requires the matching ring. Backup keys
+remain in operator custody through backup retention. Key loss restores that
+same key; compromise requires operator write quiescence, in-flight resolution
+and an explicit historical-replay invalidation decision. Do not delete unresolved
+rows to rotate. Fingerprints remain Sensitive personal linkage across app/platform
+access, WAL, backups, recycling and the P03-10 inventory; HMAC does not anonymize.

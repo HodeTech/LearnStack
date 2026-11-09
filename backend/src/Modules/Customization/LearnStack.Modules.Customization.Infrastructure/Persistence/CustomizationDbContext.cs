@@ -25,7 +25,7 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// <para>
 /// <b>Every entity here is tenant-owned, tenant-wide.</b> There is no
 /// organization-scoped row and no platform-scoped one, so the base's sweep applies
-/// one filter shape to all four and the schema carries no restrictive write guard
+/// one filter shape to every entity and the schema carries no restrictive write guard
 /// — there is no organization to guard
 /// (<see href="../../../../../../docs/standards/05-database.md">Database Standards
 /// § Table classes</see>).
@@ -35,6 +35,14 @@ public sealed class CustomizationDbContext(
     DbContextOptions<CustomizationDbContext> options, ITenantContextAccessor accessor)
     : TenantScopedDbContext(options, accessor)
 {
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        CustomFieldDefinitionDiagnostics.Configure(optionsBuilder);
+    }
+
+    public DbSet<TenantCustomFieldDef> TenantCustomFieldDefinitions => Set<TenantCustomFieldDef>();
+
     public DbSet<TenantContentType> TenantContentTypes => Set<TenantContentType>();
 
     /// <remarks>

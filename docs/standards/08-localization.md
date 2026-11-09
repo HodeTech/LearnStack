@@ -368,3 +368,12 @@ Localized content requires tests for:
   slug constraint whose columns are a superset of the translation table's primary key.
 - Falling back to another locale to resolve a **slug**. Fallback applies to display
   fields after the entity is found, never to the lookup.
+
+## Custom-field locale evidence
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires enabled authored locales including the default. Display fallback carries
+its actual authored locale; consent confirms that exact locale and immutable notice
+hash. Withdrawal may show its historically pinned notice even if that locale is
+disabled, with the actual `lang`. Labels and notices render as literal text.
+Phase 03 owns implementation and proof.

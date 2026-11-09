@@ -43,9 +43,9 @@ public sealed class GetRoleDetailQueryHandler(IIdentityAdministrationReadStore r
         var check = await authorization.RecheckAsync(request, admission.Value, cancellationToken);
         if (check.IsFailure) return Result<RoleDetailDto>.Fail(check.Error);
         if (role is null) return IdentityAdministrationReadAuthorization.Fail<RoleDetailDto>("lockey_not_found");
-        if (!IdentityRoleRelease.Version2.IsValidAdoptionState(role)
+        if (!IdentityRoleRelease.Current.IsValidAdoptionState(role)
             || IdentityFoundationManifest.Version1.FindTemplate(role.BuiltInKey, role.PermissionScope) is null
-            || role.Grants.Any(grant => !IdentityRoleRelease.Version2.IsActive(grant.PermissionScope, grant.PermissionKey)))
+            || role.Grants.Any(grant => !IdentityRoleRelease.Current.IsActive(grant.PermissionScope, grant.PermissionKey)))
             return IdentityAdministrationReadAuthorization.Fail<RoleDetailDto>("lockey_dependency_unavailable");
         subject.Designate(role);
         return Result.Ok(new RoleDetailDto(role.Id.Value, role.BuiltInKey.ToString(), role.PermissionScope, role.Version,
@@ -62,11 +62,13 @@ public sealed class GetPermissionRegistryQueryHandler(IdentityAdministrationRead
     {
         var admission = await authorization.AdmitAsync(request, cancellationToken);
         if (admission.IsFailure) return Result<PermissionRegistryDto>.Fail(admission.Error);
+        if (request.SourceReleaseVersion is not (1 or 2))
+            return IdentityAdministrationReadAuthorization.Fail<PermissionRegistryDto>("lockey_validation_failed");
         var facts = await authorization.ReadFactsAsync(request, admission.Value, cancellationToken);
         if (facts.IsFailure) return Result<PermissionRegistryDto>.Fail(facts.Error);
         var check = await authorization.RecheckAsync(request, admission.Value, cancellationToken);
         if (check.IsFailure) return Result<PermissionRegistryDto>.Fail(check.Error);
-        var release = IdentityRoleRelease.Version2;
+        var release = IdentityRoleRelease.Find(request.SourceReleaseVersion + 1)!;
         return Result.Ok(new PermissionRegistryDto([.. release.Definitions.Select(definition =>
             new PermissionRegistryItemDto(definition.Scope, definition.Key,
                 "lockey_permission_" + definition.Scope.ToString().ToLowerInvariant() + "_" + definition.Key.Replace('.', '_'),
@@ -79,4 +81,10 @@ internal sealed class GetRoleDetailQueryValidator : AbstractValidator<GetRoleDet
 {
     public GetRoleDetailQueryValidator() => RuleFor(query => query.RoleId)
         .Must(id => id != Guid.Empty && id.Version == 7).WithErrorCode("lockey_identifier_required");
+}
+
+internal sealed class GetPermissionRegistryQueryValidator : AbstractValidator<GetPermissionRegistryQuery>
+{
+    public GetPermissionRegistryQueryValidator() => RuleFor(query => query.SourceReleaseVersion)
+        .Must(version => version is 1 or 2).WithErrorCode("lockey_invalid_value");
 }

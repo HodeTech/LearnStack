@@ -366,3 +366,20 @@ actual-host ceiling, including the separately validated native-session origin.
 current-tenant navigation in orgless scope. It returns only the fixed policy
 value/version/default-presence precondition and advisory canEdit; it grants no
 write authority and reads no arbitrary setting. Its Off registration precedes dispatch.
+
+## Personal field consent (planned)
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+classifies grant and withdrawal MUST on the independent `MembershipFieldConsent`
+root, with audit in the same transaction. Own state, retained-scope and history
+reads are explicitly Off. Subject/actor and retained linkage remain personal data;
+no profile value or notice copy enters audit. These classifications precede request
+types; their exact catalogue slugs must join this matrix on arrival.
+
+| Planned operation | Class | Request |
+|---|---|---|
+| `tenancy.membership_field_consent.grant` `(planned)` | MUST/Create | `GrantOwnMembershipFieldConsentCommand` |
+| `tenancy.membership_field_consent.withdraw` `(planned)` | MUST/Create | `WithdrawOwnMembershipFieldConsentCommand` |
+
+`GetOwnMembershipFieldConsentQuery`, `ListOwnFieldConsentScopesQuery` and
+`ListOwnMembershipFieldConsentsQuery` are planned explicit Off bindings.

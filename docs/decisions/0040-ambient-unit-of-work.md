@@ -943,3 +943,20 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 20 — Operation-bound retained consent ownership (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds
+`ConsentSubjectScope` as the twelfth logical tenant setter on the existing four
+physical writers. Its single-use immutable operation/actor/subject/real-host/
+retained-scope/mode witness is consumed by the actual owner: history is physically
+ReadOnly; withdrawal is ordinary ReadWrite. Preliminary discovery closes before
+that owner starts. It cannot join/retarget global ownership or widen `app.scope`.
+[Standard 05](../standards/05-database.md#custom-field-and-consent-storage) owns
+the named shared/exclusive Tenant fence consumers, final-read-through-COMMIT
+boundary and retained consent tuple derivation. No business transaction crosses
+module ownership, and no new connector or role is introduced.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

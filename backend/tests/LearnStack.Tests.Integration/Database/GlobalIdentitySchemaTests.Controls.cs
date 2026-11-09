@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Tenancy;
@@ -365,7 +366,21 @@ public sealed partial class GlobalIdentitySchemaTests
             platformMigrations.CreateMigration(pair.Value, platform.Database.ProviderName!).UpOperations
                 .OfType<SqlOperation>().Select(operation => operation.Sql)));
         var sql = string.Join("\n", migrationSql) + "\n" + providerSql;
-        var functions = EffectiveFunctionDeclarations(sql).Select(match =>
+        var identityAndProviderFunctions = EffectiveFunctionDeclarations(sql);
+        using var tenancy = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only").Options,
+            StaticTenantContextAccessor.Unresolved);
+        var tenancyMigrations = tenancy.GetService<IMigrationsAssembly>();
+        var tenancySql = string.Join("\n", tenancyMigrations.Migrations.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .SelectMany(pair => tenancyMigrations.CreateMigration(pair.Value, tenancy.Database.ProviderName!).UpOperations
+                .OfType<SqlOperation>().Select(operation => operation.Sql))
+            .Where(statement => statement.Contains("fn_tenancy_own_field_consent_scope", StringComparison.Ordinal)));
+        var consentScope = EffectiveFunctionDeclarations(tenancySql)
+            .Where(match => match.Groups["name"].Value.Equals("fn_tenancy_own_field_consent_scope", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        consentScope.Should().ContainSingle("the compiled Tenancy migration owns the exact consent scope definer");
+        sql += "\n" + tenancySql;
+        var functions = identityAndProviderFunctions.Concat(consentScope).Select(match =>
         {
             var name = match.Groups["name"].Value.ToLowerInvariant();
             var parameters = FunctionParameters(match);
@@ -389,8 +404,11 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(22, "all applied Identity migrations retain the complete global/contextual/self-entry, Role-release and invitation function set");
-        functions.Count(function => function.Definer).Should().Be(11);
+        functions.Should().HaveCount(23, "the closed set includes the Tenancy consent-scope definer");
+        functions.Count(function => function.Definer).Should().Be(12);
+        functions.Single(function => function.Name == "fn_tenancy_own_field_consent_scope").Signature
+            .Should().Be("public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)",
+                nameof(MembershipFieldConsentStorageTests.Definer_scope_is_subject_and_host_capped_with_a_closed_bounded_interface));
         functions.SelectMany(function => function.Triggers).Should().HaveCount(26);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
@@ -398,7 +416,7 @@ public sealed partial class GlobalIdentitySchemaTests
         foreach (var function in functions)
         {
             var forbidden = function.Name.StartsWith("fn_invitation_", StringComparison.Ordinal) ? EntryForbiddenFunctionBody()
-                : function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry"
+                : function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry" or "fn_tenancy_own_field_consent_scope"
                 ? EntryForbiddenFunctionBody()
                 : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
             forbidden.IsMatch(function.Body).Should().BeFalse(

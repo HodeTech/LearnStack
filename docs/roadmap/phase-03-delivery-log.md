@@ -389,13 +389,15 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 359 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 435 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
   - [P03-5 proposal correction verification and approval readiness (2026-11-10)](#p03-5-proposal-correction-verification-and-approval-readiness-2026-11-10) — 25 lines
   - [P03-5 maintainer review disposition and revised contract (2026-11-10)](#p03-5-maintainer-review-disposition-and-revised-contract-2026-11-10) — 66 lines
   - [P03-5 conditional acceptance and Step 1 start (2026-11-10)](#p03-5-conditional-acceptance-and-step-1-start-2026-11-10) — 25 lines
+  - [P03-5 Step 1 source correction and foundation boundary (2026-11-10)](#p03-5-step-1-source-correction-and-foundation-boundary-2026-11-10) — 28 lines
+  - [P03-5 Step 1 implementation and first review handoff (2026-11-10)](#p03-5-step-1-implementation-and-first-review-handoff-2026-11-10) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18232,3 +18234,79 @@ activation; Step 4 owns combined proof/PR preparation. Each still owes an
 implementation commit, two fresh independent rounds, verified correction commits
 and truthful test records. The maintainer is not asked to approve the same decision
 again; an actual different architectural choice remains a separate approval.
+
+### P03-5 Step 1 source correction and foundation boundary (2026-11-10)
+
+Source verification finds an incorrect implementation assertion in the accepted
+ADR: `fn_identity_admin_admission_state` cannot supply a post-fence global User
+check for consent withdrawal. It is trigger-only and requires a current
+tenant-wide administrator. The existing global binding reader also refuses an
+inherited tenant transaction. ADR-0095 now carries an adjacent inline erratum and
+dated Amendment 1 under ADR-0041; the historical assertion remains visible.
+
+ADR-0076's committed-entry boundary applies: a new consent-only entry requires an
+Active global binding. Already admitted withdrawal may finish after concurrent
+global closure, appending revocation evidence only. It gains no grant, value
+disclosure, reactivation or Membership authority. P03-10 must settle admitted
+withdrawals and uncertain commits before its final closure/fulfillment attestation;
+acquiring Tenant fences once does not settle a waiter behind those fences. The
+current Database/Security clauses state this boundary. No additional definer,
+global reader, transaction owner or architectural decision is introduced.
+
+Step 1's runtime foundation includes immutable definitions, constructive form
+admission, explicit v2→v3 adoption, consent storage/sequence/cooldown and the
+confined SQL scope projection. Consent commands and lifecycle admission join the
+value/privacy integration in Step 2; the new entry witness/setter and native
+surface activate in Step 3. SQL scope tests do not claim JWT admission. Definition
+adapter diagnostics now exclude authored payloads at immediate EF/storage
+failures; Step 2 still owes the actual sink canaries and deferred-COMMIT owner
+boundary before any new HTTP/native writer is activated. No partial foundation
+test is presented as complete consent or P03-5 delivery.
+
+### P03-5 Step 1 implementation and first review handoff (2026-11-10)
+
+The first implementation commit contains the canonical reconciliation and the
+runtime foundation, ready for the first of two fresh implementation review rounds:
+
+- Customization owns the immutable definition aggregate, retained revision/key
+  reservations, Draft editing/discard and expected-incumbent publication. Closed
+  form admission constructs and validates real witnesses through the existing
+  validator, preserves finite numeric semantics and localized structural labels,
+  and checks individual/combined serialized answer budgets.
+- Tenancy owns the immutable consent root, exact tuple/predecessor sequence,
+  database-clock grant cooldown, bounded current-state reader and the confined
+  subject/real-host scope SQL projection. App writes require the existing
+  exclusive Tenant fence; owner writes cannot rewrite/remove history. Its index
+  includes nullable organization and subject with NULLS NOT DISTINCT.
+- Registry v3 adds exactly the Tenant customization-admin pair. Explicit v1→v2
+  and v2→v3 transitions preserve prior nonkernel removals and old fingerprints.
+  Warm installation does not restore grants. Existing registry queries retain
+  their v2 response default; Step 3 binds the optional v3 source at the API edge.
+- Three new forward migrations install the two tables and the v3 backstops.
+  Applied-schema controls count 61 tables and twelve confined definers. The
+  consent-subject setter, tenth capability, HTTP/SDK/native/UI operations and
+  final diagnostic/replay integration remain their named later-step work.
+
+Validation uses an isolated task-owned HOME/temp/configuration and artifacts
+directory, the installed .NET 10.0.302 SDK, CI warning posture and fresh disposable
+PostgreSQL 18.4 fixtures. It reads no workstation application configuration and
+changes no running user stack, CI timer, Node dependency or provider policy.
+
+| Control | Result before the first review commit |
+|---|---|
+| Release solution build, CI=true | Passed, zero warnings/errors |
+| Complete unit project | 3,683/3,683 passed, zero skips |
+| Affected architecture/corpus families | 150/150 passed, zero skips |
+| Definitions, consent storage, schema/RLS/grants, global function census and Role adoption/delegation PostgreSQL controls | 213/213 passed, zero skips |
+| Markdown fragments / roadmap shape | 3,515 links resolve; structure conforms |
+
+Initial runs expose stale exact inventories, an incorrectly compiled cached-filter
+test, jsonb object-order comparison and a missing Customization registry source in
+the v3 test harness. Corrections retain exact censuses and planted negative
+controls. New actual tests prove discarded revision reservation, publication
+designation and MUST-failure rollback, missing/shared-fence refusal, owner
+immutability, subject/host/org masking and real bounded EF batch translation.
+The broad architecture attempt is deliberately cancelled in favor of the affected
+families after checking the prior 35-minute full-suite cost; it earns no passing
+credit. Step 4 still owns the complete combined suite and final-source hosted A/B.
+No implementation review or packet completion is claimed by this handoff.

@@ -505,3 +505,21 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 5 — Exact custom-field operations and personal consent admission (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds exact
+custom-field definition/value consumers and two closed self-consent commands.
+OwnMembershipRead remains read-only and cannot authorize either mutation.
+Existing profile-write holders gain only bounded own/admin value PATCH operations
+under their current target predicates. Ordinary grant requires the actor's own
+Active Membership and confirmed exact notice; retained history/withdrawal use
+separate `OwnConsentEntry` admission without current Membership or admin grants.
+[Permissions](../standards/19-permissions.md#custom-fields-and-version-3-adoption)
+and the module matrices own exact bindings; [Security](../standards/11-security.md#retained-consent-subject-admission)
+owns the host/subject witness and fresh global admission. No generic own-write,
+directory, scope override or new authorization mechanism follows.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

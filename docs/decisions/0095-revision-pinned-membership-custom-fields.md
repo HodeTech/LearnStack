@@ -403,6 +403,21 @@ twelfth confined definer. It supplies no Membership, native ordinary session,
 tenant-wide `app.scope`, custom-value disclosure or generic scope override.
 Withdrawal derives its exact tuple/org from retained consent, so revocation or
 deletion of the Membership cannot turn it into a NULL-org or foreign-subject row.
+
+> **Erratum — 2026-11-10.** The following paragraph incorrectly claims an existing
+> state-only function can recheck global admission after the Tenant fence.
+> `ContextualIdentityStorageDdl` makes the admin-state function trigger-only and
+> requires an Active tenant-wide Tenant Admin; `GlobalIdentityBindingService`
+> refuses inherited tenant ownership. Under ADR-0076's committed-read boundary,
+> the completed pre-entry Active binding lookup is the global admission check.
+> Post-fence withdrawal rechecks only its retained tuple/subject/org, operation
+> witness, predecessor and audit. Already-admitted withdrawal may finish after
+> concurrent closure as a revocation fact; it cannot grant consent, disclose
+> values or resurrect a User/Membership. P03-10 must settle or reconcile these
+> owners/unknown commits before claiming fulfillment. No extra global reader,
+> function or owner is introduced. The Decision is unchanged; Amendment 1 records
+> the correction and canonical carriers.
+
 After taking the Tenant fence, the owning Identity contract freshly rechecks
 the existing binding's global admission state before withdrawal. It uses the
 existing state-only eligibility function; the Tenancy function gains no Identity
@@ -648,6 +663,29 @@ rewrite prior review verdicts or historical Accepted decisions.
 - Keyboard, focus, screen-reader, reflow and contrast checks apply to the new
   screens. Automated checks and maintainer-reported manual results remain
   distinct; neither unperformed checks nor a subset is marked Passed.
+
+## Amendments
+
+### Amendment 1 — admitted withdrawal and global eligibility boundary (2026-11-10)
+
+The post-fence state-only-function claim was false at acceptance. Inspection of
+`ContextualIdentityStorageDdl` shows `pg_trigger_depth() < 1` refusal plus the
+Active tenant-wide administrator requirement; `GlobalIdentityBindingService`
+rejects inherited tenant/capture ownership. Neither is a reusable ordinary
+withdrawal reader. ADR-0076's
+[committed reads](0076-live-scoped-authorization.md#committed-reads-and-outcomes)
+already keeps global eligibility at the earlier subject-binding observation and
+allows admitted work to finish. The inline erratum states that boundary exactly,
+including its explicit P03-10 settlement/reconciliation cost. Grant still requires
+fresh admitted Membership/lifecycle after its fence; neither check invents a
+second global read. This is not merely a renamed function or a through-COMMIT
+global eligibility claim.
+
+Carriers corrected: this ADR's inline erratum; Standard 05's custom-field commit
+fence and Standard 11's consent-subject entry clauses; the Phase 03 correction
+record. The canonical function/setter inventories remain Standard 05/11: twelve
+confined definers, twelve logical setters and four physical writers. Historical
+records and the Decision remain unchanged; no new global authority follows.
 
 ## References
 

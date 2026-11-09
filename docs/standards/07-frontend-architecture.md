@@ -1084,3 +1084,15 @@ P02d-6 admission must complete before the initial shell flushes, per
 - Mobile-native portal out of scope until web is stable.
 - Offline support out of scope.
 - Splitting into multiple Next.js apps is a Phase-9+ consideration.
+
+## Membership custom-field forms
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires a finite type-specific editor and forms, literal localized labels and
+notices, actual authored locale on fallback, capacity feedback and explicit
+remove/replacement. Requiredness applies to submission, not access; removal-only
+remains usable. Own consent history and withdrawal remain independently discoverable
+on the fixed consent-only entry after Membership lifecycle loss. Stale submissions
+require an explicit fresh read, never automatic retry. The tenth advisory capability
+is sourced from current registered Tenant authority in orgless context; API and
+application checks remain authoritative. Phase 03 owns activation and proof.

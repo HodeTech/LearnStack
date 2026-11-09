@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Application.Authorization;
 using LearnStack.Modules.Customization.Application.Authorization;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
@@ -27,11 +28,11 @@ public sealed partial class OperationPermissionConventionTests
     public void Permission_Definitions_DeclareScope()
     {
         var catalog = Catalog();
-        catalog.Definitions.Should().HaveCount(11);
+        catalog.Definitions.Should().HaveCount(12);
         catalog.Definitions.Should().OnlyContain(registration => Enum.IsDefined(registration.Definition.Scope)
             && registration.Definition.Scope != PermissionScope.Platform);
         catalog.Definitions.Where(registration => registration.Assignable).Select(registration => registration.Definition)
-            .Should().BeEquivalentTo(IdentityRoleRelease.Version2.Definitions);
+            .Should().BeEquivalentTo(IdentityRoleRelease.Version3.Definitions);
         catalog.Definitions.Where(registration => !registration.Assignable).Select(registration => registration.Definition.Key)
             .Should().BeEquivalentTo(["tenancy.public_site.read", "education.public_course.read", "education.public_lesson.read"]);
         WithProduction(modules =>
@@ -85,6 +86,14 @@ public sealed partial class OperationPermissionConventionTests
         var roleAdmin = new PermissionDefinition(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
         (Type Request, bool Orgless, OperationPolicyClause[] Clauses)[] expected =
         [
+            (typeof(RegisterCustomFieldDefinitionCommand), true, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(ReviseCustomFieldDefinitionDraftCommand), true, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(PublishCustomFieldDefinitionCommand), true, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(RetireCustomFieldDefinitionCommand), true, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(DiscardCustomFieldDefinitionDraftCommand), true, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(GetCustomFieldDefinitionQuery), false, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(ListCustomFieldDefinitionsQuery), false, [new([BoundedCustomFieldPermissions.Definition])]),
+            (typeof(ListCustomFieldDefinitionRevisionsQuery), false, [new([BoundedCustomFieldPermissions.Definition])]),
             (typeof(ListInvitationsQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
             (typeof(GetInvitationQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
             (typeof(ListInvitableRolesQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),

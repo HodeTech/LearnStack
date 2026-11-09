@@ -81,6 +81,9 @@ the new rule and extension below remain Registered until their controls ship.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
+Accepted custom-field/consent extensions derive from
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md); their
+[new controls](#p03-5-custom-field-and-consent-controls) remain Registered.
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -173,7 +176,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**341 test methods run in
+**344 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -7127,9 +7130,11 @@ and fixture definitions make the implemented controls non-vacuous.
 #### `Invitation_Entry_Is_Offer_And_Subject_Confined`
 
 - **Asserts:** only the exact native authenticated inspection/accept/result
-  consumers may use HostAndInvitationOffer and InvitationEntryScope. Eleven
-  logical setters/four physical context writers and eleven confined definers
-  remain exact; mode/host/subject/operation reuse, arbitrary scope selectors,
+  consumers may use HostAndInvitationOffer and InvitationEntryScope. The delivered
+  invitation slice has eleven logical setters/four physical context writers and
+  eleven confined definers; ADR-0095 separately registers its twelfth logical
+  setter/definer without changing the four writers. The delivered invitation census
+  and new registered extension remain distinct; mode/host/subject/operation reuse, arbitrary scope selectors,
   raw-code SQL parameters and generic external DB access refuse.
 - **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
   [Security](11-security.md#verified-invitation-admission),
@@ -7202,3 +7207,157 @@ and fixture definitions make the implemented controls non-vacuous.
   [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns complete
   packet qualification; SMTP submission acceptance is not inbox delivery.
 - **Phase:** 03 (P03-4).
+
+
+## P03-5 custom-field and consent controls
+
+**Derives from:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+These are new Registered obligations, not assertions that tests, schema, routes
+or UI have shipped. Existing implemented controls retain their proved historical
+subjects; each expanded census needs actual nonempty production consumers,
+planted negative twins and positive controls before its extension is Implemented.
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof state.
+
+#### `Custom_Field_Definitions_Are_Immutable_And_Constructively_Admitted`
+
+- **Asserts:** Membership-only immutable definition revisions, reservations,
+  Active uniqueness and retained/draft budgets are enforced. The existing schema
+  and instance validator receives the exact `value` object envelope; the finite
+  per-type keyword allowlist, depth/container units, safe-integer/binary64
+  normalization, every-node constructive nonemptiness witness and individual/
+  combined-required-set serialized/encoded feasibility refuse unsupported or
+  unprovable inputs before persistence/publication. Published metadata cannot edit
+  in place; discard never frees reserved history.
+- **Source:** [ADR-0095 form profile and budgets](../decisions/0095-revision-pinned-membership-custom-fields.md#a-form-profile-within-the-existing-validator),
+  [Database](05-database.md#definition-and-value-persistence).
+- **Type:** compiled/source and real validator/storage boundary controls,
+  including contradictory optional/nested/enum witnesses, multibyte/escaped
+  limits, safe edges/unsafe neighbors and actual serializer round trips.
+  **Kind:** both.
+- **Status:** **Registered** — implementation and source-bound proof pending.
+- **Phase:** 03 (P03-5 Step 1; transport round trips complete in Steps 3–4).
+
+#### `Custom_Field_Active_Eligibility_Is_Commit_Fenced`
+
+- **Asserts:** named SHARED value and EXCLUSIVE definition/consent writers use
+  the canonical Tenant key, strongest complete plan and separate fresh post-wait
+  reads, retaining the fence through COMMIT/rollback. Both winner orders prevent
+  a new stale Active pin or withdrawn evidence write. User-before-Tenant ordering,
+  no upgrade and unchanged historical content-reader contract remain.
+- **Source:** [Database canonical fence](05-database.md#custom-field-commit-fence),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** source/caller checks and real PostgreSQL competing value/publication/
+  retirement/withdrawal, cancellation, failed MUST and commit controls.
+  **Kind:** both.
+- **Status:** **Registered** — no lock-wait/commit proof claimed by acceptance.
+- **Phase:** 03 (P03-5 Steps 1–2; combined qualification Step 4).
+
+#### `Field_Consent_Storage_Is_Append_Only_And_Scope_Bound`
+
+- **Asserts:** typed Tenancy consent roots derive exact grant scope from owned
+  Membership and withdrawal scope from retained consent. Sequence/predecessor,
+  NULL-org semantics, immutable purpose/notice locale/hash, no cross-module FK/
+  navigation/join and root-specific MUST subject are enforced. App SELECT/INSERT
+  and owner-bound immutable guards forbid UPDATE/DELETE/TRUNCATE; no value or
+  provider data enters consent. Same-state requests append nothing; durable
+  sixty-second grant cooldown survives replicas/restarts and never blocks withdrawal.
+- **Source:** [Database consent contract](05-database.md#append-only-consent-root-and-privileges),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** applied schema/RLS/grant/body/PII/audit checks and real app-role
+  tenant/two-org/NULL-org/foreign-ID, owner mutation, race and rollback controls.
+  **Kind:** both.
+- **Status:** **Registered** — implementation and actual applied-schema proof pending.
+- **Phase:** 03 (P03-5 Steps 1–2).
+
+#### `Consent_Subject_Entry_Is_Host_And_Actor_Confined`
+
+- **Asserts:** only closed list/select discovery, exact history and withdrawal
+  use OwnConsentEntry/HostAndConsentSubject/ConsentSubjectScope. The one new
+  definer reads only `membership_field_consents`; normalized actor, independent
+  host ceiling, single-use immutable witness, physical mode and actual owner
+  cannot be substituted. The accepted census is twelve confined definers/twelve
+  logical setters/four physical writers with three global-self descriptors.
+  No Active Membership, ordinary native session, AccountSite/public snapshot,
+  value disclosure, Identity table body or `app.scope` is required/granted.
+- **Source:** [Security](11-security.md#retained-consent-subject-admission),
+  [Database exact function/owner](05-database.md#confined-consent-subject-function-and-owner),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** nonempty source/operation/body/ACL/caller census plus real app-role/
+  native lifecycle-loss, failed-save/no-value/retired-definition, wrong subject/
+  host/org/mode, witness reuse, closure, late-publication and cleanup controls.
+  **Kind:** both.
+- **Status:** **Registered** — the delivered eleven-path baseline is not proof
+  of this additional function/setter/shell.
+- **Phase:** 03 (P03-5 Step 1 groundwork; activation Step 3, combined proof Step 4).
+
+#### `Custom_Field_Values_Use_Exact_Pins_And_Current_Consent`
+
+- **Asserts:** MembershipProfile slots retain exact immutable revision and
+  original-write consent IDs. Explicit own/admin PATCH set/remove operations
+  preserve omitted slots and validate the server effective required set; latest
+  Granted exact-tuple evidence controls sensitive write, disclosure and
+  completeness. Withdrawal withholds retained values; reconsent restores only
+  that exact tuple without rewriting original evidence. Pure removal is usable
+  with incomplete fields or capacity exhaustion; no conversion/successor copy occurs.
+- **Source:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md),
+  [Database](05-database.md#definition-and-value-persistence),
+  [Permissions](19-permissions.md#exact-operation-authority).
+- **Type:** direct application/API/native behavior and real database/audit
+  tests for self/admin/other-org targets, historical downgrade, stale consent,
+  mixed set/remove, 32 KiB retained slots and rollback. **Kind:** both.
+- **Status:** **Registered** — implementation/disclosure proof pending.
+- **Phase:** 03 (P03-5 Steps 2–4).
+
+#### `Custom_Field_Replay_Uses_Scoped_Versioned_Hmac`
+
+- **Asserts:** only new body-bearing P03-5 operations use prefixed version/key-ID/
+  HMAC text with one actor/scope/operation/precondition/method/path/query/body
+  implementation in early admission and the filter. Existing digest bytes remain
+  unchanged. Narrow tenant-bound metadata reads include expired physical rows
+  without exposing body/receipt; missing/unknown keys fail before claim/disclosure.
+  Current-plus-three retained key custody, replica rotation/restart/restore,
+  physical-row retention and backup-key ownership do not silently delete unresolved
+  replay facts or anonymize personal linkage.
+- **Source:** [Database replay/key custody](05-database.md#custom-field-replay-key-custody),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md#derived-replay-fingerprints).
+- **Type:** crypto/store/source and real persisted replay controls, including
+  candidate guessing without key, both call sites, old-hash golden compatibility,
+  changed body/precondition, same-key original-target reauthorization, stale
+  different-key predecessor, rotation/key loss and no raw/unkeyed copies.
+  **Kind:** both.
+- **Status:** **Registered** — implementation and retained-row proof pending.
+- **Phase:** 03 (P03-5 Steps 1–3; combined qualification Step 4).
+
+#### `Role_Registry_V3_Is_An_Explicit_One_Pair_Delta`
+
+- **Asserts:** one SharedKernel Tenant custom-field-admin definition feeds
+  registration; explicit exact v2→v3 Tenant Admin adoption adds only that pair.
+  v1→v2 remains discoverable and must precede v3. Historical v2 helper/guard/
+  manifest/fingerprint bytes, current seeds and prior nonkernel removals survive
+  fresh/forward chains, repeat/unknown/stale/custom-role refusals and warm seed.
+- **Source:** [Permissions canonical adoption](19-permissions.md#custom-fields-and-version-3-adoption),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** compiled/SQL artifact equivalence and real adoption/seed/grant/MUST
+  rollback controls with removed-grant positive cases. **Kind:** both.
+- **Status:** **Registered** — implementation and both transition proofs pending.
+- **Phase:** 03 (P03-5 Step 1; discoverability activation Step 3).
+
+#### `Custom_Field_Transport_And_Diagnostics_Are_Closed`
+
+- **Asserts:** exact API/SDK/native manifests and parsers activate together,
+  including distinct own/admin PATCH, bounded concept revision history, the tenth
+  advisory capability and fixed consent-only entry shell/POSTs. No generic proxy
+  or OwnMembershipRead mutation appears. All values (including None), schemas,
+  labels and notices are excluded as whole payloads from diagnostics, validation/
+  L1 errors and marked audit snapshots/diffs using the existing redacted token.
+  Authorized value responses retain their independent disclosure admission.
+- **Source:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md),
+  [Security](11-security.md#retained-consent-subject-admission),
+  [Observability](10-observability.md), [Permissions](19-permissions.md#exact-operation-authority).
+- **Type:** nonempty compiled/OpenAPI/SDK/native census plus nested canaries and
+  safe positive controls for immediate/deferred database failure, serialized
+  logs/spans/local error archives/Sentry/validation/L1 responses/audit capture;
+  actual request/response/snapshot budgets and browser/no-JavaScript journeys.
+  **Kind:** both.
+- **Status:** **Registered** — source, runtime and human proof remain separate.
+- **Phase:** 03 (P03-5 Steps 2–4).

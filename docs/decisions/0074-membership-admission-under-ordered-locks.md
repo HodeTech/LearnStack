@@ -228,3 +228,19 @@ No production lifecycle writer, grant or closure fulfillment is introduced.
 - [Ordered-lock proof](../standards/21-architecture-tests-catalogue.md#identity_membership_invariants_use_fresh_ordered_locks)
 - [Phase 03](../roadmap/phase-03-identity-admin.md)
 - [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md)
+
+## Amendments
+
+### Amendment 1 — Navigation to new custom-field fence consumers (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) names additional
+Customization definition, Identity value and Tenancy consent consumers of the
+existing Tenant fence. [Standard 05](../standards/05-database.md#custom-field-commit-fence)
+is the sole canonical owner of their shared/exclusive, post-wait-through-COMMIT
+protocol. This amendment is navigation only: it does not change this decision's
+Membership-admission timing, Identity mode derivation, User-before-Tenant order
+or strongest-plan/no-upgrade rule.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

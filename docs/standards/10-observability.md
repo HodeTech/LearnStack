@@ -841,3 +841,15 @@ Alerts route via PagerDuty / Opsgenie; warn-level alerts go to Slack.
 The architecture tests that enforce the rules above are listed in
 [21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](21-architecture-tests-catalogue.md);
 that catalogue is the canonical reference for every identifier.
+
+## Custom-field diagnostic boundary
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+excludes complete custom values (including None), schemas, labels and notices from
+logs, traces, error archives, Sentry, validation responses and audit snapshots/diffs.
+Use fixed error codes and structural locations or indices, never tenant-authored
+keys or provider exception text. This boundary does not assert general exception
+secrecy. P03-5 Step 2 owns real nested canaries and nonempty safe controls at each
+actual sink, including immediate and deferred database failures, validation, logs,
+spans, archives, Sentry, L1 responses and audit capture. Authorized successful
+disclosure has separate positive controls. Acceptance is not implementation proof.

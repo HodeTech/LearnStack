@@ -104,7 +104,7 @@ public sealed class OperationPolicyCombinationTests
     }
 
     [Fact]
-    public void Production_sources_add_only_the_exact_three_assignable_Tenancy_pairs_and_preserve_v1_and_virtual_public_definitions()
+    public void Production_sources_preserve_v1_v2_and_add_only_the_explicit_Customization_pair()
     {
         var tenancy = new TenancyOperationPolicySource();
         var catalog = new OperationPolicyCatalog([tenancy, new IdentityOperationPolicySource(),
@@ -114,7 +114,11 @@ public sealed class OperationPolicyCombinationTests
                 .Select(registration => registration.Definition));
         Assert.Equal(BoundedTenancyAdministrationPermissions.Definitions.OrderBy(pair => pair.Key, StringComparer.Ordinal),
             tenancy.Definitions.Where(registration => registration.Assignable).Select(registration => registration.Definition).OrderBy(pair => pair.Key, StringComparer.Ordinal));
-        Assert.Equal(8, catalog.Definitions.Count(registration => registration.Assignable));
+        Assert.Equal(9, catalog.Definitions.Count(registration => registration.Assignable));
+        var customization = Assert.Single(new CustomizationOperationPolicySource().Definitions);
+        Assert.True(customization.Assignable);
+        Assert.Equal(BoundedCustomFieldPermissions.Definition, customization.Definition);
+        Assert.Equal(PermissionScope.Tenant, customization.Definition.Scope);
         Assert.Equal(3, catalog.Definitions.Count(registration => !registration.Assignable));
         Assert.All(BoundedTenancyAdministrationPermissions.Definitions, pair => Assert.Equal(PermissionScope.Tenant, pair.Scope));
         Assert.Equal(["tenancy.locale.write", "tenancy.organization.admin", "tenancy.setting.write"],

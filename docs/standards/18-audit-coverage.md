@@ -1068,3 +1068,15 @@ Platform admins additionally see cross-tenant entries through a separate route g
   LearnStack audit split.
 - [10-observability.md](10-observability.md) — correlation id propagation, redaction.
 - [20-infrastructure-stack.md](20-infrastructure-stack.md) — `IAuditStore` rules.
+
+## Membership custom fields and consent
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+classifies definition lifecycle, Membership custom-value writes and independent
+Tenancy consent grant/withdrawal as MUST. Other-person custom-value reads are MUST
+ReadSensitive before disclosure; own reads and definition configuration reads are
+explicit Off. Publication designates its successor when tracking both revisions.
+The module matrices own planned request bindings; each new type and slug joins its
+catalogue before dispatch. Whole custom values and authored schema/labels/notices
+are redacted, while subject and linkage remain classified personal data. Phase 03
+owns delivery and proof.

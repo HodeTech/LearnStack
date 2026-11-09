@@ -46,9 +46,11 @@ public sealed class SeedStateReader(IdentityDbContext db, IUnitOfWork unit) : IS
         }
         var values = definitions.ToImmutable();
         var valid = IdentityFoundationManifest.Version1.FindTemplate(row.BuiltInKey, row.PermissionScope) is not null
+            && IdentityRoleRelease.Current.IsValidAdoptionState(row.BuiltInKey, row.PermissionScope,
+                row.AdoptedReleaseVersion, row.AdoptedReleaseFingerprint)
             && values.Distinct().Count() == values.Length
             && values.All(value => value.Scope == row.PermissionScope
-                && IdentityRoleRelease.Version2.IsActive(value.Scope, value.Key)
+                && IdentityRoleRelease.Current.IsActive(value.Scope, value.Key)
                 && (value.Key != IdentityFoundationManifest.RoleAdmin || row.BuiltInKey == BuiltInRoleKey.TenantAdmin))
             && (row.BuiltInKey != BuiltInRoleKey.TenantAdmin
                 || IdentityFoundationManifest.Version1.TenantAdminKernel.All(values.Contains));

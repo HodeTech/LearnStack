@@ -532,3 +532,21 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 3 — Fixed consent-only recovery entry (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds
+`/account/consents` and the closed consent entry POSTs, using the existing bounded
+credentialed entry handle and fixed consent-only shell. Missing/expired handles
+restart sign-in; they cannot bootstrap or create Memberships. The shell calls
+neither CurrentSession nor branding/public configuration. Origin/CSRF, verified
+subject continuity and independent live-host ceilings remain mandatory.
+`HostAndConsentSubject` / `ConsentSubjectScope` support only retained own-scope
+history and withdrawal, without ordinary native session, value disclosure or
+`app.scope`. [Security](../standards/11-security.md#retained-consent-subject-admission)
+and the accepted package own admission and exact route/operation census. The
+three global-self descriptors and four physical context writers remain unchanged.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

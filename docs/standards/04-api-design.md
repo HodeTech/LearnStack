@@ -851,3 +851,16 @@ Public but rate-limited.
 - Mixing API versions in a single endpoint.
 - Inconsistent casing.
 - Echoing internal error messages to clients.
+
+## Membership custom-field transport
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires separate own/admin PATCH value operations, POST-only consent acts and
+strong If-Match on existing resources. Protected replay reauthorizes the original
+target; consent binds predecessor and returns the original receipt, not a current
+state assertion. New body-bearing P03-5 operations use versioned HMAC-SHA256 over
+the length-framed request/context with the deployment-shared `ISecretProvider` key
+ring. Existing fingerprints stay byte-identical. Retain keys for physically present
+rows including logically expired ones and for matching backups; missing keys fail
+closed. Receipts contain versions and immutable targets, not values or notices.
+The Phase 03 package owns the exact endpoint census and implementation status.
