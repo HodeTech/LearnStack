@@ -27,7 +27,7 @@ public sealed partial class TenancyConventionTests
         if (core.Length != 1 || !core[0].Modifiers.Any(SyntaxKind.PrivateKeyword)
             || !core[0].Modifiers.Any(SyntaxKind.AsyncKeyword) || core[0].Modifiers.Any(SyntaxKind.StaticKeyword)
             || !SyntaxFactory.AreEquivalent(core[0].ParameterList, SyntaxFactory.ParseParameterList(
-                "(ITenantContext context, OperationReadWitness? readWitness, bool tenantWideRead, CancellationToken cancellationToken, InvitationEntryScopeWitness? invitationWitness = null)"))
+                "(ITenantContext context, OperationReadWitness? readWitness, bool tenantWideRead, CancellationToken cancellationToken, InvitationEntryScopeWitness? invitationWitness = null, ConsentSubjectScopeWitness? consentWitness = null)"))
             || forwarders.Length != 2
             || forwarders.Count(method => Forwarder(method,
                 "(ITenantContext context, CancellationToken cancellationToken = default)",

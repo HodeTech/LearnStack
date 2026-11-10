@@ -16,5 +16,10 @@ public interface IMembershipFieldConsentWriteStore : IAggregateWriteStore<Member
 }
 
 /// <summary>A fixed storage failure that never carries provider text or consent data.</summary>
-public sealed class MembershipFieldConsentStorageException()
-    : InfrastructureException("Consent evidence could not be persisted.");
+public enum MembershipFieldConsentStorageFailure { Plan, Stale, Cooldown, Conflict, State, Provider }
+
+public sealed class MembershipFieldConsentStorageException(MembershipFieldConsentStorageFailure failure)
+    : InfrastructureException("Consent evidence could not be persisted.")
+{
+    public MembershipFieldConsentStorageFailure Failure { get; } = failure;
+}

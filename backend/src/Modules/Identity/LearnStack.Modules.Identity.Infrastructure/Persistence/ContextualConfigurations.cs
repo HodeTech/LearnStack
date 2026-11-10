@@ -73,6 +73,12 @@ internal sealed class MembershipProfileConfiguration : IEntityTypeConfiguration<
         builder.Property(entity => entity.MembershipId).HasConversion<MembershipId.EfCoreValueConverter, MembershipId.EfCoreValueComparer>().ValueGeneratedNever();
         builder.Property(entity => entity.DisplayName).HasMaxLength(128);
         builder.Property(entity => entity.PreferredLocale).HasMaxLength(35);
+        builder.Property(entity => entity.CustomFieldsJson).HasColumnName("custom_fields").HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
+        builder.ToTable(table => table.HasCheckConstraint("ck_membership_profiles_custom_fields_shape",
+            "CASE WHEN jsonb_typeof(custom_fields) = 'array' THEN jsonb_array_length(custom_fields) <= 20 ELSE false END"));
+        builder.DeclarePersonalData(PersonalDataCategory.Sensitive,
+            "Contained revision-pinned personal values and original consent linkage; always excluded from diagnostics.",
+            nameof(MembershipProfile.CustomFieldsJson));
         builder.DeclarePersonalData(PersonalDataCategory.Identity,
             "Contained contextual profile identity, scope and optional personal display and locale preferences.",
             nameof(MembershipProfile.TenantId), nameof(MembershipProfile.OrganizationId), nameof(MembershipProfile.MembershipId),

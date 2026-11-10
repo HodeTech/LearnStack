@@ -54,6 +54,13 @@ public sealed partial class IdentityAuditConventionTests
     private static readonly (string Owner, string Method, int Count)[] CurrentInvocationBorrowers =
     [
         (CentralEvidence, "Snapshot", 1),
+        ("LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor", "ExecuteAsync", 1),
+        ("LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldQueryExecutor", "ExecuteAsync", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "Matches", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnConsentEntryAuthorization", "For", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", 1),
+
         (InvitationEntrySource, "IsEvidenceCurrent", 1),
         (InvitationEntryAuthorization, "For", 1),
         (InvitationEntryReadStore, "Admit", 1),
@@ -100,6 +107,12 @@ public sealed partial class IdentityAuditConventionTests
 
     private static readonly (string Owner, string Method, int Count)[] CurrentDecisionBorrowers =
     [
+        ("LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor", "ExecuteAsync", 1),
+        ("LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldQueryExecutor", "ExecuteAsync", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "Matches", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnConsentEntryAuthorization", "For", 1),
+        ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", 1),
         (InvitationEntryAuthorization, "For", 1),
         (InvitationEntryReadStore, "Admit", 1),
         (InvitationEntryReadStore, "ReadAsync", 1),
@@ -226,6 +239,10 @@ public sealed partial class IdentityAuditConventionTests
             (InvitationAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (InvitationPolicyAuthorization, "OwnAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
             (InvitationPolicyAuthorization, "OwnAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (CentralEvidence, "Snapshot", InvocationContext, "get_CurrentInvocation"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
@@ -352,13 +369,15 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, callerIndex, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
         EvidenceCallers(census, errors, callerIndex, PolicyOwner, "get_CurrentDecision",
             [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1),
-             (PolicyOwner, "get_CurrentInvitationWitness", 1)]);
+             (PolicyOwner, "get_CurrentInvitationWitness", 1), (PolicyOwner, "get_CurrentConsentWitness", 1)]);
         EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
             [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1),
-                (InvitationAuthorization, "RecheckAsync", 1), (InvitationPolicyAuthorization, "OwnAsync", 1), (CustomFieldAdmission, "RecheckAsync", 1)]);
+                (InvitationAuthorization, "RecheckAsync", 1), (InvitationPolicyAuthorization, "OwnAsync", 1), (CustomFieldAdmission, "RecheckAsync", 1),
+                ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", 1), ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", 1)]);
         EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal",
             [(RoleAuthorization, "ReportRefusal", 1), (MemberAuthorization, "ReportRefusal", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1),
-                (InvitationAuthorization, "RecheckAsync", 1), (InvitationPolicyAuthorization, "OwnAsync", 1), (CustomFieldAdmission, "RecheckAsync", 1)]);
+                (InvitationAuthorization, "RecheckAsync", 1), (InvitationPolicyAuthorization, "OwnAsync", 1), (CustomFieldAdmission, "RecheckAsync", 1),
+                ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", 1), ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", 1)]);
         foreach (var (type, method, target, name) in new[]
         {
             (Occurrence, ".ctor", Occurrence, "CopyAddress"), (Occurrence, "get_Draft", Occurrence, "CopyAddress"),
@@ -382,6 +401,10 @@ public sealed partial class IdentityAuditConventionTests
             (InvitationAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (InvitationPolicyAuthorization, "OwnAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
             (InvitationPolicyAuthorization, "OwnAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization", "AdmitGrantAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            ("LearnStack.Modules.Tenancy.Application.FieldConsents.GetOwnMembershipFieldConsentQueryHandler", "AuthorizedAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
             (HttpTransport, "Capture", "LearnStack.Api.Authentication.OperationHttpClassifier", "Classify"),

@@ -367,19 +367,20 @@ current-tenant navigation in orgless scope. It returns only the fixed policy
 value/version/default-presence precondition and advisory canEdit; it grants no
 write authority and reads no arbitrary setting. Its Off registration precedes dispatch.
 
-## Personal field consent (planned)
+## Personal field consent
 
 [ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
 classifies grant and withdrawal MUST on the independent `MembershipFieldConsent`
 root, with audit in the same transaction. Own state, retained-scope and history
 reads are explicitly Off. Subject/actor and retained linkage remain personal data;
-no profile value or notice copy enters audit. These classifications precede request
-types; their exact catalogue slugs must join this matrix on arrival.
+no profile value or notice copy enters audit. The catalogue binds the exact
+application requests below; HTTP/native activation
+and qualification are recorded in the Phase 03 Status block.
 
-| Planned operation | Class | Request |
-|---|---|---|
-| `tenancy.membership_field_consent.grant` `(planned)` | MUST/Create | `GrantOwnMembershipFieldConsentCommand` |
-| `tenancy.membership_field_consent.withdraw` `(planned)` | MUST/Create | `WithdrawOwnMembershipFieldConsentCommand` |
+| Resource | Operation | Class | Request |
+|---|---|---|---|
+| MembershipFieldConsent | `tenancy.membership_field_consent.grant` | **MUST** (`create`) | `GrantOwnMembershipFieldConsentCommand` |
+| MembershipFieldConsent | `tenancy.membership_field_consent.withdraw` | **MUST** (`create`) | `WithdrawOwnMembershipFieldConsentCommand` |
 
 `GetOwnMembershipFieldConsentQuery`, `ListOwnFieldConsentScopesQuery` and
-`ListOwnMembershipFieldConsentsQuery` are planned explicit Off bindings.
+`ListOwnMembershipFieldConsentsQuery` are explicit Off bindings.

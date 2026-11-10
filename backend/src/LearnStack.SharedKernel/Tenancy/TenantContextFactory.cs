@@ -156,6 +156,21 @@ public static class TenantContextFactory
             TenantContextOrigin.HostAndInvitationOffer, correlationId, host));
     }
 
+    /// <summary>Pure scope reconciliation; only the separate verified-subject witness supplies consent authority.</summary>
+    public static Result<TenantContext> CreateForConsentSubjectScope(TenantId hostTenant, OrganizationId? hostOrganization,
+        UserId actor, LearnStack.SharedKernel.Identity.ConsentSubjectScopeObservation? selected, string? correlationId)
+    {
+        if (!StronglyTypedId.IsAssigned(hostTenant) || hostTenant == TenantId.PlatformSentinel
+            || !StronglyTypedId.IsAssigned(actor) || actor == UserId.SystemActor
+            || !StronglyTypedId.IsAssignedWhenPresent(hostOrganization)
+            || selected is not null && (selected.TenantId != hostTenant || selected.MembershipId == Guid.Empty
+                || selected.MembershipId.Version != 7 || !StronglyTypedId.IsAssignedWhenPresent(selected.OrganizationId)
+                || hostOrganization is { } branch && selected.OrganizationId != branch))
+            return Result.Fail<TenantContext>(Refused);
+        return Result.Ok(new TenantContext(hostTenant, selected?.OrganizationId ?? hostOrganization, actor,
+            TenantContextOrigin.HostAndConsentSubjectScope, correlationId, new HostScope(hostTenant, hostOrganization)));
+    }
+
     /// <summary>
     /// Which signals carried this context — the authority ceiling, decided once.
     /// </summary>

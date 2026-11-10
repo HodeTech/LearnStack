@@ -5810,7 +5810,10 @@ unknown/nonempty-witness/maximum-serialization proofs refuse closed. The schema
 not capacity reservations. No schema annotation grants storage or a renderer.
 
 `membership_profiles.custom_fields` retains typed concept/definition ID/version,
-JSON value and original consent-evidence ID per slot. Exact uncached revision
+JSON value and original consent-evidence ID per slot. The JSONB column is required,
+defaults to an empty array and checks array shape and the twenty-slot ceiling.
+The 32 KiB collection budget measures the normalized logical representation,
+not PostgreSQL's expanded JSONB text. Exact uncached revision
 and current-consent reads use owning Application.Contracts on the same ambient
 owner, never cross-module FK, navigation or SQL joins. Static Sensitive mapped
 classification plus whole-property `[PiiSensitive]` supplements per-revision
@@ -5841,7 +5844,11 @@ new record is its own MUST audit subject on the same Tenancy transaction; no
 consent command mutates Membership or the Tenant aggregate.
 
 Evidence records the exact authored notice locale, definition/notice pin and
-domain-separated SHA-256 of that immutable locale's UTF-8 notice. Purpose is an
+domain-separated SHA-256 of that immutable locale's UTF-8 notice. The digest is
+lowercase hexadecimal SHA-256 of UTF-8
+`learnstack.membership-field-consent.notice.v1`, one NUL byte, then the exact
+UTF-8 authored notice. The server computes it; the submitted expected hash only
+acknowledges that notice and never supplies authority. Purpose is an
 explicit 1–64-character lowercase ASCII slug namespaced by tenant/target/concept.
 It stores no provider token, email, profile value or copied freeform notice.
 Retained historical notice display remains available after locale disablement.

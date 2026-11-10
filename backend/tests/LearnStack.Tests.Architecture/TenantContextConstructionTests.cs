@@ -26,6 +26,7 @@ public sealed partial class TenantContextConstructionTests
         using var module = Mono.Cecil.ModuleDefinition.ReadModule(Kernel.Location);
         HostScopeConstructors(module).Should().Equal(
             [$"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.Create)}",
+             $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForConsentSubjectScope)}",
              $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForInvitationOffer)}",
              $"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.CreateForNativeScope)}"],
             "Fix: only the reconciliation factory may create host provenance; scan must see its real call");
@@ -48,7 +49,7 @@ public sealed partial class TenantContextConstructionTests
         module.Types.Add(probe);
         HostScopeConstructors(module).Should().Contain("ReviewProbe.SecondProducer.Build");
         module.Types.Remove(probe);
-        HostScopeConstructors(module).Should().HaveCount(3);
+        HostScopeConstructors(module).Should().HaveCount(4);
     }
 
     private static IEnumerable<string> HostScopeShapeViolations(Type type)
@@ -138,7 +139,8 @@ public sealed partial class TenantContextConstructionTests
         producers.Should().BeEquivalentTo(
             [$"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.Create)}",
              $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForNativeScope)}",
-             $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForInvitationOffer)}"],
+             $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForInvitationOffer)}",
+             $"{nameof(TenantContextFactory)}.{nameof(TenantContextFactory.CreateForConsentSubjectScope)}"],
             "a second member handing back a TenantContext is a second entry point, "
             + "whatever it delegates to");
     }

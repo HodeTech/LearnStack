@@ -70,4 +70,7 @@ public enum TenantContextOrigin
 
     /// <summary>Exact native recipient and stored offer; only the three invitation entry operations.</summary>
     HostAndInvitationOffer,
+
+    /// <summary>Verified subject and real host bound only to retained consent history/withdrawal.</summary>
+    HostAndConsentSubjectScope,
 }

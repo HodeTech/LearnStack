@@ -225,18 +225,19 @@ ReadSensitive retention remain policy targets; Phase 11 owns automatic purge,
 while P03-10 owns applicable export/closure/linkage location. Acceptance does not
 qualify the new provider, database, browser, race or failure proofs.
 
-## Membership custom values (planned)
+## Membership custom values
 
 [ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
 classifies own and administrator custom-value writes MUST on Membership; an
 other-person value read is MUST ReadSensitive before disclosure and own read is
 explicit Off. The entire Profile custom-fields property is Sensitive and redacted
-in snapshots and diffs, including values classified None. These classifications
-precede request types; their exact catalogue slugs must join this matrix on arrival.
+in snapshots and diffs, including values classified None. The catalogue binds the
+exact application requests below; HTTP/native activation
+and qualification are recorded in the Phase 03 Status block.
 
-| Planned operation | Class | Request |
-|---|---|---|
-| `identity.membership.custom_fields_write` `(planned)` | MUST/Update | `SetMembershipCustomFieldsCommand`, `SetOwnMembershipCustomFieldsCommand` |
-| `identity.membership.custom_fields_read` `(planned)` | MUST/ReadSensitive | `GetMembershipCustomFieldsQuery` |
+| Resource | Operation | Class | Request |
+|---|---|---|---|
+| MembershipProfile under Membership | `identity.membership.custom_fields_write` | **MUST** (`update`) | `SetMembershipCustomFieldsCommand`, `SetOwnMembershipCustomFieldsCommand` |
+| Membership custom values | `identity.membership.custom_fields_read` | **MUST** (`read-sensitive`) | `GetMembershipCustomFieldsQuery` |
 
-`GetOwnMembershipCustomFieldsQuery` is a planned explicit Off binding.
+`GetOwnMembershipCustomFieldsQuery` is an explicit Off binding.

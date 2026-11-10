@@ -579,7 +579,9 @@ browser or accessibility proof by itself.
 [ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
 places custom slots in MembershipProfile, never global User. Each slot retains
 concept, exact definition ID/version, value and original consent evidence ID.
-Definitions and current consent are resolved in bounded owning-contract batches;
+Identity's response contract projects immutable metadata into its own read model;
+it does not reference another module's contract assembly. Definitions and current
+consent are resolved in bounded owning-contract batches;
 no cross-module join, navigation or FK is introduced. A shared Tenant fence and
 Membership lock protect final admission through commit. Historical values keep their
 classification; withdrawal withholds sensitive values from ordinary DTOs without
@@ -592,7 +594,7 @@ P03-10 fulfillment. The phase Status owns implementation and qualification.
 erDiagram
     User ||--o{ Membership : "stable identity reference"
     Membership ||--|| MembershipProfile : contains
-    MembershipProfile ||--o{ CustomFieldPin : "planned contained value"
+    MembershipProfile ||--o{ CustomFieldPin : "contained revision-pinned value"
     Membership ||--o{ MembershipRoleAssignment : contains
     Role ||--o{ MembershipRoleAssignment : "tenant-composite reference"
     Role ||--o{ RolePermissionGrant : contains
@@ -610,7 +612,7 @@ erDiagram
 ```
 
 Text fallback: User has contextual Memberships; each contains Profile and
-assignments to tenant-wide Roles. Roles contain grants. Planned Profile pins reference
+assignments to tenant-wide Roles. Roles contain grants. Profile pins reference
 Customization revisions by value only. OrganizationId is a
 Membership value, without a cross-module FK/navigation.
 

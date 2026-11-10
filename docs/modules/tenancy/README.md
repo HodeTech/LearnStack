@@ -469,9 +469,10 @@ tracks implementation and proof.
 
 ## Entity-relationship diagram
 
-Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
-`TenantSetting` — the four that implement `IAggregateRoot<TId>`, the last two by the
-promotion below. `SetTenantBrandingCommand` writes `TenantSetting`; no command
+Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain`,
+`TenantSetting` and `MembershipFieldConsent` — the five that implement
+`IAggregateRoot<TId>`. The Domain/Setting promotion is described below; consent
+is the independent append-only root described above. `SetTenantBrandingCommand` writes `TenantSetting`; no command
 writes `TenantDomain` yet.
 `PlatformHostMapping` and `PlatformEntitlement` are projections rather than
 aggregate roots. The accepted fixed seed-origin act writes its mapping projection

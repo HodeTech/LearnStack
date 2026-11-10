@@ -22,6 +22,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Validation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
@@ -184,11 +185,12 @@ public sealed class CustomFieldCommandFixture : IAsyncLifetime
 
     public Task DisposeAsync() => Membership.DisposeAsync();
 
-    internal Task<RoleGrantPipelineHarness> CreateAsync(string correlation, Guid? actor = null, Guid? organization = null) =>
+    internal Task<RoleGrantPipelineHarness> CreateAsync(string correlation, Guid? actor = null, Guid? organization = null, ILoggerFactory? loggers = null) =>
         RoleGrantPipelineHarness.CreateAsync(Membership.AppConnectionString, Authority, TenantId.From(SchemaFixture.TenantA),
             UserId.From(actor ?? AdminA), correlation, organization is { } org ? OrganizationId.From(org) : null,
             services =>
             {
+                if (loggers is not null) services.AddSingleton(loggers);
                 services.AddModuleDbContext<CustomizationDbContext>();
                 services.AddModuleDbContext<TenancyDbContext>();
                 services.AddScoped<ICustomFieldDefinitionStore, CustomFieldDefinitionStore>();

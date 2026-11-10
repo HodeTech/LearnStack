@@ -25,6 +25,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleEvidenceOwner = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession";
     private const string LifecycleEvidenceView = LifecycleEvidenceOwner + "/ConfinedUnit";
     private const string LifecycleInvitationWitness = "LearnStack.SharedKernel.Identity.InvitationEntryScopeWitness";
+    private const string LifecycleConsentWitness = "LearnStack.SharedKernel.Identity.ConsentSubjectScopeWitness";
+    private const string LifecycleConsentLookup = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.ConsentSubjectScopeLookup";
     private const string LifecycleInvitationLookup = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEntryLookup";
     private const string LifecycleReadWitness = "LearnStack.SharedKernel.Permissions.OperationReadWitness";
     private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
@@ -340,7 +342,7 @@ public sealed partial class OutboxDispatchConventionTests
         var core = adapter.Methods.Where(method => method.Name == "SetTenantContextCoreAsync").ToArray();
         if (core.Length != 1 || !core[0].IsPrivate || core[0].IsStatic || core[0].HasGenericParameters
             || core[0].ReturnType.FullName != LifecycleTask || !ParametersMatch(core[0],
-                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness]))
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness]))
             offenders.Add("The ordinary tenant setter retains one private witness-aware core");
         var defaultWide = unit.Methods.Where(method => method.Name == "SetTenantContextAsync"
             && ParametersMatch(method, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])).ToArray();
@@ -438,7 +440,8 @@ public sealed partial class OutboxDispatchConventionTests
             ["unit.begin"] = [Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
             ["unit.begin-mode"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation]),
-                Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync")],
+                Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync"),
+                Owner("LearnStack.Modules.Tenancy.Infrastructure", LifecycleConsentLookup, "LookupAsync")],
             ["unit.commit"] = [Owner(InfrastructureAssembly, LifecycleFrame, "CompleteAsync")],
             ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
@@ -448,13 +451,15 @@ public sealed partial class OutboxDispatchConventionTests
                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation]),
                 Owner(InfrastructureAssembly, LifecycleAdapter, "SetTenantContextAsync",
                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation]),
-                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginInvitationEntryTransactionAsync")],
+                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginInvitationEntryTransactionAsync"),
+                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginConsentSubjectTransactionAsync")],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
                 Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "DebitAttemptAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ReadScopesAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync"),
+                Owner("LearnStack.Modules.Tenancy.Infrastructure", LifecycleConsentLookup, "LookupAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader", "ReadAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),

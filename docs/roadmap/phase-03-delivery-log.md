@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 477 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 530 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -398,7 +398,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 conditional acceptance and Step 1 start (2026-11-10)](#p03-5-conditional-acceptance-and-step-1-start-2026-11-10) — 25 lines
   - [P03-5 Step 1 source correction and foundation boundary (2026-11-10)](#p03-5-step-1-source-correction-and-foundation-boundary-2026-11-10) — 28 lines
   - [P03-5 Step 1 implementation and first review handoff (2026-11-10)](#p03-5-step-1-implementation-and-first-review-handoff-2026-11-10) — 48 lines
-  - [P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)](#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) — 42 lines
+  - [P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)](#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) — 43 lines
+  - [P03-5 Step 2 value and consent implementation handoff (2026-11-10)](#p03-5-step-2-value-and-consent-implementation-handoff-2026-11-10) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18353,3 +18354,56 @@ including numeric normalization rather than whitespace-only compaction, and prov
 actual serialized/encoded payload bounds. Step 4 still owes the complete combined
 suite and final-source hosted A/B/original archives. These are not inherited or
 completed by the foundation results.
+
+
+### P03-5 Step 2 value and consent implementation handoff (2026-11-10)
+
+Step 2 implements Membership-owned custom values and Tenancy-owned personal consent
+commands under Accepted ADR-0095. Its first source commit follows this record;
+the two fresh implementation-review rounds have not yet run. Step 3 owns HTTP,
+SDK, HMAC, the actual authenticated consent-subject producer and native/UI activation.
+No production consent witness minter is registered by this step.
+
+- MembershipProfile stores `custom_fields` JSONB, with an empty-array default,
+  shape/twenty-slot backstop and static whole-property Sensitive classification.
+  Explicit own/admin set/remove requests preserve omitted slots, exact historical
+  revision interpretation and original evidence linkage. Effective required-set
+  checks apply to sets; removal-only does not require new consent or completeness.
+  Identity projects immutable metadata into its own response contract without
+  referencing another module's contract assembly.
+- New grants derive the exact own Active Membership and freshly checked lifecycle
+  under the exclusive Tenant fence, independently of profile-write/admin grants.
+  The notice digest uses the canonical domain-separated exact UTF-8 algorithm.
+  Retained discovery/history/withdrawal use single-use consent-subject witnesses:
+  physically ReadOnly preliminary lookup closes before the captured owner; own
+  history/discovery stays ReadOnly and withdrawal uses its own ordinary ReadWrite
+  owner. Tests use an explicitly test-only source and establish no JWT/HTTP claim.
+- Actual app-role value/definition and value/withdrawal races exercise both commit
+  winner orders with observed PostgreSQL lock waits. Command-level Draft/Active,
+  concept and retained-revision boundaries preserve permitted recovery. Real grant,
+  withdrawal, same-state convergence and MUST audit-fault rollback controls retain
+  their exact subjects; lifecycle-loss withdrawal/history needs no active Membership.
+- Real sink canaries find and repair a deferred-COMMIT privacy gap: standalone audit
+  reconciliation can otherwise log raw provider payloads containing already-stored
+  custom values. Exact P03-5 operation classification now protects physical COMMIT
+  and the complete audit capture, including nested acts through outer reconciliation.
+  Independent captures keep their diagnostics. Fixed failure/health/counter signals,
+  ordinary primary refusals and unknown-COMMIT state remain; provider details do not.
+  Actual None/Sensitive values, schema, labels and notices are absent from serialized
+  Serilog, exported traces, local archives, Sentry, L1 responses and audit snapshots,
+  with nonempty authorized disclosure and safe diagnostic controls.
+- Exact policy, read-only registration, authority borrower, context construction and
+  EF reenrollment censuses include the new source paths and planted negative cases.
+  No permission, context-writer, role, global-self descriptor or CI window expands.
+  The accepted twelve-definer/twelve-logical-setter/four-physical-writer boundary
+  remains; source/operation closure is not a credential qualification claim.
+
+After source formatting, the Release solution builds with no warnings/errors.
+The complete unit project passes **3,702/3,702**, affected architecture controls
+pass **177/177**, and the selected real PostgreSQL command/ownership/privacy plus
+existing audit/store/profile/unit-of-work regression population passes **126/126**;
+all have zero skips. The broader audit regression population is included after the
+reconciliation privacy repair. These local results do not replace the complete
+combined suite or final-source hosted A/B/original-archive qualification in Step 4.
+The production consent source, schema/wire numeric roundtrips, encoded payload
+budgets, HMAC and actual browser/native journeys remain Step 3 work in this packet.

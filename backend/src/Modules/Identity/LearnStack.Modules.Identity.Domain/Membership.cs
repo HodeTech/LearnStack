@@ -65,6 +65,17 @@ public sealed class Membership : AuditableEntity<MembershipId>, IAggregateRoot<M
         return Result<None>.Ok(None.Value);
     }
 
+    public Result<None> SetCustomFields(IReadOnlyCollection<MembershipCustomFieldValue> values, DateTimeOffset at, UserId actor)
+    {
+        var json = MembershipCustomFieldValues.Serialize(values);
+        if (Status != MembershipStatus.Active || IsDeleted || json is null) return IdentityFailures.BusinessRule();
+        if (MembershipCustomFieldValues.Serialize(MembershipCustomFieldValues.Read(Profile.CustomFieldsJson).ToArray()) == json)
+            return Result<None>.Ok(None.Value);
+        MarkUpdated(at, actor);
+        Profile.SetCustomFields(json);
+        return Result<None>.Ok(None.Value);
+    }
+
     /// <summary>Retains unchanged assignment instances so tracked writes capture only the actual difference.</summary>
     public Result<None> ReplaceAssignments(IReadOnlyCollection<Role> desired, DateTimeOffset at, UserId actor)
     {
@@ -136,6 +147,8 @@ public sealed class MembershipProfile : IOrganizationScoped
     public string? DisplayName { get; private set; }
     [PiiSensitive]
     public string? PreferredLocale { get; private set; }
+    [PiiSensitive]
+    public string CustomFieldsJson { get; private set; } = "[]";
     public Membership Membership { get; private set; }
 
     public static bool IsValid(string? displayName, string? preferredLocale) =>
@@ -148,6 +161,8 @@ public sealed class MembershipProfile : IOrganizationScoped
         DisplayName = displayName;
         PreferredLocale = preferredLocale;
     }
+
+    internal void SetCustomFields(string json) => CustomFieldsJson = json;
 }
 
 [TenantOwned]

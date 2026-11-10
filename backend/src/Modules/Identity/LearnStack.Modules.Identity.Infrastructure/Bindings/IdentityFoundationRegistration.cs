@@ -9,6 +9,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
@@ -49,6 +50,7 @@ public static class IdentityFoundationRegistration
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipContextsQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnCapabilitiesQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipCustomFieldsQuery)));
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         return services;
     }

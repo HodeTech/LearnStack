@@ -33,6 +33,9 @@ public sealed class OperationAuthorizationCoordinator(
     public LearnStack.SharedKernel.Identity.InvitationEntryScopeWitness? CurrentInvitationWitness =>
         CurrentDecision is { InvitationWitness: { IsActive: true } witness } ? witness : null;
 
+    public LearnStack.SharedKernel.Identity.ConsentSubjectScopeWitness? CurrentConsentWitness =>
+        CurrentDecision is { ConsentWitness: { IsActive: true } witness } ? witness : null;
+
     public ProtectedOperationDecision? CurrentDecision => _current.Value is { Closed: false, Decision: { IsActive: true } decision }
         ? decision : null;
 
@@ -86,8 +89,11 @@ public sealed class OperationAuthorizationCoordinator(
                     sourceFailure = Forbidden;
                 else trusted = captured[0];
                 break;
+            case OperationPolicyKind.OwnConsentEntry:
             case OperationPolicyKind.InvitationEntry:
-                if (!context.IsResolved || context.Origin != TenantContextOrigin.HostAndInvitationOffer
+                var requiredOrigin = policy.Kind == OperationPolicyKind.OwnConsentEntry
+                    ? TenantContextOrigin.HostAndConsentSubjectScope : TenantContextOrigin.HostAndInvitationOffer;
+                if (!context.IsResolved || context.Origin != requiredOrigin
                     || context.HostScope is not { } offerHost || offerHost.TenantId != context.TenantId
                     || offerHost.OrganizationId is { } offerOrganization && offerOrganization != context.OrganizationId)
                 { sourceFailure = TenantContextFactory.Refused; break; }
@@ -100,6 +106,7 @@ public sealed class OperationAuthorizationCoordinator(
             case OperationPolicyKind.AccountRead:
             case OperationPolicyKind.NativeSessionAdmission:
             case OperationPolicyKind.OwnMembershipRead:
+            case OperationPolicyKind.OwnFieldConsentGrant:
             case OperationPolicyKind.Protected:
                 if (!HasProtectedContext()
                     || (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission

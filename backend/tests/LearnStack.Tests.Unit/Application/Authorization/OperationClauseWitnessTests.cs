@@ -196,7 +196,7 @@ public sealed class OperationClauseWitnessTests
             // Deliberately bypass the private minter to prove the coordinator's independent boundary.
             var constructor = typeof(ProtectedOperationDecision).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
             return Task.FromResult((ProtectedOperationDecision)constructor.Invoke(
-                [invocation, ProtectedOperationOutcome.Allowed, decision.MembershipIds, decision.RoleIds, clause, witness, null]));
+                [invocation, ProtectedOperationOutcome.Allowed, decision.MembershipIds, decision.RoleIds, clause, witness, null, null]));
         }
     }
 

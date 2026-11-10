@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 
 namespace LearnStack.Modules.Identity.Application.Authorization;
 
@@ -18,6 +19,17 @@ internal static class IdentityPolicyEvaluation
         var members = facts.Memberships.Where(member => member.OrganizationId is null || member.OrganizationId == candidate.OrganizationId).ToArray();
         if (members.Length != facts.Memberships.Length)
             return Refused(ProtectedOperationOutcome.Unavailable);
+        if (policy.Kind == OperationPolicyKind.OwnFieldConsentGrant)
+        {
+            if (policy.RequestType != typeof(GrantOwnMembershipFieldConsentCommand)
+                || policy.Id != "tenancy.membership_field_consent.grant" || candidate.SourceKind != AuthorizationSourceKind.Http)
+                return Refused(ProtectedOperationOutcome.NotCovered);
+            var own = members.Where(member => member.OrganizationId == candidate.OrganizationId).ToArray();
+            return own.Length == 1
+                ? new(ProtectedOperationOutcome.Allowed, [own[0].MembershipId],
+                    [.. own[0].Roles.Select(role => role.RoleId).Distinct()], null)
+                : Refused(ProtectedOperationOutcome.NotCovered);
+        }
         if (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead)
             return new(ProtectedOperationOutcome.Allowed, [.. members.Select(member => member.MembershipId)],
                 [.. members.SelectMany(member => member.Roles).Select(role => role.RoleId).Distinct()], null);

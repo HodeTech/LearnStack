@@ -1,3 +1,7 @@
+using LearnStack.Modules.Identity.Application.Abstractions;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.CustomFields;
+using LearnStack.Modules.Tenancy.Application.FieldConsents;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
@@ -387,6 +391,15 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ICustomFieldLocaleConfigurationReader, CustomFieldLocaleConfigurationReader>();
         services.TryAddScoped<IMembershipFieldConsentReader, MembershipFieldConsentReader>();
         services.TryAddScoped<IMembershipFieldConsentWriteStore, MembershipFieldConsentWriteStore>();
+        services.TryAddScoped<IMembershipCustomFieldStore, MembershipCustomFieldStore>();
+        services.TryAddScoped<ICustomFieldConsentMembershipReader, CustomFieldConsentMembershipReader>();
+        services.TryAddScoped<MembershipCustomFieldService>();
+        services.TryAddScoped<MembershipCustomFieldCommandExecutor>();
+        services.TryAddScoped<MembershipCustomFieldQueryExecutor>();
+        services.TryAddScoped<OwnFieldConsentAuthorization>();
+        services.TryAddScoped<OwnConsentEntryAuthorization>();
+        services.TryAddScoped<IOwnMembershipFieldConsentHistory, OwnMembershipFieldConsentHistory>();
+        services.TryAddScoped<IConsentSubjectScopeLookup, ConsentSubjectScopeLookup>();
         services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IPublicEducationReadStore, PublicEducationReadStore>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.PublicReads.PublicEducationDisplay>();

@@ -5,6 +5,7 @@ using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 
@@ -30,7 +31,7 @@ public sealed class MembershipFieldConsentWriteStore(TenancyDbContext db, IIdent
         catch (Exception exception) when (IsProviderFailure(exception))
         {
             unit.MarkRollbackOnly();
-            throw new MembershipFieldConsentStorageException();
+            throw new MembershipFieldConsentStorageException(Classify(exception));
         }
     }
 
@@ -49,9 +50,14 @@ public sealed class MembershipFieldConsentWriteStore(TenancyDbContext db, IIdent
         {
             var state = await ReadStateAsync(_tuple, cancellationToken);
             var decision = MembershipFieldConsentTransition.Decide(state.Current, state.LatestGrant,
-                aggregate.PredecessorSequence, aggregate.PredecessorId, aggregate.State, aggregate.CreatedAt);
+                aggregate.PredecessorSequence, aggregate.PredecessorId, aggregate.State, DateTimeOffset.MaxValue);
             if (decision != MembershipFieldConsentTransitionDecision.Append)
-                throw new InvalidOperationException("Consent transition is no longer appendable.");
+                throw new MembershipFieldConsentStorageException(decision switch
+                {
+                    MembershipFieldConsentTransitionDecision.Stale => MembershipFieldConsentStorageFailure.Stale,
+                    MembershipFieldConsentTransitionDecision.GrantCooldown => MembershipFieldConsentStorageFailure.Cooldown,
+                    _ => MembershipFieldConsentStorageFailure.State,
+                });
             RequirePlan(_plan);
             db.MembershipFieldConsents.Add(aggregate);
             await db.SaveChangesAsync(cancellationToken);
@@ -59,7 +65,7 @@ public sealed class MembershipFieldConsentWriteStore(TenancyDbContext db, IIdent
         catch (Exception exception) when (IsProviderFailure(exception))
         {
             unit.MarkRollbackOnly();
-            throw new MembershipFieldConsentStorageException();
+            throw new MembershipFieldConsentStorageException(Classify(exception));
         }
         catch
         {
@@ -92,7 +98,28 @@ public sealed class MembershipFieldConsentWriteStore(TenancyDbContext db, IIdent
         return new MembershipFieldConsentAppendState(current, grant);
     }
 
-    private static bool IsProviderFailure(Exception exception) => exception is DbException or TimeoutException
-        || exception is DbUpdateException { InnerException: DbException or TimeoutException }
-        || exception is InvalidOperationException { InnerException: DbException or TimeoutException };
+    private static bool IsProviderFailure(Exception exception) => Provider(exception) is not null;
+
+    private static Exception? Provider(Exception exception) => exception switch
+    {
+        DbException or TimeoutException => exception,
+        DbUpdateException { InnerException: DbException or TimeoutException } update => update.InnerException,
+        InvalidOperationException { InnerException: DbException or TimeoutException } wrapped => wrapped.InnerException,
+        InvalidOperationException { InnerException: DbUpdateException { InnerException: DbException or TimeoutException } update } => update.InnerException,
+        _ => null,
+    };
+
+    private static MembershipFieldConsentStorageFailure Classify(Exception exception) => Provider(exception) switch
+    {
+        PostgresException { SqlState: "P0301" or "P0321" } => MembershipFieldConsentStorageFailure.Plan,
+        PostgresException { SqlState: "P0322" } => MembershipFieldConsentStorageFailure.Stale,
+        PostgresException { SqlState: "P0323" } => MembershipFieldConsentStorageFailure.Cooldown,
+        PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.SerializationFailure
+            or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.LockNotAvailable
+        } => MembershipFieldConsentStorageFailure.Conflict,
+        PostgresException { SqlState: PostgresErrorCodes.CheckViolation or "P0320" } => MembershipFieldConsentStorageFailure.State,
+        _ => MembershipFieldConsentStorageFailure.Provider,
+    };
 }

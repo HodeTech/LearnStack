@@ -211,7 +211,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
             // than committing unaudited.
             throw new AuditWriteFailedException(
                 "A MUST-class audit row could not be written on the business transaction.",
-                failure);
+                ConfidentialAuditDiagnostics.IsActive ? null : failure);
         }
 
         _capture.MarkWrittenInTransaction();
@@ -261,7 +261,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
             throw new AuditWriteFailedException(
                 $"A MUST-class audit row for {entry.Operation} could not be written "
                 + "standalone.",
-                failure);
+                ConfidentialAuditDiagnostics.IsActive ? null : failure);
         }
         catch (Exception failure) when (failure is not DbException)
         {
@@ -278,6 +278,8 @@ public sealed partial class PostgresAuditStore : IAuditStore
             // contract stays exactly as it was, and only the reporting was missing.
             ReportFailure(entry.Operation, failure);
 
+            if (ConfidentialAuditDiagnostics.IsActive && failure is not OperationCanceledException)
+                throw new AuditWriteFailedException("A confidential MUST-class audit row could not be written standalone.");
             throw;
         }
 
@@ -372,7 +374,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
     }
 
     private Exception? DiagnosticException(Exception failure) =>
-        AsyncExecutionDiagnostics.IsTrusted(_tenantAccessor.Current) ? null : failure;
+        ConfidentialAuditDiagnostics.IsActive || AsyncExecutionDiagnostics.IsTrusted(_tenantAccessor.Current) ? null : failure;
 
     /// <inheritdoc />
     public async Task WritePlatformScopeAsync(

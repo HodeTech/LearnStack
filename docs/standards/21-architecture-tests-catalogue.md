@@ -176,7 +176,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**344 test methods run in
+**347 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -7359,5 +7359,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   logs/spans/local error archives/Sentry/validation/L1 responses/audit capture;
   actual request/response/snapshot budgets and browser/no-JavaScript journeys.
   **Kind:** both.
+- **Companion controls:**
+  [definition/notice sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionDiagnosticSinkTests.cs),
+  [None/Sensitive value sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs)
+  and [capture-bound nested privacy](../../backend/tests/LearnStack.Tests.Unit/Audit/ConfidentialAuditDiagnosticsTests.cs).
 - **Status:** **Registered** — source, runtime and human proof remain separate.
 - **Phase:** 03 (P03-5 Steps 2–4).

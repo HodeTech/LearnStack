@@ -1,4 +1,5 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -41,6 +42,11 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.Off<GetOwnMembershipFieldConsentQuery>();
+        builder.Off<ListOwnFieldConsentScopesQuery>();
+        builder.Off<ListOwnMembershipFieldConsentsQuery>();
+        builder.MustAudit<GrantOwnMembershipFieldConsentCommand>("tenancy.membership_field_consent.grant", OperationType.Create, typeof(MembershipFieldConsent));
+        builder.MustAudit<WithdrawOwnMembershipFieldConsentCommand>("tenancy.membership_field_consent.withdraw", OperationType.Create, typeof(MembershipFieldConsent));
         builder.Off<GetTenantInvitationPolicyQuery>();
         builder.MustAudit<SetTenantInvitationLifetimeCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting));
         builder.MustAudit<ReadInvitationPolicyReceiptQuery>("tenancy.setting.read_receipt", OperationType.ReadSensitive, typeof(TenantSetting));

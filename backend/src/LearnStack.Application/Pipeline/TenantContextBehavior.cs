@@ -161,6 +161,9 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         TenantContextOrigin.HostAndInvitationOffer => !IsPublicSurface && policies is not null
             && policies.TryGet(typeof(TRequest), out var policy)
             && policy.Kind == LearnStack.SharedKernel.Permissions.OperationPolicyKind.InvitationEntry,
+        TenantContextOrigin.HostAndConsentSubjectScope => !IsPublicSurface && policies is not null
+            && policies.TryGet(typeof(TRequest), out var consentPolicy)
+            && consentPolicy.Kind == LearnStack.SharedKernel.Permissions.OperationPolicyKind.OwnConsentEntry,
 
         // null — an implementation that states no origin — and any member added later
         // without deciding its ceiling. Fail-closed, which is the whole reason this is

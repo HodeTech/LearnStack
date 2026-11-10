@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using FluentAssertions;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
@@ -35,9 +37,13 @@ public sealed partial class PersistenceConventionTests
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", typeof(InspectInvitationQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", typeof(GetOwnInvitationResultQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
         (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", InvitationPolicyRequest, "LearnStack.Modules.Tenancy.Application.Contracts"),
+        (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", typeof(GetOwnMembershipCustomFieldsQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
+        (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", typeof(GetOwnMembershipFieldConsentQuery).FullName!, "LearnStack.Modules.Tenancy.Application.Contracts"),
+        (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", typeof(ListOwnFieldConsentScopesQuery).FullName!, "LearnStack.Modules.Tenancy.Application.Contracts"),
+        (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", typeof(ListOwnMembershipFieldConsentsQuery).FullName!, "LearnStack.Modules.Tenancy.Application.Contracts"),
     ];
 
-    // The shared persistence seam stays module-independent. Each of the seven exact
+    // The shared persistence seam stays module-independent. Each of the eleven exact
     // authenticated reads is declared by its owning module, never inferred public.
     private static void AssertExplicitReadOnlyComposition()
     {
@@ -48,7 +54,7 @@ public sealed partial class PersistenceConventionTests
             .Which.SetMethod.Should().BeNull();
         typeof(GetAccountSiteQuery).IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
             .Should().BeFalse("the authenticated read does not acquire anonymous authority");
-        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(InspectInvitationQuery), typeof(GetOwnInvitationResultQuery) })
+        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(InspectInvitationQuery), typeof(GetOwnInvitationResultQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) })
             request.IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
                 .Should().BeFalse("own Membership coverage does not acquire anonymous authority");
 

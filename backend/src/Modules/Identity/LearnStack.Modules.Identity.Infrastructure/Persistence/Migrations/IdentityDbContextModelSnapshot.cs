@@ -423,6 +423,15 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
                         .HasAnnotation("LearnStack:PersonalData:Purpose", "Contained contextual profile identity, scope and optional personal display and locale preferences.");
 
+                    b.Property<string>("CustomFieldsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("custom_fields")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Sensitive)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Contained revision-pinned personal values and original consent linkage; always excluded from diagnostics.");
+
                     b.Property<string>("DisplayName")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)")
@@ -449,7 +458,10 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "OrganizationId")
                         .HasDatabaseName("ix_membership_profiles_tenant_id_organization_id");
 
-                    b.ToTable("membership_profiles", (string)null);
+                    b.ToTable("membership_profiles", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_membership_profiles_custom_fields_shape", "CASE WHEN jsonb_typeof(custom_fields) = 'array' THEN jsonb_array_length(custom_fields) <= 20 ELSE false END");
+                        });
                 });
 
             modelBuilder.Entity("LearnStack.Modules.Identity.Domain.MembershipRoleAssignment", b =>

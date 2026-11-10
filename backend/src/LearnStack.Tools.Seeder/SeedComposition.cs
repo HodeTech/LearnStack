@@ -1,3 +1,7 @@
+using LearnStack.Modules.Identity.Application.Abstractions;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.CustomFields;
+using LearnStack.Modules.Tenancy.Application.FieldConsents;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Application.Authorization;
 using LearnStack.Modules.Identity.Infrastructure.Authorization;
@@ -183,6 +187,15 @@ public static class SeedComposition
         services.AddScoped<ICustomFieldLocaleConfigurationReader, CustomFieldLocaleConfigurationReader>();
         services.AddScoped<IMembershipFieldConsentReader, MembershipFieldConsentReader>();
         services.AddScoped<IMembershipFieldConsentWriteStore, MembershipFieldConsentWriteStore>();
+        services.AddScoped<IMembershipCustomFieldStore, MembershipCustomFieldStore>();
+        services.AddScoped<ICustomFieldConsentMembershipReader, CustomFieldConsentMembershipReader>();
+        services.AddScoped<MembershipCustomFieldService>();
+        services.AddScoped<MembershipCustomFieldCommandExecutor>();
+        services.AddScoped<MembershipCustomFieldQueryExecutor>();
+        services.AddScoped<OwnFieldConsentAuthorization>();
+        services.AddScoped<OwnConsentEntryAuthorization>();
+        services.AddScoped<IOwnMembershipFieldConsentHistory, OwnMembershipFieldConsentHistory>();
+        services.AddScoped<IConsentSubjectScopeLookup, ConsentSubjectScopeLookup>();
         services.AddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
         services.AddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
         services.AddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();

@@ -25,7 +25,7 @@ public static class ApplicationDataSource
     {
         Validate(connectionString);
         var builder = new NpgsqlDataSourceBuilder(connectionString);
-        if (loggerFactory is not null) builder.UseLoggerFactory(loggerFactory);
+        if (loggerFactory is not null) builder.UseLoggerFactory(CustomFieldCommitDiagnostics.Wrap(loggerFactory));
         builder.UsePhysicalConnectionInitializer(
             connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
             connection => RefuseBypassRole(connection, async: true));

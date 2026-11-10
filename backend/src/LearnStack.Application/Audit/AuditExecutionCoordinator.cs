@@ -75,7 +75,8 @@ public sealed class AuditExecutionCoordinator(
         }
 
         return await ExecuteDeclaredAsync(
-            () => DeclareAsync(provisioning, registration, cancellationToken), next, false).ConfigureAwait(false);
+            () => DeclareAsync(provisioning, registration, cancellationToken), next, false,
+            CustomFieldDiagnosticOperations.Contains(operationType)).ConfigureAwait(false);
     }
 
     /// <summary>Declares the one central MUST intent only after the prepared owner admitted serialized absence.</summary>
@@ -134,8 +135,9 @@ public sealed class AuditExecutionCoordinator(
     }
 
     private async Task<TResponse> ExecuteDeclaredAsync<TResponse>(Func<Task> declare, Func<Task<TResponse>> next,
-        bool globalIdentity) where TResponse : IResultBase
+        bool globalIdentity, bool confidential = false) where TResponse : IResultBase
     {
+        using var diagnosticScope = ConfidentialAuditDiagnostics.BeginExecution(capture, confidential);
         await using var evidenceScope = authorizationEvidence?.BeginExecution();
         var outermost = !capture.HasOpenFrame;
 
@@ -348,7 +350,7 @@ public sealed class AuditExecutionCoordinator(
     // A nested command shares this context, so its failure cannot leak payloads
     // through a provider/composer exception before the transport sees the fault.
     private Exception? DiagnosticException(Exception failure) =>
-        capture.Intents.Any(intent => intent.GlobalIdentity is not null)
+        ConfidentialAuditDiagnostics.IsActive || capture.Intents.Any(intent => intent.GlobalIdentity is not null)
             || AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : failure;
 
     /// <summary>
