@@ -3,6 +3,7 @@ import type {
   CustomFieldPage,
   MembershipCustomFields,
   ConsentHistory,
+  ConsentScopes,
   Invitation,
   InvitationPage,
   InvitationPolicy,
@@ -214,20 +215,30 @@ export async function preloadPage(
           ownProfile === null
             ? undefined
             : await data<MembershipCustomFields>({ kind: 'getOwnCustomFields' });
-        const consents =
+        const scopes =
           customFields === undefined
             ? undefined
-            : await data<ConsentHistory>({
+            : await data<ConsentScopes>({ kind: 'listOwnConsentScopes', limit: 20 });
+        const consents =
+          customFields !== undefined &&
+          scopes?.items.some(
+            (scope) =>
+              scope.membershipId === customFields.membershipId &&
+              scope.organizationId === organizationId,
+          )
+            ? await data<ConsentHistory>({
                 kind: 'listOwnConsentHistory',
                 membershipId: customFields.membershipId,
                 limit: 20,
                 cursor: plan.consentCursor,
-              });
+              })
+            : undefined;
         view = {
           kind: 'profile',
           canWrite: capabilities.canWriteOwnProfile && ownProfile !== null,
           customFields,
           consents,
+          consentHistoryIncomplete: consents === undefined && scopes?.pageInfo.hasNext === true,
           selectedFieldId: plan.selectedFieldId,
         };
         break;

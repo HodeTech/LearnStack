@@ -924,6 +924,8 @@ BFF_BROWSER_FAILURE_STAGES = {
     'browser-not-live', 'browser-connect', 'browser-context',
     'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
     'browser-entry-confirmation', 'browser-administration-pages', 'browser-no-script',
+    'browser-custom-field-author-boolean', 'browser-custom-field-author-number', 'browser-custom-field-author-enum',
+    'browser-custom-field-own-consent', 'browser-custom-field-retirement', 'browser-custom-field-no-script',
     'browser-invitation-capture', 'browser-invitation-confirm', 'browser-invitation-cancel',
     'browser-invitation-noscript', 'browser-invitation-history', 'browser-invitation-origin',
     'browser-no-script-hidden-render', 'browser-no-script-missing-form', 'browser-no-script-invisible-form',

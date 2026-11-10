@@ -51,8 +51,12 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
         (await CountAsync(connection, TablesQuery)).Should().Be(56L,
-            "eight tenancy tables, twenty-four platform tables, four customization tables, "
+            "nine tenancy tables, twenty-three platform tables, four customization tables, "
             + "two audit tables, four Education tables, eight Identity tables including creation capacity, and six history tables");
+        (await CountAsync(connection, "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relname='tenant_custom_field_defs'"))
+            .Should().Be(0, "the historical Customization prefix predates retained definitions");
+        (await CountAsync(connection, "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relname='membership_field_consents'"))
+            .Should().Be(0, "the historical Tenancy prefix predates retained consent evidence");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L,
@@ -89,10 +93,11 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, JobFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, VendorSequenceQuery)).Should().Be(0L);
 
-        // Reinstall the complete current chains, including the retained-evidence
-        // heads that intentionally refuse Down under ADR-0079/0081.
+        // Reinstall the complete current chains, including forward-only retained-evidence heads.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(59L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(61L);
+        (await CountAsync(connection, "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relname IN ('tenant_custom_field_defs','membership_field_consents')"))
+            .Should().Be(2, "both current custom-field tables were restored");
         await SchemaTableClasses.AssertCompleteAsync(connection);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
@@ -174,7 +179,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         await using (var audit = CreateAudit()) await audit.Database.MigrateAsync();
         await using (var identity = CreateIdentity())
             await identity.GetService<IMigrator>().MigrateAsync(IdentityReversibleHead);
-        await using (var customization = CreateCustomization()) await customization.Database.MigrateAsync();
+        await using (var customization = CreateCustomization())
+            await customization.GetService<IMigrator>().MigrateAsync(CustomizationReversibleHead);
         await using (var education = CreateEducation()) await education.Database.MigrateAsync();
     }
 
@@ -183,24 +189,42 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     private const string TenancyReversibleHead = "20261017210806_grant_job_lifecycle_projection";
     private const string PlatformReversibleHead = "20261017231821_index_background_job_control_quarantines";
     private const string IdentityReversibleHead = "20261028155736_add_identity_self_entry";
+    private const string CustomizationReversibleHead = "20260906100809_create_customization_schema";
 
     public async Task AssertCurrentHeadsRefuseReversalAsync()
     {
         await using var tenancy = CreateTenancy();
         await using var platform = CreatePlatform();
         await using var identity = CreateIdentity();
-        foreach (var (context, previous, head, reason) in new (DbContext, string, string, string)[]
+        await using var customization = CreateCustomization();
+        // Historical refusal contracts remain explicit even when newer reversible
+        // migrations now precede these guards in the chain.
+        Action retainedDefaults = () => _ = new LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations.guard_retained_tenancy_defaults().DownOperations;
+        retainedDefaults.Should().Throw<NotSupportedException>().WithMessage("Retained default fencing requires a reviewed forward migration.");
+        Action invitationParent = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.lock_invitation_result_parent().DownOperations;
+        invitationParent.Should().Throw<NotSupportedException>().WithMessage("Parent scope locking requires a reviewed forward migration.");
+        Action envelopeParent = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.lock_invitation_envelope_parent().DownOperations;
+        envelopeParent.Should().Throw<NotSupportedException>().WithMessage("Parent scope locking requires a reviewed forward migration.");
+        foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
-            (tenancy, TenancyReversibleHead, "20261029112940_guard_retained_tenancy_defaults", "Retained default fencing requires a reviewed forward migration."),
-            (platform, PlatformReversibleHead, "20261105020229_lock_invitation_envelope_parent", "Parent scope locking requires a reviewed forward migration."),
-            (identity, IdentityReversibleHead, "20261105020120_lock_invitation_result_parent", "Parent scope locking requires a reviewed forward migration."),
+            (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
+                "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
+            (platform, "20261105020229_lock_invitation_envelope_parent", PlatformReversibleHead,
+                "20261110013140_add_custom_field_protected_receipts", "Retained custom field receipts require a reviewed forward migration."),
+            (identity, "20261109230238_role_registry_release_v3", IdentityReversibleHead,
+                "20261110001053_membership_revision_pinned_custom_fields", "Retained membership custom fields require a reviewed forward migration."),
+            (customization, CustomizationReversibleHead, CustomizationReversibleHead,
+                "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })
         {
             (await context.Database.GetAppliedMigrationsAsync()).Last().Should().Be(head);
-            var before = await SchemaStateAsync();
-            Func<Task> reverse = () => context.GetService<IMigrator>().MigrateAsync(previous);
-            (await reverse.Should().ThrowAsync<NotSupportedException>()).Which.Message.Should().Be(reason);
-            (await SchemaStateAsync()).Should().Be(before, "a refused reversal must preserve definitions, grants, policies, triggers and every migration history");
+            foreach (var target in new[] { immediate, historical }.Distinct(StringComparer.Ordinal))
+            {
+                var before = await SchemaStateAsync();
+                Func<Task> reverse = () => context.GetService<IMigrator>().MigrateAsync(target);
+                (await reverse.Should().ThrowAsync<NotSupportedException>()).Which.Message.Should().Be(reason);
+                (await SchemaStateAsync()).Should().Be(before, "a refused reversal must preserve definitions, grants, policies, triggers and every migration history");
+            }
         }
     }
 

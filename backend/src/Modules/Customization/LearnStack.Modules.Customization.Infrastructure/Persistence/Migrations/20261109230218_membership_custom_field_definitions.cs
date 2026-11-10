@@ -69,11 +69,8 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
         }
 
         /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            CustomFieldDefinitionDdl.Remove(migrationBuilder);
-            migrationBuilder.DropTable(
-                name: "tenant_custom_field_defs");
-        }
+        protected override void Down(MigrationBuilder migrationBuilder) =>
+            throw new NotSupportedException("Retained custom field definitions require a reviewed forward migration.");
+
     }
 }

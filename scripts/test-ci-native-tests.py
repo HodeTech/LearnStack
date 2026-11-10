@@ -1679,6 +1679,8 @@ except launcher.Refusal as failure:
         expected |= {'browser-administration-counter-' + reason for reason in counter_reasons}
         self.assertEqual(expected, self.owner.BFF_BROWSER_FAILURE_STAGES)
         self.assertIn('privacy', self.owner.BFF_BROWSER_FAILURE_STAGES)
+        unknown = 'BFF native fixture did not reach the closed browser_result/browser-custom-field-author-unknown phase.'
+        self.assertIsNone(parse(case, {'ErrorMessage': unknown}))
         for reason in self.owner.BFF_BROWSER_FAILURE_REASONS:
             message = 'System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
             self.assertEqual({'stage': 'bff_browser', 'reason': reason}, parse(case, {'ErrorMessage': message}))

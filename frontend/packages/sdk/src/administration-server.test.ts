@@ -44,6 +44,23 @@ describe('closed administration server SDK', () => {
     const sdk = createAdministrationServerSdk(transport);
     expect(Object.isFrozen(sdk)).toBe(true);
     expect(Object.keys(sdk)).toEqual([
+      'listCustomFieldDefinitions',
+      'getCustomFieldDefinition',
+      'listCustomFieldRevisions',
+      'registerCustomFieldDefinition',
+      'reviseCustomFieldDefinition',
+      'publishCustomFieldDefinition',
+      'retireCustomFieldDefinition',
+      'discardCustomFieldDefinition',
+      'getMembershipCustomFields',
+      'getOwnCustomFields',
+      'setMembershipCustomFields',
+      'setOwnCustomFields',
+      'getOwnFieldConsent',
+      'listOwnConsentScopes',
+      'listOwnConsentHistory',
+      'grantOwnFieldConsent',
+      'withdrawOwnFieldConsent',
       'listInvitations',
       'getInvitation',
       'listInvitableRoles',
@@ -435,7 +452,7 @@ describe('closed administration server SDK', () => {
     }
   });
 
-  it('rejects a stale seven-flag preview and a resource ETag on current capabilities', async () => {
+  it('rejects stale capability previews and a resource ETag on current capabilities', async () => {
     const flags = {
       canReadTenantMembers: true,
       canReadOrganizationMembers: false,
@@ -446,6 +463,7 @@ describe('closed administration server SDK', () => {
       canAdoptRoleRelease: true,
       canWriteOwnProfile: true,
       canManageOrganizations: true,
+      canManageCustomFields: false,
     };
     const transport = vi.fn<AdministrationFetch>(async () => json(flags));
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
@@ -455,7 +473,12 @@ describe('closed administration server SDK', () => {
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
       'invalid-response',
     );
-    const { canChangeRoleGrants: _change, canAdoptRoleRelease: _adopt, ...seven } = flags;
+    const { canManageCustomFields: _custom, ...nine } = flags;
+    transport.mockImplementation(async () => json(nine));
+    expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
+      'invalid-response',
+    );
+    const { canChangeRoleGrants: _change, canAdoptRoleRelease: _adopt, ...seven } = nine;
     transport.mockImplementation(async () => json(seven));
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
       'invalid-response',

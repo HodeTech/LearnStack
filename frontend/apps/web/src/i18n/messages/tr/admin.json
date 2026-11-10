@@ -232,6 +232,8 @@
     "granted": "Rıza verildi",
     "withdrawn": "Rıza geri çekildi",
     "consent_history": "Rıza geçmişim ve geri çekme",
+    "consent_history_incomplete": "Bu üyeliğin rıza geçmişi henüz kontrol edilmedi.",
+    "consent_history_continue": "Bu üyeliğin rıza geçmişini ve geri çekme seçeneklerini kontrol et",
     "no_consents": "Bu sayfada rıza kaydı yok.",
     "retained_entry": "Eski üyelikler dahil saklanan rızaları yönet",
     "admin_consent": "Yalnızca ilgili kişi rıza verebilir. Yönetici onun adına rıza veremez.",

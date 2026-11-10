@@ -316,6 +316,25 @@ export function MemberCustomFields({
   );
 }
 
+/** A bounded scope page did not establish whether this Membership has history. */
+export function OwnConsentHistoryContinuation({
+  membershipId,
+  copy,
+}: Readonly<{
+  membershipId: string;
+  copy: FieldCopy;
+}>) {
+  return (
+    <section aria-labelledby="own-consent-history-title">
+      <h2 id="own-consent-history-title">{copy.consent_history}</h2>
+      <p>{copy.consent_history_incomplete}</p>
+      <a href={'/account/consents?membershipId=' + encodeURIComponent(membershipId)}>
+        {copy.consent_history_continue}
+      </a>
+    </section>
+  );
+}
+
 export function OwnConsentHistory({
   snapshot,
   history,

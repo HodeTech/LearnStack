@@ -73,6 +73,7 @@ public sealed partial class PersistenceConventionTests
         {
             ("await control.LockMembershipAsync(membershipId, cancellationToken)", "await Task.CompletedTask"),
             ("_lockedTransaction = unit.Transaction", "_lockedTransaction = null"),
+            ("_loadedMembership = null;", "GC.KeepAlive(this);"),
             ("RequireOwner();", "GC.KeepAlive(this);"),
             ("_lockedMembership != membershipId", "false"),
             ("!unit.HasActiveTransaction", "false"), ("unit.IsRollbackOnly", "false"),
@@ -479,13 +480,16 @@ public sealed partial class PersistenceConventionTests
         var guard = Method("RequireOwner")?.Body;
         if (locked is null || read is null || guard is not { Statements.Count: 1 }
             || guard.Statements[0] is not IfStatementSyntax condition || read.Statements.Count < 3) return false;
-        return locked.Statements.Count == 3
-            && SyntaxFactory.AreEquivalent(locked.Statements[0], SyntaxFactory.ParseStatement("await control.LockMembershipAsync(membershipId, cancellationToken);"))
-            && SyntaxFactory.AreEquivalent(locked.Statements[1], SyntaxFactory.ParseStatement("_lockedMembership = membershipId;"))
-            && SyntaxFactory.AreEquivalent(locked.Statements[2], SyntaxFactory.ParseStatement("_lockedTransaction = unit.Transaction;"))
+        return locked.Statements.Count == 4
+            && SyntaxFactory.AreEquivalent(locked.Statements[0], SyntaxFactory.ParseStatement("_loadedMembership = null;"))
+            && SyntaxFactory.AreEquivalent(locked.Statements[1], SyntaxFactory.ParseStatement("await control.LockMembershipAsync(membershipId, cancellationToken);"))
+            && SyntaxFactory.AreEquivalent(locked.Statements[2], SyntaxFactory.ParseStatement("_lockedMembership = membershipId;"))
+            && SyntaxFactory.AreEquivalent(locked.Statements[3], SyntaxFactory.ParseStatement("_lockedTransaction = unit.Transaction;"))
             && SyntaxFactory.AreEquivalent(read.Statements[0], SyntaxFactory.ParseStatement("RequireOwner();"))
             && SyntaxFactory.AreEquivalent(read.Statements[1], SyntaxFactory.ParseStatement("if (_lockedMembership != membershipId) throw new InvalidOperationException(\"Membership lock target does not match.\");"))
-            && SyntaxFactory.AreEquivalent(read.Statements[2], SyntaxFactory.ParseStatement("ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);"))
+            && read.Statements.Count >= 4
+            && SyntaxFactory.AreEquivalent(read.Statements[2], SyntaxFactory.ParseStatement("_loadedMembership = null;"))
+            && SyntaxFactory.AreEquivalent(read.Statements[3], SyntaxFactory.ParseStatement("ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);"))
             && SyntaxFactory.AreEquivalent(condition.Condition, SyntaxFactory.ParseExpression("""
                 _lockedMembership is null || _lockedTransaction is null || !unit.HasActiveTransaction || unit.IsRollbackOnly
                 || unit.Mode != TransactionMode.ReadWrite || !ReferenceEquals(unit.Transaction, _lockedTransaction)

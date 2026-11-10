@@ -20,6 +20,10 @@ namespace LearnStack.Tests.Integration.Database;
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 public sealed class IdentityAdministrationReadTests(TenancyAdministrationFixture fixture) : IClassFixture<TenancyAdministrationFixture>
 {
+    private static readonly string[] OwnCapabilityNames = new[] { "CanAdoptRoleRelease", "CanChangeRoleGrants", "CanManageCustomFields", "CanManageMemberships",
+            "CanManageOrganizations", "CanReadOrganizationMembers", "CanReadRoles", "CanReadTenantMembers",
+            "CanWriteMemberProfiles", "CanWriteOwnProfile" };
+
     [Fact]
     public async Task Branch_directory_accepts_Tenant_or_exact_Organization_capability_without_a_read_hatch()
     {
@@ -108,7 +112,8 @@ public sealed class IdentityAdministrationReadTests(TenancyAdministrationFixture
     [Fact]
     public async Task Nine_own_flags_are_advisory_and_false_previews_emit_no_denial()
     {
-        Assert.Equal(9, typeof(OwnCapabilitiesDto).GetProperties().Length);
+        Assert.Equal(OwnCapabilityNames,
+            typeof(OwnCapabilitiesDto).GetProperties().Select(property => property.Name).Order(StringComparer.Ordinal));
         var admin = await fixture.SendAsync(new GetOwnCapabilitiesQuery(), "capabilities-admin");
         Assert.True(admin.IsSuccess);
         Assert.True(admin.Value.CanReadTenantMembers);
@@ -124,10 +129,12 @@ public sealed class IdentityAdministrationReadTests(TenancyAdministrationFixture
         Assert.False(branch.Value.CanChangeRoleGrants);
         Assert.False(branch.Value.CanAdoptRoleRelease);
         Assert.False(branch.Value.CanManageOrganizations);
+        Assert.False(branch.Value.CanManageCustomFields);
         Assert.False(branch.Value.CanWriteOwnProfile); // A NULL-org Membership is not the current branch's profile.
         var learner = await fixture.SendAsync(new GetOwnCapabilitiesQuery(), "capabilities-learner", PersonA, SchemaFixture.OrgA1);
         Assert.True(learner.IsSuccess);
-        Assert.Equal(new OwnCapabilitiesDto(false, false, false, false, false, false, false, true, false), learner.Value);
+        Assert.False(learner.Value.CanManageCustomFields);
+        Assert.Equal(new OwnCapabilitiesDto(false, false, false, false, false, false, false, true, false, false), learner.Value);
         Assert.Empty(await fixture.Membership.AuditAsync("capabilities-learner", "identity.authorization.deny", SchemaFixture.OrgA1));
         Assert.Empty(await fixture.Membership.AuditAsync("capabilities-learner", "identity.membership_profile.read", SchemaFixture.OrgA1));
     }

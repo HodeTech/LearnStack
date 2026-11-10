@@ -1,3 +1,7 @@
+using LearnStack.Api.Customization;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Api.Account;
@@ -85,6 +89,23 @@ public sealed class OperationHttpClassificationTests
         new(typeof(InvitationEntryController), "Result", "GetOwnInvitationResult", "POST", "identity/invitation-entry/results", typeof(GetOwnInvitationResultQuery), "identity.invitation.read_own_result"),
         new(typeof(InvitationPolicyController), "Get", "GetTenantInvitationPolicy", "GET", "tenancy/settings/invitation-policy", typeof(GetTenantInvitationPolicyQuery), "tenancy.setting.read_invitation_policy"),
         new(typeof(InvitationPolicyController), "Set", "SetTenantInvitationLifetime", "PUT", "tenancy/settings/invitation-policy", typeof(SetTenantInvitationLifetimeCommand), "tenancy.setting.write_invitation_lifetime", Protected: ProtectedAdministrationOperation.SetTenantInvitationLifetime),
+        new(typeof(CustomFieldDefinitionsController), "List", "ListCustomFieldDefinitions", "GET", "customization/custom-field-definitions", typeof(ListCustomFieldDefinitionsQuery), "customization.custom_field.list"),
+        new(typeof(CustomFieldDefinitionsController), "Get", "GetCustomFieldDefinition", "GET", "customization/custom-field-definitions/{id}", typeof(GetCustomFieldDefinitionQuery), "customization.custom_field.read"),
+        new(typeof(CustomFieldDefinitionsController), "Revisions", "ListCustomFieldDefinitionRevisions", "GET", "customization/custom-field-definitions/{id}/revisions", typeof(ListCustomFieldDefinitionRevisionsQuery), "customization.custom_field.list_revisions"),
+        new(typeof(CustomFieldDefinitionsController), "Register", "RegisterCustomFieldDefinition", "POST", "customization/custom-field-definitions", typeof(RegisterCustomFieldDefinitionCommand), "customization.custom_field.register", Protected: ProtectedAdministrationOperation.RegisterCustomFieldDefinition),
+        new(typeof(CustomFieldDefinitionsController), "Revise", "ReviseCustomFieldDefinitionDraft", "PUT", "customization/custom-field-definitions/{id}", typeof(ReviseCustomFieldDefinitionDraftCommand), "customization.custom_field.revise", Protected: ProtectedAdministrationOperation.ReviseCustomFieldDraft),
+        new(typeof(CustomFieldDefinitionsController), "Publish", "PublishCustomFieldDefinition", "POST", "customization/custom-field-definitions/{id}/publication", typeof(PublishCustomFieldDefinitionCommand), "customization.custom_field.publish", Protected: ProtectedAdministrationOperation.PublishCustomFieldRevision),
+        new(typeof(CustomFieldDefinitionsController), "Retire", "RetireCustomFieldDefinition", "POST", "customization/custom-field-definitions/{id}/retirement", typeof(RetireCustomFieldDefinitionCommand), "customization.custom_field.retire", Protected: ProtectedAdministrationOperation.RetireCustomFieldRevision),
+        new(typeof(CustomFieldDefinitionsController), "Discard", "DiscardCustomFieldDefinitionDraft", "POST", "customization/custom-field-definitions/{id}/discard", typeof(DiscardCustomFieldDefinitionDraftCommand), "customization.custom_field.discard", Protected: ProtectedAdministrationOperation.DiscardCustomFieldDraft),
+        new(typeof(MembershipCustomFieldsController), "Get", "GetMembershipCustomFields", "GET", "identity/memberships/{id}/custom-fields", typeof(GetMembershipCustomFieldsQuery), "identity.membership.custom_fields_read"),
+        new(typeof(MembershipCustomFieldsController), "GetOwn", "GetOwnMembershipCustomFields", "GET", "identity/me/custom-fields", typeof(GetOwnMembershipCustomFieldsQuery), "identity.membership.custom_fields_read_own"),
+        new(typeof(MembershipCustomFieldsController), "Set", "SetMembershipCustomFields", "PATCH", "identity/memberships/{id}/custom-fields", typeof(SetMembershipCustomFieldsCommand), "identity.membership.custom_fields_write", Protected: ProtectedAdministrationOperation.SetMemberCustomFields),
+        new(typeof(MembershipCustomFieldsController), "SetOwn", "SetOwnMembershipCustomFields", "PATCH", "identity/me/custom-fields", typeof(SetOwnMembershipCustomFieldsCommand), "identity.membership.custom_fields_write_own", Protected: ProtectedAdministrationOperation.SetOwnCustomFields),
+        new(typeof(ConsentSubjectController), "Scopes", "ListOwnFieldConsentScopes", "GET", "tenancy/membership-field-consents/own/scopes", typeof(ListOwnFieldConsentScopesQuery), "tenancy.membership_field_consent.scopes"),
+        new(typeof(ConsentSubjectController), "History", "ListOwnMembershipFieldConsents", "GET", "tenancy/membership-field-consents/own/history", typeof(ListOwnMembershipFieldConsentsQuery), "tenancy.membership_field_consent.history"),
+        new(typeof(ConsentSubjectController), "Withdraw", "WithdrawOwnMembershipFieldConsent", "POST", "tenancy/membership-field-consents/withdrawals", typeof(WithdrawOwnMembershipFieldConsentCommand), "tenancy.membership_field_consent.withdraw", Protected: ProtectedAdministrationOperation.WithdrawOwnFieldConsent),
+        new(typeof(OwnFieldConsentController), "Current", "GetOwnMembershipFieldConsent", "GET", "tenancy/membership-field-consents/own", typeof(GetOwnMembershipFieldConsentQuery), "tenancy.membership_field_consent.get_own"),
+        new(typeof(OwnFieldConsentController), "Grant", "GrantOwnMembershipFieldConsent", "POST", "tenancy/membership-field-consents/grants", typeof(GrantOwnMembershipFieldConsentCommand), "tenancy.membership_field_consent.grant", Protected: ProtectedAdministrationOperation.GrantOwnFieldConsent),
     ];
 
     [Fact]
@@ -126,10 +147,10 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(42, ExpectedActions.Length);
-        Assert.Equal(14, ExpectedActions.Count(expected => expected.Protected is not null));
+        Assert.Equal(59, ExpectedActions.Length);
+        Assert.Equal(23, ExpectedActions.Count(expected => expected.Protected is not null));
         var actualActions = endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        Assert.Equal(42, actualActions.Length);
+        Assert.Equal(59, actualActions.Length);
         Assert.Equal(ExpectedActions.Select(expected => expected.Name).Order(StringComparer.Ordinal), actualActions
             .Select(endpoint => endpoint.Metadata.GetRequiredMetadata<IEndpointNameMetadata>().EndpointName).Order(StringComparer.Ordinal));
         foreach (var endpoint in endpoints)
@@ -266,7 +287,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var classifier = new OperationHttpClassifier(Catalog());
         var protectedActions = ExpectedActions.Where(expected => expected.Protected is not null).ToArray();
-        Assert.Equal(14, protectedActions.Length);
+        Assert.Equal(23, protectedActions.Length);
         foreach (var expected in protectedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);
@@ -295,7 +316,7 @@ public sealed class OperationHttpClassificationTests
             Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
         var unkeyedActions = ExpectedActions.Where(expected => expected.Protected is null).ToArray();
-        Assert.Equal(28, unkeyedActions.Length);
+        Assert.Equal(36, unkeyedActions.Length);
         foreach (var expected in unkeyedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);

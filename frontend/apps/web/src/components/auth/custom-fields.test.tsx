@@ -31,7 +31,11 @@ import {
   enabledFieldControlLabels,
 } from './custom-field-schema';
 import { CustomFieldDetails } from './custom-fields';
-import { MemberCustomFields, OwnConsentHistory } from './member-custom-fields';
+import {
+  MemberCustomFields,
+  OwnConsentHistory,
+  OwnConsentHistoryContinuation,
+} from './member-custom-fields';
 
 const definitionId = '019a154b-0000-7000-8000-000000000099';
 const evidenceId = '019a154b-0000-7000-8000-000000000088';
@@ -381,6 +385,18 @@ describe('finite custom-field UI', () => {
     expect(document.querySelector('p[lang="en"]')?.textContent).toBe('Exact notice');
     expect(document.querySelector('form[action="/api/account/custom-fields"]')).toBeNull();
     expect(document.querySelector('a[href="/account/consents"]')).not.toBeNull();
+  });
+
+  it('offers exact membership history continuation when bounded discovery is incomplete', () => {
+    const html = renderToStaticMarkup(
+      <OwnConsentHistoryContinuation membershipId={uiMemberId} copy={enAdmin.custom_fields} />,
+    );
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    expect(document.body.textContent).toContain(enAdmin.custom_fields.consent_history_incomplete);
+    expect(document.body.textContent).not.toContain(enAdmin.custom_fields.no_consents);
+    expect(document.querySelector('a')?.getAttribute('href')).toBe(
+      '/account/consents?membershipId=' + uiMemberId,
+    );
   });
 
   it('renders withdrawal from retained history without any active definition or stored value', () => {

@@ -135,6 +135,35 @@ describe('independent retained consent native shell', () => {
     expect(f.administration).not.toHaveBeenCalled();
     expect(f.requestRuntime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
   });
+  it('loads exact selected history even when the first scope page contains other memberships', async () => {
+    const f = await fixture();
+    const original = f.retained.getMockImplementation()!;
+    f.retained.mockImplementation(async (token, binding, operation, signal) => {
+      if (operation.kind !== 'listOwnConsentScopes')
+        return original(token, binding, operation, signal);
+      return {
+        kind: 'success',
+        status: 200,
+        etag: null,
+        location: null,
+        replayed: false,
+        data: {
+          items: Array.from({ length: 20 }, (_, index) => ({
+            membershipId: `019a154b-0000-7000-8000-${String(index + 100).padStart(12, '0')}`,
+            tenantId: '10000000-0000-4000-8000-000000000001',
+            organizationId: null,
+          })),
+          pageInfo: { ...pageInfo, hasNext: true, nextCursor: 'next-scope' },
+        },
+      };
+    });
+    const wire = await f.run('GET', '/account/consents?membershipId=' + id);
+    expect(wire.chunks.join('')).toContain('&lt;retained-notice-canary&gt;');
+    expect(f.retained.mock.calls.map((call) => call[2])).toEqual([
+      { kind: 'listOwnConsentScopes', limit: 20 },
+      { kind: 'listOwnConsentHistory', membershipId: id, limit: 20 },
+    ]);
+  });
   it('refuses wrong Origin and CSRF before any consent operation', async () => {
     const f = await fixture();
     const form = new URLSearchParams({

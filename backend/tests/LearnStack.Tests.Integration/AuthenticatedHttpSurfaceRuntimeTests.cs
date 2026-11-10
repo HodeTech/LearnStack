@@ -1,3 +1,7 @@
+using LearnStack.Api.Customization;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using System.Reflection;
@@ -86,9 +90,26 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         new("identity/invitation-entry/results", "POST", typeof(InvitationEntryController), "Result", typeof(GetOwnInvitationResultQuery), typeof(InvitationAcceptanceResponse), "identity.invitation.read_own_result"),
         new("tenancy/settings/invitation-policy", "GET", typeof(InvitationPolicyController), "Get", typeof(GetTenantInvitationPolicyQuery), typeof(InvitationPolicyResponse), "tenancy.setting.read_invitation_policy"),
         new("tenancy/settings/invitation-policy", "PUT", typeof(InvitationPolicyController), "Set", typeof(SetTenantInvitationLifetimeCommand), typeof(AdministrationVersionReceipt), "tenancy.setting.write_invitation_lifetime", ProtectedAdministrationOperation.SetTenantInvitationLifetime),
+        new("customization/custom-field-definitions", "GET", typeof(CustomFieldDefinitionsController), "List", typeof(ListCustomFieldDefinitionsQuery), typeof(CustomFieldDefinitionPageResponse), "customization.custom_field.list"),
+        new("customization/custom-field-definitions/{id}", "GET", typeof(CustomFieldDefinitionsController), "Get", typeof(GetCustomFieldDefinitionQuery), typeof(CustomFieldDefinitionResponse), "customization.custom_field.read"),
+        new("customization/custom-field-definitions/{id}/revisions", "GET", typeof(CustomFieldDefinitionsController), "Revisions", typeof(ListCustomFieldDefinitionRevisionsQuery), typeof(CustomFieldDefinitionPageResponse), "customization.custom_field.list_revisions"),
+        new("customization/custom-field-definitions", "POST", typeof(CustomFieldDefinitionsController), "Register", typeof(RegisterCustomFieldDefinitionCommand), typeof(CustomFieldReceiptResponse), "customization.custom_field.register", ProtectedAdministrationOperation.RegisterCustomFieldDefinition),
+        new("customization/custom-field-definitions/{id}", "PUT", typeof(CustomFieldDefinitionsController), "Revise", typeof(ReviseCustomFieldDefinitionDraftCommand), typeof(CustomFieldReceiptResponse), "customization.custom_field.revise", ProtectedAdministrationOperation.ReviseCustomFieldDraft),
+        new("customization/custom-field-definitions/{id}/publication", "POST", typeof(CustomFieldDefinitionsController), "Publish", typeof(PublishCustomFieldDefinitionCommand), typeof(CustomFieldReceiptResponse), "customization.custom_field.publish", ProtectedAdministrationOperation.PublishCustomFieldRevision),
+        new("customization/custom-field-definitions/{id}/retirement", "POST", typeof(CustomFieldDefinitionsController), "Retire", typeof(RetireCustomFieldDefinitionCommand), typeof(CustomFieldReceiptResponse), "customization.custom_field.retire", ProtectedAdministrationOperation.RetireCustomFieldRevision),
+        new("customization/custom-field-definitions/{id}/discard", "POST", typeof(CustomFieldDefinitionsController), "Discard", typeof(DiscardCustomFieldDefinitionDraftCommand), typeof(CustomFieldReceiptResponse), "customization.custom_field.discard", ProtectedAdministrationOperation.DiscardCustomFieldDraft),
+        new("identity/memberships/{id}/custom-fields", "GET", typeof(MembershipCustomFieldsController), "Get", typeof(GetMembershipCustomFieldsQuery), typeof(MembershipCustomFieldsResponse), "identity.membership.custom_fields_read"),
+        new("identity/me/custom-fields", "GET", typeof(MembershipCustomFieldsController), "GetOwn", typeof(GetOwnMembershipCustomFieldsQuery), typeof(MembershipCustomFieldsResponse), "identity.membership.custom_fields_read_own"),
+        new("identity/memberships/{id}/custom-fields", "PATCH", typeof(MembershipCustomFieldsController), "Set", typeof(SetMembershipCustomFieldsCommand), typeof(CustomFieldReceiptResponse), "identity.membership.custom_fields_write", ProtectedAdministrationOperation.SetMemberCustomFields),
+        new("identity/me/custom-fields", "PATCH", typeof(MembershipCustomFieldsController), "SetOwn", typeof(SetOwnMembershipCustomFieldsCommand), typeof(CustomFieldReceiptResponse), "identity.membership.custom_fields_write_own", ProtectedAdministrationOperation.SetOwnCustomFields),
+        new("tenancy/membership-field-consents/own/scopes", "GET", typeof(ConsentSubjectController), "Scopes", typeof(ListOwnFieldConsentScopesQuery), typeof(ConsentScopePageResponse), "tenancy.membership_field_consent.scopes"),
+        new("tenancy/membership-field-consents/own/history", "GET", typeof(ConsentSubjectController), "History", typeof(ListOwnMembershipFieldConsentsQuery), typeof(ConsentHistoryPageResponse), "tenancy.membership_field_consent.history"),
+        new("tenancy/membership-field-consents/withdrawals", "POST", typeof(ConsentSubjectController), "Withdraw", typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ConsentWithdrawalResponse), "tenancy.membership_field_consent.withdraw", ProtectedAdministrationOperation.WithdrawOwnFieldConsent),
+        new("tenancy/membership-field-consents/own", "GET", typeof(OwnFieldConsentController), "Current", typeof(GetOwnMembershipFieldConsentQuery), typeof(OwnFieldConsentCurrentResponse), "tenancy.membership_field_consent.get_own"),
+        new("tenancy/membership-field-consents/grants", "POST", typeof(OwnFieldConsentController), "Grant", typeof(GrantOwnMembershipFieldConsentCommand), typeof(FieldConsentReceiptResponse), "tenancy.membership_field_consent.grant", ProtectedAdministrationOperation.GrantOwnFieldConsent),
     ];
     private static readonly Type[] ContextControllers =
-        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController), typeof(InvitationsController), typeof(InvitationPolicyController)];
+        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController), typeof(InvitationsController), typeof(InvitationPolicyController), typeof(MembershipCustomFieldsController), typeof(ConsentSubjectController), typeof(OwnFieldConsentController)];
     private const string CensusTarget = "018f4d40-0000-7000-8000-000000000011";
 
     private static SurfaceAction Approved(ControllerActionDescriptor action) => ApprovedActions.Single(expected =>
@@ -221,7 +242,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     private static void AssertActionInventory(IEnumerable<ControllerActionDescriptor> actions)
     {
         var actual = actions.ToArray();
-        actual.Should().HaveCount(42);
+        actual.Should().HaveCount(59);
         actual.Select(action => action.ControllerTypeInfo.FullName + "." + action.MethodInfo.Name).Order(StringComparer.Ordinal)
             .Should().Equal(ApprovedActions.Select(expected => expected.Controller.FullName + "." + expected.Action).Order(StringComparer.Ordinal),
                 "every convention must reach exactly the approved controller/action multiset");
@@ -318,6 +339,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var controllerType = action.ControllerTypeInfo.AsType();
         object[] constructor = controllerType == typeof(OwnMembershipController)
             ? [sender, new CensusTenantContext(), services.GetRequiredService<LearnStack.Api.Authentication.NativeEntryOriginOptions>()]
+            : controllerType == typeof(CustomFieldDefinitionsController) ? [sender, new CensusTenantContext(), services.GetRequiredService<IGuidFactory>()]
             : ContextControllers.Contains(controllerType) ? [sender, new CensusTenantContext()] : [sender];
         var controller = (ControllerBase)Activator.CreateInstance(controllerType, constructor)!;
         var context = new DefaultHttpContext();
@@ -333,9 +355,22 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             };
             context.Features.Set(new LearnStack.Api.Authentication.InvitationEntryRequest(request));
         }
+        if (controllerType == typeof(ConsentSubjectController))
+        {
+            object request = expected.Action switch
+            {
+                "Scopes" => new ListOwnFieldConsentScopesQuery(null, 20),
+                "History" => new ListOwnMembershipFieldConsentsQuery(Guid.Parse(CensusTarget), null, 20),
+                "Withdraw" => new WithdrawOwnMembershipFieldConsentCommand(Guid.Parse(CensusTarget), 1, Guid.Parse(CensusTarget), true),
+                _ => throw new InvalidOperationException("Unclassified consent entry action"),
+            };
+            context.Features.Set(new LearnStack.Api.Authentication.ConsentSubjectRequest(request));
+        }
         context.Features.Set(HostClassification.Platform("census.invalid"));
         context.Request.Method = expected.Verb;
         context.Request.Path = "/api/v1/" + expected.Path.Replace("{id}", CensusTarget, StringComparison.Ordinal);
+        if (controllerType == typeof(OwnFieldConsentController) && expected.Action == "Current")
+            context.Request.QueryString = new QueryString("?membershipId=" + CensusTarget + "&definitionId=" + CensusTarget + "&definitionVersion=1");
         var body = expected.Protected is { } operation ? CensusBody(operation)
             : controllerType == typeof(NativeSessionAdmissionController) ? "{}" : string.Empty;
         using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(body));
@@ -347,7 +382,9 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             // This census stops at Send: valid closed input and the actual built endpoint
             // let it observe the typed carrier without claiming a live authorization proof.
             context.Request.Headers["Idempotency-Key"] = "census-command-key";
-            if (expected.Protected is not (ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation)) context.Request.Headers.IfMatch = "\"7\"";
+            if (expected.Protected is not (ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation
+                or ProtectedAdministrationOperation.RegisterCustomFieldDefinition or ProtectedAdministrationOperation.GrantOwnFieldConsent
+                or ProtectedAdministrationOperation.WithdrawOwnFieldConsent)) context.Request.Headers.IfMatch = "\"7\"";
         }
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
@@ -377,6 +414,14 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         ProtectedAdministrationOperation.CreateInvitation => "{\"email\":\"census@example.invalid\",\"roleId\":\"" + CensusTarget + "\",\"roleVersion\":\"7\"}",
         ProtectedAdministrationOperation.RevokeInvitation or ProtectedAdministrationOperation.ReissueInvitation => "{}",
         ProtectedAdministrationOperation.SetTenantInvitationLifetime => "{\"days\":14}",
+        ProtectedAdministrationOperation.RegisterCustomFieldDefinition or ProtectedAdministrationOperation.ReviseCustomFieldDraft => """
+            {"targetEntity":"Membership","key":"census-field","schemaVersion":1,"schema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"value":{"type":"boolean"}},"required":["value"],"additionalProperties":false},"labels":{"en":"Census"},"piiCategory":"None","isRequired":false,"sort":0,"purposeKey":null,"notices":null,"formLabels":null}
+            """,
+        ProtectedAdministrationOperation.PublishCustomFieldRevision => "{\"expectedIncumbentId\":null,\"expectedIncumbentVersion\":null}",
+        ProtectedAdministrationOperation.RetireCustomFieldRevision or ProtectedAdministrationOperation.DiscardCustomFieldDraft => "{}",
+        ProtectedAdministrationOperation.SetMemberCustomFields or ProtectedAdministrationOperation.SetOwnCustomFields => "{\"set\":[],\"remove\":[]}",
+        ProtectedAdministrationOperation.GrantOwnFieldConsent => "{\"definitionId\":\"" + CensusTarget + "\",\"definitionVersion\":1,\"noticeLocale\":\"en\",\"expectedNoticeHash\":\"" + new string('a', 64) + "\",\"expectedSequence\":0,\"expectedEvidenceId\":null,\"confirmed\":true}",
+        ProtectedAdministrationOperation.WithdrawOwnFieldConsent => "{}",
         _ => throw new InvalidOperationException("Unclassified protected census input"),
     };
 
@@ -392,8 +437,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 
     private static void AssertUnion(IEnumerable<string> actual)
     {
-        ApprovedActions.Should().HaveCount(42);
-        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(14);
+        ApprovedActions.Should().HaveCount(59);
+        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(23);
         var mvc = ApprovedActions.Select(expected => Mvc(expected.Path, expected.Verb, expected.Controller, expected.Action, expected.Request));
         var infrastructure = new[]
         {

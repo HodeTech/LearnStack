@@ -17,7 +17,11 @@ import { InvitationDetails, InvitationDirectory, InvitationPolicy } from './admi
 import { MemberDetails, MemberDirectory } from './admin-members';
 import { RoleDetails, RoleDirectory } from './admin-roles';
 import { CustomFieldDirectory, CustomFieldDetails } from './custom-fields';
-import { MemberCustomFields, OwnConsentHistory } from './member-custom-fields';
+import {
+  MemberCustomFields,
+  OwnConsentHistory,
+  OwnConsentHistoryContinuation,
+} from './member-custom-fields';
 import { SessionControls } from './session';
 
 type PageKind = PageView['kind'];
@@ -119,6 +123,12 @@ function PageContents({
               own
               selectedFieldId={view.selectedFieldId}
               locale={locale}
+              copy={fieldCopy}
+            />
+          )}
+          {view.consentHistoryIncomplete && view.customFields && (
+            <OwnConsentHistoryContinuation
+              membershipId={view.customFields.membershipId}
               copy={fieldCopy}
             />
           )}

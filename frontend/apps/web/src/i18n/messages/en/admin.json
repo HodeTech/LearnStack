@@ -232,6 +232,8 @@
     "granted": "Consent granted",
     "withdrawn": "Consent withdrawn",
     "consent_history": "My consent history and withdrawal",
+    "consent_history_incomplete": "Consent history for this membership has not yet been checked.",
+    "consent_history_continue": "Check this membership’s consent history and withdrawal",
     "no_consents": "No consent records on this page.",
     "retained_entry": "Manage retained consent, including former memberships",
     "admin_consent": "Only this person can give personal consent. An administrator cannot grant it on their behalf.",

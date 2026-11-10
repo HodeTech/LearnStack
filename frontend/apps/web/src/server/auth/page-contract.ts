@@ -135,6 +135,7 @@ export type PageView =
       canWrite: boolean;
       customFields?: MembershipCustomFields;
       consents?: ConsentHistory;
+      consentHistoryIncomplete?: boolean;
       selectedFieldId?: string | null;
     }>
   | Readonly<{

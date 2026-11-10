@@ -68,11 +68,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
         }
 
         /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            MembershipFieldConsentDdl.Remove(migrationBuilder);
-            migrationBuilder.DropTable(
-                name: "membership_field_consents");
-        }
+        protected override void Down(MigrationBuilder migrationBuilder) =>
+            throw new NotSupportedException("Retained consent evidence requires a reviewed forward migration.");
+
     }
 }

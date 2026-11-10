@@ -1,3 +1,4 @@
+using LearnStack.Api.Customization;
 using LearnStack.Modules.Identity.Application.Invitations;
 using System.Reflection;
 using FluentAssertions;
@@ -211,6 +212,23 @@ public sealed class BackgroundJobProductionManifestTests
         }).Order(StringComparer.Ordinal).ToArray();
         var applicationRoutes = new[]
         {
+            "customization/custom-field-definitions|GET|" + typeof(CustomFieldDefinitionsController).FullName + ".List",
+            "customization/custom-field-definitions/{id}|GET|" + typeof(CustomFieldDefinitionsController).FullName + ".Get",
+            "customization/custom-field-definitions/{id}/revisions|GET|" + typeof(CustomFieldDefinitionsController).FullName + ".Revisions",
+            "customization/custom-field-definitions|POST|" + typeof(CustomFieldDefinitionsController).FullName + ".Register",
+            "customization/custom-field-definitions/{id}|PUT|" + typeof(CustomFieldDefinitionsController).FullName + ".Revise",
+            "customization/custom-field-definitions/{id}/publication|POST|" + typeof(CustomFieldDefinitionsController).FullName + ".Publish",
+            "customization/custom-field-definitions/{id}/retirement|POST|" + typeof(CustomFieldDefinitionsController).FullName + ".Retire",
+            "customization/custom-field-definitions/{id}/discard|POST|" + typeof(CustomFieldDefinitionsController).FullName + ".Discard",
+            "identity/memberships/{id}/custom-fields|GET|" + typeof(MembershipCustomFieldsController).FullName + ".Get",
+            "identity/me/custom-fields|GET|" + typeof(MembershipCustomFieldsController).FullName + ".GetOwn",
+            "identity/memberships/{id}/custom-fields|PATCH|" + typeof(MembershipCustomFieldsController).FullName + ".Set",
+            "identity/me/custom-fields|PATCH|" + typeof(MembershipCustomFieldsController).FullName + ".SetOwn",
+            "tenancy/membership-field-consents/own/scopes|GET|" + typeof(ConsentSubjectController).FullName + ".Scopes",
+            "tenancy/membership-field-consents/own/history|GET|" + typeof(ConsentSubjectController).FullName + ".History",
+            "tenancy/membership-field-consents/withdrawals|POST|" + typeof(ConsentSubjectController).FullName + ".Withdraw",
+            "tenancy/membership-field-consents/own|GET|" + typeof(OwnFieldConsentController).FullName + ".Current",
+            "tenancy/membership-field-consents/grants|POST|" + typeof(OwnFieldConsentController).FullName + ".Grant",
             // Approved application routes add no job operator route.
             "identity/invitations|GET|" + typeof(InvitationsController).FullName + ".List",
             "identity/invitations/{id}|GET|" + typeof(InvitationsController).FullName + ".Get",

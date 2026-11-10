@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 836 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 958 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -405,7 +405,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)](#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) — 67 lines
   - [P03-5 Step 3 second-review corrections and qualification handoff (2026-11-10)](#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) — 39 lines
   - [P03-5 Step 4 combined qualification and boundary reconciliation (2026-11-10)](#p03-5-step-4-combined-qualification-and-boundary-reconciliation-2026-11-10) — 54 lines
-  - [P03-5 Step 4 two-round review and frontend census correction (2026-11-10)](#p03-5-step-4-two-round-review-and-frontend-census-correction-2026-11-10) — 41 lines
+  - [P03-5 Step 4 two-round review and frontend census correction (2026-11-10)](#p03-5-step-4-two-round-review-and-frontend-census-correction-2026-11-10) — 42 lines
+  - [P03-5 hosted incompatibility and proposed administration baseline (2026-11-10)](#p03-5-hosted-incompatibility-and-proposed-administration-baseline-2026-11-10) — 46 lines
+  - [P03-5 hosted failure corrections and human UX environment (2026-11-10)](#p03-5-hosted-failure-corrections-and-human-ux-environment-2026-11-10) — 75 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18719,3 +18721,126 @@ review rounds; the correction requires narrow independent verification rather
 than restarting another broad round. Full guarded frontend, final-source complete
 hosted A/B/original archives and P03-5 human observations remain open. No test
 window, product authority, registry adoption or packet/catalogue status changes.
+
+
+### P03-5 hosted incompatibility and proposed administration baseline (2026-11-10)
+
+The first complete P03-5 hosted A is
+[run 42769169256, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42769169256),
+source `94de9e4eb34aa36c3c47f9b1ce08bb1459346c3a`, compared with main
+`570c4ccadfd106b0e37c0b3a6c3f7061ffa46cd9`. It finishes **13 successful and 14
+failed jobs**. All **23 available original ZIPs** are retained with matching API
+sizes/SHA-256 and verified CRCs. The canonical result validator correctly refuses
+the unsuccessful producers. This is failure evidence, not qualification; no B is
+started for this failed A.
+
+The OpenAPI job reports five real raw incompatibilities: two permission-registry
+response maxima and the Role grant maximum rise from eight to nine, and two
+response unions gain the approved grant branch. Indexed union matching adds
+companion noise but does not explain away those changes. The previous SDK also
+accepts only adoption versions one/two and exactly nine capability keys. The new
+v3/nine-pair graph and tenth capability cannot be made compatible merely by
+reordering schemas or removing published bounds. Hiding actual grants would be
+unsafe beside complete grant replacement.
+
+Accepted ADR-0095 authorizes the P03-5 behavior; it does not waive ADR-0024's API
+compatibility requirement. [Proposed ADR-0096](../decisions/0096-p035-administration-contract-baseline.md)
+therefore requests one exact pre-MVP baseline transition, conditional on the
+maintainer confirming **no external deployment or integration consumes the prior
+affected administration contract**. Repository inspection cannot establish that
+absence. Existing or unknown external use requires a separately approved
+versioned/coexistence design instead.
+
+The proposal binds the directional old/new snapshot SHA-256 pair, preserves raw
+incompatibility evidence and permits approval only after both existing
+comparisons complete normally with valid classified findings. Missing/malformed
+reports, tool/version/fixture/execution failures and every other contract change
+remain fatal. No executable exception, timing, permission or runtime policy is
+changed by this proposal.
+
+Two independent proposal reviews complete: Terra first identifies the need to
+make successful comparison execution an explicit prerequisite and to align the
+no-external-consumer condition; those findings are corrected. A fresh Sol review
+verifies the corrected contract and independently recomputes both snapshot
+hashes, then identifies one stale index description; it is corrected too. Sol
+checks source and Git snapshots, not the hosted ZIP; the separate original archive
+verification above is the implementation owner's evidence. Acceptance, gate
+implementation, focused implementation reviews and complete final-source A/B
+remain separate obligations. No PR or merge is claimed.
+
+
+### P03-5 hosted failure corrections and human UX environment (2026-11-10)
+
+The failed first A is retained as failure evidence. Its verified corrections are
+kept separate from Proposed ADR-0096's compatibility decision; no compatibility
+exception is implemented while that approval remains pending.
+
+The original warm-provider regression reaches a new Member's Portal profile but
+fails page readiness: retained-consent scope discovery intentionally omits a
+Membership with no evidence, so its unconditional history read returns 404. The
+preload now performs one bounded own-scope read and requests history only for the
+exact current Membership/Organization. A first-page miss with `hasNext` is
+explicitly incomplete and offers an authorized exact-membership retained-history
+continuation; it is not reported as empty. A focused independent review identifies
+that pagination distinction, then verifies the corrected preload, localized link
+and native selection. **117/117 focused tests** and the web type check pass.
+The original complete warm Keycloak regression passes **1/1** after the initial
+preload correction, before that focused pagination follow-up; these observations
+are not presented as one final-source full-suite result.
+
+The full frontend guard at `94de9e4e` passes all **124 web files / 3,880 reported
+cases** but refuses on two stale SDK census assertions. Exact 46-method and
+10-capability expectations are reconciled, preserving stale/unknown/ETag refusal
+controls; the complete SDK population separately passes **12 files / 219 cases**.
+The six new browser stages are admitted to the existing closed Python diagnostic
+census, with neighboring unknown-stage refusal preserved; its existing offline
+population passes **111/111**. These separate runs are not combined frontend-guard
+qualification.
+
+Hosted backend failures also expose stale exact operation, metadata, capability,
+definer, table and migration-head baselines. The 17 delivered operations are
+named explicitly, and the captured-root enrollment guard gains a negative
+mutation for stale capture. The component test host resolves its source root
+under custom artifact output instead of assuming a fixed binary depth. The
+compiled catalogue count is corrected to 348; no rule status is promoted.
+The exact architecture cases pass **2/2**. The affected non-database integration
+run passes **22/23**, exposing that component-root assumption; its corrected
+remaining case passes **1/1**. A separate real PostgreSQL/local-launch run passes
+six cases and fails the two historical parent-race fixtures before their race.
+
+Those two fixtures use the current EF Membership writer against a historical
+schema lacking `custom_fields`. The corrected disposable fixture proves SQLSTATE
+42703, adds only the inert storage column/default, preserves the original unsafe
+counterexample and corrected lock/SQLSTATE assertions, and proves the column
+stays empty before removing it for canonical full-chain reapplication. It changes
+no production lock, RLS, grant or timeout behavior.
+
+Review also verifies a production retention defect: three new P03-5 `Down`
+methods could drop immutable definitions, consent evidence or Membership values.
+They now refuse under Database Standards' existing forward-only policy. The
+rollback fixture pins the genuinely reversible historical Customization prefix,
+then reapplies all current chains. It checks immediate and historical downgrade
+targets for all four retained current heads, full schema/history equality after
+each refusal, and the earlier refusal guards. The exact PostgreSQL rollback and
+two historical race cases pass **3/3** after a frozen-source Release build with
+zero warnings/errors. A preceding run used a stale race compilation while its
+source changed during compilation; it remains a failed attempt, not proof of the
+corrected bridge. The final build verifies both changing fixture source hashes before/after
+compilation.
+Focused independent source reviews cover these corrected boundaries and their
+retained negative controls; earlier broad Step 4 review rounds are not restarted.
+
+The maintainer selects personal execution of P03-5 manual accessibility checks.
+A private visible stock-browser environment opens English/Turkish Studio and
+retained-consent pages using current copied native HTTPS/Next/UI with synthetic
+provider/API data. Its stationary fake clock and extended browser persistence of
+an already-issued entry cookie support the human review window only; they do not
+qualify authentication, lifetime, database or CI behavior. The copied UI hashes
+and browser version are retained locally. Keyboard, VoiceOver, reflow and contrast
+results remain **unexecuted/pending maintainer observations**. Prior P03-4 manual
+acceptance is not reused.
+
+Remaining: the combined final frontend guard, explicit ADR-0096 decision, complete
+new final-source A/B and original-archive reconciliation, human observations and
+ready PR publication. No merge, packet completion or runtime qualification is
+claimed by these corrections.

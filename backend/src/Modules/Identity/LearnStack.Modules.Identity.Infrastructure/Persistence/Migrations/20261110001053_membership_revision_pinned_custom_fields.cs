@@ -24,15 +24,8 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
         }
 
         /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropCheckConstraint(
-                name: "ck_membership_profiles_custom_fields_shape",
-                table: "membership_profiles");
+        protected override void Down(MigrationBuilder migrationBuilder) =>
+            throw new NotSupportedException("Retained membership custom fields require a reviewed forward migration.");
 
-            migrationBuilder.DropColumn(
-                name: "custom_fields",
-                table: "membership_profiles");
-        }
     }
 }
