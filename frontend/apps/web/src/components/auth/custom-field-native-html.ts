@@ -100,7 +100,7 @@ export function renderStaticCustomFieldControls(props: FieldControlsProps): stri
       (submitted?.['presence_' + name] ?? (current === undefined ? 'off' : 'on')) === 'on';
     const optional = mandatory
       ? ''
-      : `<div class="auth-field"><label for="${escape(id + '-present')}">${escape(copy.include)}</label><select id="${escape(id + '-present')}" name="${escape('presence_' + name)}">${customFieldOptions(
+      : `<div class="auth-field"><label id="${escape(id + '-present-label')}" for="${escape(id + '-present')}">${escape(copy.include)}</label><select id="${escape(id + '-present')}" aria-labelledby="${escape(id + '-title ' + id + '-present-label')}" name="${escape('presence_' + name)}">${customFieldOptions(
           [
             { value: 'off', label: copy.no },
             { value: 'on', label: copy.yes },
@@ -113,7 +113,7 @@ export function renderStaticCustomFieldControls(props: FieldControlsProps): stri
         typeof current === 'object' && current !== null && !Array.isArray(current)
           ? (current as Readonly<Record<string, unknown>>)
           : {};
-      return `<fieldset class="custom-field-group"><legend>${title}</legend>${optional}${fieldPropertyKeys(
+      return `<fieldset class="custom-field-group"><legend id="${escape(id + '-title')}">${title}</legend>${optional}${fieldPropertyKeys(
         node,
       )
         .map((key, index) =>
@@ -135,7 +135,7 @@ export function renderStaticCustomFieldControls(props: FieldControlsProps): stri
           ? Number(rawCount)
           : Math.max(node.minItems, items.length);
       const count = Math.min(node.maxItems, Math.max(node.minItems, initial));
-      return `<fieldset class="custom-field-group"><legend>${title}</legend>${optional}<label for="${escape(id + '-count')}">${escape(copy.count)}</label><select id="${escape(id + '-count')}" name="${escape('count_' + name)}" aria-describedby="${escape(hint)}">${customFieldOptions(
+      return `<fieldset class="custom-field-group"><legend id="${escape(id + '-title')}">${title}</legend>${optional}<label for="${escape(id + '-count')}">${escape(copy.count)}</label><select id="${escape(id + '-count')}" name="${escape('count_' + name)}" aria-describedby="${escape(hint)}">${customFieldOptions(
         Array.from({ length: node.maxItems - node.minItems + 1 }, (_, index) => ({
           value: String(node.minItems + index),
           label: String(node.minItems + index),
@@ -206,7 +206,7 @@ export function renderStaticCustomFieldControls(props: FieldControlsProps): stri
         : node.type === 'boolean'
           ? escape(copy.choose)
           : `${escape(copy.min)}: ${node.minimum} · ${escape(copy.max)}: ${node.maximum}. ${escape(copy.numeric_hint)}`;
-    return `<div class="auth-field">${optional}<label for="${escape(id)}">${title}</label>${input}<p id="${escape(hint)}">${help}</p></div>`;
+    return `<div class="auth-field"><label id="${escape(id + '-title')}" for="${escape(id)}">${title}</label>${optional}${input}<p id="${escape(hint)}">${help}</p></div>`;
   }
   return control(admitted.properties.value, '/', 'root', props.value, props.required ?? true);
 }

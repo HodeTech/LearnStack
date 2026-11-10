@@ -660,6 +660,54 @@ describe('finite custom-field UI', () => {
     },
   );
 
+  it('names absent optional scalar controls before inclusion and keeps their draft when toggled', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        first: { type: 'boolean' },
+        second: { type: 'boolean' },
+      },
+      required: [],
+      additionalProperties: false,
+    } as const;
+    const { container } = render(
+      <form>
+        <FieldControls
+          schema={schema}
+          labels={{ en: 'Group' }}
+          formLabels={[
+            { location: '/0', labels: { en: 'First answer' } },
+            { location: '/1', labels: { en: 'Second answer' } },
+          ]}
+          locale="en"
+          defaultLocale="en"
+          copy={enAdmin.custom_fields}
+          prefix="0"
+        />
+      </form>,
+    );
+    const form = container.querySelector('form')!;
+    const first = screen.getByRole('combobox', {
+      name: 'First answer ' + enAdmin.custom_fields.include,
+    });
+    const second = screen.getByRole('combobox', {
+      name: 'Second answer ' + enAdmin.custom_fields.include,
+    });
+    expect(first).not.toBe(second);
+    expect(screen.getByText('First answer')).toBeVisible();
+    expect(screen.getByText('Second answer')).toBeVisible();
+    expect(new FormData(form).has('answer_0_root_1')).toBe(false);
+    fireEvent.change(second, { target: { value: 'on' } });
+    fireEvent.change(form.querySelector('[name="answer_0_root_1"]')!, {
+      target: { value: 'false' },
+    });
+    fireEvent.change(second, { target: { value: 'off' } });
+    expect(screen.getByText('Second answer')).toBeVisible();
+    expect(new FormData(form).has('answer_0_root_1')).toBe(false);
+    fireEvent.change(second, { target: { value: 'on' } });
+    expect(new FormData(form).get('answer_0_root_1')).toBe('false');
+  });
+
   it('retains nested text representation when an optional branch is hidden and reopened', () => {
     const schema = readFieldSchema(
       envelopeSchema({

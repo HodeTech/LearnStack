@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,348 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,368 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -416,7 +416,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 29 lines
   - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 44 lines
   - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 40 lines
-  - [P03-5 complete A/B evidence and PR review corrections (2026-11-10)](#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10) — 100 lines
+  - [P03-5 complete A/B evidence and PR review corrections (2026-11-10)](#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10) — 101 lines
+  - [P03-5 PR correction review round 1 (2026-11-10)](#p03-5-pr-correction-review-round-1-2026-11-10) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19242,3 +19243,23 @@ OpenAPI wrapper controls pass 33/33, native controls 111/111, shard controls 88/
 and the focused launcher population 59/59. The expanded controls prove their
 stated layer; they are not hosted final-source A/B. Two fresh correction reviews
 follow before the single final-source push and hosted qualification.
+
+
+### P03-5 PR correction review round 1 (2026-11-10)
+
+Correction `a74c518e` receives a fresh Sol/high read-only review across the thirty
+changed files, SDK/UI/privacy/HTTP/backend/script and documentation boundaries.
+One Major is reproduced using the actual component: the retained-body wrapper
+also hides an absent optional scalar's authored title, leaving multiple generic
+include selectors without visible field identity. No other verified finding is
+reported. The review does not rerun heavy suites or claim new hosted evidence.
+
+The scalar title now stays visible outside its hidden/disabled body. Presence
+selectors explicitly reference the authored title and include label, in both
+React and native HTML renderers. A two-optional-scalar regression proves distinct
+accessible names before inclusion, visible titles, inactive omission and draft
+retention through off/on. All 68 custom-field UI controls (including native/React
+semantic parity) and web type checking pass. This focused result follows the
+complete 4,289-case run above; it does not relabel that earlier run as execution
+of the new regression. No deadline or permission changes. A second fresh review
+covers the resulting cumulative correction before the single push.

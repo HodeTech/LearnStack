@@ -146,9 +146,12 @@ function ControlNode({
   }
   const optional = !mandatory && (
     <div className="auth-field">
-      <label htmlFor={id + '-present'}>{copy.include}</label>
+      <label id={id + '-present-label'} htmlFor={id + '-present'}>
+        {copy.include}
+      </label>
       <select
         id={id + '-present'}
+        aria-labelledby={id + '-title ' + id + '-present-label'}
         name={'presence_' + name}
         value={present ? 'on' : 'off'}
         onChange={(event) => setPresent(event.target.value === 'on')}
@@ -166,7 +169,7 @@ function ControlNode({
         : {};
     return (
       <fieldset key={id} className="custom-field-group">
-        <legend>{title}</legend>
+        <legend id={id + '-title'}>{title}</legend>
         {optional}
         <RetainedControls active={active}>
           {fieldPropertyKeys(node).map((key, index) => (
@@ -195,7 +198,7 @@ function ControlNode({
   if (node.type === 'array') {
     return (
       <fieldset key={id} className="custom-field-group">
-        <legend>{title}</legend>
+        <legend id={id + '-title'}>{title}</legend>
         {optional}
         <RetainedControls active={active}>
           <label htmlFor={id + '-count'}>{copy.count}</label>
@@ -254,9 +257,11 @@ function ControlNode({
   }
   return (
     <div className="auth-field" key={id}>
+      <label id={id + '-title'} htmlFor={id}>
+        {title}
+      </label>
       {optional}
       <RetainedControls active={active}>
-        <label htmlFor={id}>{title}</label>
         {node.type === 'boolean' ? (
           <select
             id={id}
