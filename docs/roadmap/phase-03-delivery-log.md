@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,031 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,071 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -409,7 +409,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 hosted incompatibility and proposed administration baseline (2026-11-10)](#p03-5-hosted-incompatibility-and-proposed-administration-baseline-2026-11-10) — 46 lines
   - [P03-5 hosted failure corrections and human UX environment (2026-11-10)](#p03-5-hosted-failure-corrections-and-human-ux-environment-2026-11-10) — 77 lines
   - [P03-5 complete local frontend guard after corrections (2026-11-10)](#p03-5-complete-local-frontend-guard-after-corrections-2026-11-10) — 17 lines
-  - [ADR-0096 maintainer review disposition and acceptance (2026-11-10)](#adr-0096-maintainer-review-disposition-and-acceptance-2026-11-10) — 54 lines
+  - [ADR-0096 maintainer review disposition and acceptance (2026-11-10)](#adr-0096-maintainer-review-disposition-and-acceptance-2026-11-10) — 55 lines
+  - [ADR-0096 exact Git-snapshot admission implementation (2026-11-10)](#adr-0096-exact-git-snapshot-admission-implementation-2026-11-10) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18918,3 +18919,43 @@ passes 1/1 against the ordinary app-role database, and its SDK population passes
 46/46. The wrong-release response retains the schema shape but fails the runtime
 oracle/SDK contract checks. Release builds with zero warnings/errors. These
 focused observations do not replace final frozen-source API/SDK and hosted proof.
+
+
+### ADR-0096 exact Git-snapshot admission implementation (2026-11-10)
+
+Acceptance and runtime-evidence controls are committed as `d7148195`. The new
+admission helper is called only by the verified Git-snapshot wrapper. It binds
+one strict carrier to Accepted ADR-0096's exact tables, complete raw/normalized/
+companion findings and actual tool/comparator/configuration/fixture identities.
+Working execution inputs are measured before/after and matched to committed head
+bytes. Repointed/extra/malformed carriers, changed identities and unexpected
+findings cannot obtain approval. The original comparison implementation is
+unchanged. Direct file, fixture and first-baseline/bootstrap modes cannot consume
+this approval.
+
+The wrapper requires fresh output, validates complete comparison reports and
+refusal summaries, and freshly runs the existing 60 policy controls before any
+approved success. A process exit of 1 without complete reports is not treated as
+completed incompatibility. The exact pair also cannot claim normal success while
+its reviewed reports describe incompatibility. Original comparison results stay
+unchanged; a separate approval artifact identifies the decision, verified commits,
+findings and input identities and explicitly does not verify runtime behavior.
+
+New controls exercise canonical reordering, each report channel's added/removed/
+changed/duplicated/extra-field findings, malformed/duplicate-key/nonfinite JSON,
+record repointing, non-Accepted/unknown decisions, source/tool/config drift,
+failed/incomplete controls and comparisons, bootstrap/file/fixture exclusion and
+fresh-output refusal. The existing normal snapshot/branch/bootstrap controls
+remain. The web source classifier names only the new infrastructure CLI helper;
+its existing unknown-runtime/ownership negatives remain and 62/62 pass.
+
+A private read-only/no-network Linux container executes the actual checksum-bound
+oasdiff binary against the two reviewed snapshots. The complete reproduction
+returns incompatibility, with all 5 raw, 5 normalized and 54 companion canonical
+digests matching Accepted ADR-0096. No approval is consumed in that direct-file
+reproduction. An earlier private wrapper had an incorrect copied config path and
+fails before comparison; its exit of 1 is not credited, and reinforces the need
+for fresh complete-report validation. Actual successful Git-backed admission and
+fresh policy execution still require final-source CI. Two fresh independent
+implementation review rounds follow the implementation commit; no ready PR,
+hosted qualification, manual completion or merge is claimed yet.

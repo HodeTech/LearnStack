@@ -83,6 +83,7 @@ const nonRuntimeFiles = new Set([
   'scripts/markdown-fragment-audit.py',
   'scripts/openapi-ci.py',
   'scripts/openapi-policy.py',
+  'scripts/openapi-transition.py',
   'scripts/roadmap-structure.py',
   'scripts/seed.sh',
   'scripts/test-adr-status.py',

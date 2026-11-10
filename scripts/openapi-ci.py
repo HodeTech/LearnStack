@@ -2,6 +2,7 @@
 """Compare verified git snapshots; bootstrap only from a served, operation-free base."""
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,9 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = 'backend/openapi/v1.json'
+transition_spec = importlib.util.spec_from_file_location('openapi_transition', Path(__file__).with_name('openapi-transition.py'))
+transition = importlib.util.module_from_spec(transition_spec)
+transition_spec.loader.exec_module(transition)
 
 
 def git(*arguments):
@@ -30,13 +34,21 @@ def commit(reference):
     return result
 
 
-def snapshot(sha):
-    present = git('ls-tree', '--name-only', sha, '--', SNAPSHOT).stdout.decode().strip()
-    if not present:
+def committed_file(sha, path):
+    entries = git('ls-tree', sha, '--', path).stdout.decode().splitlines()
+    if not entries:
         return None
-    if present != SNAPSHOT:
-        raise ValueError('Unexpected snapshot tree entry')
-    return git('show', sha + ':' + SNAPSHOT).stdout
+    if len(entries) != 1:
+        raise ValueError('Unexpected committed file population')
+    metadata, actual = entries[0].split('\t', 1)
+    mode, kind, _ = metadata.split()
+    if actual != path or kind != 'blob' or mode not in ('100644', '100755'):
+        raise ValueError('Committed input must be a regular blob')
+    return git('show', sha + ':' + path).stdout
+
+
+def snapshot(sha):
+    return committed_file(sha, SNAPSHOT)
 
 
 def operation_count(document):
@@ -109,7 +121,7 @@ def main():
     parser.add_argument('--tool', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
+    args.output.mkdir(parents=True, exist_ok=False)
     (args.output / 'requested-refs.json').write_text(json.dumps({'base': args.base, 'head': args.head}, indent=2) + '\n')
     base_sha, head_sha = commit(args.base), commit(args.head)
     (args.output / 'commits.json').write_text(json.dumps({'base': base_sha, 'head': head_sha}, indent=2) + '\n')
@@ -125,9 +137,33 @@ def main():
     (args.output / 'head.json').write_bytes(head)
     (args.output / 'commits.json').write_text(json.dumps({'base': base_sha, 'head': head_sha, 'firstBaseline': first_baseline,
         'baseSpecSha256': hashlib.sha256(base).hexdigest(), 'headSpecSha256': hashlib.sha256(head).hexdigest()}, indent=2) + '\n')
-    return subprocess.run([sys.executable, str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
+    identity = transition.execution_identity(ROOT, args.tool.resolve())
+    comparison = args.output / 'comparison'
+    result = subprocess.run([sys.executable, str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
         '--base', str((args.output / 'base.json').resolve()), '--head', str((args.output / 'head.json').resolve()),
-        '--output', str((args.output / 'comparison').resolve())], check=False).returncode
+        '--output', str(comparison.resolve())], check=False).returncode
+    if result not in (0, 1) or first_baseline:
+        return result
+    record = transition.candidate(ROOT, lambda path: committed_file(head_sha, path),
+        git('ls-tree', '-r', '--name-only', head_sha, '--', 'backend/openapi/policy').stdout.decode().splitlines(),
+        base, head, args.tool.resolve(), comparison, identity)
+    if record is None:
+        return result
+    if result != 1:
+        raise ValueError('ADR-0096 comparison result disagrees with the reviewed incompatibility')
+    controls = args.output / 'approval-fixtures'
+    result = subprocess.run([sys.executable, str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
+        '--fixtures', '--output', str(controls.resolve())], check=False).returncode
+    if result != 0:
+        return result
+    transition.validate_controls(ROOT, args.tool.resolve(), controls, record)
+    approval = {'outcome': 'approved-incompatibility', 'adr': '0096', 'baseCommit': base_sha,
+        'headCommit': head_sha, 'baseSha256': record['baseSha256'], 'headSha256': record['headSha256'],
+        'findings': record['findings'], 'inputs': record['inputs'], 'runtimeBehaviorVerified': False}
+    (args.output / 'approval.json').write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')
+    print('ADR-0096 approved incompatibility; raw findings retained; runtime proof is separate.')
+    return 0
+
 
 
 if __name__ == '__main__':
