@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,418 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,436 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -419,7 +419,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 complete A/B evidence and PR review corrections (2026-11-10)](#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10) — 101 lines
   - [P03-5 PR correction review round 1 (2026-11-10)](#p03-5-pr-correction-review-round-1-2026-11-10) — 20 lines
   - [P03-5 PR correction second review and CI handoff (2026-11-10)](#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10) — 19 lines
-  - [P03-5 catalogue counter refusal and verified correction (2026-11-10)](#p03-5-catalogue-counter-refusal-and-verified-correction-2026-11-10) — 30 lines
+  - [P03-5 catalogue counter refusal and verified correction (2026-11-10)](#p03-5-catalogue-counter-refusal-and-verified-correction-2026-11-10) — 31 lines
+  - [P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)](#p03-5-catalogue-correction-reviews-and-frozen-source-handoff-2026-11-10) — 17 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19315,3 +19316,21 @@ controls. No assertion, implementation count, timer, test or policy is weakened.
 The prior complete A/B remains attributed to `1c1f4f80`; this failed candidate
 and its archives stay distinct. The bounded documentation fix receives two
 fresh focused reviews before a new frozen-source complete A/B.
+
+
+### P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)
+
+Documentation correction `872d29e7` receives fresh Luna/medium R1 and independent
+Sol/medium R2 reviews. Both find no verified Blocker, Major or Minor. R2 also
+independently checks the twenty-four retained original archives against API
+size/SHA-256/CRC, the exact failed TRX case, completed job population and 4,290-case
+frontend log. No product, test-filter, deadline or policy change is required.
+
+Both reviewers additionally approve the small test-runner skill clarification:
+Catalogue Status/owner/publication edits require the existing focused
+`CorpusConsistencyTests` even for Markdown-only changes; counts come from
+compiled reflection rather than attribute-text searches. This prevents the
+missed local verification without weakening the five existing corpus guards or
+adding a new assertion. The actual 5/5 local result and failed source remain
+recorded above. New-source complete A/B and original evidence follow on the
+unchanged corrected source; the ready PR stays unmerged.
