@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,527 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,568 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -423,7 +423,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)](#p03-5-catalogue-correction-reviews-and-frozen-source-handoff-2026-11-10) — 18 lines
   - [P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)](#p03-5-retained-runtime-proof-failure-and-bounded-diagnosis-2026-11-10) — 35 lines
   - [P03-5 SDK patch validation parity (2026-11-11)](#p03-5-sdk-patch-validation-parity-2026-11-11) — 33 lines
-  - [P03-5 SDK patch parity review closeout (2026-11-11)](#p03-5-sdk-patch-parity-review-closeout-2026-11-11) — 22 lines
+  - [P03-5 SDK patch parity review closeout (2026-11-11)](#p03-5-sdk-patch-parity-review-closeout-2026-11-11) — 23 lines
+  - [P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)](#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19428,3 +19429,44 @@ production and patch-input controls remain intact; no new ADR or time policy is
 needed. The final-source push follows these two focused review rounds. Any
 predecessor run is retained as its actual source's evidence, without final-source
 A/B credit or a root-cause repair claim for the earlier runtime proof failure.
+
+
+### P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)
+
+Frozen head `dd283f96` / merge source `e4d73d42` completes
+[run 42902156717 A](https://github.com/HodeTech/LearnStack/actions/runs/42902156717/attempts/1)
+with 27/27 successful jobs. All 25 original ZIPs match their API byte sizes and
+SHA-256 digests and pass ZIP CRC checks. Canonical unions reconcile 4,831 backend
+and 3,690 integration cases. Frontend completes 124 web files / 4,066 reported
+cases and twelve SDK files / 228 cases, zero skips/todos, plus native ingress.
+The exact OpenAPI 5/5/54 finding sets, pinned tool, both sixty-case controls, all
+27 demo JSON/HTML pairs, nine screenshots, hard budgets and cleanup are verified.
+These complete A originals are retained and audited before whole B is requested.
+
+The unchanged-source whole B's
+[public-demo job](https://github.com/HodeTech/LearnStack/actions/runs/42902156717/job/130151116882)
+then refuses cleanup. Its original ZIP independently matches API size/SHA-256
+and passes CRC; all 27 report pairs and nine screenshots are present. The receipt
+records `cleanup-failure`, with no failing inner stage. The earlier superseded
+run 42898408067 has the same coarse cleanup-only observation. Neither the elapsed
+time nor successful A identifies the failing owner or establishes a cause.
+Remaining B jobs continue; this B supplies no complete qualification.
+
+The verified diagnostic gap is corrected in the existing lifecycle: locally
+constructed errors retain a finite stage/owner/reason vocabulary through cleanup
+aggregation, including process stop versus output drain, ordinary daemon versus
+managed native owner, completion accounting, Compose down/empty verification and
+private removal. Only those locally registered observations enter the optional
+`failure.cleanup` receipt field. Provider error properties/trees, messages, paths,
+stdout and stacks are never traversed or exported. Multiple cleanup failures
+remain failures; every existing independent teardown is still attempted, and
+private state is retained unless all required cleanup succeeds. Compose's command
+and owner-disposal faults both survive instead of a finally fault replacing the
+first fault. No timer, forced-stop rule, ownership proof or CI topology changes.
+
+Six focused lifecycle/diagnostic suites pass 264/264; web type checking passes.
+Focused revalidation of the forced-daemon/native-owner assertions passes
+38/38 after formatting; targeted web lint passes. Two fresh independent implementation reviews follow
+the commit; no runtime cause or cleanup repair is claimed by this diagnostic fix.
+The current candidate must obtain its own complete A and retained/audited
+originals before whole B; failed or superseded sources are not combined.

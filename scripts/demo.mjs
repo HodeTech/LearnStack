@@ -15,7 +15,13 @@ import { getCACertificates } from 'node:tls';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { composeProcessEnvironment, composeSelection, repositoryRoot } from './compose.mjs';
-import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
+import {
+  DemoCommandError,
+  DemoProcesses,
+  installDemoCancellation,
+  DemoCleanupError,
+  demoCleanupDetails,
+} from './demo-process.mjs';
 import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
@@ -70,20 +76,31 @@ export function validateCertificate(certificate, privateKey, hosts, now = Date.n
 /** Attempt every owned teardown stage; private files survive any unconfirmed stage. */
 export async function disposeDemoResources({ processes, finish, teardown, removePrivate }) {
   const failures = [];
-  for (const attempt of [() => processes.dispose(), finish, teardown]) {
+  const details = [];
+  for (const [stage, owner, attempt] of [
+    ['processes', 'unknown', () => processes.dispose()],
+    ['completions', 'observer', finish],
+    ['compose', 'compose', teardown],
+  ]) {
     if (!attempt) continue;
     try {
       await attempt();
     } catch (error) {
       failures.push(error);
+      details.push(...demoCleanupDetails(error, stage, owner));
     }
   }
   if (failures.length)
-    throw new AggregateError(
+    throw new DemoCleanupError(
       failures,
+      details,
       'Owned cleanup could not be confirmed; private files retained',
     );
-  await removePrivate();
+  try {
+    await removePrivate();
+  } catch (error) {
+    throw new DemoCleanupError([error], demoCleanupDetails(error, 'private-files', 'private'));
+  }
 }
 
 /** Only fixed local diagnostics may leave the launcher boundary. */
@@ -91,10 +108,10 @@ export function demoFailureMessage(error) {
   if (error instanceof RealmError) return realmFailureNotice(error);
   if (error instanceof DemoCommandError) return `${error.message} (${error.reason})`;
   return error instanceof Error &&
-      (error.message === 'Local demo database configuration is invalid' ||
-        /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
-          error.message,
-        ))
+    (error.message === 'Local demo database configuration is invalid' ||
+      /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
+        error.message,
+      ))
     ? error.message
     : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack';
 }
@@ -143,7 +160,17 @@ export async function startDemo(mode) {
         if (mode !== 'ci') return bound;
         // Reserve the final five seconds for an owned command's forced stop.
         const remaining = 25000 - (Date.now() - started);
-        if (remaining <= 0) throw new Error('Owned cleanup deadline');
+        if (remaining <= 0)
+          throw new DemoCleanupError(
+            [],
+            [
+              {
+                stage: 'cleanup-deadline',
+                owner: 'coordinator',
+                reason: 'deadline',
+              },
+            ],
+          );
         return Math.min(bound, remaining);
       };
       controller.abort();
@@ -156,6 +183,9 @@ export async function startDemo(mode) {
             mode === 'ci' && startedStack
               ? async () => {
                   const cleanup = new DemoProcesses(new AbortController().signal);
+                  const failures = [];
+                  const details = [];
+                  let stage = 'compose-down';
                   try {
                     await cleanup.run(
                       'docker',
@@ -167,6 +197,7 @@ export async function startDemo(mode) {
                         timeout: cleanupTimeout(20000),
                       },
                     );
+                    stage = 'compose-empty';
                     const remaining = await cleanup.run(
                       'docker',
                       [...selected.args, '--profile', '*', 'ps', '-a', '-q'],
@@ -179,9 +210,27 @@ export async function startDemo(mode) {
                       },
                     );
                     if (remaining.trim()) throw new Error('Owned Compose cleanup incomplete');
+                  } catch (error) {
+                    failures.push(error);
+                    details.push(
+                      ...demoCleanupDetails(
+                        error,
+                        stage,
+                        'compose',
+                        error instanceof DemoCommandError && error.reason === 'deadline'
+                          ? 'deadline'
+                          : 'unconfirmed',
+                      ),
+                    );
                   } finally {
-                    await cleanup.dispose();
+                    try {
+                      await cleanup.dispose();
+                    } catch (error) {
+                      failures.push(error);
+                      details.push(...demoCleanupDetails(error, 'compose', 'compose'));
+                    }
                   }
+                  if (failures.length) throw new DemoCleanupError(failures, details);
                 }
               : undefined,
           removePrivate: () => {
@@ -195,7 +244,17 @@ export async function startDemo(mode) {
           },
         });
         const milliseconds = Date.now() - started;
-        if (mode === 'ci' && milliseconds > 30000) throw new Error('Owned cleanup deadline');
+        if (mode === 'ci' && milliseconds > 30000)
+          throw new DemoCleanupError(
+            [],
+            [
+              {
+                stage: 'cleanup-deadline',
+                owner: 'coordinator',
+                reason: 'deadline',
+              },
+            ],
+          );
         return {
           passed: true,
           milliseconds,

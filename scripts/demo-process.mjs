@@ -5,6 +5,70 @@ import {
   stopProductionRuntimeOwner,
 } from '../frontend/apps/web/scripts/stop-test-child.mjs';
 
+const stages = new Set([
+  'processes',
+  'process-stop',
+  'process-drain',
+  'process-output',
+  'completions',
+  'compose',
+  'compose-down',
+  'compose-empty',
+  'private-files',
+  'cleanup-deadline',
+]);
+const owners = new Set([
+  'command',
+  'daemon',
+  'native-web',
+  'compose',
+  'observer',
+  'private',
+  'coordinator',
+  'unknown',
+]);
+const reasons = new Set(['unconfirmed', 'forced', 'deadline', 'output', 'refused']);
+const observations = new WeakMap();
+
+/** Local construction sites supply closed labels; provider error trees stay private. */
+export class DemoCleanupError extends AggregateError {
+  constructor(
+    errors,
+    details,
+    message = 'Owned cleanup could not be confirmed; private files retained',
+  ) {
+    super(errors, message);
+    const unique = new Map();
+    for (const detail of details) {
+      if (
+        !detail ||
+        Object.keys(detail).sort().join(',') !== 'owner,reason,stage' ||
+        !stages.has(detail.stage) ||
+        !owners.has(detail.owner) ||
+        !reasons.has(detail.reason)
+      )
+        throw new Error('Invalid owned cleanup observation');
+      const copy = Object.freeze({
+        stage: detail.stage,
+        owner: detail.owner,
+        reason: detail.reason,
+      });
+      unique.set(JSON.stringify(copy), copy);
+    }
+    observations.set(this, Object.freeze([...unique.values()]));
+  }
+}
+
+/** No provider properties, messages, causes or AggregateError trees are traversed. */
+export function demoCleanupObservations(error) {
+  return observations.get(error) ?? Object.freeze([]);
+}
+
+export function demoCleanupDetails(error, stage, owner, reason = 'unconfirmed') {
+  const retained = demoCleanupObservations(error);
+  return retained.length ? retained : [{ stage, owner, reason }];
+}
+
 const commandReasons = new Set([
   'exit',
   'deadline',
@@ -92,10 +156,14 @@ export class DemoProcesses {
     // owner result delegates physical family retirement without any proof relay.
     // Copied fixtures use their separately captured runtime-family evidence.
     let stopping;
+    let stopOutcome;
     const stop = () => {
       stopping ??= ownedRuntime
         ? stopProductionRuntimeOwner(child)
-        : stopTestChild(child).then((result) => assertUnforcedTestChildStop(child, result));
+        : stopTestChild(child).then((result) => {
+            stopOutcome = result?.forced === true ? 'forced' : 'unconfirmed';
+            assertUnforcedTestChildStop(child, result);
+          });
       return stopping;
     };
     const output = [];
@@ -172,6 +240,8 @@ export class DemoProcesses {
       closed,
       result: running.result,
       daemon: false,
+      ownedRuntime,
+      stopOutcome: () => stopOutcome,
       stop,
     });
     return running;
@@ -261,40 +331,61 @@ export class DemoProcesses {
   async dispose() {
     this.#closed = true;
     const results = await Promise.allSettled(
-      [...this.#children].map(async ([_child, { closed, result, daemon, stop }]) => {
-        const deadline = Date.now() + 5000;
-        const failures = [];
-        try { await stop(); }
-        catch (error) { failures.push(error); }
-        // Group absence does not establish stream EOF. A closed child has also
-        // delivered its buffered stdout/stderr; bound this separate drain so
-        // inherited/leaked pipes cannot hang teardown.
-        let timer;
-        try {
-          await Promise.race([
-            closed,
-            new Promise((_, reject) => {
-              timer = setTimeout(
-                () => reject(new Error('Owned output did not close')),
-                Math.max(0, deadline - Date.now()),
-              );
-            }),
-          ]);
-        } catch (error) {
-          failures.push(error);
-        } finally {
-          clearTimeout(timer);
-        }
-        if (daemon && result().failureReason === 'output')
-          failures.push(new Error('Owned output was refused', {
-            cause: result().failed,
-          }));
-        if (failures.length) throw new AggregateError(failures, 'Owned command cleanup unconfirmed');
-      }),
+      [...this.#children].map(
+        async ([_child, { closed, result, daemon, ownedRuntime, stopOutcome, stop }]) => {
+          const deadline = Date.now() + 5000;
+          const failures = [];
+          const details = [];
+          const owner = ownedRuntime ? 'native-web' : daemon ? 'daemon' : 'command';
+          try {
+            await stop();
+          } catch (error) {
+            failures.push(error);
+            details.push({
+              stage: 'process-stop',
+              owner,
+              reason: stopOutcome() ?? 'unconfirmed',
+            });
+          }
+          // Group absence does not establish stream EOF. A closed child has also
+          // delivered its buffered stdout/stderr; bound this separate drain so
+          // inherited/leaked pipes cannot hang teardown.
+          let timer;
+          try {
+            await Promise.race([
+              closed,
+              new Promise((_, reject) => {
+                timer = setTimeout(
+                  () => reject(new Error('Owned output did not close')),
+                  Math.max(0, deadline - Date.now()),
+                );
+              }),
+            ]);
+          } catch (error) {
+            failures.push(error);
+            details.push({ stage: 'process-drain', owner, reason: 'deadline' });
+          } finally {
+            clearTimeout(timer);
+          }
+          if (daemon && result().failureReason === 'output') {
+            failures.push(
+              new Error('Owned output was refused', {
+                cause: result().failed,
+              }),
+            );
+            details.push({ stage: 'process-output', owner, reason: 'output' });
+          }
+          if (failures.length)
+            throw new DemoCleanupError(failures, details, 'Owned command cleanup unconfirmed');
+        },
+      ),
     );
     if (results.some((row) => row.status === 'rejected'))
-      throw new AggregateError(
+      throw new DemoCleanupError(
         results.filter((row) => row.status === 'rejected').map((row) => row.reason),
+        results
+          .filter((row) => row.status === 'rejected')
+          .flatMap((row) => demoCleanupDetails(row.reason, 'processes', 'unknown')),
         'Owned process cleanup failed; private files retained',
       );
   }

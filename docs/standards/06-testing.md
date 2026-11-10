@@ -395,6 +395,10 @@ corrupt or substituted member refuses the pair. Closed operation diagnostics
 distinguish actual child exit, spawn, deadline, cancellation and daemon failure;
 cleanup never borrows a signal sent intentionally during teardown. Raw provider
 messages and private configuration do not enter these receipt diagnostics.
+Locally constructed cleanup errors may also retain closed stage/owner/reason
+labels for process stop/drain, completion accounting, Compose and private-file
+removal. Provider error trees and copied diagnostic properties supply no labels;
+these observations never acknowledge successful retirement or relax a deadline.
 
 The frontend workspace pins Playwright and Lighthouse as development tools.
 Lighthouse's transitive development `axe-core@4.14.0` does not supply a standalone

@@ -13,7 +13,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { demoRequest } from '../../../../../scripts/demo-http.mjs';
-import { DemoCommandError, DemoProcesses } from '../../../../../scripts/demo-process.mjs';
+import {
+  DemoCleanupError,
+  DemoCommandError,
+  DemoProcesses,
+} from '../../../../../scripts/demo-process.mjs';
 import {
   PublicDemoFailure,
   publicDemoChildExited,
@@ -26,6 +30,46 @@ import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 
 const canary = 'private-provider-token-host-url-canary';
 const context = { mode: 'audit', laneIndex: 0, kind: 'catalog', run: 2, workerStage: 'audit' };
+
+describe('closed owned cleanup attribution', () => {
+  it('retains distinct cleanup failures without traversing provider error trees', () => {
+    const detail = { stage: 'process-stop', owner: 'native-web', reason: 'unconfirmed' } as const;
+    const error = new DemoCleanupError(
+      [new Error(canary)],
+      [detail, detail, { stage: 'compose-empty', owner: 'compose', reason: 'deadline' }],
+    );
+    expect(publicDemoFailure('cleanup', error)).toMatchObject({
+      reason: 'cleanup-failure',
+      exitCode: null,
+      signal: null,
+      cleanup: [detail, { stage: 'compose-empty', owner: 'compose', reason: 'deadline' }],
+    });
+    expect(JSON.stringify(publicDemoFailure('cleanup', error))).not.toContain(canary);
+    expect(publicDemoFailure('proof', error)).not.toHaveProperty('cleanup');
+    // A provider cannot obtain a public diagnostic by copying field names or
+    // hiding a genuine local error under its own AggregateError/cause.
+    for (const unknown of [
+      Object.assign(new Error(canary), { cleanup: [detail], observations: [detail] }),
+      new AggregateError([error], canary, { cause: error }),
+    ])
+      expect(publicDemoFailure('cleanup', unknown)).not.toHaveProperty('cleanup');
+  });
+
+  it.each(['stage', 'owner', 'reason'] as const)(
+    'rejects noncanonical cleanup %s labels',
+    (key) => {
+      const detail = {
+        stage: 'process-stop',
+        owner: 'native-web',
+        reason: 'unconfirmed',
+        [key]: canary,
+      };
+      expect(() => new DemoCleanupError([], [detail as never])).toThrow(
+        'Invalid owned cleanup observation',
+      );
+    },
+  );
+});
 
 describe('R1 regression controls', () => {
   it.each(['startup-port', 'proof'])(
@@ -224,7 +268,17 @@ describe('R1 regression controls', () => {
       });
       expect(JSON.stringify(publicDemoFailure('proof', first))).not.toContain(canary);
     } finally {
-      await expect(processes.dispose()).rejects.toThrow('Owned process cleanup failed');
+      const error = await processes.dispose().catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(AggregateError);
+      expect(publicDemoFailure('cleanup', error)).toMatchObject({
+        cleanup: [
+          { stage: 'process-stop', owner: 'daemon', reason: 'forced' },
+          { stage: 'process-output', owner: 'daemon', reason: 'output' },
+        ],
+        exitCode: null,
+        signal: null,
+      });
+      expect(JSON.stringify(publicDemoFailure('cleanup', error))).not.toContain(canary);
     }
     expect(publicDemoChildExited(daemon.child)).toBe(true);
   }, 10000);
