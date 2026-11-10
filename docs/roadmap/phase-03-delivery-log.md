@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,568 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,590 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -424,7 +424,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)](#p03-5-retained-runtime-proof-failure-and-bounded-diagnosis-2026-11-10) — 35 lines
   - [P03-5 SDK patch validation parity (2026-11-11)](#p03-5-sdk-patch-validation-parity-2026-11-11) — 33 lines
   - [P03-5 SDK patch parity review closeout (2026-11-11)](#p03-5-sdk-patch-parity-review-closeout-2026-11-11) — 23 lines
-  - [P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)](#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) — 40 lines
+  - [P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)](#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) — 41 lines
+  - [P03-5 cleanup attribution review closeout (2026-11-11)](#p03-5-cleanup-attribution-review-closeout-2026-11-11) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19470,3 +19471,25 @@ Focused revalidation of the forced-daemon/native-owner assertions passes
 the commit; no runtime cause or cleanup repair is claimed by this diagnostic fix.
 The current candidate must obtain its own complete A and retained/audited
 originals before whole B; failed or superseded sources are not combined.
+
+
+### P03-5 cleanup attribution review closeout (2026-11-11)
+
+Commit `059cf860` completes fresh Sol/high R1 and independent Terra/medium R2.
+Both approve without a verified Blocker, Major or Minor. They trace local label
+registration, immutable/deduplicated observations, process stop/drain/output,
+independent resource cleanup, command-plus-disposal fault preservation and final
+receipt publication. Neither review independently reproduces the hosted failure.
+
+Six focused suites pass 264/264; post-assertion diagnostics/native-owner controls
+pass 38/38. Web type checking, targeted lint, syntax/documentation checks and
+commit hooks pass. A direct ESLint invocation without the project's configuration
+is not credited; the canonical native build/lint wrapper performs validation.
+The repository stays on development with protected stash/settings state intact.
+
+This closes the diagnostic implementation and its two review rounds. It does
+not identify or repair the hosted cleanup cause, extend any timer, relax the
+retirement proof, or grant qualification to the failed B. The reviewed source
+returns to the normal full A, retained/audited originals, then whole B procedure.
+The existing PR stays ready for maintainer review and unmerged; its source-bound
+checks own the current qualification result.
