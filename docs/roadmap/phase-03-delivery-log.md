@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,504 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,527 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -422,7 +422,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 catalogue counter refusal and verified correction (2026-11-10)](#p03-5-catalogue-counter-refusal-and-verified-correction-2026-11-10) — 31 lines
   - [P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)](#p03-5-catalogue-correction-reviews-and-frozen-source-handoff-2026-11-10) — 18 lines
   - [P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)](#p03-5-retained-runtime-proof-failure-and-bounded-diagnosis-2026-11-10) — 35 lines
-  - [P03-5 SDK patch validation parity (2026-11-11)](#p03-5-sdk-patch-validation-parity-2026-11-11) — 32 lines
+  - [P03-5 SDK patch validation parity (2026-11-11)](#p03-5-sdk-patch-validation-parity-2026-11-11) — 33 lines
+  - [P03-5 SDK patch parity review closeout (2026-11-11)](#p03-5-sdk-patch-parity-review-closeout-2026-11-11) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19404,3 +19405,26 @@ final-source qualification for it. Its available evidence remains separately
 retained, including any cancellation after supersession. The SDK correction
 receives two fresh focused reviews before the final-source push and complete
 A/B procedure; the API's admitted behavior is clarified, not narrowed.
+
+
+### P03-5 SDK patch parity review closeout (2026-11-11)
+
+Fresh Sol/medium R1 independently checks API/application/OpenAPI parity and the
+raw/object own/admin regression oracles; no verified finding. Fresh Terra/medium
+R2 approves the code and identifies one Minor wording issue in the preceding
+[SDK parity record](#p03-5-sdk-patch-validation-parity-2026-11-11).
+
+**Clarification of that record's validation-layer attribution:** HTTP decoding
+and OpenAPI express the separate array bounds. `MembershipCustomFieldInput` in
+the application layer enforces per-array concept uniqueness and Set-definition
+uniqueness. The SDK mirrors both responsibilities. OpenAPI does not express
+projected-property uniqueness, and the HTTP decoder does not enforce it itself.
+The earlier collective sentence is read with this correction; its dated record
+is retained rather than silently rewritten.
+
+No additional code change follows R2. The full 228-case SDK result, type checking,
+lint, fresh native compilation and 29-case consumer result stand. Current
+production and patch-input controls remain intact; no new ADR or time policy is
+needed. The final-source push follows these two focused review rounds. Any
+predecessor run is retained as its actual source's evidence, without final-source
+A/B credit or a root-cause repair claim for the earlier runtime proof failure.
