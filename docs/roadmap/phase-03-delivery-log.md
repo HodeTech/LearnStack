@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,590 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,620 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -425,7 +425,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 SDK patch validation parity (2026-11-11)](#p03-5-sdk-patch-validation-parity-2026-11-11) — 33 lines
   - [P03-5 SDK patch parity review closeout (2026-11-11)](#p03-5-sdk-patch-parity-review-closeout-2026-11-11) — 23 lines
   - [P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)](#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) — 41 lines
-  - [P03-5 cleanup attribution review closeout (2026-11-11)](#p03-5-cleanup-attribution-review-closeout-2026-11-11) — 21 lines
+  - [P03-5 cleanup attribution review closeout (2026-11-11)](#p03-5-cleanup-attribution-review-closeout-2026-11-11) — 22 lines
+  - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19493,3 +19494,33 @@ retirement proof, or grant qualification to the failed B. The reviewed source
 returns to the normal full A, retained/audited originals, then whole B procedure.
 The existing PR stays ready for maintainer review and unmerged; its source-bound
 checks own the current qualification result.
+
+
+### P03-5 browser-custody analysis work reduction (2026-11-11)
+
+Run 42913450285 A at `beadf09e` / merge source `50e6a8e4` refuses the unchanged
+`refuses browser storage and cookie access including receiver aliases` case
+at its existing five-second Vitest threshold. The web report contains 123 passing
+files and one failing file, 4,070 passing reported cases and that one failure.
+This is an elapsed-time refusal, not a reported browser-storage policy finding.
+The demo job completes successfully with the closed cleanup attribution installed.
+The whole A remains unqualified; no B is started for it.
+
+An isolated pre-change run passes the selected existing case in 1,144 ms; it does
+not reproduce the hosted workload or identify its slowdown. A deterministic new
+control identifies repeated symbol queries: an identifier is queried nine times
+where one fixed-checker declaration lookup suffices. The control fails against
+the old implementation. Browser-storage analysis now memoizes only declarations
+inside one analysis call, threads that lookup through the existing recursion and
+skips only node kinds whose unwrapped form cannot match the predicate. Recursive
+boolean results are not cached; every shared/cloned visited-set edge is retained.
+Findings still name the original node, preserving wrapper positions and order.
+No lookup survives into another graph, checker, edit or invocation.
+
+The complete existing boundary suite plus the new work/dirty-restore control
+passes 313/313. Web type checking and targeted lint pass. A post-change selected
+run reports 649 ms; its 312 unselected cases provide no completion credit. These
+local timings are observations, not a hosted minimum, root-cause attribution or
+fit guarantee. All eleven browser-storage mutants, local-injection acceptance,
+production scanning, file discovery, worker counts and time limits remain intact.
+The correction receives two fresh independent reviews before the next source push.

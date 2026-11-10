@@ -499,6 +499,39 @@ describe('ADR-0053 production public boundaries', () => {
       expect(transportFindings(graph).map((item) => item.file)).toContain(helper);
     }
   });
+  it('keeps browser custody declaration work local to each graph analysis', () => {
+    const helper = 'apps/web/src/lib/storage-control.ts';
+    const current = {
+      [probe]: 'import { storage } from "@/lib/storage-control"; storage.getItem("token");',
+      [helper]: 'export const storage = globalThis.localStorage;',
+    };
+    const evaluate = createSourceGraphEvaluator();
+    const inspect = () => {
+      const graph = evaluate(current);
+      const queries = new Map<ts.Node, number>();
+      const checker = new Proxy(graph.checker, {
+        get(target, key) {
+          if (key === 'getSymbolAtLocation')
+            return (node: ts.Node) => {
+              queries.set(node, (queries.get(node) ?? 0) + 1);
+              return target.getSymbolAtLocation(node);
+            };
+          return Reflect.get(target, key);
+        },
+      });
+      const findings = browserStorageFindings({ ...graph, checker });
+      expect(queries.size).toBeGreaterThan(0);
+      expect(Math.max(...queries.values())).toBe(1);
+      return findings;
+    };
+    const original = inspect();
+    expect(original).not.toEqual([]);
+    current[helper] = 'export const storage = new Map<string, string>();';
+    expect(inspect()).toEqual([]);
+    current[helper] = 'export const storage = globalThis.localStorage;';
+    expect(inspect()).toEqual(original);
+  });
+
   it('refuses browser storage and cookie access including receiver aliases', () => {
     clean(browserStorageFindings(production), 'Fix: retain server-side credential custody.');
     for (const source of [

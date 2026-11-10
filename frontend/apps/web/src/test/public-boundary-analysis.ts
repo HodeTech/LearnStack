@@ -535,19 +535,20 @@ function globalObject(
   node: ts.Node,
   checker: ts.TypeChecker,
   visited = new Set<ts.Node>(),
+  lookup = declarations,
 ): boolean {
   node = unwrapped(node);
   if (visited.has(node)) return false;
   visited.add(node);
   if (ts.isIdentifier(node)) {
-    const bindings = declarations(node, checker);
+    const bindings = lookup(node, checker);
     if (['globalThis', 'window', 'self', 'global'].includes(node.text) && bindings.length === 0)
       return true;
     return bindings.some(
       (declaration) =>
         ts.isVariableDeclaration(declaration) &&
         declaration.initializer !== undefined &&
-        globalObject(declaration.initializer, checker, visited),
+        globalObject(declaration.initializer, checker, visited, lookup),
     );
   }
   return false;
@@ -1278,11 +1279,28 @@ export function transportFindings(graph: SourceGraph): Finding[] {
 /** Browser persistence and script-readable cookies cannot become credential stores. */
 export function browserStorageFindings(graph: SourceGraph): Finding[] {
   const findings: Finding[] = [];
+  // Cache only context-free declarations within this fixed checker/analysis.
+  // Recursive boolean answers still depend on each path's visited set.
+  const bindings = new WeakMap<ts.Node, readonly ts.Declaration[]>();
+  const lookup: typeof declarations = (node, checker) => {
+    const cached = bindings.get(node);
+    if (cached !== undefined) return cached;
+    const current = declarations(node, checker);
+    bindings.set(node, current);
+    return current;
+  };
   for (const file of graph.files.values())
     walk(file, (node) => {
+      const expression = unwrapped(node);
+      if (
+        !ts.isIdentifier(expression) &&
+        !ts.isPropertyAccessExpression(expression) &&
+        !ts.isElementAccessExpression(expression)
+      )
+        return;
       if (
         ['localStorage', 'sessionStorage', 'indexedDB', 'cookieStore', 'document.cookie'].some(
-          (name) => globalBuiltin(node, name, graph.checker),
+          (name) => globalBuiltin(node, name, graph.checker, new Set(), lookup),
         )
       )
         findings.push(
@@ -2262,6 +2280,7 @@ function globalBuiltin(
   name: string,
   checker: ts.TypeChecker,
   visited = new Set<ts.Node>(),
+  lookup = declarations,
 ): boolean {
   node = unwrapped(node);
   if (visited.has(node)) return false;
@@ -2271,23 +2290,23 @@ function globalBuiltin(
   if (receiver && memberName(node, checker) === name.slice(dot + 1)) {
     if (
       dot < 0
-        ? globalObject(receiver, checker)
-        : globalBuiltin(receiver, name.slice(0, dot), checker, new Set(visited))
+        ? globalObject(receiver, checker, new Set(), lookup)
+        : globalBuiltin(receiver, name.slice(0, dot), checker, new Set(visited), lookup)
     )
       return true;
   }
-  if (ts.isIdentifier(node) && node.text === name && declarations(node, checker).length === 0)
+  if (ts.isIdentifier(node) && node.text === name && lookup(node, checker).length === 0)
     return true;
-  return declarations(node, checker).some((declaration) => {
+  return lookup(node, checker).some((declaration) => {
     if (ts.isVariableDeclaration(declaration) && declaration.initializer)
-      return globalBuiltin(declaration.initializer, name, checker, new Set(visited));
+      return globalBuiltin(declaration.initializer, name, checker, new Set(visited), lookup);
     if (ts.isBindingElement(declaration)) {
       const binding = objectBinding(declaration, checker);
       return (
         binding?.name === name.slice(dot + 1) &&
         (dot < 0
-          ? globalObject(binding.receiver, checker)
-          : globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited)))
+          ? globalObject(binding.receiver, checker, new Set(), lookup)
+          : globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited), lookup))
       );
     }
     return false;
