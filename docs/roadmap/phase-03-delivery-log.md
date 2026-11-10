@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,207 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,237 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -414,7 +414,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 26 lines
   - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 37 lines
   - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 29 lines
-  - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 43 lines
+  - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 44 lines
+  - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19099,3 +19100,33 @@ are source reviews, not additional suite executions or hosted qualification.
 P03-5 manual acceptance remains applicable to unchanged UI bytes. The next PR
 source is frozen for complete A/B; no single failed job or prior successful
 subset supplies that evidence.
+
+
+### P03-5 verified A and SDK compiler-state isolation (2026-11-10)
+
+Frozen head `3a7f99d6` / merge source `0a7ebd16` completes PR run `42795316208`
+attempt 1 A, 27/27 successful jobs. All 25 original ZIPs are API-size/SHA-256/CRC
+verified before whole-run B starts. Canonical unions reconcile 4,828 non-Docker
+and 3,690 Docker/native cases. The guarded frontend passes 4,058 web and 220 SDK
+reported cases, zero skips/todos, followed by native ingress/cleanup. OpenAPI's
+exact approved findings/inputs and both 60-control populations match; all 27
+Lighthouse pairs, nine screenshots, hard budgets and cleanup validate. This
+establishes A only, not complete A/B.
+
+Whole-run attempt 2 B passes all 4,058 web cases but SDK reports 219 passed and
+one failed. The ownership compiler's compound case takes 5,173 ms against the
+default 5,000-ms per-case threshold. It performs three independent complete
+TypeScript compilations: admitted production, unowned generated GET refusal and
+the removed-binding counterexample. The wrong-wrapper compilation is separate.
+No aggregate deadline or product/runtime failure is shown.
+
+Those four existing compiler oracles become four independent Vitest cases,
+instead of placing three in one case. Sources, compiler options, diagnostics and
+all assertions remain; no cache, stub, skipped control or timer override is added.
+Each oracle keeps the existing five-second per-case limit; SDK's 360-second
+aggregate, two file workers and all other settings remain. Decomposition changes
+registration from two to four cases and permits all oracles to run independently
+after a failure; it is not an unchanged compound-case clock or a new fit guarantee.
+Focused controls pass 4/4 in 3.040 seconds wall, each compilation 104–378 ms
+locally. Scoped lint and SDK type checking pass. The failed B remains unqualified;
+the correction owes focused review and new-source complete A/B.
