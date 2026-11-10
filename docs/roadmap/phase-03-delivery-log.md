@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,163 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,198 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -413,7 +413,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0096 exact Git-snapshot admission implementation (2026-11-10)](#adr-0096-exact-git-snapshot-admission-implementation-2026-11-10) — 40 lines
   - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 26 lines
   - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 37 lines
-  - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 28 lines
+  - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 29 lines
+  - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19054,3 +19055,38 @@ backend authentication or lifetime proof. Prior P03-4 observations are not reuse
 Manual P03-5 evidence is accepted. The isolated review environment can retire
 through its owned graceful cleanup. Fresh final-source hosted A/B and original
 archive reconciliation remain open; PR #42 stays ready for review and unmerged.
+
+
+### P03-5 provenance child failure and bounded diagnosis (2026-11-10)
+
+New PR A `42791149497`, head `97ec2ab3` / merge source `e69e9dfb`, passes the
+corrected meta witness and all 312 source-boundary cases. Web completes all 124
+files: 4,054 reported cases pass and one provenance wrapper fails. Its Node child
+returns nonzero after 32.017 seconds; the 90-second signal threshold is not shown
+as the cause. The preceding PR A passed this unchanged wrapper in 49.454 seconds.
+Captured child TAP is absent from the public failure, leaving the failing control
+and whether registration completed unknown. No root cause or hosted fit is claimed.
+
+Direct controls over unchanged source pass 112/112 with zero failures, skips or
+cancellations: macOS 23.103 seconds wall; a fresh isolated Linux arm64 install
+under Node 22.23.1/pnpm 9.12.3 passes in 20.379 seconds TAP duration with two CPU
+and 4-GiB allocations. The task-owned Linux container exits zero and is removed.
+Neither run reproduces concurrent hosted x64 execution. Private TAP/install
+records are retained; no timer, worker, scope or runtime-policy change follows
+from these observations. The correction adds only finite failure attribution
+and privacy controls before a new complete-source CI attempt.
+
+The provenance wrapper retains its 90/100-second settings, 112-control population
+and all five completion-summary assertions. Its failure projection reads own data
+only and emits fixed classifications, bounded status/signal/code/elapsed values
+and a contiguous TAP prefix capped at 112 and 65,536 bytes. Raw names, messages,
+paths, causes and stdout/stderr are not emitted. Count mismatches remain failed;
+the synchronous closed-error boundary and explicit piped stdio prevent child
+payload forwarding. Existing router projection fields/caps remain unchanged.
+
+The relevant privacy suites pass 21/21, including getter/canary/malformed/oversize
+controls, actual wrapper/emitter VM controls and real inert-child stdio checks.
+Scoped lint and web type checking pass. The actual provenance Vitest wrapper then
+passes 1/1 in 34.719 seconds wall. These observations repair diagnostic blindness,
+not the unproven underlying cause. Focused independent review follows the commit;
+new final-source A/B and original evidence are still required.

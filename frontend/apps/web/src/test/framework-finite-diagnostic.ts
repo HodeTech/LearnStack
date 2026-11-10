@@ -282,7 +282,7 @@ const viewBytes = Object.getOwnPropertyDescriptor(typedArray, 'byteLength')!.get
 const viewBuffer = Object.getOwnPropertyDescriptor(typedArray, 'buffer')!.get!;
 const viewOffset = Object.getOwnPropertyDescriptor(typedArray, 'byteOffset')!.get!;
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-function completedControls(script: string, error: object) {
+function completedControls(maximum: number, error: object) {
   try {
     const field = Object.getOwnPropertyDescriptor(error, 'stdout');
     if (!field || !Object.hasOwn(field, 'value')) return null;
@@ -303,8 +303,6 @@ function completedControls(script: string, error: object) {
         ),
       );
     } else return null;
-    const maximum = scriptCaps[script];
-    if (maximum === undefined) return null;
     let count = 0;
     // A timeout may cut a status row midway. Its unterminated tail earns no count.
     for (const line of text.split(/\r?\n/).slice(0, -1)) {
@@ -358,12 +356,68 @@ export function routerDiagnostic(script: unknown, error: unknown, elapsed: numbe
       status,
       signal,
       elapsedMs,
-      completedControls: completedControls(script, error),
+      completedControls: completedControls(scriptCaps[script]!, error),
     };
   } catch {
     return null;
   }
 }
+// Provenance catches may carry arbitrary payloads; accessors are never invoked.
+function ownData(error: object, name: string): unknown {
+  const field = Object.getOwnPropertyDescriptor(error, name);
+  return field && Object.hasOwn(field, 'value') ? field.value : undefined;
+}
+export function provenanceDiagnostic(error: unknown, elapsed: number) {
+  try {
+    if (!error || typeof error !== 'object') return null;
+    const rawStatus = ownData(error, 'status');
+    const rawSignal = ownData(error, 'signal');
+    const rawCode = ownData(error, 'code');
+    const status =
+      typeof rawStatus === 'number' &&
+      Number.isSafeInteger(rawStatus) &&
+      rawStatus >= 0 &&
+      rawStatus <= 255
+        ? rawStatus
+        : null;
+    const signal = has(signals, rawSignal) ? rawSignal : null;
+    const code = rawCode === 'ETIMEDOUT' || has(spawnCodes, rawCode) ? rawCode : null;
+    return {
+      schema: 1,
+      kind: 'framework-provenance-control-failure',
+      class:
+        code === 'ETIMEDOUT'
+          ? 'timeout'
+          : status !== null
+            ? 'status'
+            : signal !== null
+              ? 'signal'
+              : code !== null
+                ? 'spawn'
+                : 'unknown',
+      status,
+      signal,
+      code,
+      elapsedMs:
+        Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 100_000 ? Math.round(elapsed) : null,
+      completedControls: completedControls(112, error),
+    };
+  } catch {
+    return null;
+  }
+}
+export function provenanceCountDiagnostic(counter: unknown, elapsed: number) {
+  if (!has(['tests', 'pass', 'fail', 'cancelled', 'skipped'], counter)) return null;
+  return {
+    schema: 1,
+    kind: 'framework-provenance-control-failure',
+    class: 'count-mismatch',
+    counter,
+    elapsedMs:
+      Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 100_000 ? Math.round(elapsed) : null,
+  };
+}
+
 /** Report only the fixed failing TAP counter; never inspect or publish stdout. */
 export function routerCountDiagnostic(script: unknown, counter: unknown, elapsed: number) {
   if (
@@ -397,3 +451,8 @@ export const emitRouterDiagnostic = (script: unknown, error: unknown, elapsed: n
   emit(routerDiagnostic(script, error, elapsed));
 export const emitRouterCountDiagnostic = (script: unknown, counter: unknown, elapsed: number) =>
   emit(routerCountDiagnostic(script, counter, elapsed));
+
+export const emitProvenanceDiagnostic = (error: unknown, elapsed: number) =>
+  emit(provenanceDiagnostic(error, elapsed));
+export const emitProvenanceCountDiagnostic = (counter: unknown, elapsed: number) =>
+  emit(provenanceCountDiagnostic(counter, elapsed));

@@ -19,9 +19,12 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { afterEach, expect, it, vi } from 'vitest';
 
+import type * as FiniteDiagnostic from './framework-finite-diagnostic';
 import {
   bodylessFailureLine,
   ownershipDiagnostic,
+  provenanceCountDiagnostic,
+  provenanceDiagnostic,
   routerCountDiagnostic,
   routerDiagnostic,
 } from './framework-finite-diagnostic';
@@ -701,6 +704,208 @@ it('observes only a bounded contiguous TAP prefix without granting success or re
   expect(routerDiagnostic(script, { code: 'ETIMEDOUT' }, 10000)?.completedControls).toBeNull();
 });
 
+it('projects provenance failures from own finite data without invoking caught accessors', () => {
+  const payload = {
+    status: 3,
+    signal: 'SIGTERM',
+    code: 'ETIMEDOUT',
+    stdout: `ok 1 - ${canary}\n`,
+    stderr: canary,
+    message: canary,
+    stack: canary,
+    cause: canary,
+  };
+  expect(provenanceDiagnostic(payload, 32017.4)).toEqual({
+    schema: 1,
+    kind: 'framework-provenance-control-failure',
+    class: 'timeout',
+    status: 3,
+    signal: 'SIGTERM',
+    code: 'ETIMEDOUT',
+    elapsedMs: 32017,
+    completedControls: 1,
+  });
+  let reads = 0;
+  const accessor = Object.create(payload);
+  for (const name of ['status', 'signal', 'code', 'stdout', 'message', 'stack', 'stderr', 'cause'])
+    Object.defineProperty(accessor, name, {
+      get() {
+        reads++;
+        throw new Error(canary);
+      },
+    });
+  expect(provenanceDiagnostic(accessor, Infinity)).toMatchObject({
+    class: 'unknown',
+    status: null,
+    signal: null,
+    code: null,
+    elapsedMs: null,
+    completedControls: null,
+  });
+  expect(provenanceDiagnostic(Object.create(payload), -1)).toMatchObject({
+    class: 'unknown',
+    status: null,
+    signal: null,
+    code: null,
+    completedControls: null,
+  });
+  expect(reads).toBe(0);
+  for (const bad of [null, undefined, canary, 3]) expect(provenanceDiagnostic(bad, 1)).toBeNull();
+  for (const status of [-1, 256, 1.5, NaN, Infinity, Object(3)])
+    expect(provenanceDiagnostic({ status }, 1)?.status).toBeNull();
+  for (const [input, expected] of [
+    [{ status: 1 }, 'status'],
+    [{ signal: 'SIGKILL' }, 'signal'],
+    [{ code: 'ENOENT' }, 'spawn'],
+    [{ status: canary, signal: canary, code: canary }, 'unknown'],
+  ] as const) {
+    const result = provenanceDiagnostic(input, 1);
+    expect(result?.class).toBe(expected);
+    expect(JSON.stringify(result)).not.toContain(canary);
+  }
+  for (const counter of ['tests', 'pass', 'fail', 'cancelled', 'skipped'])
+    expect(provenanceCountDiagnostic(counter, 4)).toEqual({
+      schema: 1,
+      kind: 'framework-provenance-control-failure',
+      class: 'count-mismatch',
+      counter,
+      elapsedMs: 4,
+    });
+  for (const counter of [canary, 'todo', {}, null])
+    expect(provenanceCountDiagnostic(counter, 1)).toBeNull();
+});
+
+it('caps provenance TAP observations at 112 without reading payload getters or malformed bytes', () => {
+  const passed = (count: number) =>
+    Array.from({ length: count }, (_, index) => `ok ${index + 1} - ${canary}\n`).join('');
+  const observe = (stdout: unknown) => provenanceDiagnostic({ status: 1, stdout }, 32017);
+  expect(observe(passed(112))?.completedControls).toBe(112);
+  expect(observe(passed(2) + `not ok 3 - ${canary}\nok 4 - ${canary}\n`)?.completedControls).toBe(
+    2,
+  );
+  expect(observe(passed(1) + 'ok 2 - partial')?.completedControls).toBe(1);
+  const exact = passed(1) + '#'.repeat(65536 - Buffer.byteLength(passed(1)));
+  expect(observe(Buffer.from(exact))?.completedControls).toBe(1);
+  for (const stdout of [
+    passed(113),
+    'ok 2 - gap\n',
+    passed(1) + 'ok 1 - duplicate\n',
+    'ok 01 - malformed\n',
+    'ok 1 malformed\n',
+    Buffer.from([0xff]),
+    Buffer.alloc(65537),
+    'é'.repeat(32769),
+    Object(passed(1)),
+    {},
+    new Uint8Array([1]),
+  ])
+    expect(observe(stdout)?.completedControls).toBeNull();
+  let reads = 0;
+  const bytes = Buffer.from(passed(2));
+  for (const name of ['toString', 'length', 'byteLength', 'byteOffset', 'buffer'])
+    Object.defineProperty(bytes, name, {
+      get() {
+        reads++;
+        throw new Error(canary);
+      },
+    });
+  expect(observe(bytes)?.completedControls).toBe(2);
+  expect(reads).toBe(0);
+  expect(JSON.stringify(observe(passed(2)))).not.toContain(canary);
+});
+
+it('executes the actual provenance wrapper and emitter with closed process and count failures', () => {
+  const name = 'framework-provenance.test.ts';
+  const text = readFileSync(new URL('./' + name, import.meta.url), 'utf8');
+  assertClosedCallbacks(name, text, 1);
+  const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true);
+  const declaration = file.statements.find(
+    (node) => ts.isExpressionStatement(node) && ts.isCallExpression(node.expression),
+  );
+  if (
+    !declaration ||
+    !ts.isExpressionStatement(declaration) ||
+    !ts.isCallExpression(declaration.expression)
+  )
+    throw new Error('Provenance callback refused');
+  const callback = declaration.expression.arguments[1]!;
+  const program = ts.transpileModule(
+    `(${callback.getText(file)})();`.replaceAll(
+      'import.meta.url',
+      JSON.stringify('file:///frontend/apps/web/src/test/' + name),
+    ),
+    {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+    },
+  ).outputText;
+  const emitterSource = ts.transpileModule(
+    readFileSync(new URL('./framework-finite-diagnostic.ts', import.meta.url), 'utf8'),
+    {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    },
+  ).outputText;
+  const counts = ['tests', 'pass', 'fail', 'cancelled', 'skipped'] as const;
+  const summary = counts
+    .map((counter) => `# ${counter} ${['tests', 'pass'].includes(counter) ? 112 : 0}\n`)
+    .join('');
+  for (const scenario of ['process', 'sink', 'success', ...counts]) {
+    const writes: string[] = [];
+    const exports = {} as typeof FiniteDiagnostic;
+    runInNewContext(emitterSource, {
+      exports,
+      Buffer,
+      TextDecoder,
+      require: (name: string) => {
+        if (name === 'node:util') return { TextDecoder };
+        if (name !== 'node:fs') throw new Error('Unexpected diagnostic dependency');
+        return {
+          writeSync: (fd: number, line: string) => {
+            expect(fd).toBe(2);
+            if (scenario === 'sink') throw new Error(canary);
+            writes.push(line);
+          },
+        };
+      },
+    });
+    let options: unknown;
+    const run = () =>
+      runInNewContext(program, {
+        URL,
+        fileURLToPath,
+        expect,
+        closedFrameworkProofSync,
+        ...exports,
+        process: { execPath: process.execPath, env: { PATH: process.env.PATH } },
+        performance: { now: () => 12 },
+        execFileSync: (_command: unknown, _args: unknown, received: unknown) => {
+          options = received;
+          if (scenario === 'process' || scenario === 'sink')
+            throw Object.assign(new Error(canary), {
+              status: 1,
+              stdout: `ok 1 - ${canary}\nnot ok 2 - ${canary}\n`,
+              stderr: canary,
+            });
+          return scenario === 'success'
+            ? summary
+            : summary.replace(`# ${scenario} `, `# ${canary} `);
+        },
+      });
+    if (scenario === 'success') expect(run).not.toThrow();
+    else refuses(run);
+    expect(options).toMatchObject({
+      timeout: 90_000,
+      maxBuffer: 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' },
+    });
+    expect(writes.join('')).not.toContain(canary);
+    expect(writes).toHaveLength(['sink', 'success'].includes(scenario) ? 0 : 1);
+    if (scenario === 'process') expect(writes[0]).toContain('"completedControls":1');
+    if (counts.includes(scenario as (typeof counts)[number]))
+      expect(writes[0]).toContain(`"counter":"${scenario}"`);
+  }
+});
+
 // The receiver intentionally revalidates. Its finite set must track the actual validator.
 it('keeps receiver cases, stages and admission reasons equal to matrix authority', () => {
   const matrix = readFileSync(
@@ -1306,6 +1511,7 @@ it('keeps every closed Step 3 wrapper callback inside the synchronous boundary',
     ['framework-router-matrix.test.ts', 2],
     ['framework-router-faults.cases.ts', 2],
     ['framework-response-bodyless.test.ts', 1],
+    ['framework-provenance.test.ts', 1],
     ['framework-runtime-ownership.test.ts', 2],
     ['framework-runtime-workers.cases.ts', 1],
     ['framework-runtime-recovery.cases.ts', 1],

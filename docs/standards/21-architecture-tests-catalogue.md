@@ -6603,7 +6603,10 @@ Prior receipts do not qualify subsequent source changes.
   and primitive outer-owner/proof-channel status, without claiming runtime-child
   retirement. Router source controls expose fixed names and bounded primitive
   classifications and a bounded observed TAP prefix, without raw caught
-  payloads or stdout text. Unavailable/buffered progress is not proof of no work;
+  payloads or stdout text. The provenance wrapper separately exposes only bounded
+  process classification and a current contiguous TAP prefix capped at its 112
+  controls; names, messages, paths and raw output remain private. Unavailable or
+  buffered progress is not proof of no work;
   observed progress cannot qualify a failed process. Closed-error and reporter canary
   controls preserve that boundary, including actual copied-wrapper children,
   dirty schemas and a sink closed after the observed child result. Diagnostic
