@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 530 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 553 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -399,7 +399,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 1 source correction and foundation boundary (2026-11-10)](#p03-5-step-1-source-correction-and-foundation-boundary-2026-11-10) — 28 lines
   - [P03-5 Step 1 implementation and first review handoff (2026-11-10)](#p03-5-step-1-implementation-and-first-review-handoff-2026-11-10) — 48 lines
   - [P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)](#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) — 43 lines
-  - [P03-5 Step 2 value and consent implementation handoff (2026-11-10)](#p03-5-step-2-value-and-consent-implementation-handoff-2026-11-10) — 52 lines
+  - [P03-5 Step 2 value and consent implementation handoff (2026-11-10)](#p03-5-step-2-value-and-consent-implementation-handoff-2026-11-10) — 53 lines
+  - [P03-5 Step 2 two-round review closeout (2026-11-10)](#p03-5-step-2-two-round-review-closeout-2026-11-10) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18407,3 +18408,26 @@ reconciliation privacy repair. These local results do not replace the complete
 combined suite or final-source hosted A/B/original-archive qualification in Step 4.
 The production consent source, schema/wire numeric roundtrips, encoded payload
 budgets, HMAC and actual browser/native journeys remain Step 3 work in this packet.
+
+
+### P03-5 Step 2 two-round review closeout (2026-11-10)
+
+Step 2's source is committed as `fee7173e`. Its first fresh review round uses
+Sol/Terra high reviewers for values/authorization/concurrency and consent owner/
+privilege/privacy/audit/cleanup. Its second round uses two different fresh
+Terra/Sol high reviewers for adversarial authority/lifetime paths and value/form/
+numeric/consent/performance. Each reads `eece51c6..fee7173e` against the Accepted
+contract and relevant canonical annexes. Both rounds report no verified actionable
+finding; no review correction commit is required. These are independent static
+reviews, not reruns or an assertion of hosted qualification.
+
+The implementation handoff above owns the local 3,702-unit/177-architecture/
+126-PostgreSQL results and the demonstrated reconciliation privacy correction.
+The working tree is clean after the source commit. Step 2 closes for its accepted
+application/storage/kernel scope and Step 3 proceeds automatically. Its actual
+credential source, API/OpenAPI/SDK/native parsers, scoped HMAC/replay, tenth
+capability and accessible UI activate together; source-only witness tests are not
+borrowed as credential or browser proof. Normalized schema/number wire handling
+and the separate serialized/encoded bounds remain explicit Step 3 checks. Step 4
+still owns the complete combined suites, final-source hosted A/B/original archives
+and truthful human evidence before the packet's PR. No merge is authorized.
