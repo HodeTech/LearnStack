@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,620 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,635 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -426,7 +426,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 SDK patch parity review closeout (2026-11-11)](#p03-5-sdk-patch-parity-review-closeout-2026-11-11) — 23 lines
   - [P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)](#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) — 41 lines
   - [P03-5 cleanup attribution review closeout (2026-11-11)](#p03-5-cleanup-attribution-review-closeout-2026-11-11) — 22 lines
-  - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 29 lines
+  - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
+  - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 14 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19524,3 +19525,18 @@ local timings are observations, not a hosted minimum, root-cause attribution or
 fit guarantee. All eleven browser-storage mutants, local-injection acceptance,
 production scanning, file discovery, worker counts and time limits remain intact.
 The correction receives two fresh independent reviews before the next source push.
+
+
+### P03-5 browser-custody work reduction review closeout (2026-11-11)
+
+Fresh Sol/medium R1 and independent Terra/medium R2 approve `a960b1d1` with no
+verified findings. Both check declaration-only caching, fixed-checker/call
+lifetime, alias/cycle visited sets, the unwrapped syntax prefilter and original
+finding locations/order. The query-count/dirty-restore control and the complete
+313-case result stand; neither reviewer repeats the suite or claims hosted fit.
+
+No additional implementation change follows the reviews. The source returns to
+complete A, retained/audited originals, then whole B. A predecessor's failed or
+superseded run remains separately retained without qualification credit. The
+existing five-second case threshold and every other runtime/test/job bound remain
+unchanged. No new ADR or maintainer decision is needed for this work reduction.
