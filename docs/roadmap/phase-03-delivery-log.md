@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,237 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,247 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -415,7 +415,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 37 lines
   - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 29 lines
   - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 44 lines
-  - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 29 lines
+  - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19130,3 +19130,13 @@ after a failure; it is not an unchanged compound-case clock or a new fit guarant
 Focused controls pass 4/4 in 3.040 seconds wall, each compilation 104–378 ms
 locally. Scoped lint and SDK type checking pass. The failed B remains unqualified;
 the correction owes focused review and new-source complete A/B.
+
+Whole-run B completes 26/27, with only the SDK compound-case timeout; all 25
+original ZIPs are retained and API-size/SHA-256/CRC verified, without qualification.
+Correction `2e24a873` receives two sequential fresh focused source reviews,
+Luna/medium R1 then Sol/medium R2. Both find no verified Blocker, Major or Minor:
+all four oracles, fresh compiler hosts/Programs, immutable inputs and exact
+diagnostic assertions remain; the changed registration/timing boundary is
+explicit. These reviews run no additional suites. No source cache, timer override
+or product change is introduced. New-source whole A/B follows; earlier A is not
+relabelled as proof of the correction.
