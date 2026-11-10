@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,368 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,387 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -417,7 +417,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 44 lines
   - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 40 lines
   - [P03-5 complete A/B evidence and PR review corrections (2026-11-10)](#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10) — 101 lines
-  - [P03-5 PR correction review round 1 (2026-11-10)](#p03-5-pr-correction-review-round-1-2026-11-10) — 19 lines
+  - [P03-5 PR correction review round 1 (2026-11-10)](#p03-5-pr-correction-review-round-1-2026-11-10) — 20 lines
+  - [P03-5 PR correction second review and CI handoff (2026-11-10)](#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19263,3 +19264,22 @@ semantic parity) and web type checking pass. This focused result follows the
 complete 4,289-case run above; it does not relabel that earlier run as execution
 of the new regression. No deadline or permission changes. A second fresh review
 covers the resulting cumulative correction before the single push.
+
+
+### P03-5 PR correction second review and CI handoff (2026-11-10)
+
+Fresh Terra/high R2 independently reviews cumulative `1c1f4f80..6938c8b1`,
+including the first-round optional-title correction. It finds no verified
+Blocker, Major or Minor. Interactive/native control labels and submission,
+bounded retained drafts, Sensitive response/UI refusal, CSRF, backend changes,
+ADR corrections, approval handling and current documentation are checked.
+Read-only review and diff checks add no heavy-suite or hosted qualification claim.
+
+The confirmed review findings and first-round regression are fixed and committed;
+current DB-clock cooldown, confidentiality, retained personal authority and
+fresh-output/ref-selection controls remain. No new ADR, permission, migration,
+timeout or worker change is needed. One final-source push updates the existing
+ready, unmerged PR #42. Complete A, then whole B on that unchanged source and
+original archive/plan/toolchain/population/layout verification remain the hosted
+qualification procedure. Results are source-bound in PR #42; the recorded prior
+pair above remains historical evidence rather than credit for these corrections.
