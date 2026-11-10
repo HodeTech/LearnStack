@@ -687,6 +687,16 @@ record. The canonical function/setter inventories remain Standard 05/11: twelve
 confined definers, twelve logical setters and four physical writers. Historical
 records and the Decision remain unchanged; no new global authority follows.
 
+### Amendment 2 — separate administration compatibility transition (2026-11-10)
+
+[ADR-0096](0096-p035-administration-contract-baseline.md) supplies the separately
+approved pre-MVP transport transition required by this record's v3 administration
+contract. It does not alter this Decision, its permission adoption, field/consent
+or authority rules. This navigation Amendment records the later compatibility
+owner without rewriting the historical body. The exact contract/finding identity
+admission and coordinated consumer update are ADR-0096's responsibility; runtime
+checks, human observations and complete hosted A/B remain Phase 03 qualification.
+
 ## References
 
 - [ADR-0043](0043-customization-payload-validation.md),

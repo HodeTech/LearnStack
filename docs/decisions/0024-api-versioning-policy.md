@@ -356,6 +356,20 @@ the packet that adds the first `/api/v2`. This amendment exists so that packet
 inherits an instruction it can follow rather than one it has to reinterpret.
 
 
+### Amendment 2 — bounded P03-5 compatibility successor (2026-11-10)
+
+[ADR-0096](0096-p035-administration-contract-baseline.md) narrowly supersedes this
+record's new-major requirement for its exact prior/reviewed P03-5 snapshot pair,
+complete finding sets and pinned comparison identities. The maintainer confirms
+development-only/no-active-use outside the coordinated API/SDK/native/web bundle.
+This is an approved incompatibility; an altered carrier, unexpected finding or
+failed tool/control cannot obtain approval. All other transitions retain this
+record's versioning and coexistence requirements. ADR-0024 remains Accepted and
+its body is the historical decision; only this clause is superseded for the
+named transition. API 04, Testing 06, the existing served-contract rule and the
+OpenAPI Git-snapshot gate carry the successor. Runtime behavior and final-source
+hosted A/B remain independently required.
+
 ## References
 
 - [Standards 04 § Versioning](../standards/04-api-design.md)

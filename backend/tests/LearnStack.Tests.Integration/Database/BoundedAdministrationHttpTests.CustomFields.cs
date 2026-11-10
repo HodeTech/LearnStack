@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LearnStack.Tools.Seeder;
 using Xunit;
 using static LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpProof;
@@ -20,17 +21,40 @@ public sealed partial class BoundedAdministrationHttpTests
         using (var before = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
             Assert.False((await JsonAsync(before)).GetProperty("canManageCustomFields").GetBoolean());
         using (var denied = await SendAsync(client, admin, definitions, "POST", input, key: Key())) Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        using (var registry = await SendAsync(client, admin, "/api/v1/identity/permissions"))
+        {
+            var actual = await JsonAsync(registry);
+            AssertRegistryRuntime(actual, 2, 8);
+            // The same JSON/OpenAPI shape can carry the wrong release semantics.
+            var counterfeit = JsonNode.Parse(actual.GetRawText())!;
+            counterfeit["release"]!["version"] = 3;
+            var altered = JsonSerializer.SerializeToElement(counterfeit);
+            Assert.Equal(actual.EnumerateObject().Select(x => x.Name), altered.EnumerateObject().Select(x => x.Name));
+            Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => AssertRegistryRuntime(altered, 2, 8));
+        }
         for (var source = 1; source <= 2; source++)
         {
             using var registry = await SendAsync(client, admin, "/api/v1/identity/permissions?sourceReleaseVersion=" + source);
-            var release = (await JsonAsync(registry)).GetProperty("release");
-            Assert.Equal(source + 1, release.GetProperty("version").GetInt32());
+            var registryBody = await JsonAsync(registry);
+            AssertRegistryRuntime(registryBody, source + 1, source == 1 ? 8 : 9);
+            var release = registryBody.GetProperty("release");
             var body = JsonSerializer.Serialize(new { manifestVersion = source + 1, manifestFingerprint = release.GetProperty("fingerprint").GetString() });
             await MutateAsync(client, admin, "POST", "/api/v1/identity/roles/" + role + "/manifest-adoptions", body,
                 await ResourceVersionAsync(client, admin, "/api/v1/identity/roles/" + role), Key());
         }
         using (var after = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
-            Assert.True((await JsonAsync(after)).GetProperty("canManageCustomFields").GetBoolean());
+        {
+            var capabilities = await JsonAsync(after);
+            Assert.Equal(10, capabilities.EnumerateObject().Count());
+            Assert.True(capabilities.GetProperty("canManageCustomFields").GetBoolean());
+        }
+        using (var currentRole = await SendAsync(client, admin, "/api/v1/identity/roles/" + role))
+        {
+            var detail = await JsonAsync(currentRole);
+            Assert.Equal(3, detail.GetProperty("adoptedReleaseVersion").GetInt32());
+            var actual = detail.GetProperty("grants").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
+            Assert.Equal(KernelAndTenancyKeys.Append("identity.membership_profile.write").Append("customization.custom_field.admin").Order(StringComparer.Ordinal), actual.Order(StringComparer.Ordinal));
+        }
         var boundary = AuthoringBoundaryBody();
         Assert.Equal(4096, System.Text.Encoding.UTF8.GetByteCount(boundary));
         using (var wire = JsonDocument.Parse(boundary))
@@ -84,6 +108,30 @@ public sealed partial class BoundedAdministrationHttpTests
         using (var response = await SendAsync(client, admin, definitions + "/" + draft.GetProperty("id").GetString() + "/discard", "POST", "{}", draft.GetProperty("version").GetString(), Key())) await JsonAsync(response);
         using (var replay = await SendAsync(client, admin, definitions, "POST", DefinitionBody(2), key: draftKey))
         { Assert.Equal(draft.GetRawText(), (await JsonAsync(replay, HttpStatusCode.Created)).GetRawText()); Assert.Equal("customization.custom_field.read_receipt", Assert.Single(await proof.AuditAsync(replay, Tenant)).Operation); }
+
+        // Replacement is complete: omitting the v3 grant removes its actual authority.
+        using (var currentRole = await SendAsync(client, admin, "/api/v1/identity/roles/" + role))
+        {
+            var detail = await JsonAsync(currentRole);
+            var retained = detail.GetProperty("grants").EnumerateArray()
+                .Where(grant => grant.GetProperty("key").GetString() != "customization.custom_field.admin")
+                .Select(grant => new { scope = grant.GetProperty("scope").GetString(), key = grant.GetProperty("key").GetString() }).ToArray();
+            await MutateAsync(client, admin, "PUT", "/api/v1/identity/roles/" + role + "/grants",
+                JsonSerializer.Serialize(new { grants = retained }), detail.GetProperty("version").GetString()!, Key());
+        }
+        using (var afterRemoval = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
+            Assert.False((await JsonAsync(afterRemoval)).GetProperty("canManageCustomFields").GetBoolean());
+        using (var deniedAgain = await SendAsync(client, admin, definitions, "POST", input, key: Key()))
+            Assert.Equal(HttpStatusCode.Forbidden, deniedAgain.StatusCode);
+    }
+    private static void AssertRegistryRuntime(JsonElement registry, int releaseVersion, int count)
+    {
+        Assert.Equal(count, registry.GetProperty("items").GetArrayLength());
+        Assert.Equal(releaseVersion, registry.GetProperty("release").GetProperty("version").GetInt32());
+        var custom = registry.GetProperty("items").EnumerateArray().Where(x =>
+            x.GetProperty("key").GetString() == "customization.custom_field.admin").ToArray();
+        Assert.Equal(releaseVersion == 3 ? 1 : 0, custom.Length);
+        if (custom.Length != 0) Assert.Equal("Tenant", custom[0].GetProperty("scope").GetString());
     }
     private static string AuthoringBoundaryBody()
     {

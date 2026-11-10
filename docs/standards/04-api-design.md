@@ -75,6 +75,13 @@ Summary so reviewers don't have to chase a link to know the shape:
   [ADR-0019](../decisions/0019-learnstack-hub.md) and is not governed by
   ADR-0024.
 
+[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) grants one
+bounded pre-MVP exception to the new-major requirement. Only its exact snapshots,
+full findings and comparison identities can obtain explicit Git-backed approval;
+all other changes retain ADR-0024. This does not establish runtime behavior or
+permit mixed old/new consumers. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
+owns implementation and qualification.
+
 For the breaking/non-breaking matrix, the exact header set
 (`Deprecation` per RFC 9745, `Sunset` per RFC 8594, `Link:
 rel="successor-version"`), OpenAPI extensions (`x-sunset` / `x-successor`

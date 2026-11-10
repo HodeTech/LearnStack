@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 976 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,031 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -408,7 +408,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 4 two-round review and frontend census correction (2026-11-10)](#p03-5-step-4-two-round-review-and-frontend-census-correction-2026-11-10) — 42 lines
   - [P03-5 hosted incompatibility and proposed administration baseline (2026-11-10)](#p03-5-hosted-incompatibility-and-proposed-administration-baseline-2026-11-10) — 46 lines
   - [P03-5 hosted failure corrections and human UX environment (2026-11-10)](#p03-5-hosted-failure-corrections-and-human-ux-environment-2026-11-10) — 77 lines
-  - [P03-5 complete local frontend guard after corrections (2026-11-10)](#p03-5-complete-local-frontend-guard-after-corrections-2026-11-10) — 16 lines
+  - [P03-5 complete local frontend guard after corrections (2026-11-10)](#p03-5-complete-local-frontend-guard-after-corrections-2026-11-10) — 17 lines
+  - [ADR-0096 maintainer review disposition and acceptance (2026-11-10)](#adr-0096-maintainer-review-disposition-and-acceptance-2026-11-10) — 54 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18862,3 +18863,58 @@ The maintainer's human observations remain pending; no completion is inferred
 from preparing or opening the pages. Proposed ADR-0096 is still awaiting explicit
 approval and the required no-old-external-consumer confirmation. No compatibility
 exception, new hosted attempt, ready PR or merge is made by this record.
+
+
+### ADR-0096 maintainer review disposition and acceptance (2026-11-10)
+
+The maintainer explicitly approves correction and implementation of ADR-0096 and
+confirms: the application is not actively used and remains in development, so old
+consumer coexistence is not required. This is the durable usage/approval record;
+no repository search or telemetry is presented as proof of absent consumers.
+The boundary covers consumers outside the coordinated API/SDK/native/web bundle,
+including separate internal/operator integrations.
+
+Verified review findings are incorporated before executable gate changes:
+
+- A carrier alone must not repoint approval: every count/digest is bound to the
+  corresponding table in Accepted ADR-0096, read from the verified head. All
+  non-Accepted/missing lifecycle states refuse approval.
+- Matching snapshot hashes do not approve arbitrary findings. Full strict-JSON
+  canonical sets are pinned separately: raw 5, normalized 5, companion 54. Added,
+  removed, duplicated or modified findings/fields refuse. The actual unchanged
+  comparator, configuration, severity, fixture sources and checksum-verified
+  Linux AMD64 tool bytes are pinned too; receipt declarations are not authority.
+- Only the verified Git-snapshot wrapper can approve. Raw-file, fixture and
+  bootstrap paths cannot. Fresh existing policy controls must pass before
+  approved success; failures and incomplete reports remain failures.
+- Snapshot equality does not bind handler/SDK behavior. Final-source actual
+  registry selectors, v3 Role detail, capabilities and complete replacement tests
+  remain required, with a same-shape incorrect-response counterexample. The
+  request-side 8-to-9 grant loosening and optional sourceReleaseVersion selector
+  are listed as normally non-breaking, outside the exception.
+- The fixed single carrier path/schema, retained/idempotent exact-pair meaning,
+  coordinated deployment/forward repair and unexpected old-parser reopen trigger
+  are explicit. ADR-0024 receives a bounded-supersession Amendment while staying
+  Accepted; ADR-0095 receives a navigation Amendment without Decision changes.
+
+CODEOWNERS and a general pre-MVP waiver are not introduced. They are unnecessary
+for this bounded approved change; repository review still governs edits to the
+admission implementation itself. The existing terms are used without adding
+synonymous glossary entries.
+
+The original 23 ZIPs remain retained. The actual tool binary digest and the three
+canonical finding digests derive from the original checksum/CRC-verified OpenAPI
+archive; all compared source input bytes remain unchanged. Acceptance is not
+implementation or qualification. The next coherent change owns the fixed carrier,
+fail-closed admission, meaningful controls and canonical guidance. It then owes
+two independent implementation review rounds and complete final-source A/B with
+original archives. Human P03-5 observations remain pending; no merge is authorized.
+
+
+Acceptance validation: corrected decision/index/Status and dated ADR-0024/0095
+Amendments pass lifecycle, fragment and roadmap guards. Before gate code lands,
+the expanded actual HTTP v3 registry/Role/capability/complete-replacement lifecycle
+passes 1/1 against the ordinary app-role database, and its SDK population passes
+46/46. The wrong-release response retains the schema shape but fails the runtime
+oracle/SDK contract checks. Release builds with zero warnings/errors. These
+focused observations do not replace final frozen-source API/SDK and hosted proof.

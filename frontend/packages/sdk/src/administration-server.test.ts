@@ -32,6 +32,42 @@ const problem = (status: number, code: string) =>
   );
 
 describe('closed administration server SDK', () => {
+  it('checks runtime release semantics even when a response keeps the same schema shape', async () => {
+    const pairs = [
+      ['Tenant', 'identity.membership.admin'],
+      ['Organization', 'identity.membership.admin'],
+      ['Tenant', 'identity.role.admin'],
+      ['Tenant', 'identity.membership_profile.write'],
+      ['Organization', 'identity.membership_profile.write'],
+      ['Tenant', 'tenancy.organization.admin'],
+      ['Tenant', 'tenancy.locale.write'],
+      ['Tenant', 'tenancy.setting.write'],
+    ].map(([scope, key]) => ({ scope, key }));
+    const custom = { scope: 'Tenant', key: 'customization.custom_field.admin' };
+    const registry = (v3: boolean) => ({
+      items: [...pairs, ...(v3 ? [custom] : [])].map((pair) => ({
+        ...pair,
+        labelKey: 'label',
+        canGrant: true,
+      })),
+      release: {
+        version: v3 ? 3 : 2,
+        fingerprint: 'a'.repeat(64),
+        tenantAdminDelta: v3 ? [custom] : pairs.slice(5),
+      },
+    });
+    let body = registry(false);
+    const transport = vi.fn<AdministrationFetch>(async () => json(body));
+    const sdk = createAdministrationServerSdk(transport);
+    expect((await sdk.getPermissions()).kind).toBe('success');
+    expect(transport.mock.calls[0]![0]).toBe('/api/v1/identity/permissions');
+    body = registry(true);
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 2 })).kind).toBe('success');
+    expect(transport.mock.calls[1]![0]).toBe('/api/v1/identity/permissions?sourceReleaseVersion=2');
+    body = { ...registry(false), release: { ...registry(false).release, version: 3 } };
+    expect((await sdk.getPermissions()).kind).toBe('invalid-response');
+  });
+
   it('keeps public and AccountSite callers separate and exposes no generic request method', () => {
     const transport = vi.fn<AdministrationFetch>(async () => version());
     expect(Object.keys(createAuthenticatedServerSdk(transport))).toEqual(['getAccountSite']);

@@ -50,3 +50,24 @@ The installer is Linux AMD64 only and verifies the approved archive before
 extracting/executing it. A workstation can pass a separately checksum-verified
 executable of the same pinned version. The first baseline is proved by building
 and serving the verified base Program; a missing file alone is insufficient.
+
+
+## Approved P03-5 comparison
+
+[ADR-0096](../../../docs/decisions/0096-p035-administration-contract-baseline.md)
+approves one development-only incompatibility after the maintainer's usage
+confirmation. Its Accepted tables own the exact snapshots, complete canonical
+raw/normalized/companion finding sets and comparison identities. The sole
+`transition-0096.json` carrier must match those tables; repointing it cannot
+approve another pair. The existing comparison algorithm and all 60 policy
+controls remain unchanged.
+
+Only the verified Git-snapshot wrapper can admit that transition, after normal
+comparisons and fresh successful controls. File/fixture/bootstrap paths cannot.
+Tool/report/control failures remain failures even for matching snapshot hashes.
+Each invocation uses fresh output; original findings remain beside a distinct
+approval result. A green approved comparison is not raw compatibility or proof
+of runtime/SDK behavior. Coordinate API/SDK/native/web replacement and verify
+actual registry, Role, capabilities and complete replacement separately.
+[Phase 03 Status](../../../docs/roadmap/phase-03-identity-admin.md) owns extension
+implementation and complete hosted qualification.

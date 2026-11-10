@@ -5996,16 +5996,24 @@ of structural detection.
 
 - **Asserts:** production composition and committed snapshot have the same document
   after object-key normalization, preserving array order; exactly eight public
-  operations and four public GET wrappers exist, alongside the separate
-  authenticated AccountSite and membership-directory GET contracts (ten operations
-  and six GET contracts). The four public wrappers and AccountSite-only native
-  authenticated transport remain closed. Drift and policy-breaking
-  fixtures fail the pinned diff/generation checks.
-- **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31.
+  operations and four public GET wrappers exist, alongside exact delivered
+  authenticated/administration/retained-consent operation and SDK method censuses.
+  Public, AccountSite and administration callers remain separate and closed.
+  Drift and policy-breaking fixtures fail the pinned diff/generation checks.
+  ADR-0096 admits only its Accepted-decision-bound snapshots, full findings and
+  comparison identities after successful fresh controls; malformed or repointed
+  carriers, extra findings, changed tools/policy and file/fixture/bootstrap entry
+  cannot consume approval. Actual API/SDK behavior is separate evidence.
+- **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31;
+  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md).
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
 - **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); ten-operation, disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
-- **Phase:** 02d (P02d-4 Step 4); 03 (P03-2 Step 5 contract extension).
+- **Extension boundary:** ADR-0096 acceptance does not establish delivery of its
+  admission extension. The original Implemented status above describes its
+  recorded baseline; [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns
+  P03-5 implementation, reviews, runtime and complete A/B evidence.
+- **Phase:** 02d (P02d-4 Step 4); 03 (P03-2/P03-5 contract extensions).
 
 ## P02d-5 public server rendering controls
 
