@@ -36,9 +36,12 @@ public sealed record CustomFieldDefinitionDto(Guid DefinitionId, string TargetEn
     [property: PiiSensitive] IReadOnlyDictionary<string, string> Labels, PersonalDataCategory PiiCategory,
     bool IsRequired, short Sort, [property: PiiSensitive] string? PurposeKey,
     [property: PiiSensitive] IReadOnlyDictionary<string, string>? Notices, int MaximumValueBytes,
-    [property: PiiSensitive] IReadOnlyList<CustomFieldControlLabels>? FormLabels = null)
+    [property: PiiSensitive] IReadOnlyList<CustomFieldControlLabels>? FormLabels = null,
+    CustomFieldActiveRevision? ActiveRevision = null)
 { public override string ToString() => nameof(CustomFieldDefinitionDto); }
-public sealed record CustomFieldConceptSummary(string Key, int LatestSchemaVersion, Guid? ActiveDefinitionId, int? ActiveSchemaVersion);
+public sealed record CustomFieldActiveRevision(Guid Id, long Version);
+public sealed record CustomFieldConceptSummary(string Key, int LatestSchemaVersion, Guid? ActiveDefinitionId, int? ActiveSchemaVersion,
+    [property: PiiSensitive] CustomFieldDefinitionDto? LatestDefinition = null);
 public sealed record CustomFieldConceptPage(IReadOnlyList<CustomFieldConceptSummary> Items, string? NextCursor);
 public sealed record CustomFieldDefinitionPage(IReadOnlyList<CustomFieldDefinitionDto> Items, string? NextCursor);
 

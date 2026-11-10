@@ -36,12 +36,12 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(114, actual.Length);
+        Assert.Equal(117, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(47, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        Assert.Equal(48, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
-        Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
+        Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery), typeof(ReadOwnGrantedFieldConsentReceiptQuery),
             typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal), ownReads.Select(policy => policy.RequestType));
         Assert.All(ownReads, policy =>
@@ -61,7 +61,7 @@ public sealed class OperationPolicyCatalogTests
         });
         Assert.Equal(typeof(GrantOwnMembershipFieldConsentCommand),
             Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.OwnFieldConsentGrant).RequestType);
-        Assert.Equal(new[] { typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) }
+        Assert.Equal(new[] { typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal),
             catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnConsentEntry).Select(policy => policy.RequestType));
         Assert.Equal(46, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));

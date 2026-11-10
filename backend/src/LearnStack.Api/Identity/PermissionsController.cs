@@ -18,8 +18,12 @@ public sealed class PermissionsController(ISender sender) : ApiControllerBase
     [ProducesResponseType<PermissionRegistryResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken cancellationToken)
     {
-        if (Request.Query.Count != 0 || !await AdministrationHttpInput.ReadHasNoBodyAsync(HttpContext)) return AdministrationHttpInput.Invalid();
-        var result = await sender.Send(new GetPermissionRegistryQuery(), cancellationToken);
+        if (Request.Query.Count > 1 || Request.Query.Any(item => item.Key != "sourceReleaseVersion" || item.Value.Count != 1)
+            || !await AdministrationHttpInput.ReadHasNoBodyAsync(HttpContext)) return AdministrationHttpInput.Invalid();
+        var raw = Request.Query["sourceReleaseVersion"];
+        var source = raw.Count == 0 ? 1 : raw[0] == "1" ? 1 : raw[0] == "2" ? 2 : 0;
+        if (source == 0) return AdministrationHttpInput.Invalid();
+        var result = await sender.Send(new GetPermissionRegistryQuery(source), cancellationToken);
         if (result.IsFailure) return result.ToActionResult();
         return Ok(new PermissionRegistryResponse(result.Value.Items.Select(item => new PermissionRegistryItemResponse(
             item.Scope.ToString(), item.Key, item.LabelKey, item.CanGrant)).ToArray(), new RoleReleaseResponse(

@@ -25,6 +25,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new(12, "RevokeInvitation", 4, "Invitation", "ExpectedVersion"),
         new(13, "ReissueInvitation", 4, "Invitation", "ExpectedVersion"),
         new(14, "SetTenantInvitationLifetime", 5, "TenantSetting", "ExpectedVersion"),
+        new(15, "RegisterCustomFieldDefinition", 6, "CustomFieldDefinition", null),
+        new(16, "ReviseCustomFieldDraft", 6, "CustomFieldDefinition", "ExpectedVersion"),
+        new(17, "PublishCustomFieldRevision", 6, "CustomFieldDefinition", "ExpectedVersion"),
+        new(18, "RetireCustomFieldRevision", 6, "CustomFieldDefinition", "ExpectedVersion"),
+        new(19, "DiscardCustomFieldDraft", 6, "CustomFieldDefinition", "ExpectedVersion"),
+        new(20, "SetMemberCustomFields", 0, "Membership", "ExpectedVersion"),
+        new(21, "SetOwnCustomFields", 0, "Membership", "ExpectedVersion"),
+        new(22, "GrantOwnFieldConsent", 7, "MembershipFieldConsent", null),
+        new(23, "WithdrawOwnFieldConsent", 7, "MembershipFieldConsent", null),
     ];
 
     private static readonly Lazy<string[]> ProtectedSourceBaseline = new(() => ProtectedSourceOffenders(
@@ -54,7 +63,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var endpoint = Endpoints.SingleOrDefault(entry => entry.Request.FullName == request.FullName && entry.ProtectedOperation is not null);
             var shape = ProtectedShapes.SingleOrDefault(item => item.Operation == endpoint?.ProtectedOperation);
             if (shape is null || Integer(Argument(factory, creation, 2)) != shape.Kind
-                || Integer(Argument(factory, creation, 3)) != (shape.Operation is 7 or 11 ? 1 : 0))
+                || Integer(Argument(factory, creation, 3)) != (shape.Operation is 7 or 11 or 15 ? 1 : 0))
                 yield return "Unexpected protected descriptor: target kind/creation mismatch for " + request.FullName;
         }
         var expected = Endpoints.Where(entry => entry.ProtectedOperation is not null)
@@ -99,13 +108,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 var request = Endpoints.Single(entry => entry.ProtectedOperation == shape.Operation).Request.Name;
                 return name switch
                 {
-                    "For" => "ProtectedAdministrationOperation." + shape.Name + "=>new(operation,typeof(" + request + "),IdempotencyReplayTargetKind." + shape.Target + (shape.Operation is 7 or 11 ? ",true" : "") + ")",
+                    "For" => "ProtectedAdministrationOperation." + shape.Name + "=>new(operation,typeof(" + request + "),IdempotencyReplayTargetKind." + shape.Target + (shape.Operation is 7 or 11 or 15 ? ",true" : "") + ")",
                     "OperationFor" => request + "=>ProtectedAdministrationOperation." + shape.Name,
                     _ => request + (shape.Version is null ? "=>null" : "command=>command." + shape.Version)
                 };
             }).ToArray();
             if (name == "ExpectedVersion") expected = expected.Where(arm => arm is not ("CreateManagedOrganizationCommand=>null" or "CreateInvitationCommand=>null"))
-                .Append("CreateManagedOrganizationCommandorCreateInvitationCommand=>null").ToArray();
+                .Where(arm => arm is not ("RegisterCustomFieldDefinitionCommand=>null" or "GrantOwnMembershipFieldConsentCommand=>null" or "WithdrawOwnMembershipFieldConsentCommand=>null"))
+                .Append("CreateManagedOrganizationCommandorCreateInvitationCommand=>null")
+                .Append("RegisterCustomFieldDefinitionCommandorGrantOwnMembershipFieldConsentCommandorWithdrawOwnMembershipFieldConsentCommand=>null").ToArray();
             var fallback = name switch
             {
                 "For" => "_=>thrownewArgumentOutOfRangeException(nameof(operation))",
@@ -132,6 +143,11 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 11 => "Invitation(awaitsender.Send(command,cancellationToken),null)",
                 12 or 13 => "Invitation(awaitsender.Send(command,cancellationToken),command.InvitationId)",
                 14 => "Policy(awaitsender.Send(command,cancellationToken))",
+                15 or 16 or 17 or 18 or 19 => "Definition(awaitsender.Send(command,cancellationToken),command.DefinitionId)",
+                20 => "Membership(awaitsender.Send(command,cancellationToken),command.MembershipId)",
+                21 => "Membership(awaitsender.Send(command,cancellationToken),null)",
+                22 => "Consent(awaitsender.Send(command,cancellationToken),true)",
+                23 => "Consent(awaitsender.Send(command,cancellationToken),false)",
                 _ => throw new InvalidOperationException("Unknown expected protected operation")
             };
             return request + "command=>" + result;

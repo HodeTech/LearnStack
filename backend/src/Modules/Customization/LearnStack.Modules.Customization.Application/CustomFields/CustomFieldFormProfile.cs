@@ -20,6 +20,39 @@ public sealed record AdmittedCustomFieldSchema(string Schema, string Witness, in
 /// <summary>The additional finite form grammar; general schema admission remains authoritative.</summary>
 public sealed class CustomFieldFormProfile(IJsonSchemaValidator schemas) : ICustomFieldValueValidator
 {
+    private static readonly JsonSerializerOptions WireOptions = new(JsonSerializerDefaults.Web);
+    /// <summary>The logical authoring body embeds a schema object; internal command wrappers are not wire payload.</summary>
+    public static bool FitsAuthoringInput(CustomFieldDefinitionInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (string.IsNullOrWhiteSpace(input.JsonSchema) || Encoding.UTF8.GetByteCount(input.JsonSchema) > SchemaByteLimit) return false;
+        try
+        {
+            using var schema = JsonDocument.Parse(input.JsonSchema, new JsonDocumentOptions { MaxDepth = 8 });
+            return JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                input.TargetEntity,
+                input.Key,
+                input.SchemaVersion,
+                Schema = schema.RootElement,
+                input.Labels,
+                PiiCategory = input.PiiCategory.ToString(),
+                input.IsRequired,
+                input.Sort,
+                input.PurposeKey,
+                input.Notices,
+                input.FormLabels,
+            }, WireOptions).Length <= InputByteLimit;
+        }
+        catch (JsonException) { return false; }
+    }
+
+    public Result<string> NormalizeStored(string jsonSchema)
+    {
+        var admitted = RevalidateStored(jsonSchema);
+        return admitted.IsFailure ? Result<string>.Fail(admitted.Error) : Result.Ok(admitted.Value.Schema);
+    }
+
     public const int SchemaByteLimit = 2048;
     public const int InputByteLimit = 4096;
     public const long SafeInteger = 9007199254740991;

@@ -367,10 +367,43 @@ public sealed class PublicSurfaceTests
                     // Inheriting a base class acquires its members, not every
                     // sibling implementation. An actual abstract collaborator
                     // in a field/signature still expands its concrete services.
-                    var inherited = type.BaseType is { } parent && Key(parent) == Key(reference);
-                    queue.Enqueue((helper, !inherited || Acquires(type, Key(reference))));
+                    var ownOrInherited = Key(type) == Key(reference)
+                        || type.BaseType is { } parent && Key(parent) == Key(reference);
+                    queue.Enqueue((helper, (!ownOrInherited || Acquires(type, Key(reference)))
+                        && !IsExceptionStatusObservation(type, reference)));
                 }
         }
+    }
+
+    // These two fixed HTTP projections inspect the Error carried by an already
+    // supplied exception; they do not acquire or construct a concrete exception.
+    private static bool IsExceptionStatusObservation(TypeDefinition owner, TypeReference reference)
+    {
+        const string exception = "LearnStack.SharedKernel:LearnStack.SharedKernel.Errors.LearnStackException";
+        var ownerKey = Key(owner);
+        var statusMap = ownerKey == "LearnStack.Api:LearnStack.Api.Common.HttpStatusMap";
+        var problemFactory = ownerKey == "LearnStack.Api:LearnStack.Api.Common.ProblemDetailsFactory";
+        if ((!statusMap && !problemFactory) || Key(reference) != exception || Acquires(owner, exception)) return false;
+        bool ExactMethod(MethodDefinition method) => method.IsStatic && method.Name == "For"
+            && method.Parameters.Count == (statusMap ? 1 : 2)
+            && method.Parameters[0].ParameterType.FullName == "System.Exception"
+            && (statusMap ? method.ReturnType.FullName == "System.Int32"
+                : method.ReturnType.FullName == "Microsoft.AspNetCore.Mvc.ProblemDetails"
+                    && method.Parameters[1].ParameterType.FullName == "Microsoft.AspNetCore.Http.HttpContext");
+        var methods = Il.Methods(owner).Where(pair => pair.Definition.HasBody).ToArray();
+        var locals = methods.SelectMany(pair => pair.Definition.Body.Variables
+            .Where(variable => Key(variable.VariableType) == exception).Select(_ => pair.Definition)).ToArray();
+        if (locals.Length != 1 || locals.Any(method => !ExactMethod(method))) return false;
+        var uses = methods.SelectMany(pair => pair.Definition.Body.Instructions
+            .Where(instruction => instruction.Operand is TypeReference type && Key(type) == exception
+                || instruction.Operand is MethodReference method && Key(method.DeclaringType) == exception)
+            .Select(instruction => (pair.Definition, Instruction: instruction))).ToArray();
+        var getters = statusMap ? 1 : 4;
+        return uses.Length == getters + 1 && uses.All(use => ExactMethod(use.Definition))
+            && uses.Count(use => use.Instruction.OpCode == OpCodes.Isinst && use.Instruction.Operand is TypeReference) == 1
+            && uses.Count(use => use.Instruction.OpCode == OpCodes.Callvirt && use.Instruction.Operand is MethodReference method
+                && method.Name == "get_Error" && method.Parameters.Count == 0
+                && method.ReturnType.FullName == "LearnStack.SharedKernel.Results.Error") == getters;
     }
 
     // A value-constrained generic predicate reads the actual supplied struct;

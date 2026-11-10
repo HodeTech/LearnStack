@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OwnMembershipProfile } from '@learnstack/sdk/administration-server';
 
+import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
 import { bffActionDocumentTarget } from './http-paths.js';
@@ -19,7 +20,11 @@ import type {
   NativeInvitationResult,
 } from './native-invitation-contract.js';
 import { NativeInvitationError } from './native-invitation-contract.js';
-import type { NativeOperation, NativeOperationResult } from './native-operation-contract.js';
+import type {
+  NativeOperation,
+  NativeOperationResult,
+  RetainedConsentOperation,
+} from './native-operation-contract.js';
 import { nativeContextPage } from './native-session-client.js';
 import type { NativeEntrySnapshot, NativePageSnapshot, ScopeChoices } from './page-contract.js';
 import { nativeDocumentPlan, preloadPage } from './page-preload.js';
@@ -290,16 +295,41 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       return false;
     }
   }
-  #pageCursorBinding(entry: Owner, purpose: 'members' | 'scopes' | 'invitations') {
+  #pageCursorBinding(
+    entry: Owner,
+    purpose:
+      | 'members'
+      | 'scopes'
+      | 'invitations'
+      | 'custom_fields'
+      | 'custom_revisions'
+      | 'consent_history',
+  ) {
     return { ...this.#cursorBinding(entry), purpose };
   }
-  #wrapPageCursor(entry: Owner, purpose: 'members' | 'scopes' | 'invitations', cursor: string) {
+  #wrapPageCursor(
+    entry: Owner,
+    purpose:
+      | 'members'
+      | 'scopes'
+      | 'invitations'
+      | 'custom_fields'
+      | 'custom_revisions'
+      | 'consent_history',
+    cursor: string,
+  ) {
     entry.pageCursorKey ??= randomBytes(32);
     return sealEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
   }
   #openPageCursor(
     entry: Owner,
-    purpose: 'members' | 'scopes' | 'invitations',
+    purpose:
+      | 'members'
+      | 'scopes'
+      | 'invitations'
+      | 'custom_fields'
+      | 'custom_revisions'
+      | 'consent_history',
     cursor: string | undefined,
   ) {
     if (cursor === undefined) return undefined;
@@ -422,7 +452,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           : plan?.cursor
             ? this.#openPageCursor(
                 owner,
-                plan.kind === 'invitations' ? 'invitations' : 'members',
+                plan.kind === 'invitations'
+                  ? 'invitations'
+                  : plan.kind === 'custom_fields'
+                    ? 'custom_fields'
+                    : plan.kind === 'custom_field'
+                      ? 'custom_revisions'
+                      : 'members',
                 plan.cursor,
               )
             : undefined;
@@ -598,14 +634,23 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             site: ticket.site,
             session: this.#project(owner),
             scopeKind: owner.identity!.organizationId === null ? 'tenant' : 'organization',
-            formKeys: Array.from({ length: 32 }, opaque),
+            formKeys: Array.from(
+              { length: plan!.kind === 'profile' || plan!.kind === 'member' ? 180 : 32 },
+              opaque,
+            ),
           },
           owner.identity!.organizationId,
           read,
           (cursor) =>
             this.#wrapPageCursor(
               owner,
-              plan!.kind === 'invitations' ? 'invitations' : 'members',
+              plan!.kind === 'invitations'
+                ? 'invitations'
+                : plan!.kind === 'custom_fields'
+                  ? 'custom_fields'
+                  : plan!.kind === 'custom_field'
+                    ? 'custom_revisions'
+                    : 'members',
               cursor,
             ),
         );
@@ -1885,6 +1930,14 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       'getInvitationPolicy',
       'listOrganizations',
       'getOrganization',
+      'listCustomFieldDefinitions',
+      'getCustomFieldDefinition',
+      'listCustomFieldRevisions',
+      'getMembershipCustomFields',
+      'getOwnCustomFields',
+      'getOwnFieldConsent',
+      'listOwnConsentScopes',
+      'listOwnConsentHistory',
     ].includes(captured.kind);
     if (!read && !bffSecretEquals(csrf, entry.csrf)) throw new BffSessionError('csrf');
     return this.#bounded(entry, signal, async (current) => {
@@ -1906,6 +1959,87 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         throw new BffSessionError('response');
       // Operation refusals withhold their bytes, never reinterpret 401/403/404 as session revocation.
       if (result.kind === 'success') entry.activity = this.#now();
+      return result;
+    });
+  }
+
+  retainConsent(binding: SessionBinding, lease: NativeConsentResponseLease): string {
+    const owner = this.#findEntry(binding);
+    lease.pin(
+      () => {
+        this.#assert(owner, 'entry');
+        if (lease.signal.aborted) throw new BffSessionError('revoked');
+      },
+      owner,
+      Math.max(1, Math.min(owner.deadline, owner.credentials!.refreshExpiresAt) - this.#now()),
+    );
+    void this.#tracked(owner, () => lease.cleaned);
+    return owner.csrf;
+  }
+  async retainedConsent(
+    binding: SessionBinding,
+    source: string,
+    operation: RetainedConsentOperation,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult> {
+    this.#checkSource(binding.host, source);
+    const owner = this.#findEntry(binding);
+    this.#entryProof(owner, csrf);
+    if (!this.#dependencies.retainedConsent) throw new BffSessionError('configuration');
+    let captured: RetainedConsentOperation;
+    try {
+      const raw = JSON.stringify(operation);
+      if (Buffer.byteLength(raw) > 16 * 1024) throw new Error();
+      captured = JSON.parse(raw) as RetainedConsentOperation;
+      if (
+        !captured ||
+        !['listOwnConsentScopes', 'listOwnConsentHistory', 'withdrawOwnFieldConsent'].includes(
+          captured.kind,
+        )
+      )
+        throw new Error();
+    } catch {
+      throw new BffSessionError('configuration');
+    }
+    return this.#bounded(owner, signal, async (current) => {
+      this.#assert(owner, 'entry');
+      if (owner.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs) {
+        if (!owner.refresh) {
+          const previous = owner.credentials!;
+          const work = this.#tracked(owner, async () => {
+            const next = this.#bundle(
+              await this.#dependencies.provider.refresh(
+                previous.refreshToken!,
+                previous.identity,
+                current,
+              ),
+              previous,
+            );
+            this.#assertSignal(current);
+            this.#assert(owner, 'entry');
+            if (owner.credentials !== previous) throw new BffSessionError('transaction');
+            owner.credentials = next;
+          });
+          owner.refresh = work;
+          void work
+            .finally(() => {
+              if (owner.refresh === work) owner.refresh = undefined;
+            })
+            .catch(() => undefined);
+        }
+        await this.#wait(owner.refresh, current);
+      }
+      const credentials = owner.credentials!;
+      const result = await this.#dependencies.retainedConsent!(
+        credentials.accessToken,
+        this.#binding(binding, source),
+        captured,
+        current,
+      );
+      this.#assertSignal(current);
+      this.#assert(owner, 'entry');
+      if (owner.credentials !== credentials) throw new BffSessionError('response');
       return result;
     });
   }

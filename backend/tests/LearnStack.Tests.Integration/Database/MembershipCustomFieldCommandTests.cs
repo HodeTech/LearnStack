@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Audit;
 using System.Text.Json;
@@ -19,6 +20,39 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class MembershipCustomFieldCommandTests(MembershipCustomFieldFixture fixture)
     : IClassFixture<MembershipCustomFieldFixture>
 {
+    [Fact]
+    public async Task Compact_numeric_input_cannot_expand_past_the_complete_submission_limit_after_normalization()
+    {
+        var member = await fixture.Membership.AddMemberAsync();
+        const string shape = """
+            {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"value":{"type":"array","minItems":0,"maxItems":10,"items":{"type":"array","minItems":0,"maxItems":10,"items":{"type":"integer","minimum":0,"maximum":10000000000}}}},"required":["value"],"additionalProperties":false}
+            """;
+        var definitions = new List<LearnStack.Modules.Customization.Application.Contracts.CustomFields.CustomFieldDefinitionDto>();
+        try
+        {
+            for (var n = 0; n < 3; n++)
+                definitions.Add(await fixture.PublishAsync(Input("numeric-budget-" + Guid.NewGuid().ToString("N")) with
+                {
+                    JsonSchema = shape,
+                    FormLabels = [new("/0", new Dictionary<string,string>{{"en","Row"}}),
+                        new("/0/0",new Dictionary<string,string>{{"en","Number"}})],
+                }));
+            var row = "[" + string.Join(',', Enumerable.Repeat("1e10", 10)) + "]";
+            using var envelope = JsonDocument.Parse("{\"value\":[" + string.Join(',', Enumerable.Repeat(row, 10)) + "]}");
+            var set = definitions.Select(d => new MembershipCustomFieldSet(d.Key, d.DefinitionId, d.SchemaVersion, envelope.RootElement.Clone(), null)).ToImmutableArray();
+            var patch = new MembershipCustomFieldPatch(set, []);
+            Assert.True(LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldInput.Valid(new SetMembershipCustomFieldsCommand(member.Membership, 0, patch)));
+            var refused = await fixture.SendAsync(new SetMembershipCustomFieldsCommand(member.Membership, 0, patch), "value-expanded-submission");
+            Assert.Equal("limit_exceeded", refused.Error!.Code);
+            Assert.Equal(0, (await fixture.Membership.ReadAsync(member.Membership)).Version);
+            Assert.Empty(MembershipCustomFieldValues.Read(await fixture.StoredAsync(member.Membership)));
+            var accepted = await fixture.SendAsync(new SetMembershipCustomFieldsCommand(member.Membership, 0, new([set[0]], [])), "value-expanded-submission-positive");
+            Assert.True(accepted.IsSuccess, accepted.Error?.Code);
+            Assert.Single(MembershipCustomFieldValues.Read(await fixture.StoredAsync(member.Membership)));
+        }
+        finally { foreach (var definition in definitions) await fixture.RetireAsync(definition); }
+    }
+
     [Fact]
     public async Task Current_non_sensitive_value_round_trips_through_commands_and_explicit_removal()
     {

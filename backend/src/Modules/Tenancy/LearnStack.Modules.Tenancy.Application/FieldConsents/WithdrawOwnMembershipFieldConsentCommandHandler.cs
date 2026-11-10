@@ -42,7 +42,7 @@ public sealed class WithdrawOwnMembershipFieldConsentCommandHandler(OwnConsentEn
             {
                 if (!ReferenceEquals(authorization.For(request, ConsentSubjectPurpose.Withdraw), witness)) return Fail("lockey_forbidden");
                 audit.Designate(state.Current!);
-                return Result.Ok(GrantOwnMembershipFieldConsentCommandHandler.Receipt(state.Current!));
+                return Result.Ok(MembershipFieldConsentResults.Receipt(state.Current!));
             }
             if (decision != MembershipFieldConsentTransitionDecision.Append || state.Current is null)
                 return Fail(decision == MembershipFieldConsentTransitionDecision.Stale ? "lockey_concurrency_conflict" : "lockey_business_rule_violation");
@@ -55,9 +55,9 @@ public sealed class WithdrawOwnMembershipFieldConsentCommandHandler(OwnConsentEn
                 MembershipFieldConsentState.Withdrawn, expected, request.ExpectedSequence, clock.UtcNow);
             audit.Designate(withdrawal);
             await store.AddAsync(withdrawal, cancellationToken);
-            return Result.Ok(GrantOwnMembershipFieldConsentCommandHandler.Receipt(withdrawal));
+            return Result.Ok(MembershipFieldConsentResults.Receipt(withdrawal));
         }
-        catch (MembershipFieldConsentStorageException failure) { return Fail(GrantOwnMembershipFieldConsentCommandHandler.Map(failure.Failure)); }
+        catch (MembershipFieldConsentStorageException failure) { return Fail(MembershipFieldConsentResults.Map(failure.Failure)); }
         catch (TenancyAdministrationStorageException) { return Fail("lockey_dependency_unavailable"); }
         catch (IdentityMutationLockException) { return Fail("lockey_dependency_unavailable"); }
     }

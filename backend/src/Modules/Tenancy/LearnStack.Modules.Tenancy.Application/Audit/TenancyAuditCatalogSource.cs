@@ -42,6 +42,8 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.MustAudit<ReadOwnGrantedFieldConsentReceiptQuery>("tenancy.membership_field_consent.read_grant_receipt", OperationType.ReadSensitive, typeof(MembershipFieldConsent));
+        builder.MustAudit<ReadOwnWithdrawnFieldConsentReceiptQuery>("tenancy.membership_field_consent.read_withdraw_receipt", OperationType.ReadSensitive, typeof(MembershipFieldConsent));
         builder.Off<GetOwnMembershipFieldConsentQuery>();
         builder.Off<ListOwnFieldConsentScopesQuery>();
         builder.Off<ListOwnMembershipFieldConsentsQuery>();

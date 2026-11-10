@@ -29,8 +29,11 @@ public static class MembershipCustomFieldInput
             || patch.Set.Select(value => value.ConceptKey).Distinct(StringComparer.Ordinal).Count() != patch.Set.Length
             || patch.Set.Select(value => value.DefinitionId).Distinct().Count() != patch.Set.Length
             || patch.Remove.Select(value => value.ConceptKey).Distinct(StringComparer.Ordinal).Count() != patch.Remove.Length) return false;
-        return JsonSerializer.SerializeToUtf8Bytes(request, request.GetType(), Options).Length <= MaximumSubmissionBytes;
+        return FitsSubmission(patch);
     }
+
+    public static bool FitsSubmission(MembershipCustomFieldPatch patch) =>
+        JsonSerializer.SerializeToUtf8Bytes(patch, Options).Length <= MaximumSubmissionBytes;
 
     public static bool ValidId(Guid id) => id != Guid.Empty && id.Version == 7;
 }

@@ -106,7 +106,7 @@ internal static class AdministrationHttpInput
     {
         grants = [];
         var value = body.GetProperty("grants");
-        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 8) return false;
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 9) return false;
         var builder = ImmutableArray.CreateBuilder<PermissionDefinition>();
         foreach (var item in value.EnumerateArray())
         {

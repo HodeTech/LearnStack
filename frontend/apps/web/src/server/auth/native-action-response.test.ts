@@ -1,8 +1,11 @@
 // @vitest-environment node
+
+import type { MembershipCustomFields } from '@learnstack/sdk/administration-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderBffDocument } from './html';
 import { createBffHttpProtocol } from './http-protocol';
+import type { NativeOperationResult } from './native-operation-contract';
 import type { NativeActionPage, NativeEntrySnapshot } from './page-contract';
 import { BffSessionError } from './session-contract';
 import { bffFixture, bffHost, bffRequest, bffSource } from '../../test/bff-fixture';
@@ -205,6 +208,208 @@ describe('native action recovery response lifetime', () => {
         version: '7',
         idempotencyKey: correctionKey,
       });
+    },
+  );
+
+  it.each([
+    'validation',
+    'success',
+    'stale',
+    'denied',
+    'metadata_unavailable',
+    'retired',
+    'missing',
+  ] as const)(
+    'adds only one bounded typed-recovery read after an actual raw custom-field validation 400 (%s)',
+    async (mode) => {
+      const f = fixture();
+      const active = await f.login();
+      const fieldId = '019a154b-0000-7000-8000-000000000099';
+      const memberId = '019a154b-0000-7000-8000-000000000022';
+      const metadata: MembershipCustomFields = {
+        membershipId: memberId,
+        version: '99',
+        fields:
+          mode === 'missing'
+            ? []
+            : [
+                {
+                  conceptKey: 'answers',
+                  definitionId: fieldId,
+                  schemaVersion: 1,
+                  state: mode === 'retired' ? 'Retired' : 'Current',
+                  isRequired: true,
+                  consent: null,
+                  envelope: { value: ['saved'] },
+                  definition: {
+                    schema: {
+                      $schema: 'https://json-schema.org/draft/2020-12/schema',
+                      type: 'object',
+                      properties: {
+                        value: {
+                          type: 'array',
+                          minItems: 1,
+                          maxItems: 2,
+                          items: { type: 'string', minLength: 1, maxLength: 16 },
+                        },
+                      },
+                      required: ['value'],
+                      additionalProperties: false,
+                    },
+                    labels: { en: 'Authorized answer label' },
+                    piiCategory: 'None',
+                    sort: 0,
+                    purposeKey: null,
+                    notices: null,
+                    noticeHashes: null,
+                    status: mode === 'retired' ? 'Deprecated' : 'Active',
+                    formLabels: [{ location: '/0', labels: { en: 'Entry' }, choices: null }],
+                  },
+                },
+              ],
+      };
+      const validation: NativeOperationResult = {
+        kind: 'api-error',
+        status: 400,
+        error: { code: 'validation_failed', fieldErrors: { '/': ['lockey_invalid_value'] } },
+        problem: {
+          type: 'about:blank',
+          title: 'Validation',
+          status: 400,
+          instance: '/api/v1/identity/me/custom-fields',
+          code: 'validation_failed',
+          messageKey: 'lockey_validation_failed',
+          correlationId: 'test-validation',
+        },
+      };
+      const original = f.administration.getMockImplementation()!;
+      f.administration.mockImplementation(async (...args) => {
+        const operation = args[2];
+        if (operation.kind === 'getOwnCustomFields')
+          return mode === 'metadata_unavailable'
+            ? { kind: 'transport-error' }
+            : {
+                kind: 'success',
+                status: 200,
+                data: metadata,
+                etag: '"99"',
+                location: null,
+                replayed: false,
+              };
+        if (operation.kind === 'setOwnCustomFields') {
+          if (mode === 'success')
+            return {
+              kind: 'success',
+              status: 200,
+              data: { id: memberId, version: '8' },
+              etag: '"8"',
+              location: null,
+              replayed: false,
+            };
+          if (mode === 'stale')
+            return {
+              kind: 'api-error',
+              status: 409,
+              error: { code: 'concurrency_conflict' },
+              problem: {
+                type: 'about:blank',
+                title: 'Conflict',
+                status: 409,
+                instance: '/api/v1/identity/me/custom-fields',
+                code: 'concurrency_conflict',
+                messageKey: 'lockey_concurrency_conflict',
+                correlationId: 'test-conflict',
+              },
+            };
+          if (mode === 'denied')
+            return {
+              kind: 'api-error',
+              status: 403,
+              error: { code: 'forbidden' },
+              problem: {
+                type: 'about:blank',
+                title: 'Forbidden',
+                status: 403,
+                instance: '/api/v1/identity/me/custom-fields',
+                code: 'forbidden',
+                messageKey: 'lockey_forbidden',
+                correlationId: 'test-forbidden',
+              },
+            };
+          return validation;
+        }
+        return original(...args);
+      });
+      const fields = new URLSearchParams({
+        csrfToken: active.finished.session.csrfToken,
+        version: '7',
+        idempotencyKey,
+        payload: JSON.stringify({
+          set: [
+            {
+              conceptKey: 'answers',
+              definitionId: fieldId,
+              schemaVersion: 1,
+              envelope: { value: ['original'] },
+              consentEvidenceId: null,
+            },
+          ],
+          remove: [],
+        }),
+      });
+      const protocol = createBffHttpProtocol(f.store, f.requestRuntime.preparation);
+      const output = wire();
+      const response = await f.runNative(output, post('/api/account/custom-fields'), () =>
+        protocol.handle(
+          bffRequest('/api/account/custom-fields', {
+            method: 'POST',
+            cookie: active.cookie,
+            form: fields.toString(),
+            headers: { accept: 'text/html' },
+          }),
+          (page) =>
+            renderBffDocument(
+              {
+                displayName: 'Institution',
+                defaultLocale: 'en',
+                enabledLocales: ['en', 'tr'],
+                theme: null,
+                showPlatformAttribution: true,
+              },
+              page,
+            ),
+        ),
+      );
+      const body = await response!.text();
+      const read = ['validation', 'metadata_unavailable', 'retired', 'missing'].includes(mode);
+      expect(
+        f.administration.mock.calls.filter(
+          ([, , operation]) => operation.kind === 'getOwnCustomFields',
+        ).length,
+      ).toBe(read ? 1 : 0);
+      const dispatches = f.administration.mock.calls.filter(
+        ([, , operation]) => operation.kind === 'setOwnCustomFields',
+      );
+      expect(dispatches.length).toBe(1);
+      expect(dispatches[0]![2]).toMatchObject({ version: '7', idempotencyKey });
+      expect(body.includes('<textarea')).toBe(false);
+      if (mode === 'validation') {
+        expect(response?.status).toBe(400);
+        expect(body.includes('name="answer_0_root_0"')).toBe(true);
+        expect(body.includes('value="original"')).toBe(true);
+        expect(body.includes('name="version" value="7"')).toBe(true);
+        expect(body.includes('name="version" value="99"')).toBe(false);
+        expect(body.includes('Authorized answer label')).toBe(true);
+        expect(body.includes('value="saved"')).toBe(false);
+      } else if (read) {
+        expect(response?.status).toBe(400);
+        expect(body.includes('name="answer_')).toBe(false);
+        expect(body.includes('Submitted input')).toBe(true);
+        expect(body.includes('original')).toBe(true);
+        expect(body.includes('href="/portal/profile"')).toBe(true);
+      }
+      if (!output.writableEnded && !output.destroyed) output.native.end(body);
+      output.drainCallbacks();
     },
   );
 

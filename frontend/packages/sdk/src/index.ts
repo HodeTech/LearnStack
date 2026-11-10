@@ -40,3 +40,6 @@ export type {
   RoleDetail,
   RoleDirectory,
 } from './administration-contract';
+
+export { parseCustomFieldJson, parseCustomFieldNumber } from './custom-field-json';
+export type * from './custom-field-contract';

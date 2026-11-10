@@ -27,6 +27,7 @@ public sealed class CustomizationAuditCatalogSource : IAuditCatalogSource
     {
         ArgumentNullException.ThrowIfNull(builder);
 
+        builder.MustAudit<ReadCustomFieldDefinitionReceiptQuery>("customization.custom_field.read_receipt", OperationType.ReadSensitive, typeof(TenantCustomFieldDef));
         builder.Off<GetCustomFieldDefinitionQuery>();
         builder.Off<ListCustomFieldDefinitionsQuery>();
         builder.Off<ListCustomFieldDefinitionRevisionsQuery>();

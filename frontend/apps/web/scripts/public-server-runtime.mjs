@@ -10,6 +10,8 @@ export async function startPublicRuntime(control) {
   let bffSessions;
   let invitationHandler;
   let nativeInvitationTarget;
+  let consentHandler;
+  let nativeConsentTarget;
   let upgradeSink;
   let app;
   let server;
@@ -186,7 +188,7 @@ export async function startPublicRuntime(control) {
         { createTenantProvider },
         { createAccountSiteCaller },
         { createNativeSessionApi },
-        { createNativeAdministrationCaller },
+        { createNativeAdministrationCaller, createNativeRetainedConsentCaller },
         { installBffSessionRuntime },
         { installBffRequestRuntime },
         { createNativeInvitationApi },
@@ -194,6 +196,9 @@ export async function startPublicRuntime(control) {
         { createInvitationRenderer },
         { default: invitationEn },
         { default: invitationTr },
+        { createNativeConsentHandler, nativeConsentTarget: consentTarget },
+        { default: authEn },
+        { default: authTr },
       ] = await Promise.all([
         ownSetup(import('../.server/auth/provider-core.js')),
         ownSetup(import('../.server/auth/account-client.js')),
@@ -206,6 +211,9 @@ export async function startPublicRuntime(control) {
         ownSetup(import('../.server/auth/invitation-html.js')),
         ownSetup(import('../src/i18n/messages/en/invitation.json', { with: { type: 'json' } })),
         ownSetup(import('../src/i18n/messages/tr/invitation.json', { with: { type: 'json' } })),
+        ownSetup(import('../.server/auth/native-consent-http.js')),
+        ownSetup(import('../src/i18n/messages/en/auth.json', { with: { type: 'json' } })),
+        ownSetup(import('../src/i18n/messages/tr/auth.json', { with: { type: 'json' } })),
       ]);
       assertStarting();
       const nativeConfiguration = {
@@ -230,6 +238,7 @@ export async function startPublicRuntime(control) {
         account,
         native,
         administration,
+        retainedConsent: createNativeRetainedConsentCaller(nativeConfiguration, globalThis.fetch),
         invitations: createNativeInvitationApi(nativeConfiguration, globalThis.fetch),
         diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
       };
@@ -238,6 +247,12 @@ export async function startPublicRuntime(control) {
       assertStarting();
       bffSessions = installBffSessionRuntime(dependencies, bffRequests.preparation);
       nativeInvitationTarget = invitationTarget;
+      nativeConsentTarget = consentTarget;
+      consentHandler = createNativeConsentHandler({
+        catalogues: { en: authEn.consents, tr: authTr.consents },
+        store: bffSessions.store,
+        responseLease: bffRequests.nativeConsentResponse,
+      });
       invitationHandler = createNativeInvitationHandler({
         configuration,
         admission: admission.holder,
@@ -289,9 +304,11 @@ export async function startPublicRuntime(control) {
             admission.run(binding, request, response, () =>
               bffRequests
                 ? bffRequests.run(binding, request, response, () =>
-                    nativeInvitationTarget(binding.target)
-                      ? invitationHandler(binding, request, response)
-                      : handle(request, response),
+                    nativeConsentTarget(binding.target)
+                      ? consentHandler(binding, request, response)
+                      : nativeInvitationTarget(binding.target)
+                        ? invitationHandler(binding, request, response)
+                        : handle(request, response),
                   )
                 : handle(request, response),
             ),

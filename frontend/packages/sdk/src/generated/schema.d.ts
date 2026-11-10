@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/api/v1/tenancy/membership-field-consents/own/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["ListOwnFieldConsentScopes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenancy/membership-field-consents/own/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["ListOwnMembershipFieldConsents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenancy/membership-field-consents/withdrawals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        post: operations["WithdrawOwnMembershipFieldConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenancy/default-organization": {
         parameters: {
             query?: never;
@@ -86,6 +137,40 @@ export interface paths {
         put?: never;
         /** @description Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried. */
         post: operations["ArchiveOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenancy/membership-field-consents/own": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["GetOwnMembershipFieldConsent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenancy/membership-field-consents/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        post: operations["GrantOwnMembershipFieldConsent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -299,6 +384,42 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/memberships/{id}/custom-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["GetMembershipCustomFields"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        patch: operations["SetMembershipCustomFields"];
+        trace?: never;
+    };
+    "/api/v1/identity/me/custom-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["GetOwnMembershipCustomFields"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        patch: operations["SetOwnMembershipCustomFields"];
         trace?: never;
     };
     "/api/v1/identity/memberships": {
@@ -557,6 +678,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customization/custom-field-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["ListCustomFieldDefinitions"];
+        put?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        post: operations["RegisterCustomFieldDefinition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customization/custom-field-definitions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["GetCustomFieldDefinition"];
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        put: operations["ReviseCustomFieldDefinitionDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customization/custom-field-definitions/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fresh exact scoped projection. No body; only the declared query keys. No-store. Own consent history remains available through retained scope without an Active Membership; it never authorizes a grant or profile write. */
+        get: operations["ListCustomFieldDefinitionRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customization/custom-field-definitions/{id}/publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        post: operations["PublishCustomFieldDefinition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customization/custom-field-definitions/{id}/retirement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        post: operations["RetireCustomFieldDefinition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customization/custom-field-definitions/{id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closed UTF-8 JSON mutation, at most 4 KiB raw and normalized input; duplicate/unknown/missing names refuse. Exact versioned scoped HMAC idempotency; retained receipts contain identifiers and versions only, with fresh original-target MUST disclosure before replay. No automatic retry or exactly-once claim. Missing configured current/retained HMAC material fails only these new mutations closed. Consent uses exact predecessor body CAS, not If-Match; grants require own Active Membership and explicit notice confirmation. Withdrawal remains independent of profile-write or administration permissions. */
+        post: operations["DiscardCustomFieldDefinitionDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/site": {
         parameters: {
             query?: never;
@@ -639,6 +864,11 @@ export interface components {
             /** @enum {string} */
             scope: "Tenant";
             /** @enum {string} */
+            key: "customization.custom_field.admin";
+        } | {
+            /** @enum {string} */
+            scope: "Tenant";
+            /** @enum {string} */
             key: "identity.membership.admin";
         } | {
             /** @enum {string} */
@@ -680,6 +910,232 @@ export interface components {
             /** @description Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number. */
             version: string;
         };
+        ConsentDetailsResponse: {
+            /** Format: uuid */
+            evidenceId: string;
+            sequence: string;
+            isGranted: boolean;
+            /** Format: uuid */
+            membershipId: string;
+            /** Format: uuid */
+            definitionId: string;
+            definitionVersion: number;
+            purposeKey: string;
+            noticeLocale: string;
+            noticeHash: string;
+            noticeText: string;
+            labels: components["schemas"]["CustomFieldLocalizedText"];
+        };
+        ConsentHistoryPageResponse: {
+            items: components["schemas"]["ConsentDetailsResponse"][];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
+        ConsentScopePageResponse: {
+            items: {
+                /** Format: uuid */
+                membershipId: string;
+                /** Format: uuid */
+                tenantId: string;
+                organizationId: string | null;
+            }[];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
+        CustomFieldDefinitionInput: {
+            /** @enum {string} */
+            targetEntity: "Membership";
+            key: string;
+            schemaVersion: number;
+            schema: components["schemas"]["CustomFieldFiniteSchema"];
+            labels: components["schemas"]["CustomFieldLocalizedText"];
+            /** @enum {string} */
+            piiCategory: "None" | "Identity" | "Behaviour" | "Sensitive";
+            isRequired: boolean;
+            sort: number;
+            purposeKey: string | null;
+            notices: components["schemas"]["CustomFieldNoticeText"] | null;
+            formLabels: components["schemas"]["CustomFieldFormLabel"][] | null;
+        };
+        CustomFieldDefinitionPageResponse: {
+            items: components["schemas"]["CustomFieldDefinitionResponse"][];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
+        CustomFieldDefinitionResponse: {
+            /** @enum {string} */
+            targetEntity: "Membership";
+            key: string;
+            schemaVersion: number;
+            schema: components["schemas"]["CustomFieldFiniteSchema"];
+            labels: components["schemas"]["CustomFieldLocalizedText"];
+            /** @enum {string} */
+            piiCategory: "None" | "Identity" | "Behaviour" | "Sensitive";
+            isRequired: boolean;
+            sort: number;
+            purposeKey: string | null;
+            notices: components["schemas"]["CustomFieldNoticeText"] | null;
+            formLabels: components["schemas"]["CustomFieldFormLabel"][] | null;
+            /** Format: uuid */
+            definitionId: string;
+            /** @enum {string} */
+            status: "Draft" | "Active" | "Deprecated";
+            version: string;
+            isDiscarded: boolean;
+            maximumValueBytes: number;
+            activeRevision: {
+                /** Format: uuid */
+                id: string;
+                version: string;
+            } | null;
+        };
+        CustomFieldFiniteSchema: {
+            /** @enum {string} */
+            $schema: "https://json-schema.org/draft/2020-12/schema";
+            /** @enum {string} */
+            type: "object";
+            properties: {
+                value: components["schemas"]["CustomFieldSchemaNode0"];
+            };
+            required: "value"[];
+            /** @enum {boolean} */
+            additionalProperties: false;
+        };
+        CustomFieldFormLabel: {
+            location: string;
+            labels: components["schemas"]["CustomFieldLocalizedText"] | null;
+            choices: components["schemas"]["CustomFieldLocalizedText"][] | null;
+        };
+        CustomFieldLocalizedText: {
+            [key: string]: string;
+        };
+        CustomFieldNoticeHashes: {
+            [key: string]: string;
+        };
+        CustomFieldNoticeText: {
+            [key: string]: string;
+        };
+        CustomFieldPublicationInput: {
+            expectedIncumbentId: string | null;
+            expectedIncumbentVersion: string | null;
+        };
+        CustomFieldReceiptResponse: {
+            /** Format: uuid */
+            id: string;
+            version: string;
+        };
+        CustomFieldSchemaNode0: {
+            /** @enum {string} */
+            type: "string";
+            minLength: number;
+            maxLength: number;
+        } | {
+            /** @enum {string} */
+            type: "string";
+            minLength: number;
+            maxLength: number;
+            enum: string[];
+        } | {
+            /** @enum {string} */
+            type: "integer";
+            minimum: number;
+            maximum: number;
+        } | {
+            /** @enum {string} */
+            type: "number";
+            minimum: number;
+            maximum: number;
+        } | {
+            /** @enum {string} */
+            type: "boolean";
+        } | {
+            /** @enum {string} */
+            type: "object";
+            properties: {
+                [key: string]: components["schemas"]["CustomFieldSchemaNode1"];
+            };
+            required: string[];
+            /** @enum {boolean} */
+            additionalProperties: false;
+        } | {
+            /** @enum {string} */
+            type: "array";
+            items: components["schemas"]["CustomFieldSchemaNode1"];
+            minItems: number;
+            maxItems: number;
+        };
+        CustomFieldSchemaNode1: {
+            /** @enum {string} */
+            type: "string";
+            minLength: number;
+            maxLength: number;
+        } | {
+            /** @enum {string} */
+            type: "string";
+            minLength: number;
+            maxLength: number;
+            enum: string[];
+        } | {
+            /** @enum {string} */
+            type: "integer";
+            minimum: number;
+            maximum: number;
+        } | {
+            /** @enum {string} */
+            type: "number";
+            minimum: number;
+            maximum: number;
+        } | {
+            /** @enum {string} */
+            type: "boolean";
+        } | {
+            /** @enum {string} */
+            type: "object";
+            properties: {
+                [key: string]: components["schemas"]["CustomFieldSchemaNode2"];
+            };
+            required: string[];
+            /** @enum {boolean} */
+            additionalProperties: false;
+        } | {
+            /** @enum {string} */
+            type: "array";
+            items: components["schemas"]["CustomFieldSchemaNode2"];
+            minItems: number;
+            maxItems: number;
+        };
+        CustomFieldSchemaNode2: {
+            /** @enum {string} */
+            type: "string";
+            minLength: number;
+            maxLength: number;
+        } | {
+            /** @enum {string} */
+            type: "string";
+            minLength: number;
+            maxLength: number;
+            enum: string[];
+        } | {
+            /** @enum {string} */
+            type: "integer";
+            minimum: number;
+            maximum: number;
+        } | {
+            /** @enum {string} */
+            type: "number";
+            minimum: number;
+            maximum: number;
+        } | {
+            /** @enum {string} */
+            type: "boolean";
+        };
+        CustomFieldValueEnvelope: {
+            value: components["schemas"]["CustomFieldValueNode0"];
+        };
+        CustomFieldValueNode0: string | number | boolean | components["schemas"]["CustomFieldValueNode1"][] | {
+            [key: string]: components["schemas"]["CustomFieldValueNode1"];
+        };
+        CustomFieldValueNode1: string | number | boolean | components["schemas"]["CustomFieldValueNode2"][] | {
+            [key: string]: components["schemas"]["CustomFieldValueNode2"];
+        };
+        CustomFieldValueNode2: string | number | boolean;
         DefaultOrganizationInput: {
             /** Format: uuid */
             organizationId: string;
@@ -687,6 +1143,30 @@ export interface components {
         /** @enum {string} */
         DirectoryMembershipStatus: "Active" | "Suspended";
         EmptyAdministrationInput: Record<string, never>;
+        FieldConsentGrantInput: {
+            /** Format: uuid */
+            definitionId: string;
+            definitionVersion: number;
+            noticeLocale: string;
+            expectedNoticeHash: string;
+            expectedSequence: number;
+            expectedEvidenceId: string | null;
+            confirmed: boolean;
+        };
+        FieldConsentReceiptResponse: {
+            /** Format: uuid */
+            evidenceId: string;
+            sequence: string;
+            isGranted: boolean;
+        };
+        FieldConsentWithdrawalInput: {
+            /** Format: uuid */
+            evidenceId: string;
+            expectedSequence: number;
+            /** Format: uuid */
+            expectedEvidenceId: string;
+            confirmed: boolean;
+        };
         IdentitySelfActive: {
             /** @enum {string} */
             state: "active";
@@ -785,6 +1265,51 @@ export interface components {
             /** @enum {null|string} */
             acceptanceDisposition: "created" | "already_member" | null;
         };
+        MembershipCustomFieldPatch: {
+            set: {
+                conceptKey: string;
+                /** Format: uuid */
+                definitionId: string;
+                schemaVersion: number;
+                envelope: components["schemas"]["CustomFieldValueEnvelope"];
+                consentEvidenceId: string | null;
+            }[];
+            remove: {
+                conceptKey: string;
+                /** Format: uuid */
+                definitionId: string;
+                schemaVersion: number;
+            }[];
+        };
+        MembershipCustomFieldsResponse: {
+            /** Format: uuid */
+            membershipId: string;
+            version: string;
+            fields: {
+                conceptKey: string;
+                /** Format: uuid */
+                definitionId: string;
+                schemaVersion: number;
+                /** @enum {string} */
+                state: "Current" | "Missing" | "Retired" | "Withheld";
+                isRequired: boolean;
+                envelope: components["schemas"]["CustomFieldValueEnvelope"] | null;
+                definition: {
+                    schema: components["schemas"]["CustomFieldFiniteSchema"];
+                    labels: components["schemas"]["CustomFieldLocalizedText"];
+                    /** @enum {string} */
+                    piiCategory: "None" | "Identity" | "Behaviour" | "Sensitive";
+                    sort: number;
+                    purposeKey: string | null;
+                    notices: components["schemas"]["CustomFieldNoticeText"] | null;
+                    formLabels: components["schemas"]["CustomFieldFormLabel"][] | null;
+                    noticeHashes: components["schemas"]["CustomFieldNoticeHashes"] | null;
+                    /** @enum {string} */
+                    status: "Active" | "Deprecated";
+                };
+                consent: components["schemas"]["FieldConsentReceiptResponse"] | null;
+            }[];
+        };
         MembershipDetailResponse: {
             /** Format: uuid */
             membershipId: string;
@@ -869,6 +1394,10 @@ export interface components {
             canAdoptRoleRelease: boolean;
             canWriteOwnProfile: boolean;
             canManageOrganizations: boolean;
+            canManageCustomFields: boolean;
+        };
+        OwnFieldConsentCurrentResponse: {
+            consent: components["schemas"]["ConsentDetailsResponse"] | null;
         };
         OwnMembershipContextPage: {
             items: components["schemas"]["OwnMembershipContextResponse"][];
@@ -1089,6 +1618,377 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ListOwnFieldConsentScopes: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentScopePageResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListOwnMembershipFieldConsents: {
+        parameters: {
+            query: {
+                cursor?: string;
+                limit?: number;
+                membershipId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentHistoryPageResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    WithdrawOwnMembershipFieldConsent: {
+        parameters: {
+            query: {
+                membershipId: string;
+            };
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldConsentWithdrawalInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldConsentReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     SelectDefaultOrganization: {
         parameters: {
             query?: never;
@@ -2127,6 +3027,257 @@ export interface operations {
                 };
             };
             /** @description dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetOwnMembershipFieldConsent: {
+        parameters: {
+            query: {
+                membershipId: string;
+                definitionId: string;
+                definitionVersion: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnFieldConsentCurrentResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GrantOwnMembershipFieldConsent: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldConsentGrantInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldConsentReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -4136,6 +5287,510 @@ export interface operations {
             };
         };
     };
+    GetMembershipCustomFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipCustomFieldsResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, PATCH";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetMembershipCustomFields: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipCustomFieldPatch"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, PATCH";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetOwnMembershipCustomFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipCustomFieldsResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, PATCH";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetOwnMembershipCustomFields: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipCustomFieldPatch"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, PATCH";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     ListMemberships: {
         parameters: {
             query?: {
@@ -5521,7 +7176,10 @@ export interface operations {
     };
     GetPermissionRegistry: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Current source release, default1. Source1 returns v2; source2 returns v3; no automatic adoption/grant. */
+                sourceReleaseVersion?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6137,6 +7795,1039 @@ export interface operations {
                 };
             };
             /** @description dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListCustomFieldDefinitions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                status?: "Draft" | "Active" | "Deprecated";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldDefinitionPageResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RegisterCustomFieldDefinition: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldDefinitionInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            201: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    Location: string;
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetCustomFieldDefinition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldDefinitionResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, PUT";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReviseCustomFieldDefinitionDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldDefinitionInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, PUT";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListCustomFieldDefinitionRevisions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldDefinitionPageResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PublishCustomFieldDefinition: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldPublicationInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RetireCustomFieldDefinition: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DiscardCustomFieldDefinitionDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Authorized current projection or minimal committed receipt. */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Idempotency-Replayed"?: "true";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldReceiptResponse"];
+                };
+            };
+            /** @description validation_failed: malformed, duplicate, missing, oversized normalized or noncanonical input. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized: invalid credentials. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden: no current operation authority. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found: foreign, missing or noncovered exact scope/target. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier admission gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large: input over the outer byte bound. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by existing admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error with payload-free diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; no unconfirmed success. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";

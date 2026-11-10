@@ -864,3 +864,22 @@ ring. Existing fingerprints stay byte-identical. Retain keys for physically pres
 rows including logically expired ones and for matching backups; missing keys fail
 closed. Receipts contain versions and immutable targets, not values or notices.
 The Phase 03 package owns the exact endpoint census and implementation status.
+
+The definition and value receipts are exactly `{id, version}`; consent receipts
+are exactly `{evidenceId, sequence, isGranted}`. Versions/sequences are canonical
+decimal strings. Consent POSTs reject If-Match and return no ETag: their body
+carries the exact predecessor, and a receipt describes a historical act. A stored
+withdrawal replay selects its exact MUST receipt query during HTTP admission,
+before any mutation intent, on the original withdrawal-purpose writable owner.
+A completed result discovered only after mutation admission requires a fresh
+request; it cannot retarget that witness into a receipt read.
+
+Definition pages return at most twenty latest retained revision projections,
+with the active incumbent pin, through the existing definition-admin boundary.
+The store batches the page; it does not query each item separately. Revision
+pages remain exact-concept keyset pages. All pages use the standard forward-only
+PageInfo. A definition GET observes the active incumbent independently; publication
+still fences and compares both supplied versions. Profile fields disclose only
+exact authorized metadata, normalized schema objects and current consent state;
+withheld answers remain absent. Current consent also appears for an unanswered
+active Sensitive revision so personal notice capture does not depend on a value.

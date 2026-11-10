@@ -20,6 +20,7 @@ import {
   startBffBrowser,
   withProofWaiters,
 } from './bff-proof-support.mjs';
+import { consentProofView } from './consent-proof-view.mjs';
 import {
   createFixtureOwner,
   createPrivateScanner,
@@ -540,6 +541,9 @@ try {
         '/api/auth/signout',
         '/api/auth/extend',
         '/api/auth/entry',
+        '/account/consents',
+        '/api/auth/entry/consents',
+        '/api/auth/entry/consents/withdraw',
         '/api/auth/entry/create',
         '/api/auth/entry/select',
         '/api/auth/switch',
@@ -618,7 +622,18 @@ try {
         : response.headers['content-type']?.includes('text/html') &&
             response.body.includes('data-invitation-state="')
           ? invitationProofView(response.body)
-          : null;
+          : response.headers['content-type']?.includes('text/html') &&
+              [
+                '/account/consents',
+                '/api/auth/entry/consents',
+                '/api/auth/entry/consents/withdraw',
+              ].includes(path.pathname)
+            ? consentProofView(
+                response.body,
+                response.headers['content-security-policy'],
+                path.searchParams.get('membershipId'),
+              )
+            : null;
     await send({
       protocol: 1,
       phase: 'response',

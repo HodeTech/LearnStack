@@ -54,7 +54,10 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         }
         var cancellationToken = context.HttpContext.RequestAborted;
         await AdministrationHttpInput.ReadBodyBytesAsync(context.HttpContext);
-        var fingerprint = await ComputeFingerprintAsync(context.HttpContext, expected, cancellationToken);
+        string fingerprint;
+        try { fingerprint = await ComputeFingerprintAsync(context.HttpContext, expected, cancellationToken); }
+        catch (Exception failure) when (failure is CustomFieldFingerprintUnavailableException or IdempotencyStoreException)
+        { context.Result = Problem("lockey_dependency_unavailable"); return; }
         var admission = ProtectedReplayHttpAdmission.Consume(context.HttpContext, tenantContext, _descriptor, key, fingerprint, expected);
         if (admission.Kind == ProtectedHttpAdmissionKind.Refused)
         {
@@ -78,6 +81,10 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         switch (claim.Outcome)
         {
             case IdempotencyClaim.Completed:
+                // A retained-consent mutation witness cannot become a receipt-read
+                // witness after HTTP authorization. Retry through fresh admission.
+                if (_descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent)
+                { context.Result = Problem("lockey_request_in_progress"); return; }
                 await ReplayAsync(context, claim.Stored, cancellationToken);
                 return;
             case IdempotencyClaim.InFlight:
@@ -104,6 +111,9 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
     internal static async Task<string> ComputeFingerprintAsync(HttpContext context, ITenantContext tenantContext,
         ProtectedAdministrationDescriptor descriptor, long? expected, CancellationToken cancellationToken)
     {
+        if (descriptor.UsesCustomFieldFingerprint)
+            return await context.RequestServices.GetRequiredService<CustomFieldFingerprintService>()
+                .ComputeAsync(context, tenantContext, descriptor, expected, cancellationToken);
         // The historical digest is deliberately unchanged, including its exact
         // actor/scope/method/path/query/body byte framing. Protected inputs wrap
         // it in a separate versioned domain and canonical precondition.
@@ -137,7 +147,7 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         Result<None> disclosure;
         try
         {
-            disclosure = await new ProtectedReceiptReplayDispatcher(sender)
+            disclosure = await new ProtectedReceiptReplayDispatcher(sender, context.HttpContext)
                 .ReadAsync(_descriptor, stored.ReplayTarget!, cancellationToken);
         }
         catch
@@ -196,7 +206,7 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
             var proposed = new IdempotentResponse(response.StatusCode, response.ContentType,
                 CaptureHeaders(response), buffer.Bytes, result.Target);
             if (ValidStoredResponse(proposed, _descriptor, tenantContext.TenantId)
-                && proposed.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(result.Version))) receipt = proposed;
+                && proposed.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(_descriptor, result.Target.Id, result.Version))) receipt = proposed;
         }
         bool recorded;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -252,13 +262,18 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
 
     internal static bool ValidStoredResponse(IdempotentResponse stored, ProtectedAdministrationDescriptor descriptor, TenantId tenant)
     {
+        long version;
+        if (stored.Body is null || stored.Headers is null) return false;
+        if (descriptor.IsConsent
+            ? stored.Headers.Keys.Any(name => name.Equals("ETag", StringComparison.OrdinalIgnoreCase))
+                || !TryConsentSequence(stored.Body, out version)
+            : !TryHeader(stored, "ETag", out var tag) || !ProtectedEntityTag.TryParse(tag, out version)) return false;
         if (stored.Body is null || stored.Headers is null
             || stored.ReplayTarget is not { } target || target.Kind != descriptor.TargetKind || target.Id == Guid.Empty || target.Id.Version != 7
             || target.Kind == IdempotencyReplayTargetKind.Tenant && target.Id != tenant.Value
             || stored.StatusCode != (descriptor.Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK)
             || stored.ContentType != "application/json; charset=utf-8" || stored.Body.Length > MaxReceiptBytes
-            || !TryHeader(stored, "ETag", out var tag) || !ProtectedEntityTag.TryParse(tag, out var version)
-            || !stored.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(version))) return false;
+            || !stored.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(descriptor, target.Id, version))) return false;
         if (descriptor.Creates ? !TryHeader(stored, "Location", out var location)
                 || location != descriptor.LocationFor(target.Id)
             : stored.Headers.Keys.Any(name => name.Equals("Location", StringComparison.OrdinalIgnoreCase))) return false;
@@ -278,6 +293,21 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         // completed row. The same capture policy strips them before persistence.
         return bytes <= MaxReceiptBytes && CaptureHeaders(response).Count == stored.Headers.Count
             && TryHeader(stored, "Content-Type", out var contentType) && contentType == stored.ContentType;
+    }
+
+    private static bool TryConsentSequence(byte[] body, out long version)
+    {
+        version = 0;
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(body);
+            return json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && json.RootElement.TryGetProperty("sequence", out var value)
+                && value.ValueKind == System.Text.Json.JsonValueKind.String
+                && ProtectedEntityTag.TryParseVersion(value.GetString(), out version)
+                && version is > 0 and <= 9007199254740991;
+        }
+        catch (System.Text.Json.JsonException) { return false; }
     }
 
     private static bool TryHeader(IdempotentResponse response, string name, out string value)

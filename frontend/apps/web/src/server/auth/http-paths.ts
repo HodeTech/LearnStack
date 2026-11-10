@@ -8,6 +8,17 @@ export const BFF_POST_PATHS = Object.freeze([
   '/api/auth/invitation/accept',
   '/api/auth/invitation/result',
   '/api/auth/invitation/cancel',
+  '/api/auth/entry/consents',
+  '/api/auth/entry/consents/withdraw',
+  '/api/studio/custom-field-create',
+  '/api/studio/custom-field-revise',
+  '/api/studio/custom-field-publish',
+  '/api/studio/custom-field-retire',
+  '/api/studio/custom-field-discard',
+  '/api/studio/membership-custom-fields',
+  '/api/account/custom-fields',
+  '/api/account/consent-grant',
+  '/api/account/consent-withdraw',
   '/api/studio/invitation-create',
   '/api/studio/invitation-revoke',
   '/api/studio/invitation-reissue',
@@ -34,7 +45,7 @@ export function bffActionDocumentTarget(target: string): boolean {
   return (
     BFF_POST_PATHS.includes(target) &&
     (target.startsWith('/api/studio/') ||
-      target === '/api/account/profile' ||
+      target.startsWith('/api/account/') ||
       target === '/api/auth/switch' ||
       target === '/api/auth/entry/select')
   );

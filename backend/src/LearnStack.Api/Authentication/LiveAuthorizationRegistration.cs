@@ -41,6 +41,11 @@ internal static class LiveAuthorizationRegistration
             provider.GetRequiredService<LearnStack.Modules.Identity.Application.Contracts.Invitations.IInvitationEntryLookup>(),
             provider.GetRequiredService<IdentityAuthorityQualification>(), () => provider.GetRequiredService<IOperationInvocationContext>()));
         services.TryAddScoped<LearnStack.SharedKernel.Identity.IInvitationEntryScopeSource>(provider => provider.GetRequiredService<InvitationEntrySource>());
+        services.TryAddScoped<ConsentSubjectSource>(provider => new ConsentSubjectSource(
+            provider.GetRequiredService<IHttpContextAccessor>(),
+            provider.GetRequiredService<LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents.IConsentSubjectScopeLookup>(),
+            provider.GetRequiredService<IdentityAuthorityQualification>(), () => provider.GetRequiredService<IOperationInvocationContext>()));
+        services.TryAddScoped<LearnStack.SharedKernel.Identity.IConsentSubjectScopeSource>(provider => provider.GetRequiredService<ConsentSubjectSource>());
         services.TryAddSingleton<CurrentInvitationRecipientBackchannel>();
         services.TryAddScoped<LearnStack.Modules.Identity.Application.Contracts.Invitations.ICurrentInvitationRecipientReader, CurrentInvitationRecipientReader>();
         services.TryAddScoped<TenantAuthorizationCandidateSource>();

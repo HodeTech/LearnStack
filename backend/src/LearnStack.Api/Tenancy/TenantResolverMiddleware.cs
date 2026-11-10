@@ -78,6 +78,24 @@ public sealed class TenantResolverMiddleware(
             return;
         }
 
+        if (ConsentSubjectOperation.ForPath(context.Request.Path) is not null)
+        {
+            var previousEntryContext = accessor.Current;
+            try
+            {
+                var source = context.RequestServices.GetRequiredService<ConsentSubjectSource>();
+                var scope = await source.PrepareAsync(context);
+                if (scope.IsFailure) { await OperationClassificationMiddleware.RefuseAsync(context, scope.Error); return; }
+                var consentIdentity = context.Features.Get<TenantCredentialFeature>()!.Identity!;
+                var resolved = TenantContextFactory.CreateForConsentSubjectScope(classification.TenantId!.Value,
+                    classification.OrganizationId, consentIdentity.ActorUserId, source.Selected, Activity.Current?.Id ?? context.TraceIdentifier);
+                if (resolved.IsFailure) { await OperationClassificationMiddleware.RefuseAsync(context, resolved.Error); return; }
+                accessor.Current = resolved.Value;
+                await next(context);
+            }
+            finally { accessor.Current = previousEntryContext; }
+            return;
+        }
         if (InvitationEntryOperation.ForPath(context.Request.Path) is not null)
         {
             var previousEntryContext = accessor.Current;

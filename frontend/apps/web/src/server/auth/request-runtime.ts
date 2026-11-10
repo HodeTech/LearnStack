@@ -2,13 +2,14 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EventEmitter } from 'node:events';
 import type { IncomingHttpHeaders, ServerResponse } from 'node:http';
 
+import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost, validTarget } from '../ingress.js';
 import type { IngressContext } from '../ingress.js';
 import type { PublicAdmissionHolder, PublicAdmissionRead } from '../public-admission-runtime.js';
 import { BFF_POST_PATHS, bffActivity } from './http-input.js';
 import { bffActionDocumentTarget } from './http-paths.js';
 import type { InvitationResponseLease } from './invitation-session.js';
-import type { NativePageSnapshot, PageSite } from './page-contract.js';
+import type { NativePageSnapshot, NativeConsentSnapshot, PageSite } from './page-contract.js';
 import { protectPageResponse } from './page-response.js';
 import type { NativePagePreparation, NativeSnapshotTicket } from './page-snapshot-contract.js';
 import { createPageSnapshotPool, SnapshotAdmissionError } from './page-snapshot-pool.js';
@@ -414,6 +415,51 @@ export function createBffRequestRuntime(admission?: Pick<PublicAdmissionHolder, 
       return active.size;
     },
     snapshotCounts: pool.counts,
+    nativeConsentResponse(binding: IngressContext): NativeConsentResponseLease {
+      const frame = current(binding, 'pending');
+      const path = binding.target.split('?', 1)[0];
+      if (
+        ![
+          '/account/consents',
+          '/api/auth/entry/consents',
+          '/api/auth/entry/consents/withdraw',
+        ].includes(path!) ||
+        !frame.guarded ||
+        frame.outputStarted ||
+        frame.lease
+      )
+        return unavailable();
+      return Object.freeze({
+        signal: frame.controller.signal,
+        cleaned: frame.cleaned,
+        pin(assert: () => void, owner: object, expiresInMs: number) {
+          frame.assertCurrent();
+          if (frame.outputStarted || frame.lease) return unavailable();
+          const result = pool.reserve(owner, {
+            signal: frame.controller.signal,
+            cleaned: frame.cleaned,
+            assertCurrent: frame.assertCurrent,
+            invalidate: frame.invalidate,
+            publishPage() {
+              return unavailable();
+            },
+          });
+          frame.lease = result;
+          result.lease.pin(() => {
+            try {
+              assert();
+              return true;
+            } catch {
+              return false;
+            }
+          }, expiresInMs);
+        },
+        publish(value: NativeConsentSnapshot) {
+          if (!frame.lease) return unavailable();
+          return frame.lease.lease.publishConsent(value);
+        },
+      });
+    },
     nativeResponse(binding: IngressContext): InvitationResponseLease {
       const frame = current(binding, 'pending');
       if (!admission || !frame.guarded || frame.outputStarted || frame.lease) return unavailable();

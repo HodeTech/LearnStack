@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 553 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 634 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -400,7 +400,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 1 implementation and first review handoff (2026-11-10)](#p03-5-step-1-implementation-and-first-review-handoff-2026-11-10) — 48 lines
   - [P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)](#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) — 43 lines
   - [P03-5 Step 2 value and consent implementation handoff (2026-11-10)](#p03-5-step-2-value-and-consent-implementation-handoff-2026-11-10) — 53 lines
-  - [P03-5 Step 2 two-round review closeout (2026-11-10)](#p03-5-step-2-two-round-review-closeout-2026-11-10) — 22 lines
+  - [P03-5 Step 2 two-round review closeout (2026-11-10)](#p03-5-step-2-two-round-review-closeout-2026-11-10) — 23 lines
+  - [P03-5 Step 3 HTTP, native and accessible form implementation handoff (2026-11-10)](#p03-5-step-3-http-native-and-accessible-form-implementation-handoff-2026-11-10) — 80 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18431,3 +18432,84 @@ borrowed as credential or browser proof. Normalized schema/number wire handling
 and the separate serialized/encoded bounds remain explicit Step 3 checks. Step 4
 still owns the complete combined suites, final-source hosted A/B/original archives
 and truthful human evidence before the packet's PR. No merge is authorized.
+
+
+### P03-5 Step 3 HTTP, native and accessible form implementation handoff (2026-11-10)
+
+Step 3 activates Accepted ADR-0095's API, SDK, scoped replay fingerprints,
+credentialed consent entry and English/Turkish administration and own-account
+forms. Its source commit follows this record; the two fresh independent review
+rounds remain next. This handoff does not complete P03-5 or its final qualification.
+
+- The exact transport census adds seventeen HTTP operations: eight reads and nine
+  protected mutations. Definitions retain immutable revision interpretation and
+  normalized schema objects; minimal definition/value receipts carry identity and
+  version, while consent receipts carry evidence identity, sequence and state.
+  Consent does not acquire ETag/If-Match semantics. The native operation census is
+  forty-six; receipt readers remain private and MUST-audited.
+- Scoped HMAC fingerprints bind the real tenant, organization, actor, operation,
+  preconditions and complete raw request. The validated secret ring admits one
+  current and at most three retained independent keys. Stored metadata exposes
+  only key identifiers for retention validation, including expired physical rows;
+  legacy fingerprints retain their original bytes. Missing or invalid new keys
+  refuse the new mutations without disabling unrelated operations. Demo ingress
+  forwards only the explicitly selected API secret namespace and never supplies
+  browser configuration or generated key material.
+- The production consent-subject source captures the exact admitted request and
+  credential/real-host binding. Retained discovery, history and withdrawal use
+  that immutable source independently of an active Membership or profile-write
+  permission. Receipt reconciliation cannot replace the captured request with
+  another subject. No thirteenth definer/setter or fifth physical writer appears.
+- The SDK and native forms retain raw numeric lexemes until exact admission,
+  independent raw/canonical body limits and fresh authorized field metadata.
+  Actual PostgreSQL reads normalize expanded JSONB schemas before DTO emission;
+  external 2 KiB schema and complete 4 KiB author/value limits remain enforced.
+  Set/remove omission, required-field completeness, historical pins, retired
+  read-only values and explicit replacement remain visible to users.
+- Studio authors the finite schema without a general-purpose code editor. Member
+  and own-account editors offer typed scalar, object and list controls, including
+  a JavaScript-free path in both languages. Personal consent has a separate
+  accessible history and grant/withdraw surface; administrators cannot grant it
+  for another person. Validation recovery preserves the submitted version, pins
+  and values, performs at most one necessary authorized metadata read, and never
+  silently retries a mutation. Unavailable metadata gives a fresh-read action
+  and read-only submitted values rather than fabricated field labels.
+- The retained native consent shell uses the existing entry owner and bounded
+  response lifetime, authored translations, escaped HTML and a nonce-bound
+  history guard. It avoids current-session/public-site assumptions. Production
+  Next compilation finds an incompatible React server renderer import; replacing
+  that production dependency with escaped finite HTML restores the actual build.
+  Six parity cases compare its controls with the React presentation.
+- Architecture graph corrections remain narrow: structured exception observation
+  does not acquire every exception implementation. Exact supplied-error method
+  shapes and planted acquisition counterexamples preserve traversal. Application
+  handlers no longer call another handler's static implementation, and controllers
+  acquire application work only through the established request seam.
+
+Local verification after the repairs:
+
+- Release solution and affected integration/architecture projects build with zero
+  warnings/errors; all **3,747 unit** and **12 contract** cases pass.
+- The broad affected architecture slice passes 180 cases, with three HTTP graph
+  failures subsequently repaired. The final thirteen-case authenticated/public
+  surface slice passes in full, including those failures. These are affected
+  slices, not a completed full architecture run.
+- All eleven selected actual PostgreSQL/API cases pass, including physical JSONB
+  expansion and normalized wire-schema bounds. The earlier Step 2 concurrency,
+  audit and privacy results remain separately attributed to that step.
+- SDK/web/native type checks, the native producer, SDK lint and web lint pass.
+  Focused SDK cases pass **30/30**. Focused web forms/native/locale/ingress cases
+  pass **282/282**; subsequent recovery/parity cases pass **54/54**, native consent
+  cases **9/9**, and proof relay cases **4/4**. These populations overlap and are
+  not added together as independent proof.
+- The actual owned HTTPS/stock-Chromium browser Fact passes **1/1**, executing the
+  positive journey and its two separate counterfactual journeys with cleanup.
+  The positive journey includes definition authoring, personal consent, retirement
+  and typed JavaScript-free list saving on both English and Turkish hosts. Its API
+  and provider are controlled fixtures; this does not establish real OIDC/RLS
+  qualification. Earlier failed build/relay attempts receive no passing credit.
+
+Step 4 still owns the full relevant suites, the real-provider journey with the
+new consent-shell observations, P03-5-specific human accessibility evidence and
+final-source hosted A/B plus original-archive reconciliation. Existing P03-4 human
+approval is not reused. Catalogue registration is not promoted by these slices.

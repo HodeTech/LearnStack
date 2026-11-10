@@ -16,6 +16,7 @@ public sealed class CustomizationOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForProtected<PublishCustomFieldDefinitionCommand>("customization.custom_field.publish", BoundedCustomFieldPermissions.Definition, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<RetireCustomFieldDefinitionCommand>("customization.custom_field.retire", BoundedCustomFieldPermissions.Definition, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<DiscardCustomFieldDefinitionDraftCommand>("customization.custom_field.discard", BoundedCustomFieldPermissions.Definition, requiresOrglessWrite: true),
+        OperationPolicy.ForProtected<ReadCustomFieldDefinitionReceiptQuery>("customization.custom_field.read_receipt", BoundedCustomFieldPermissions.Definition),
         OperationPolicy.ForProtected<GetCustomFieldDefinitionQuery>("customization.custom_field.read", BoundedCustomFieldPermissions.Definition),
         OperationPolicy.ForProtected<ListCustomFieldDefinitionsQuery>("customization.custom_field.list", BoundedCustomFieldPermissions.Definition),
         OperationPolicy.ForProtected<ListCustomFieldDefinitionRevisionsQuery>("customization.custom_field.list_revisions", BoundedCustomFieldPermissions.Definition),

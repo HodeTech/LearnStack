@@ -60,7 +60,7 @@ public sealed class GrantOwnMembershipFieldConsentCommandHandler(OwnFieldConsent
             {
                 if (!authorization.IsCurrent(request, admission)) return Fail("lockey_forbidden");
                 audit.Designate(state.Current!);
-                return Result.Ok(Receipt(state.Current!));
+                return Result.Ok(MembershipFieldConsentResults.Receipt(state.Current!));
             }
             if (decision != MembershipFieldConsentTransitionDecision.Append)
                 return Fail(decision == MembershipFieldConsentTransitionDecision.Stale ? "lockey_concurrency_conflict" : "lockey_business_rule_violation");
@@ -71,9 +71,9 @@ public sealed class GrantOwnMembershipFieldConsentCommandHandler(OwnFieldConsent
                 request.ExpectedSequence + 1, MembershipFieldConsentState.Granted, predecessor, request.ExpectedSequence, clock.UtcNow);
             audit.Designate(consent);
             await store.AddAsync(consent, cancellationToken);
-            return Result.Ok(Receipt(consent));
+            return Result.Ok(MembershipFieldConsentResults.Receipt(consent));
         }
-        catch (MembershipFieldConsentStorageException failure) { return Fail(Map(failure.Failure)); }
+        catch (MembershipFieldConsentStorageException failure) { return Fail(MembershipFieldConsentResults.Map(failure.Failure)); }
         catch (IdentityMutationLockException) { return Fail("lockey_dependency_unavailable"); }
         catch (TenantLocaleEligibilityReadException) { return Fail("lockey_dependency_unavailable"); }
     }
@@ -86,13 +86,5 @@ public sealed class GrantOwnMembershipFieldConsentCommandHandler(OwnFieldConsent
         && ((request.ExpectedSequence == 0 && request.ExpectedEvidenceId is null)
             || (request.ExpectedSequence > 0 && request.ExpectedEvidenceId is { } id && id != Guid.Empty && id.Version == 7));
 
-    internal static MembershipFieldConsentReceipt Receipt(MembershipFieldConsent row) => new(row.Id.Value, row.Sequence,
-        row.State == MembershipFieldConsentState.Granted);
-    internal static string Map(MembershipFieldConsentStorageFailure failure) => failure switch
-    {
-        MembershipFieldConsentStorageFailure.Stale or MembershipFieldConsentStorageFailure.Conflict => "lockey_concurrency_conflict",
-        MembershipFieldConsentStorageFailure.Cooldown or MembershipFieldConsentStorageFailure.State => "lockey_business_rule_violation",
-        _ => "lockey_dependency_unavailable",
-    };
     private static Result<MembershipFieldConsentReceipt> Fail(string code) => OwnFieldConsentAuthorization.Failure<MembershipFieldConsentReceipt>(code);
 }

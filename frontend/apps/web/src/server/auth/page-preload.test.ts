@@ -26,6 +26,7 @@ const capabilities: PageCapabilities = {
   canAdoptRoleRelease: true,
   canWriteOwnProfile: true,
   canManageOrganizations: true,
+  canManageCustomFields: true,
 };
 const member: MembershipDetail = {
   membershipId: memberId,
@@ -112,6 +113,12 @@ function fixture(overrides: Partial<Record<NativeOperation['kind'], NativeOperat
     getOwnCapabilities: success(capabilities),
     getOwnProfile: success({ displayName: 'Current actor', preferredLocale: 'tr', version: '3' }),
     getMembership: success(member),
+    getOwnCustomFields: success({ membershipId: memberId, version: '7', fields: [] }),
+    getMembershipCustomFields: success({ membershipId: memberId, version: '7', fields: [] }),
+    listOwnConsentHistory: success({
+      items: [],
+      pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+    }),
     listInvitations: success({
       items: [invitation],
       pageInfo: {
@@ -182,9 +189,13 @@ describe('finite native page preparation reads and safe projections', () => {
   it.each([
     ['/studio', 'studio', []],
     ['/portal', 'portal', []],
-    ['/portal/profile', 'profile', []],
+    ['/portal/profile', 'profile', ['getOwnCustomFields', 'listOwnConsentHistory']],
     ['/studio/members', 'members', ['listMemberships']],
-    ['/studio/members/' + memberId, 'member', ['getMembership', 'listRoles']],
+    [
+      '/studio/members/' + memberId,
+      'member',
+      ['getMembership', 'listRoles', 'getMembershipCustomFields'],
+    ],
     ['/studio/roles', 'roles', ['listRoles']],
     ['/studio/invitations', 'invitations', ['listInvitations', 'listInvitableRoles']],
     ['/studio/invitations/' + memberId, 'invitation', ['getInvitation', 'listInvitableRoles']],
@@ -200,6 +211,17 @@ describe('finite native page preparation reads and safe projections', () => {
     expect(JSON.stringify(result)).not.toContain('userId');
   });
 
+  it('keeps custom definition pages at twenty without reducing existing directory pages', () => {
+    expect(nativeDocumentPlan('/studio/custom-fields?limit=100', false).limit).toBe(20);
+    expect(nativeDocumentPlan('/studio/members?limit=100', false).limit).toBe(100);
+    expect(nativeDocumentPlan('/studio/invitations?limit=25', false).limit).toBe(25);
+  });
+  it('does not disclose a partial profile when its custom fields read is refused', async () => {
+    const test = fixture({ getOwnCustomFields: refused(403) });
+    const result = await test.load('/portal/profile');
+    expect(result.outcome).toMatchObject({ kind: 'failure', reason: 'denied' });
+    expect(test.calls()).toEqual(['getOwnCapabilities', 'getOwnProfile', 'getOwnCustomFields']);
+  });
   it('uses the branch directory when only organization coverage is available and seals pagination', async () => {
     const test = fixture({
       getOwnCapabilities: success({ ...capabilities, canReadTenantMembers: false }),
@@ -224,7 +246,12 @@ describe('finite native page preparation reads and safe projections', () => {
   it('allows independent member management without requesting inaccessible role choices', async () => {
     const test = fixture({ getOwnCapabilities: success({ ...capabilities, canReadRoles: false }) });
     const result = await test.load('/studio/members/' + memberId);
-    expect(test.calls()).toEqual(['getOwnCapabilities', 'getOwnProfile', 'getMembership']);
+    expect(test.calls()).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+      'getMembership',
+      'getMembershipCustomFields',
+    ]);
     expect(result.outcome).toMatchObject({
       kind: 'ready',
       view: {

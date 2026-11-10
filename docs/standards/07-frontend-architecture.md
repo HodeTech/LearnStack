@@ -1096,3 +1096,13 @@ on the fixed consent-only entry after Membership lifecycle loss. Stale submissio
 require an explicit fresh read, never automatic retry. The tenth advisory capability
 is sourced from current registered Tenant authority in orgless context; API and
 application checks remain authoritative. Phase 03 owns activation and proof.
+
+Membership answer forms retain the same finite typed/grouped controls without
+JavaScript. The native parser resolves immutable descriptors through the owning
+authorized getter; it never trusts a posted control schema. It ignores only
+schema-declared inactive branches and retains unknown/duplicate-control refusal.
+Required missing answers are completed before an optional selected answer.
+Validation recovery preserves submitted numeric lexemes and the original version;
+only an actual validation refusal may obtain matching descriptors through one
+existing bounded getter. Failed or retired descriptor recovery offers an explicit
+fresh read and retained read-only input, without automatic mutation retry.

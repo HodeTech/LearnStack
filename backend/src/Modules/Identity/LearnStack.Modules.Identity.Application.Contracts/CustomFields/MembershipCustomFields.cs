@@ -33,15 +33,19 @@ public sealed record SetOwnMembershipCustomFieldsCommand(long ExpectedVersion,
 /// <summary>Current/Missing/Retired/Withheld; withheld slots never carry an envelope. The metadata is an ephemeral Identity disclosure projection of the exact owning revision.</summary>
 public sealed record MembershipCustomFieldDto(string ConceptKey, Guid DefinitionId, int SchemaVersion, string State,
     bool IsRequired, [property: PiiSensitive] JsonElement? Envelope,
-    [property: PiiSensitive] MembershipCustomFieldMetadata Definition)
+    [property: PiiSensitive] MembershipCustomFieldMetadata Definition,
+    [property: PiiSensitive] MembershipCustomFieldConsent? Consent = null)
 { public override string ToString() => nameof(MembershipCustomFieldDto); }
 /// <summary>Read-model projection only; definition authority and interpretation stay with Customization.</summary>
 public sealed record MembershipCustomFieldMetadata([property: PiiSensitive] string JsonSchema,
     [property: PiiSensitive] IReadOnlyDictionary<string, string> Labels, PersonalDataCategory PiiCategory,
     int DisplayOrder, [property: PiiSensitive] string? PurposeKey,
     [property: PiiSensitive] IReadOnlyDictionary<string, string>? Notices,
-    [property: PiiSensitive] IReadOnlyList<MembershipCustomFieldControlLabels>? FormLabels)
+    [property: PiiSensitive] IReadOnlyList<MembershipCustomFieldControlLabels>? FormLabels,
+    string Status = "Active")
 { public override string ToString() => nameof(MembershipCustomFieldMetadata); }
+
+public sealed record MembershipCustomFieldConsent(Guid EvidenceId, long Sequence, bool IsGranted);
 
 public sealed record MembershipCustomFieldControlLabels(string Location,
     [property: PiiSensitive] IReadOnlyDictionary<string, string>? Labels,

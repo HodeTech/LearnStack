@@ -237,7 +237,7 @@ and qualification are recorded in the Phase 03 Status block.
 
 | Resource | Operation | Class | Request |
 |---|---|---|---|
-| MembershipProfile under Membership | `identity.membership.custom_fields_write` | **MUST** (`update`) | `SetMembershipCustomFieldsCommand`, `SetOwnMembershipCustomFieldsCommand` |
+| MembershipProfile under Membership | `identity.membership.custom_fields_write` | **MUST** (`update`) | `SetMembershipCustomFieldsCommand`, `SetOwnMembershipCustomFieldsCommand`; their safe original-Membership receipts use the existing exact admin/own profile receipt-read bindings. |
 | Membership custom values | `identity.membership.custom_fields_read` | **MUST** (`read-sensitive`) | `GetMembershipCustomFieldsQuery` |
 
 `GetOwnMembershipCustomFieldsQuery` is an explicit Off binding.

@@ -1,3 +1,6 @@
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using System.Globalization;
@@ -71,9 +74,22 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             RevokeInvitationCommand command => Invitation(await sender.Send(command, cancellationToken), command.InvitationId),
             ReissueInvitationCommand command => Invitation(await sender.Send(command, cancellationToken), command.InvitationId),
             SetTenantInvitationLifetimeCommand command => Policy(await sender.Send(command, cancellationToken)),
+            RegisterCustomFieldDefinitionCommand command => Definition(await sender.Send(command, cancellationToken), command.DefinitionId),
+            ReviseCustomFieldDefinitionDraftCommand command => Definition(await sender.Send(command, cancellationToken), command.DefinitionId),
+            PublishCustomFieldDefinitionCommand command => Definition(await sender.Send(command, cancellationToken), command.DefinitionId),
+            RetireCustomFieldDefinitionCommand command => Definition(await sender.Send(command, cancellationToken), command.DefinitionId),
+            DiscardCustomFieldDefinitionDraftCommand command => Definition(await sender.Send(command, cancellationToken), command.DefinitionId),
+            SetMembershipCustomFieldsCommand command => Membership(await sender.Send(command, cancellationToken), command.MembershipId),
+            SetOwnMembershipCustomFieldsCommand command => Membership(await sender.Send(command, cancellationToken), null),
+            GrantOwnMembershipFieldConsentCommand command => Consent(await sender.Send(command, cancellationToken), true),
+            WithdrawOwnMembershipFieldConsentCommand command => Consent(await sender.Send(command, cancellationToken), false),
             _ => throw new InvalidOperationException("The protected operation is not registered."),
         };
 
+        IActionResult Definition(Result<CustomFieldDefinitionDto> result, Guid target) => result.IsFailure
+            ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.DefinitionId, result.Value.Version, target);
+        IActionResult Consent(Result<MembershipFieldConsentReceipt> result, bool granted) => result.IsFailure
+            ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.IsGranted == granted ? result.Value.EvidenceId : Guid.Empty, result.Value.Sequence, null);
         IActionResult Invitation(Result<InvitationMutationResult> result, Guid? requested) => result.IsFailure
             ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.InvitationId, result.Value.Version, requested);
         IActionResult Policy(Result<InvitationPolicyMutationResult> result) => result.IsFailure
@@ -105,6 +121,11 @@ internal sealed class ProtectedAdministrationResult : IActionResult
 
     internal static byte[] BodyFor(long version) => Encoding.UTF8.GetBytes(
         "{\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
+    internal static byte[] BodyFor(ProtectedAdministrationDescriptor descriptor, Guid id, long version) =>
+        !descriptor.UsesCustomFieldFingerprint ? BodyFor(version) : Encoding.UTF8.GetBytes(descriptor.IsConsent
+            ? "{\"evidenceId\":\"" + id.ToString("D") + "\",\"sequence\":\"" + version.ToString(CultureInfo.InvariantCulture)
+                + "\",\"isGranted\":" + (descriptor.Operation == ProtectedAdministrationOperation.GrantOwnFieldConsent ? "true" : "false") + "}"
+            : "{\"id\":\"" + id.ToString("D") + "\",\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
     internal static string LocationFor(Guid target) => ProtectedAdministrationDescriptor.OrganizationLocationFor(target);
 
     public async Task ExecuteResultAsync(ActionContext context)
@@ -113,11 +134,11 @@ internal sealed class ProtectedAdministrationResult : IActionResult
         var response = context.HttpContext.Response;
         response.StatusCode = Descriptor.Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
         response.ContentType = "application/json; charset=utf-8";
-        response.Headers.ETag = EntityTag.For(Version);
+        if (!Descriptor.IsConsent) response.Headers.ETag = EntityTag.For(Version);
         if (Descriptor.Creates) response.Headers.Location = Descriptor.LocationFor(Target.Id);
         // This is the filter's memory capture, not network delivery. A disconnect
         // after business commit must not prevent recording the completed receipt.
-        await response.Body.WriteAsync(BodyFor(Version), CancellationToken.None);
+        await response.Body.WriteAsync(BodyFor(Descriptor, Target.Id, Version), CancellationToken.None);
     }
 
     private static ProblemDetailsActionResult Failure(string code) => new(new Error(LocalizedMessage.Of(code)));

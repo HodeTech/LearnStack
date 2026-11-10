@@ -103,7 +103,7 @@ export function createNativeApiTransport(
       (scope !== null && !nativeScope(scope)) ||
       !path.startsWith('/api/v1/') ||
       path.includes('#') ||
-      !['GET', 'PUT', 'POST'].includes(init.method ?? '')
+      !['GET', 'PUT', 'POST', 'PATCH'].includes(init.method ?? '')
     )
       throw new NativeApiError('configuration');
     const deadline = AbortSignal.timeout(NATIVE_API_DEADLINE_MS);

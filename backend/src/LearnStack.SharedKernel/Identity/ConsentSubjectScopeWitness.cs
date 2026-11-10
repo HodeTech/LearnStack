@@ -96,6 +96,7 @@ public sealed class ConsentSubjectScopeWitness
 #pragma warning restore CA1034
     {
         private int _closed;
+        protected bool IsOpen => Volatile.Read(ref _closed) == 0;
         internal bool Current(object evidence, OperationInvocation invocation) => Volatile.Read(ref _closed) == 0
             && IsEvidenceCurrent(evidence, invocation);
         protected abstract bool IsEvidenceCurrent(object evidence, OperationInvocation invocation);

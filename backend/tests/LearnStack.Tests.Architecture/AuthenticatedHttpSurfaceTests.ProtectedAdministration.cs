@@ -20,6 +20,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static bool ProtectedHandoff(TypeDefinition controller, MethodDefinition action, Endpoint endpoint)
     {
+        if (controller.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController")
+            return ConsentSubjectHandoff(controller, action, endpoint);
+        if (controller.FullName == "LearnStack.Api.Customization.CustomFieldDefinitionsController"
+            && action.Name is ("Retire" or "Discard")) return CustomFieldTransitionHandoff(controller, action, endpoint);
         var bodies = ActionBodies(controller, action.Name).ToArray();
         var calls = bodies.SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference)
             .Select(instruction => (Method: method, Instruction: instruction, Target: (MethodReference)instruction.Operand))).ToArray();
@@ -166,8 +170,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     {
         if (!map.TryGetValue("LearnStack.Api:" + ProtectedResult, out var carrier) || !ProtectedDispatcher(carrier, map))
             yield return "Unexpected protected typed dispatcher: require exactly the fourteen bound typed sends";
-        var expected = Endpoints.Where(entry => entry.ProtectedOperation is not null)
-            .Select(entry => entry.Controller + "." + entry.Action).Order(StringComparer.Ordinal).ToArray();
+        var expected = Endpoints.Where(entry => entry.ProtectedOperation is not null
+                && !(entry.Controller == "LearnStack.Api.Customization.CustomFieldDefinitionsController" && entry.Action is ("Retire" or "Discard")))
+            .Select(entry => entry.Controller + "." + entry.Action)
+            .Append("LearnStack.Api.Customization.CustomFieldDefinitionsController.Transition").Order(StringComparer.Ordinal).ToArray();
         var callers = new List<string>();
         var constructors = new List<string>();
         foreach (var type in Types(modules).Where(type => !type.Name.Contains('<', StringComparison.Ordinal)))

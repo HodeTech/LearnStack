@@ -55,7 +55,8 @@ public sealed class CustomFieldDefinitionCommandHandlers(ICustomFieldDefinitionS
         try
         {
             // Authoritative finite limits precede allocation, lock acquisition and fresh database checks.
-            if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(request, request.GetType())) > CustomFieldFormProfile.InputByteLimit)
+            if (input is not null ? !CustomFieldFormProfile.FitsAuthoringInput(input)
+                : Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(request, request.GetType())) > CustomFieldFormProfile.InputByteLimit)
                 return Fail<CustomFieldDefinitionDto>("lockey_validation_failed");
             var admitted = await admission.PrepareAsync(request, cancellationToken);
             if (admitted.IsFailure) return Result<CustomFieldDefinitionDto>.Fail(admitted.Error);
@@ -78,9 +79,7 @@ public sealed class CustomFieldDefinitionCommandHandlers(ICustomFieldDefinitionS
                 if (!CustomFieldFormProfile.FitsSubmission([(input.Key, schema.Value.MaximumValueBytes)]))
                     return Fail<CustomFieldDefinitionDto>("lockey_limit_exceeded");
                 var canonicalInput = input with { JsonSchema = schema.Value.Schema };
-                object canonicalRequest = request is RegisterCustomFieldDefinitionCommand registration
-                    ? registration with { Input = canonicalInput } : ((ReviseCustomFieldDefinitionDraftCommand)request) with { Input = canonicalInput };
-                if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(canonicalRequest, canonicalRequest.GetType())) > CustomFieldFormProfile.InputByteLimit)
+                if (!CustomFieldFormProfile.FitsAuthoringInput(canonicalInput))
                     return Fail<CustomFieldDefinitionDto>("lockey_limit_exceeded");
                 var localization = await locales.ReadAsync(cancellationToken);
                 if (localization.IsFailure) return Result<CustomFieldDefinitionDto>.Fail(localization.Error);
@@ -188,7 +187,11 @@ public sealed class CustomFieldDefinitionQueryHandlers(ICustomFieldDefinitionSto
         if (request.DefinitionId == Guid.Empty) return Fail<CustomFieldDefinitionDto>("lockey_validation_failed");
         var admitted = await admission.ReadAsync(request, cancellationToken); if (admitted.IsFailure) return Result<CustomFieldDefinitionDto>.Fail(admitted.Error);
         var row = await store.ReadAsync(request.DefinitionId, cancellationToken);
-        return row is null ? Fail<CustomFieldDefinitionDto>("lockey_not_found") : Result.Ok(row);
+        if (row is null) return Fail<CustomFieldDefinitionDto>("lockey_not_found");
+        var incumbent = await store.FindActiveAsync(row.Key, cancellationToken);
+        var check = await admission.ReadAsync(request, cancellationToken);
+        return check.IsFailure ? Result<CustomFieldDefinitionDto>.Fail(check.Error) : Result.Ok(row with
+        { ActiveRevision = incumbent is null ? null : new CustomFieldActiveRevision(incumbent.Id.Value, incumbent.Version) });
     }
     public async Task<Result<CustomFieldConceptPage>> Handle(ListCustomFieldDefinitionsQuery request, CancellationToken cancellationToken)
     {

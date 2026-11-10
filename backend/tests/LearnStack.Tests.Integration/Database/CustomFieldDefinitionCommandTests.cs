@@ -66,9 +66,18 @@ public sealed class CustomFieldDefinitionCommandTests(CustomFieldCommandFixture 
         Assert.True(created.IsSuccess);
         Assert.True(Encoding.UTF8.GetByteCount(created.Value.JsonSchema) <= CustomFieldFormProfile.SchemaByteLimit);
         if (!numericExpansion) Assert.Equal(2044, Encoding.UTF8.GetByteCount(created.Value.JsonSchema));
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Membership.AppConnectionString))
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+            await using var query = new NpgsqlCommand("SELECT json_schema::text FROM public.tenant_custom_field_defs WHERE id=@id", app, transaction);
+            query.Parameters.AddWithValue("id", created.Value.DefinitionId);
+            var physical = Assert.IsType<string>(await query.ExecuteScalarAsync());
+            Assert.True(Encoding.UTF8.GetByteCount(physical) > CustomFieldFormProfile.SchemaByteLimit);
+        }
         var stored = await fixture.SendAsync(new GetCustomFieldDefinitionQuery(created.Value.DefinitionId), "field-jsonb-read");
         Assert.True(stored.IsSuccess);
-        Assert.True(Encoding.UTF8.GetByteCount(stored.Value.JsonSchema) > CustomFieldFormProfile.SchemaByteLimit);
+        Assert.True(Encoding.UTF8.GetByteCount(stored.Value.JsonSchema) <= CustomFieldFormProfile.SchemaByteLimit);
         var published = await fixture.SendAsync(new PublishCustomFieldDefinitionCommand(created.Value.DefinitionId,
             created.Value.Version, null, null), "field-jsonb-publish");
         Assert.True(published.IsSuccess);

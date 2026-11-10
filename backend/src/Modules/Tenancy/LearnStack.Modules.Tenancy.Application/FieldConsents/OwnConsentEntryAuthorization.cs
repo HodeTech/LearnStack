@@ -12,7 +12,7 @@ public sealed class OwnConsentEntryAuthorization(IOperationInvocationContext inv
 {
     internal ConsentSubjectScopeWitness? For(object request, ConsentSubjectPurpose purpose)
     {
-        if (request is not (WithdrawOwnMembershipFieldConsentCommand or ListOwnMembershipFieldConsentsQuery or ListOwnFieldConsentScopesQuery)
+        if (request is not (WithdrawOwnMembershipFieldConsentCommand or ReadOwnWithdrawnFieldConsentReceiptQuery or ListOwnMembershipFieldConsentsQuery or ListOwnFieldConsentScopesQuery)
             || invocations.CurrentInvocation is not { IsActive: true, EntryKind: OperationEntryKind.Application, TrustedSource: null } invocation
             || !ReferenceEquals(invocation.Operation, request) || !ReferenceEquals(invocation.Context, context)
             || !catalog.TryGet(request.GetType(), out var policy) || !ReferenceEquals(policy, invocation.Policy)

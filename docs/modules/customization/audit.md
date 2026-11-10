@@ -191,6 +191,7 @@ remains Step 3; acceptance alone does not qualify those surfaces.
 | `TenantCustomFieldDef` | `customization.custom_field.publish` | **MUST** (update) | `PublishCustomFieldDefinitionCommand` |
 | `TenantCustomFieldDef` | `customization.custom_field.retire` | **MUST** (update) | `RetireCustomFieldDefinitionCommand` |
 | `TenantCustomFieldDef` | `customization.custom_field.discard` | **MUST** (delete) | `DiscardCustomFieldDefinitionDraftCommand` |
+| Original retained definition outcome | `customization.custom_field.read_receipt` | **MUST** (`read-sensitive`) | `ReadCustomFieldDefinitionReceiptQuery`; current definition-admin authority, including a discarded original Draft; no schema or notice receipt. |
 
 `ListCustomFieldDefinitionsQuery`, `GetCustomFieldDefinitionQuery` and
 `ListCustomFieldDefinitionRevisionsQuery` are explicit Off bindings.

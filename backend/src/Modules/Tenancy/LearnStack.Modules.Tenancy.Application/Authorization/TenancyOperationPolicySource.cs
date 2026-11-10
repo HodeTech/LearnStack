@@ -23,6 +23,8 @@ public sealed class TenancyOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForOwnConsentEntry<WithdrawOwnMembershipFieldConsentCommand>("tenancy.membership_field_consent.withdraw"),
         OperationPolicy.ForOwnConsentEntry<ListOwnFieldConsentScopesQuery>("tenancy.membership_field_consent.scopes"),
         OperationPolicy.ForOwnConsentEntry<ListOwnMembershipFieldConsentsQuery>("tenancy.membership_field_consent.history"),
+        OperationPolicy.ForOwnConsentEntry<ReadOwnWithdrawnFieldConsentReceiptQuery>("tenancy.membership_field_consent.read_withdraw_receipt"),
+        OperationPolicy.ForOwnMembershipRead<ReadOwnGrantedFieldConsentReceiptQuery>("tenancy.membership_field_consent.read_grant_receipt"),
         OperationPolicy.ForOwnMembershipRead<GetOwnMembershipFieldConsentQuery>("tenancy.membership_field_consent.get_own"),
         OperationPolicy.ForOwnMembershipRead<GetTenantInvitationPolicyQuery>("tenancy.setting.read_invitation_policy"),
         OperationPolicy.ForOwnMembershipRead<ReadInvitationPolicyReceiptQuery>("tenancy.setting.read_invitation_receipt"),

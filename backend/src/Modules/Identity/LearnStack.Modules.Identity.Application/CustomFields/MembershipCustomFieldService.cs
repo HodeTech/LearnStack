@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Immutable;
 using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Domain;
@@ -57,6 +58,12 @@ public sealed class MembershipCustomFieldService(IExactCustomFieldDefinitionRead
             using var document = JsonDocument.Parse(normalized.Value);
             values[set.ConceptKey] = new(set.ConceptKey, set.DefinitionId, set.SchemaVersion, document.RootElement.Clone(), evidence);
         }
+        var normalizedPatch = patch with
+        {
+            Set = patch.Set.Select(set => set with
+            { Envelope = values[set.ConceptKey].Envelope.Clone() }).ToImmutableArray()
+        };
+        if (!MembershipCustomFieldInput.FitsSubmission(normalizedPatch)) return Fail("lockey_limit_exceeded");
         if (MembershipCustomFieldValues.Serialize(values.Values.ToArray()) is null) return Fail("lockey_validation_failed");
         // Removal-only never makes consent or another missing required answer compulsory.
         if (patch.Set.Length != 0)
@@ -87,6 +94,11 @@ public sealed class MembershipCustomFieldService(IExactCustomFieldDefinitionRead
             return Result<MembershipCustomFieldsDto>.Fail(new Error(LocalizedMessage.Of("lockey_dependency_unavailable")));
         var active = await definitions.ReadActiveForDisplayAsync(cancellationToken);
         var grants = await CurrentAsync(member, retained.Where(definition => definition.PiiCategory == PersonalDataCategory.Sensitive).ToArray(), cancellationToken);
+        // Each batch remains within the authoritative twenty-tuple bound. A
+        // missing active Sensitive answer still needs its current consent state.
+        var activeGrants = await CurrentAsync(member, active.Where(definition => definition.PiiCategory == PersonalDataCategory.Sensitive
+            && !grants.ContainsKey(definition.DefinitionId)).ToArray(), cancellationToken);
+        foreach (var item in activeGrants) grants.Add(item.Key, item.Value);
         var fields = new List<MembershipCustomFieldDto>();
         foreach (var value in stored)
         {
@@ -95,19 +107,21 @@ public sealed class MembershipCustomFieldService(IExactCustomFieldDefinitionRead
                 && (!grants.TryGetValue(definition.DefinitionId, out var consent) || consent is not { IsGranted: true });
             fields.Add(new(value.ConceptKey, value.DefinitionId, value.SchemaVersion,
                 withheld ? "Withheld" : definition.Status == "Active" ? "Current" : "Retired", definition.IsRequired,
-                withheld ? null : value.Envelope.Clone(), Metadata(definition)));
+                withheld ? null : value.Envelope.Clone(), Metadata(definition), Evidence(definition.DefinitionId)));
         }
         foreach (var definition in active)
             if (!stored.Any(value => value.DefinitionId == definition.DefinitionId && value.SchemaVersion == definition.SchemaVersion))
-                fields.Add(new(definition.Key, definition.DefinitionId, definition.SchemaVersion, "Missing", definition.IsRequired, null, Metadata(definition)));
+                fields.Add(new(definition.Key, definition.DefinitionId, definition.SchemaVersion, "Missing", definition.IsRequired, null, Metadata(definition), Evidence(definition.DefinitionId)));
         return Result<MembershipCustomFieldsDto>.Ok(new(member.Id.Value, member.Version,
             fields.OrderBy(field => field.ConceptKey, StringComparer.Ordinal).ThenBy(field => field.SchemaVersion).ToArray()));
+        MembershipCustomFieldConsent? Evidence(Guid definitionId) => grants.TryGetValue(definitionId, out var item) && item is not null
+            ? new(item.EvidenceId, item.Sequence, item.IsGranted) : null;
     }
 
     private static MembershipCustomFieldMetadata Metadata(CustomFieldDefinitionDto definition) => new(
         definition.JsonSchema, definition.Labels, definition.PiiCategory, definition.Sort,
         definition.PurposeKey, definition.Notices, definition.FormLabels?.Select(control => new MembershipCustomFieldControlLabels(
-            control.Location, control.Labels, control.Choices)).ToArray());
+            control.Location, control.Labels, control.Choices)).ToArray(), definition.Status);
 
     private async Task<Dictionary<Guid, MembershipFieldConsentSnapshot?>> CurrentAsync(Membership member,
         CustomFieldDefinitionDto[] sensitive, CancellationToken cancellationToken)

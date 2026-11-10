@@ -57,7 +57,8 @@ public sealed record MembershipFieldConsentReceipt([property: PiiSensitive] Guid
 public sealed record MembershipFieldConsentDetails([property: PiiSensitive] Guid EvidenceId, long Sequence, bool IsGranted,
     [property: PiiSensitive] Guid MembershipId, [property: PiiSensitive] Guid DefinitionId, int DefinitionVersion,
     [property: PiiSensitive] string PurposeKey, [property: PiiSensitive] string NoticeLocale,
-    [property: PiiSensitive] string NoticeHash, [property: PiiSensitive] string? NoticeText = null)
+    [property: PiiSensitive] string NoticeHash, [property: PiiSensitive] string? NoticeText = null,
+    [property: PiiSensitive] IReadOnlyDictionary<string, string>? Labels = null)
 {
     public override string ToString() => nameof(MembershipFieldConsentDetails);
 }

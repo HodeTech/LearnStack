@@ -50,6 +50,7 @@ export function exactBffOrigin(request: BffHttpRequest) {
 export async function bffForm(
   request: BffHttpRequest,
   allowed: readonly string[],
+  dynamic?: (name: string) => boolean,
 ): Promise<URLSearchParams> {
   const content = request.headers
     .get('content-type')
@@ -94,7 +95,7 @@ export async function bffForm(
     } catch {
       throw new BffInputError();
     }
-    return bffQueryFields(text, allowed);
+    return bffQueryFields(text, allowed, dynamic);
   } finally {
     signal.removeEventListener('abort', cancel);
     await reader?.cancel().catch(() => {});

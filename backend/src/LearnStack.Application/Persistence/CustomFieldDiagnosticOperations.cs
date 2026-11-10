@@ -10,7 +10,7 @@ internal static class CustomFieldDiagnosticOperations
             "CustomFields.RegisterCustomFieldDefinitionCommand", "CustomFields.ReviseCustomFieldDefinitionDraftCommand",
             "CustomFields.PublishCustomFieldDefinitionCommand", "CustomFields.RetireCustomFieldDefinitionCommand",
             "CustomFields.DiscardCustomFieldDefinitionDraftCommand", "CustomFields.ListCustomFieldDefinitionsQuery",
-            "CustomFields.GetCustomFieldDefinitionQuery", "CustomFields.ListCustomFieldDefinitionRevisionsQuery",
+            "CustomFields.ReadCustomFieldDefinitionReceiptQuery", "CustomFields.GetCustomFieldDefinitionQuery", "CustomFields.ListCustomFieldDefinitionRevisionsQuery",
         ],
         ["LearnStack.Modules.Identity.Application.Contracts"] =
         [
@@ -22,6 +22,7 @@ internal static class CustomFieldDiagnosticOperations
             "FieldConsents.GrantOwnMembershipFieldConsentCommand", "FieldConsents.WithdrawOwnMembershipFieldConsentCommand",
             "FieldConsents.GetOwnMembershipFieldConsentQuery", "FieldConsents.ListOwnFieldConsentScopesQuery",
             "FieldConsents.ListOwnMembershipFieldConsentsQuery",
+            "FieldConsents.ReadOwnGrantedFieldConsentReceiptQuery", "FieldConsents.ReadOwnWithdrawnFieldConsentReceiptQuery",
         ],
     };
 

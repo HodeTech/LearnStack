@@ -1,3 +1,6 @@
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
@@ -40,6 +43,48 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     // classifier. Never generate this expectation from production endpoint metadata.
     private static readonly Endpoint[] Endpoints =
     [
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "List", "GET", "customization/custom-field-definitions", null,
+            "ListCustomFieldDefinitions", typeof(ListCustomFieldDefinitionsQuery), "LearnStackOperation:customization.custom_field.list",
+            typeof(LearnStack.Api.Customization.CustomFieldDefinitionPageResponse), 200, null, new()),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Get", "GET", "customization/custom-field-definitions", "{id}",
+            "GetCustomFieldDefinition", typeof(GetCustomFieldDefinitionQuery), "LearnStackOperation:customization.custom_field.read",
+            typeof(LearnStack.Api.Customization.CustomFieldDefinitionResponse), 200, null, new()),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Revisions", "GET", "customization/custom-field-definitions", "{id}/revisions",
+            "ListCustomFieldDefinitionRevisions", typeof(ListCustomFieldDefinitionRevisionsQuery), "LearnStackOperation:customization.custom_field.list_revisions",
+            typeof(LearnStack.Api.Customization.CustomFieldDefinitionPageResponse), 200, null, new()),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Register", "POST", "customization/custom-field-definitions", null,
+            "RegisterCustomFieldDefinition", typeof(RegisterCustomFieldDefinitionCommand), "LearnStackOperation:customization.custom_field.register",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 201, 15, new(OperationClass.Must, OperationType.Create, "customization.custom_field.register", typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef))),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Revise", "PUT", "customization/custom-field-definitions", "{id}",
+            "ReviseCustomFieldDefinitionDraft", typeof(ReviseCustomFieldDefinitionDraftCommand), "LearnStackOperation:customization.custom_field.revise",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 200, 16, new(OperationClass.Must, OperationType.Update, "customization.custom_field.revise", typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef))),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Publish", "POST", "customization/custom-field-definitions", "{id}/publication",
+            "PublishCustomFieldDefinition", typeof(PublishCustomFieldDefinitionCommand), "LearnStackOperation:customization.custom_field.publish",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 200, 17, new(OperationClass.Must, OperationType.Update, "customization.custom_field.publish", typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef))),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Retire", "POST", "customization/custom-field-definitions", "{id}/retirement",
+            "RetireCustomFieldDefinition", typeof(RetireCustomFieldDefinitionCommand), "LearnStackOperation:customization.custom_field.retire",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 200, 18, new(OperationClass.Must, OperationType.Update, "customization.custom_field.retire", typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef))),
+        new("LearnStack.Api.Customization.CustomFieldDefinitionsController", "Discard", "POST", "customization/custom-field-definitions", "{id}/discard",
+            "DiscardCustomFieldDefinitionDraft", typeof(DiscardCustomFieldDefinitionDraftCommand), "LearnStackOperation:customization.custom_field.discard",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 200, 19, new(OperationClass.Must, OperationType.Delete, "customization.custom_field.discard", typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef))),
+        new("LearnStack.Api.Identity.MembershipCustomFieldsController", "Get", "GET", "identity", "memberships/{id}/custom-fields",
+            "GetMembershipCustomFields", typeof(GetMembershipCustomFieldsQuery), "LearnStackOperation:identity.membership.custom_fields_read",
+            typeof(LearnStack.Api.Customization.MembershipCustomFieldsResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.membership.custom_fields_read", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.MembershipCustomFieldsController", "GetOwn", "GET", "identity", "me/custom-fields",
+            "GetOwnMembershipCustomFields", typeof(GetOwnMembershipCustomFieldsQuery), "LearnStackOperation:identity.membership.custom_fields_read_own",
+            typeof(LearnStack.Api.Customization.MembershipCustomFieldsResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.MembershipCustomFieldsController", "Set", "PATCH", "identity", "memberships/{id}/custom-fields",
+            "SetMembershipCustomFields", typeof(SetMembershipCustomFieldsCommand), "LearnStackOperation:identity.membership.custom_fields_write",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 200, 20, new(OperationClass.Must, OperationType.Update, "identity.membership.custom_fields_write", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.MembershipCustomFieldsController", "SetOwn", "PATCH", "identity", "me/custom-fields",
+            "SetOwnMembershipCustomFields", typeof(SetOwnMembershipCustomFieldsCommand), "LearnStackOperation:identity.membership.custom_fields_write_own",
+            typeof(LearnStack.Api.Customization.CustomFieldReceiptResponse), 200, 21, new(OperationClass.Must, OperationType.Update, "identity.membership.custom_fields_write", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Tenancy.OwnFieldConsentController", "Current", "GET", "tenancy/membership-field-consents", "own",
+            "GetOwnMembershipFieldConsent", typeof(GetOwnMembershipFieldConsentQuery), "LearnStackOperation:tenancy.membership_field_consent.get_own",
+            typeof(LearnStack.Api.Tenancy.OwnFieldConsentCurrentResponse), 200, null, new()),
+        new("LearnStack.Api.Tenancy.OwnFieldConsentController", "Grant", "POST", "tenancy/membership-field-consents", "grants",
+            "GrantOwnMembershipFieldConsent", typeof(GrantOwnMembershipFieldConsentCommand), "LearnStackOperation:tenancy.membership_field_consent.grant",
+            typeof(LearnStack.Api.Customization.FieldConsentReceiptResponse), 200, 22, new(OperationClass.Must, OperationType.Create, "tenancy.membership_field_consent.grant", typeof(LearnStack.Modules.Tenancy.Domain.MembershipFieldConsent))),
         new("LearnStack.Api.PublicReads.PublicSiteController", "Get", "GET", "public/site", null,
             "GetPublicSite", typeof(LearnStack.Modules.Tenancy.Application.Contracts.PublicReads.GetPublicSiteQuery), null,
             typeof(LearnStack.Modules.Tenancy.Application.Contracts.PublicReads.PublicSite), 200, null, new()),
@@ -133,6 +178,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.NativeSessionAdmissionController", "Admit", "POST", "identity/session-scope/admissions", null,
             "AdmitNativeSessionScope", typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.AdmitNativeSessionScopeCommand), "LearnStackOperation:identity.membership.admit_session_scope",
             typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.NativeSessionScopeAdmission), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_session_scope", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Tenancy.ConsentSubjectController", "Scopes", "GET", "tenancy/membership-field-consents", "own/scopes",
+            "ListOwnFieldConsentScopes", typeof(ListOwnFieldConsentScopesQuery), "LearnStackOperation:tenancy.membership_field_consent.scopes",
+            typeof(LearnStack.Api.Tenancy.ConsentScopePageResponse), 200, null, new()),
+        new("LearnStack.Api.Tenancy.ConsentSubjectController", "History", "GET", "tenancy/membership-field-consents", "own/history",
+            "ListOwnMembershipFieldConsents", typeof(ListOwnMembershipFieldConsentsQuery), "LearnStackOperation:tenancy.membership_field_consent.history",
+            typeof(LearnStack.Api.Tenancy.ConsentHistoryPageResponse), 200, null, new()),
+        new("LearnStack.Api.Tenancy.ConsentSubjectController", "Withdraw", "POST", "tenancy/membership-field-consents", "withdrawals",
+            "WithdrawOwnMembershipFieldConsent", typeof(WithdrawOwnMembershipFieldConsentCommand), "LearnStackOperation:tenancy.membership_field_consent.withdraw",
+            typeof(LearnStack.Api.Tenancy.ConsentWithdrawalResponse), 200, 23, new(OperationClass.Must, OperationType.Create, "tenancy.membership_field_consent.withdraw", typeof(LearnStack.Modules.Tenancy.Domain.MembershipFieldConsent))),
         new("LearnStack.Api.Identity.InvitationEntryController", "Inspect", "POST", "identity/invitation-entry", "inspections",
             "InspectInvitation", typeof(InspectInvitationQuery), "LearnStackOperation:identity.invitation.inspect",
             typeof(LearnStack.Api.Identity.InvitationInspectionResponse), 200, null, new()),
@@ -336,10 +390,51 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(32, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
+        handlers.Should().HaveCount(43, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
+
+        var consentController = map["LearnStack.Api:LearnStack.Api.Tenancy.ConsentSubjectController"];
+        var statusMap = map["LearnStack.Api:LearnStack.Api.Common.HttpStatusMap"];
+        var problemFactory = map["LearnStack.Api:LearnStack.Api.Common.ProblemDetailsFactory"];
+        var exceptionType = map["LearnStack.SharedKernel:LearnStack.SharedKernel.Errors.LearnStackException"];
+        foreach (var owner in new[] { statusMap, problemFactory })
+        {
+            var exceptionField = new FieldDefinition("ExceptionCollaboratorControl", FieldAttributes.Private, owner.Module.ImportReference(exceptionType));
+            owner.Fields.Add(exceptionField);
+            try { HttpBypasses(consentController, map).Should().NotBeEmpty("an acquired exception collaborator must still expand its implementations"); }
+            finally { owner.Fields.Remove(exceptionField); }
+            var instructions = Il.Methods(owner).Where(pair => pair.Definition.HasBody)
+                .SelectMany(pair => pair.Definition.Body.Instructions).ToArray();
+            var test = instructions.Single(instruction => instruction.OpCode == OpCodes.Isinst
+                && instruction.Operand is TypeReference type && Key(type) == Key(exceptionType));
+            var originalOpcode = test.OpCode;
+            test.OpCode = OpCodes.Ldtoken;
+            try { HttpBypasses(consentController, map).Should().NotBeEmpty("the bounded exception observation cannot become another executable reference"); }
+            finally { test.OpCode = originalOpcode; }
+            var getters = instructions.Where(instruction => instruction.Operand is MethodReference target
+                && Key(target.DeclaringType) == Key(exceptionType) && target.Name == "get_Error").ToArray();
+            getters.Should().HaveCount(owner == statusMap ? 1 : 4);
+            foreach (var getter in getters)
+            {
+                var originalGetterOpcode = getter.OpCode;
+                getter.OpCode = OpCodes.Ldvirtftn;
+                try { HttpBypasses(consentController, map).Should().NotBeEmpty("the fixed Error read cannot become an executable alias"); }
+                finally { getter.OpCode = originalGetterOpcode; }
+            }
+            var method = owner.Methods.Single(item => item.Name == "For" && item.Parameters.Count == (owner == statusMap ? 1 : 2)
+                && item.Parameters[0].ParameterType.FullName == "System.Exception");
+            var constructor = exceptionType.Methods.Single(item => item.IsConstructor && !item.IsStatic);
+            var allocation = Instruction.Create(OpCodes.Newobj, owner.Module.ImportReference(constructor));
+            method.Body.Instructions.Add(allocation);
+            try { HttpBypasses(consentController, map).Should().NotBeEmpty("an exception constructor is not a read-only observation"); }
+            finally { method.Body.Instructions.Remove(allocation); }
+        }
+        var selfCollaborator = new FieldDefinition("SelfCollaboratorControl", FieldAttributes.Private, exceptionType);
+        exceptionType.Fields.Add(selfCollaborator);
+        try { HttpBypasses(consentController, map).Should().NotBeEmpty("an explicit abstract self collaborator must expand its concrete implementations"); }
+        finally { exceptionType.Fields.Remove(selfCollaborator); }
 
         var publicSite = map.Values.Single(type => type.FullName == PublicSite);
         PublicSurfaceTests.PersistenceOffenders([publicSite], map).Should().BeEmpty(
@@ -500,7 +595,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 if (resource.Length != 1 || StringArgument(resource[0]) != entry.Resource
                     || selectors.Length != 1
                     || selectors[0].AttributeType.FullName != "Microsoft.AspNetCore.Mvc.Http" + (entry.Verb switch
-                    { "GET" => "Get", "HEAD" => "Head", "POST" => "Post", "PUT" => "Put", _ => "Unapproved" }) + "Attribute"
+                    { "GET" => "Get", "HEAD" => "Head", "POST" => "Post", "PUT" => "Put", "PATCH" => "Patch", _ => "Unapproved" }) + "Attribute"
                     || StringArgument(selectors[0]) != entry.Suffix
                     || selectors[0].Properties.SingleOrDefault(property => property.Name == "Name").Argument.Value as string != entry.Operation)
                     errors.Add("Unexpected method/route/operation: " + type.FullName + "." + action.Name);
@@ -509,7 +604,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
                 foreach (var offender in AuthorizationOffenders(type, action, map, authorizationPredicate)) errors.Add(offender);
                 foreach (var offender in AttachedFilterOffenders(type, action, map)) errors.Add(offender);
-                if (!(type.FullName == "LearnStack.Api.Identity.InvitationEntryController"
+                if (!(type.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController"
+                    ? ConsentSubjectHandoff(type, action, entry)
+                    : type.FullName == "LearnStack.Api.Identity.InvitationEntryController"
                     ? InvitationEntryHandoff(type, action, entry)
                     : entry.ProtectedOperation is null ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
                     : ProtectedHandoff(type, action, entry)))

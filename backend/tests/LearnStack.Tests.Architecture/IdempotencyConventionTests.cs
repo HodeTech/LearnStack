@@ -2,6 +2,8 @@ using FluentAssertions;
 using LearnStack.Api.Idempotency;
 using LearnStack.Application.Authorization;
 using LearnStack.Modules.Customization.Application.Authorization;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
@@ -33,7 +35,8 @@ public sealed partial class IdempotencyConventionTests
     [
         typeof(ReadMembershipReceiptQuery), typeof(ReadMemberProfileReceiptQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
         typeof(ReadRoleReceiptQuery), typeof(ReadOrganizationReceiptQuery), typeof(ReadDefaultOrganizationReceiptQuery),
-        typeof(ReadInvitationReceiptQuery), typeof(ReadInvitationPolicyReceiptQuery),
+        typeof(ReadInvitationReceiptQuery), typeof(ReadInvitationPolicyReceiptQuery), typeof(ReadCustomFieldDefinitionReceiptQuery),
+        typeof(ReadOwnGrantedFieldConsentReceiptQuery), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
     ];
 
     [Fact]
@@ -45,8 +48,9 @@ public sealed partial class IdempotencyConventionTests
         foreach (var receipt in Receipts)
         {
             catalog.TryGet(receipt, out var policy).Should().BeTrue("Fix: classify every receipt read explicitly");
-            policy.Kind.Should().Be(receipt == typeof(ReadOwnMembershipProfileReceiptQuery) || receipt == typeof(ReadInvitationPolicyReceiptQuery)
-                ? OperationPolicyKind.OwnMembershipRead : OperationPolicyKind.Protected);
+            policy.Kind.Should().Be(receipt == typeof(ReadOwnWithdrawnFieldConsentReceiptQuery) ? OperationPolicyKind.OwnConsentEntry
+                : receipt == typeof(ReadOwnMembershipProfileReceiptQuery) || receipt == typeof(ReadInvitationPolicyReceiptQuery)
+                    || receipt == typeof(ReadOwnGrantedFieldConsentReceiptQuery) ? OperationPolicyKind.OwnMembershipRead : OperationPolicyKind.Protected);
             policy.RequiresOrglessWrite.Should().BeFalse("disclosure is not the original mutation's eligibility");
             policy.RequiresOrganization.Should().BeFalse();
             policy.ReadScope.Should().Be(OperationReadScope.Scoped);
@@ -56,8 +60,8 @@ public sealed partial class IdempotencyConventionTests
         }
         WithProduction(modules =>
         {
-            MarkerOffenders(modules).Should().BeEmpty("Fix: keep the receipt marker on exactly the eight sealed original-target reads");
-            DispatcherOffenders(modules).Should().BeEmpty("Fix: replay must construct the eight fresh receipt queries, never the original mutation");
+            MarkerOffenders(modules).Should().BeEmpty("Fix: keep the receipt marker on exactly the enumerated sealed original-target reads");
+            DispatcherOffenders(modules).Should().BeEmpty("Fix: replay must dispatch the enumerated exact receipt queries, never the original mutation");
             TransportOwnershipOffenders(modules).Should().BeEmpty("Fix: retain the exact framework factory, replay and cleanup callers");
             AdmissionOffenders(modules).Should().BeEmpty("Fix: only the bound HTTP admission may inspect completed outcomes or construct its private one-use binding");
         });
@@ -185,6 +189,11 @@ public sealed partial class IdempotencyConventionTests
             .Where(target => target.DeclaringType.Namespace.Contains(".Application.Contracts", StringComparison.Ordinal))
             .Select(target => target.DeclaringType.FullName).ToArray();
         var expected = ReceiptNames();
+        // Withdrawal reuses the exact source-captured query rather than constructing a second invocation object.
+        var captured = method.Body.Instructions.Any(instruction => instruction.OpCode == OpCodes.Isinst
+            && instruction.Operand is TypeReference target && target.FullName == typeof(ReadOwnWithdrawnFieldConsentReceiptQuery).FullName);
+        if (captured) expected.Remove(typeof(ReadOwnWithdrawnFieldConsentReceiptQuery).FullName!);
+        else constructions = [.. constructions, "missing captured withdrawal receipt"];
         return expected.Except(constructions, StringComparer.Ordinal)
             .Concat(constructions.Except(expected, StringComparer.Ordinal))
             .Concat(constructions.GroupBy(name => name, StringComparer.Ordinal).Where(group => group.Count() != 1).Select(group => group.Key))
@@ -207,6 +216,15 @@ public sealed partial class IdempotencyConventionTests
         [ProtectedAdministrationOperation.RevokeInvitation] = typeof(ReadInvitationReceiptQuery),
         [ProtectedAdministrationOperation.ReissueInvitation] = typeof(ReadInvitationReceiptQuery),
         [ProtectedAdministrationOperation.SetTenantInvitationLifetime] = typeof(ReadInvitationPolicyReceiptQuery),
+        [ProtectedAdministrationOperation.RegisterCustomFieldDefinition] = typeof(ReadCustomFieldDefinitionReceiptQuery),
+        [ProtectedAdministrationOperation.ReviseCustomFieldDraft] = typeof(ReadCustomFieldDefinitionReceiptQuery),
+        [ProtectedAdministrationOperation.PublishCustomFieldRevision] = typeof(ReadCustomFieldDefinitionReceiptQuery),
+        [ProtectedAdministrationOperation.RetireCustomFieldRevision] = typeof(ReadCustomFieldDefinitionReceiptQuery),
+        [ProtectedAdministrationOperation.DiscardCustomFieldDraft] = typeof(ReadCustomFieldDefinitionReceiptQuery),
+        [ProtectedAdministrationOperation.SetMemberCustomFields] = typeof(ReadMemberProfileReceiptQuery),
+        [ProtectedAdministrationOperation.SetOwnCustomFields] = typeof(ReadOwnMembershipProfileReceiptQuery),
+        [ProtectedAdministrationOperation.GrantOwnFieldConsent] = typeof(ReadOwnGrantedFieldConsentReceiptQuery),
+        [ProtectedAdministrationOperation.WithdrawOwnFieldConsent] = typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
     };
 
     private static string[] AdmissionOffenders(ModuleDefinition[] modules)
@@ -350,12 +368,14 @@ public sealed partial class IdempotencyConventionTests
         (AdmissionFile, "&& AdministrationHttpInput.SupportsJsonMedia(current.Request)"),
         (FilterFile, "if (!AdministrationHttpInput.SupportsJsonMedia(context.HttpContext.Request)) { context.Result = AdministrationHttpInput.Invalid(); return; }"),
         (AdmissionFile, "var requestType = frozen is null ? declared.RequestType : ReceiptRequest(descriptor.Operation);"),
-        (AdmissionFile, "if (result.IsFailure) return result; if (!binding.Matches(http, context, descriptor, key, fingerprint, expected)) return Failure(\"lockey_forbidden\"); http.Features.Set(new Admission(binding, frozen));"),
+        (AdmissionFile, "if (result.IsFailure) return result; if (!binding.Matches(http, context, descriptor, key, fingerprint, expected)) return Failure(\"lockey_forbidden\"); current = await ConsentInputMatchesAsync(); if (current.IsFailure) return current; http.Features.Set(new Admission(binding, frozen));"),
         (AdmissionFile, "if (http.Features.Get<Admission>() is not { } admission) return new(OperationHttpClassifier.RequiresProtectedAdmission(http.GetEndpoint()) ? ProtectedHttpAdmissionKind.Refused : ProtectedHttpAdmissionKind.Unbound);"),
         (AdmissionFile, "if (Interlocked.Exchange(ref admission.Consumed, 1) != 0 || !admission.Binding.Matches(http, context, descriptor, key, fingerprint, expected)) return new(ProtectedHttpAdmissionKind.Refused);"),
         (AdmissionFile, "return admission.Response is { } stored ? new(ProtectedHttpAdmissionKind.Replay, stored) : new(ProtectedHttpAdmissionKind.Mutation);"),
         (AdmissionFile, "ReferenceEquals(http, current) && ReferenceEquals(endpoint, current.GetEndpoint()) && ReferenceEquals(context, scope) && !current.RequestAborted.IsCancellationRequested"),
-        (AdmissionFile, "scope.IsResolved && scope.TenantId == _tenant && scope.OrganizationId == _organization && scope.UserId == _actor && scope.Origin == _origin && candidate.IsActive"),
+        (AdmissionFile, "scope.IsResolved && scope.TenantId == _tenant && scope.OrganizationId == _organization && scope.UserId == _actor && scope.Origin == _origin"),
+        (AdmissionFile, "consent is not null ? candidate is null && consent.Actor == _actor && consent.MatchesScope(current, _tenant, _organization) : candidate is { IsActive: true } && candidate.Actor == _actor && candidate.TenantId == _tenant && candidate.OrganizationId == _organization"),
+        (AdmissionFile, "fingerprint == currentFingerprint && await consent.MatchesCapturedWithdrawalAsync(http) && IdempotencyFilter.TryReadKey(http, out currentKey) && currentKey == key"),
         (AdmissionFile, "candidate.Actor == _actor && candidate.TenantId == _tenant && candidate.OrganizationId == _organization"),
         (AdmissionFile, "descriptor == operation && key == currentKey && fingerprint == currentFingerprint && expected == currentExpected"),
         (AdmissionFile, "classifier.Classify(endpoint, out var currentPolicy) == HttpOperationClassification.Application && ReferenceEquals(policy, currentPolicy)"),

@@ -1,4 +1,7 @@
 using LearnStack.Api.Common;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using Microsoft.AspNetCore.Http;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
@@ -26,11 +29,26 @@ public enum ProtectedAdministrationOperation
     RevokeInvitation = 12,
     ReissueInvitation = 13,
     SetTenantInvitationLifetime = 14,
+    RegisterCustomFieldDefinition = 15,
+    ReviseCustomFieldDraft = 16,
+    PublishCustomFieldRevision = 17,
+    RetireCustomFieldRevision = 18,
+    DiscardCustomFieldDraft = 19,
+    SetMemberCustomFields = 20,
+    SetOwnCustomFields = 21,
+    GrantOwnFieldConsent = 22,
+    WithdrawOwnFieldConsent = 23,
 }
 
 internal sealed record ProtectedAdministrationDescriptor(
     ProtectedAdministrationOperation Operation, Type RequestType, IdempotencyReplayTargetKind TargetKind, bool Creates = false)
 {
+    internal bool UsesCustomFieldFingerprint => Operation is ProtectedAdministrationOperation.RegisterCustomFieldDefinition
+        or ProtectedAdministrationOperation.ReviseCustomFieldDraft or ProtectedAdministrationOperation.PublishCustomFieldRevision
+        or ProtectedAdministrationOperation.RetireCustomFieldRevision or ProtectedAdministrationOperation.DiscardCustomFieldDraft
+        or ProtectedAdministrationOperation.SetMemberCustomFields or ProtectedAdministrationOperation.SetOwnCustomFields
+        or ProtectedAdministrationOperation.GrantOwnFieldConsent or ProtectedAdministrationOperation.WithdrawOwnFieldConsent;
+    internal bool IsConsent => Operation is ProtectedAdministrationOperation.GrantOwnFieldConsent or ProtectedAdministrationOperation.WithdrawOwnFieldConsent;
     private static readonly ProtectedAdministrationDescriptor[] Descriptors =
         Enum.GetValues<ProtectedAdministrationOperation>().Select(For).ToArray();
 
@@ -57,6 +75,15 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.RevokeInvitation => new(operation, typeof(RevokeInvitationCommand), IdempotencyReplayTargetKind.Invitation),
         ProtectedAdministrationOperation.ReissueInvitation => new(operation, typeof(ReissueInvitationCommand), IdempotencyReplayTargetKind.Invitation),
         ProtectedAdministrationOperation.SetTenantInvitationLifetime => new(operation, typeof(SetTenantInvitationLifetimeCommand), IdempotencyReplayTargetKind.TenantSetting),
+        ProtectedAdministrationOperation.RegisterCustomFieldDefinition => new(operation, typeof(RegisterCustomFieldDefinitionCommand), IdempotencyReplayTargetKind.CustomFieldDefinition, true),
+        ProtectedAdministrationOperation.ReviseCustomFieldDraft => new(operation, typeof(ReviseCustomFieldDefinitionDraftCommand), IdempotencyReplayTargetKind.CustomFieldDefinition),
+        ProtectedAdministrationOperation.PublishCustomFieldRevision => new(operation, typeof(PublishCustomFieldDefinitionCommand), IdempotencyReplayTargetKind.CustomFieldDefinition),
+        ProtectedAdministrationOperation.RetireCustomFieldRevision => new(operation, typeof(RetireCustomFieldDefinitionCommand), IdempotencyReplayTargetKind.CustomFieldDefinition),
+        ProtectedAdministrationOperation.DiscardCustomFieldDraft => new(operation, typeof(DiscardCustomFieldDefinitionDraftCommand), IdempotencyReplayTargetKind.CustomFieldDefinition),
+        ProtectedAdministrationOperation.SetMemberCustomFields => new(operation, typeof(SetMembershipCustomFieldsCommand), IdempotencyReplayTargetKind.Membership),
+        ProtectedAdministrationOperation.SetOwnCustomFields => new(operation, typeof(SetOwnMembershipCustomFieldsCommand), IdempotencyReplayTargetKind.Membership),
+        ProtectedAdministrationOperation.GrantOwnFieldConsent => new(operation, typeof(GrantOwnMembershipFieldConsentCommand), IdempotencyReplayTargetKind.MembershipFieldConsent),
+        ProtectedAdministrationOperation.WithdrawOwnFieldConsent => new(operation, typeof(WithdrawOwnMembershipFieldConsentCommand), IdempotencyReplayTargetKind.MembershipFieldConsent),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -76,6 +103,15 @@ internal sealed record ProtectedAdministrationDescriptor(
         RevokeInvitationCommand => ProtectedAdministrationOperation.RevokeInvitation,
         ReissueInvitationCommand => ProtectedAdministrationOperation.ReissueInvitation,
         SetTenantInvitationLifetimeCommand => ProtectedAdministrationOperation.SetTenantInvitationLifetime,
+        RegisterCustomFieldDefinitionCommand => ProtectedAdministrationOperation.RegisterCustomFieldDefinition,
+        ReviseCustomFieldDefinitionDraftCommand => ProtectedAdministrationOperation.ReviseCustomFieldDraft,
+        PublishCustomFieldDefinitionCommand => ProtectedAdministrationOperation.PublishCustomFieldRevision,
+        RetireCustomFieldDefinitionCommand => ProtectedAdministrationOperation.RetireCustomFieldRevision,
+        DiscardCustomFieldDefinitionDraftCommand => ProtectedAdministrationOperation.DiscardCustomFieldDraft,
+        SetMembershipCustomFieldsCommand => ProtectedAdministrationOperation.SetMemberCustomFields,
+        SetOwnMembershipCustomFieldsCommand => ProtectedAdministrationOperation.SetOwnCustomFields,
+        GrantOwnMembershipFieldConsentCommand => ProtectedAdministrationOperation.GrantOwnFieldConsent,
+        WithdrawOwnMembershipFieldConsentCommand => ProtectedAdministrationOperation.WithdrawOwnFieldConsent,
         _ => null,
     };
 
@@ -94,6 +130,13 @@ internal sealed record ProtectedAdministrationDescriptor(
         RevokeInvitationCommand command => command.ExpectedVersion,
         ReissueInvitationCommand command => command.ExpectedVersion,
         SetTenantInvitationLifetimeCommand command => command.ExpectedVersion,
+        RegisterCustomFieldDefinitionCommand or GrantOwnMembershipFieldConsentCommand or WithdrawOwnMembershipFieldConsentCommand => null,
+        ReviseCustomFieldDefinitionDraftCommand command => command.ExpectedVersion,
+        PublishCustomFieldDefinitionCommand command => command.ExpectedVersion,
+        RetireCustomFieldDefinitionCommand command => command.ExpectedVersion,
+        DiscardCustomFieldDefinitionDraftCommand command => command.ExpectedVersion,
+        SetMembershipCustomFieldsCommand command => command.ExpectedVersion,
+        SetOwnMembershipCustomFieldsCommand command => command.ExpectedVersion,
         _ => throw new ArgumentException("The protected operation is not registered.", nameof(request)),
     };
     internal bool TryReadPrecondition(HttpRequest request, out long? expected)
@@ -103,13 +146,17 @@ internal sealed record ProtectedAdministrationDescriptor(
             && request.Headers.IfMatch.Count == 0 && request.Headers.IfNoneMatch.Count == 1
             && request.Headers.IfNoneMatch[0] == "*") return true;
         if (request.Headers.IfNoneMatch.Count != 0) return false;
-        if (Creates) return request.Headers.IfMatch.Count == 0;
+        if (Creates || IsConsent) return request.Headers.IfMatch.Count == 0;
         if (!ProtectedEntityTag.TryRead(request, out var version)) return false;
         expected = version;
         return true;
     }
-    internal string LocationFor(Guid id) => Operation == ProtectedAdministrationOperation.CreateInvitation
-        ? "/api/v1/identity/invitations/" + id.ToString("D") : OrganizationLocationFor(id);
+    internal string LocationFor(Guid id) => Operation switch
+    {
+        ProtectedAdministrationOperation.CreateInvitation => "/api/v1/identity/invitations/" + id.ToString("D"),
+        ProtectedAdministrationOperation.RegisterCustomFieldDefinition => "/api/v1/customization/custom-field-definitions/" + id.ToString("D"),
+        _ => OrganizationLocationFor(id),
+    };
     internal static string OrganizationLocationFor(Guid id) => "/api/v1/tenancy/organizations/" + id.ToString("D");
 
 }

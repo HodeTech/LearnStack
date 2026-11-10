@@ -665,3 +665,106 @@ describe('selected invitation email API environment', () => {
     }
   });
 });
+
+describe('selected custom-field replay key ring', () => {
+  const current = 'Idempotency__CustomFields__CurrentKeyId';
+  const oldKey = 'Idempotency__CustomFields__Keys__old-key';
+  const newKey = 'Idempotency__CustomFields__Keys__new-key';
+  const selectedRing = () => ({
+    [current]: 'new-key',
+    [oldKey]: randomBytes(32).toString('base64'),
+    [newKey]: randomBytes(32).toString('base64'),
+  });
+
+  it.each(['root', 'projection', 'process'] as const)(
+    'selects %s keys for the API only, including hyphenated retained IDs',
+    (source) => {
+      const root = temporary();
+      const ring = selectedRing();
+      writeEnvironment(root, '.env', { ...apiIdentity, ...(source === 'root' ? ring : {}) });
+      if (source === 'projection') {
+        mkdirSync(join(root, 'frontend/apps/web'), { recursive: true });
+        writeEnvironment(root, 'frontend/apps/web/.env.local', ring);
+      }
+      const processValues = source === 'process' ? ring : {};
+      const values = loadLocalEnvironment(root, processValues, { apiAuthentication: true });
+      const api = publicApiEnvironment({ ...selected(), ...values }, configuration, {});
+      expect(api).toMatchObject(ring);
+      const demoApi = publicDemoApiEnvironment(
+        { ...selected(), ...values },
+        configuration,
+        root,
+        {},
+      );
+      expect(demoApi).toMatchObject(ring);
+      const webSelection = loadLocalEnvironment(root, processValues);
+      const web = publicWebEnvironment(values, root, ring);
+      for (const key of Object.keys(ring)) {
+        expect(webSelection).not.toHaveProperty(key);
+        expect(web).not.toHaveProperty(key);
+      }
+    },
+  );
+
+  it('never borrows the ambient ring, forwards no lookalikes, and invents no key', () => {
+    const root = temporary();
+    const ambient = selectedRing();
+    const values = { ...selected(), Idempotency__CustomFields__OtherSecret: 'unselected' };
+    for (const api of [
+      publicApiEnvironment(values, configuration, ambient),
+      publicDemoApiEnvironment(values, configuration, root, ambient),
+    ]) {
+      for (const key of Object.keys(ambient)) expect(api).not.toHaveProperty(key);
+      expect(api).not.toHaveProperty('Idempotency__CustomFields__OtherSecret');
+    }
+  });
+
+  it('preserves malformed or conflicting ring settings as invalid API-only input without blocking startup', () => {
+    const root = temporary();
+    const ring = selectedRing();
+    writeEnvironment(root, '.env', { ...apiIdentity, ...ring });
+    const values = loadLocalEnvironment(
+      root,
+      { [newKey]: 'different-material' },
+      { apiAuthentication: true },
+    );
+    expect(values[newKey]).toBe('');
+    const api = publicApiEnvironment({ ...selected(), ...values }, configuration, {});
+    expect(api[newKey]).toBe('');
+    expect(api[oldKey]).toBe(ring[oldKey]);
+    const tooMany = Object.fromEntries(
+      Array.from({ length: 6 }, (_, i) => [
+        `Idempotency__CustomFields__Keys__key${i}`,
+        randomBytes(32).toString('base64'),
+      ]),
+    );
+    const oversized = publicApiEnvironment(
+      { ...selected(), [current]: 'key0', ...tooMany },
+      configuration,
+      {},
+    );
+    expect(oversized.Idempotency__CustomFields__Keys__invalid_id).toBe('');
+    expect(
+      Object.keys(oversized).filter((key) => key.startsWith('Idempotency__CustomFields__Keys__'))
+        .length,
+    ).toBeLessThanOrEqual(6);
+    const malformed = publicApiEnvironment(
+      { ...selected(), [current]: 'bad', Idempotency__CustomFields__Keys__bad: 'invalid-base64' },
+      configuration,
+      {},
+    );
+    expect(malformed.Idempotency__CustomFields__Keys__bad).toBe('invalid-base64');
+    for (const name of [
+      'Idempotency__CustomFields__Keys__Upper',
+      'Idempotency__CustomFields__Keys__nested__value',
+    ]) {
+      const invalid = publicApiEnvironment(
+        { ...selected(), ...ring, [current]: 'new-key', [name]: 'not-forwarded' },
+        configuration,
+        {},
+      );
+      expect(invalid.Idempotency__CustomFields__Keys__invalid_id).toBe('');
+      expect(invalid).not.toHaveProperty(name);
+    }
+  });
+});

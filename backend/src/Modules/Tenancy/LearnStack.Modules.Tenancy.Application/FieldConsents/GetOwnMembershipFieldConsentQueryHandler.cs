@@ -28,10 +28,10 @@ public sealed class GetOwnMembershipFieldConsentQueryHandler(IOperationPolicyCat
         {
             var definition = await definitions.ReadAsync(new(row.DefinitionId, row.DefinitionVersion),
                 CustomFieldResolution.ExistingPin, null, cancellationToken);
-            if (definition?.Notices is null || !definition.Notices.TryGetValue(row.NoticeLocale, out var text)
+            if (definition?.Notices is null || definition.PurposeKey != row.PurposeKey || !definition.Notices.TryGetValue(row.NoticeLocale, out var text)
                 || MembershipFieldConsentNotice.ComputeHash(text) != row.NoticeHash)
                 return Fail("lockey_dependency_unavailable");
-            row = row with { NoticeText = text };
+            row = row with { NoticeText = text, Labels = definition.Labels };
         }
         if (!await AuthorizedAsync(request, cancellationToken)) return Fail("lockey_forbidden");
         return Result.Ok(new MembershipFieldConsentCurrent(row));

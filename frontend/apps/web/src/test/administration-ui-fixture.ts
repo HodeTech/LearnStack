@@ -82,6 +82,7 @@ export function administrationSnapshot(
       canAdoptRoleRelease: true,
       canWriteOwnProfile: true,
       canManageOrganizations: true,
+      canManageCustomFields: true,
     },
     ownProfile: {
       displayName: 'My contextual name',
@@ -90,8 +91,8 @@ export function administrationSnapshot(
     },
     profileState: 'available',
     formKeys: Array.from(
-      { length: 32 },
-      (_, index) => String(index).padStart(2, '0') + 'K'.repeat(41),
+      { length: 180 },
+      (_, index) => String(index).padStart(3, '0') + 'K'.repeat(40),
     ),
     outcome: { kind: 'ready', view },
     ...overrides,

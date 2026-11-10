@@ -195,6 +195,7 @@ public static class SeedComposition
         services.AddScoped<OwnFieldConsentAuthorization>();
         services.AddScoped<OwnConsentEntryAuthorization>();
         services.AddScoped<IOwnMembershipFieldConsentHistory, OwnMembershipFieldConsentHistory>();
+        services.AddScoped<IOwnFieldConsentReceiptReader, OwnFieldConsentReceiptReader>();
         services.AddScoped<IConsentSubjectScopeLookup, ConsentSubjectScopeLookup>();
         services.AddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
         services.AddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();

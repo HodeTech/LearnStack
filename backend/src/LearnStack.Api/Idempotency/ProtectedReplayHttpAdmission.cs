@@ -1,5 +1,7 @@
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Common;
 using LearnStack.Application.Authorization;
@@ -39,32 +41,73 @@ internal static class ProtectedReplayHttpAdmission
                 }));
         if (!descriptor.TryReadPrecondition(http.Request, out var expected)) return Result<None>.Fail(ProtectedEntityTag.Invalid());
         if (!context.IsResolved || !StronglyTypedId.IsAssigned(context.TenantId) || context.TenantId == TenantId.PlatformSentinel
-            || context.UserId is not { } actor || !StronglyTypedId.IsAssigned(actor) || actor == UserId.SystemActor
-            || candidates.ForValidatedScope(context.TenantId, context.OrganizationId) is not { IsActive: true } candidate
-            || candidate.Actor != actor)
+            || context.UserId is not { } actor || !StronglyTypedId.IsAssigned(actor) || actor == UserId.SystemActor)
             return await operations().CheckHttpAsync(declared.RequestType, endpoint!, http.RequestAborted);
+        ConsentSubjectSource? consent = null;
+        AuthorizationCandidate? candidate = null;
+        if (descriptor.Operation == ProtectedAdministrationOperation.WithdrawOwnFieldConsent)
+        {
+            consent = http.Features.Get<ConsentSubjectSource>();
+            if (declared.Kind != OperationPolicyKind.OwnConsentEntry || context.Origin != TenantContextOrigin.HostAndConsentSubjectScope
+                || consent is null || consent.Actor != actor || !consent.MatchesScope(http, context.TenantId, context.OrganizationId)
+                || consent.Request is not WithdrawOwnMembershipFieldConsentCommand)
+                return Failure("lockey_forbidden");
+        }
+        else
+        {
+            candidate = candidates.ForValidatedScope(context.TenantId, context.OrganizationId);
+            if (candidate is not { IsActive: true } || candidate.Actor != actor)
+                return await operations().CheckHttpAsync(declared.RequestType, endpoint!, http.RequestAborted);
+        }
 
         // Authorization precedes MVC filters, including RequestSizeLimit. Bound
         // actual bytes here before fingerprinting, without consuming model input.
         if (!AdministrationHttpInput.SupportsJsonMedia(http.Request)) return Failure("lockey_validation_failed");
+        if (consent is not null && !await consent.MatchesCapturedWithdrawalAsync(http)) return Failure("lockey_forbidden");
         await AdministrationHttpInput.ReadBodyBytesAsync(http);
-        var fingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted);
-        var binding = new RequestBinding(http, endpoint!, classifier, declared, descriptor, context, candidate, key, fingerprint, expected);
+        string fingerprint;
+        try { fingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted); }
+        catch (Exception failure) when (failure is CustomFieldFingerprintUnavailableException or IdempotencyStoreException)
+        { return Failure("lockey_dependency_unavailable"); }
+        var binding = new RequestBinding(http, endpoint!, classifier, declared, descriptor, context, candidate, consent, key, fingerprint, expected);
         IdempotentResponse? stored;
         try { stored = await store.ReadCompletedAsync(context.TenantId, key, fingerprint, http.RequestAborted); }
         catch (IdempotencyStoreException) { return Failure("lockey_dependency_unavailable"); }
         if (!binding.Matches(http, context, descriptor, key, fingerprint, expected)) return Failure("lockey_forbidden");
+        var current = await ConsentInputMatchesAsync();
+        if (current.IsFailure) return current;
         if (stored is not null && !ProtectedIdempotencyFilter.ValidStoredResponse(stored, descriptor, context.TenantId))
             return Failure("lockey_dependency_unavailable");
         var frozen = stored is null ? null : Snapshot(stored);
         var requestType = frozen is null ? declared.RequestType : ReceiptRequest(descriptor.Operation);
+        if (consent is not null && frozen is not null
+            && (frozen.ReplayTarget is not { } target || !consent.SelectWithdrawalReceipt(http, target.Id)))
+            return Failure("lockey_forbidden");
         var result = await operations().CheckHttpAsync(requestType, endpoint!, http.RequestAborted);
         if (result.IsFailure) return result;
         if (!binding.Matches(http, context, descriptor, key, fingerprint, expected)) return Failure("lockey_forbidden");
+        current = await ConsentInputMatchesAsync();
+        if (current.IsFailure) return current;
         // Both modes are bound, so deleting/replacing the feature cannot make a
         // production read admission fall back to the mutation branch.
         http.Features.Set(new Admission(binding, frozen));
         return result;
+
+        async Task<Result<None>> ConsentInputMatchesAsync()
+        {
+            if (consent is null) return Result.Ok(None.Value);
+            if (!await consent.MatchesCapturedWithdrawalAsync(http) || !IdempotencyFilter.TryReadKey(http, out var currentKey)
+                || currentKey != key) return Failure("lockey_forbidden");
+            try
+            {
+                var currentFingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted);
+                return fingerprint == currentFingerprint && await consent.MatchesCapturedWithdrawalAsync(http)
+                    && IdempotencyFilter.TryReadKey(http, out currentKey) && currentKey == key
+                    ? Result.Ok(None.Value) : Failure("lockey_forbidden");
+            }
+            catch (Exception failure) when (failure is CustomFieldFingerprintUnavailableException or IdempotencyStoreException)
+            { return Failure("lockey_dependency_unavailable"); }
+        }
     }
 
     internal static ProtectedHttpAdmission Consume(HttpContext http, ITenantContext context,
@@ -82,8 +125,8 @@ internal static class ProtectedReplayHttpAdmission
 
     internal static Type ReceiptRequest(ProtectedAdministrationOperation operation) => operation switch
     {
-        ProtectedAdministrationOperation.SetMembershipProfile => typeof(ReadMemberProfileReceiptQuery),
-        ProtectedAdministrationOperation.SetOwnMembershipProfile => typeof(ReadOwnMembershipProfileReceiptQuery),
+        ProtectedAdministrationOperation.SetMembershipProfile or ProtectedAdministrationOperation.SetMemberCustomFields => typeof(ReadMemberProfileReceiptQuery),
+        ProtectedAdministrationOperation.SetOwnMembershipProfile or ProtectedAdministrationOperation.SetOwnCustomFields => typeof(ReadOwnMembershipProfileReceiptQuery),
         ProtectedAdministrationOperation.ChangeMembershipStatus or ProtectedAdministrationOperation.ReplaceMembershipRoleAssignments => typeof(ReadMembershipReceiptQuery),
         ProtectedAdministrationOperation.ChangeRoleGrants or ProtectedAdministrationOperation.AdoptRoleGrantManifest => typeof(ReadRoleReceiptQuery),
         ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.RenameOrganization
@@ -91,6 +134,11 @@ internal static class ProtectedReplayHttpAdmission
         ProtectedAdministrationOperation.SelectDefaultOrganization => typeof(ReadDefaultOrganizationReceiptQuery),
         ProtectedAdministrationOperation.CreateInvitation or ProtectedAdministrationOperation.RevokeInvitation or ProtectedAdministrationOperation.ReissueInvitation => typeof(ReadInvitationReceiptQuery),
         ProtectedAdministrationOperation.SetTenantInvitationLifetime => typeof(ReadInvitationPolicyReceiptQuery),
+        ProtectedAdministrationOperation.RegisterCustomFieldDefinition or ProtectedAdministrationOperation.ReviseCustomFieldDraft
+            or ProtectedAdministrationOperation.PublishCustomFieldRevision or ProtectedAdministrationOperation.RetireCustomFieldRevision
+            or ProtectedAdministrationOperation.DiscardCustomFieldDraft => typeof(ReadCustomFieldDefinitionReceiptQuery),
+        ProtectedAdministrationOperation.GrantOwnFieldConsent => typeof(ReadOwnGrantedFieldConsentReceiptQuery),
+        ProtectedAdministrationOperation.WithdrawOwnFieldConsent => typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -111,7 +159,7 @@ internal static class ProtectedReplayHttpAdmission
 
     private sealed class RequestBinding(HttpContext http, Endpoint endpoint, OperationHttpClassifier classifier,
         OperationPolicy policy, ProtectedAdministrationDescriptor descriptor, ITenantContext context,
-        AuthorizationCandidate candidate, string key, string fingerprint, long? expected)
+        AuthorizationCandidate? candidate, ConsentSubjectSource? consent, string key, string fingerprint, long? expected)
     {
         private readonly TenantId _tenant = context.TenantId;
         private readonly OrganizationId? _organization = context.OrganizationId;
@@ -123,9 +171,12 @@ internal static class ProtectedReplayHttpAdmission
             ReferenceEquals(http, current) && ReferenceEquals(endpoint, current.GetEndpoint())
             && ReferenceEquals(context, scope) && !current.RequestAborted.IsCancellationRequested
             && scope.IsResolved && scope.TenantId == _tenant && scope.OrganizationId == _organization
-            && scope.UserId == _actor && scope.Origin == _origin && candidate.IsActive
-            && candidate.Actor == _actor && candidate.TenantId == _tenant && candidate.OrganizationId == _organization
+            && scope.UserId == _actor && scope.Origin == _origin
+            && (consent is not null ? candidate is null && consent.Actor == _actor && consent.MatchesScope(current, _tenant, _organization)
+                : candidate is { IsActive: true } && candidate.Actor == _actor
+                    && candidate.TenantId == _tenant && candidate.OrganizationId == _organization)
             && descriptor == operation && key == currentKey && fingerprint == currentFingerprint && expected == currentExpected
+            && IdempotencyFilter.TryReadKey(current, out var headerKey) && headerKey == key
             && classifier.Classify(endpoint, out var currentPolicy) == HttpOperationClassification.Application
             && ReferenceEquals(policy, currentPolicy)
             && AdministrationHttpInput.SupportsJsonMedia(current.Request);

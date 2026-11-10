@@ -381,6 +381,8 @@ and qualification are recorded in the Phase 03 Status block.
 |---|---|---|---|
 | MembershipFieldConsent | `tenancy.membership_field_consent.grant` | **MUST** (`create`) | `GrantOwnMembershipFieldConsentCommand` |
 | MembershipFieldConsent | `tenancy.membership_field_consent.withdraw` | **MUST** (`create`) | `WithdrawOwnMembershipFieldConsentCommand` |
+| Original granted consent outcome | `tenancy.membership_field_consent.read_grant_receipt` | **MUST** (`read-sensitive`) | `ReadOwnGrantedFieldConsentReceiptQuery`; fresh current own-Membership read, exact original act, no append. |
+| Original withdrawn consent outcome | `tenancy.membership_field_consent.read_withdraw_receipt` | **MUST** (`read-sensitive`) | `ReadOwnWithdrawnFieldConsentReceiptQuery`; the same retained own-subject withdrawal-purpose writable owner, no append. |
 
 `GetOwnMembershipFieldConsentQuery`, `ListOwnFieldConsentScopesQuery` and
 `ListOwnMembershipFieldConsentsQuery` are explicit Off bindings.

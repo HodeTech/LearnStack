@@ -1915,7 +1915,9 @@ including tenant-wide rows.
 `PostgresIdempotencyStore` reads and writes the existing tenant-wide
 `idempotency_keys` table as `learnstack_app`
 ([ADR-0037](../decisions/0037-idempotency-key-contract.md), as extended by
-[ADR-0079](../decisions/0079-bounded-identity-administration.md)). The production
+[ADR-0079](../decisions/0079-bounded-identity-administration.md),
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) and
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)). The production
 registration selects the durable adapter; `InMemoryIdempotencyStore` remains an
 explicit component-test implementation. The
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification and
@@ -1977,7 +1979,8 @@ CREATE TABLE idempotency_keys (
     CONSTRAINT ck_idempotency_keys_replay_target CHECK (
         (replay_target_kind IS NULL AND replay_target_id IS NULL)
         OR (replay_target_kind IS NOT NULL AND replay_target_id IS NOT NULL
-            AND replay_target_kind IN ('Membership','Role','Organization','Tenant')
+            AND replay_target_kind IN ('Membership','Role','Organization','Tenant',
+                'Invitation','TenantSetting','CustomFieldDefinition','MembershipFieldConsent')
             AND replay_target_id <> '00000000-0000-0000-0000-000000000000'::uuid
             AND state = 'completed' AND status_code BETWEEN 200 AND 299
             AND body IS NOT NULL AND octet_length(body) <= 1024))
@@ -5392,8 +5395,12 @@ mapping, plural-MUST rollback, both held-Tenant orders and no-dispatch repeat.
 The first protected keyed routes trigger `PostgresIdempotencyStore`; the existing
 table/RLS and app SELECT/INSERT/UPDATE grants remain. Add paired nullable internal
 `replay_target_kind` / `replay_target_id` columns. A protected completed success
-requires an allowed Membership/Role/Organization/Tenant kind and actual original
-target UUID; generic outcomes may leave both NULL. They have no cross-module FK.
+requires one of the eight closed kinds in the canonical constraint above and its
+actual original target UUID; generic outcomes may leave both NULL.
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) adds
+Invitation/TenantSetting;
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md) adds
+CustomFieldDefinition/MembershipFieldConsent. They have no cross-module FK.
 The protected filter captures a typed actual-result target, never arbitrary body
 metadata. Reclamation clears both columns with the old outcome. The API standard
 owns fingerprints, wire receipts, preconditions and replay disclosure.

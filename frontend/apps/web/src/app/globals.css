@@ -29,7 +29,7 @@
 .auth-shell a:focus-visible {
   outline-color: var(--ls-fg);
 }
-.auth-shell input:not([type='hidden']):not([type='radio']),
+.auth-shell input:not([type='hidden']):not([type='radio']):not([type='checkbox']),
 .auth-shell select,
 .auth-shell textarea {
   display: block;
@@ -255,4 +255,42 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+}
+
+.auth-shell [hidden] {
+  display: none;
+}
+.auth-shell input[type='checkbox'] {
+  display: inline-block;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-inline-end: 0.5rem;
+  vertical-align: middle;
+}
+.custom-field-editor,
+.custom-field-group {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+.custom-field-group {
+  border: 1px solid var(--ls-fg);
+  padding: 1rem;
+  margin-block: 1rem;
+}
+.custom-field-group > legend {
+  padding-inline: 0.4rem;
+  font-weight: 600;
+}
+.custom-field-group > details {
+  margin-block: 0.75rem;
+}
+.custom-field-group summary,
+.auth-shell details > summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.custom-field-notice {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

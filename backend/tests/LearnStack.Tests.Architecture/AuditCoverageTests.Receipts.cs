@@ -1,5 +1,7 @@
 using FluentAssertions;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Domain;
@@ -28,6 +30,9 @@ public sealed partial class AuditCoverageTests
             (typeof(ReadDefaultOrganizationReceiptQuery), "tenancy", "tenancy.organization.read_receipt", typeof(LearnStack.Modules.Tenancy.Domain.Tenant)),
             (typeof(ReadInvitationReceiptQuery), "identity", "identity.invitation.read_receipt", typeof(Invitation)),
             (typeof(ReadInvitationPolicyReceiptQuery), "tenancy", "tenancy.setting.read_receipt", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting)),
+            (typeof(ReadCustomFieldDefinitionReceiptQuery), "customization", "customization.custom_field.read_receipt", typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef)),
+            (typeof(ReadOwnGrantedFieldConsentReceiptQuery), "tenancy", "tenancy.membership_field_consent.read_grant_receipt", typeof(LearnStack.Modules.Tenancy.Domain.MembershipFieldConsent)),
+            (typeof(ReadOwnWithdrawnFieldConsentReceiptQuery), "tenancy", "tenancy.membership_field_consent.read_withdraw_receipt", typeof(LearnStack.Modules.Tenancy.Domain.MembershipFieldConsent)),
         ];
         var catalog = Catalogue();
         foreach (var declaration in expected)
@@ -40,7 +45,7 @@ public sealed partial class AuditCoverageTests
             BindingMatches(registration with { Entries = [entry, entry] }, entry).Should().BeFalse();
             foreach (var dirty in new[]
             {
-                entry with { ModuleName = "customization" }, entry with { Operation = "identity.receipt.control" },
+                entry with { ModuleName = declaration.Module == "customization" ? "identity" : "customization" }, entry with { Operation = "identity.receipt.control" },
                 entry with { OperationType = OperationType.Update }, entry with { OperationClass = OperationClass.Should },
                 entry with { EntityType = declaration.Root == typeof(Membership) ? typeof(Role) : typeof(Membership) },
             }) BindingMatches(registration with { Entries = [dirty] }, entry).Should().BeFalse();
@@ -71,6 +76,15 @@ public sealed partial class AuditCoverageTests
         ("Modules/Identity/LearnStack.Modules.Identity.Application/Invitations/InvitationAdministrationHandlers.cs",
             "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationHandlers", "Handle",
             "store.ReadAsync(InvitationId.From(request.InvitationId), cancellationToken)", "LearnStack.Modules.Identity.Domain.InvitationId", "ReadInvitationReceiptQuery", "target"),
+        ("Modules/Customization/LearnStack.Modules.Customization.Application/CustomFields/ReadCustomFieldDefinitionReceiptQueryHandler.cs",
+            "LearnStack.Modules.Customization.Application.CustomFields.ReadCustomFieldDefinitionReceiptQueryHandler", "Handle",
+            "store.FindAsync(TenantCustomFieldDefId.From(request.DefinitionId), cancellationToken)", "LearnStack.Modules.Customization.Domain.TenantCustomFieldDefId", null, "row"),
+        ("Modules/Tenancy/LearnStack.Modules.Tenancy.Application/FieldConsents/FieldConsentReceiptQueryHandlers.cs",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.ReadOwnGrantedFieldConsentReceiptQueryHandler", "Handle",
+            "reader.ReadAsync(context.UserId!.Value, admitted, request.EvidenceId, cancellationToken)", "LearnStack.Modules.Tenancy.Domain.MembershipFieldConsentId", null, "target"),
+        ("Modules/Tenancy/LearnStack.Modules.Tenancy.Application/FieldConsents/FieldConsentReceiptQueryHandlers.cs",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.ReadOwnWithdrawnFieldConsentReceiptQueryHandler", "Handle",
+            "reader.ReadAsync(witness.Actor, [membership], request.EvidenceId, cancellationToken)", "LearnStack.Modules.Tenancy.Domain.MembershipFieldConsentId", null, "target"),
         ("Modules/Tenancy/LearnStack.Modules.Tenancy.Application/Settings/InvitationPolicyHandlers.cs",
             "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers", "Handle",
             "reader.ReadReceiptAsync(TenantSettingId.From(request.SettingId), cancellationToken)", "LearnStack.Modules.Tenancy.Domain.TenantSettingId", "ReadInvitationPolicyReceiptQuery", "row"),
@@ -84,11 +98,12 @@ public sealed partial class AuditCoverageTests
         {
             var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot, declaration.Path));
             ReceiptSubjectIsRetained(source, declaration.Type.Split('.').Last(), declaration.Method, declaration.Read, declaration.Request, declaration.Variable).Should().BeTrue();
+            var designator = declaration.Type.Contains("FieldConsentReceiptQueryHandler", StringComparison.Ordinal) ? "audit" : "subject";
             foreach (var (before, after) in new[]
             {
                 (declaration.Read, declaration.Read.Replace("reader.", "substitute.", StringComparison.Ordinal).Replace("store.", "substitute.", StringComparison.Ordinal)),
-                ("subject.Designate(" + declaration.Variable + ")", "subject.Designate(successor)"),
-                ("subject.Designate(" + declaration.Variable + ")", "subject.DesignateProjection(" + declaration.Variable + ")"),
+                (designator + ".Designate(" + declaration.Variable + ")", designator + ".Designate(successor)"),
+                (designator + ".Designate(" + declaration.Variable + ")", designator + ".DesignateProjection(" + declaration.Variable + ")"),
             })
             {
                 var dirty = source.Replace(before, after, StringComparison.Ordinal);
@@ -155,10 +170,11 @@ public sealed partial class AuditCoverageTests
                 && (request is null || member.ParameterList.Parameters.FirstOrDefault()?.Type?.ToString() == request));
         if (root.ContainsDiagnostics || body is null) return false;
         var declarations = body.DescendantNodes().OfType<VariableDeclaratorSyntax>().Where(declaration => declaration.Identifier.ValueText == variable).ToArray();
+        var designator = handler.Contains("FieldConsentReceiptQueryHandler", StringComparison.Ordinal) ? "audit" : "subject";
         var designations = body.DescendantNodes().OfType<InvocationExpressionSyntax>()
-            .Where(call => call.Expression is MemberAccessExpressionSyntax access && access.Expression.ToString() == "subject").ToArray();
+            .Where(call => call.Expression is MemberAccessExpressionSyntax access && access.Expression.ToString() == designator).ToArray();
         return declarations.Length == 1 && declarations[0].Initializer?.Value is AwaitExpressionSyntax awaited
             && SyntaxFactory.AreEquivalent(awaited.Expression, SyntaxFactory.ParseExpression(read))
-            && designations.Length == 1 && SyntaxFactory.AreEquivalent(designations[0], SyntaxFactory.ParseExpression("subject.Designate(" + variable + ")"));
+            && designations.Length == 1 && SyntaxFactory.AreEquivalent(designations[0], SyntaxFactory.ParseExpression(designator + ".Designate(" + variable + ")"));
     }
 }

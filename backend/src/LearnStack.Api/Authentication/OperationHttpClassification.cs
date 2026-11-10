@@ -1,4 +1,8 @@
+using LearnStack.Api.Customization;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Api.Account;
 using LearnStack.Api.Identity;
@@ -84,7 +88,7 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
             if (anonymous.Count != 1 || authorization.Count != 0) return HttpOperationClassification.Refused;
         }
         else if (found.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected
-            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry)
+            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry or OperationPolicyKind.OwnFieldConsentGrant)
         {
             if (anonymous.Count != 0 || authorization.Count != 1
                 || authorization[0].AuthenticationSchemes != TenantAuthenticationRegistration.Scheme
@@ -128,6 +132,20 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
 
     private static (Type Request, string Name, string Method)? Expected(Type controller, string method) => (controller, method) switch
     {
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.List)) => (typeof(ListCustomFieldDefinitionsQuery), "ListCustomFieldDefinitions", "GET"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Get)) => (typeof(GetCustomFieldDefinitionQuery), "GetCustomFieldDefinition", "GET"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Revisions)) => (typeof(ListCustomFieldDefinitionRevisionsQuery), "ListCustomFieldDefinitionRevisions", "GET"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Register)) => (typeof(RegisterCustomFieldDefinitionCommand), "RegisterCustomFieldDefinition", "POST"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Revise)) => (typeof(ReviseCustomFieldDefinitionDraftCommand), "ReviseCustomFieldDefinitionDraft", "PUT"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Publish)) => (typeof(PublishCustomFieldDefinitionCommand), "PublishCustomFieldDefinition", "POST"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Retire)) => (typeof(RetireCustomFieldDefinitionCommand), "RetireCustomFieldDefinition", "POST"),
+        var pair when pair == (typeof(CustomFieldDefinitionsController), nameof(CustomFieldDefinitionsController.Discard)) => (typeof(DiscardCustomFieldDefinitionDraftCommand), "DiscardCustomFieldDefinitionDraft", "POST"),
+        var pair when pair == (typeof(MembershipCustomFieldsController), nameof(MembershipCustomFieldsController.Get)) => (typeof(GetMembershipCustomFieldsQuery), "GetMembershipCustomFields", "GET"),
+        var pair when pair == (typeof(MembershipCustomFieldsController), nameof(MembershipCustomFieldsController.GetOwn)) => (typeof(GetOwnMembershipCustomFieldsQuery), "GetOwnMembershipCustomFields", "GET"),
+        var pair when pair == (typeof(MembershipCustomFieldsController), nameof(MembershipCustomFieldsController.Set)) => (typeof(SetMembershipCustomFieldsCommand), "SetMembershipCustomFields", "PATCH"),
+        var pair when pair == (typeof(MembershipCustomFieldsController), nameof(MembershipCustomFieldsController.SetOwn)) => (typeof(SetOwnMembershipCustomFieldsCommand), "SetOwnMembershipCustomFields", "PATCH"),
+        var pair when pair == (typeof(OwnFieldConsentController), nameof(OwnFieldConsentController.Current)) => (typeof(GetOwnMembershipFieldConsentQuery), "GetOwnMembershipFieldConsent", "GET"),
+        var pair when pair == (typeof(OwnFieldConsentController), nameof(OwnFieldConsentController.Grant)) => (typeof(GrantOwnMembershipFieldConsentCommand), "GrantOwnMembershipFieldConsent", "POST"),
         var pair when pair == (typeof(PublicSiteController), nameof(PublicSiteController.Get)) => (typeof(GetPublicSiteQuery), "GetPublicSite", "GET"),
         var pair when pair == (typeof(PublicSiteController), nameof(PublicSiteController.Head)) => (typeof(GetPublicSiteQuery), "HeadPublicSite", "HEAD"),
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.Catalog)) => (typeof(GetPublicCoursesQuery), "GetPublicCourses", "GET"),
@@ -160,6 +178,9 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(DefaultOrganizationController), nameof(DefaultOrganizationController.Select)) => (typeof(SelectDefaultOrganizationCommand), "SelectDefaultOrganization", "PUT"),
         var pair when pair == (typeof(NativeSessionAdmissionController), nameof(NativeSessionAdmissionController.Admit)) =>
             (typeof(AdmitNativeSessionScopeCommand), "AdmitNativeSessionScope", "POST"),
+        var pair when pair == (typeof(ConsentSubjectController), nameof(ConsentSubjectController.Scopes)) => (typeof(ListOwnFieldConsentScopesQuery), "ListOwnFieldConsentScopes", "GET"),
+        var pair when pair == (typeof(ConsentSubjectController), nameof(ConsentSubjectController.History)) => (typeof(ListOwnMembershipFieldConsentsQuery), "ListOwnMembershipFieldConsents", "GET"),
+        var pair when pair == (typeof(ConsentSubjectController), nameof(ConsentSubjectController.Withdraw)) => (typeof(WithdrawOwnMembershipFieldConsentCommand), "WithdrawOwnMembershipFieldConsent", "POST"),
         var pair when pair == (typeof(InvitationEntryController), nameof(InvitationEntryController.Inspect)) => (typeof(InspectInvitationQuery), "InspectInvitation", "POST"),
         var pair when pair == (typeof(InvitationEntryController), nameof(InvitationEntryController.Accept)) => (typeof(AcceptInvitationCommand), "AcceptInvitation", "POST"),
         var pair when pair == (typeof(InvitationEntryController), nameof(InvitationEntryController.Result)) => (typeof(GetOwnInvitationResultQuery), "GetOwnInvitationResult", "POST"),

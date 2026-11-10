@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
+using LearnStack.Modules.Customization.Application.CustomFields;
 using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.SharedKernel.Identity;
@@ -13,7 +14,7 @@ using static LearnStack.Infrastructure.Persistence.WriteStoreTracking;
 
 namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 
-public sealed class CustomFieldDefinitionStore(CustomizationDbContext db, IUnitOfWork unit) : ICustomFieldDefinitionStore
+public sealed class CustomFieldDefinitionStore(CustomizationDbContext db, IUnitOfWork unit, CustomFieldFormProfile profile) : ICustomFieldDefinitionStore
 {
     private static readonly IReadOnlySet<string> OwnedConstraints = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -57,7 +58,7 @@ public sealed class CustomFieldDefinitionStore(CustomizationDbContext db, IUnitO
     {
         var typed = TenantCustomFieldDefId.From(id);
         var row = await db.TenantCustomFieldDefinitions.AsNoTracking().SingleOrDefaultAsync(row => row.Id == typed, cancellationToken);
-        return row is null ? null : CustomFieldDefinitionProjection.ToDto(row);
+        return row is null ? null : CustomFieldDefinitionProjection.ToDto(row, profile);
     }
     public Task<CustomFieldConceptPage> ListConceptsAsync(string? cursor, string? status, CancellationToken cancellationToken) =>
         CustomFieldDefinitionStorageBoundary.ReadAsync(db, unit, () => ListConceptsCoreAsync(cursor, status, cancellationToken));
@@ -84,9 +85,16 @@ public sealed class CustomFieldDefinitionStore(CustomizationDbContext db, IUnitO
         var active = await db.TenantCustomFieldDefinitions.AsNoTracking().Where(row => keys.Contains(row.Key)
             && row.TargetEntity == CustomFieldTarget.Membership && row.Status == CustomizationStatus.Active && row.DeletedAt == null)
             .ToListAsync(cancellationToken);
-        var summaries = page.Take(20).Select(row => new CustomFieldConceptSummary(row.Key, row.Latest,
-            active.SingleOrDefault(item => item.Key == row.Key)?.Id.Value,
-            active.SingleOrDefault(item => item.Key == row.Key)?.SchemaVersion)).ToArray();
+        var latest = await db.TenantCustomFieldDefinitions.AsNoTracking().Where(row => keys.Contains(row.Key)
+            && row.TargetEntity == CustomFieldTarget.Membership && !db.TenantCustomFieldDefinitions.Any(later => later.Key == row.Key
+                && later.TargetEntity == row.TargetEntity && later.SchemaVersion > row.SchemaVersion)).Take(20).ToListAsync(cancellationToken);
+        var summaries = page.Take(20).Select(row =>
+        {
+            var incumbent = active.SingleOrDefault(item => item.Key == row.Key);
+            var definition = CustomFieldDefinitionProjection.ToDto(latest.Single(item => item.Key == row.Key), profile) with
+            { ActiveRevision = incumbent is null ? null : new CustomFieldActiveRevision(incumbent.Id.Value, incumbent.Version) };
+            return new CustomFieldConceptSummary(row.Key, row.Latest, incumbent?.Id.Value, incumbent?.SchemaVersion, definition);
+        }).ToArray();
         return new(summaries, page.Count > 20 ? Encode(cursorKind, page[19].Key, 0) : null);
     }
     public Task<CustomFieldDefinitionPage> ListRevisionsAsync(string key, string? cursor, CancellationToken cancellationToken) =>
@@ -97,7 +105,7 @@ public sealed class CustomFieldDefinitionStore(CustomizationDbContext db, IUnitO
         if (cursor is not null && Decode(cursor, "revisions", out after) != key) throw InvalidCursor();
         var rows = await db.TenantCustomFieldDefinitions.AsNoTracking().Where(row => row.TargetEntity == CustomFieldTarget.Membership
             && row.Key == key && row.SchemaVersion > after).OrderBy(row => row.SchemaVersion).Take(21).ToListAsync(cancellationToken);
-        return new(rows.Take(20).Select(CustomFieldDefinitionProjection.ToDto).ToArray(), rows.Count > 20 ? Encode("revisions", key, rows[19].SchemaVersion) : null);
+        return new(rows.Take(20).Select(row => CustomFieldDefinitionProjection.ToDto(row, profile)).ToArray(), rows.Count > 20 ? Encode("revisions", key, rows[19].SchemaVersion) : null);
     }
     private static string Encode(string kind, string key, int version) => Convert.ToBase64String(Encoding.UTF8.GetBytes($"1|{kind}|{key}|{version.ToString(CultureInfo.InvariantCulture)}"));
     private static string Decode(string cursor, string kind, out int version)
@@ -119,7 +127,7 @@ public sealed class CustomFieldDefinitionStore(CustomizationDbContext db, IUnitO
     private static ArgumentException InvalidCursor() => new("Definition cursor is invalid.");
 }
 
-public sealed class ExactCustomFieldDefinitionReader(CustomizationDbContext db, ITenantContext context, IIdentityMutationLocks locks, IUnitOfWork unit)
+public sealed class ExactCustomFieldDefinitionReader(CustomizationDbContext db, ITenantContext context, IIdentityMutationLocks locks, IUnitOfWork unit, CustomFieldFormProfile profile)
     : IExactCustomFieldDefinitionReader
 {
     public async Task<CustomFieldDefinitionDto?> ReadAsync(CustomFieldDefinitionPin pin, CustomFieldResolution resolution,
@@ -144,7 +152,7 @@ public sealed class ExactCustomFieldDefinitionReader(CustomizationDbContext db, 
         var rows = await query.ToListAsync(cancellationToken);
         if (resolution == CustomFieldResolution.NewBinding) RequireFence(fence);
         return rows.Where(row => pins.Any(pin => pin.DefinitionId == row.Id.Value && pin.SchemaVersion == row.SchemaVersion))
-            .OrderBy(row => row.Key, StringComparer.Ordinal).Select(CustomFieldDefinitionProjection.ToDto).ToArray();
+            .OrderBy(row => row.Key, StringComparer.Ordinal).Select(row => CustomFieldDefinitionProjection.ToDto(row, profile)).ToArray();
     }
     public Task<IReadOnlyList<CustomFieldDefinitionDto>> ReadActiveAsync(IdentityMutationLockPlan fence, CancellationToken cancellationToken = default) =>
         CustomFieldDefinitionStorageBoundary.ReadAsync(db, unit, () => ReadActiveCoreAsync(fence, cancellationToken));
@@ -155,7 +163,7 @@ public sealed class ExactCustomFieldDefinitionReader(CustomizationDbContext db, 
             && row.Status == CustomizationStatus.Active && row.DeletedAt == null).OrderBy(row => row.Sort).ThenBy(row => row.Key).Take(21).ToListAsync(cancellationToken);
         RequireFence(fence);
         if (rows.Count > 20) throw new InvalidOperationException("Active definition capacity is invalid.");
-        return rows.Select(CustomFieldDefinitionProjection.ToDto).ToArray();
+        return rows.Select(row => CustomFieldDefinitionProjection.ToDto(row, profile)).ToArray();
     }
     public Task<IReadOnlyList<CustomFieldDefinitionDto>> ReadActiveForDisplayAsync(CancellationToken cancellationToken = default) =>
         CustomFieldDefinitionStorageBoundary.ReadAsync(db, unit, () => ReadActiveForDisplayCoreAsync(cancellationToken));
@@ -165,7 +173,7 @@ public sealed class ExactCustomFieldDefinitionReader(CustomizationDbContext db, 
             && row.Status == CustomizationStatus.Active && row.DeletedAt == null).OrderBy(row => row.Sort).ThenBy(row => row.Key)
             .Take(21).ToListAsync(cancellationToken);
         if (rows.Count > 20) throw new InvalidOperationException("Active definition capacity is invalid.");
-        return rows.Select(CustomFieldDefinitionProjection.ToDto).ToArray();
+        return rows.Select(row => CustomFieldDefinitionProjection.ToDto(row, profile)).ToArray();
     }
     private void RequireFence(IdentityMutationLockPlan? fence)
     {
@@ -176,9 +184,14 @@ public sealed class ExactCustomFieldDefinitionReader(CustomizationDbContext db, 
 
 internal static class CustomFieldDefinitionProjection
 {
-    internal static CustomFieldDefinitionDto ToDto(TenantCustomFieldDef row) => new(row.Id.Value, row.TargetEntity.ToString(), row.Key,
-        row.SchemaVersion, row.Status.ToString(), row.Version, row.DeletedAt is not null, row.JsonSchema,
+    internal static CustomFieldDefinitionDto ToDto(TenantCustomFieldDef row, CustomFieldFormProfile profile)
+    {
+        var normalized = profile.NormalizeStored(row.JsonSchema);
+        if (normalized.IsFailure) throw new InvalidOperationException("Custom field metadata is unavailable.");
+        return new(row.Id.Value, row.TargetEntity.ToString(), row.Key,
+        row.SchemaVersion, row.Status.ToString(), row.Version, row.DeletedAt is not null, normalized.Value,
         JsonSerializer.Deserialize<SortedDictionary<string, string>>(row.LabelsJson)!, row.PiiCategory, row.IsRequired, row.Sort,
         row.PurposeKey, row.NoticesJson is null ? null : JsonSerializer.Deserialize<SortedDictionary<string, string>>(row.NoticesJson), row.MaximumValueBytes,
         row.FormLabelsJson is null ? null : JsonSerializer.Deserialize<List<CustomFieldControlLabels>>(row.FormLabelsJson));
+    }
 }

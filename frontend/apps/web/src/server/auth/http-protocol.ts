@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
+import type { MembershipCustomFields } from '@learnstack/sdk/administration-server';
+
 import {
   BFF_COOKIES,
   BffInputError,
@@ -8,6 +10,12 @@ import {
   clearBffCookie,
   clearMalformedBffCookies,
 } from './cookies.js';
+import {
+  CUSTOM_FIELD_FORMS,
+  customControlName,
+  customAuthorName,
+  customFieldControlDescriptions,
+} from './custom-field-forms.js';
 import {
   BFF_ADMIN_FORMS,
   BffProfileInputError,
@@ -593,15 +601,106 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           ? BFF_ADMIN_FORMS[path]
           : undefined;
         if (adminFields) {
-          const fields = await bffForm(request, adminFields);
+          const fields = await bffForm(
+            request,
+            adminFields,
+            path === '/api/account/custom-fields' || path === '/api/studio/membership-custom-fields'
+              ? customControlName
+              : path === '/api/studio/custom-field-create' ||
+                  path === '/api/studio/custom-field-revise'
+                ? customAuthorName
+                : undefined,
+          );
           const session = current && store.peek(current);
           const csrf = fields.get('csrfToken');
           if (!current || !session || !bffSecretEquals(csrf, session.csrfToken))
             return result(request, { code: 'csrf' }, 403);
+          let customFields: MembershipCustomFields | undefined;
+          if (
+            (path === '/api/account/custom-fields' ||
+              path === '/api/studio/membership-custom-fields') &&
+            [...fields.keys()].some(customControlName)
+          ) {
+            const metadata = await store.operate(
+              current,
+              request.source,
+              path === '/api/account/custom-fields'
+                ? { kind: 'getOwnCustomFields' }
+                : { kind: 'getMembershipCustomFields', id: fields.get('membershipId') ?? '' },
+              undefined,
+              request.signal,
+            );
+            if (metadata.kind !== 'success')
+              return await actionDocument(
+                request,
+                render,
+                current,
+                {
+                  kind: 'mutation_error',
+                  action: path,
+                  destination:
+                    path === '/api/account/custom-fields' ? '/portal/profile' : '/studio/members',
+                  fields: [...fields.entries()],
+                  reason:
+                    metadata.kind === 'api-error' && [401, 403, 404].includes(metadata.status)
+                      ? 'denied'
+                      : 'unavailable',
+                  retryable: false,
+                },
+                {
+                  code:
+                    metadata.kind === 'api-error' && [401, 403, 404].includes(metadata.status)
+                      ? 'forbidden'
+                      : 'unavailable',
+                },
+                metadata.kind === 'api-error'
+                  ? metadata.status
+                  : metadata.kind === 'invalid-request'
+                    ? 400
+                    : 503,
+              );
+            customFields = metadata.data as MembershipCustomFields;
+          }
+          let customFieldControls = customFields
+            ? customFieldControlDescriptions(fields, customFields)
+            : undefined;
           let form: ReturnType<typeof bffAdministrationForm>;
           try {
-            form = bffAdministrationForm(path, fields);
+            form = bffAdministrationForm(path, fields, customFields);
           } catch (error) {
+            if (Object.hasOwn(CUSTOM_FIELD_FORMS, path) && error instanceof BffInputError) {
+              const selected = fields.get('membershipId') ?? fields.get('definitionId');
+              const safeId =
+                selected !== null &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+                  selected,
+                );
+              const destination = path.startsWith('/api/account/')
+                ? '/portal/profile'
+                : path === '/api/studio/membership-custom-fields'
+                  ? safeId
+                    ? '/studio/members/' + selected
+                    : '/studio/members'
+                  : safeId
+                    ? '/studio/custom-fields/' + selected
+                    : '/studio/custom-fields';
+              return await actionDocument(
+                request,
+                render,
+                current,
+                {
+                  kind: 'mutation_error',
+                  action: path,
+                  destination,
+                  fields: [...fields.entries()],
+                  customFieldControls,
+                  reason: 'validation',
+                  retryable: false,
+                },
+                { code: 'validation_failed' },
+                400,
+              );
+            }
             if (
               !(error instanceof BffProfileInputError) &&
               !(error instanceof BffInvitationInputError)
@@ -665,6 +764,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 action: path,
                 destination: form.destination,
                 fields: [...fields.entries()],
+                customFieldControls,
                 reason: 'unavailable',
                 retryable: true,
               },
@@ -693,9 +793,43 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           const code =
             outcome.kind === 'api-error'
               ? outcome.error.code
-              : outcome.kind === 'invalid-request' && path.startsWith('/api/studio/invitation-')
+              : outcome.kind === 'invalid-request' &&
+                  (path.startsWith('/api/studio/invitation-') ||
+                    Object.hasOwn(CUSTOM_FIELD_FORMS, path))
                 ? 'validation_failed'
                 : 'unavailable';
+          if (
+            outcome.kind === 'api-error' &&
+            outcome.status === 400 &&
+            outcome.error.code === 'validation_failed' &&
+            customFieldControls === undefined &&
+            (path === '/api/account/custom-fields' ||
+              path === '/api/studio/membership-custom-fields')
+          ) {
+            try {
+              const metadata = await store.operate(
+                current,
+                request.source,
+                path === '/api/account/custom-fields'
+                  ? { kind: 'getOwnCustomFields' }
+                  : { kind: 'getMembershipCustomFields', id: fields.get('membershipId') ?? '' },
+                undefined,
+                request.signal,
+              );
+              request.signal.throwIfAborted();
+              if (metadata.kind === 'success') {
+                const currentFields = metadata.data as MembershipCustomFields;
+                if (
+                  path === '/api/account/custom-fields' ||
+                  currentFields.membershipId === fields.get('membershipId')
+                )
+                  customFieldControls = customFieldControlDescriptions(fields, currentFields);
+              }
+            } catch (error) {
+              if (request.signal.aborted || error instanceof BffSessionError) throw error;
+              // The rejected mutation remains rejected; unavailable metadata grants no editing shape.
+            }
+          }
           const profileErrors =
             outcome.kind === 'api-error' && outcome.error.code === 'validation_failed'
               ? Object.keys(outcome.error.fieldErrors)
@@ -704,7 +838,8 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             code === 'validation_failed' &&
             (path === '/api/account/profile' ||
               path === '/api/studio/membership-profile' ||
-              path.startsWith('/api/studio/invitation-'))
+              path.startsWith('/api/studio/invitation-') ||
+              Object.hasOwn(CUSTOM_FIELD_FORMS, path))
               ? 'validation'
               : code === 'concurrency_conflict'
                 ? 'stale'
@@ -724,6 +859,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
               action: path,
               destination: form.destination,
               fields: [...fields.entries()],
+              customFieldControls,
               reason,
               ...(reason === 'validation' &&
               outcome.kind === 'api-error' &&

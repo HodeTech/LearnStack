@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Api.Authentication;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.SharedKernel.Identity;
@@ -17,25 +18,60 @@ namespace LearnStack.Tests.Architecture;
 public sealed class ConsentSubjectConventionTests
 {
     [Fact]
-    public void Consent_entry_policies_and_current_unactivated_source_have_closed_owners()
+    public void Consent_entry_policies_and_authenticated_source_have_closed_owners()
     {
         var types = ProductionAssemblies.All().SelectMany(assembly => assembly.GetTypes()).ToArray();
         var policies = new TenancyOperationPolicySource().Policies;
         policies.Where(policy => policy.Kind == OperationPolicyKind.OwnConsentEntry).Select(policy => policy.RequestType)
             .Should().BeEquivalentTo([typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ListOwnFieldConsentScopesQuery),
-                typeof(ListOwnMembershipFieldConsentsQuery)]);
+                typeof(ListOwnMembershipFieldConsentsQuery), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery)]);
         policies.Where(policy => policy.Kind == OperationPolicyKind.OwnFieldConsentGrant).Select(policy => policy.RequestType)
             .Should().Equal(typeof(GrantOwnMembershipFieldConsentCommand));
         types.Where(type => !type.IsAbstract && typeof(ConsentSubjectScopeWitness.MintingSource).IsAssignableFrom(type))
-            .Should().BeEmpty("the authenticated source is not activated in this step");
+            .Should().Equal(typeof(ConsentSubjectSource));
         types.Where(type => !type.IsAbstract && typeof(IConsentSubjectScopeSource).IsAssignableFrom(type))
-            .Should().BeEmpty("no production source is registered until its owning entry point arrives");
+            .Should().Equal(typeof(ConsentSubjectSource));
         types.Where(type => !type.IsAbstract && typeof(IConsentSubjectUnitOfWork).IsAssignableFrom(type))
             .Should().Equal(typeof(NpgsqlUnitOfWork));
         typeof(ConsentSubjectScopeWitness).IsSealed.Should().BeTrue();
         typeof(ConsentSubjectScopeWitness).GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             .Should().ContainSingle().Which.IsPrivate.Should().BeTrue();
         typeof(ConsentSubjectScopeWitness).GetProperties().Should().OnlyContain(property => property.SetMethod == null);
+        var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot, "LearnStack.Api/Authentication/ConsentSubjectSource.cs"));
+        ConsentRequestFeatureIsBound(source).Should().BeTrue();
+        foreach (var (before, after) in new[]
+        {
+            ("ReferenceEquals(http.Features.Get<ConsentSubjectRequest>(), _requestFeature)", "true"),
+            ("ReferenceEquals(_requestFeature.Request, _request)", "true"),
+            ("!IsCurrent(http) || _purpose?.Purpose != ConsentSubjectPurpose.Withdraw", "false"),
+            ("_request is not WithdrawOwnMembershipFieldConsentCommand", "false"),
+            ("_requestFeature = new ConsentSubjectRequest(receipt);", "_requestFeature = null;"),
+            ("http.Features.Set(_requestFeature);", "GC.KeepAlive(http);"),
+        })
+        {
+            var dirty = source.Replace(before, after, StringComparison.Ordinal);
+            dirty.Should().NotBe(source);
+            ConsentRequestFeatureIsBound(dirty).Should().BeFalse("a replacement feature or different captured request must not retain authority");
+        }
+    }
+
+    private static bool ConsentRequestFeatureIsBound(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        if (root.ContainsDiagnostics) return false;
+        var owner = root.DescendantNodes().OfType<ClassDeclarationSyntax>().SingleOrDefault(type => type.Identifier.ValueText == "ConsentSubjectSource");
+        var current = owner?.Members.OfType<MethodDeclarationSyntax>().SingleOrDefault(method => method.Identifier.ValueText == "IsCurrent");
+        var select = owner?.Members.OfType<MethodDeclarationSyntax>().SingleOrDefault(method => method.Identifier.ValueText == "SelectWithdrawalReceipt");
+        var prepare = owner?.Members.OfType<MethodDeclarationSyntax>().SingleOrDefault(method => method.Identifier.ValueText == "PrepareAsync");
+        if (current is null || select is null || prepare is null) return false;
+        static string Tokens(Microsoft.CodeAnalysis.SyntaxNode node) => string.Concat(node.DescendantTokens().Select(token => token.Text));
+        var live = Tokens(current); var replay = Tokens(select); var initial = Tokens(prepare);
+        return live.Contains("ReferenceEquals(http.Features.Get<ConsentSubjectRequest>(),_requestFeature)", StringComparison.Ordinal)
+            && live.Contains("ReferenceEquals(_requestFeature.Request,_request)", StringComparison.Ordinal)
+            && replay.Contains("!IsCurrent(http)||_purpose?.Purpose!=ConsentSubjectPurpose.Withdraw", StringComparison.Ordinal)
+            && replay.Contains("_requestisnotWithdrawOwnMembershipFieldConsentCommand", StringComparison.Ordinal)
+            && replay.Contains("_requestFeature=newConsentSubjectRequest(receipt);http.Features.Set(_requestFeature);", StringComparison.Ordinal)
+            && initial.Contains("_requestFeature=newConsentSubjectRequest(input.Request);http.Features.Set(_requestFeature);http.Features.Set(this);", StringComparison.Ordinal);
     }
 
     [Fact]
@@ -53,7 +89,9 @@ public sealed class ConsentSubjectConventionTests
                     .SelectMany(method => method.Definition.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
                         && target.DeclaringType.FullName == targetType && target.Name == member)
                         .Select(_ => type.FullName + "." + method.DeclaredAs))).Distinct().ToArray();
-            Callers(witness + "/MintingSource", "Capture").Should().BeEmpty();
+            Callers(witness + "/MintingSource", "Capture").Should().Equal("LearnStack.Api.Authentication.ConsentSubjectSource.ForInvocation");
+            Callers("LearnStack.Api.Authentication.ConsentSubjectSource", "SelectWithdrawalReceipt")
+                .Should().Equal("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission.AuthorizeAsync");
             Callers(witness, ".ctor").Should().Equal(witness + "/MintingSource.Capture");
             Callers(witness, "TryBindTo").Should().Equal(unit + ".SetTenantContextCoreAsync");
             Callers(witness, "IsBoundTo").Should().BeEquivalentTo(unit + ".SetTenantContextCoreAsync",
@@ -66,12 +104,12 @@ public sealed class ConsentSubjectConventionTests
             var minter = witnessType.NestedTypes.Single(type => type.Name == "MintingSource");
             TypeDefinition[] Minters() => modules.SelectMany(item => item.Types).SelectMany(Flatten)
                 .Where(type => !type.IsAbstract && type.BaseType?.FullName == minter.FullName).ToArray();
-            Minters().Should().BeEmpty();
+            Minters().Select(type => type.FullName).Should().Equal("LearnStack.Api.Authentication.ConsentSubjectSource");
             var rogueMinter = new TypeDefinition("ReviewProbe", "ConsentMinter", Mono.Cecil.TypeAttributes.Class, minter);
             module.Types.Add(rogueMinter);
-            Minters().Should().ContainSingle().Which.FullName.Should().Be("ReviewProbe.ConsentMinter");
+            Minters().Select(type => type.FullName).Should().Contain("ReviewProbe.ConsentMinter").And.HaveCount(2);
             module.Types.Remove(rogueMinter);
-            Minters().Should().BeEmpty();
+            Minters().Select(type => type.FullName).Should().Equal("LearnStack.Api.Authentication.ConsentSubjectSource");
             var target = witnessType.Methods.Single(method => method.Name == "TryBindTo");
             var probe = new TypeDefinition("ReviewProbe", "ConsentBinding", Mono.Cecil.TypeAttributes.Class, module.TypeSystem.Object);
             var method = new MethodDefinition("Bind", Mono.Cecil.MethodAttributes.Static, module.TypeSystem.Void);

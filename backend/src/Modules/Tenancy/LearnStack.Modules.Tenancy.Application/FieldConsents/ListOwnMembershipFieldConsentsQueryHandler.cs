@@ -32,7 +32,7 @@ public sealed class ListOwnMembershipFieldConsentsQueryHandler(OwnConsentEntryAu
                 || definition.Notices is null || !definition.Notices.TryGetValue(item.NoticeLocale, out var text)
                 || MembershipFieldConsentNotice.ComputeHash(text) != item.NoticeHash)
                 return Fail("lockey_dependency_unavailable");
-            resolved.Add(item with { NoticeText = text });
+            resolved.Add(item with { NoticeText = text, Labels = definition.Labels });
         }
         if (!ReferenceEquals(authorization.For(request, ConsentSubjectPurpose.History), witness)) return Fail("lockey_forbidden");
         return Result.Ok(new MembershipFieldConsentPage(resolved, page.NextCursor));

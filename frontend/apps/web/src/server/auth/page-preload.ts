@@ -1,11 +1,14 @@
 import type {
+  CustomFieldDefinition,
+  CustomFieldPage,
+  MembershipCustomFields,
+  ConsentHistory,
   Invitation,
   InvitationPage,
   InvitationPolicy,
   InvitableRoles,
   MembershipDetail,
   MembershipPage,
-  OwnCapabilities,
   OwnMembershipProfile,
   PermissionRegistry,
   RoleDetail,
@@ -40,10 +43,14 @@ export type NativeDocumentPlan = Readonly<{
     | 'profile'
     | 'invitations'
     | 'invitation'
-    | 'invitation_policy';
+    | 'invitation_policy'
+    | 'custom_fields'
+    | 'custom_field';
   id?: string;
   cursor?: string;
   limit: number;
+  selectedFieldId?: string | null;
+  consentCursor?: string;
 }>;
 
 export function nativeDocumentPlan(target: string, flight: boolean): NativeDocumentPlan {
@@ -63,6 +70,9 @@ export function nativeDocumentPlan(target: string, flight: boolean): NativeDocum
     case '/studio/members':
       kind = 'members';
       break;
+    case '/studio/custom-fields':
+      kind = 'custom_fields';
+      break;
     case '/studio/roles':
       kind = 'roles';
       break;
@@ -76,16 +86,19 @@ export function nativeDocumentPlan(target: string, flight: boolean): NativeDocum
       if (path.startsWith('/studio/members/')) kind = 'member';
       else if (path.startsWith('/studio/roles/')) kind = 'role';
       else if (path.startsWith('/studio/invitations/')) kind = 'invitation';
+      else if (path.startsWith('/studio/custom-fields/')) kind = 'custom_field';
       else throw new BffSessionError('configuration');
   }
   return Object.freeze({
     target: path,
     kind,
-    ...(kind === 'member' || kind === 'role' || kind === 'invitation'
+    ...(kind === 'member' || kind === 'role' || kind === 'invitation' || kind === 'custom_field'
       ? { id: path.split('/')[3]! }
       : {}),
     ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
-    limit: parsed.limit ?? 20,
+    limit: kind === 'custom_fields' || kind === 'custom_field' ? 20 : (parsed.limit ?? 20),
+    selectedFieldId: parsed.selectedFieldId,
+    consentCursor: parsed.consentCursor,
   });
 }
 
@@ -175,7 +188,7 @@ export async function preloadPage(
     };
   };
   try {
-    capabilities = await data<OwnCapabilities>({ kind: 'getOwnCapabilities' });
+    capabilities = await data<PageCapabilities>({ kind: 'getOwnCapabilities' });
     const profile = await read({ kind: 'getOwnProfile' });
     if (profile.kind === 'success') {
       const value = profile.data as OwnMembershipProfile;
@@ -196,12 +209,29 @@ export async function preloadPage(
       case 'portal':
         view = { kind: plan.kind };
         break;
-      case 'profile':
+      case 'profile': {
+        const customFields =
+          ownProfile === null
+            ? undefined
+            : await data<MembershipCustomFields>({ kind: 'getOwnCustomFields' });
+        const consents =
+          customFields === undefined
+            ? undefined
+            : await data<ConsentHistory>({
+                kind: 'listOwnConsentHistory',
+                membershipId: customFields.membershipId,
+                limit: 20,
+                cursor: plan.consentCursor,
+              });
         view = {
           kind: 'profile',
           canWrite: capabilities.canWriteOwnProfile && ownProfile !== null,
+          customFields,
+          consents,
+          selectedFieldId: plan.selectedFieldId,
         };
         break;
+      }
       case 'invitations': {
         if (!capabilities.canManageMemberships) throw new PageReadFailure('denied', 403);
         const page = await data<InvitationPage>({
@@ -287,7 +317,73 @@ export async function preloadPage(
             capabilities.canManageMemberships &&
             roles !== null,
         };
-        view = { kind: 'member', member, roles };
+        const customFields = await data<MembershipCustomFields>({
+          kind: 'getMembershipCustomFields',
+          id: plan.id!,
+        });
+        view = {
+          kind: 'member',
+          member,
+          roles,
+          customFields,
+          selectedFieldId: plan.selectedFieldId,
+        };
+        break;
+      }
+      case 'custom_fields': {
+        if (!capabilities.canManageCustomFields || organizationId !== null)
+          throw new PageReadFailure('denied', 403);
+        const definitions = await data<CustomFieldPage>({
+          kind: 'listCustomFieldDefinitions',
+          cursor: plan.cursor,
+          limit: 20,
+        });
+        view = {
+          kind: 'custom_fields',
+          definitions: {
+            ...definitions,
+            pageInfo: {
+              ...definitions.pageInfo,
+              nextCursor:
+                definitions.pageInfo.nextCursor === null
+                  ? null
+                  : wrapCursor(definitions.pageInfo.nextCursor),
+            },
+          },
+          limit: 20,
+        };
+        break;
+      }
+      case 'custom_field': {
+        if (!capabilities.canManageCustomFields || organizationId !== null)
+          throw new PageReadFailure('denied', 403);
+        const definition = await data<CustomFieldDefinition>({
+          kind: 'getCustomFieldDefinition',
+          id: plan.id!,
+        });
+        const revisions = await data<CustomFieldPage>({
+          kind: 'listCustomFieldRevisions',
+          id: plan.id!,
+          cursor: plan.cursor,
+          limit: 20,
+        });
+        const active = definition.activeRevision;
+        view = {
+          kind: 'custom_field',
+          definition,
+          revisions: {
+            ...revisions,
+            pageInfo: {
+              ...revisions.pageInfo,
+              nextCursor:
+                revisions.pageInfo.nextCursor === null
+                  ? null
+                  : wrapCursor(revisions.pageInfo.nextCursor),
+            },
+          },
+          expectedIncumbentId: active?.id ?? null,
+          expectedIncumbentVersion: active?.version ?? null,
+        };
         break;
       }
       case 'roles':
@@ -300,7 +396,10 @@ export async function preloadPage(
       case 'role': {
         if (!capabilities.canReadRoles) throw new PageReadFailure('denied', 403);
         const role = await data<RoleDetail>({ kind: 'getRole', id: plan.id! });
-        const registry = await data<PermissionRegistry>({ kind: 'getPermissions' });
+        const registry = await data<PermissionRegistry>({
+          kind: 'getPermissions',
+          sourceReleaseVersion: role.adoptedReleaseVersion === 1 ? 1 : 2,
+        });
         view = {
           kind: 'role',
           role: {
