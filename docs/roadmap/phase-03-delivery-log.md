@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,436 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,471 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -420,7 +420,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 PR correction review round 1 (2026-11-10)](#p03-5-pr-correction-review-round-1-2026-11-10) — 20 lines
   - [P03-5 PR correction second review and CI handoff (2026-11-10)](#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10) — 19 lines
   - [P03-5 catalogue counter refusal and verified correction (2026-11-10)](#p03-5-catalogue-counter-refusal-and-verified-correction-2026-11-10) — 31 lines
-  - [P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)](#p03-5-catalogue-correction-reviews-and-frozen-source-handoff-2026-11-10) — 17 lines
+  - [P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)](#p03-5-catalogue-correction-reviews-and-frozen-source-handoff-2026-11-10) — 18 lines
+  - [P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)](#p03-5-retained-runtime-proof-failure-and-bounded-diagnosis-2026-11-10) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19334,3 +19335,38 @@ missed local verification without weakening the five existing corpus guards or
 adding a new assertion. The actual 5/5 local result and failed source remain
 recorded above. New-source complete A/B and original evidence follow on the
 unchanged corrected source; the ready PR stays unmerged.
+
+
+### P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)
+
+Frozen `fbaafd1c` / merge `40a2c042`, run
+[42892240480 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42892240480/attempts/1),
+finishes 25/27. The catalogue correction passes in the actual Architecture shard.
+Only ordinary shard 10 and its required integration aggregate fail; all other
+jobs, including frontend/production ingress, public demo, OpenAPI, native and
+both backend base/Architecture aggregate controls pass. All twenty-four available
+original ZIPs match API size/SHA-256 and pass CRC. This candidate is unqualified
+and no B is started; successful siblings are not reused for another attempt.
+
+Exactly one completed case is Failed:
+`BackgroundJobRuntimeFacadeTests.Native_rolled_back_capacity_admission_joins_after_peer_clears_the_original_routing_token`,
+31.594 seconds. The test's shared thirty-second proof deadline begins after
+its database/host setup. The retained CI projection intentionally contains only
+case identity, outcome and duration, not its raw exception/stage/provider text;
+there is insufficient evidence to name the failed inner stage or root cause.
+The failure is not attributed to the environment or declared repaired.
+
+Two exact existing-case local runs pass in about three seconds each. One complete
+existing facade-class run passes naturally: 42/42, zero skips, in 5m56s; the target
+case passes in 1.068 seconds. The same-class/global-filter hypothesis is not
+reproduced. Explicit global-filter snapshot classes share the serial SharedSchema
+collection, and no concurrent mutator or implementation violation is identified.
+These observations do not reproduce the hosted Linux workload or explain its
+failure. No source assertion, test selection, time limit, clock or runtime code
+changes; no speculative fix or raw-diagnostics exemption is introduced.
+
+This append-only evidence record is the only new source change. The reviewed
+product/test tree remains the same; a normal PR synchronization supplies a new
+frozen source identity for the required complete A, retained/audited originals,
+then whole B. A repeated failure reopens focused diagnosis; two passing complete
+runs establish qualification without becoming a root-cause repair claim.
