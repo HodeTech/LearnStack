@@ -23,7 +23,7 @@
 > P03-5's [accepted contract and four-step plan](phase-03-delivery-log.md#p03-5-conditional-acceptance-and-step-1-start-2026-11-10)
 > follow [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
 > P03-5 [Step 1](phase-03-delivery-log.md#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) and [Step 2](phase-03-delivery-log.md#p03-5-step-2-two-round-review-closeout-2026-11-10) close with two review rounds each.
-> [Step 3 and its two review rounds](phase-03-delivery-log.md#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) close for implementation; Step 4 combined qualification is in progress. P03-6 through P03-11 have not started.
+> [Step 3 and its two review rounds](phase-03-delivery-log.md#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) close for implementation; [Step 4 combined qualification](phase-03-delivery-log.md#p03-5-step-4-combined-qualification-and-boundary-reconciliation-2026-11-10) is in progress. P03-6 through P03-11 have not started.
 >
 > | Packet | Title | State |
 > |---|---|---|

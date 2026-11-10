@@ -84,6 +84,8 @@ public sealed partial class OperationPolicyOwnershipTests
         AssertTenancyCanonicalRecheck();
         AssertReceiptCanonicalRecheck();
         AssertAdministrationReadCanonicalRecheck();
+        AssertCustomFieldCanonicalRechecks();
+        AssertConsentHttpAuthorization();
         using var census = Census.Read();
         AssertOperationCallerIndex(census);
         Offenders(census).Should().BeEmpty("Fix: preserve the exact invocation/evaluator/read-owner authority chain and lifetime (ADR-0076)");
@@ -147,9 +149,48 @@ public sealed partial class OperationPolicyOwnershipTests
         }) Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
         foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks).Concat(InvitationChecks))
             Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
-        foreach (var call in census.Body("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync")
-                     .Body.Instructions.Where(instruction => IsCall(instruction, Coordinator, "CheckHttpAsync")).ToArray())
-            Dirty(census, () => RemoveInstruction(call));
+        // ADR-0095 adds exactly the Allowed/NotCovered consent-witness branch;
+        // removing any old/new decision or adding another caller still fails.
+        foreach (var decisionCall in census.Body(Evaluator, "AuthorizeAsync").Body.Instructions
+                     .Where(instruction => IsCall(instruction, Decision + "/MintingSource", "ForDecision")).ToArray())
+            Dirty(census, () => RemoveInstruction(decisionCall));
+        Dirty(census, () =>
+        {
+            var evaluator = census.Body(Evaluator, "AuthorizeAsync");
+            var existing = evaluator.Body.Instructions.First(instruction => IsCall(instruction, Decision + "/MintingSource", "ForDecision"));
+            var extra = Instruction.Create(existing.OpCode, (MethodReference)existing.Operand);
+            evaluator.Body.Instructions.Add(extra);
+            return () => evaluator.Body.Instructions.Remove(extra);
+        });
+        foreach (var (type, method) in CustomFieldRecheckSites)
+        {
+            var recheck = census.Body(type, method);
+            Dirty(census, () => RemoveCall(recheck, Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"));
+            Dirty(census, () =>
+            {
+                var call = recheck.Body.Instructions.Single(instruction => IsCall(instruction, Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"));
+                var extra = Instruction.Create(call.OpCode, (MethodReference)call.Operand);
+                recheck.Body.Instructions.Add(extra);
+                return () => recheck.Body.Instructions.Remove(extra);
+            });
+        }
+        foreach (var (type, method) in new[]
+        {
+            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync"),
+            ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync"),
+        })
+        {
+            var body = census.Body(type, method);
+            foreach (var call in body.Body.Instructions.Where(instruction => IsCall(instruction, Coordinator, "CheckHttpAsync")).ToArray())
+                Dirty(census, () => RemoveInstruction(call));
+            Dirty(census, () =>
+            {
+                var call = body.Body.Instructions.First(instruction => IsCall(instruction, Coordinator, "CheckHttpAsync"));
+                var extra = Instruction.Create(call.OpCode, (MethodReference)call.Operand);
+                body.Body.Instructions.Add(extra);
+                return () => body.Body.Instructions.Remove(extra);
+            });
+        }
         var bind = census.Body(Invocation, "TryBindRead");
         Dirty(census, () => RemoveInstruction(bind.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
             && instruction.Operand is FieldReference field && field.Name == "_readBinding")));
@@ -258,21 +299,23 @@ public sealed partial class OperationPolicyOwnershipTests
         Exact(Decision, ".ctor", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Witness, ".ctor", [(Witness + "/MintingSource", "ForTenantRead", 1)]);
         Exact(Invocation + "/MintingSource", "ForInvocation", [(Coordinator, "ExecuteAsync", 1)]);
-        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 8),
+        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 10),
             (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1),
             (TenancyEvaluator, "RecheckAsync", 1), (ReceiptEvaluator, "RecheckAsync", 1), (ReadEvaluator, "RecheckAsync", 1),
-            (InvitationEvaluator, "RecheckAsync", 1), (InvitationPolicyEvaluator, "OwnAsync", 1)]);
+            (InvitationEvaluator, "RecheckAsync", 1), (InvitationPolicyEvaluator, "OwnAsync", 1),
+            (DefinitionEvaluator, "RecheckAsync", 1), (OwnConsentEvaluator, "AdmitGrantAsync", 1),
+            (ConsentReceiptEvaluator, "RecheckAsync", 1), (ConsentReadEvaluator, "AuthorizedAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 2)]);
         Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),
             ("LearnStack.Api.Authentication.ConfirmedClaimAssertionSource", "Capture", 1),
             ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", 1),
             ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 1)]);
-        Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 3),
+        Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 4),
             ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1),
-            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 1)]);
+            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 2)]);
         Exact(Witness, "TryBindTo", [(Unit, "SetTenantContextCoreAsync", 2)]);
         Exact(Witness, "IsBoundTo", [(Unit, "SetTenantContextCoreAsync", 1), (Unit, "ValidateOperationReadScope", 1)]);
         Exact(Invocation, "TryBindRead", [(Witness, "TryBindTo", 1)]);
@@ -361,9 +404,12 @@ public sealed partial class OperationPolicyOwnershipTests
         {
             var actual = callers[(type, name)].Where(site => site.Instruction.OpCode.Code is Code.Call or Code.Callvirt or Code.Newobj
                     && site.Instruction.Operand is MethodReference target && target.DeclaringType.FullName == type && target.Name == name)
-                .Select(site => census.Owner(site.Method));
-            if (!Same(actual, expected.SelectMany(item => Enumerable.Repeat(item.Owner + "::" + item.Method, item.Count))))
-                errors.Add("Exact operation authority callers changed: " + type + "::" + name);
+                .Select(site => census.Owner(site.Method)).ToArray();
+            var wanted = expected.SelectMany(item => Enumerable.Repeat(item.Owner + "::" + item.Method, item.Count)).ToArray();
+            if (!Same(actual, wanted))
+                errors.Add("Exact operation authority callers changed: " + type + "::" + name
+                    + "; actual=[" + string.Join(", ", actual.Order(StringComparer.Ordinal))
+                    + "]; expected=[" + string.Join(", ", wanted.Order(StringComparer.Ordinal)) + "]");
         }
         void Require(string type, string method, string target, string name)
         {

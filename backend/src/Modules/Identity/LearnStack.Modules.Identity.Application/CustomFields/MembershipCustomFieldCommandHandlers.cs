@@ -83,7 +83,7 @@ public sealed class MembershipCustomFieldCommandExecutor(IMembershipCustomFieldS
             subject.Designate(member);
             var result = member.SetCustomFields(changed.Value, clock.UtcNow, context.UserId!.Value);
             if (result.IsFailure) return Result<MembershipMutationResult>.Fail(result.Error);
-            if (member.Version != version) await store.SaveAsync(cancellationToken);
+            if (member.Version != version) await store.UpdateAsync(member, cancellationToken);
             return Result<MembershipMutationResult>.Ok(new(member.Id.Value, member.Version));
         }
         catch (IdentityFoundationStorageException failure)

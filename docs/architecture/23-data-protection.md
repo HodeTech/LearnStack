@@ -261,12 +261,14 @@ govern personal data; exclusion here grants no erasure exemption.
 | `tenant_domains` | Tenancy host configuration |
 | `tenant_locales` | Tenancy locale configuration |
 | `tenant_settings` | Tenancy configuration |
+| `membership_field_consents` | Synchronous append-only personal consent evidence, with subject/actor, Membership, exact definition/purpose/notice and predecessor linkage; [the field privacy contract](#revision-pinned-custom-field-privacy) owns P03-10 fulfillment and Phase 11 retention. Withdrawal is neither erasure nor asynchronous delivery |
 | `tenant_feature_flags` | Tenancy feature configuration |
 | `platform_entitlement_cache` | Entitlement projection |
 | `platform_host_to_tenant` | Host-resolution projection |
 | `platform_killswitches` | Platform feature configuration |
 | `customization_generations` | Customization publication metadata |
 | `tenant_content_types` | Customization definitions |
+| `tenant_custom_field_defs` | Synchronous immutable revision-pinned Membership field definitions, including authored metadata/classification/notices and creator/update attribution; [the field privacy contract](#revision-pinned-custom-field-privacy) owns subject linkage and fulfillment, without an asynchronous delivery copy |
 | `tenant_level_taxonomies` | Customization definitions |
 | `tenant_level_taxonomy_items` | Customization definition items |
 | `courses` | Education aggregate |

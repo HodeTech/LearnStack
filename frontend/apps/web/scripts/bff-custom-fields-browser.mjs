@@ -231,6 +231,20 @@ async function verifyNativeAuthorTextPreservation(page, site) {
   await page.goto(origin + path);
   const scalar = page.locator('form.custom-field-native-scalar');
   await scalar.waitFor({ state: 'visible' });
+  const label = scalar.locator('[name="authorLabel_' + site.locale + '"]');
+  if ((await label.inputValue()) === '') {
+    await scalar
+      .locator('[name="authorTextMode_Label_' + site.locale + '"]')
+      .selectOption('escaped');
+    await label.fill('Fixture exact\\r\\nlabel');
+  }
+  const notice = scalar.locator('[name="authorNotice_' + site.locale + '"]');
+  if ((await notice.inputValue()) === '') {
+    await scalar
+      .locator('[name="authorTextMode_Notice_' + site.locale + '"]')
+      .selectOption('escaped');
+    await notice.fill('Purpose\\r\\nnotice\\nwith\\rmixed endings');
+  }
   assert.deepEqual(
     await scalar
       .locator(':invalid')

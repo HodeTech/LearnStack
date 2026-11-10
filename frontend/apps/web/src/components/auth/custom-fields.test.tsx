@@ -1617,4 +1617,109 @@ describe('finite custom-field UI', () => {
     });
     expect(JSON.parse(payload.value).notices).toBeNull();
   });
+  it('removes an invalid first choice without transferring its editor state to an equally labelled survivor', () => {
+    const initial: CustomFieldDefinition = {
+      ...authorTextDefinition('Root', true),
+      schema: envelopeSchema({
+        type: 'string',
+        minLength: 1,
+        maxLength: 24,
+        enum: ['first', 'second'],
+      }),
+      formLabels: [
+        { location: '/', labels: null, choices: [{ en: 'Shared label' }, { en: 'Shared label' }] },
+      ],
+    };
+    const { container } = render(
+      <CustomFieldBuilder
+        initial={initial}
+        csrfToken={'A'.repeat(43)}
+        formKey={'K'.repeat(43)}
+        locales={['en']}
+        defaultLocale="en"
+        locale="en"
+        copy={enAdmin.custom_fields}
+      />,
+    );
+    const form = container.querySelector<HTMLFormElement>('form')!;
+    const payload = form.querySelector<HTMLInputElement>('[name="payload"]')!;
+    const first = form.querySelector<HTMLTextAreaElement>('#definition-control-choice-0-en')!;
+    const survivor = form.querySelector<HTMLTextAreaElement>('#definition-control-choice-1-en')!;
+    fireEvent.change(form.querySelector('#definition-control-choice-0-en-textmode')!, {
+      target: { value: 'escaped' },
+    });
+    fireEvent.change(first, { target: { value: '\\q' } });
+    expect(first.checkValidity()).toBe(false);
+    expect(payload.value).toBe('');
+    fireEvent.click(
+      screen.getByRole('button', { name: enAdmin.custom_fields.remove_property + ' 1' }),
+    );
+    const remaining = form.querySelector<HTMLTextAreaElement>('#definition-control-choice-0-en')!;
+    expect(remaining).toBe(survivor);
+    expect(remaining.value).toBe('Shared label');
+    expect(remaining.checkValidity()).toBe(true);
+    expect(form.checkValidity()).toBe(true);
+    const proposal = JSON.parse(payload.value);
+    expect(proposal.schema.properties.value.enum).toEqual(['second']);
+    expect(proposal.formLabels).toEqual([
+      { location: '/', labels: null, choices: [{ en: 'Shared label' }] },
+    ]);
+    expect(payload.value).not.toContain('editorKey');
+  });
+
+  it('removes an invalid first child without transferring its editor state to an equally labelled survivor', () => {
+    const initial: CustomFieldDefinition = {
+      ...authorTextDefinition('Root'),
+      schema: envelopeSchema({
+        type: 'object',
+        properties: { first: { type: 'boolean' }, second: { type: 'boolean' } },
+        required: ['first', 'second'],
+        additionalProperties: false,
+      }),
+      formLabels: [
+        { location: '/0', labels: { en: 'Shared label' }, choices: null },
+        { location: '/1', labels: { en: 'Shared label' }, choices: null },
+      ],
+    };
+    const { container } = render(
+      <CustomFieldBuilder
+        initial={initial}
+        csrfToken={'A'.repeat(43)}
+        formKey={'K'.repeat(43)}
+        locales={['en']}
+        defaultLocale="en"
+        locale="en"
+        copy={enAdmin.custom_fields}
+      />,
+    );
+    const form = container.querySelector<HTMLFormElement>('form')!;
+    const payload = form.querySelector<HTMLInputElement>('[name="payload"]')!;
+    const first = form.querySelector<HTMLTextAreaElement>('#definition-control-0-label-en')!;
+    const survivor = form.querySelector<HTMLTextAreaElement>('#definition-control-1-label-en')!;
+    fireEvent.change(form.querySelector('#definition-control-0-label-en-textmode')!, {
+      target: { value: 'escaped' },
+    });
+    fireEvent.change(first, { target: { value: '\\q' } });
+    expect(first.checkValidity()).toBe(false);
+    expect(payload.value).toBe('');
+    fireEvent.click(
+      screen.getByRole('button', { name: enAdmin.custom_fields.remove_property + ' 1' }),
+    );
+    const remaining = form.querySelector<HTMLTextAreaElement>('#definition-control-0-label-en')!;
+    expect(remaining).toBe(survivor);
+    expect(remaining.value).toBe('Shared label');
+    expect(remaining.checkValidity()).toBe(true);
+    expect(form.checkValidity()).toBe(true);
+    const proposal = JSON.parse(payload.value);
+    expect(proposal.schema.properties.value).toEqual({
+      type: 'object',
+      properties: { second: { type: 'boolean' } },
+      required: ['second'],
+      additionalProperties: false,
+    });
+    expect(proposal.formLabels).toEqual([
+      { location: '/0', labels: { en: 'Shared label' }, choices: null },
+    ]);
+    expect(payload.value).not.toContain('editorKey');
+  });
 });

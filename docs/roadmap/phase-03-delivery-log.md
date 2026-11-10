@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 741 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 795 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -404,6 +404,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 3 HTTP, native and accessible form implementation handoff (2026-11-10)](#p03-5-step-3-http-native-and-accessible-form-implementation-handoff-2026-11-10) — 81 lines
   - [P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)](#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) — 67 lines
   - [P03-5 Step 3 second-review corrections and qualification handoff (2026-11-10)](#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) — 39 lines
+  - [P03-5 Step 4 combined qualification and boundary reconciliation (2026-11-10)](#p03-5-step-4-combined-qualification-and-boundary-reconciliation-2026-11-10) — 54 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18622,3 +18623,57 @@ for reviewed implementation, while Step 4 owns the remaining actual build/browse
 rerun, complete relevant suites, same-source hosted A/B/original archives and human
 accessibility evidence. The full architecture suite is already running; heavy
 native qualification is serialized after it. No CI, PR or merge result is claimed.
+
+### P03-5 Step 4 combined qualification and boundary reconciliation (2026-11-10)
+
+The complete local architecture run executes **624 cases: 584 pass, 40 fail,
+zero skipped**. This is a failed baseline, not packet qualification. Its verified
+causes are closed consumer/owner inventories, two missing synchronous module-store
+exclusions from the asynchronous custody census, and two aggregate write ports
+that are invisible to the existing countable boundary. No exemption, new read
+source, context writer, authority policy or test window follows from that result.
+
+The definition and Membership field stores now derive from their existing typed
+aggregate write boundary. The Membership executor passes its freshly locked root;
+the store refuses creation, detached/other instances and a previously captured
+instance after relocking or rereading. Its new real PostgreSQL control initially
+omits the required shared Tenant fence and is correctly refused. The corrected
+fixture follows the actual lock order. The full Membership command population
+passes **11/11**, including unchanged-state assertions after those refusals.
+
+Exact authentication, operation-policy, tenant-lock, transaction-helper and job
+controller censuses enumerate the delivered P03-5 consumers. Typed source/IL
+controls retain wrong-request/actor/policy/endpoint/witness substitutions, missing
+sites and extra callers. Ordinary tenant setters forward neither entry witness;
+the invitation and retained-consent owners forward only their own captured typed
+witness. The two new module-store rows in Architecture 23 are synchronous custody
+exclusions, not additions to its twelve asynchronous first-party stores or an
+exemption from P03-10 subject fulfillment and Phase 11 retention.
+
+The Step 3 correction check also verifies a surviving editor's identity when an
+earlier enum choice or object child is removed. Private sibling keys fix local
+text/mode state without changing ordinal DOM IDs or serialized schemas. Two DOM
+regressions pass within the **113/113** focused form population; the finding owner
+verifies the correction. The actual HTTPS/native browser Fact then passes **1/1**,
+including its positive journey and two required counterfactuals, exact enum and
+multiline value fidelity, and JavaScript-free scalar/Sensitive metadata editing
+on both hosts. A prior browser attempt refuses a missing newly enabled default
+label; its fixture now explicitly authors the required translated label rather
+than bypassing native form validity. It supplies UI/transport proof, not real RLS
+or provider authorization proof. The separately recorded real warm Keycloak
+retained-consent entry proof remains attributed to its own source and population.
+
+Current additional checks pass **3,747/3,747 Unit**, **12/12 Contract**, and the
+combined custom-field/consent PostgreSQL/HTTP/diagnostic population **42/42**.
+The last Release solution build has zero warnings/errors. These populations may
+overlap earlier focused results; they are not summed into a synthetic suite total.
+SDK/web type checking and whole-web lint also pass. An overbroad follow-up
+architecture selection is canceled and receives no passing credit; the final local
+selection targets the original affected failure methods and newly added guards.
+The restored architecture baselines pass **4/4**; the separate affected-failure
+and newly added guard population passes **38/38**, including its source/IL
+mutation controls. This closes the initial forty failures without claiming a new
+complete local architecture pass. Full guarded frontend, final-source hosted A/B
+with original archive reconciliation, fresh Step 4 review rounds and new human
+accessibility observations remain open. No complete CI result, manual execution,
+packet closeout or catalogue status promotion is claimed.

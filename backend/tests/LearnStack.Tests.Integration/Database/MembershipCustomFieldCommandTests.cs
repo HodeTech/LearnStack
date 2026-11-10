@@ -4,6 +4,11 @@ using LearnStack.SharedKernel.Audit;
 using System.Text.Json;
 using LearnStack.Application.Pipeline;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
+using LearnStack.Modules.Identity.Application.Abstractions;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
@@ -20,6 +25,44 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class MembershipCustomFieldCommandTests(MembershipCustomFieldFixture fixture)
     : IClassFixture<MembershipCustomFieldFixture>
 {
+    [Fact]
+    public async Task Custom_field_store_refuses_creation_and_stale_or_other_membership_instances()
+    {
+        var member = await fixture.Membership.AddMemberAsync();
+        var other = await fixture.Membership.AddMemberAsync();
+        var original = await fixture.Membership.ReadAsync(member.Membership);
+        await using (var harness = await fixture.CreateAsync("custom-field-store-owner"))
+        {
+            await using var frame = await harness.Unit.BeginTransactionAsync();
+            await harness.Unit.SetTenantContextAsync(harness.Services.GetRequiredService<ITenantContext>());
+            await harness.Services.GetRequiredService<IIdentityMutationLocks>().AcquireAsync(
+                new([], TenantId.From(SchemaFixture.TenantA), IdentityTenantLockMode.Shared));
+            var reader = harness.Services.GetRequiredService<IMembershipAdministrationReader>();
+            var store = harness.Services.GetRequiredService<IMembershipCustomFieldStore>();
+            var id = MembershipId.From(member.Membership);
+            var sameIdDetached = Assert.IsType<Membership>(await reader.ReadDetailAsync(id));
+            var different = Assert.IsType<Membership>(await reader.ReadDetailAsync(MembershipId.From(other.Membership)));
+            Assert.True(sameIdDetached.SetProfile("refused-store-canary", "en", DateTimeOffset.UtcNow,
+                UserId.From(member.Actor)).IsSuccess);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddAsync(sameIdDetached));
+            await store.LockAsync(id);
+            var captured = Assert.IsType<Membership>(await store.ReadForWriteAsync(id));
+            Assert.NotSame(captured, sameIdDetached);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateAsync(sameIdDetached));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateAsync(different));
+            await store.LockAsync(id);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateAsync(captured));
+            var refreshed = Assert.IsType<Membership>(await store.ReadForWriteAsync(id));
+            Assert.NotSame(captured, refreshed);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateAsync(captured));
+            await frame.FailAsync();
+        }
+        var persisted = await fixture.Membership.ReadAsync(member.Membership);
+        Assert.Equal(original.DisplayName, persisted.DisplayName);
+        Assert.Equal(original.PreferredLocale, persisted.PreferredLocale);
+        Assert.Equal(original.Version, persisted.Version);
+    }
+
     [Fact]
     public async Task Compact_numeric_input_cannot_expand_past_the_complete_submission_limit_after_normalization()
     {

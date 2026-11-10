@@ -25,8 +25,8 @@ type DraftNode = {
   labels: Record<string, string>;
   minimum: string;
   maximum: string;
-  choices: { value: string; labels: Record<string, string> }[];
-  children: { key: string; required: boolean; node: DraftNode }[];
+  choices: { editorKey: number; value: string; labels: Record<string, string> }[];
+  children: { editorKey: number; key: string; required: boolean; node: DraftNode }[];
   item?: DraftNode;
 };
 const fresh = (): DraftNode => ({
@@ -34,7 +34,7 @@ const fresh = (): DraftNode => ({
   labels: {},
   minimum: '1',
   maximum: '32',
-  choices: [{ value: '', labels: {} }],
+  choices: [{ editorKey: 0, value: '', labels: {} }],
   children: [],
 });
 function draftFrom(
@@ -57,8 +57,11 @@ function draftFrom(
       minimum: String(schema.minLength),
       maximum: String(schema.maxLength),
       choices:
-        schema.enum?.map((value, index) => ({ value, labels: { ...entry?.choices?.[index] } })) ??
-        node.choices,
+        schema.enum?.map((value, index) => ({
+          editorKey: index,
+          value,
+          labels: { ...entry?.choices?.[index] },
+        })) ?? node.choices,
     };
   if (schema.type === 'integer' || schema.type === 'number')
     return { ...node, minimum: String(schema.minimum), maximum: String(schema.maximum) };
@@ -66,6 +69,7 @@ function draftFrom(
     return {
       ...node,
       children: fieldPropertyKeys(schema).map((key, index) => ({
+        editorKey: index,
         key,
         required: schema.required.includes(key),
         node: draftFrom(schema.properties[key]!, labels, metadata, childLocation(index)),
@@ -87,6 +91,9 @@ const localized = (values: Readonly<Record<string, string>>, locales: readonly s
     ),
   );
 const numeric = (text: string, integer = true) => parseCustomFieldNumber(text, integer);
+// Sibling identities belong only to the draft editor; compile emits explicit API fields.
+const nextEditorKey = (items: readonly { editorKey: number }[]): number =>
+  items.reduce((maximum, item) => Math.max(maximum, item.editorKey), -1) + 1;
 
 function compile(
   node: DraftNode,
@@ -244,7 +251,7 @@ function NodeEditor({ node, onChange, locales, copy, id, depth, onTextValidity }
       {node.type === 'enum' && (
         <>
           {node.choices.map((choice, index) => (
-            <fieldset key={index}>
+            <fieldset key={choice.editorKey}>
               <legend>
                 {copy.item} {index + 1}
               </legend>
@@ -307,7 +314,13 @@ function NodeEditor({ node, onChange, locales, copy, id, depth, onTextValidity }
               aria-disabled={node.choices.length >= 20}
               onClick={() => {
                 if (node.choices.length >= 20) return;
-                onChange({ ...node, choices: [...node.choices, { value: '', labels: {} }] });
+                onChange({
+                  ...node,
+                  choices: [
+                    ...node.choices,
+                    { editorKey: nextEditorKey(node.choices), value: '', labels: {} },
+                  ],
+                });
                 focusAfterChange(id + '-choice-' + node.choices.length);
               }}
             >
@@ -319,7 +332,7 @@ function NodeEditor({ node, onChange, locales, copy, id, depth, onTextValidity }
       {node.type === 'object' && (
         <>
           {node.children.map((child, index) => (
-            <fieldset key={index}>
+            <fieldset key={child.editorKey}>
               <legend>
                 {copy.item} {index + 1}
               </legend>
@@ -388,7 +401,15 @@ function NodeEditor({ node, onChange, locales, copy, id, depth, onTextValidity }
                 if (node.children.length >= 10) return;
                 onChange({
                   ...node,
-                  children: [...node.children, { key: '', required: false, node: fresh() }],
+                  children: [
+                    ...node.children,
+                    {
+                      editorKey: nextEditorKey(node.children),
+                      key: '',
+                      required: false,
+                      node: fresh(),
+                    },
+                  ],
                 });
                 focusAfterChange(id + '-key-' + node.children.length);
               }}

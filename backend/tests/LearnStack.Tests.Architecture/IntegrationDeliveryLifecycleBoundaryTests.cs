@@ -45,7 +45,7 @@ public sealed partial class OutboxDispatchConventionTests
         "System.Func`4<Npgsql.NpgsqlConnection,Npgsql.NpgsqlTransaction,System.Threading.CancellationToken,System.Threading.Tasks.Task`1<T>>",
         BoundaryCancellation,
     ];
-    private static readonly string[] LifecycleIdempotencyCallers = ["ReadCompletedAsync", "TryClaimAsync", "CompleteAsync", "AbandonAsync"];
+    private static readonly string[] LifecycleIdempotencyCallers = ["ReadCompletedAsync", "TryClaimAsync", "CompleteAsync", "AbandonAsync", "ReadKeyMetadataAsync"];
     private const string LifecycleScopeTask = "System.Threading.Tasks.Task`1<" + LifecycleScope + ">";
     private static readonly string[] LifecycleTerminalMethods = ["Commit", "Rollback", "CommitAsync", "RollbackAsync"];
     private static readonly string[] LifecycleFacadeTerminalMethods = ["CommitTransaction", "RollbackTransaction", "CommitTransactionAsync", "RollbackTransactionAsync"];
@@ -212,7 +212,7 @@ public sealed partial class OutboxDispatchConventionTests
             }, IntegrationLifecycleOffenders);
             var idempotencyCalls = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target && IsIdempotencyOwnerTarget(target)).ToArray();
-            idempotencyCalls.Should().HaveCount(4, "only the four concrete store operations may invoke their private transaction helper");
+            idempotencyCalls.Should().HaveCount(5, "only the four store operations and exact key-metadata read may invoke their private transaction helper");
             foreach (var call in idempotencyCalls)
             {
                 AssertMutation(census, "a missing actual idempotency helper invocation", () =>
@@ -226,12 +226,23 @@ public sealed partial class OutboxDispatchConventionTests
                     AddCallProbe(application, "BorrowedIdempotencyOwner", genericTarget, opcode), IntegrationLifecycleOffenders);
             AssertMutation(census, "an asynchronous extra idempotency helper caller", () =>
                 AddAsyncCallProbe(application, "AsyncBorrowedIdempotencyOwner", genericTarget), IntegrationLifecycleOffenders);
-            var constructed = (GenericInstanceMethod)genericTarget;
-            AssertMutation(census, "a changed idempotency helper result instantiation", () =>
+            foreach (var call in idempotencyCalls)
             {
-                var original = constructed.GenericArguments[0];
-                constructed.GenericArguments[0] = application.TypeSystem.Object;
-                return () => constructed.GenericArguments[0] = original;
+                var constructed = (GenericInstanceMethod)call.Operand;
+                AssertMutation(census, "a changed idempotency helper result instantiation", () =>
+                {
+                    var original = constructed.GenericArguments[0];
+                    constructed.GenericArguments[0] = application.TypeSystem.Object;
+                    return () => constructed.GenericArguments[0] = original;
+                }, IntegrationLifecycleOffenders);
+            }
+            var metadataReader = types[(InfrastructureAssembly, LifecycleIdempotencyStore)].Methods
+                .Single(method => method.Name == "ReadKeyMetadataAsync");
+            AssertMutation(census, "a changed tenant-bound key metadata result", () =>
+            {
+                var original = metadataReader.ReturnType;
+                metadataReader.ReturnType = application.TypeSystem.Object;
+                return () => metadataReader.ReturnType = original;
             }, IntegrationLifecycleOffenders);
             var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target
@@ -243,7 +254,7 @@ public sealed partial class OutboxDispatchConventionTests
             var readAnnouncements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target
                     && IntegrationLifecycleCapability(target, types) is "unit.announce-wide" or "owned-unit.announce").ToArray();
-            readAnnouncements.Should().HaveCount(4, "the common owner has one witness announcement and both fixed public overloads share one private core");
+            readAnnouncements.Should().HaveCount(5, "the common owner, two fixed public overloads and both entry owners use their exact announcement paths");
             foreach (var announcement in readAnnouncements)
             {
                 AssertMutation(census, "a missing actual operation read announcement path", () =>
@@ -251,6 +262,22 @@ public sealed partial class OutboxDispatchConventionTests
                 AssertMutation(census, "a delegated actual operation read announcement path", () =>
                     ReplaceInstruction(announcement, OpCodes.Ldftn, announcement.Operand), IntegrationLifecycleOffenders);
             }
+            var coreForwardingArguments = OwnedBodies(census).Where(item => item.Owner.DeclaringType == adapter)
+                .SelectMany(item =>
+                {
+                    var instructions = item.Body.Body.Instructions.Where(instruction => instruction.OpCode != OpCodes.Nop).ToArray();
+                    return instructions.Select((instruction, index) => (instruction, index))
+                        .Where(pair => pair.instruction.Operand is MethodReference target
+                            && target.DeclaringType.FullName == LifecycleAdapter && target.Name == "SetTenantContextCoreAsync"
+                            && pair.index >= 3)
+                        .SelectMany(pair => new[] { instructions[pair.index - (item.Owner.Name == "BeginConsentSubjectTransactionAsync" ? 3 : 2)],
+                            instructions[pair.index - 1] });
+                }).ToArray();
+            coreForwardingArguments.Should().HaveCount(8, "each of four exact callers supplies both closed entry witness arguments");
+            foreach (var argument in coreForwardingArguments)
+                AssertMutation(census, "an altered entry witness forwarded to the tenant core", () =>
+                    ReplaceInstruction(argument, argument.OpCode == OpCodes.Ldnull ? OpCodes.Ldc_I4_0 : OpCodes.Ldnull, null!),
+                    IntegrationLifecycleOffenders);
             var defaultWitness = unit.Methods.Single(method => method.Name == "SetTenantContextAsync" && method.Parameters.Count == 3);
             var defaultThrow = defaultWitness.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Throw);
             AssertMutation(census, "a witness-capable fallback on units without a physical binder", () =>
@@ -344,6 +371,34 @@ public sealed partial class OutboxDispatchConventionTests
             || core[0].ReturnType.FullName != LifecycleTask || !ParametersMatch(core[0],
                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness]))
             offenders.Add("The ordinary tenant setter retains one private witness-aware core");
+        // The two ordinary setters may not manufacture either entry witness. Each
+        // entry owner forwards only its own captured witness to the private core.
+        foreach (var item in OwnedBodies(census).Where(item => item.Owner.DeclaringType == adapter))
+        {
+            var instructions = item.Body.Body.Instructions.Where(instruction => instruction.OpCode != OpCodes.Nop).ToArray();
+            for (var index = 0; index < instructions.Length; index++)
+            {
+                if (instructions[index].Operand is not MethodReference target || target.DeclaringType.FullName != LifecycleAdapter
+                    || target.Name != "SetTenantContextCoreAsync") continue;
+                var invitationOwner = item.Owner.Name == "BeginInvitationEntryTransactionAsync";
+                var consentOwner = item.Owner.Name == "BeginConsentSubjectTransactionAsync";
+                // Loading an async captured field also loads the state-machine receiver;
+                // the consent field is last, so its receiver separates the two arguments.
+                var invitationIndex = index - (consentOwner ? 3 : 2);
+                if (invitationIndex < 0) { offenders.Add("Tenant context core witness arguments are missing"); continue; }
+                var invitation = instructions[invitationIndex];
+                var consent = instructions[index - 1];
+                bool CapturedWitness(int position, string type) => position > 0
+                    && instructions[position - 1].OpCode == OpCodes.Ldarg_0
+                    && instructions[position].OpCode == OpCodes.Ldfld
+                    && instructions[position].Operand is FieldReference field && field.Name == "witness"
+                    && field.FieldType.FullName == type && field.DeclaringType.FullName == item.Body.DeclaringType.FullName
+                    && item.Owner.Parameters.Count(parameter => parameter.Name == "witness" && parameter.ParameterType.FullName == type) == 1;
+                if (!(invitationOwner ? CapturedWitness(invitationIndex, LifecycleInvitationWitness) : invitation.OpCode == OpCodes.Ldnull)
+                    || !(consentOwner ? CapturedWitness(index - 1, LifecycleConsentWitness) : consent.OpCode == OpCodes.Ldnull))
+                    offenders.Add("Tenant context core must receive only the exact entry owner's witness: " + MethodId(item.Owner));
+            }
+        }
         var defaultWide = unit.Methods.Where(method => method.Name == "SetTenantContextAsync"
             && ParametersMatch(method, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])).ToArray();
         if (defaultWide.Length != 1 || !defaultWide[0].HasBody
@@ -407,6 +462,11 @@ public sealed partial class OutboxDispatchConventionTests
                 offenders.Add("Missing or changed durable idempotency helper caller: " + name);
             else callers.Add(MethodId(methods[0]), methods[0]);
         }
+        var metadata = store.Methods.Where(method => method.Name == "ReadKeyMetadataAsync").ToArray();
+        if (metadata.Length != 1 || metadata[0].ReturnType.FullName !=
+                "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Idempotency.CustomFieldIdempotencyKeyMetadata>"
+            || !ParametersMatch(metadata[0], ["LearnStack.SharedKernel.Identifiers.TenantId", "System.String", BoundaryCancellation]))
+            offenders.Add("The key-metadata helper caller retains its exact tenant-bound signature");
         var calls = CallSites(census).Where(site => IsIdempotencyOwnerTarget(site.Target)).ToArray();
         CheckSet(offenders, "private idempotency transaction helper callers", calls.Select(site => site.Owner), callers.Keys);
         foreach (var site in calls)
@@ -548,7 +608,7 @@ public sealed partial class OutboxDispatchConventionTests
         var name = target.Name[(target.Name.LastIndexOf('.') + 1)..];
         var cancellation = ParametersMatch(target, [BoundaryCancellation]);
         if (target.DeclaringType.FullName == LifecycleAdapter && name == "SetTenantContextCoreAsync")
-            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness])
+            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness])
                 && target.ReturnType.FullName == LifecycleTask ? "owned-unit.announce" : "invalid-owned-unit-announce";
         if (types.TryGetValue((InfrastructureAssembly, LifecycleFrame), out var frame)
             && SameType(target.DeclaringType, frame) && name == "FailOwnedAsync")

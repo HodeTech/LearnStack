@@ -108,6 +108,10 @@ public sealed class IdentityFoundationConventionTests
         string[] acquisitions =
         [
             .. identityWriters,
+            "LearnStack.Modules.Customization.Application.CustomFields.CustomFieldDefinitionAdmission.PrepareAsync",
+            "LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor.ExecuteAsync",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization.AdmitGrantAsync",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.WithdrawOwnMembershipFieldConsentCommandHandler.Handle",
             "LearnStack.Modules.Identity.Application.Invitations.InvitationEmailJobHandlers.ReadAsync",
             "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.AdmitWriteAsync",
             "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.PrepareAsync",
@@ -120,6 +124,15 @@ public sealed class IdentityFoundationConventionTests
         string[] rechecks =
         [
             .. identityWriters,
+            "LearnStack.Modules.Customization.Application.CustomFields.CustomFieldDefinitionAdmission.PrepareAsync",
+            "LearnStack.Modules.Customization.Application.CustomFields.CustomFieldDefinitionAdmission.RequireCurrent",
+            "LearnStack.Modules.Customization.Infrastructure.Persistence.ExactCustomFieldDefinitionReader.RequireFence",
+            "LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor.ExecuteAsync",
+            "LearnStack.Modules.Identity.Application.CustomFields.CustomFieldConsentMembershipReader.ReadOwnActiveAsync",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization.AdmitGrantAsync",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.OwnFieldConsentAuthorization.IsCurrent",
+            "LearnStack.Modules.Tenancy.Application.FieldConsents.WithdrawOwnMembershipFieldConsentCommandHandler.Handle",
+            "LearnStack.Modules.Tenancy.Infrastructure.Persistence.MembershipFieldConsentWriteStore.RequirePlan",
             "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.AdmitWriteAsync",
             "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.VerifyWriteAsync",
             "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.IsCurrent",
@@ -133,6 +146,14 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.SharedKernel.Permissions.SeedPrerequisiteReadWitness.RequireCurrent",
             "LearnStack.SharedKernel.Permissions.SeedCompletionReadWitness.RequireCurrent",
         ];
+        // Exact set controls detect a missing named site and an unrelated borrower.
+        static bool SameSites(IEnumerable<string> actual, IEnumerable<string> expected) =>
+            actual.ToHashSet(StringComparer.Ordinal).SetEquals(expected);
+        foreach (var expected in new[] { acquisitions, rechecks })
+        {
+            SameSites(expected.Skip(1), expected).Should().BeFalse();
+            SameSites(expected.Append("Unexpected.BorrowedLock"), expected).Should().BeFalse();
+        }
         Callers(typeof(IIdentityMutationLocks).FullName!, nameof(IIdentityMutationLocks.AcquireAsync))
             .Should().BeEquivalentTo(acquisitions);
         Callers(typeof(IIdentityMutationLocks).FullName!, nameof(IIdentityMutationLocks.RequireCurrent))

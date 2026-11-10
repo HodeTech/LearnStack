@@ -11,9 +11,11 @@ public sealed class MembershipCustomFieldStore(IdentityDbContext db, ContextualI
 {
     private MembershipId? _lockedMembership;
     private DbTransaction? _lockedTransaction;
+    private Membership? _loadedMembership;
 
     public async Task LockAsync(MembershipId membershipId, CancellationToken cancellationToken = default)
     {
+        _loadedMembership = null;
         await control.LockMembershipAsync(membershipId, cancellationToken);
         _lockedMembership = membershipId;
         _lockedTransaction = unit.Transaction;
@@ -23,6 +25,7 @@ public sealed class MembershipCustomFieldStore(IdentityDbContext db, ContextualI
     {
         RequireOwner();
         if (_lockedMembership != membershipId) throw new InvalidOperationException("Membership lock target does not match.");
+        _loadedMembership = null;
         ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);
         // Lock acquisition already enrolls the clean announced owner. Refresh only
         // this root; clearing the tracker would invalidate other captured graphs.
@@ -36,13 +39,20 @@ public sealed class MembershipCustomFieldStore(IdentityDbContext db, ContextualI
         if (tracked.Any(entry => entry.State != EntityState.Unchanged))
             throw new InvalidOperationException("A changed Membership cannot be refreshed.");
         foreach (var entry in tracked) entry.State = EntityState.Detached;
-        return await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.Include(member => member.Profile)
+        _loadedMembership = await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.Include(member => member.Profile)
             .Include(member => member.RoleAssignments).SingleOrDefaultAsync(member => member.Id == membershipId, cancellationToken));
+        return _loadedMembership;
     }
 
-    public async Task SaveAsync(CancellationToken cancellationToken = default)
+    public Task AddAsync(Membership aggregate, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("The custom field store cannot create Memberships.");
+
+    public async Task UpdateAsync(Membership aggregate, CancellationToken cancellationToken = default)
     {
         RequireOwner();
+        if (aggregate is null || !ReferenceEquals(aggregate, _loadedMembership) || aggregate.Id != _lockedMembership
+            || db.Entry(aggregate).State is EntityState.Detached or EntityState.Added or EntityState.Deleted)
+            throw new InvalidOperationException("Membership custom fields require the exact locked, tracked root.");
         await control.SaveAsync(cancellationToken);
         await control.ValidateGraphAsync(cancellationToken);
     }
