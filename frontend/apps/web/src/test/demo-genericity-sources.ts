@@ -600,6 +600,7 @@ export function productionDemoSources(
       'src/server/auth/invitation-html.ts',
       'src/server/auth/logout-response.ts',
       'src/server/auth/native-administration-client.ts',
+      'src/server/auth/native-consent-http.ts',
       'src/server/auth/native-invitation-client.ts',
       'src/server/auth/native-invitation-http.ts',
       'src/server/auth/native-session-client.ts',
@@ -612,6 +613,7 @@ export function productionDemoSources(
     if (
       config.compilerOptions?.rootDir !== 'src/server' ||
       config.compilerOptions?.outDir !== '.server' ||
+      config.compilerOptions?.noEmitOnError !== true ||
       JSON.stringify([...config.include].sort()) !== JSON.stringify(expected)
     )
       refused('tsconfig.server.json');
@@ -809,7 +811,7 @@ export function productionDemoSources(
       ['test/page-response-fixture.js', 'frontend/apps/web/src/test/page-response-fixture.ts'],
     ]);
     const proofSeen = new Set<string>();
-    // Both output-generating implementations are source-bound. Substring checks
+    // All output-generating implementations are source-bound. Substring checks
     // cannot prove generated module provenance. Only checkout line endings are
     // normalized; changing either implementation requires an explicit pin review.
     // The imported targets below still follow current source, never pinned content.
@@ -820,7 +822,11 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            'ce4221ff5ec4ecb4086b772dc467795c9a5c79649d827daa1a6a656e385e819d',
+            'f3105e24d38ccda62a5343bfe3163048bf480aca14aa3f0d90a30019f8f5311c',
+          ],
+          [
+            'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',
+            '3844d2703a1804f1ec796f17b8ab3f8c11da5241f9f092460aa703facf77cf58',
           ],
         ] as const
       ).some(([target, expected]) => {
@@ -914,6 +920,8 @@ export function productionDemoSources(
             ![
               '../src/i18n/messages/en/invitation.json',
               '../src/i18n/messages/tr/invitation.json',
+              '../src/i18n/messages/en/auth.json',
+              '../src/i18n/messages/tr/auth.json',
             ].includes(value.text) ||
             node.arguments.length !== 2 ||
             !options ||

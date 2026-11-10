@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 795 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 836 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -405,6 +405,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)](#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) — 67 lines
   - [P03-5 Step 3 second-review corrections and qualification handoff (2026-11-10)](#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) — 39 lines
   - [P03-5 Step 4 combined qualification and boundary reconciliation (2026-11-10)](#p03-5-step-4-combined-qualification-and-boundary-reconciliation-2026-11-10) — 54 lines
+  - [P03-5 Step 4 two-round review and frontend census correction (2026-11-10)](#p03-5-step-4-two-round-review-and-frontend-census-correction-2026-11-10) — 41 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18677,3 +18678,44 @@ complete local architecture pass. Full guarded frontend, final-source hosted A/B
 with original archive reconciliation, fresh Step 4 review rounds and new human
 accessibility observations remain open. No complete CI result, manual execution,
 packet closeout or catalogue status promotion is claimed.
+
+### P03-5 Step 4 two-round review and frontend census correction (2026-11-10)
+
+The boundary reconciliation is committed as `63ea6299`. Two fresh independent
+rounds review that committed step: Terra authority/Sol experience, followed by
+Sol authority/Terra experience. All four report no verified actionable finding.
+They inspect source and adjacent contracts, not runtime qualification, and leave
+complete CI and new manual accessibility observations open.
+
+The complete frontend guard then exposes five unreconciled support files. Its
+web population executes **124 files: 119 pass, five fail; 3,878 cases: 3,860 pass,
+18 fail**. The guard correctly stops before SDK execution; that attempt supplies
+no complete frontend qualification. An earlier invocation from the repository
+root lets Corepack select the wrong manager in the isolated HOME and refuses
+before tests; the supported frontend working directory restores exact pnpm
+9.12.3 without changing dependency or runtime policy.
+
+Verified corrections are limited to the existing test/support owners:
+
+- The inert native startup fixture supplies the new retained-consent caller,
+  consent handler/response lease and exact English/Turkish catalogue imports.
+  Its actual TLS and held-work/shutdown assertions remain; it does not qualify
+  initialized Next, real authority or process-family workers.
+- The HTTP census names exactly the two delivered Studio definition pages.
+  Missing exact pages, an unlisted sibling/child and Server Actions still refuse.
+- BFF admission lists the eleven new exact POST targets and preserves the
+  method/neighbor-path/session/CSRF controls. The immutable compiled session-holder
+  census adds only the two retained-consent methods.
+- Demo genericity models the exact new generated native consent input and the
+  two auth catalogue imports, retaining root/output and no-emit-on-error checks.
+  The reviewed copied-host hash advances; the new helper whose function body is
+  embedded in that host is also hash-pinned and traversed as actual source.
+  Missing/modified helpers, generated mapping changes and an unsafe emit setting
+  refuse instead of becoming a new blanket source exemption.
+
+The complete affected five-file population passes **938/938, zero pending**, and
+the direct native startup control passes. This follows the requested two broad
+review rounds; the correction requires narrow independent verification rather
+than restarting another broad round. Full guarded frontend, final-source complete
+hosted A/B/original archives and P03-5 human observations remain open. No test
+window, product authority, registry adoption or packet/catalogue status changes.

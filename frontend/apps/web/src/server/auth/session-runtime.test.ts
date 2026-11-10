@@ -32,7 +32,7 @@ describe('native BFF owner composition', () => {
       'assert.deepEqual([descriptor.enumerable, descriptor.writable, descriptor.configurable], [false, false, false]);',
       'assert.ok(Object.isFrozen(descriptor.value));',
       'assert.ok(Object.isFrozen(descriptor.value.store));',
-      'assert.deepEqual(Object.keys(descriptor.value.store).sort(), ["openInvitation","invitation","retainInvitation","invitationEntry","start","complete","entry","create","select","switchScope","discardEntry","operate","preparePage","peek","admit","signout","consumeLogout","stop"].sort());',
+      'assert.deepEqual(Object.keys(descriptor.value.store).sort(), ["openInvitation","invitation","retainInvitation","invitationEntry","retainConsent","retainedConsent","start","complete","entry","create","select","switchScope","discardEntry","operate","preparePage","peek","admit","signout","consumeLogout","stop"].sort());',
       'assert.equal(globalThis[Symbol.for("learnstack.public-admission.v1")], undefined);',
       'const login = await descriptor.value.store.start({ host: "institution.example.test:3000", source: "203.0.113.1", returnPath: "/studio" });',
       'assert.equal(calls, 1);',

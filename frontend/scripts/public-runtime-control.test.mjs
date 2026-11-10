@@ -140,8 +140,15 @@ async function fixture(options = {}) {
       export const createAccountSiteCaller = () => ({});
       export const createNativeSessionApi = () => ({});
       export const createNativeAdministrationCaller = () => ({});
+      export const createNativeRetainedConsentCaller = () => ({});
       export const createNativeInvitationApi = () => ({});
       export const nativeInvitationTarget = () => false;
+      export const nativeConsentTarget = () => false;
+      export function createNativeConsentHandler({catalogues, store, responseLease}) {
+        if (catalogues?.en?.fixture !== 'en' || catalogues?.tr?.fixture !== 'tr'
+          || !store || typeof responseLease !== 'function') throw new Error('Fixture consent wiring failed');
+        return () => {};
+      }
       export function createInvitationRenderer({en, tr}) {
         if (en.fixture !== 'en' || tr.fixture !== 'tr') throw new Error('Fixture catalogue wiring failed');
         return () => '';
@@ -153,11 +160,13 @@ async function fixture(options = {}) {
     `,
     'invitation-en.json': JSON.stringify({ fixture: 'en' }),
     'invitation-tr.json': JSON.stringify({ fixture: 'tr' }),
+    'auth-en.json': JSON.stringify({ consents: { fixture: 'en' } }),
+    'auth-tr.json': JSON.stringify({ consents: { fixture: 'tr' } }),
     'requests.mjs': `
       import { state } from './state.mjs';
       export function installBffRequestRuntime() {
         state.event('requests-created');
-        return {preparation: {}, nativeResponse() { throw new Error('Unused fixture response lease'); }, run(_binding, _request, _response, work) { return work(); }, async stop() { state.event('requests-stop'); if (state.options.holdRequests) await state.requestsGate.promise; state.event('requests-joined'); }};
+        return {preparation: {}, nativeResponse() { throw new Error('Unused fixture response lease'); }, nativeConsentResponse() { throw new Error('Unused fixture consent response lease'); }, run(_binding, _request, _response, work) { return work(); }, async stop() { state.event('requests-stop'); if (state.options.holdRequests) await state.requestsGate.promise; state.event('requests-joined'); }};
       }
     `,
     'sessions.mjs': `
@@ -233,9 +242,12 @@ async function fixture(options = {}) {
     ['../.server/auth/native-administration-client.js', './dependencies.mjs'],
     ['../.server/auth/native-invitation-client.js', './dependencies.mjs'],
     ['../.server/auth/native-invitation-http.js', './dependencies.mjs'],
+    ['../.server/auth/native-consent-http.js', './dependencies.mjs'],
     ['../.server/auth/invitation-html.js', './dependencies.mjs'],
     ['../src/i18n/messages/en/invitation.json', './invitation-en.json'],
     ['../src/i18n/messages/tr/invitation.json', './invitation-tr.json'],
+    ['../src/i18n/messages/en/auth.json', './auth-en.json'],
+    ['../src/i18n/messages/tr/auth.json', './auth-tr.json'],
     ['../.server/auth/session-runtime.js', './sessions.mjs'],
     ['../.server/auth/request-runtime.js', './requests.mjs'],
     ['next', './next.mjs'],

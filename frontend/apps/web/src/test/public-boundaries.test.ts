@@ -268,6 +268,39 @@ describe('ADR-0053 production public boundaries', () => {
     );
   });
   it.each([
+    'apps/web/src/app/(studio)/studio/custom-fields/page.tsx',
+    'apps/web/src/app/(studio)/studio/custom-fields/[definitionId]/page.tsx',
+  ])(
+    'retains the exact custom-field page without admitting actions or sibling routes: %s',
+    (file) => {
+      const current = httpSources();
+      const evaluate = createHttpSurfaceEvaluator();
+      clean(evaluate(current), 'The two declared custom-field pages are admitted.');
+      const missing: Record<string, string> = { ...current };
+      delete missing[file];
+      expect(evaluate(missing)).toContainEqual({
+        file,
+        line: 1,
+        reason: 'Fix: retain the approved HTTP entry point.',
+      });
+      expect(evaluate({ ...current, [file]: '"use server";\n' + current[file] })).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            file,
+            reason: 'Fix: no Server Action is admitted by the closed BFF surface.',
+          }),
+        ]),
+      );
+      const sibling = file.replace('/page.tsx', '/relay/page.tsx');
+      expect(evaluate({ ...current, [sibling]: current[file]! })).toContainEqual({
+        file: sibling,
+        line: 1,
+        reason: 'Fix: keep the approved HTTP entry-point census closed.',
+      });
+      clean(evaluate(current), 'Restoring the exact custom-field pages restores admission.');
+    },
+  );
+  it.each([
     [
       'wrong development module',
       (source: string) => source.replace('../../scripts/framework-development.mjs', './routing'),
