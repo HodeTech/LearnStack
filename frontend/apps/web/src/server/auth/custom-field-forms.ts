@@ -287,7 +287,9 @@ export const CUSTOM_FIELD_FORMS: Readonly<Record<string, readonly string[]>> = O
   ],
 });
 export const customAuthorName = (name: string): boolean =>
-  /^author(?:Label|Notice)_[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/.test(name);
+  /^author(?:Label|Notice|TextMode_(?:Label|Notice))_[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/.exec(
+    name,
+  )?.[0] === name;
 export const customControlName = (name: string): boolean =>
   /^(?:answer|presence|count|textmode)_[0-9]{1,2}_root(?:_[0-9]){0,2}$/.test(name);
 export function customFieldForm(
@@ -411,6 +413,7 @@ export function customFieldForm(
   }
   const authorPayload = () => {
     if (fields.has('payload')) {
+      if (names.some((name) => name.startsWith('author'))) return fail();
       const raw = required(fields, 'payload');
       parse(raw);
       return raw;
@@ -439,8 +442,22 @@ export function customFieldForm(
     const labels: Record<string, string> = Object.create(null) as Record<string, string>;
     const notices: Record<string, string> = Object.create(null) as Record<string, string>;
     for (const [name, content] of fields) {
-      if (name.startsWith('authorLabel_') && content !== '') labels[name.slice(12)] = content;
-      if (name.startsWith('authorNotice_') && content !== '') notices[name.slice(13)] = content;
+      const mode = /^authorTextMode_(Label|Notice)_(.+)$/.exec(name);
+      if (mode && !fields.has('author' + mode[1] + '_' + mode[2])) return fail();
+      const field = /^author(Label|Notice)_(.+)$/.exec(name);
+      if (!field) continue;
+      let decoded: string;
+      try {
+        decoded = decodeCustomFieldText(
+          content,
+          required(fields, 'authorTextMode_' + field[1] + '_' + field[2]),
+        );
+      } catch {
+        return fail();
+      }
+      if (new TextEncoder().encode(decoded).length > (field[1] === 'Label' ? 128 : 512))
+        return fail();
+      if (decoded !== '') (field[1] === 'Label' ? labels : notices)[field[2]!] = decoded;
     }
     if (fields.has('authorRequired') && fields.get('authorRequired') !== 'on') return fail();
     const purpose = required(fields, 'authorPurpose');

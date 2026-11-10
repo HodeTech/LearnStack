@@ -246,6 +246,7 @@
     "required_first": "Complete the missing required answers first. You can then edit other answers separately. Removing a retained answer remains available.",
     "submitted_inputs": "Submitted input — read only",
     "recovery_unavailable": "This list shows nonempty input from your rejected request. Field details could not be reloaded for editing. Open the current view before preparing another change.",
+    "author_text_hint": "Normal text saves new lines as line feeds. Exact line endings preserves carriage returns with \\r, line feeds with \\n, and backslashes with \\\\. Existing line endings are preserved. To use Normal text, first replace any \\r escapes deliberately. Limits apply to the decoded text.",
     "text_entry_mode": "Text entry",
     "text_plain": "Normal text",
     "text_exact": "Exact line endings",

@@ -117,6 +117,17 @@ export function createCustomFieldBrowserFixture({
   stored.set(exact.definitionId, { value: structuredClone(exactText) });
   stored.set(sensitive.definitionId, { value: 'BROWSER_WITHHELD_CANARY' });
   stored.set(retired.definitionId, { value: true });
+  const exactAuthorLabel = 'Fixture exact\r\nlabel';
+  const exactAuthorNotice = 'Purpose\r\nnotice\nwith\rmixed endings';
+  const exactAuthor = seed(
+    105,
+    'fixture-exact-authoring',
+    { type: 'string', minLength: 1, maxLength: 24 },
+    'Draft',
+    exactAuthorLabel,
+    true,
+  );
+  exactAuthor.notices = labels(exactAuthorNotice);
   const evidenceId = () => uuid(400 + sequence);
   const current = () => ({
     evidenceId: evidenceId(),
@@ -252,6 +263,18 @@ export function createCustomFieldBrowserFixture({
               definition.key.startsWith('browser-') &&
               (JSON.stringify(input.schema) !== JSON.stringify(definition.schema) ||
                 JSON.stringify(input.formLabels) !== JSON.stringify(definition.formLabels))
+            )
+              return refused();
+            if (
+              definition === exactAuthor &&
+              (JSON.stringify(input.schema) !== JSON.stringify(exactAuthor.schema) ||
+                input.formLabels !== null ||
+                !input.labels ||
+                !Object.keys(input.labels).length ||
+                !Object.values(input.labels).every((label) => label === exactAuthorLabel) ||
+                !input.notices ||
+                !Object.keys(input.notices).length ||
+                !Object.values(input.notices).every((notice) => notice === exactAuthorNotice))
             )
               return refused();
             Object.assign(definition, input);

@@ -301,6 +301,7 @@ describe('native finite no-JS answer reconstruction', () => {
       authorSort: '0',
       authorPurpose: '',
       authorLabel_en: 'Score',
+      authorTextMode_Label_en: 'plain',
     });
     const result = customFieldForm('/api/studio/custom-field-create', fields);
     expect(result.operation.kind).toBe('registerCustomFieldDefinition');
@@ -310,5 +311,73 @@ describe('native finite no-JS answer reconstruction', () => {
         minimum: -1.25,
         maximum: 2.5,
       });
+  });
+  const authorFields = () =>
+    new URLSearchParams({
+      csrfToken: 'proof',
+      idempotencyKey: 'custom-key',
+      authorKey: 'exact',
+      schemaVersion: '1',
+      authorType: 'boolean',
+      authorCategory: 'Sensitive',
+      authorSort: '0',
+      authorPurpose: 'purpose',
+      authorLabel_en: 'Label',
+      authorTextMode_Label_en: 'plain',
+      authorNotice_en: '',
+      authorTextMode_Notice_en: 'plain',
+    });
+  it.each([
+    'normal',
+    'line\nfeed',
+    'carriage\rreturn',
+    'windows\r\nlines',
+    'mixed\r\nthen\nthen\r',
+    '\nstart\n',
+    'back\\slash',
+  ])('decodes native author labels and notices without changing admitted text bytes', (value) => {
+    const fields = authorFields();
+    const mode = customFieldTextMode(value);
+    for (const kind of ['Label', 'Notice']) {
+      fields.set(
+        'author' + kind + '_en',
+        encodeCustomFieldText(value, mode).replace(/\n/g, '\r\n'),
+      );
+      fields.set('authorTextMode_' + kind + '_en', mode);
+    }
+    const result = customFieldForm('/api/studio/custom-field-create', fields);
+    if (result.operation.kind !== 'registerCustomFieldDefinition')
+      throw new Error('Wrong operation');
+    const proposal = JSON.parse(String(result.operation.input));
+    expect(proposal.labels).toEqual({ en: value });
+    expect(proposal.notices).toEqual({ en: value });
+  });
+  it('checks decoded author bytes, permits an empty optional notice, and rejects malformed or unpaired text controls', () => {
+    const fields = authorFields();
+    fields.set('authorLabel_en', '\\r'.repeat(128));
+    fields.set('authorTextMode_Label_en', 'escaped');
+    const accepted = customFieldForm('/api/studio/custom-field-create', fields);
+    if (accepted.operation.kind !== 'registerCustomFieldDefinition')
+      throw new Error('Wrong operation');
+    expect(JSON.parse(String(accepted.operation.input))).toMatchObject({
+      labels: { en: '\r'.repeat(128) },
+      notices: null,
+    });
+    for (const [name, value] of [
+      ['authorLabel_en', '\\r'.repeat(129)],
+      ['authorLabel_en', '\\q'],
+      ['authorNotice_en', '\\'],
+      ['authorTextMode_Label_en', 'unknown'],
+      ['authorTextMode_Notice_fr', 'plain'],
+      ['authorNotice_en', 'x'.repeat(513)],
+    ]) {
+      const invalid = new URLSearchParams(fields);
+      invalid.set(name!, value!);
+      if (name === 'authorNotice_en' && value === '\\')
+        invalid.set('authorTextMode_Notice_en', 'escaped');
+      expect(() => customFieldForm('/api/studio/custom-field-create', invalid)).toThrow();
+    }
+    fields.delete('authorTextMode_Label_en');
+    expect(() => customFieldForm('/api/studio/custom-field-create', fields)).toThrow();
   });
 });

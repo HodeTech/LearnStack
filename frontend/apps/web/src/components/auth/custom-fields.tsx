@@ -13,6 +13,7 @@ import {
   hasDisabledFieldTranslations,
   enabledFieldControlLabels,
 } from './custom-field-schema';
+import { CustomFieldTextEditor } from './custom-field-text-editor';
 
 function stateLabel(definition: CustomFieldDefinition, copy: FieldCopy) {
   return definition.isDiscarded
@@ -193,19 +194,25 @@ function Author({
               <fieldset key={tag}>
                 <legend>{tag}</legend>
                 <label htmlFor={'author-label-' + tag}>{copy.label}</label>
-                <input
+                <CustomFieldTextEditor
                   id={'author-label-' + tag}
                   name={'authorLabel_' + tag}
-                  defaultValue={initial?.labels[tag] ?? ''}
-                  maxLength={128}
+                  modeName={'authorTextMode_Label_' + tag}
+                  value={initial?.labels[tag] ?? ''}
+                  maxBytes={128}
                   required={tag === snapshot.site.defaultLocale}
+                  lang={tag}
+                  copy={copy}
                 />
                 <label htmlFor={'author-notice-' + tag}>{copy.notice}</label>
-                <textarea
+                <CustomFieldTextEditor
                   id={'author-notice-' + tag}
                   name={'authorNotice_' + tag}
-                  maxLength={512}
-                  defaultValue={initial?.notices?.[tag] ?? ''}
+                  modeName={'authorTextMode_Notice_' + tag}
+                  value={initial?.notices?.[tag] ?? ''}
+                  maxBytes={512}
+                  lang={tag}
+                  copy={copy}
                 />
               </fieldset>
             ))}

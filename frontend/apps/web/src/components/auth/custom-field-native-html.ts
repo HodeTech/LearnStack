@@ -6,7 +6,7 @@ import {
   normalizeCustomFieldEditorLines,
 } from '@learnstack/sdk';
 
-import type { FieldControlsProps } from './custom-field-controls';
+import type { FieldControlsProps, FieldCopy } from './custom-field-controls';
 import {
   authoredText,
   envelopeSchema,
@@ -36,8 +36,40 @@ export function customFieldOptions(
     .join('');
 }
 
-export const customFieldTextareaContent = (source: string): string =>
-  (source.startsWith('\n') ? '\n' : '') + escapeCustomFieldHtml(source);
+export function customFieldTextareaContent(source: string): string {
+  const normalized = normalizeCustomFieldEditorLines(source);
+  return (normalized.startsWith('\n') ? '\n' : '') + escapeCustomFieldHtml(normalized);
+}
+
+/** Validation recovery keeps the submitted representation, including malformed text for correction. */
+export function renderCustomFieldAuthorText(
+  props: Readonly<{
+    id: string;
+    name: string;
+    modeName: string;
+    source: string;
+    mode: string;
+    maxBytes: number;
+    copy: FieldCopy;
+  }>,
+): string {
+  const { id, name, modeName, source, mode, maxBytes, copy } = props;
+  const escape = escapeCustomFieldHtml;
+  let allowsPlain = false;
+  try {
+    allowsPlain = !decodeCustomFieldText(source, mode).includes('\r');
+  } catch {
+    /* Invalid text stays editable in its original representation. */
+  }
+  return `<label for="${escape(id + '-textmode')}">${escape(copy.text_entry_mode)}</label><select id="${escape(id + '-textmode')}" name="${escape(modeName)}" aria-describedby="${escape(id + '-text-hint')}">${customFieldOptions(
+    [
+      ...(['plain', 'escaped'].includes(mode) ? [] : [{ value: '', label: copy.choose }]),
+      { value: 'plain', label: copy.text_plain, disabled: !allowsPlain },
+      { value: 'escaped', label: copy.text_exact },
+    ],
+    ['plain', 'escaped'].includes(mode) ? mode : '',
+  )}</select><textarea id="${escape(id)}" name="${escape(name)}" rows="3" maxlength="${maxBytes * 2}" aria-describedby="${escape(id + '-text-hint')}">${customFieldTextareaContent(source)}</textarea><p id="${escape(id + '-text-hint')}">${escape(copy.author_text_hint)}</p>`;
+}
 
 /** Bounded native HTML for the same finite controls, without a React server renderer dependency. */
 export function renderStaticCustomFieldControls(props: FieldControlsProps): string {

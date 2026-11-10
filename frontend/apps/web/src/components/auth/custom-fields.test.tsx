@@ -2,6 +2,7 @@ import {
   customFieldChoiceToken,
   customFieldTextMode,
   decodeCustomFieldText,
+  encodeCustomFieldText,
 } from '@learnstack/sdk';
 import type {
   CustomFieldDefinition,
@@ -954,7 +955,7 @@ describe('finite custom-field UI', () => {
         copy={trAdmin.custom_fields}
       />,
     );
-    const label = container.querySelector<HTMLInputElement>('#definition-control-label-tr')!;
+    const label = container.querySelector<HTMLTextAreaElement>('#definition-control-label-tr')!;
     const notice = container.querySelector<HTMLTextAreaElement>('#definition-notice-tr')!;
     expect(label.value).toBe('');
     expect(notice.value).toBe('');
@@ -1383,5 +1384,237 @@ describe('finite custom-field UI', () => {
       target: { value: '-1' },
     });
     expect(payload.value).toBe('');
+  });
+  function authorTextDefinition(value: string, enumeration = false): CustomFieldDefinition {
+    return {
+      definitionId,
+      targetEntity: 'Membership',
+      key: 'author-exact',
+      schemaVersion: 1,
+      version: '7',
+      status: 'Draft',
+      activeRevision: null,
+      isDiscarded: false,
+      maximumValueBytes: 128,
+      schema: envelopeSchema(
+        enumeration
+          ? { type: 'string', minLength: 1, maxLength: 24, enum: [value] }
+          : { type: 'boolean' },
+      ),
+      labels: { en: value },
+      piiCategory: 'Sensitive',
+      isRequired: false,
+      sort: 0,
+      purposeKey: 'purpose',
+      notices: { en: value },
+      formLabels: enumeration ? [{ location: '/', labels: null, choices: [{ en: value }] }] : null,
+    };
+  }
+  it.each([
+    'plain',
+    'line\nfeed',
+    'carriage\rreturn',
+    'windows\r\nlines',
+    'mixed\r\nthen\nthen\r',
+    '\nstart\n',
+    'back\\slash',
+  ])(
+    'preserves enum literals and every visible author text family in the visual builder',
+    (value) => {
+      const initial = authorTextDefinition(value, true);
+      const { container } = render(
+        <CustomFieldBuilder
+          initial={initial}
+          csrfToken={'A'.repeat(43)}
+          formKey={'K'.repeat(43)}
+          locales={['en']}
+          defaultLocale="en"
+          locale="en"
+          copy={enAdmin.custom_fields}
+        />,
+      );
+      const proposal = JSON.parse(
+        container.querySelector<HTMLInputElement>('[name="payload"]')!.value,
+      );
+      expect(proposal.schema).toEqual(initial.schema);
+      expect(proposal.labels).toEqual(initial.labels);
+      expect(proposal.notices).toEqual(initial.notices);
+      expect(proposal.formLabels).toEqual(initial.formLabels);
+      const literal = container.querySelector<HTMLTextAreaElement>('#definition-control-choice-0')!;
+      expect(literal.tagName).toBe('TEXTAREA');
+      expect(literal.value).toBe(encodeCustomFieldText(value, customFieldTextMode(value)));
+      const mode = container.querySelector<HTMLSelectElement>(
+        '#definition-control-choice-0-textmode',
+      )!;
+      fireEvent.change(mode, { target: { value: 'escaped' } });
+      fireEvent.change(literal, { target: { value: 'first\\r\\nline' } });
+      expect(
+        JSON.parse(container.querySelector<HTMLInputElement>('[name="payload"]')!.value).schema
+          .properties.value.enum,
+      ).toEqual(['first\r\nline']);
+    },
+  );
+  it('blanks stale valid author proposals for malformed escapes and decoded literal or metadata overflow', () => {
+    const { container } = render(
+      <CustomFieldBuilder
+        initial={authorTextDefinition('Original', true)}
+        csrfToken={'A'.repeat(43)}
+        formKey={'K'.repeat(43)}
+        locales={['en']}
+        defaultLocale="en"
+        locale="en"
+        copy={enAdmin.custom_fields}
+      />,
+    );
+    const form = container.querySelector<HTMLFormElement>('form')!;
+    const payload = form.querySelector<HTMLInputElement>('[name="payload"]')!;
+    const literal = form.querySelector<HTMLTextAreaElement>('#definition-control-choice-0')!;
+    fireEvent.change(form.querySelector('#definition-control-choice-0-textmode')!, {
+      target: { value: 'escaped' },
+    });
+    fireEvent.change(literal, { target: { value: '\\q' } });
+    expect(payload.value).toBe('');
+    expect(literal.checkValidity()).toBe(false);
+    expect(fireEvent.submit(form)).toBe(false);
+    fireEvent.change(literal, { target: { value: '\\r'.repeat(25) } });
+    expect(payload.value).toBe('');
+    fireEvent.change(literal, { target: { value: '\\r' } });
+    expect(JSON.parse(payload.value).schema.properties.value.enum).toEqual(['\r']);
+    const label = form.querySelector<HTMLTextAreaElement>('#definition-control-label-en')!;
+    fireEvent.change(label, { target: { value: 'é'.repeat(65) } });
+    expect(payload.value).toBe('');
+    expect(label.checkValidity()).toBe(false);
+    fireEvent.change(label, { target: { value: 'Corrected' } });
+    expect(JSON.parse(payload.value).labels).toEqual({ en: 'Corrected' });
+  });
+  it.each([
+    'plain',
+    'line\nfeed',
+    'carriage\rreturn',
+    'windows\r\nlines',
+    'mixed\r\nthen\nthen\r',
+    '\nstart\n',
+    'back\\slash',
+  ])(
+    'round-trips sensitive root labels and notice bytes through no-JavaScript authoring and native recovery',
+    (value) => {
+      const initial = authorTextDefinition(value);
+      const prepared = snapshot();
+      const html = renderToStaticMarkup(
+        <CustomFieldDetails
+          snapshot={prepared}
+          view={{
+            kind: 'custom_field',
+            definition: initial,
+            revisions: {
+              items: [initial],
+              pageInfo: {
+                nextCursor: null,
+                previousCursor: null,
+                hasNext: false,
+                hasPrevious: false,
+              },
+            },
+            expectedIncumbentId: null,
+            expectedIncumbentVersion: null,
+          }}
+          locale="en"
+          copy={enAdmin.custom_fields}
+        />,
+      );
+      const document = new DOMParser().parseFromString(html, 'text/html');
+      const form = document.querySelector<HTMLFormElement>('form.custom-field-native-scalar')!;
+      const fields = new URLSearchParams(
+        [...new FormData(form)].map(([name, content]) => [
+          name,
+          String(content).replace(/\r?\n/g, '\r\n'),
+        ]),
+      );
+      const result = customFieldForm('/api/studio/custom-field-revise', fields);
+      if (result.operation.kind !== 'reviseCustomFieldDefinition')
+        throw new Error('Wrong operation');
+      expect(JSON.parse(String(result.operation.input))).toMatchObject({
+        labels: initial.labels,
+        notices: initial.notices,
+        schema: initial.schema,
+      });
+      const recovery = customFieldMutationContent(
+        {
+          kind: 'mutation_error',
+          action: '/api/studio/custom-field-revise',
+          destination: '/studio/custom-fields/' + definitionId,
+          fields: [...fields],
+          reason: 'validation',
+          retryable: false,
+        },
+        'en',
+        prepared.site,
+      )!;
+      const recovered = new DOMParser()
+        .parseFromString(recovery, 'text/html')
+        .querySelector<HTMLFormElement>('form')!;
+      const resubmitted = new URLSearchParams(
+        [...new FormData(recovered)].map(([name, content]) => [
+          name,
+          String(content).replace(/\r?\n/g, '\r\n'),
+        ]),
+      );
+      const retry = customFieldForm('/api/studio/custom-field-revise', resubmitted);
+      if (retry.operation.kind !== 'reviseCustomFieldDefinition')
+        throw new Error('Wrong operation');
+      expect(JSON.parse(String(retry.operation.input))).toMatchObject({
+        labels: initial.labels,
+        notices: initial.notices,
+        schema: initial.schema,
+      });
+      expect(retry.operation.version).toBe(initial.version);
+    },
+  );
+
+  it('preserves nested control labels while refusing malformed notice and choice-label escapes', () => {
+    const initial = authorTextDefinition('Root\r\nlabel', true);
+    const nested: CustomFieldDefinition = {
+      ...initial,
+      schema: envelopeSchema({
+        type: 'object',
+        properties: {
+          child: { type: 'string', minLength: 1, maxLength: 24, enum: ['Choice\r\nvalue'] },
+        },
+        required: ['child'],
+        additionalProperties: false,
+      }),
+      formLabels: [
+        { location: '/0', labels: { en: 'Child\rlabel\n' }, choices: [{ en: 'Choice\r\nlabel' }] },
+      ],
+    };
+    const { container } = render(
+      <CustomFieldBuilder
+        initial={nested}
+        csrfToken={'A'.repeat(43)}
+        formKey={'K'.repeat(43)}
+        locales={['en']}
+        defaultLocale="en"
+        locale="en"
+        copy={enAdmin.custom_fields}
+      />,
+    );
+    const payload = container.querySelector<HTMLInputElement>('[name="payload"]')!;
+    expect(JSON.parse(payload.value).formLabels).toEqual(nested.formLabels);
+    const choice = container.querySelector<HTMLTextAreaElement>(
+      '#definition-control-0-choice-0-en',
+    )!;
+    fireEvent.change(choice, { target: { value: '\\q' } });
+    expect(payload.value).toBe('');
+    fireEvent.change(choice, { target: { value: 'Correct\\r\\nlabel' } });
+    expect(JSON.parse(payload.value).formLabels[0].choices).toEqual([{ en: 'Correct\r\nlabel' }]);
+    const notice = container.querySelector<HTMLTextAreaElement>('#definition-notice-en')!;
+    fireEvent.change(notice, { target: { value: 'malformed\\' } });
+    expect(payload.value).toBe('');
+    fireEvent.change(notice, { target: { value: '' } });
+    expect(payload.value).toBe('');
+    fireEvent.change(container.querySelector('#definition-category')!, {
+      target: { value: 'None' },
+    });
+    expect(JSON.parse(payload.value).notices).toBeNull();
   });
 });

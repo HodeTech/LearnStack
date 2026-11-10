@@ -290,6 +290,7 @@
   cursor: pointer;
   padding-block: 0.5rem;
 }
+.custom-field-answer,
 .custom-field-notice {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

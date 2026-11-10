@@ -1108,6 +1108,11 @@ HTML parsing would normalize. Validation counts decoded values. JavaScript-free
 scalar Draft editing retains the actual type, limits and authored form labels;
 enum/object/list definitions use their prefilled complete editor instead of a
 scalar fallback that would change the schema.
+Definition enum literals, localized labels and consent notices use that same
+lossless editor. Native author forms pair text with a closed representation mode
+and validate decoded UTF-8 limits. Invalid visible input clears the prepared
+proposal; it cannot submit the previous valid text. Recovery retains the submitted
+representation, preserving notice bytes and their domain-separated hash.
 Required missing answers are completed before an optional selected answer.
 Validation recovery preserves submitted numeric lexemes and the original version;
 only an actual validation refusal may obtain matching descriptors through one

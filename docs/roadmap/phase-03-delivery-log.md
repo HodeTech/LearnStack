@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 701 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 741 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -402,7 +402,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 2 value and consent implementation handoff (2026-11-10)](#p03-5-step-2-value-and-consent-implementation-handoff-2026-11-10) — 53 lines
   - [P03-5 Step 2 two-round review closeout (2026-11-10)](#p03-5-step-2-two-round-review-closeout-2026-11-10) — 23 lines
   - [P03-5 Step 3 HTTP, native and accessible form implementation handoff (2026-11-10)](#p03-5-step-3-http-native-and-accessible-form-implementation-handoff-2026-11-10) — 81 lines
-  - [P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)](#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) — 66 lines
+  - [P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)](#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) — 67 lines
+  - [P03-5 Step 3 second-review corrections and qualification handoff (2026-11-10)](#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18581,3 +18582,43 @@ or errors. These checks supplement the implementation handoff, not a full-suite
 claim. R1 has no remaining verified finding. The correction commit follows this
 record; two different fresh R2 reviewers are next. Step 4 still owns combined
 local/hosted qualification, original archives and truthful human evidence.
+
+
+### P03-5 Step 3 second-review corrections and qualification handoff (2026-11-10)
+
+R1 corrections are committed as `a5430b0c`. The second round uses two different
+fresh reviewers: Sol high for authority/replay/ownership/contracts and Terra high
+for experience/fidelity/accessibility. The authority review reports no verified
+actionable finding. The experience review verifies two remaining authoring defects:
+
+- Enum literal authoring still uses a single-line input, so valid CR/LF choices
+  cannot be faithfully edited even though member selection now uses safe indices.
+- JavaScript-free scalar saves still submit labels through single-line inputs and
+  notices through ordinary textareas. An unchanged valid Draft can therefore alter
+  metadata and consent notice bytes/hash.
+
+One shared author text editor now handles enum literals, root/control/choice labels
+and notices using the same plain/exact codec. Existing CR selects the reversible
+representation. Malformed or oversized visible input clears the prepared proposal
+and blocks submission rather than sending its last valid value. Native scalar
+forms require exact text/mode pairs, reject missing/orphan/invalid controls and
+validate decoded 128-byte labels and 512-byte notices. Empty optional notices
+remain usable. Recovery preserves the submitted representation and original CAS;
+a behavioral case catches and repairs leading-CRLF textarea parsing on resubmission.
+Read-only answers use preserved whitespace, matching the multiline editor.
+
+Type checking and lint pass. The focused form/native/recovery population passes
+**111/111**, including visual enum/metadata and JavaScript-free Sensitive notice
+CR/LF/CRLF/mixed/backslash/leading-newline roundtrips, decoded limits, malformed
+controls, stale-proposal refusal and recovery. The actual browser fixture is
+extended to author an exact newline enum and save a prefilled Sensitive Draft's
+label/notice bytes on both hosts; its rerun is queued with combined qualification.
+The prior passing browser/provider results remain attributed to their recorded
+source, and are not silently credited to these later authoring edits.
+
+This correction follows the requested second round; no third broad review round
+is opened. The finding owner checks the correction after its commit. Step 3 closes
+for reviewed implementation, while Step 4 owns the remaining actual build/browser
+rerun, complete relevant suites, same-source hosted A/B/original archives and human
+accessibility evidence. The full architecture suite is already running; heavy
+native qualification is serialized after it. No CI, PR or merge result is claimed.

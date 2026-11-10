@@ -94,5 +94,9 @@ export function FieldAnswer({
       ? String(current)
       : copy.unsupported;
   }
-  return <div lang={locale}>{answer(schema, value, '/')}</div>;
+  return (
+    <div className="custom-field-answer" lang={locale}>
+      {answer(schema, value, '/')}
+    </div>
+  );
 }

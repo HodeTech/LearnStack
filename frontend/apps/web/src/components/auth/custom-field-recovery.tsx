@@ -13,6 +13,7 @@ import {
   customFieldOptions,
   escapeCustomFieldHtml,
   renderStaticCustomFieldControls,
+  renderCustomFieldAuthorText,
 } from './custom-field-native-html';
 import { fieldControlLabelsSupported, readFieldSchema } from './custom-field-schema';
 
@@ -147,7 +148,7 @@ export function customFieldMutationContent(
       site.enabledLocales
         .map(
           (tag) =>
-            `<fieldset><legend>${escape(tag)}</legend><label for="${escape('recover-label-' + tag)}">${escape(text.label)}</label><input id="${escape('recover-label-' + tag)}" name="${escape('authorLabel_' + tag)}" maxlength="128" value="${escape(fields.get('authorLabel_' + tag) ?? '')}"><label for="${escape('recover-notice-' + tag)}">${escape(text.notice)}</label><textarea id="${escape('recover-notice-' + tag)}" name="${escape('authorNotice_' + tag)}" maxlength="512">${customFieldTextareaContent(fields.get('authorNotice_' + tag) ?? '')}</textarea></fieldset>`,
+            `<fieldset><legend>${escape(tag)}</legend><label for="${escape('recover-label-' + tag)}">${escape(text.label)}</label>${renderCustomFieldAuthorText({ id: 'recover-label-' + tag, name: 'authorLabel_' + tag, modeName: 'authorTextMode_Label_' + tag, source: fields.get('authorLabel_' + tag) ?? '', mode: fields.get('authorTextMode_Label_' + tag) ?? '', maxBytes: 128, copy: text })}<label for="${escape('recover-notice-' + tag)}">${escape(text.notice)}</label>${renderCustomFieldAuthorText({ id: 'recover-notice-' + tag, name: 'authorNotice_' + tag, modeName: 'authorTextMode_Notice_' + tag, source: fields.get('authorNotice_' + tag) ?? '', mode: fields.get('authorTextMode_Notice_' + tag) ?? '', maxBytes: 512, copy: text })}</fieldset>`,
         )
         .join('');
   }

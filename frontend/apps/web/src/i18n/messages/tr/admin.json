@@ -246,6 +246,7 @@
     "required_first": "Önce eksik zorunlu yanıtları tamamlayın. Ardından diğer yanıtları ayrı ayrı düzenleyebilirsiniz. Saklanan bir yanıtı kaldırma seçeneği kullanılabilir.",
     "submitted_inputs": "Gönderilen girdi — salt okunur",
     "recovery_unavailable": "Bu liste reddedilen isteğinizdeki boş olmayan girdileri gösterir. Alan ayrıntıları düzenleme için yeniden yüklenemedi. Yeni bir değişiklik hazırlamadan önce güncel görünümü açın.",
+    "author_text_hint": "Normal metin yeni satırları satır beslemesi olarak kaydeder. Tam koruma kipinde satır başı için \\r, satır beslemesi için \\n ve ters eğik çizgi için \\\\ kullanın. Mevcut satır sonları korunur. Normal metne geçmek için önce \\r kaçışlarını bilinçli olarak değiştirin. Sınırlar çözümlenen metne uygulanır.",
     "text_entry_mode": "Metin girişi",
     "text_plain": "Normal metin",
     "text_exact": "Satır sonlarını aynen koru",

@@ -5,7 +5,7 @@ import type {
   CustomFieldDefinition,
   CustomFieldInput,
 } from '@learnstack/sdk/administration-server';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { FieldControls } from './custom-field-controls';
@@ -18,6 +18,7 @@ import {
   hasDisabledFieldTranslations,
 } from './custom-field-schema';
 import type { ControlLabels, FieldSchema } from './custom-field-schema';
+import { CustomFieldTextEditor } from './custom-field-text-editor';
 
 type DraftNode = {
   type: FieldSchema['type'] | 'enum';
@@ -161,8 +162,9 @@ type NodeEditorProps = Readonly<{
   copy: FieldCopy;
   id: string;
   depth: number;
+  onTextValidity: (id: string, valid: boolean) => void;
 }>;
-function NodeEditor({ node, onChange, locales, copy, id, depth }: NodeEditorProps) {
+function NodeEditor({ node, onChange, locales, copy, id, depth, onTextValidity }: NodeEditorProps) {
   const typeLabels = {
     string: copy.string,
     enum: copy.enum,
@@ -205,13 +207,14 @@ function NodeEditor({ node, onChange, locales, copy, id, depth }: NodeEditorProp
           <label htmlFor={id + '-label-' + locale}>
             {copy.label} ({locale})
           </label>
-          <input
+          <CustomFieldTextEditor
             id={id + '-label-' + locale}
             value={node.labels[locale] ?? ''}
-            maxLength={128}
-            onChange={(event) =>
-              onChange({ ...node, labels: { ...node.labels, [locale]: event.target.value } })
-            }
+            lang={locale}
+            copy={copy}
+            maxBytes={128}
+            onValidity={onTextValidity}
+            onChange={(text) => onChange({ ...node, labels: { ...node.labels, [locale]: text } })}
           />
         </div>
       ))}
@@ -246,15 +249,17 @@ function NodeEditor({ node, onChange, locales, copy, id, depth }: NodeEditorProp
                 {copy.item} {index + 1}
               </legend>
               <label htmlFor={id + '-choice-' + index}>{copy.choices}</label>
-              <input
+              <CustomFieldTextEditor
                 id={id + '-choice-' + index}
                 maxLength={256}
+                copy={copy}
+                onValidity={onTextValidity}
                 value={choice.value}
-                onChange={(event) =>
+                onChange={(text) =>
                   onChange({
                     ...node,
                     choices: node.choices.map((item, i) =>
-                      i === index ? { ...item, value: event.target.value } : item,
+                      i === index ? { ...item, value: text } : item,
                     ),
                   })
                 }
@@ -264,16 +269,19 @@ function NodeEditor({ node, onChange, locales, copy, id, depth }: NodeEditorProp
                   <label htmlFor={id + '-choice-' + index + '-' + locale}>
                     {copy.choice_label} ({locale})
                   </label>
-                  <input
+                  <CustomFieldTextEditor
                     id={id + '-choice-' + index + '-' + locale}
-                    maxLength={128}
+                    maxBytes={128}
+                    lang={locale}
+                    copy={copy}
+                    onValidity={onTextValidity}
                     value={choice.labels[locale] ?? ''}
-                    onChange={(event) =>
+                    onChange={(text) =>
                       onChange({
                         ...node,
                         choices: node.choices.map((item, i) =>
                           i === index
-                            ? { ...item, labels: { ...item.labels, [locale]: event.target.value } }
+                            ? { ...item, labels: { ...item.labels, [locale]: text } }
                             : item,
                         ),
                       })
@@ -345,6 +353,7 @@ function NodeEditor({ node, onChange, locales, copy, id, depth }: NodeEditorProp
                 {copy.required}
               </label>
               <NodeEditor
+                onTextValidity={onTextValidity}
                 node={child.node}
                 locales={locales}
                 copy={copy}
@@ -391,6 +400,7 @@ function NodeEditor({ node, onChange, locales, copy, id, depth }: NodeEditorProp
       )}
       {node.type === 'array' && (
         <NodeEditor
+          onTextValidity={onTextValidity}
           node={node.item ?? fresh()}
           onChange={(item) => onChange({ ...node, item })}
           locales={locales}
@@ -444,6 +454,12 @@ export function CustomFieldBuilder({
   const [purpose, setPurpose] = useState(initial?.purposeKey ?? '');
   const [notices, setNotices] = useState<Record<string, string>>({ ...initial?.notices });
   const [error, setError] = useState(false);
+  const [invalidText, setInvalidText] = useState<Readonly<Record<string, boolean>>>({});
+  const onTextValidity = useCallback((id: string, valid: boolean) => {
+    setInvalidText((previous) =>
+      previous[id] === !valid ? previous : { ...previous, [id]: !valid },
+    );
+  }, []);
   const revise = initial !== undefined && !successor;
   const excludesDisabledTranslations = initial
     ? hasDisabledFieldTranslations(initial, locales)
@@ -461,6 +477,7 @@ export function CustomFieldBuilder({
     const localizedNotices = localized(notices, locales);
     if (
       schema &&
+      !Object.values(invalidText).some(Boolean) &&
       validFieldKey(key) &&
       labels[defaultLocale] &&
       category &&
@@ -513,7 +530,7 @@ export function CustomFieldBuilder({
     metadata = [];
   }
   function submit(event: FormEvent<HTMLFormElement>) {
-    if (!payload) {
+    if (!payload || !event.currentTarget.checkValidity()) {
       event.preventDefault();
       setError(true);
     }
@@ -606,17 +623,21 @@ export function CustomFieldBuilder({
                 <label htmlFor={'definition-notice-' + tag}>
                   {copy.notice} ({tag})
                 </label>
-                <textarea
+                <CustomFieldTextEditor
                   id={'definition-notice-' + tag}
                   value={notices[tag] ?? ''}
-                  maxLength={512}
-                  onChange={(event) => setNotices({ ...notices, [tag]: event.target.value })}
+                  lang={tag}
+                  copy={copy}
+                  maxBytes={512}
+                  onValidity={onTextValidity}
+                  onChange={(text) => setNotices({ ...notices, [tag]: text })}
                 />
               </div>
             ))}
           </>
         )}
         <NodeEditor
+          onTextValidity={onTextValidity}
           node={node}
           onChange={setNode}
           locales={locales}
