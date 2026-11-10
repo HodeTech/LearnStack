@@ -139,7 +139,8 @@ export function customPatch(value: unknown): boolean {
     !Array.isArray(value.set) ||
     !Array.isArray(value.remove) ||
     value.set.length + value.remove.length < 1 ||
-    value.set.length + value.remove.length > 20
+    value.set.length > 20 ||
+    value.remove.length > 20
   )
     return false;
   const pin = (item: Record<string, unknown>) =>
@@ -162,9 +163,12 @@ export function customPatch(value: unknown): boolean {
     value.remove.every(
       (item) => fields(item, ['conceptKey', 'definitionId', 'schemaVersion']) && pin(item),
     ) &&
-    new Set([...value.set, ...value.remove].map((item: Record<string, unknown>) => item.conceptKey))
-      .size ===
-      value.set.length + value.remove.length
+    new Set(value.set.map((item: Record<string, unknown>) => item.conceptKey)).size ===
+      value.set.length &&
+    new Set(value.set.map((item: Record<string, unknown>) => item.definitionId)).size ===
+      value.set.length &&
+    new Set(value.remove.map((item: Record<string, unknown>) => item.conceptKey)).size ===
+      value.remove.length
   );
 }
 export function membershipFields(value: unknown): boolean {

@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,471 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,504 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -421,7 +421,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 PR correction second review and CI handoff (2026-11-10)](#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10) — 19 lines
   - [P03-5 catalogue counter refusal and verified correction (2026-11-10)](#p03-5-catalogue-counter-refusal-and-verified-correction-2026-11-10) — 31 lines
   - [P03-5 catalogue correction reviews and frozen-source handoff (2026-11-10)](#p03-5-catalogue-correction-reviews-and-frozen-source-handoff-2026-11-10) — 18 lines
-  - [P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)](#p03-5-retained-runtime-proof-failure-and-bounded-diagnosis-2026-11-10) — 34 lines
+  - [P03-5 retained runtime proof failure and bounded diagnosis (2026-11-10)](#p03-5-retained-runtime-proof-failure-and-bounded-diagnosis-2026-11-10) — 35 lines
+  - [P03-5 SDK patch validation parity (2026-11-11)](#p03-5-sdk-patch-validation-parity-2026-11-11) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19370,3 +19371,36 @@ product/test tree remains the same; a normal PR synchronization supplies a new
 frozen source identity for the required complete A, retained/audited originals,
 then whole B. A repeated failure reopens focused diagnosis; two passing complete
 runs establish qualification without becoming a root-cause repair claim.
+
+
+### P03-5 SDK patch validation parity (2026-11-11)
+
+The H7 backend disposition remains correct: explicit remove-and-recapture may
+name the same concept in both arrays so a new capture records fresh consent
+without rewriting original evidence. A later consumer cross-check identifies
+an actual SDK mismatch: `customPatch` rejects concepts shared across the two
+arrays and limits their combined count to twenty. Both own/admin SDK wrappers
+apply that predicate to object and raw JSON, blocking legitimate API requests.
+
+The existing HTTP decoder, application validator and OpenAPI contract cap each
+array separately at twenty, require unique concepts within each array and unique
+definition IDs within Set, and allow the same concept across Set/Remove.
+`MembershipCustomFieldTests.Withdrawal_withholds_retained_value_and_reconsent_restores_without_rewriting_original_evidence`
+proves the intended recapture behavior. The SDK now mirrors those exact bounds.
+The existing 4 KiB raw UTF-8/normalization guard, effective required-set/slot
+checks and all authorization, consent and byte-budget owners stay in force.
+No API snapshot, generated contract, permission, migration or clock changes.
+
+New regressions first fail against the old SDK with `invalid-request` for both
+raw/object recapture. After correction, complete SDK tests pass 12 files / 228
+cases, zero skips; SDK type checking and lint pass. Positive controls exercise
+both own/admin exact PATCH paths, unchanged serialized body, and twenty removals
+plus one Set within 4 KiB. Negative controls retain per-array count/duplicate
+refusal and add the existing API's Set-definition uniqueness. Fresh native
+compilation plus the two relevant native-client/form suites pass 29/29.
+
+Run 42898408067 at `9800ed0d` predates this verified client fix and cannot provide
+final-source qualification for it. Its available evidence remains separately
+retained, including any cancellation after supersession. The SDK correction
+receives two fresh focused reviews before the final-source push and complete
+A/B procedure; the API's admitted behavior is clarified, not narrowed.

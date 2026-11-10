@@ -181,3 +181,62 @@ describe('sensitive custom-value disclosure admission', () => {
     },
   );
 });
+
+describe('custom-field patch parity with the API', () => {
+  const pin = (index: number) => ({
+    conceptKey: 'field-' + index,
+    definitionId: '019a154b-0000-7000-8000-' + String(index + 1).padStart(12, '0'),
+    schemaVersion: 1,
+  });
+  const set = (index: number) => ({
+    ...pin(index),
+    envelope: { value: true },
+    consentEvidenceId: null,
+  });
+  const write = { version: '1', idempotencyKey: 'recapture-key' };
+  it.each(['object', 'raw'] as const)(
+    'admits explicit remove-and-recapture through both %s SDK paths',
+    async (form) => {
+      const body = { set: [{ ...set(0), consentEvidenceId: other }], remove: [pin(0)] };
+      const raw = JSON.stringify(body);
+      const transport = vi.fn(async () => response({ id, version: '2' }, { ETag: '"2"' }));
+      const sdk = createCustomFieldServerSdk(transport);
+      const input = form === 'raw' ? raw : body;
+      expect((await sdk.setOwnCustomFields(input, write)).kind).toBe('success');
+      expect((await sdk.setMembershipCustomFields(id, input, write)).kind).toBe('success');
+      expect(transport).toHaveBeenNthCalledWith(
+        1,
+        '/api/v1/identity/me/custom-fields',
+        expect.objectContaining({ method: 'PATCH', body: raw }),
+      );
+      expect(transport).toHaveBeenNthCalledWith(
+        2,
+        '/api/v1/identity/memberships/' + id + '/custom-fields',
+        expect.objectContaining({ method: 'PATCH', body: raw }),
+      );
+    },
+  );
+  it('admits independently bounded arrays whose combined count exceeds twenty within the byte limit', async () => {
+    const body = { set: [set(0)], remove: Array.from({ length: 20 }, (_, i) => pin(i)) };
+    expect(new TextEncoder().encode(JSON.stringify(body)).length).toBeLessThanOrEqual(4096);
+    const transport = vi.fn(async () => response({ id, version: '2' }, { ETag: '"2"' }));
+    const sdk = createCustomFieldServerSdk(transport);
+    expect((await sdk.setOwnCustomFields(body, write)).kind).toBe('success');
+    expect(transport).toHaveBeenCalledOnce();
+  });
+  it('refuses duplicates within either array, repeated set definition IDs and per-array overflow before transport', async () => {
+    const transport = vi.fn();
+    const sdk = createCustomFieldServerSdk(transport);
+    for (const body of [
+      { set: [set(0), { ...set(1), conceptKey: pin(0).conceptKey }], remove: [] },
+      { set: [set(0), { ...set(1), definitionId: pin(0).definitionId }], remove: [] },
+      { set: [], remove: [pin(0), { ...pin(1), conceptKey: pin(0).conceptKey }] },
+      { set: Array.from({ length: 21 }, (_, i) => set(i)), remove: [] },
+      { set: [], remove: Array.from({ length: 21 }, (_, i) => pin(i)) },
+      { set: [], remove: [] },
+    ]) {
+      expect((await sdk.setOwnCustomFields(body, write)).kind).toBe('invalid-request');
+    }
+    expect(transport).not.toHaveBeenCalled();
+  });
+});
