@@ -121,3 +121,63 @@ describe('typed integer numeric lexemes', () => {
   it('retains binary64 number semantics for a fractional lexeme that rounds to an integer', () =>
     expect(parseCustomFieldNumber('1.00000000000000000001', false)).toBe(1));
 });
+
+describe('sensitive custom-value disclosure admission', () => {
+  it.each(['Current', 'Retired'] as const)(
+    'requires current granted evidence before exposing a %s value',
+    async (state) => {
+      const item = {
+        conceptKey: 'answer',
+        definitionId: other,
+        schemaVersion: 1,
+        state,
+        isRequired: false,
+        envelope: { value: true },
+        consent: null,
+        definition: {
+          schema: {
+            $schema: 'https://json-schema.org/draft/2020-12/schema',
+            type: 'object',
+            properties: { value: { type: 'boolean' } },
+            required: ['value'],
+            additionalProperties: false,
+          },
+          labels: { en: 'Answer' },
+          piiCategory: 'Sensitive',
+          sort: 0,
+          purposeKey: 'purpose',
+          notices: { en: 'Notice' },
+          noticeHashes: { en: 'a'.repeat(64) },
+          formLabels: null,
+          status: 'Active',
+        },
+      };
+      for (const consent of [
+        null,
+        { evidenceId: other, sequence: '2', isGranted: false },
+        { evidenceId: other, sequence: '3', isGranted: true },
+      ]) {
+        const sdk = createCustomFieldServerSdk(async () =>
+          response(
+            { membershipId: id, version: '1', fields: [{ ...item, consent }] },
+            { ETag: '"1"' },
+          ),
+        );
+        const expected = consent?.isGranted ? 'success' : 'invalid-response';
+        expect((await sdk.getOwnCustomFields()).kind).toBe(expected);
+        expect((await sdk.getMembershipCustomFields(id)).kind).toBe(expected);
+        const withheld = createCustomFieldServerSdk(async () =>
+          response(
+            {
+              membershipId: id,
+              version: '1',
+              fields: [{ ...item, state: 'Withheld', envelope: null, consent }],
+            },
+            { ETag: '"1"' },
+          ),
+        );
+        expect((await withheld.getOwnCustomFields()).kind).toBe('success');
+      }
+    },
+  );
+});

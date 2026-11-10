@@ -65,6 +65,13 @@ public sealed class ConsentSubjectPipelineAuditTests(IdentityMembershipFixture f
             stale.Error!.Code.Should().Be("concurrency_conflict");
         }
         (await CountTupleAsync(member, actor, tenant, branch, first)).Should().Be(2);
+        await using (var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.PlatformConnectionString))
+        {
+            (await IdentityMembershipFixture.ScalarAsync<long>(platform, null, """
+                SELECT count(*) FROM public.audit_log WHERE correlation_id='consent-audit-stale'
+                  AND operation='tenancy.membership_field_consent.withdraw' AND outcome='failed'
+                """)).Should().Be(1, "the refused stale withdrawal has its own durable MUST audit outcome");
+        }
 
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
         await IdentityMembershipFixture.ExecuteAsync(owner, null, """

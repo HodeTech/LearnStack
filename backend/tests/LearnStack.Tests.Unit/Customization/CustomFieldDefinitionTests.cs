@@ -35,6 +35,21 @@ public sealed class CustomFieldDefinitionTests
     public void Missing_or_unsupported_classification_refuses(PersonalDataCategory category) =>
         ((Action)(() => Draft(category))).Should().Throw<ArgumentOutOfRangeException>();
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4097)]
+    public void Invalid_value_budget_identifies_the_budget_parameter_without_mutating_the_draft(int maximumValueBytes)
+    {
+        var row = Draft();
+        var revise = () => row.ReviseDraft("{}", "{\"en\":\"Changed\"}", PersonalDataCategory.Identity,
+            true, 2, null, null, maximumValueBytes, Clock, Actor);
+
+        revise.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(maximumValueBytes));
+        row.MaximumValueBytes.Should().Be(242);
+        row.LabelsJson.Should().Be("{\"en\":\"Label\"}");
+        row.Version.Should().Be(0);
+    }
+
     [Fact]
     public void Publishing_freezes_all_authored_metadata_and_retirement_preserves_exact_history()
     {

@@ -83,7 +83,8 @@ owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) ow
 current qualification and review state.
 Accepted custom-field/consent extensions derive from
 [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md); their
-[new controls](#p03-5-custom-field-and-consent-controls) remain Registered.
+[implemented controls](#p03-5-custom-field-and-consent-controls) name their actual test owners;
+source-bound qualification is recorded by Phase 03.
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -176,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**348 test methods run in
+**The architecture suite runs in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -3220,7 +3221,8 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Source:** [Phase 03 § Tenant Custom Fields](../roadmap/phase-03-identity-admin.md);
   [ADR-0018](../decisions/0018-tenant-driven-customization-model.md).
 - **Type:** xUnit + reflection, plus a migration scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented.**
+- **Test owner:** [CustomFieldDefinitionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/CustomFieldDefinitionConventionTests.cs), including nonnullable/no-default migration and planted missing/nullable/wrong-type/default-category controls.
 - **Phase:** 03.
 
 #### `Tenant_Scoped_Export_Contains_No_Foreign_Tenant_Rows`
@@ -7223,10 +7225,11 @@ and fixture definitions make the implemented controls non-vacuous.
 ## P03-5 custom-field and consent controls
 
 **Derives from:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
-These are new Registered obligations, not assertions that tests, schema, routes
-or UI have shipped. Existing implemented controls retain their proved historical
-subjects; each expanded census needs actual nonempty production consumers,
-planted negative twins and positive controls before its extension is Implemented.
+These implemented controls run against nonempty production consumers, planted
+negative twins and positive controls. Their initial complete hosted A/B evidence
+is recorded in the [P03-5 qualification record](../roadmap/phase-03-delivery-log.md#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10).
+Implementation status does not replace source-bound qualification or human
+accessibility evidence.
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof state.
 
 #### `Custom_Field_Definitions_Are_Immutable_And_Constructively_Admitted`
@@ -7245,7 +7248,11 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   including contradictory optional/nested/enum witnesses, multibyte/escaped
   limits, safe edges/unsafe neighbors and actual serializer round trips.
   **Kind:** both.
-- **Status:** **Registered** — implementation and source-bound proof pending.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [CustomFieldDefinitionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/CustomFieldDefinitionConventionTests.cs),
+  [CustomFieldFormProfileTests.cs](../../backend/tests/LearnStack.Tests.Unit/Customization/CustomFieldFormProfileTests.cs),
+  [CustomFieldDefinitionCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionCommandTests.cs).
 - **Phase:** 03 (P03-5 Step 1; transport round trips complete in Steps 3–4).
 
 #### `Custom_Field_Active_Eligibility_Is_Commit_Fenced`
@@ -7260,7 +7267,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Type:** source/caller checks and real PostgreSQL competing value/publication/
   retirement/withdrawal, cancellation, failed MUST and commit controls.
   **Kind:** both.
-- **Status:** **Registered** — no lock-wait/commit proof claimed by acceptance.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [MembershipCustomFieldFenceTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldFenceTests.cs),
+  [CustomFieldDefinitionCapacityCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionCapacityCommandTests.cs).
 - **Phase:** 03 (P03-5 Steps 1–2; combined qualification Step 4).
 
 #### `Field_Consent_Storage_Is_Append_Only_And_Scope_Bound`
@@ -7277,7 +7287,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Type:** applied schema/RLS/grant/body/PII/audit checks and real app-role
   tenant/two-org/NULL-org/foreign-ID, owner mutation, race and rollback controls.
   **Kind:** both.
-- **Status:** **Registered** — implementation and actual applied-schema proof pending.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [MembershipFieldConsentStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipFieldConsentStorageTests.cs),
+  [ConsentSubjectPipelineAuditTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/ConsentSubjectPipelineAuditTests.cs).
 - **Phase:** 03 (P03-5 Steps 1–2).
 
 #### `Consent_Subject_Entry_Is_Host_And_Actor_Confined`
@@ -7297,8 +7310,11 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   native lifecycle-loss, failed-save/no-value/retired-definition, wrong subject/
   host/org/mode, witness reuse, closure, late-publication and cleanup controls.
   **Kind:** both.
-- **Status:** **Registered** — the delivered eleven-path baseline is not proof
-  of this additional function/setter/shell.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [ConsentSubjectConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/ConsentSubjectConventionTests.cs),
+  [ConsentSubjectCapturedOwnerTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/ConsentSubjectCapturedOwnerTests.cs),
+  [BoundedAdministrationHttpTests.ConsentEntry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/BoundedAdministrationHttpTests.ConsentEntry.cs).
 - **Phase:** 03 (P03-5 Step 1 groundwork; activation Step 3, combined proof Step 4).
 
 #### `Custom_Field_Values_Use_Exact_Pins_And_Current_Consent`
@@ -7316,7 +7332,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Type:** direct application/API/native behavior and real database/audit
   tests for self/admin/other-org targets, historical downgrade, stale consent,
   mixed set/remove, 32 KiB retained slots and rollback. **Kind:** both.
-- **Status:** **Registered** — implementation/disclosure proof pending.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [MembershipCustomFieldCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldCommandTests.cs),
+  [MembershipCustomFieldDiagnosticSinkTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs).
 - **Phase:** 03 (P03-5 Steps 2–4).
 
 #### `Custom_Field_Replay_Uses_Scoped_Versioned_Hmac`
@@ -7336,7 +7355,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   changed body/precondition, same-key original-target reauthorization, stale
   different-key predecessor, rotation/key loss and no raw/unkeyed copies.
   **Kind:** both.
-- **Status:** **Registered** — implementation and retained-row proof pending.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [CustomFieldFingerprintServiceTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/CustomFieldFingerprintServiceTests.cs),
+  [PostgresIdempotencyStoreTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/PostgresIdempotencyStoreTests.CustomFields.cs).
 - **Phase:** 03 (P03-5 Steps 1–3; combined qualification Step 4).
 
 #### `Role_Registry_V3_Is_An_Explicit_One_Pair_Delta`
@@ -7350,7 +7372,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
 - **Type:** compiled/SQL artifact equivalence and real adoption/seed/grant/MUST
   rollback controls with removed-grant positive cases. **Kind:** both.
-- **Status:** **Registered** — implementation and both transition proofs pending.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [RoleReleaseV3Tests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/RoleReleaseV3Tests.cs),
+  [RoleGrantCommandIntegrationTests.Registry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/RoleGrantCommandIntegrationTests.Registry.cs).
 - **Phase:** 03 (P03-5 Step 1; discoverability activation Step 3).
 
 #### `Custom_Field_Transport_And_Diagnostics_Are_Closed`
@@ -7374,5 +7399,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [definition/notice sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionDiagnosticSinkTests.cs),
   [None/Sensitive value sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs)
   and [capture-bound nested privacy](../../backend/tests/LearnStack.Tests.Unit/Audit/ConfidentialAuditDiagnosticsTests.cs).
-- **Status:** **Registered** — source, runtime and human proof remain separate.
+- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Test owners:**
+  [AuthenticatedHttpSurfaceTests.ConsentAndCustomFields.cs](../../backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.ConsentAndCustomFields.cs),
+  [OpenApiContractTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.CustomFields.cs),
+  [BoundedAdministrationHttpTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/BoundedAdministrationHttpTests.CustomFields.cs).
 - **Phase:** 03 (P03-5 Steps 2–4).

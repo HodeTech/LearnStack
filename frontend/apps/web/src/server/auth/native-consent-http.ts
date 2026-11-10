@@ -13,6 +13,7 @@ import type { BffHttpRequest } from './http-input.js';
 import { BffInputError } from './input-error.js';
 import type { BffSessionStore, SessionBinding } from './session-contract.js';
 import { BffSessionError } from './session-contract.js';
+import { bffSecretEquals } from './session-store.js';
 const escape = (value: string) =>
   value.replace(
     /[&<>"']/g,
@@ -211,7 +212,7 @@ export function createNativeConsentHandler(
               ]
             : ['csrfToken', 'membershipId', 'cursor', 'scopeCursor'],
         );
-        if (fields.get('csrfToken') !== csrf) throw new BffSessionError('csrf');
+        if (!bffSecretEquals(fields.get('csrfToken'), csrf)) throw new BffSessionError('csrf');
         membershipId = fields.get('membershipId');
         cursor = fields.get('cursor');
         scopeCursor = fields.get('scopeCursor');

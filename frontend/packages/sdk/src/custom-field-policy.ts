@@ -220,7 +220,10 @@ export function membershipFields(value: unknown): boolean {
         formLabels(item.definition.formLabels) &&
         (item.definition.noticeHashes === null ||
           (object(item.definition.noticeHashes) &&
-            Object.values(item.definition.noticeHashes).every(digest))),
+            Object.values(item.definition.noticeHashes).every(digest))) &&
+        (item.definition.piiCategory !== 'Sensitive' ||
+          item.envelope === null ||
+          (object(item.consent) && item.consent.isGranted === true)),
     )
   );
 }

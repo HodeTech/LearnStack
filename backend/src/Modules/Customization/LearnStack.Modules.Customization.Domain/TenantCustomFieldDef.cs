@@ -96,7 +96,8 @@ public sealed class TenantCustomFieldDef : AuditableEntity<TenantCustomFieldDefI
         short sort, string? purpose, string? notices, int maximumValueBytes, string? formLabelsJson)
     {
         if (!IsSupportedCategory(category)) throw new ArgumentOutOfRangeException(nameof(category));
-        if (sort < 0 || maximumValueBytes is < 1 or > 4096) throw new ArgumentOutOfRangeException(nameof(sort));
+        if (sort < 0) throw new ArgumentOutOfRangeException(nameof(sort));
+        if (maximumValueBytes is < 1 or > 4096) throw new ArgumentOutOfRangeException(nameof(maximumValueBytes));
         JsonValue.EnsureWellFormed(schema, nameof(schema));
         JsonValue.EnsureWellFormed(labels, nameof(labels));
         if (category == PersonalDataCategory.Sensitive)

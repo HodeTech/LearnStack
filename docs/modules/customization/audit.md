@@ -181,8 +181,9 @@ classifies register, draft edit, publish, retire and discard as MUST on the
 `TenantCustomFieldDef` root. The catalogue must explicitly classify definition
 configuration reads Off before dispatch. Publication designates the successor via
 `IAuditSubject.Designate` when the incumbent is also tracked. Schema, labels and
-notices are whole-payload redacted. The Step 1 request types and exact slugs are registered. HTTP/native activation
-remains Step 3; acceptance alone does not qualify those surfaces.
+notices are whole-payload redacted. The request types, exact slugs and HTTP/native
+consumers are implemented. Phase 03 records source-bound qualification separately
+from catalogue registration.
 
 | Resource | Operation | Class | Request |
 |---|---|---|---|

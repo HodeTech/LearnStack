@@ -73,6 +73,7 @@ public sealed class CustomFieldFingerprintServiceTests
     [InlineData("short-material")]
     [InlineData("duplicate-material")]
     [InlineData("invalid-id")]
+    [InlineData("runtime-invalid-sentinel")]
     [InlineData("too-many")]
     public async Task Bad_ring_or_unavailable_retained_key_refuses_without_digest_fallback(string defect)
     {
@@ -89,6 +90,7 @@ public sealed class CustomFieldFingerprintServiceTests
             case "short-material": entries["old"] = Convert.ToBase64String(new byte[31]); break;
             case "duplicate-material": entries["old"] = NewKey; break;
             case "invalid-id": entries["BAD"] = OldKey; break;
+            case "runtime-invalid-sentinel": entries["invalid_id"] = string.Empty; break;
             case "too-many": entries["a"] = OldKey; entries["b"] = NewKey; entries["c"] = OldKey; break;
         }
         var metadata = new Metadata([]) { Result = selected };

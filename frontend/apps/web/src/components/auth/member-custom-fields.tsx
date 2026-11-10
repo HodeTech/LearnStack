@@ -96,6 +96,8 @@ export function MemberCustomFields({
               definitionId: field.definitionId,
               schemaVersion: field.schemaVersion,
             };
+            const withheld =
+              field.state === 'Withheld' || (field.envelope !== null && !eligible(field));
             const notice = field.definition.notices
               ? authoredText(field.definition.notices, locale, defaultLocale)
               : null;
@@ -114,7 +116,7 @@ export function MemberCustomFields({
                   {field.isRequired ? copy.required : copy.optional}
                 </p>
                 <p>
-                  {field.state === 'Withheld'
+                  {withheld
                     ? copy.withheld
                     : field.state === 'Retired'
                       ? copy.retired
@@ -122,7 +124,7 @@ export function MemberCustomFields({
                         ? copy.missing
                         : copy.current}
                 </p>
-                {field.state !== 'Withheld' &&
+                {!withheld &&
                   field.envelope !== null &&
                   (schema ? (
                     <FieldAnswer
@@ -268,7 +270,11 @@ export function MemberCustomFields({
                   defaultLocale={defaultLocale}
                   copy={copy}
                   prefix={String(index)}
-                  value={field.state === 'Withheld' ? undefined : field.envelope?.value}
+                  value={
+                    eligible(field) && field.state !== 'Withheld'
+                      ? field.envelope?.value
+                      : undefined
+                  }
                 />
               );
             })}
@@ -297,7 +303,11 @@ export function MemberCustomFields({
                       defaultLocale={defaultLocale}
                       copy={copy}
                       prefix={String(index)}
-                      value={field.state === 'Withheld' ? undefined : field.envelope?.value}
+                      value={
+                        eligible(field) && field.state !== 'Withheld'
+                          ? field.envelope?.value
+                          : undefined
+                      }
                     />
                   ))}
                   <button type="submit">{copy.save}</button>

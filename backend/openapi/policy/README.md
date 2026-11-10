@@ -71,3 +71,11 @@ of runtime/SDK behavior. Coordinate API/SDK/native/web replacement and verify
 actual registry, Role, capabilities and complete replacement separately.
 [Phase 03 Status](../../../docs/roadmap/phase-03-identity-admin.md) owns extension
 implementation and complete hosted qualification.
+
+
+Approval artifacts explicitly state `compatibility: false` and
+`runtimeBehaviorVerified: false`. The six pinned identities cover comparator
+inputs/tool bytes; `openapi-ci.py`, `openapi-transition.py` and the ADR status
+reader are reviewed gate implementation, not additional pinned inputs. Their
+changes require code review and the wrapper's positive/negative controls; this
+mechanism is not a cryptographic attestation of its own implementation.

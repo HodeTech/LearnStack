@@ -732,22 +732,37 @@ describe('selected custom-field replay key ring', () => {
     const api = publicApiEnvironment({ ...selected(), ...values }, configuration, {});
     expect(api[newKey]).toBe('');
     expect(api[oldKey]).toBe(ring[oldKey]);
-    const tooMany = Object.fromEntries(
-      Array.from({ length: 6 }, (_, i) => [
-        `Idempotency__CustomFields__Keys__key${i}`,
-        randomBytes(32).toString('base64'),
-      ]),
-    );
-    const oversized = publicApiEnvironment(
-      { ...selected(), [current]: 'key0', ...tooMany },
-      configuration,
-      {},
-    );
-    expect(oversized.Idempotency__CustomFields__Keys__invalid_id).toBe('');
-    expect(
-      Object.keys(oversized).filter((key) => key.startsWith('Idempotency__CustomFields__Keys__'))
-        .length,
-    ).toBeLessThanOrEqual(6);
+    const prefix = 'Idempotency__CustomFields__Keys__';
+    for (const count of [4, 5, 6]) {
+      const keys = Object.fromEntries(
+        Array.from({ length: count }, (_, i) => [
+          `${prefix}key${i}`,
+          randomBytes(32).toString('base64'),
+        ]),
+      );
+      const ringValues = { [current]: 'key0', ...keys };
+      for (const selection of [
+        ringValues,
+        loadLocalEnvironment(temporary(), ringValues, { apiAuthentication: true }),
+      ]) {
+        for (const api of [
+          publicApiEnvironment({ ...selected(), ...selection }, configuration, {}),
+          publicDemoApiEnvironment({ ...selected(), ...selection }, configuration, root, {}),
+        ]) {
+          if (count === 4) {
+            expect(api).toMatchObject(ringValues);
+            expect(api).not.toHaveProperty(`${prefix}invalid_id`);
+          } else {
+            // The underscore sentinel is outside the API's closed key-ID
+            // grammar; an oversized selection cannot become a usable subset.
+            expect(api[`${prefix}invalid_id`]).toBe('');
+          }
+          expect(Object.keys(api).filter((key) => key.startsWith(prefix))).toHaveLength(
+            count === 4 ? 4 : 6,
+          );
+        }
+      }
+    }
     const malformed = publicApiEnvironment(
       { ...selected(), [current]: 'bad', Idempotency__CustomFields__Keys__bad: 'invalid-base64' },
       configuration,

@@ -328,33 +328,39 @@ describe('finite custom-field UI', () => {
     },
   );
 
-  it('never serializes a withheld envelope and never lets an administrator grant another person consent', () => {
-    const item = field({
-      state: 'Withheld',
-      envelope: { value: 'CANARY NEVER DISCLOSE' },
-      definition: {
-        ...field().definition,
-        piiCategory: 'Sensitive',
-        purposeKey: 'purpose',
-        notices: { en: 'Exact notice' },
-        noticeHashes: { en: 'a'.repeat(64) },
-      },
-    });
-    const html = renderToStaticMarkup(
-      <MemberCustomFields
-        snapshot={snapshot()}
-        fields={fields([item])}
-        own={false}
-        canWrite
-        selectedFieldId={definitionId}
-        locale="en"
-        copy={enAdmin.custom_fields}
-      />,
-    );
-    expect(html).not.toContain('CANARY NEVER DISCLOSE');
-    expect(html).not.toContain('action="/api/account/consent-grant"');
-    expect(html).toContain(enAdmin.custom_fields.admin_consent);
-  });
+  it.each(['Withheld', 'Current', 'Retired'] as const)(
+    'never serializes an unconsented %s envelope or lets an administrator grant another person consent',
+    (state) => {
+      for (const consent of [null, { evidenceId, sequence: '2', isGranted: false }] as const) {
+        const item = field({
+          state,
+          consent,
+          envelope: { value: 'CANARY NEVER DISCLOSE' },
+          definition: {
+            ...field().definition,
+            piiCategory: 'Sensitive',
+            purposeKey: 'purpose',
+            notices: { en: 'Exact notice' },
+            noticeHashes: { en: 'a'.repeat(64) },
+          },
+        });
+        const html = renderToStaticMarkup(
+          <MemberCustomFields
+            snapshot={snapshot()}
+            fields={fields([item])}
+            own={false}
+            canWrite
+            selectedFieldId={definitionId}
+            locale="en"
+            copy={enAdmin.custom_fields}
+          />,
+        );
+        expect(html).not.toContain('CANARY NEVER DISCLOSE');
+        expect(html).not.toContain('action="/api/account/consent-grant"');
+        expect(html).toContain(enAdmin.custom_fields.admin_consent);
+      }
+    },
+  );
 
   it('keeps learner consent separate from profile-write permission and binds the authored fallback notice', () => {
     const item = field({
@@ -571,12 +577,150 @@ describe('finite custom-field UI', () => {
     expect(form.querySelectorAll('[name^="answer_"]')).toHaveLength(1);
     expect(form.querySelector('[name="answer_0_root_0_0_0"]')).not.toBeNull();
     fireEvent.change(form.querySelector('[name="count_0_root_0"]')!, { target: { value: '0' } });
-    expect(form.querySelector('[name^="answer_"]')).toBeNull();
-    expect(form.querySelector('[name="count_0_root_0_0"]')).toBeNull();
+    expect(new FormData(form).has('answer_0_root_0_0_0')).toBe(false);
+    expect(new FormData(form).has('count_0_root_0_0')).toBe(false);
     fireEvent.change(form.querySelector('[name="presence_0_root_0"]')!, {
       target: { value: 'off' },
     });
     expect([...new FormData(form).keys()]).toEqual(['presence_0_root_0']);
+  });
+
+  it.each([
+    ['boolean', { type: 'boolean' }, true, 'false', false],
+    ['number', { type: 'number', minimum: -5, maximum: 5 }, 1, '1.25', 1.25],
+    ['text', { type: 'string', minLength: 1, maxLength: 32 }, 'old', 'draft', 'draft'],
+    [
+      'choice',
+      { type: 'string', minLength: 1, maxLength: 16, enum: ['one', 'two'] },
+      'one',
+      'choice-1',
+      'two',
+    ],
+  ] as const)(
+    'retains an inactive %s list draft and serializes only the current count',
+    (_kind, item, original, draft, expected) => {
+      const schema = readFieldSchema(
+        envelopeSchema({ type: 'array', minItems: 0, maxItems: 2, items: item }),
+      )!;
+      const { container } = render(
+        <CustomFieldNativeForm
+          action="/api/account/custom-fields"
+          schemata={[schema]}
+          complex
+          copy={enAdmin.custom_fields}
+          patch={{
+            set: [
+              {
+                conceptKey: 'retained',
+                definitionId,
+                schemaVersion: 1,
+                envelope: { value: [] },
+                consentEvidenceId: null,
+              },
+            ],
+            remove: [],
+          }}
+        >
+          <input type="hidden" name="payload" value="unused" />
+          <FieldControls
+            schema={schema.properties.value}
+            value={[original, original]}
+            labels={{ en: 'List' }}
+            formLabels={[
+              {
+                location: '/0',
+                labels: { en: 'Answer' },
+                choices:
+                  item.type === 'string' && 'enum' in item ? [{ en: 'One' }, { en: 'Two' }] : null,
+              },
+            ]}
+            locale="en"
+            defaultLocale="en"
+            copy={enAdmin.custom_fields}
+            prefix="0"
+          />
+          <button type="submit">Save</button>
+        </CustomFieldNativeForm>,
+      );
+      const form = container.querySelector('form')!;
+      const count = form.querySelector('[name="count_0_root"]')!;
+      fireEvent.change(form.querySelector('[name="answer_0_root_1"]')!, {
+        target: { value: draft },
+      });
+      fireEvent.change(count, { target: { value: '1' } });
+      expect(new FormData(form).has('answer_0_root_1')).toBe(false);
+      expect(
+        JSON.parse(String(enhancedSubmission(form).get('payload'))).set[0].envelope.value,
+      ).toEqual([original]);
+      fireEvent.change(count, { target: { value: '2' } });
+      expect(form.querySelector<HTMLInputElement>('[name="answer_0_root_1"]')!.value).toBe(draft);
+      expect(
+        JSON.parse(String(enhancedSubmission(form).get('payload'))).set[0].envelope.value,
+      ).toEqual([original, expected]);
+    },
+  );
+
+  it('retains nested text representation when an optional branch is hidden and reopened', () => {
+    const schema = readFieldSchema(
+      envelopeSchema({
+        type: 'object',
+        properties: {
+          note: { type: 'string', minLength: 1, maxLength: 32 },
+        },
+        required: [],
+        additionalProperties: false,
+      }),
+    )!;
+    const { container } = render(
+      <CustomFieldNativeForm
+        action="/api/account/custom-fields"
+        schemata={[schema]}
+        complex
+        copy={enAdmin.custom_fields}
+        patch={{
+          set: [
+            {
+              conceptKey: 'retained',
+              definitionId,
+              schemaVersion: 1,
+              envelope: { value: {} },
+              consentEvidenceId: null,
+            },
+          ],
+          remove: [],
+        }}
+      >
+        <input type="hidden" name="payload" value="unused" />
+        <FieldControls
+          schema={schema.properties.value}
+          value={{ note: 'old\r\n' }}
+          labels={{ en: 'Group' }}
+          formLabels={[{ location: '/0', labels: { en: 'Note' } }]}
+          locale="en"
+          defaultLocale="en"
+          copy={enAdmin.custom_fields}
+          prefix="0"
+        />
+        <button type="submit">Save</button>
+      </CustomFieldNativeForm>,
+    );
+    const form = container.querySelector('form')!;
+    const presence = form.querySelector('[name="presence_0_root_0"]')!;
+    fireEvent.change(form.querySelector('[name="answer_0_root_0"]')!, {
+      target: { value: 'draft\\r\\n' },
+    });
+    fireEvent.change(presence, { target: { value: 'off' } });
+    expect(new FormData(form).has('answer_0_root_0')).toBe(false);
+    expect(
+      JSON.parse(String(enhancedSubmission(form).get('payload'))).set[0].envelope.value,
+    ).toEqual({});
+    fireEvent.change(presence, { target: { value: 'on' } });
+    expect(form.querySelector<HTMLSelectElement>('[name="textmode_0_root_0"]')!.value).toBe(
+      'escaped',
+    );
+    expect(
+      JSON.parse(String(enhancedSubmission(form).get('payload'))).set[0].envelope.value,
+    ).toEqual({ note: 'draft\r\n' });
   });
 
   it('renders native typed list controls with distinct IDs and ignores only unused declared items', () => {

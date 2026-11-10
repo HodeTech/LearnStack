@@ -198,7 +198,7 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 | **`x-fields`** | Optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
 | **Custom-field revision pin** | Association of one contextual value with the exact tenant/target-qualified definition ID and version that interpret and classify it. A successor definition does not change that association. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the P03-5 contract. |
 | **Custom-field form profile** | Finite field shapes and metadata admitted in addition to the existing JSON Schema gates so each accepted field has a supported form control and bounded representation. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the profile. |
-| **Membership field consent** | Personal grant or withdrawal for an exact contextual Membership, sensitive definition revision and purpose/notice pin. Its evidence is separate from stored values and administrative permission; withdrawal is not erasure. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the proposed Tenancy contract. |
+| **Membership field consent** | Personal grant or withdrawal for an exact contextual Membership, sensitive definition revision and purpose/notice pin. Its evidence is separate from stored values and administrative permission; withdrawal is not erasure. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the accepted Tenancy contract. |
 
 | Term | Definition |
 |------|------------|

@@ -53,9 +53,9 @@ The planned surfaces serve the people on each side of that experience:
 | **Learner portal** | Enrolled learners | Work through lessons, track progress and join live sessions. |
 | **Optional Course Marketplace** | Learners and participating institutions | Shared discovery and central checkout; endorsed target, architecture approval pending. |
 
-The public catalog, course and lesson pages are implemented. Studio and learner
-portal remain scaffolds; the status below separates delivered work from remaining
-product and validation obligations.
+The public catalog, course and lesson pages and bounded Studio/member-account
+forms are implemented. Phase 06 owns the full renderer, Studio and portal
+expansion; the status below separates delivered foundations from that work.
 
 **Built for different ways of teaching.** Content types and level taxonomies already
 have a validated customization model. The wider design covers page blocks, lesson
@@ -76,8 +76,8 @@ for identity, membership and authorization work; the
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation, plus bounded organization, default, locale and setting administration | Full organization and settings editors in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
-| **Identity** | Global User binding, contextual Membership/Profile/Role foundations, live scoped authorization, bounded member directory and trusted denial evidence, protected Studio membership and Role administration, native new-user entry and scope switching, and verified invitations with automatic email | Custom fields, provider event ingress, back-channel revocation, federation, platform authority and DSAR in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
-| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
+| **Identity** | Global User binding, contextual Membership/Profile/Role foundations, live scoped authorization, bounded member directory and trusted denial evidence, protected Studio membership and Role administration, native new-user entry and scope switching, verified invitations with automatic email, and revision-pinned Membership custom values with personal consent | Provider event ingress, back-channel revocation, federation, platform authority and DSAR in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, finite Membership field definition authoring, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Protected native administration operations in [Phase 03](docs/roadmap/phase-03-identity-admin.md); current exit state in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |

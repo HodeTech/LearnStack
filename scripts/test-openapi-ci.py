@@ -56,7 +56,11 @@ class SnapshotControls(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0)
             return REAL_RUN(command, **kwargs)
         with patch.object(sys, 'argv', ['openapi-ci.py', '--base', base, '--head', head,
-                '--tool', str(self.root / 'tool'), '--output', str(self.root / 'reports')]), patch.object(ci.subprocess, 'run', side_effect=run):
+                '--tool', str(self.root / 'tool'), '--output', str(self.root / 'reports')]), \
+                patch.object(ci.subprocess, 'run', side_effect=run), \
+                patch.object(ci.transition, 'execution_identity', return_value={}):
+            # This fixture isolates verified Git selection from the comparator;
+            # TransitionControls supplies actual input files and tool identities.
             return ci.main()
 
     def select_event(self, event, head, before='', pr_base='', pr_head='', manual_base=''):
@@ -301,8 +305,8 @@ class TransitionControls(unittest.TestCase):
         code, output = self.run_ci()
         self.assertEqual(0, code)
         approval = json.loads((output / 'approval.json').read_text())
-        self.assertEqual(('0096', 'approved-incompatibility', False),
-                         (approval['adr'], approval['outcome'], approval['runtimeBehaviorVerified']))
+        self.assertEqual(('0096', 'approved-incompatibility', False, False),
+                         (approval['adr'], approval['outcome'], approval['compatibility'], approval['runtimeBehaviorVerified']))
         self.assertEqual((self.base, self.head), (approval['baseCommit'], approval['headCommit']))
         self.assertTrue(json.loads((output / 'comparison/result.json').read_text())['policyRefused'])
         self.assertEqual(2, len(self.calls))
@@ -412,6 +416,21 @@ class TransitionControls(unittest.TestCase):
         self.committed['scripts/openapi-policy.py'] += b' '
         with self.assertRaises(ValueError):
             self.candidate()
+
+    def test_unavailable_identity_has_one_closed_reason_without_provider_text_or_paths(self):
+        for failure in (OSError('PRIVATE-CANARY /private/input'),
+                        ValueError('PRIVATE-CANARY invalid provider material')):
+            with self.subTest(failure=type(failure).__name__), \
+                    patch.object(self.t, 'file_bytes', side_effect=failure), \
+                    self.assertRaises(ValueError) as caught:
+                self.t.execution_identity(self.root, self.tool)
+            self.assertEqual('ADR-0096 approval refused: execution identity unavailable', str(caught.exception))
+            self.assertTrue(caught.exception.__suppress_context__)
+        self.tool.unlink()
+        with self.assertRaisesRegex(ValueError, '^ADR-0096 approval refused: execution identity unavailable$'):
+            self.run_ci()
+        self.assertFalse((self.root / 'reports/approval.json').exists())
+        self.assertEqual([], self.calls, 'No comparison executes without identifiable inputs')
 
     def test_invalid_or_missing_refusal_and_policy_metadata_refuse(self):
         for value in [{'rawToolRefused': True, 'policyRefused': False}, {'rawToolRefused': 1, 'policyRefused': True}, {}]:

@@ -418,11 +418,12 @@ deletion of the Membership cannot turn it into a NULL-org or foreign-subject row
 > function or owner is introduced. The Decision is unchanged; Amendment 1 records
 > the correction and canonical carriers.
 
-After taking the Tenant fence, the owning Identity contract freshly rechecks
-the existing binding's global admission state before withdrawal. It uses the
-existing state-only eligibility function; the Tenancy function gains no Identity
-table read. This follows the global closure's User-before-Tenant fence rather
-than treating an earlier Active observation as irrevocable admission.
+> **Superseded historical wording — see the erratum immediately above.**
+> After taking the Tenant fence, the owning Identity contract freshly rechecks
+> the existing binding's global admission state before withdrawal. It uses the
+> existing state-only eligibility function; the Tenancy function gains no Identity
+> table read. This follows the global closure's User-before-Tenant fence rather
+> than treating an earlier Active observation as irrevocable admission.
 
 Native `/account/consents` uses an existing bounded credentialed entry handle
 and a fixed consent-only HTML shell, reachable after fresh sign-in with no
@@ -696,6 +697,16 @@ or authority rules. This navigation Amendment records the later compatibility
 owner without rewriting the historical body. The exact contract/finding identity
 admission and coordinated consumer update are ADR-0096's responsibility; runtime
 checks, human observations and complete hosted A/B remain Phase 03 qualification.
+
+### Amendment 3 — distinguish corrected and historical withdrawal wording (2026-11-10)
+
+Amendment 1's inline erratum correctly states the pre-entry committed-read
+boundary, but left the contradicted original paragraph visually unqualified.
+PR review demonstrated the two adjacent assertions could still be read as
+simultaneous requirements. That paragraph is now explicitly marked superseded
+historical wording. Its text is retained; the erratum remains authoritative.
+Only this ADR's presentation of the already corrected statement changes. No
+Decision, global reader, fence mode or eligibility boundary changes.
 
 ## References
 

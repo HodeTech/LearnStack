@@ -5636,13 +5636,13 @@ rewriting the selected terminal status.
 ## Invitation entry and consumption
 
 **Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
-Accepted P03-4 contract; schema, source and runtime backfill remain pending in the
-phase Status block. This section extends the earlier global/contextual contracts;
+Implemented P03-4 contract; the
+[phase Status](../roadmap/phase-03-identity-admin.md) owns qualification and follow-ups. This section extends the earlier global/contextual contracts;
 the earlier eight-function/ten-setter counts describe their historical slices.
 The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
 setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
-registers twelve definers/twelve logical setters, preserving those four physical
-writers; acceptance alone does not install them. SMTP adds no tenant setter.
+implements twelve definers/twelve logical setters, preserving those four physical
+writers; qualification remains source-bound in the phase Status. SMTP adds no tenant setter.
 
 ### Invitation root and constrained transitions
 

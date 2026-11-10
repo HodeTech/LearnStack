@@ -39,6 +39,19 @@ public sealed partial class BoundedAdministrationHttpTests
         });
         using var client = ConsentClient(proof);
         var ordinary = proof.Token(EnglishLearner, Tenant);
+        var mismatchedGrant = grant.Replace(MembershipFieldConsentNotice.ComputeHash("Consent fixture notice"),
+            MembershipFieldConsentNotice.ComputeHash("A different notice"), StringComparison.Ordinal);
+        using (var refused = await SendAsync(client, ordinary, ConsentApi + "/grants", "POST", mismatchedGrant, key: Key()))
+            await ProblemAsync(refused, HttpStatusCode.BadRequest, "validation_failed");
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.Database.AppConnectionString))
+        await using (var tx = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await ScopeAsync(app, tx, Tenant.TenantId.Value, null);
+            Assert.Equal(0L, await ScalarAsync<long>(app, tx,
+                "SELECT count(*) FROM membership_field_consents WHERE membership_id=@member AND definition_id=@definition",
+                ("member", membership), ("definition", definition)));
+        }
         JsonElement granted;
         using (var response = await SendAsync(client, ordinary, ConsentApi + "/grants", "POST", grant, key: grantKey))
             granted = await JsonAsync(response);

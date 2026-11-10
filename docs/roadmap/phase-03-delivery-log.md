@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,247 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,348 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -415,7 +415,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 37 lines
   - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 29 lines
   - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 44 lines
-  - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 39 lines
+  - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 40 lines
+  - [P03-5 complete A/B evidence and PR review corrections (2026-11-10)](#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10) — 100 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19140,3 +19141,104 @@ diagnostic assertions remain; the changed registration/timing boundary is
 explicit. These reviews run no additional suites. No source cache, timer override
 or product change is introduced. New-source whole A/B follows; earlier A is not
 relabelled as proof of the correction.
+
+
+### P03-5 complete A/B evidence and PR review corrections (2026-11-10)
+
+**Verified prior-source qualification.** Run
+[42805381079](https://github.com/HodeTech/LearnStack/actions/runs/42805381079)
+completes whole A attempt 1 and whole B attempt 2 at development `1c1f4f80` /
+merge source `7234e280`, each 27/27 successful. B starts only after A originals
+are retained and independently audited. All fifty original ZIPs (25 per attempt)
+match GitHub API size/SHA-256 and pass CRC validation. Actual source, plan,
+toolchain and discovered populations match; Architecture, ordinary and shared
+fixture layouts differ naturally. Canonical populations per attempt reconcile
+4,828 non-Docker backend and 3,690 Docker/native cases.
+
+Each frontend guard completes 124 web files / 4,058 reported cases and twelve
+SDK files / 222 reported cases: 4,280 passed, no skips/todos, followed by actual
+native ingress/failed-fixture cleanup. Both OpenAPI artifacts reproduce the exact
+ADR-0096 approval, five raw/five normalized/54 companion findings and both fresh
+sixty-control populations. Both public-demo artifacts contain 27 matching
+JSON/HTML pairs and nine screenshots with canonical source/configuration,
+verified hard JS/CLS/automated-accessibility budgets and cleanup. Timing remains
+advisory; automated scores do not establish full WCAG conformance. Human
+accessibility acceptance remains the separately attributed maintainer report.
+The preceding failed-B record is history, not the result of this complete pair.
+
+**PR review corrections.** The maintainer supplies three review reports and
+reconfirms development-only use. Each allegation is checked against current
+owners, Accepted contracts and actual controls; severity labels are not treated
+as proof. Confirmed product defects are:
+
+- Decreasing/reincreasing list length or disabling/re-enabling an optional branch
+  remounts controls with server values, losing unsaved drafts. Visited controls
+  now remain mounted in hidden, disabled presentation fieldsets; only active
+  items/branches submit. Boolean, number, choice, text and nested exact-text
+  controls cover canonical submitted values and inactive omission. The prior
+  maintainer accessibility report remains attributed to its earlier UI; these
+  new automated interactions are not a newly performed VoiceOver check.
+- SDK response admission permits a populated Sensitive envelope without current
+  Granted consent. Both own/admin response paths now refuse it; the UI separately
+  withholds it before display/editor initialization. Tests include absent and
+  withdrawn consent, Current/Retired/Withheld states and valid Granted responses.
+- ADR-0095's original post-fence paragraph remains visually unqualified beneath
+  its erratum. Amendment 3 explicitly marks that retained wording historical;
+  the existing pre-entry committed-read boundary is unchanged.
+
+Smaller corrections use the shared timing-safe CSRF equality, name the actual
+invalid value-budget argument, mark approval artifacts `compatibility: false`,
+and give unavailable comparator identity a closed diagnostic reason without
+provider messages/paths. Tests strengthen 4/5/6-key selection with the invalid-ID
+API sentinel, unchanged-value successful MUST audit, stale-withdrawal failed MUST
+audit and mismatched-notice-hash HTTP refusal with no consent write. Current
+module/readme/glossary/census text is reconciled, and the eight P03-5 catalogue
+entries name their implemented controls rather than claiming registration only.
+The former absolute architecture-method count is removed to avoid duplicating
+the discovery population.
+
+**Rejected or bounded review allegations.**
+
+| Review IDs | Verified disposition |
+|---|---|
+| C1 | Durable grant cooldown uses database time under the exclusive fence and an append-only trigger. An application clock is not authority across replicas; existing real storage controls prove the cooldown. No clock substitution. |
+| C2, H1–H2, H12 | Malformed stored envelopes, duplicate exact revisions, missing Sensitive purpose, invalid consent batch shape and impossible stored capacities are invariant/dependency corruption, not ordinary user validation. Fixed-message failure is intentional; authoring admission already returns typed business/capacity failures. No catch-all success or misleading 4xx. |
+| C3 | Bounded forwarding preserves invalid selected configuration via `invalid_id`; the API rejects that ID even with otherwise valid keys. No admitted partial ring reproduced; boundary proof is expanded. |
+| C4, H24 | Fresh OpenAPI output directories and verified Git parent selection are fail-closed evidence boundaries. Reusing output or fabricating a zero-hash base would admit stale/unverified proof. Local repeats require a fresh output directory. |
+| H3–H8 | No-op MUST subject designation is required, not a version-change-only action. The exclusive consent fence protects retained pins against shared value removal. Withdrawal may name the original grant and the latest predecessor for convergence. Mixed remove/set permits explicit recapture; duplicates and malformed initialized IDs already refuse. |
+| H9–H14, H22 | Oversized bodies reach the shared Problem Details 413 path; successful receipt storage separately rejects totals above 1,024 bytes before disclosure. Confirmation is validated by validator/handler. Client Membership ID is only a selector; the verified actor/host and exact retained tuple mint the subject witness. No authority bypass demonstrated. |
+| H15–H19 | Definer SELECT ownership is intentionally distinct from app-only INSERT. A Tenant host may discover only that actor's own retained branch scopes; an Organization host is exact-branch capped. The canonical AND-ed tenant policy still governs restrictive guards. Restoring provider exception chains would violate payload confidentiality. |
+| H20–H21, H25 | Custom-field requiredness is validated on explicit save; static no-script forms intentionally render potential unused branches, so unconditional HTML required would block valid submissions. Personal retained-consent navigation intentionally survives lost Membership authority. Missing/malformed locale catalogues already fail startup closed through exact copy preparation. |
+| H26–H28 | Approval now explicitly reports incompatibility; unavailable input identity has a fixed refusal. Strict plan validation, actual-source fixture/stage census and unknown-stage refusal already exist. Approval-owner implementation itself remains reviewed code, not one of the six pinned comparator inputs. |
+| H29–H32 | Current glossary, catalogue, setter/definer prose, module matrix and delivered-feature description are corrected; historical packet records and unrelated later-phase promises are preserved. |
+| H33–H35 | Registry fingerprint and exact transport/population censuses are intentional closed contracts. Actual registered-pipeline integration already covers v1→v2→v3, repeat/stale/skip refusal, grant preservation and audit behavior; counts are not loosened. |
+
+Other Medium/Low suggestions were checked by surface. JSONB defaults resolve
+through the typed column; retained cross-module linkage intentionally uses
+Contracts, and constraint replacement remains transactional. Existing real fence
+winner orders, revision-survival, replay/rotation and nested diagnostic-canary
+controls remain. Shared CSRF comparison is aligned; representation limits are
+valid for the closed backslash/CR/LF codec, with scalar validation after decoding.
+Bounded native operation cloning is followed by closed SDK/request validation;
+no generic caller or browser credential is introduced. Readiness, archive-root
+containment and exact workflow-selector controls already exist. Cosmetic
+refactors and hypothetical future-role privileges are not correctness fixes.
+
+The Organization-host native HTTP cross-branch matrix is not established by the
+existing real DB/witness branch tests; those layers remain separately attributed.
+No corresponding product disclosure failure was demonstrated. The earlier
+provenance-child failure remains unlocalized; successful A/B is not a root-cause
+repair claim. Corrections change source, so this prior pair is not silently
+relabelled as their qualification. New-source review and CI results remain
+source-bound in PR #42; this packet is not merged.
+
+
+Local correction validation completes: Release build has zero warnings/errors;
+3,750/3,750 Unit, 12/12 Contract, nine relevant Architecture controls and 58/58
+actual PostgreSQL/HTTP integration cases pass. SDK/web type checking and lint
+pass. The complete guarded frontend run reconciles 124 web files / 4,065 reported
+cases and twelve SDK files / 224 reported cases: 4,289 passed, zero skips/todos.
+OpenAPI wrapper controls pass 33/33, native controls 111/111, shard controls 88/88,
+and the focused launcher population 59/59. The expanded controls prove their
+stated layer; they are not hosted final-source A/B. Two fresh correction reviews
+follow before the single final-source push and hosted qualification.

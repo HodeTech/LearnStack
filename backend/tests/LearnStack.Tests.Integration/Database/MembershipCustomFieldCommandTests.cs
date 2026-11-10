@@ -111,6 +111,18 @@ public sealed class MembershipCustomFieldCommandTests(MembershipCustomFieldFixtu
         Assert.Equal("Current", field.State);
         Assert.True(field.Envelope!.Value.GetProperty("value").GetBoolean());
         Assert.Equal(definition.SchemaVersion, field.SchemaVersion);
+        var stored = await fixture.StoredAsync(member.Membership);
+        var unchanged = await fixture.SendAsync(new SetMembershipCustomFieldsCommand(member.Membership, 1,
+            new([Set(definition)], [])), "value-roundtrip-unchanged");
+        Assert.True(unchanged.IsSuccess, unchanged.Error?.Code);
+        Assert.Equal(1, unchanged.Value.Version);
+        Assert.Equal(1, (await fixture.Membership.ReadAsync(member.Membership)).Version);
+        Assert.Equal(stored, await fixture.StoredAsync(member.Membership));
+        using var unchangedAudit = JsonDocument.Parse(Assert.Single(await fixture.Membership.AuditAsync(
+            "value-roundtrip-unchanged", "identity.membership.custom_fields_write")));
+        Assert.Equal("success", unchangedAudit.RootElement.GetProperty("outcome").GetString());
+        Assert.Equal("Must", unchangedAudit.RootElement.GetProperty("class").GetString());
+        Assert.Equal(member.Membership.ToString("D"), unchangedAudit.RootElement.GetProperty("id").GetString());
         var removed = await fixture.SendAsync(new SetMembershipCustomFieldsCommand(member.Membership, 1,
             new([], [Remove(definition)])), "value-roundtrip-remove");
         Assert.True(removed.IsSuccess, removed.Error?.Code);

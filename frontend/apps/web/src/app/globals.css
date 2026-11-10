@@ -282,7 +282,8 @@
   padding-inline: 0.4rem;
   font-weight: 600;
 }
-.custom-field-group > details {
+.custom-field-group > details,
+.custom-field-control-body > details {
   margin-block: 0.75rem;
 }
 .custom-field-group summary,
@@ -294,4 +295,12 @@
 .custom-field-notice {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Presentation-only fieldsets retain hidden drafts without submitting inactive controls. */
+.custom-field-control-body {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

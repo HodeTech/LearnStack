@@ -582,7 +582,8 @@ context writer, factory privilege or tenant retargeting authority.
 
 `TransactionBehavior` delegates the general announcement path to
 `TransactionExecutionCoordinator`. The accepted twelve logical setter paths are
-enumerated below; the twelfth is registered pending P03-5 implementation/proof.
+enumerated below; the twelfth is implemented by P03-5; its source-bound proof is recorded in
+the [phase Status](../roadmap/phase-03-identity-admin.md).
 ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth own-context
 discovery reader; their source bounds are in the
 [owner census](#owner-and-setter-census). ADR-0077's confined evidence methods and
@@ -1769,7 +1770,7 @@ Suspended Tenant, Archived Organization, grant-with-failed-save, removed value,
 retired definition, wrong actor/host/org/mode, stale predecessor/replay, global
 closure and late old-entry publication. Acceptance alone establishes none of
 these outcomes; [the catalogue](21-architecture-tests-catalogue.md#p03-5-custom-field-and-consent-controls)
-keeps their new proof obligations Registered.
+names the implemented controls and the phase records their source-bound proof.
 
 ## Incident Response
 

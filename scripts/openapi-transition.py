@@ -77,7 +77,9 @@ def execution_identity(root, tool):
     try:
         return {name: digest(file_bytes(tool if name == TOOL else root / name)) for name in INPUTS}
     except (OSError, ValueError):
-        return None
+        # Paths and provider exception text are not diagnostic output. The
+        # closed reason distinguishes unavailable evidence from byte drift.
+        raise ValueError('ADR-0096 approval refused: execution identity unavailable') from None
 
 
 def decision_tables(source):

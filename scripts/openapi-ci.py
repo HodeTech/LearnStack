@@ -157,7 +157,7 @@ def main():
     if result != 0:
         return result
     transition.validate_controls(ROOT, args.tool.resolve(), controls, record)
-    approval = {'outcome': 'approved-incompatibility', 'adr': '0096', 'baseCommit': base_sha,
+    approval = {'outcome': 'approved-incompatibility', 'compatibility': False, 'adr': '0096', 'baseCommit': base_sha,
         'headCommit': head_sha, 'baseSha256': record['baseSha256'], 'headSha256': record['headSha256'],
         'findings': record['findings'], 'inputs': record['inputs'], 'runtimeBehaviorVerified': False}
     (args.output / 'approval.json').write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')

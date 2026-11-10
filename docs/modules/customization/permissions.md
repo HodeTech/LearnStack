@@ -13,13 +13,13 @@ is internal metadata, and schema validation remains write-only.
 ambient scope and adds no HTTP endpoint or permission key. Public admission belongs to
 P02d-4. [The module contract](README.md#primary-read-flow-resolving-a-tenants-shapes) owns its scope.
 
-**No permission keys yet.** The matrix below is a forward declaration in the
+**Content-type/taxonomy keys remain forward declarations.** The matrix below uses the
 `{module}.{resource}.{action}` form with the closed action set of
 [Permission Standards](../../standards/19-permissions.md). Its adopted module-source
 contract registers scoped definitions separately from finite grants; no `IModule`
 API is implied. Identity's foundation definitions/Role templates are implemented.
-Customization keys and their live consumers require their owning operation
-decision; these examples register or grant nothing.
+These examples register or grant nothing; the implemented Membership field
+key and its live consumers are specified separately below.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|
@@ -97,7 +97,7 @@ restrictive write guard, which is
 [Database Standards § Table classes](../../standards/05-database.md)'s answer for
 this class rather than an omission.
 
-## Membership field definitions (planned)
+## Membership field definitions
 
 [ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
 adds the Tenant pair `customization.custom_field.admin`, registered by the
@@ -106,4 +106,5 @@ definition administration. Explicit audited v2→v3 Tenant Admin adoption adds o
 this pair, preserving previously removed grants; v1 first adopts v2. Registration,
 seed and migration grant nothing. The tenth advisory capability
 `canManageCustomFields` evaluates the registered pair against current facts and is
-not authorization. Phase 03 owns activation and proof.
+not authorization. The native/API consumers are implemented; Phase 03 owns
+source-bound qualification.
