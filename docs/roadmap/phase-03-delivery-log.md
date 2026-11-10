@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,071 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,097 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -410,7 +410,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 hosted failure corrections and human UX environment (2026-11-10)](#p03-5-hosted-failure-corrections-and-human-ux-environment-2026-11-10) — 77 lines
   - [P03-5 complete local frontend guard after corrections (2026-11-10)](#p03-5-complete-local-frontend-guard-after-corrections-2026-11-10) — 17 lines
   - [ADR-0096 maintainer review disposition and acceptance (2026-11-10)](#adr-0096-maintainer-review-disposition-and-acceptance-2026-11-10) — 55 lines
-  - [ADR-0096 exact Git-snapshot admission implementation (2026-11-10)](#adr-0096-exact-git-snapshot-admission-implementation-2026-11-10) — 39 lines
+  - [ADR-0096 exact Git-snapshot admission implementation (2026-11-10)](#adr-0096-exact-git-snapshot-admission-implementation-2026-11-10) — 40 lines
+  - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18959,3 +18960,29 @@ for fresh complete-report validation. Actual successful Git-backed admission and
 fresh policy execution still require final-source CI. Two fresh independent
 implementation review rounds follow the implementation commit; no ready PR,
 hosted qualification, manual completion or merge is claimed yet.
+
+
+### ADR-0096 two-round implementation review and PR handoff (2026-11-10)
+
+The committed implementation `83471b89` receives two fresh independent reviews:
+Sol/high first, Terra/high second. Both inspect the actual helper/wrapper/carrier,
+Accepted decision, negative controls, unchanged comparator and canonical carriers;
+neither finds a verified Blocker, Major or Minor. These are source reviews, not
+new runtime or hosted test executions.
+
+All 32 snapshot/admission controls pass, including table-driven mutation families.
+The exact web source-census population passes 62/62. The accepted runtime additions
+pass 1/1 actual app-role HTTP/DB lifecycle and 46/46 SDK tests; the earlier full
+frontend guard's 4,273 passes remain attributed to `d9abb14e`, not relabelled as a
+new final-head guard. The actual Linux tool reproduction matches all three
+reviewed finding digests while correctly refusing standalone-file compatibility.
+No new timer, permission or migration follows from ADR-0096.
+
+Implementation and source reviews are ready for PR inspection. Complete hosted
+A/B and original-archive validation remain required, with the ready PR explicitly
+listing pending checks so review can proceed during its CI. The same source is
+retained through whole-run attempt 2; failed/single-job siblings never substitute.
+Human P03-5 observations are still pending. The private synthetic manual UI is
+refreshed for an eight-hour review window after the earlier private fixture ends;
+that fixture-only browser persistence/fake clock grants no product authentication
+or deadline proof. No Step 4 qualification, human acceptance or merge is claimed.
