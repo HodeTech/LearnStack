@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,198 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,207 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -414,7 +414,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 26 lines
   - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 37 lines
   - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 29 lines
-  - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 34 lines
+  - [P03-5 provenance child failure and bounded diagnosis (2026-11-10)](#p03-5-provenance-child-failure-and-bounded-diagnosis-2026-11-10) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19090,3 +19090,12 @@ Scoped lint and web type checking pass. The actual provenance Vitest wrapper the
 passes 1/1 in 34.719 seconds wall. These observations repair diagnostic blindness,
 not the unproven underlying cause. Focused independent review follows the commit;
 new final-source A/B and original evidence are still required.
+
+Committed diagnostic correction `3f1a9bec` receives two sequential fresh focused
+reviews, Sol/high R1 then Terra/high R2. Both find no verified Blocker, Major or
+Minor and confirm bounded own-data projection, unchanged router caps and proof
+assertions, closed child channels and preserved process/count/sink failure. These
+are source reviews, not additional suite executions or hosted qualification.
+P03-5 manual acceptance remains applicable to unchanged UI bytes. The next PR
+source is frozen for complete A/B; no single failed job or prior successful
+subset supplies that evidence.
