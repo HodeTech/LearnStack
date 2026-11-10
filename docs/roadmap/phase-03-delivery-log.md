@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,097 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,134 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -411,7 +411,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 complete local frontend guard after corrections (2026-11-10)](#p03-5-complete-local-frontend-guard-after-corrections-2026-11-10) — 17 lines
   - [ADR-0096 maintainer review disposition and acceptance (2026-11-10)](#adr-0096-maintainer-review-disposition-and-acceptance-2026-11-10) — 55 lines
   - [ADR-0096 exact Git-snapshot admission implementation (2026-11-10)](#adr-0096-exact-git-snapshot-admission-implementation-2026-11-10) — 40 lines
-  - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 25 lines
+  - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 26 lines
+  - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18986,3 +18987,40 @@ Human P03-5 observations are still pending. The private synthetic manual UI is
 refreshed for an eight-hour review window after the earlier private fixture ends;
 that fixture-only browser persistence/fake clock grants no product authentication
 or deadline proof. No Step 4 qualification, human acceptance or merge is claimed.
+
+
+### P03-5 PR-source CI census and analysis corrections (2026-11-10)
+
+[PR #42](https://github.com/HodeTech/LearnStack/pull/42) is open and ready for code
+review. Its first PR-source A, run `42786163426` at head `42caac8a` / merge source
+`851f2741`, fails the shared-fixture witness and two source-analysis cases. No
+successful subset qualifies the packet. OpenAPI admission succeeds: the retained
+original ZIP independently matches API size/SHA-256/CRC, exact Git snapshot pair,
+5/5/54 findings, tool bytes and both fresh 60-control populations. This does not
+verify runtime behavior or establish complete A/B.
+
+The fixture witness adds exactly eleven missing P03-5 fixture-bearing source
+classes, 179 to 190, without changing counts, assignment algorithm, weights,
+fixed-cost values or deadlines. Existing plan/result controls pass 88/88 in
+8.100 seconds execution, 8.365 seconds wall, within the unchanged 27+3-second
+meta allocation; a private omitted-class counterexample still fails. A focused
+independent source review confirms exact census equality and retained A/B grouping.
+The canonical plan digest becomes
+`5f07e22504894d695721926aa75c7a4631273c6049db578917c1f05c65da07d6`.
+
+The two hosted web failures exceed the default five-second threshold while
+rebuilding full graphs for each mutation/catalogue. An explicitly owned evaluator
+reuses only current exact-path/text syntax and import occurrences; each census
+still validates JSON and creates fresh checker, resolver, edges and findings.
+Catalogue counterexamples use ten independent direct-client roots in one complete
+graph, retaining each exact closure/refusal assertion. Edit, import, removal,
+restoration and independent-owner controls compare against fresh analysis.
+The original 311 cases plus that control pass 312/312, zero pending, 31.280 seconds
+wall. Isolated slow-case times fall from 1,254/1,320 ms to 370/147 ms; these local
+measurements are not hosted fit guarantees. Scoped lint and web type checking pass.
+No timeout, production behavior or source-census omission changes.
+
+The correction follows the existing witness and boundary policies; no new ADR is
+needed. Two focused independent implementation reviews follow the correction
+commit. A new source requires fresh complete hosted A/B and original archives.
+Human P03-5 accessibility observations remain pending; no merge is performed.

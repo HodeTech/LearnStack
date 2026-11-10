@@ -717,7 +717,72 @@ export function unsupportedSourceFindings(names: readonly string[]): Finding[] {
     }));
 }
 
+type GraphSourceSyntax = {
+  readonly file: ts.SourceFile;
+  readonly imports: readonly { readonly expression: ts.Node | undefined; readonly node: ts.Node }[];
+};
+
+function graphSourceSyntax(name: string, source: string): GraphSourceSyntax {
+  const file = ts.createSourceFile(
+    name,
+    source,
+    ts.ScriptTarget.ES2022,
+    true,
+    name.endsWith('.json')
+      ? ts.ScriptKind.JSON
+      : name.endsWith('.tsx')
+        ? ts.ScriptKind.TSX
+        : ts.ScriptKind.TS,
+  );
+  const imports: { expression: ts.Node | undefined; node: ts.Node }[] = [];
+  const add = (expression: ts.Node | undefined, node: ts.Node) =>
+    imports.push({ expression, node });
+  walk(file, (node) => {
+    if (ts.isImportDeclaration(node) && runtimeImport(node)) add(node.moduleSpecifier, node);
+    else if (ts.isExportDeclaration(node) && node.moduleSpecifier && runtimeExport(node))
+      add(node.moduleSpecifier, node);
+    else if (
+      ts.isImportEqualsDeclaration(node) &&
+      !node.isTypeOnly &&
+      ts.isExternalModuleReference(node.moduleReference)
+    )
+      add(node.moduleReference.expression, node);
+    else if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    )
+      add(node.arguments[0], node);
+  });
+  return { file, imports };
+}
+
+/** Reuse syntax only within one owner; every census gets a fresh checker and graph. */
+export function createSourceGraphEvaluator(): (sources: SourceCensus) => SourceGraph {
+  let previous = new Map<string, GraphSourceSyntax & { readonly source: string }>();
+  return (sources) => {
+    const current = new Map<string, GraphSourceSyntax & { readonly source: string }>();
+    const graph = evaluateSourceGraph(sources, (name, source) => {
+      const cached = previous.get(name);
+      const syntax =
+        cached?.source === source ? cached : { source, ...graphSourceSyntax(name, source) };
+      current.set(name, syntax);
+      return syntax;
+    });
+    // Keep one current text/version per present path; removed paths cannot survive.
+    previous = current;
+    return graph;
+  };
+}
+
 export function buildSourceGraph(sources: SourceCensus): SourceGraph {
+  return evaluateSourceGraph(sources, graphSourceSyntax);
+}
+
+function evaluateSourceGraph(
+  sources: SourceCensus,
+  syntax: (name: string, source: string) => GraphSourceSyntax,
+): SourceGraph {
   const unresolved: Finding[] = [];
   for (const [file, source] of Object.entries(sources)) {
     if (!file.endsWith('.json')) continue;
@@ -731,22 +796,10 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
       });
     }
   }
-  const files = new Map(
-    Object.entries(sources).map(([name, source]) => [
-      name,
-      ts.createSourceFile(
-        name,
-        source,
-        ts.ScriptTarget.ES2022,
-        true,
-        name.endsWith('.json')
-          ? ts.ScriptKind.JSON
-          : name.endsWith('.tsx')
-            ? ts.ScriptKind.TSX
-            : ts.ScriptKind.TS,
-      ),
-    ]),
+  const parsed = new Map(
+    Object.entries(sources).map(([name, source]) => [name, syntax(name, source)]),
   );
+  const files = new Map([...parsed].map(([name, value]) => [name, value.file]));
   const resolveModule = (specifier: string, from: string): string | undefined => {
     let base: string;
     if (specifier.startsWith('.'))
@@ -790,7 +843,7 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
   };
   const checker = ts.createProgram([...files.keys()], options, host).getTypeChecker();
   const edges = new Map<string, string[]>();
-  for (const [name, file] of files) {
+  for (const [name, value] of parsed) {
     const targets: string[] = [];
     const add = (expression: ts.Node | undefined, node: ts.Node) => {
       const specifier = constantString(expression, checker);
@@ -816,23 +869,8 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
           ),
         );
     };
-    walk(file, (node) => {
-      if (ts.isImportDeclaration(node) && runtimeImport(node)) add(node.moduleSpecifier, node);
-      else if (ts.isExportDeclaration(node) && node.moduleSpecifier && runtimeExport(node))
-        add(node.moduleSpecifier, node);
-      else if (
-        ts.isImportEqualsDeclaration(node) &&
-        !node.isTypeOnly &&
-        ts.isExternalModuleReference(node.moduleReference)
-      )
-        add(node.moduleReference.expression, node);
-      else if (
-        ts.isCallExpression(node) &&
-        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
-      )
-        add(node.arguments[0], node);
-    });
+    // Occurrences are syntax-only; values and targets use this census's checker/resolver.
+    for (const { expression, node } of value.imports) add(expression, node);
     edges.set(name, [...new Set(targets)].sort());
   }
   return { files, checker, edges, unresolved, resolveModule };
