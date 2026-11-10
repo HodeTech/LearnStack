@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,134 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,163 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -412,7 +412,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0096 maintainer review disposition and acceptance (2026-11-10)](#adr-0096-maintainer-review-disposition-and-acceptance-2026-11-10) — 55 lines
   - [ADR-0096 exact Git-snapshot admission implementation (2026-11-10)](#adr-0096-exact-git-snapshot-admission-implementation-2026-11-10) — 40 lines
   - [ADR-0096 two-round implementation review and PR handoff (2026-11-10)](#adr-0096-two-round-implementation-review-and-pr-handoff-2026-11-10) — 26 lines
-  - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 36 lines
+  - [P03-5 PR-source CI census and analysis corrections (2026-11-10)](#p03-5-pr-source-ci-census-and-analysis-corrections-2026-11-10) — 37 lines
+  - [P03-5 correction reviews and maintainer manual acceptance (2026-11-10)](#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19024,3 +19025,32 @@ The correction follows the existing witness and boundary policies; no new ADR is
 needed. Two focused independent implementation reviews follow the correction
 commit. A new source requires fresh complete hosted A/B and original archives.
 Human P03-5 accessibility observations remain pending; no merge is performed.
+
+
+### P03-5 correction reviews and maintainer manual acceptance (2026-11-10)
+
+Correction `bbbf24fa` receives two sequential fresh independent source reviews:
+Sol/high R1, then Terra/high R2. Both find no verified Blocker, Major or Minor.
+They verify current-only syntax reuse/fresh semantics, independent catalogue
+refusals, exact fixture equality/grouping and truthful evidence boundaries. They
+do not rerun broad suites or qualify hosted CI.
+
+PR A `42786163426` completes 25/27 successful jobs. All twenty backend producers,
+both aggregates, OpenAPI and public-demo pass; only meta and frontend fail as
+recorded above. All 25 available original ZIPs are retained with API size,
+SHA-256 and CRC verified. The failed candidate remains unqualified; no B or
+successful subset substitutes for a complete new-source A/B.
+
+The maintainer reports completing **all P03-5 manual checks, with acceptable
+results**: keyboard/focus, definition and member/profile editing, personal
+consent, VoiceOver, zoom/reflow and contrast. This is the maintainer's observation,
+not an agent-executed manual test. The prepared English/Turkish native UI fixture
+records browser `157.0.8103.39`; its affected copied UI hashes still match the
+reviewed source through `bbbf24fa`, whose correction changes only test/support,
+plan and documentation. No OS/VoiceOver release number is supplied. Synthetic
+API/provider data and fixture-only clock/cookie persistence do not establish
+backend authentication or lifetime proof. Prior P03-4 observations are not reused.
+
+Manual P03-5 evidence is accepted. The isolated review environment can retire
+through its owned graceful cleanup. Fresh final-source hosted A/B and original
+archive reconciliation remain open; PR #42 stays ready for review and unmerged.
