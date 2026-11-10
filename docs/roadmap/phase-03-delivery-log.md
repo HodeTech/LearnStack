@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,387 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,418 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -418,7 +418,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 verified A and SDK compiler-state isolation (2026-11-10)](#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) — 40 lines
   - [P03-5 complete A/B evidence and PR review corrections (2026-11-10)](#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10) — 101 lines
   - [P03-5 PR correction review round 1 (2026-11-10)](#p03-5-pr-correction-review-round-1-2026-11-10) — 20 lines
-  - [P03-5 PR correction second review and CI handoff (2026-11-10)](#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10) — 18 lines
+  - [P03-5 PR correction second review and CI handoff (2026-11-10)](#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10) — 19 lines
+  - [P03-5 catalogue counter refusal and verified correction (2026-11-10)](#p03-5-catalogue-counter-refusal-and-verified-correction-2026-11-10) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19283,3 +19284,34 @@ ready, unmerged PR #42. Complete A, then whole B on that unchanged source and
 original archive/plan/toolchain/population/layout verification remain the hosted
 qualification procedure. Results are source-bound in PR #42; the recorded prior
 pair above remains historical evidence rather than credit for these corrections.
+
+
+### P03-5 catalogue counter refusal and verified correction (2026-11-10)
+
+PR-source `275e33f4` / merge `abc03892`, run
+[42883002992 attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42883002992/attempts/1),
+finishes 25/27. Only Architecture shard 3 and its required backend aggregate
+fail. All twenty-four available original ZIPs are API-size/SHA-256/CRC verified;
+no B is started and no full qualification is claimed. Frontend completes all
+124 web files / 4,066 reported cases plus twelve SDK files / 224 cases: 4,290
+passed, no skips/todos, including production ingress/cleanup. All ordinary and
+native producers, public demo, OpenAPI and remaining architecture shards pass.
+
+The one failed test is
+`CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules`. Removing the numeric
+method headline above overlooked its required, already mechanically checked
+publication shape. This is a documentation correction error, not a timeout or
+product behavior failure. The reviewer-supplied source count of 390 is not the
+compiled method count: fixture strings and conditionally removed declarations
+are explicitly excluded by the existing reflection reader. The original 348
+compiled-method headline is restored, and the new implemented entries update
+the mechanically checked totals to 266 implemented / 151 in this assembly /
+115 outside. The PII rule names its actual architecture class on the Status
+line; composed behavioral entries name their actual external test classes.
+
+The unchanged production corpus guards all pass locally, 5/5, including exact
+method/class ownership, publication totals, status parity and planted negative
+controls. No assertion, implementation count, timer, test or policy is weakened.
+The prior complete A/B remains attributed to `1c1f4f80`; this failed candidate
+and its archives stay distinct. The bounded documentation fix receives two
+fresh focused reviews before a new frozen-source complete A/B.

@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**The architecture suite runs in
+**348 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,8 +218,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**257 rules in this catalogue are Implemented, and 150 of them are in that assembly.**
-The other 107 are no less binding, and most could not live there. The table says where
+**266 rules in this catalogue are Implemented, and 151 of them are in that assembly.**
+The other 115 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3221,7 +3221,7 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Source:** [Phase 03 § Tenant Custom Fields](../roadmap/phase-03-identity-admin.md);
   [ADR-0018](../decisions/0018-tenant-driven-customization-model.md).
 - **Type:** xUnit + reflection, plus a migration scan. **Kind:** structural.
-- **Status:** **Implemented.**
+- **Status:** **Implemented** (`CustomFieldDefinitionConventionTests`).
 - **Test owner:** [CustomFieldDefinitionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/CustomFieldDefinitionConventionTests.cs), including nonnullable/no-default migration and planted missing/nullable/wrong-type/default-category controls.
 - **Phase:** 03.
 
@@ -7248,7 +7248,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   including contradictory optional/nested/enum witnesses, multibyte/escaped
   limits, safe edges/unsafe neighbors and actual serializer round trips.
   **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`CustomFieldDefinitionCommandTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [CustomFieldDefinitionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/CustomFieldDefinitionConventionTests.cs),
   [CustomFieldFormProfileTests.cs](../../backend/tests/LearnStack.Tests.Unit/Customization/CustomFieldFormProfileTests.cs),
@@ -7267,7 +7267,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Type:** source/caller checks and real PostgreSQL competing value/publication/
   retirement/withdrawal, cancellation, failed MUST and commit controls.
   **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`MembershipCustomFieldFenceTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [MembershipCustomFieldFenceTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldFenceTests.cs),
   [CustomFieldDefinitionCapacityCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionCapacityCommandTests.cs).
@@ -7287,7 +7287,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Type:** applied schema/RLS/grant/body/PII/audit checks and real app-role
   tenant/two-org/NULL-org/foreign-ID, owner mutation, race and rollback controls.
   **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`MembershipFieldConsentStorageTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [MembershipFieldConsentStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipFieldConsentStorageTests.cs),
   [ConsentSubjectPipelineAuditTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/ConsentSubjectPipelineAuditTests.cs).
@@ -7310,7 +7310,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   native lifecycle-loss, failed-save/no-value/retired-definition, wrong subject/
   host/org/mode, witness reuse, closure, late-publication and cleanup controls.
   **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`ConsentSubjectCapturedOwnerTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [ConsentSubjectConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/ConsentSubjectConventionTests.cs),
   [ConsentSubjectCapturedOwnerTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/ConsentSubjectCapturedOwnerTests.cs),
@@ -7332,7 +7332,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Type:** direct application/API/native behavior and real database/audit
   tests for self/admin/other-org targets, historical downgrade, stale consent,
   mixed set/remove, 32 KiB retained slots and rollback. **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`MembershipCustomFieldCommandTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [MembershipCustomFieldCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldCommandTests.cs),
   [MembershipCustomFieldDiagnosticSinkTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs).
@@ -7355,7 +7355,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   changed body/precondition, same-key original-target reauthorization, stale
   different-key predecessor, rotation/key loss and no raw/unkeyed copies.
   **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`PostgresIdempotencyStoreTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [CustomFieldFingerprintServiceTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/CustomFieldFingerprintServiceTests.cs),
   [PostgresIdempotencyStoreTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/PostgresIdempotencyStoreTests.CustomFields.cs).
@@ -7372,7 +7372,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
 - **Type:** compiled/SQL artifact equivalence and real adoption/seed/grant/MUST
   rollback controls with removed-grant positive cases. **Kind:** both.
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`RoleGrantCommandIntegrationTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [RoleReleaseV3Tests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/RoleReleaseV3Tests.cs),
   [RoleGrantCommandIntegrationTests.Registry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/RoleGrantCommandIntegrationTests.Registry.cs).
@@ -7399,7 +7399,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [definition/notice sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionDiagnosticSinkTests.cs),
   [None/Sensitive value sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs)
   and [capture-bound nested privacy](../../backend/tests/LearnStack.Tests.Unit/Audit/ConfidentialAuditDiagnosticsTests.cs).
-- **Status:** **Implemented** — actual test owners below; source-bound proof remains separate.
+- **Status:** **Implemented** (`MembershipCustomFieldDiagnosticSinkTests`); companion owners below, source-bound proof separate.
 - **Test owners:**
   [AuthenticatedHttpSurfaceTests.ConsentAndCustomFields.cs](../../backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.ConsentAndCustomFields.cs),
   [OpenApiContractTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.CustomFields.cs),
