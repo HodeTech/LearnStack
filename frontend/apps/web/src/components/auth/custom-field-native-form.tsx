@@ -1,15 +1,19 @@
 'use client';
 
-import { parseCustomFieldNumber } from '@learnstack/sdk';
+import {
+  parseCustomFieldNumber,
+  decodeCustomFieldChoice,
+  decodeCustomFieldText,
+} from '@learnstack/sdk';
 import type { CustomFieldPatch, JsonValue } from '@learnstack/sdk/administration-server';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
 import type { FieldCopy } from './custom-field-controls';
 import { fieldPropertyKeys } from './custom-field-schema';
 import type { FieldEnvelopeSchema, FieldSchema } from './custom-field-schema';
 
-const answerName = /^(?:answer|presence|count)_/;
+const answerName = /^(?:answer|presence|count|textmode)_/;
 
 function readAnswer(
   schema: FieldSchema,
@@ -45,13 +49,12 @@ function readAnswer(
   }
   const raw = text('answer_' + path);
   if (schema.type === 'string') {
-    if (
-      [...raw].length < schema.minLength ||
-      [...raw].length > schema.maxLength ||
-      (schema.enum && !schema.enum.includes(raw))
-    )
+    const value = schema.enum
+      ? decodeCustomFieldChoice(raw, schema.enum)
+      : decodeCustomFieldText(raw, text('textmode_' + path));
+    if ([...value].length < schema.minLength || [...value].length > schema.maxLength)
       throw new Error('Invalid text answer');
-    return raw;
+    return value;
   }
   if (schema.type === 'boolean') {
     if (raw !== 'true' && raw !== 'false') throw new Error('Invalid choice');
@@ -80,14 +83,30 @@ export function CustomFieldNativeForm({
   copy,
   children,
 }: CustomFieldNativeFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const preparedPayload = useRef<string | null>(null);
   const [enhanced, setEnhanced] = useState(false);
   const [invalid, setInvalid] = useState(false);
   useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const serialize = (event: Event) => {
+      const payload = preparedPayload.current;
+      if (payload === null || !('formData' in event)) return;
+      const data = (event as FormDataEvent).formData;
+      for (const name of [...data.keys()]) if (answerName.test(name)) data.delete(name);
+      data.set('payload', payload);
+      preparedPayload.current = null;
+    };
+    form.addEventListener('formdata', serialize);
     setEnhanced(true);
+    return () => form.removeEventListener('formdata', serialize);
   }, []);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     const form = event.currentTarget;
     try {
+      preparedPayload.current = null;
       const fields = new FormData(form);
       const complete = {
         ...patch,
@@ -109,18 +128,16 @@ export function CustomFieldNativeForm({
       encoded.set('payload', payload);
       if (new TextEncoder().encode(encoded.toString()).length > 16384)
         throw new Error('Request exceeds its limit');
-      const input = form.querySelector<HTMLInputElement>('input[name="payload"]');
-      if (!input) throw new Error('Prepared form unavailable');
-      input.value = payload;
-      for (const control of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[name]'))
-        if (answerName.test(control.name)) control.removeAttribute('name');
+      preparedPayload.current = payload;
     } catch {
+      preparedPayload.current = null;
       event.preventDefault();
       setInvalid(true);
     }
   }
   return (
     <form
+      ref={formRef}
       action={action}
       method="post"
       className="custom-field-editor"

@@ -43,3 +43,13 @@ export type {
 
 export { parseCustomFieldJson, parseCustomFieldNumber } from './custom-field-json';
 export type * from './custom-field-contract';
+
+export {
+  customFieldChoiceToken,
+  customFieldTextMode,
+  decodeCustomFieldChoice,
+  decodeCustomFieldText,
+  encodeCustomFieldText,
+  normalizeCustomFieldEditorLines,
+} from './custom-field-form-text';
+export type { CustomFieldTextMode } from './custom-field-form-text';

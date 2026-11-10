@@ -196,3 +196,18 @@ export function fieldControlLabelsSupported(
     })
   );
 }
+
+/** An explicit author save carries only presented languages; retained revisions remain untouched. */
+export function enabledFieldControlLabels(
+  labels: readonly ControlLabels[] | null | undefined,
+  locales: readonly string[],
+): readonly ControlLabels[] | null {
+  if (labels == null) return null;
+  const localized = (text: Readonly<Record<string, string>>) =>
+    Object.fromEntries(Object.entries(text).filter(([tag]) => locales.includes(tag)));
+  return labels.map((entry) => ({
+    location: entry.location,
+    labels: entry.labels === null ? null : localized(entry.labels),
+    choices: entry.choices == null ? entry.choices : entry.choices.map(localized),
+  }));
+}

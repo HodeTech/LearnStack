@@ -607,7 +607,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
 
     private static async Task<JsonElement> LoginAsync(BffNativeDriver native, KeycloakBrowserFlow browser,
         SeedIdentity identity, string password, BffWireCookies cookies, TenantRealmApiObservation observation,
-        string returnPath = "/studio", string? atHost = null)
+        string returnPath = "/studio", string? atHost = null, bool verifyConsentEntry = false)
     {
         var before = observation.Reads.Count(row => row.Actor is not null);
         var host = atHost ?? Host(identity.Tenant);
@@ -631,40 +631,46 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         entry.Data.GetProperty("state").GetString().Should().Be("entry");
         entry.Data.GetProperty("identityState").GetString().Should().Be("active");
         var membership = SeedData.IdentityMemberships.Single(value => value.Identity == identity);
-        // Existing credentialed entry custody exercises the real consent-subject producer before any
-        // CurrentSession admission. The child returns only bounded HTML-derived counts/Booleans.
-        var consentCookies = cookies.Header;
-        var consentReads = observation.Reads.Count;
-        var consentScopes = await native.RequestAsync(host, "/account/consents", consentCookies);
-        consentScopes.Status.Should().Be(200);
-        consentScopes.Cache.Should().Be("no-store");
-        consentScopes.Cookies.Should().BeEmpty("consent discovery reuses the existing credentialed entry jar");
-        consentScopes.Data.EnumerateObject().Select(value => value.Name).Should().BeEquivalentTo(
-            ["kind", "scopeForms", "historyLoaded", "historyProtected"]);
-        consentScopes.Data.GetProperty("kind").GetString().Should().Be("consent_entry");
-        consentScopes.Data.GetProperty("scopeForms").GetInt32().Should().BeInRange(1, 20,
-            "a 200 anonymous sign-in page is insufficient: actual own-scope POST forms must be present");
-        consentScopes.Data.GetProperty("historyLoaded").GetBoolean().Should().BeFalse();
-        consentScopes.Data.GetProperty("historyProtected").GetBoolean().Should().BeTrue();
-        consentScopes.PrivateFree.Should().BeTrue();
-        var consentHistory = await native.RequestAsync(host, "/account/consents?membershipId="
-            + membership.MembershipId.ToString("D"), consentCookies);
-        consentHistory.Status.Should().Be(200);
-        consentHistory.Cache.Should().Be("no-store");
-        consentHistory.Cookies.Should().BeEmpty();
-        consentHistory.Data.EnumerateObject().Select(value => value.Name).Should().BeEquivalentTo(
-            ["kind", "scopeForms", "historyLoaded", "historyProtected"]);
-        consentHistory.Data.GetProperty("kind").GetString().Should().Be("consent_entry");
-        consentHistory.Data.GetProperty("scopeForms").GetInt32().Should().BeInRange(1, 20);
-        consentHistory.Data.GetProperty("historyLoaded").GetBoolean().Should().BeTrue(
-            "the same real entry credential reaches exact own-Membership history, even when its evidence page is empty");
-        consentHistory.Data.GetProperty("historyProtected").GetBoolean().Should().BeTrue();
-        consentHistory.PrivateFree.Should().BeTrue();
-        cookies.Header.Should().Be(consentCookies);
-        observation.Reads.Count.Should().Be(consentReads,
-            "retained consent entry/history use neither public-site nor AccountSite projection admission");
-        observation.Reads.Count(row => row.Actor is not null).Should().Be(before,
-            "no CurrentSession is admitted before the later explicit selection");
+        if (verifyConsentEntry)
+        {
+            // Existing credentialed entry custody exercises the real consent-subject producer before any
+            // CurrentSession admission. The child returns only bounded HTML-derived counts/Booleans.
+            var consentCookies = cookies.Header;
+            var consentReads = observation.Reads.Count;
+            var consentScopes = await native.RequestAsync(host, "/account/consents", consentCookies);
+            consentScopes.Status.Should().Be(200);
+            consentScopes.Cache.Should().Be("no-store");
+            consentScopes.Cookies.Should().BeEmpty("consent discovery reuses the existing credentialed entry jar");
+            consentScopes.Data.EnumerateObject().Select(value => value.Name).Should().BeEquivalentTo(
+                ["kind", "scopeForms", "withdrawForms", "historyLoaded", "historyProtected"]);
+            consentScopes.Data.GetProperty("kind").GetString().Should().Be("consent_entry");
+            consentScopes.Data.GetProperty("scopeForms").GetInt32().Should().BeInRange(1, 20,
+                "a 200 anonymous sign-in page is insufficient: actual own-scope POST forms must be present");
+            consentScopes.Data.GetProperty("withdrawForms").GetInt32().Should().Be(0);
+            consentScopes.Data.GetProperty("historyLoaded").GetBoolean().Should().BeFalse();
+            consentScopes.Data.GetProperty("historyProtected").GetBoolean().Should().BeTrue();
+            consentScopes.PrivateFree.Should().BeTrue();
+            var consentHistory = await native.RequestAsync(host, "/account/consents?membershipId="
+                + membership.MembershipId.ToString("D"), consentCookies);
+            consentHistory.Status.Should().Be(200);
+            consentHistory.Cache.Should().Be("no-store");
+            consentHistory.Cookies.Should().BeEmpty();
+            consentHistory.Data.EnumerateObject().Select(value => value.Name).Should().BeEquivalentTo(
+                ["kind", "scopeForms", "withdrawForms", "historyLoaded", "historyProtected"]);
+            consentHistory.Data.GetProperty("kind").GetString().Should().Be("consent_entry");
+            consentHistory.Data.GetProperty("scopeForms").GetInt32().Should().BeInRange(1, 20);
+            consentHistory.Data.GetProperty("withdrawForms").GetInt32().Should().BeInRange(1, 20,
+                "arranged retained grants must produce actual exact-evidence withdrawal forms, not just an empty history heading");
+            consentHistory.Data.GetProperty("historyLoaded").GetBoolean().Should().BeTrue(
+                "the same real entry credential reaches the arranged nonempty exact own-Membership consent history");
+            consentHistory.Data.GetProperty("historyProtected").GetBoolean().Should().BeTrue();
+            consentHistory.PrivateFree.Should().BeTrue();
+            cookies.Header.Should().Be(consentCookies);
+            observation.Reads.Count.Should().Be(consentReads,
+                "retained consent entry/history use neither public-site nor AccountSite projection admission");
+            observation.Reads.Count(row => row.Actor is not null).Should().Be(before,
+                "no CurrentSession is admitted before the later explicit selection");
+        }
         var selectionBody = Form("csrfToken", entry.Data.GetProperty("csrfToken").GetString()!)
             + "&" + Form("tenantId", identity.Tenant.TenantId.Value.ToString("D"));
         if (membership.OrganizationId is { } organization)

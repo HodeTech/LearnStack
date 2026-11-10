@@ -1,3 +1,8 @@
+import {
+  customFieldChoiceToken,
+  customFieldTextMode,
+  decodeCustomFieldText,
+} from '@learnstack/sdk';
 import type {
   CustomFieldDefinition,
   CustomFieldPatch,
@@ -18,7 +23,13 @@ import type { FieldControlsProps } from './custom-field-controls';
 import { CustomFieldNativeForm } from './custom-field-native-form';
 import { renderStaticCustomFieldControls } from './custom-field-native-html';
 import { customFieldMutationContent } from './custom-field-recovery';
-import { envelopeSchema, readFieldSchema, validFieldKey } from './custom-field-schema';
+import {
+  envelopeSchema,
+  readFieldSchema,
+  validFieldKey,
+  enabledFieldControlLabels,
+} from './custom-field-schema';
+import { CustomFieldDetails } from './custom-fields';
 import { MemberCustomFields, OwnConsentHistory } from './member-custom-fields';
 
 const definitionId = '019a154b-0000-7000-8000-000000000099';
@@ -66,8 +77,17 @@ const fields = (items: MembershipCustomFields['fields']): MembershipCustomFields
   fields: items,
 });
 
+function enhancedSubmission(form: HTMLFormElement): FormData {
+  fireEvent.submit(form);
+  const data = new FormData(form);
+  const event = new Event('formdata');
+  Object.defineProperty(event, 'formData', { value: data });
+  form.dispatchEvent(event);
+  return data;
+}
+
 describe('finite custom-field UI', () => {
-  it.each([
+  it.each<[string, Partial<FieldControlsProps> & Pick<FieldControlsProps, 'schema'>]>([
     [
       'string',
       { schema: { type: 'string', minLength: 1, maxLength: 32 }, value: '<img src=x>&"\'' },
@@ -96,7 +116,9 @@ describe('finite custom-field UI', () => {
           {
             location: '/',
             labels: null,
-            choices: [{ en: 'First <choice>' }, { tr: 'İkinci & seçenek' }],
+            choices: [{ en: 'First <choice>' }, { tr: 'İkinci & seçenek' }] as Readonly<
+              Record<string, string>
+            >[],
           },
         ],
       },
@@ -132,10 +154,7 @@ describe('finite custom-field UI', () => {
         ],
       },
     ],
-  ] satisfies readonly (readonly [
-    string,
-    Partial<FieldControlsProps> & Pick<FieldControlsProps, 'schema'>,
-  ])[])('keeps native escaped HTML equivalent to React static controls for %s', (_kind, input) => {
+  ])('keeps native escaped HTML equivalent to React static controls for %s', (_kind, input) => {
     const props: FieldControlsProps = {
       ...input,
       labels: { en: '<svg onload=alert(1)> authored label' },
@@ -152,7 +171,9 @@ describe('finite custom-field UI', () => {
           .sort(([a], [b]) => a!.localeCompare(b!));
       return {
         controls: [
-          ...document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input,select'),
+          ...document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+            'input,select,textarea',
+          ),
         ].map((element) => ({
           tag: element.tagName,
           attributes: attributes(element),
@@ -790,11 +811,11 @@ describe('finite custom-field UI', () => {
       [...new FormData(form)].map(([name, value]) => [name, String(value)]),
     );
     expect(new TextEncoder().encode(before.toString()).length).toBeGreaterThan(16384);
-    fireEvent.submit(form);
-    const submitted = new FormData(form);
-    expect([...submitted.keys()].some((name) => /^(?:answer|count|presence)_/.test(name))).toBe(
-      false,
-    );
+    const submitted = enhancedSubmission(form);
+    expect(
+      [...submitted.keys()].some((name) => /^(?:answer|count|presence|textmode)_/.test(name)),
+    ).toBe(false);
+    expect(form.querySelectorAll('[name^="answer_"]')).toHaveLength(500);
     const payload = String(submitted.get('payload'));
     expect(new TextEncoder().encode(payload).length).toBeLessThanOrEqual(4096);
     expect(JSON.parse(payload).set[0].envelope.value).toEqual(value);
@@ -894,6 +915,10 @@ describe('finite custom-field UI', () => {
     expect(payload.formLabels).toEqual([
       { location: '/0', labels: { en: 'Choice' }, choices: [{ en: 'First' }, { en: 'Second' }] },
     ]);
+    expect(enabledFieldControlLabels(initial.formLabels, ['en'])).toEqual(payload.formLabels);
+    expect(enabledFieldControlLabels(initial.formLabels, ['fr'])).toEqual([
+      { location: '/0', labels: {}, choices: [{}, {}] },
+    ]);
     expect(JSON.stringify(initial)).toBe(published);
   });
 
@@ -975,6 +1000,356 @@ describe('finite custom-field UI', () => {
     expect(document.querySelector('li > div[lang="tr"]')?.textContent).toBe(
       trAdmin.custom_fields.yes,
     );
+  });
+
+  it.each(['normal text', 'a\nb', 'a\rb', 'a\r\nb', 'a\r\nb\nc\rd', '\nstart\n', 'a\\b\\n'])(
+    'preserves exact admitted string line endings across enhanced, native and recovery controls',
+    (value) => {
+      const schema = envelopeSchema({ type: 'string', minLength: 1, maxLength: 32 });
+      const item = field({ definition: { ...field().definition, schema }, envelope: { value } });
+      const data = fields([item]);
+      const patch = {
+        set: [
+          {
+            conceptKey: item.conceptKey,
+            definitionId: item.definitionId,
+            schemaVersion: item.schemaVersion,
+            envelope: { value: null },
+            consentEvidenceId: null,
+          },
+        ],
+        remove: [],
+      };
+      const proof = (
+        <>
+          <input type="hidden" name="csrfToken" value={'A'.repeat(43)} />
+          <input type="hidden" name="idempotencyKey" value={'K'.repeat(43)} />
+          <input type="hidden" name="version" value={data.version} />
+          <input type="hidden" name="payload" value={JSON.stringify(patch)} />
+        </>
+      );
+      const { container } = render(
+        <>
+          <CustomFieldNativeForm
+            action="/api/account/custom-fields"
+            patch={patch}
+            schemata={[schema]}
+            complex={false}
+            copy={enAdmin.custom_fields}
+          >
+            {proof}
+            <FieldControls
+              schema={schema.properties.value}
+              labels={item.definition.labels}
+              locale="en"
+              defaultLocale="en"
+              copy={enAdmin.custom_fields}
+              prefix="0"
+              value={value}
+            />
+            <button type="submit">Save</button>
+          </CustomFieldNativeForm>
+          <form id="native-text">
+            {proof}
+            <StaticFieldControls
+              schema={schema.properties.value}
+              labels={item.definition.labels}
+              locale="en"
+              defaultLocale="en"
+              copy={enAdmin.custom_fields}
+              prefix="0"
+              value={value}
+            />
+          </form>
+        </>,
+      );
+      const script = container.querySelector('form')!;
+      const serialized = enhancedSubmission(script);
+      expect(JSON.parse(String(serialized.get('payload'))).set[0].envelope.value === value).toBe(
+        true,
+      );
+      expect(script.querySelector('[name="answer_0_root"]')).not.toBeNull();
+      const native = container.querySelector<HTMLFormElement>('#native-text')!;
+      const nativeData = new URLSearchParams(
+        [...new FormData(native)].map(([name, value]) => [name, String(value)]),
+      );
+      nativeData.set('answer_0_root', nativeData.get('answer_0_root')!.replace(/\n/g, '\r\n'));
+      const parsed = customFieldForm('/api/account/custom-fields', nativeData, data);
+      if (parsed.operation.kind !== 'setOwnCustomFields') throw new Error('Wrong form operation');
+      expect(JSON.parse(String(parsed.operation.patch)).set[0].envelope.value === value).toBe(true);
+      const html = renderStaticCustomFieldControls({
+        schema: schema.properties.value,
+        labels: item.definition.labels,
+        locale: 'en',
+        defaultLocale: 'en',
+        copy: enAdmin.custom_fields,
+        prefix: '0',
+        value,
+      });
+      const document = new DOMParser().parseFromString(html, 'text/html');
+      const source = document.querySelector<HTMLTextAreaElement>('textarea')!.value;
+      const mode = document.querySelector<HTMLSelectElement>('[name="textmode_0_root"]')!.value;
+      expect(decodeCustomFieldText(source, mode) === value).toBe(true);
+      expect(mode).toBe(customFieldTextMode(value));
+    },
+  );
+
+  it('maps opaque enum tokens to immutable CR/LF choices in both parser paths', () => {
+    const choices = ['one\rtwo', 'one\r\ntwo', 'one\ntwo'];
+    const schema = envelopeSchema({ type: 'string', minLength: 1, maxLength: 32, enum: choices });
+    const item = field({
+      definition: {
+        ...field().definition,
+        schema,
+        formLabels: [
+          {
+            location: '/',
+            labels: null,
+            choices: choices.map((_, index) => ({ en: 'Choice ' + index })),
+          },
+        ],
+      },
+      envelope: { value: choices[1]! },
+    });
+    const data = fields([item]);
+    const patch = {
+      set: [
+        {
+          conceptKey: item.conceptKey,
+          definitionId: item.definitionId,
+          schemaVersion: 1,
+          envelope: { value: null },
+          consentEvidenceId: null,
+        },
+      ],
+      remove: [],
+    };
+    const { container } = render(
+      <CustomFieldNativeForm
+        action="/api/account/custom-fields"
+        patch={patch}
+        schemata={[schema]}
+        complex={false}
+        copy={enAdmin.custom_fields}
+      >
+        <input type="hidden" name="csrfToken" value={'A'.repeat(43)} />
+        <input type="hidden" name="idempotencyKey" value={'K'.repeat(43)} />
+        <input type="hidden" name="version" value={data.version} />
+        <input type="hidden" name="payload" value={JSON.stringify(patch)} />
+        <FieldControls
+          schema={schema.properties.value}
+          labels={item.definition.labels}
+          formLabels={item.definition.formLabels}
+          locale="en"
+          defaultLocale="en"
+          copy={enAdmin.custom_fields}
+          prefix="0"
+          value={choices[1]}
+        />
+      </CustomFieldNativeForm>,
+    );
+    const form = container.querySelector('form')!;
+    expect(form.querySelector<HTMLSelectElement>('[name="answer_0_root"]')!.value).toBe(
+      customFieldChoiceToken(1),
+    );
+    expect(
+      JSON.parse(String(enhancedSubmission(form).get('payload'))).set[0].envelope.value ===
+        choices[1],
+    ).toBe(true);
+    const html = renderStaticCustomFieldControls({
+      schema: schema.properties.value,
+      labels: item.definition.labels,
+      formLabels: item.definition.formLabels,
+      locale: 'en',
+      defaultLocale: 'en',
+      copy: enAdmin.custom_fields,
+      prefix: '0',
+      value: choices[1],
+    });
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    expect(document.querySelector<HTMLSelectElement>('select')!.value).toBe('choice-1');
+    expect(
+      [...document.querySelectorAll('option')].every((option) => !/[\r\n]/.test(option.value)),
+    ).toBe(true);
+    const nativeData = new URLSearchParams({
+      csrfToken: 'proof',
+      idempotencyKey: 'custom-key',
+      version: data.version,
+      payload: JSON.stringify(patch),
+      answer_0_root: 'choice-1',
+    });
+    const result = customFieldForm('/api/account/custom-fields', nativeData, data);
+    if (result.operation.kind !== 'setOwnCustomFields') throw new Error('Wrong form operation');
+    expect(JSON.parse(String(result.operation.patch)).set[0].envelope.value === choices[1]).toBe(
+      true,
+    );
+  });
+
+  it('preserves text and editable names after rejection and switches exact modes without losing CR', () => {
+    const schema = envelopeSchema({ type: 'string', minLength: 1, maxLength: 32 });
+    const { container } = render(
+      <CustomFieldNativeForm
+        action="/api/account/custom-fields"
+        patch={{
+          set: [
+            {
+              conceptKey: 'text',
+              definitionId,
+              schemaVersion: 1,
+              envelope: { value: null },
+              consentEvidenceId: null,
+            },
+          ],
+          remove: [],
+        }}
+        schemata={[schema]}
+        complex={false}
+        copy={enAdmin.custom_fields}
+      >
+        <input type="hidden" name="payload" value="" />
+        <FieldControls
+          schema={schema.properties.value}
+          labels={{ en: 'Text' }}
+          locale="en"
+          defaultLocale="en"
+          copy={enAdmin.custom_fields}
+          prefix="0"
+          value={'a\rb'}
+        />
+      </CustomFieldNativeForm>,
+    );
+    const form = container.querySelector('form')!;
+    const mode = form.querySelector<HTMLSelectElement>('[name="textmode_0_root"]')!;
+    const textarea = form.querySelector<HTMLTextAreaElement>('textarea')!;
+    expect(mode.value).toBe('escaped');
+    expect(mode.options[0]!.disabled).toBe(true);
+    fireEvent.change(textarea, { target: { value: 'bad\\escape' } });
+    fireEvent.submit(form);
+    expect(form.querySelector('[name="answer_0_root"]')).not.toBeNull();
+    expect(textarea.value).toBe('bad\\escape');
+    fireEvent.change(textarea, { target: { value: 'a\\nb' } });
+    fireEvent.change(mode, { target: { value: 'plain' } });
+    expect(textarea.value).toBe('a\nb');
+    fireEvent.change(mode, { target: { value: 'escaped' } });
+    expect(textarea.value).toBe('a\\nb');
+  });
+
+  it.each([
+    { type: 'boolean' },
+    { type: 'integer', minimum: 5, maximum: 20 },
+    { type: 'number', minimum: -3.5, maximum: 4.25 },
+    { type: 'string', minLength: 2, maxLength: 17 },
+  ] as const)('keeps an unchanged native scalar draft schema and authored metadata', (shape) => {
+    const initial: CustomFieldDefinition = {
+      definitionId,
+      targetEntity: 'Membership',
+      key: 'scalar',
+      schemaVersion: 3,
+      version: '7',
+      status: 'Draft',
+      activeRevision: null,
+      isDiscarded: false,
+      maximumValueBytes: 128,
+      schema: envelopeSchema(shape),
+      labels: { en: 'Scalar' },
+      piiCategory: 'None',
+      isRequired: true,
+      sort: 2,
+      purposeKey: null,
+      notices: null,
+      formLabels: [],
+    };
+    const html = renderToStaticMarkup(
+      <CustomFieldDetails
+        snapshot={snapshot()}
+        view={{
+          kind: 'custom_field',
+          definition: initial,
+          revisions: {
+            items: [initial],
+            pageInfo: {
+              nextCursor: null,
+              previousCursor: null,
+              hasNext: false,
+              hasPrevious: false,
+            },
+          },
+          expectedIncumbentId: null,
+          expectedIncumbentVersion: null,
+        }}
+        locale="en"
+        copy={enAdmin.custom_fields}
+      />,
+    );
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const form = document.querySelector<HTMLFormElement>('form.custom-field-native-scalar')!;
+    expect(form).not.toBeNull();
+    expect(form.querySelector<HTMLSelectElement>('[name="authorType"]')!.value).toBe(shape.type);
+    const result = customFieldForm(
+      '/api/studio/custom-field-revise',
+      new URLSearchParams([...new FormData(form)].map(([name, value]) => [name, String(value)])),
+    );
+    if (result.operation.kind !== 'reviseCustomFieldDefinition')
+      throw new Error('Wrong form operation');
+    const proposal = JSON.parse(String(result.operation.input));
+    expect(proposal.schema).toEqual(initial.schema);
+    expect(proposal.formLabels).toEqual(initial.formLabels);
+    expect(proposal.labels).toEqual(initial.labels);
+    expect(result.operation).toMatchObject({ version: initial.version });
+  });
+
+  it.each([
+    { type: 'string', minLength: 1, maxLength: 16, enum: ['one', 'two'] },
+    { type: 'array', minItems: 0, maxItems: 2, items: { type: 'boolean' } },
+  ] as const)('withholds the lossy native scalar editor for enum or nested revisions', (shape) => {
+    const initial: CustomFieldDefinition = {
+      definitionId,
+      targetEntity: 'Membership',
+      key: 'complex',
+      schemaVersion: 1,
+      version: '7',
+      status: 'Draft',
+      activeRevision: null,
+      isDiscarded: false,
+      maximumValueBytes: 128,
+      schema: envelopeSchema(shape),
+      labels: { en: 'Complex' },
+      piiCategory: 'None',
+      isRequired: false,
+      sort: 0,
+      purposeKey: null,
+      notices: null,
+      formLabels:
+        shape.type === 'array'
+          ? [{ location: '/0', labels: { en: 'Item' }, choices: null }]
+          : [{ location: '/', labels: null, choices: [{ en: 'One' }, { en: 'Two' }] }],
+    };
+    const html = renderToStaticMarkup(
+      <CustomFieldDetails
+        snapshot={snapshot()}
+        view={{
+          kind: 'custom_field',
+          definition: initial,
+          revisions: {
+            items: [initial],
+            pageInfo: {
+              nextCursor: null,
+              previousCursor: null,
+              hasNext: false,
+              hasPrevious: false,
+            },
+          },
+          expectedIncumbentId: null,
+          expectedIncumbentVersion: null,
+        }}
+        locale="en"
+        copy={enAdmin.custom_fields}
+      />,
+    );
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    expect(document.querySelector('form.custom-field-native-scalar')).toBeNull();
+    expect(document.querySelector('textarea[name="payload"]')).toBeNull();
+    expect(document.body.textContent).toContain(enAdmin.custom_fields.scalar_editor_unavailable);
   });
 
   it('requires an explicit data category and builds a schema object for the native POST', () => {

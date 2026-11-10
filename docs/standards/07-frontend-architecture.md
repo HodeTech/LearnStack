@@ -1101,6 +1101,13 @@ Membership answer forms retain the same finite typed/grouped controls without
 JavaScript. The native parser resolves immutable descriptors through the owning
 authorized getter; it never trusts a posted control schema. It ignores only
 schema-declared inactive branches and retains unknown/duplicate-control refusal.
+Text answers use multiline controls; an explicit reversible mode preserves exact
+CR/LF combinations and literal backslashes. Enum controls post bounded choice
+indices resolved through the authorized immutable schema, preserving values that
+HTML parsing would normalize. Validation counts decoded values. JavaScript-free
+scalar Draft editing retains the actual type, limits and authored form labels;
+enum/object/list definitions use their prefilled complete editor instead of a
+scalar fallback that would change the schema.
 Required missing answers are completed before an optional selected answer.
 Validation recovery preserves submitted numeric lexemes and the original version;
 only an actual validation refusal may obtain matching descriptors through one

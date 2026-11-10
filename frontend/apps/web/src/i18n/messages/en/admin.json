@@ -235,7 +235,7 @@
     "no_consents": "No consent records on this page.",
     "retained_entry": "Manage retained consent, including former memberships",
     "admin_consent": "Only this person can give personal consent. An administrator cannot grant it on their behalf.",
-    "no_js_builder": "Without JavaScript, use the structured text-field form below. For nested shapes, use the explicitly advanced schema editor.",
+    "no_js_builder": "Without JavaScript, this form edits text, whole numbers, numbers and yes/no fields. Enable JavaScript to use the prefilled visual editor for choices and nested fields.",
     "advanced": "Advanced finite schema editor",
     "advanced_hint": "Only the supported finite profile is accepted. Labels are literal text, never HTML.",
     "errors": "Check the field key, explicit category, labels, bounds and byte limits. No change has been submitted.",
@@ -245,6 +245,11 @@
     "default_locale": "Current default language",
     "required_first": "Complete the missing required answers first. You can then edit other answers separately. Removing a retained answer remains available.",
     "submitted_inputs": "Submitted input — read only",
-    "recovery_unavailable": "This list shows nonempty input from your rejected request. Field details could not be reloaded for editing. Open the current view before preparing another change."
+    "recovery_unavailable": "This list shows nonempty input from your rejected request. Field details could not be reloaded for editing. Open the current view before preparing another change.",
+    "text_entry_mode": "Text entry",
+    "text_plain": "Normal text",
+    "text_exact": "Exact line endings",
+    "text_entry_hint": "Normal text saves new lines as line feeds. Exact line endings uses \\r for a carriage return, \\n for a line feed, and \\\\ for a backslash. It preserves existing line endings. To use Normal text, first replace any \\r escapes deliberately. Length limits count the decoded answer.",
+    "scalar_editor_unavailable": "This revision uses choices or nested answers. Its prefilled visual editor above preserves the complete field; enable JavaScript to edit it."
   }
 }

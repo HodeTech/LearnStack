@@ -1,3 +1,11 @@
+import {
+  customFieldChoiceToken,
+  customFieldTextMode,
+  decodeCustomFieldText,
+  encodeCustomFieldText,
+  normalizeCustomFieldEditorLines,
+} from '@learnstack/sdk';
+
 import type { FieldControlsProps } from './custom-field-controls';
 import {
   authoredText,
@@ -17,16 +25,19 @@ export const escapeCustomFieldHtml = (value: string): string =>
 export const customFieldHidden = (name: string, value: string): string =>
   `<input type="hidden" name="${escapeCustomFieldHtml(name)}" value="${escapeCustomFieldHtml(value)}">`;
 export function customFieldOptions(
-  choices: readonly Readonly<{ value: string; label: string; lang?: string }>[],
+  choices: readonly Readonly<{ value: string; label: string; lang?: string; disabled?: boolean }>[],
   selected: string,
 ): string {
   return choices
     .map(
       (choice) =>
-        `<option value="${escapeCustomFieldHtml(choice.value)}"${choice.lang === undefined ? '' : ` lang="${escapeCustomFieldHtml(choice.lang)}"`}${choice.value === selected ? ' selected' : ''}>${escapeCustomFieldHtml(choice.label)}</option>`,
+        `<option value="${escapeCustomFieldHtml(choice.value)}"${choice.lang === undefined ? '' : ` lang="${escapeCustomFieldHtml(choice.lang)}"`}${choice.disabled ? ' disabled' : ''}${choice.value === selected ? ' selected' : ''}>${escapeCustomFieldHtml(choice.label)}</option>`,
     )
     .join('');
 }
+
+export const customFieldTextareaContent = (source: string): string =>
+  (source.startsWith('\n') ? '\n' : '') + escapeCustomFieldHtml(source);
 
 /** Bounded native HTML for the same finite controls, without a React server renderer dependency. */
 export function renderStaticCustomFieldControls(props: FieldControlsProps): string {
@@ -114,32 +125,52 @@ export function renderStaticCustomFieldControls(props: FieldControlsProps): stri
         value,
       )}</select>`;
     } else if (node.type === 'string' && node.enum) {
-      const value = submitted?.['answer_' + name] ?? (typeof current === 'string' ? current : '');
+      const value =
+        submitted?.['answer_' + name] ??
+        (typeof current === 'string' && node.enum.includes(current)
+          ? customFieldChoiceToken(node.enum.indexOf(current))
+          : '');
       input = `<select ${common}>${customFieldOptions(
         [
           { value: '', label: copy.choose },
-          ...node.enum.map((value, index) => {
+          ...node.enum.map((_, index) => {
             const text = authoredText(metadata?.choices?.[index] ?? {}, locale, defaultLocale);
-            return { value, label: text.text, lang: text.lang };
+            return { value: customFieldChoiceToken(index), label: text.text, lang: text.lang };
           }),
         ],
         value,
       )}</select>`;
+    } else if (node.type === 'string') {
+      const stored = typeof current === 'string' ? current : '';
+      const requested = submitted?.['textmode_' + name];
+      const mode =
+        requested === 'plain' || requested === 'escaped' ? requested : customFieldTextMode(stored);
+      const source =
+        submitted?.['answer_' + name] === undefined
+          ? encodeCustomFieldText(stored, mode)
+          : normalizeCustomFieldEditorLines(submitted['answer_' + name]!);
+      let allowsPlain = false;
+      try {
+        allowsPlain = !decodeCustomFieldText(source, mode).includes('\r');
+      } catch {
+        /* Exact text remains editable without a lossy mode change. */
+      }
+      input = `<label for="${escape(id + '-textmode')}">${escape(copy.text_entry_mode)}</label><select id="${escape(id + '-textmode')}" name="${escape('textmode_' + name)}" aria-describedby="${escape(hint)}">${customFieldOptions(
+        [
+          { value: 'plain', label: copy.text_plain, disabled: !allowsPlain },
+          { value: 'escaped', label: copy.text_exact },
+        ],
+        mode,
+      )}</select><textarea ${common} maxlength="${node.maxLength * 2}" rows="3">${customFieldTextareaContent(source)}</textarea>`;
     } else {
       const value =
-        submitted?.['answer_' + name] ??
-        (node.type === 'string'
-          ? typeof current === 'string'
-            ? current
-            : ''
-          : typeof current === 'number'
-            ? String(current)
-            : '');
-      input = `<input ${common}${node.type === 'string' ? '' : ' type="text" inputmode="decimal"'} maxlength="${node.type === 'string' ? node.maxLength * 2 : 128}" value="${escape(value)}">`;
+        submitted?.['answer_' + name] ?? (typeof current === 'number' ? String(current) : '');
+      input = `<input ${common} type="text" inputmode="decimal" maxlength="128" value="${escape(value)}">`;
     }
+
     const help =
       node.type === 'string'
-        ? `${escape(copy.min)}: ${node.minLength} · ${escape(copy.max)}: ${node.maxLength}`
+        ? `${escape(copy.min)}: ${node.minLength} · ${escape(copy.max)}: ${node.maxLength}.${node.enum ? '' : ' ' + escape(copy.text_entry_hint)}`
         : node.type === 'boolean'
           ? escape(copy.choose)
           : `${escape(copy.min)}: ${node.minimum} · ${escape(copy.max)}: ${node.maximum}. ${escape(copy.numeric_hint)}`;

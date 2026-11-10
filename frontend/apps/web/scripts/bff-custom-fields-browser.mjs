@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { customFieldBrowserNoticeHash } from './bff-custom-fields-fixture.mjs';
+import {
+  customFieldBrowserNoticeHash,
+  customFieldBrowserExactText,
+} from './bff-custom-fields-fixture.mjs';
 import { withProofWaiters } from './bff-proof-support.mjs';
 
 const copies = Object.fromEntries(
@@ -18,6 +21,7 @@ const copies = Object.fromEntries(
 );
 const sensitiveId = '019a154b-0000-7000-8000-000000000102';
 const complexId = '019a154b-0000-7000-8000-000000000101';
+const exactTextId = '019a154b-0000-7000-8000-000000000104';
 
 async function submit(
   page,
@@ -45,15 +49,53 @@ async function submit(
   return new URLSearchParams(request.postData());
 }
 
+async function verifyExactTextRoundtrip(page, site, enhanced) {
+  const origin = 'https://' + site.host;
+  await page.goto(origin + '/portal/profile?field=' + exactTextId);
+  const form = enhanced
+    ? page.locator('form.custom-field-editor')
+    : page.locator('section[aria-labelledby="custom-field-native-fallback-title"] form');
+  await form.waitFor({ state: 'visible' });
+  assert.equal(await form.locator('textarea[name^="answer_"]').count(), 6);
+  assert.equal(await form.locator('select[name^="textmode_"]').count(), 6);
+  const keys = Object.keys(customFieldBrowserExactText).sort();
+  for (const [index, key] of keys.entries()) {
+    const answer = form.locator('[name="answer_0_root_' + index + '"]');
+    if (key === 'enum') assert.equal(await answer.inputValue(), 'choice-0');
+    else {
+      assert.equal(
+        await form.locator('[name="textmode_0_root_' + index + '"]').inputValue(),
+        customFieldBrowserExactText[key].includes('\r') ? 'escaped' : 'plain',
+      );
+      if (key === 'leading')
+        assert.equal(await answer.inputValue(), customFieldBrowserExactText[key]);
+    }
+  }
+  const fields = await submit(page, form, '/api/account/custom-fields', origin);
+  const patch = JSON.parse(fields.get('payload'));
+  assert.equal(patch.set[0].definitionId, exactTextId);
+  if (enhanced) assert.deepEqual(patch.set[0].envelope.value, customFieldBrowserExactText);
+  else assert.equal(patch.set[0].envelope.value, null);
+  // The controlled API independently refuses any changed exact string before storing the result.
+  await page.waitForURL(origin + '/portal/profile');
+}
+
 export async function verifyCustomFieldBrowser({ page, site, mark }) {
   const origin = 'https://' + site.host;
   const copy = copies[site.locale.startsWith('tr') ? 'tr' : 'en'];
+  mark('browser-custom-field-author-boolean');
+  await verifyExactTextRoundtrip(page, site, true);
   for (const [type, category] of [
     ['boolean', 'None'],
     ['number', 'Identity'],
     ['enum', 'Behaviour'],
+    ['integer', 'Identity'],
+    ['string', 'None'],
   ]) {
-    mark('browser-custom-field-author-' + type);
+    mark(
+      'browser-custom-field-author-' +
+        (type === 'integer' ? 'number' : type === 'string' ? 'boolean' : type),
+    );
     await page.goto(origin + '/studio/custom-fields');
     const form = page.locator('form.custom-field-js-builder');
     await form.waitFor({ state: 'visible' });
@@ -64,9 +106,13 @@ export async function verifyCustomFieldBrowser({ page, site, mark }) {
     await form.locator('#definition-control-label-' + site.locale).fill(label);
     await form.locator('#definition-control-type').selectOption(type);
     await form.locator('#definition-category').selectOption(category);
-    if (type === 'number') {
-      await form.locator('#definition-control-min').fill('-3.5');
-      await form.locator('#definition-control-max').fill('3.5');
+    if (['number', 'integer', 'string'].includes(type)) {
+      await form
+        .locator('#definition-control-min')
+        .fill(type === 'number' ? '-3.5' : type === 'integer' ? '-7' : '5');
+      await form
+        .locator('#definition-control-max')
+        .fill(type === 'number' ? '3.5' : type === 'integer' ? '9' : '37');
     }
     if (type === 'enum') {
       await form.locator('#definition-control-choice-0').fill('first');
@@ -167,9 +213,57 @@ export async function verifyCustomFieldBrowser({ page, site, mark }) {
   assert.equal((await page.locator('a[href="/account/consents"]').count()) > 0, true);
 }
 
+async function verifyNativeDraftPreservation(page, site) {
+  const origin = 'https://' + site.host;
+  for (const type of ['boolean', 'number', 'integer', 'string', 'enum']) {
+    const label =
+      type === 'boolean' ? '<img src=x onerror=alert(1)> browser flag' : 'Browser ' + type;
+    await page.goto(origin + '/studio/custom-fields');
+    await page.getByRole('heading', { level: 2, name: label, exact: true }).locator('a').click();
+    await page.waitForURL((url) => url.pathname.startsWith('/studio/custom-fields/'));
+    const path = new URL(page.url()).pathname;
+    const scalar = page.locator('form.custom-field-native-scalar');
+    if (type === 'enum') {
+      assert.equal(await scalar.count(), 0, 'a scalar fallback must not replace a finite enum');
+      continue;
+    }
+    await scalar.waitFor({ state: 'visible' });
+    assert.equal(await scalar.locator('[name="authorType"]').inputValue(), type);
+    if (type === 'number' || type === 'integer') {
+      assert.equal(
+        await scalar.locator('[name="authorMinimum"]').inputValue(),
+        type === 'number' ? '-3.5' : '-7',
+      );
+      assert.equal(
+        await scalar.locator('[name="authorMaximum"]').inputValue(),
+        type === 'number' ? '3.5' : '9',
+      );
+    }
+    if (type === 'string') {
+      assert.equal(await scalar.locator('[name="authorMinLength"]').inputValue(), '5');
+      assert.equal(await scalar.locator('[name="authorMaxLength"]').inputValue(), '37');
+    }
+    const localeLabel = scalar.locator('[name="authorLabel_' + site.locale + '"]');
+    if ((await localeLabel.inputValue()) === '') await localeLabel.fill(label);
+    assert.deepEqual(
+      await scalar
+        .locator(':invalid')
+        .evaluateAll((controls) => controls.map((control) => control.name)),
+      [],
+    );
+    const fields = await submit(page, scalar, '/api/studio/custom-field-revise', origin);
+    assert.equal(fields.get('authorType'), type);
+    assert.equal(fields.has('authorFormLabels'), true);
+    await page.waitForURL(origin + path);
+    assert.equal(await scalar.locator('[name="authorType"]').inputValue(), type);
+  }
+}
+
 export async function verifyCustomFieldNoScript({ page, site, mark, replacement }) {
   const origin = 'https://' + site.host;
   mark('browser-custom-field-no-script');
+  await verifyExactTextRoundtrip(page, site, false);
+  await verifyNativeDraftPreservation(page, site);
   await page.goto(origin + '/portal/profile?field=' + complexId);
   const form = page.locator('section[aria-labelledby="custom-field-native-fallback-title"] form');
   await form.waitFor({ state: 'visible' });

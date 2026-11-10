@@ -6,6 +6,7 @@
     "rootDir": "src/server",
     "outDir": ".server",
     "noEmit": false,
+    "noEmitOnError": true,
     "incremental": false,
     "plugins": []
   },

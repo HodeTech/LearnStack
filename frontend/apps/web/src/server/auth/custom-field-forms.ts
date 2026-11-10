@@ -1,11 +1,13 @@
-import {
-  parseCustomFieldJson,
-  parseCustomFieldNumber,
-} from '@learnstack/sdk/administration-server';
 import type {
   MembershipCustomFields,
   LocalizedText,
   FormLabel,
+} from '@learnstack/sdk/administration-server';
+import {
+  parseCustomFieldJson,
+  parseCustomFieldNumber,
+  decodeCustomFieldChoice,
+  decodeCustomFieldText,
 } from '@learnstack/sdk/administration-server';
 
 import { BffInputError } from './input-error.js';
@@ -92,6 +94,7 @@ function declareCustomFieldControls(
   }
   if (!['string', 'boolean', 'integer', 'number'].includes(schema.type as string)) return fail();
   controls.add('answer_' + prefix);
+  if (schema.type === 'string' && schema.enum === undefined) controls.add('textmode_' + prefix);
 }
 
 /** Fresh immutable metadata declares the finite controls, including explicitly excluded branches. */
@@ -165,17 +168,27 @@ export function buildCustomFieldAnswer(
     return raw === 'true';
   }
   if (schema.type === 'string') {
+    let value: string;
+    try {
+      value =
+        schema.enum === undefined
+          ? decodeCustomFieldText(raw, required(fields, 'textmode_' + prefix))
+          : Array.isArray(schema.enum) && schema.enum.every((choice) => typeof choice === 'string')
+            ? decodeCustomFieldChoice(raw, schema.enum)
+            : fail();
+    } catch {
+      return fail();
+    }
     if (
       !Number.isInteger(schema.minLength) ||
       !Number.isInteger(schema.maxLength) ||
       (schema.maxLength as number) > 256 ||
       (schema.minLength as number) < 1 ||
-      [...raw].length < (schema.minLength as number) ||
-      [...raw].length > (schema.maxLength as number) ||
-      (schema.enum !== undefined && (!Array.isArray(schema.enum) || !schema.enum.includes(raw)))
+      [...value].length < (schema.minLength as number) ||
+      [...value].length > (schema.maxLength as number)
     )
       return fail();
-    return raw;
+    return value;
   }
   if (schema.type === 'integer' || schema.type === 'number') {
     let number: number;
@@ -213,6 +226,7 @@ export const CUSTOM_FIELD_FORMS: Readonly<Record<string, readonly string[]>> = O
     'authorRequired',
     'authorSort',
     'authorPurpose',
+    'authorFormLabels',
   ],
   '/api/studio/custom-field-revise': [
     'csrfToken',
@@ -231,6 +245,7 @@ export const CUSTOM_FIELD_FORMS: Readonly<Record<string, readonly string[]>> = O
     'authorRequired',
     'authorSort',
     'authorPurpose',
+    'authorFormLabels',
   ],
   '/api/studio/custom-field-publish': [
     'csrfToken',
@@ -274,7 +289,7 @@ export const CUSTOM_FIELD_FORMS: Readonly<Record<string, readonly string[]>> = O
 export const customAuthorName = (name: string): boolean =>
   /^author(?:Label|Notice)_[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/.test(name);
 export const customControlName = (name: string): boolean =>
-  /^(?:answer|presence|count)_[0-9]{1,2}_root(?:_[0-9]){0,2}$/.test(name);
+  /^(?:answer|presence|count|textmode)_[0-9]{1,2}_root(?:_[0-9]){0,2}$/.test(name);
 export function customFieldForm(
   path: string,
   fields: URLSearchParams,
@@ -448,7 +463,7 @@ export function customFieldForm(
       sort,
       purposeKey: purpose === '' ? null : purpose,
       notices: Object.keys(notices).length ? notices : null,
-      formLabels: null,
+      formLabels: parse(fields.get('authorFormLabels') ?? 'null'),
     });
     parse(raw);
     return raw;

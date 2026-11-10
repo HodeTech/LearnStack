@@ -29,17 +29,51 @@ test('actual form/heading/nonce observations remain closed and payload-free', ()
   assert.deepEqual(value, {
     kind: 'consent_entry',
     scopeForms: 1,
+    withdrawForms: 0,
     historyLoaded: true,
     historyProtected: true,
   });
   for (const privateValue of [id, 'P'.repeat(43), 'private-notice-canary', html, nonce])
     assert.ok(!JSON.stringify(value).includes(privateValue));
   assert.equal(Object.isFrozen(value), true);
+  const evidence = '019a154b-0000-7000-8000-000000000022';
+  const withdrawal = form
+    .replace('action="/api/auth/entry/consents"', 'action="/api/auth/entry/consents/withdraw"')
+    .replace(
+      '</form>',
+      '<input name="evidenceId" value="' +
+        evidence +
+        '"><input name="expectedEvidenceId" value="' +
+        evidence +
+        '"><input name="expectedSequence" value="1"></form>',
+    );
+  const page = html.replace('</body>', withdrawal + '</body>');
+  assert.equal(consentProofView(page, policy, id).withdrawForms, 1);
+  assert.throws(() => consentProofView(page, policy));
+  assert.throws(() =>
+    consentProofView(
+      page.replace(
+        'name="expectedEvidenceId" value="' + evidence + '"',
+        'name="expectedEvidenceId" value="' + id + '"',
+      ),
+      policy,
+      id,
+    ),
+  );
+  const receipt = JSON.stringify(consentProofView(page, policy, id));
+  assert.ok(!receipt.includes(id));
+  assert.ok(!receipt.includes(evidence));
 });
 test('anonymous 200 HTML cannot masquerade as credentialed scope/history proof', () => {
   assert.deepEqual(
     consentProofView('<html><body><a href="/api/auth/signin">Sign in</a></body></html>'),
-    { kind: 'consent_entry', scopeForms: 0, historyLoaded: false, historyProtected: false },
+    {
+      kind: 'consent_entry',
+      scopeForms: 0,
+      withdrawForms: 0,
+      historyLoaded: false,
+      historyProtected: false,
+    },
   );
 });
 test('wrong nonce, unrestricted script policy, removed veil and POST reload are visible counter-controls', () => {

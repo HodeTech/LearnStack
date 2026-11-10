@@ -9,6 +9,7 @@ import { isNativeReturnPath } from '@/server/auth/session-path';
 
 import {
   customFieldHidden,
+  customFieldTextareaContent,
   customFieldOptions,
   escapeCustomFieldHtml,
   renderStaticCustomFieldControls,
@@ -39,7 +40,9 @@ export function customFieldMutationContent(
   const { copy } = createAuthTranslator(locale);
   const text = getAdministrationCatalogue(locale).messages.admin.custom_fields;
   const fields = new Map(page.fields);
-  const hiddenFields = page.fields.filter(([name]) => !/^(?:answer|presence|count)_/.test(name));
+  const hiddenFields = page.fields.filter(
+    ([name]) => !/^(?:answer|presence|count|textmode)_/.test(name),
+  );
   let controls: string | null = null;
   const escape = escapeCustomFieldHtml;
   let preparedPayload = fields.get('payload') ?? '';
@@ -59,7 +62,9 @@ export function customFieldMutationContent(
         })
       ) {
         const submitted = Object.fromEntries(page.fields);
-        const raw = !page.fields.some(([name]) => /^(?:answer|presence|count)_/.test(name));
+        const raw = !page.fields.some(([name]) =>
+          /^(?:answer|presence|count|textmode)_/.test(name),
+        );
         const patch = raw
           ? (parseCustomFieldJson(preparedPayload) as {
               set: readonly { envelope: { value: unknown } }[];
@@ -142,7 +147,7 @@ export function customFieldMutationContent(
       site.enabledLocales
         .map(
           (tag) =>
-            `<fieldset><legend>${escape(tag)}</legend><label for="${escape('recover-label-' + tag)}">${escape(text.label)}</label><input id="${escape('recover-label-' + tag)}" name="${escape('authorLabel_' + tag)}" maxlength="128" value="${escape(fields.get('authorLabel_' + tag) ?? '')}"><label for="${escape('recover-notice-' + tag)}">${escape(text.notice)}</label><textarea id="${escape('recover-notice-' + tag)}" name="${escape('authorNotice_' + tag)}" maxlength="512">${escape(fields.get('authorNotice_' + tag) ?? '')}</textarea></fieldset>`,
+            `<fieldset><legend>${escape(tag)}</legend><label for="${escape('recover-label-' + tag)}">${escape(text.label)}</label><input id="${escape('recover-label-' + tag)}" name="${escape('authorLabel_' + tag)}" maxlength="128" value="${escape(fields.get('authorLabel_' + tag) ?? '')}"><label for="${escape('recover-notice-' + tag)}">${escape(text.notice)}</label><textarea id="${escape('recover-notice-' + tag)}" name="${escape('authorNotice_' + tag)}" maxlength="512">${customFieldTextareaContent(fields.get('authorNotice_' + tag) ?? '')}</textarea></fieldset>`,
         )
         .join('');
   }
@@ -150,7 +155,7 @@ export function customFieldMutationContent(
   const editable = controls !== null || authorActions.includes(page.action);
   const submittedInputs: string[] = [];
   if (memberActions.includes(page.action) && controls === null) {
-    if (page.fields.some(([name]) => /^(?:answer|presence|count)_/.test(name))) {
+    if (page.fields.some(([name]) => /^(?:answer|presence|count|textmode)_/.test(name))) {
       for (const [name, value] of page.fields)
         if (name.startsWith('answer_') && value !== '') submittedInputs.push(value);
     } else {
@@ -177,11 +182,13 @@ export function customFieldMutationContent(
     .filter(
       ([name]) =>
         (controls !== null || name !== 'payload') &&
-        (!scalarAuthor || (!name.startsWith('author') && name !== 'schemaVersion')),
+        (!scalarAuthor ||
+          name === 'authorFormLabels' ||
+          (!name.startsWith('author') && name !== 'schemaVersion')),
     )
     .map(([name, value]) => customFieldHidden(name, name === 'payload' ? preparedPayload : value))
     .join('');
-  const advanced = `<label for="recover-custom-field-payload">${escape(text.advanced)}</label><p>${escape(text.advanced_hint)}</p><textarea id="recover-custom-field-payload" name="payload" rows="20" maxlength="4096">${escape(fields.get('payload') ?? '')}</textarea>`;
+  const advanced = `<label for="recover-custom-field-payload">${escape(text.advanced)}</label><p>${escape(text.advanced_hint)}</p><textarea id="recover-custom-field-payload" name="payload" rows="20" maxlength="4096">${customFieldTextareaContent(fields.get('payload') ?? '')}</textarea>`;
   const form = editable
     ? `<form action="${escape(page.action)}" method="post">${proof}${controls ?? advanced}<button type="submit">${escape(memberActions.includes(page.action) ? text.save : text.save_draft)}</button></form>`
     : '';

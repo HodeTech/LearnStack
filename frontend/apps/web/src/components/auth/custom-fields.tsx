@@ -7,7 +7,12 @@ import { FormIdentityFields, MutationFields } from './admin-forms';
 import { CustomFieldBuilder } from './custom-field-builder';
 import { FieldControls } from './custom-field-controls';
 import type { FieldCopy } from './custom-field-controls';
-import { authoredText, readFieldSchema, hasDisabledFieldTranslations } from './custom-field-schema';
+import {
+  authoredText,
+  readFieldSchema,
+  hasDisabledFieldTranslations,
+  enabledFieldControlLabels,
+} from './custom-field-schema';
 
 function stateLabel(definition: CustomFieldDefinition, copy: FieldCopy) {
   return definition.isDiscarded
@@ -32,6 +37,13 @@ function Author({
   copy: FieldCopy;
 }>) {
   const revise = initial !== undefined && !successor;
+  const valueSchema = initial ? readFieldSchema(initial.schema)?.properties.value : undefined;
+  const scalar =
+    !initial ||
+    (valueSchema !== undefined &&
+      valueSchema.type !== 'object' &&
+      valueSchema.type !== 'array' &&
+      !(valueSchema.type === 'string' && valueSchema.enum !== undefined));
   return (
     <>
       <CustomFieldBuilder
@@ -52,166 +64,157 @@ function Author({
           {copy.default_locale}: {snapshot.site.defaultLocale}
         </p>
         <p>{copy.no_js_builder}</p>
-        <form
-          action={revise ? '/api/studio/custom-field-revise' : '/api/studio/custom-field-create'}
-          method="post"
-        >
-          {revise ? (
-            <MutationFields
-              snapshot={snapshot}
-              index={11}
-              version={initial.version}
-              target={['definitionId', initial.definitionId]}
-            />
-          ) : (
-            <FormIdentityFields snapshot={snapshot} index={11} />
-          )}
-          <label htmlFor="author-schema-version">{copy.revision}</label>
-          <input
-            id="author-schema-version"
-            name="schemaVersion"
-            type="text"
-            inputMode="numeric"
-            defaultValue={initial ? initial.schemaVersion + (successor ? 1 : 0) : 1}
-            readOnly={revise}
-            maxLength={10}
-          />
-          <label htmlFor="author-key">{copy.key}</label>
-          <input
-            id="author-key"
-            name="authorKey"
-            maxLength={100}
-            defaultValue={initial?.key ?? ''}
-            readOnly={Boolean(initial)}
-            required
-          />
-          <label htmlFor="author-type">{copy.type}</label>
-          <select id="author-type" name="authorType" defaultValue="string">
-            <option value="string">{copy.string}</option>
-            <option value="integer">{copy.integer}</option>
-            <option value="number">{copy.number}</option>
-            <option value="boolean">{copy.boolean}</option>
-          </select>
-          <label htmlFor="author-minlength">
-            {copy.string} · {copy.min}
-          </label>
-          <input id="author-minlength" name="authorMinLength" defaultValue="1" maxLength={3} />
-          <label htmlFor="author-maxlength">
-            {copy.string} · {copy.max}
-          </label>
-          <input id="author-maxlength" name="authorMaxLength" defaultValue="32" maxLength={3} />
-          <label htmlFor="author-minimum">
-            {copy.number} · {copy.min}
-          </label>
-          <input id="author-minimum" name="authorMinimum" defaultValue="-100" maxLength={128} />
-          <label htmlFor="author-maximum">
-            {copy.number} · {copy.max}
-          </label>
-          <input id="author-maximum" name="authorMaximum" defaultValue="100" maxLength={128} />
-          <p>{copy.numeric_hint}</p>
-          <label htmlFor="author-category">{copy.category}</label>
-          <select
-            id="author-category"
-            name="authorCategory"
-            defaultValue={initial?.piiCategory ?? ''}
-            required
-          >
-            <option value="">{copy.choose}</option>
-            <option value="None">{copy.none}</option>
-            <option value="Identity">{copy.identity}</option>
-            <option value="Behaviour">{copy.behaviour}</option>
-            <option value="Sensitive">{copy.sensitive}</option>
-          </select>
-          <label>
-            <input name="authorRequired" type="checkbox" defaultChecked={initial?.isRequired} />{' '}
-            {copy.required}
-          </label>
-          <label htmlFor="author-sort">{copy.order}</label>
-          <input
-            id="author-sort"
-            name="authorSort"
-            defaultValue={initial?.sort ?? 0}
-            maxLength={6}
-          />
-          <label htmlFor="author-purpose">{copy.purpose}</label>
-          <input
-            id="author-purpose"
-            name="authorPurpose"
-            defaultValue={initial?.purposeKey ?? ''}
-            maxLength={64}
-          />
-          {snapshot.site.enabledLocales.map((tag) => (
-            <fieldset key={tag}>
-              <legend>{tag}</legend>
-              <label htmlFor={'author-label-' + tag}>{copy.label}</label>
-              <input
-                id={'author-label-' + tag}
-                name={'authorLabel_' + tag}
-                defaultValue={initial?.labels[tag] ?? ''}
-                maxLength={128}
-                required={tag === snapshot.site.defaultLocale}
-              />
-              <label htmlFor={'author-notice-' + tag}>{copy.notice}</label>
-              <textarea
-                id={'author-notice-' + tag}
-                name={'authorNotice_' + tag}
-                maxLength={512}
-                defaultValue={initial?.notices?.[tag] ?? ''}
-              />
-            </fieldset>
-          ))}
-          <p>{copy.input_budget}</p>
-          <button type="submit">{revise ? copy.save_draft : copy.create}</button>
-        </form>
-        <details>
-          <summary>{copy.advanced}</summary>
-          <p>{copy.advanced_hint}</p>
+        {scalar ? (
           <form
+            className="custom-field-native-scalar"
             action={revise ? '/api/studio/custom-field-revise' : '/api/studio/custom-field-create'}
             method="post"
           >
             {revise ? (
               <MutationFields
                 snapshot={snapshot}
-                index={12}
+                index={11}
                 version={initial.version}
                 target={['definitionId', initial.definitionId]}
               />
             ) : (
-              <FormIdentityFields snapshot={snapshot} index={12} />
+              <FormIdentityFields snapshot={snapshot} index={11} />
             )}
-            <label htmlFor="advanced-definition">{copy.advanced}</label>
-            <textarea
-              id="advanced-definition"
-              name="payload"
-              rows={20}
-              maxLength={4096}
-              defaultValue={
-                initial
-                  ? JSON.stringify(
-                      {
-                        targetEntity: initial.targetEntity,
-                        key: initial.key,
-                        schemaVersion: initial.schemaVersion + (successor ? 1 : 0),
-                        schema: initial.schema,
-                        labels: initial.labels,
-                        piiCategory: initial.piiCategory,
-                        isRequired: initial.isRequired,
-                        sort: initial.sort,
-                        purposeKey: initial.purposeKey,
-                        notices: initial.notices,
-                        formLabels: initial.formLabels,
-                      },
-                      null,
-                      2,
-                    )
-                  : ''
-              }
+            <input
+              type="hidden"
+              name="authorFormLabels"
+              value={JSON.stringify(
+                enabledFieldControlLabels(initial?.formLabels, snapshot.site.enabledLocales),
+              )}
+            />
+            <label htmlFor="author-schema-version">{copy.revision}</label>
+            <input
+              id="author-schema-version"
+              name="schemaVersion"
+              type="text"
+              inputMode="numeric"
+              defaultValue={initial ? initial.schemaVersion + (successor ? 1 : 0) : 1}
+              readOnly={revise}
+              maxLength={10}
+            />
+            <label htmlFor="author-key">{copy.key}</label>
+            <input
+              id="author-key"
+              name="authorKey"
+              maxLength={100}
+              defaultValue={initial?.key ?? ''}
+              readOnly={Boolean(initial)}
               required
             />
+            <label htmlFor="author-type">{copy.type}</label>
+            <select id="author-type" name="authorType" defaultValue={valueSchema?.type ?? 'string'}>
+              <option value="string">{copy.string}</option>
+              <option value="integer">{copy.integer}</option>
+              <option value="number">{copy.number}</option>
+              <option value="boolean">{copy.boolean}</option>
+            </select>
+            <label htmlFor="author-minlength">
+              {copy.string} · {copy.min}
+            </label>
+            <input
+              id="author-minlength"
+              name="authorMinLength"
+              defaultValue={valueSchema?.type === 'string' ? valueSchema.minLength : 1}
+              maxLength={3}
+            />
+            <label htmlFor="author-maxlength">
+              {copy.string} · {copy.max}
+            </label>
+            <input
+              id="author-maxlength"
+              name="authorMaxLength"
+              defaultValue={valueSchema?.type === 'string' ? valueSchema.maxLength : 32}
+              maxLength={3}
+            />
+            <label htmlFor="author-minimum">
+              {copy.number} · {copy.min}
+            </label>
+            <input
+              id="author-minimum"
+              name="authorMinimum"
+              defaultValue={
+                valueSchema?.type === 'integer' || valueSchema?.type === 'number'
+                  ? valueSchema.minimum
+                  : -100
+              }
+              maxLength={128}
+            />
+            <label htmlFor="author-maximum">
+              {copy.number} · {copy.max}
+            </label>
+            <input
+              id="author-maximum"
+              name="authorMaximum"
+              defaultValue={
+                valueSchema?.type === 'integer' || valueSchema?.type === 'number'
+                  ? valueSchema.maximum
+                  : 100
+              }
+              maxLength={128}
+            />
+            <p>{copy.numeric_hint}</p>
+            <label htmlFor="author-category">{copy.category}</label>
+            <select
+              id="author-category"
+              name="authorCategory"
+              defaultValue={initial?.piiCategory ?? ''}
+              required
+            >
+              <option value="">{copy.choose}</option>
+              <option value="None">{copy.none}</option>
+              <option value="Identity">{copy.identity}</option>
+              <option value="Behaviour">{copy.behaviour}</option>
+              <option value="Sensitive">{copy.sensitive}</option>
+            </select>
+            <label>
+              <input name="authorRequired" type="checkbox" defaultChecked={initial?.isRequired} />{' '}
+              {copy.required}
+            </label>
+            <label htmlFor="author-sort">{copy.order}</label>
+            <input
+              id="author-sort"
+              name="authorSort"
+              defaultValue={initial?.sort ?? 0}
+              maxLength={6}
+            />
+            <label htmlFor="author-purpose">{copy.purpose}</label>
+            <input
+              id="author-purpose"
+              name="authorPurpose"
+              defaultValue={initial?.purposeKey ?? ''}
+              maxLength={64}
+            />
+            {snapshot.site.enabledLocales.map((tag) => (
+              <fieldset key={tag}>
+                <legend>{tag}</legend>
+                <label htmlFor={'author-label-' + tag}>{copy.label}</label>
+                <input
+                  id={'author-label-' + tag}
+                  name={'authorLabel_' + tag}
+                  defaultValue={initial?.labels[tag] ?? ''}
+                  maxLength={128}
+                  required={tag === snapshot.site.defaultLocale}
+                />
+                <label htmlFor={'author-notice-' + tag}>{copy.notice}</label>
+                <textarea
+                  id={'author-notice-' + tag}
+                  name={'authorNotice_' + tag}
+                  maxLength={512}
+                  defaultValue={initial?.notices?.[tag] ?? ''}
+                />
+              </fieldset>
+            ))}
+            <p>{copy.input_budget}</p>
             <button type="submit">{revise ? copy.save_draft : copy.create}</button>
           </form>
-        </details>
+        ) : (
+          <p>{copy.scalar_editor_unavailable}</p>
+        )}
       </noscript>
     </>
   );

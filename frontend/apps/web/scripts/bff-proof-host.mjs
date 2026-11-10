@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   createCustomFieldBrowserFixture,
+  customFieldBrowserExactText,
   customFieldBrowserNoticeHash,
 } from './bff-custom-fields-fixture.mjs';
 import {
@@ -241,7 +242,7 @@ export function instrumentCopiedBffRuntime(
     const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
     const pageInfo = {nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false};
     const success = (data, version = false) => ({kind: 'success', status: 200, data: structuredClone(data), etag: version ? '"' + data.version + '"' : null, location: null, replayed: false});
-    const customFieldBrowser = (${createCustomFieldBrowserFixture.toString()})({success,pageInfo,member,noticeHash:${JSON.stringify(customFieldBrowserNoticeHash)}});
+    const customFieldBrowser = (${createCustomFieldBrowserFixture.toString()})({success,pageInfo,member,noticeHash:${JSON.stringify(customFieldBrowserNoticeHash)},exactText:${JSON.stringify(customFieldBrowserExactText)}});
     const fixtureAdministration = async (_token, binding, operation) => {
       administrations[operation.kind] = (administrations[operation.kind] ?? 0) + 1;
       const custom = customFieldBrowser.call(operation, binding);

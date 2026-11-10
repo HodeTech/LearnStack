@@ -1,5 +1,15 @@
 import { createHash } from 'node:crypto';
 
+export const customFieldBrowserExactText = Object.freeze({
+  carriage: 'a\rb',
+  crlf: 'a\r\nb',
+  enum: 'enum\r\nmember',
+  leading: '\nstart\n',
+  'line-feed': 'a\nb',
+  mixed: 'a\rb\nc\r\nd',
+  slashes: 'C:\\new\\records',
+});
+
 export const customFieldBrowserNoticeHash = createHash('sha256')
   .update('learnstack.membership-field-consent.notice.v1\0')
   .update('Fixture purpose notice')
@@ -7,7 +17,13 @@ export const customFieldBrowserNoticeHash = createHash('sha256')
 
 // Finite fake API state for the existing HTTPS/native/Next browser owner.
 // This supplies transport/UI examples; real authorization, transactions and RLS have separate proof.
-export function createCustomFieldBrowserFixture({ success, pageInfo, member, noticeHash }) {
+export function createCustomFieldBrowserFixture({
+  success,
+  pageInfo,
+  member,
+  noticeHash,
+  exactText,
+}) {
   const uuid = (index) => '019a154b-0000-7000-8000-' + String(index).padStart(12, '0');
   const labels = (text) => ({ en: text, tr: text, 'tr-TR': text });
   const envelope = (value) => ({
@@ -69,6 +85,36 @@ export function createCustomFieldBrowserFixture({ success, pageInfo, member, not
     'Deprecated',
     'Fixture retired',
   );
+  const textKeys = Object.keys(exactText).sort();
+  const exact = seed(
+    104,
+    'fixture-exact-text',
+    {
+      type: 'object',
+      properties: Object.fromEntries(
+        textKeys.map((key) => [
+          key,
+          {
+            type: 'string',
+            minLength: 1,
+            maxLength: 24,
+            ...(key === 'enum' ? { enum: [exactText.enum, 'plain-choice'] } : {}),
+          },
+        ]),
+      ),
+      required: textKeys,
+      additionalProperties: false,
+    },
+    'Active',
+    'Fixture exact text',
+  );
+  exact.maximumValueBytes = 2048;
+  exact.formLabels = textKeys.map((key, index) => ({
+    location: '/' + index,
+    labels: labels(key),
+    choices: key === 'enum' ? [labels('Exact choice'), labels('Plain choice')] : null,
+  }));
+  stored.set(exact.definitionId, { value: structuredClone(exactText) });
   stored.set(sensitive.definitionId, { value: 'BROWSER_WITHHELD_CANARY' });
   stored.set(retired.definitionId, { value: true });
   const evidenceId = () => uuid(400 + sequence);
@@ -200,7 +246,16 @@ export function createCustomFieldBrowserFixture({ success, pageInfo, member, not
             definition.version !== operation.version
           )
             return refused();
-          Object.assign(definition, parse(operation.input));
+          {
+            const input = parse(operation.input);
+            if (
+              definition.key.startsWith('browser-') &&
+              (JSON.stringify(input.schema) !== JSON.stringify(definition.schema) ||
+                JSON.stringify(input.formLabels) !== JSON.stringify(definition.formLabels))
+            )
+              return refused();
+            Object.assign(definition, input);
+          }
           definition.version = String(BigInt(definition.version) + 1n);
           return success({ id: definition.definitionId, version: definition.version }, true);
         case 'publishCustomFieldDefinition': {
@@ -256,7 +311,14 @@ export function createCustomFieldBrowserFixture({ success, pageInfo, member, not
             return refused();
           const patch = parse(operation.patch);
           for (const remove of patch.remove) stored.delete(remove.definitionId);
-          for (const set of patch.set) stored.set(set.definitionId, set.envelope);
+          for (const set of patch.set) {
+            if (
+              set.definitionId === exact.definitionId &&
+              JSON.stringify(set.envelope.value) !== JSON.stringify(exactText)
+            )
+              return refused();
+            stored.set(set.definitionId, set.envelope);
+          }
           member.version = String(BigInt(member.version) + 1n);
           return success({ id: member.membershipId, version: member.version }, true);
         }

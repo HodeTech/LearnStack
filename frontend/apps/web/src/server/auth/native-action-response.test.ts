@@ -392,15 +392,15 @@ describe('native action recovery response lifetime', () => {
       );
       expect(dispatches.length).toBe(1);
       expect(dispatches[0]![2]).toMatchObject({ version: '7', idempotencyKey });
-      expect(body.includes('<textarea')).toBe(false);
+      expect(body.includes('id="recover-custom-field-payload"')).toBe(false);
       if (mode === 'validation') {
         expect(response?.status).toBe(400);
         expect(body.includes('name="answer_0_root_0"')).toBe(true);
-        expect(body.includes('value="original"')).toBe(true);
+        expect(body.includes('>original</textarea>')).toBe(true);
         expect(body.includes('name="version" value="7"')).toBe(true);
         expect(body.includes('name="version" value="99"')).toBe(false);
         expect(body.includes('Authorized answer label')).toBe(true);
-        expect(body.includes('value="saved"')).toBe(false);
+        expect(body.includes('>saved</textarea>')).toBe(false);
       } else if (read) {
         expect(response?.status).toBe(400);
         expect(body.includes('name="answer_')).toBe(false);

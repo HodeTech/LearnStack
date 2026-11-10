@@ -235,7 +235,7 @@
     "no_consents": "Bu sayfada rıza kaydı yok.",
     "retained_entry": "Eski üyelikler dahil saklanan rızaları yönet",
     "admin_consent": "Yalnızca ilgili kişi rıza verebilir. Yönetici onun adına rıza veremez.",
-    "no_js_builder": "JavaScript olmadan aşağıdaki yapılandırılmış metin alanı formunu kullanın. İç içe yapılar için gelişmiş şema düzenleyicisini kullanın.",
+    "no_js_builder": "Bu form JavaScript olmadan metin, tam sayı, sayı ve evet/hayır alanlarını düzenler. Seçenekler ve iç içe alanlar için önceden doldurulmuş görsel düzenleyiciyi JavaScript’i etkinleştirerek kullanın.",
     "advanced": "Gelişmiş sonlu şema düzenleyicisi",
     "advanced_hint": "Yalnızca desteklenen sonlu profil kabul edilir. Etiketler düz metindir, HTML değildir.",
     "errors": "Alan anahtarını, açık kategori seçimini, etiketleri, sınırları ve bayt sınırlarını kontrol edin. Değişiklik gönderilmedi.",
@@ -245,6 +245,11 @@
     "default_locale": "Güncel varsayılan dil",
     "required_first": "Önce eksik zorunlu yanıtları tamamlayın. Ardından diğer yanıtları ayrı ayrı düzenleyebilirsiniz. Saklanan bir yanıtı kaldırma seçeneği kullanılabilir.",
     "submitted_inputs": "Gönderilen girdi — salt okunur",
-    "recovery_unavailable": "Bu liste reddedilen isteğinizdeki boş olmayan girdileri gösterir. Alan ayrıntıları düzenleme için yeniden yüklenemedi. Yeni bir değişiklik hazırlamadan önce güncel görünümü açın."
+    "recovery_unavailable": "Bu liste reddedilen isteğinizdeki boş olmayan girdileri gösterir. Alan ayrıntıları düzenleme için yeniden yüklenemedi. Yeni bir değişiklik hazırlamadan önce güncel görünümü açın.",
+    "text_entry_mode": "Metin girişi",
+    "text_plain": "Normal metin",
+    "text_exact": "Satır sonlarını aynen koru",
+    "text_entry_hint": "Normal metin yeni satırları satır beslemesi olarak kaydeder. Tam koruma kipinde satır başı için \\r, satır beslemesi için \\n ve ters eğik çizgi için \\\\ kullanın. Mevcut satır sonları korunur. Normal metne geçmek için önce \\r kaçışlarını bilinçli olarak değiştirin. Uzunluk sınırları çözümlenen yanıtı sayar.",
+    "scalar_editor_unavailable": "Bu sürüm seçenekler veya iç içe yanıtlar kullanıyor. Yukarıdaki önceden doldurulmuş görsel düzenleyici alanın tamamını korur; düzenlemek için JavaScript’i etkinleştirin."
   }
 }

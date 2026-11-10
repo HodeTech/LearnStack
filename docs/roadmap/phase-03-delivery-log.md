@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 634 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 701 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -401,7 +401,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 Step 1 two-round review and stored-schema correction (2026-11-10)](#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) — 43 lines
   - [P03-5 Step 2 value and consent implementation handoff (2026-11-10)](#p03-5-step-2-value-and-consent-implementation-handoff-2026-11-10) — 53 lines
   - [P03-5 Step 2 two-round review closeout (2026-11-10)](#p03-5-step-2-two-round-review-closeout-2026-11-10) — 23 lines
-  - [P03-5 Step 3 HTTP, native and accessible form implementation handoff (2026-11-10)](#p03-5-step-3-http-native-and-accessible-form-implementation-handoff-2026-11-10) — 80 lines
+  - [P03-5 Step 3 HTTP, native and accessible form implementation handoff (2026-11-10)](#p03-5-step-3-http-native-and-accessible-form-implementation-handoff-2026-11-10) — 81 lines
+  - [P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)](#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) — 66 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -18513,3 +18514,70 @@ Step 4 still owns the full relevant suites, the real-provider journey with the
 new consent-shell observations, P03-5-specific human accessibility evidence and
 final-source hosted A/B plus original-archive reconciliation. Existing P03-4 human
 approval is not reused. Catalogue registration is not promoted by these slices.
+
+
+### P03-5 Step 3 first-review corrections and credentialed proof (2026-11-10)
+
+The Step 3 implementation is `c6490a3f`. Two fresh independent R1 reviewers use
+Terra high for authority/HMAC/replay/privacy/contracts and Sol high for native/
+SDK/form experience, accessibility and fidelity. The authority slice reports no
+verified finding. The experience review verifies two Major defects; both are
+corrected before the second fresh round:
+
+- Plain HTML inputs strip admitted CR/LF, and literal enum option values normalize
+  CR/CRLF during HTML parsing. A standalone DOM counterexample demonstrates the
+  loss. Multiline text controls now provide normal text and explicit exact-line-
+  ending modes through one pure SDK codec; existing CR selects the reversible
+  mode. Decoded scalar lengths remain authoritative. Opaque bounded enum indices
+  resolve the exact immutable choice through authorized metadata. React, native
+  HTML, recovery, enhanced serialization and JavaScript-free parsing agree.
+  A leading textarea newline receives the actual HTML parser preservation rule.
+- The JavaScript-free scalar Draft editor previously defaulted to string and
+  fixed limits, silently changing an integer/Boolean or collapsing a nested/enum
+  schema. It now initializes the actual scalar type and limits, carries bounded
+  authored form-label data, and excludes unsupported scalar replacements. The
+  prefilled complete editor retains enum/object/list structures. Submitted form
+  labels follow the already-selected enabled-language rule; historical metadata
+  is unchanged and a new default language still needs an authored label.
+
+Enhanced serialization uses the browser's form-data event rather than removing
+editable control names, so an invalid/canceled save remains editable. The pure
+codec is shared through the existing SDK boundary; the native compiler's server
+root is not broadened. Its failed-build emission guard now explicitly uses
+`noEmitOnError`: an isolated TS6059 control observes two emission callbacks without
+the option and zero with it. The codec JS emitted during the earlier refused build is removed
+from the source tree; no generated bridge is retained.
+
+The expanded actual HTTPS/stock-Chromium Fact passes **1/1**, including its two
+independent counterfactual journeys. Its positive path verifies unchanged nested
+plain/LF/CR/CRLF/mixed/backslash/leading-newline and enum answers through enhanced first-host and
+JavaScript-free two-host forms, and unchanged scalar Draft types/limits/form labels
+on both hosts. When the second host needs a new default-language label the fixture
+explicitly authors it; browser validation is not bypassed. The controlled API
+independently refuses changed exact values or schema metadata. This remains
+fake-API/provider browser proof, not an RLS or provider-credential claim.
+
+A separate actual warm-Keycloak/application-role API Fact passes **1/1** on both
+management hosts. Domain-valid fixture definitions and retained consent records
+are arranged before audit baselines under the app-role exclusive Tenant fence;
+a second arrangement appends zero rows. Real credentials then discover nonempty
+own scopes/history before CurrentSession selection, with no public-site/AccountSite
+read or cookie replacement. The closed observation contains only bounded form
+counts and Booleans; actual withdrawal forms and nonce/history protection are
+required. Only the subsequent explicit selection adds the expected MUST event.
+Both owned provider containers and their network are independently absent after
+cleanup. Fixture inserts do not claim runtime HTTP-grant or audit qualification.
+
+The initial attempt repeated consent checks inside the already-long refresh/
+logout journey and reached the real visitor quota. The dedicated short Fact keeps
+that quota and all clocks unchanged; the legacy journey restores its prior request
+volume. Its full rerun remains part of Step 4. Earlier failed build, browser and
+quota attempts receive no passing credit.
+
+The final focused UI/native/recovery population passes **87/87**, the independent
+closed-observer controls pass **4/4**, SDK/web type checks and lint pass, the native
+producer succeeds, and the affected integration project builds with zero warnings
+or errors. These checks supplement the implementation handoff, not a full-suite
+claim. R1 has no remaining verified finding. The correction commit follows this
+record; two different fresh R2 reviewers are next. Step 4 still owns combined
+local/hosted qualification, original archives and truthful human evidence.

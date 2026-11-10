@@ -1,3 +1,4 @@
+import { customFieldTextMode, encodeCustomFieldText } from '@learnstack/sdk/administration-server';
 import type { JsonValue, MembershipCustomFields } from '@learnstack/sdk/administration-server';
 import { describe, expect, it } from 'vitest';
 
@@ -217,6 +218,56 @@ describe('native finite no-JS answer reconstruction', () => {
       } as unknown as MembershipCustomFields;
       expect(() => customFieldForm('/api/account/custom-fields', fields, unavailable)).toThrow();
     }
+  });
+
+  it.each([
+    'plain',
+    'line\nfeed',
+    'carriage\rreturn',
+    'paired\r\nlines',
+    'mixed\r\nthen\nthen\r',
+    '\nstart\n',
+    'literal\\n\\r\\',
+  ])('decodes typed string transport without changing admitted values', (value) => {
+    const mode = customFieldTextMode(value);
+    const encoded = encodeCustomFieldText(value, mode).replace(/\n/g, '\r\n');
+    expect(
+      buildCustomFieldAnswer(
+        { type: 'string', minLength: 1, maxLength: 32 },
+        new URLSearchParams({ answer_0_root: encoded, textmode_0_root: mode }),
+      ) === value,
+    ).toBe(true);
+  });
+  it('counts decoded text and rejects malformed escapes or an unspecified text mode', () => {
+    expect(
+      buildCustomFieldAnswer(
+        { type: 'string', minLength: 1, maxLength: 1 },
+        new URLSearchParams({ answer_0_root: '\\r', textmode_0_root: 'escaped' }),
+      ),
+    ).toBe('\r');
+    for (const fields of [
+      new URLSearchParams({ answer_0_root: '\\q', textmode_0_root: 'escaped' }),
+      new URLSearchParams({ answer_0_root: '\\', textmode_0_root: 'escaped' }),
+      new URLSearchParams({ answer_0_root: 'text' }),
+      new URLSearchParams({ answer_0_root: 'text', textmode_0_root: 'unknown' }),
+    ])
+      expect(() =>
+        buildCustomFieldAnswer({ type: 'string', minLength: 1, maxLength: 32 }, fields),
+      ).toThrow();
+  });
+  it('resolves opaque enum indices to exact immutable CR/LF literals', () => {
+    const choices = ['one\rtwo', 'one\r\ntwo', 'one\ntwo'];
+    const shape = { type: 'string', minLength: 1, maxLength: 32, enum: choices };
+    choices.forEach((choice, index) =>
+      expect(
+        buildCustomFieldAnswer(shape, new URLSearchParams({ answer_0_root: 'choice-' + index })) ===
+          choice,
+      ).toBe(true),
+    );
+    for (const token of ['choice-01', 'choice-3', 'choice-0\n', choices[0]!])
+      expect(() =>
+        buildCustomFieldAnswer(shape, new URLSearchParams({ answer_0_root: token })),
+      ).toThrow();
   });
 
   it('allows removal-only without requesting other required values', () => {

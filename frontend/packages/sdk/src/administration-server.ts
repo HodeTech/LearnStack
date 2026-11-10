@@ -546,3 +546,13 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
 }
 
 export type AdministrationServerSdk = ReturnType<typeof createAdministrationServerSdk>;
+
+export {
+  customFieldChoiceToken,
+  customFieldTextMode,
+  decodeCustomFieldChoice,
+  decodeCustomFieldText,
+  encodeCustomFieldText,
+  normalizeCustomFieldEditorLines,
+} from './custom-field-form-text.js';
+export type { CustomFieldTextMode } from './custom-field-form-text.js';

@@ -23,7 +23,7 @@
 > P03-5's [accepted contract and four-step plan](phase-03-delivery-log.md#p03-5-conditional-acceptance-and-step-1-start-2026-11-10)
 > follow [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
 > P03-5 [Step 1](phase-03-delivery-log.md#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) and [Step 2](phase-03-delivery-log.md#p03-5-step-2-two-round-review-closeout-2026-11-10) close with two review rounds each.
-> [Step 3 implementation](phase-03-delivery-log.md#p03-5-step-3-http-native-and-accessible-form-implementation-handoff-2026-11-10) passes targeted checks; two fresh review rounds are next. P03-6 through P03-11 have not started.
+> [Step 3 first-review corrections](phase-03-delivery-log.md#p03-5-step-3-first-review-corrections-and-credentialed-proof-2026-11-10) pass targeted browser/provider checks; its second review round is next. P03-6 through P03-11 have not started.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -32,7 +32,7 @@
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
-> | P03-5 | Custom fields and privacy classification | ADR-0095/G9 Accepted — Steps 1–2 complete; Step 3 implemented, reviews next |
+> | P03-5 | Custom fields and privacy classification | ADR-0095/G9 Accepted — Steps 1–2 complete; Step 3 R1 corrections verified; R2 next |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |
 > | P03-8 | Tenant federation | Not started |

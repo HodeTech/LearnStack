@@ -1,5 +1,13 @@
 'use client';
 
+import {
+  customFieldChoiceToken,
+  customFieldTextMode,
+  decodeCustomFieldText,
+  encodeCustomFieldText,
+  normalizeCustomFieldEditorLines,
+} from '@learnstack/sdk';
+import type { CustomFieldTextMode } from '@learnstack/sdk';
 import { useState } from 'react';
 
 import type { FieldControlsProps } from './custom-field-controls';
@@ -82,6 +90,40 @@ function ControlNode({
       ? Number(postedCount)
       : Math.max(minimumCount, items.length);
   const [count, setCount] = useState(Math.min(maximumCount, Math.max(minimumCount, initialCount)));
+  const storedText = typeof current === 'string' ? current : '';
+  const requestedTextMode = submitted?.['textmode_' + name];
+  const [textMode, setTextMode] = useState<CustomFieldTextMode>(
+    requestedTextMode === 'plain' || requestedTextMode === 'escaped'
+      ? requestedTextMode
+      : customFieldTextMode(storedText),
+  );
+  const [textSource, setTextSource] = useState(() =>
+    submitted?.['answer_' + name] === undefined
+      ? encodeCustomFieldText(
+          storedText,
+          requestedTextMode === 'escaped' || requestedTextMode === 'plain'
+            ? requestedTextMode
+            : customFieldTextMode(storedText),
+        )
+      : normalizeCustomFieldEditorLines(submitted['answer_' + name]!),
+  );
+  let allowsPlainText = false;
+  try {
+    allowsPlainText = !decodeCustomFieldText(textSource, textMode).includes('\r');
+  } catch {
+    /* Keep malformed exact text editable without conversion. */
+  }
+  function changeTextMode(mode: string) {
+    if (mode !== 'plain' && mode !== 'escaped') return;
+    try {
+      const value = decodeCustomFieldText(textSource, textMode);
+      if (mode === 'plain' && value.includes('\r')) return;
+      setTextSource(encodeCustomFieldText(value, mode));
+      setTextMode(mode);
+    } catch {
+      /* Correct the text before changing its representation. */
+    }
+  }
   const optional = !mandatory && (
     <div className="auth-field">
       <label htmlFor={id + '-present'}>{copy.include}</label>
@@ -210,7 +252,10 @@ function ControlNode({
           id={id}
           name={'answer_' + name}
           defaultValue={
-            submitted?.['answer_' + name] ?? (typeof current === 'string' ? current : '')
+            submitted?.['answer_' + name] ??
+            (typeof current === 'string' && node.enum.includes(current)
+              ? customFieldChoiceToken(node.enum.indexOf(current))
+              : '')
           }
           aria-required={mandatory}
           aria-describedby={hint}
@@ -219,23 +264,38 @@ function ControlNode({
           {node.enum.map((choice, index) => {
             const text = authoredText(metadata?.choices?.[index] ?? {}, locale, defaultLocale);
             return (
-              <option key={choice} value={choice} lang={text.lang}>
+              <option key={choice} value={customFieldChoiceToken(index)} lang={text.lang}>
                 {text.text}
               </option>
             );
           })}
         </select>
       ) : node.type === 'string' ? (
-        <input
-          id={id}
-          name={'answer_' + name}
-          defaultValue={
-            submitted?.['answer_' + name] ?? (typeof current === 'string' ? current : '')
-          }
-          maxLength={node.maxLength * 2}
-          aria-required={mandatory}
-          aria-describedby={hint}
-        />
+        <>
+          <label htmlFor={id + '-textmode'}>{copy.text_entry_mode}</label>
+          <select
+            id={id + '-textmode'}
+            name={'textmode_' + name}
+            value={textMode}
+            onChange={(event) => changeTextMode(event.target.value)}
+            aria-describedby={hint}
+          >
+            <option value="plain" disabled={!allowsPlainText}>
+              {copy.text_plain}
+            </option>
+            <option value="escaped">{copy.text_exact}</option>
+          </select>
+          <textarea
+            id={id}
+            name={'answer_' + name}
+            value={textSource}
+            onChange={(event) => setTextSource(event.target.value)}
+            maxLength={node.maxLength * 2}
+            rows={3}
+            aria-required={mandatory}
+            aria-describedby={hint}
+          />
+        </>
       ) : (
         <input
           id={id}
@@ -253,7 +313,8 @@ function ControlNode({
       <p id={hint}>
         {node.type === 'string' ? (
           <>
-            {copy.min}: {node.minLength} · {copy.max}: {node.maxLength}
+            {copy.min}: {node.minLength} · {copy.max}: {node.maxLength}.{' '}
+            {!node.enum && copy.text_entry_hint}
           </>
         ) : node.type === 'boolean' ? (
           copy.choose
