@@ -84,8 +84,12 @@ public sealed partial class ProviderEventStorageTests
         source.IsQualified.Should().BeFalse();
         await Assert.ThrowsAsync<InvalidOperationException>(() => source.QualifyAsync(
             new(profile.AuthorityId, "other", profile.RetentionSeconds), proof));
-        await source.QualifyAsync(profile, proof);
+        var revisedPolicy = new ProviderEventIntakeProfile(profile.AuthorityId, profile.RealmId, 30 * 24 * 60 * 60);
+        await source.QualifyAsync(revisedPolicy, proof);
         source.IsQualified.Should().BeTrue();
+        (await source.ReadScanAsync()).RetentionSeconds.Should().Be(revisedPolicy.RetentionSeconds);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => source.QualifyAsync(
+            new(profile.AuthorityId, "other", revisedPolicy.RetentionSeconds), proof));
     }
 
     [Fact]

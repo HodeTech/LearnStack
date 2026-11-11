@@ -51,13 +51,17 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_closed, this);
-            if (_profile is not null && _profile != profile)
-                throw new InvalidOperationException("Provider event intake cannot be retargeted.");
-            _profile = profile;
             // Completion includes the actual owner cleanup in ExecuteAsync. A failed
             // cleanup closes the source above, so only a confirmed release can retry.
-            if (_qualification is { IsCompleted: true, IsCompletedSuccessfully: false })
-                _qualification = null;
+            var retry = _qualification is { IsCompleted: true, IsCompletedSuccessfully: false };
+            if (_profile is not null && (_profile.AuthorityId != profile.AuthorityId || _profile.RealmId != profile.RealmId
+                    || !retry && _profile.RetentionSeconds != profile.RetentionSeconds))
+                throw new InvalidOperationException("Provider event intake cannot be retargeted.");
+            if (retry) _qualification = null;
+            // Retention is mutable provider policy, not source identity. A fresh
+            // attempt may adopt it after cleanup; in-flight/successful qualification
+            // keeps its original policy and uses UpdateSourcePolicyAsync thereafter.
+            _profile = profile;
             return _qualification ??= QualifyCoreAsync(profile, businessProof, cancellationToken);
         }
     }

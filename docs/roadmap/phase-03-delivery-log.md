@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 762 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 790 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -447,7 +447,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 3 review closeout and qualification freeze (2026-11-11)](#p03-6-step-3-review-closeout-and-qualification-freeze-2026-11-11) — 28 lines
   - [P03-6 first hosted A and observation census corrections (2026-11-11)](#p03-6-first-hosted-a-and-observation-census-corrections-2026-11-11) — 64 lines
   - [P03-6 compiled catalogue total correction (2026-11-11)](#p03-6-compiled-catalogue-total-correction-2026-11-11) — 23 lines
-  - [P03-6 maintainer review corrections (2026-11-11)](#p03-6-maintainer-review-corrections-2026-11-11) — 71 lines
+  - [P03-6 maintainer review corrections (2026-11-11)](#p03-6-maintainer-review-corrections-2026-11-11) — 72 lines
+  - [P03-6 maintainer corrections first implementation review (2026-11-11)](#p03-6-maintainer-corrections-first-implementation-review-2026-11-11) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20403,3 +20404,31 @@ checks; real provider flow plus forward-only rollback pass **4/4** after the new
 migration head is reconciled. Backend format, focused web lint and documentation
 guards pass. One initial format check detects the new migration's missing UTF-8
 BOM; correcting its encoding makes the required backend format check pass.
+
+
+### P03-6 maintainer corrections first implementation review (2026-11-11)
+
+The correction package is committed as `16462d54`. A fresh Terra/high backend
+review finds one Minor: a valid retention-policy change between failed
+qualification attempts still compares unequal to the pinned whole profile. The
+fix keeps authority/realm immutable, admits the freshly validated policy only
+after failed-attempt cleanup, and leaves in-flight/successful qualification
+unchanged. The cancellation/retry control now proves changed-policy recovery and
+retarget refusal.
+
+A fresh Sol/high operations review finds one Major in the new runbook: an ordinary
+migration-owner session cannot see the fanout Membership set under FORCE RLS and
+could misleadingly return zero. The corrected procedure uses the deployment's
+existing authorized provisioning database administrator, never an application or
+machine login, in a READ ONLY transaction. `row_security=off` refuses sessions
+whose results would be filtered; it grants no bypass. The existing 257-tenant
+control executes the exact documented query under the fixture administrator and
+asserts all 257 recipients, then proves the migration-role query refuses. No new
+login, grant, function or repair writer is added.
+
+Both findings are independently verified and corrected. The focused real
+PostgreSQL regressions pass **2/2** after a zero-warning/error Release build.
+Neither reviewer identifies another verified finding in the assigned backend,
+CLI/preflight, reader/reconciler, privacy, health or documentation scope. Reviews
+are static; their conclusions do not independently rerun the earlier suites.
+A fresh second implementation-review round follows these committed fixes.

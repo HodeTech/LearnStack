@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Npgsql;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Identifiers;
@@ -54,6 +55,7 @@ public sealed partial class ProviderEventStorageTests
             (await source.AcceptAsync(Guid.CreateVersion7(), at.AddMinutes(1), "LOGOUT",
                 IdentitySubjectKey.FromBytes(SubjectKey(IdentityMembershipFixture.PersonA)))).Accepted.Should().BeTrue();
         }
+        await AssertRunbookInspectionAsync(problemId);
         await using (var restarted = await QualifiedSourceAsync())
         {
             var stillRejected = await restarted.AcceptAsync(problemId, at, "LOGIN", key);
@@ -74,4 +76,43 @@ public sealed partial class ProviderEventStorageTests
         (await IdentityMembershipFixture.ScalarAsync<long>(observer, read,
             "SELECT count(*) FROM public.identity_provider_event_targets WHERE provider_event_id=@event", ("event", problemId))).Should().Be(0);
     }
+
+    private async Task AssertRunbookInspectionAsync(Guid providerEventId)
+    {
+        var runbook = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepositoryPath.RolesScript())!,
+            "..", "..", "keycloak", "README.md"));
+        // Execute the documented query, not a separately maintained test copy.
+        var sql = File.ReadAllText(runbook).Split("```sql\n", StringSplitOptions.None)[2]
+            .Split("\n```", StringSplitOptions.None)[0]
+            .Replace("r.authority_id = '00000000-0000-0000-0000-000000000000'",
+                $"r.authority_id = '{IdentityMembershipFixture.Authority.AuthorityId.Value:D}'", StringComparison.Ordinal)
+            .Replace("r.provider_event_id = '00000000-0000-0000-0000-000000000000'",
+                $"r.provider_event_id = '{providerEventId:D}'", StringComparison.Ordinal)
+            .Replace("'installed-realm-id'", "'learnstack'", StringComparison.Ordinal);
+        var query = sql[sql.IndexOf("SELECT r.", StringComparison.Ordinal)..sql.LastIndexOf("ROLLBACK;", StringComparison.Ordinal)]
+            .Trim().TrimEnd(';');
+        await fixture.Postgres.ExecuteAsSuperuserAsync("""
+            BEGIN READ ONLY;
+            SET LOCAL statement_timeout = '5s';
+            SET LOCAL row_security = off;
+            DO $proof$ DECLARE candidate record; observed integer := 0; BEGIN
+            """ + " FOR candidate IN " + query + """
+             LOOP
+                IF candidate.eligible_tenant_count <> 257 OR candidate.current_user_status <> 'Active'
+                    OR candidate.disposition <> 'fanout_exceeded' OR candidate.accepted_at IS NOT NULL THEN
+                    RAISE EXCEPTION 'Runbook did not expose the actual pending fanout.';
+                END IF;
+                observed := observed + 1;
+            END LOOP;
+            IF observed <> 257 THEN RAISE EXCEPTION 'Runbook fanout population differs.'; END IF;
+            END $proof$;
+            ROLLBACK;
+            """);
+        await using var migration = await OpenAsync(fixture.Postgres.MigrationConnectionString);
+        await using var command = new NpgsqlCommand(sql, migration);
+        var denied = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
+        denied.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+            "the runbook must refuse an RLS-filtered migration session instead of returning a misleading zero");
+    }
+
 }

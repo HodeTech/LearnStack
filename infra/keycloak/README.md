@@ -102,9 +102,12 @@ Before initial source/policy qualification, mirror activation remains blocked.
 
 ### Operator inspection and recovery
 
-The deployment's authorized database operator owns inspection through the existing
-migration-owner administrative console. The API, event-reader client and ingress
-login receive no additional grants or repair endpoint. Obtain access through the
+The deployment's authorized database administrator owns inspection through the
+existing provisioning console, using its already-authorized superuser/BYPASSRLS
+login. Do not use the migration, application or ingress login: FORCE RLS can hide
+Memberships from those sessions and falsely report no eligible tenants. No new
+role or grant is introduced. The API and event-reader receive no repair endpoint.
+Obtain access through the
 deployment's secret-management workflow; never paste a connection string or raw
 provider response into a ticket. Record only the private problem key, closed
 reason, interval/offset, counts and the intervention/outcome. These locators are
@@ -114,10 +117,13 @@ Run the following read-only queries against the application database. Replace th
 UUID/realm literals with the installed source identity. Use the exact tuple from
 the first result for the second query; do not infer an event from its offset alone.
 The limit is an inspection page, not permission to discard additional rows.
+`row_security=off` does not grant bypass: it makes an unauthorized session fail
+rather than silently return rows filtered by RLS. Keep both transactions read-only.
 
 ```sql
 BEGIN READ ONLY;
 SET LOCAL statement_timeout = '5s';
+SET LOCAL row_security = off;
 SELECT problem_key, reason, provider_event_id, range_from, range_to,
        source_offset, attempts, next_retry_at, irrecoverable
 FROM public.identity_provider_event_problems
@@ -136,6 +142,7 @@ provider subject, fingerprint, token or raw event details:
 ```sql
 BEGIN READ ONLY;
 SET LOCAL statement_timeout = '5s';
+SET LOCAL row_security = off;
 SELECT r.provider_event_id, r.disposition, r.accepted_at, r.affected_user_id,
        u.status AS current_user_status, m.tenant_id,
        count(m.tenant_id) OVER () AS eligible_tenant_count
