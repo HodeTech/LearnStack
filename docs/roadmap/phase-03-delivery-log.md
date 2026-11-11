@@ -429,9 +429,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 142 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 169 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
+  - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19767,3 +19768,30 @@ Document verification at this boundary: 3,558 fragment links resolve;
 roadmap structure and all three generated indexes pass; all seven ADR-status
 controls pass. The initial Status-block line-budget failure is corrected without
 relaxing the guard. No runtime test or hosted CI is claimed or started.
+
+### P03-6 proposal round 2 and approval readiness (2026-11-11)
+
+Two new reviewers inspect corrected proposal `f1c2a2a4` independently of round 1:
+
+- GPT-6.1 Sol / high checks the complete contract against actual inbox-before-
+  construction execution, central audit intent/composer, private witness/UoW
+  patterns and the ADR-0095 role/function/setter baseline. No actionable
+  Blocker, Major or Minor is reported.
+- GPT-6.1 Terra / high checks receipt retirement and replay, machine-role
+  confinement, claim/transaction fencing, acceptance-time attribution,
+  affected-subject separation and finite source recovery. No actionable
+  Blocker, Major or Minor is reported.
+
+The reviews qualify the proposal's consistency, not its unimplemented runtime.
+Document guards pass: 3,559 fragment links, roadmap structure, three current
+indexes, seven ADR-status controls, 687 local link targets and whitespace checks.
+The no-Astra preference is respected; no CI run or executable change is started.
+
+ADR-0097 and the three implementation steps are ready for the maintainer's
+explicit decision. That decision must knowingly cover the finite pull-capture
+limit, acceptance-time provider-global tenant disclosure, extra machine role/
+functions/origin and separate retention boundaries. G10 and machine-ingress G13
+remain Open until approval is recorded. On approval reconcile the named
+canonical carriers and begin Step 1 automatically; no extra routine permission
+is required. Human Platform authority, logout and later phase work remain owned
+by their existing gates, not silently approved by this proposal.
