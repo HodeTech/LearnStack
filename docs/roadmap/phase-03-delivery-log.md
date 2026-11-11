@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 331 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 347 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -460,6 +460,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 maintainer review corrections and acceptance (2026-11-12)](#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) — 36 lines
   - [P03-7 Step 1 protocol and owner implementation (2026-11-12)](#p03-7-step-1-protocol-and-owner-implementation-2026-11-12) — 51 lines
   - [P03-7 Step 1 independent review round one (2026-11-12)](#p03-7-step-1-independent-review-round-one-2026-11-12) — 18 lines
+  - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20919,3 +20920,19 @@ Step 1; this handoff remains part of Step 2, not a shipped runtime claim.
 
 Step 1 now receives a different fresh review pair before its closeout. Real
 provider/TLS/normal-setup/browser and complete A/B obligations remain open.
+
+### P03-7 Step 1 second review and closeout (2026-11-12)
+
+A different fresh Terra protocol/security and Sol ownership/corpus pair reviews
+`af401bae` and the first-round handoff at `59a6f2c9` against `9497c930`. Both
+approve within Step 1 scope with no verified actionable finding. They inspect
+the actual code/caller boundaries and retained 1,100-case cohort independently;
+no additional heavy tests, builds, installation or provider mutation is run.
+There is no manufactured fix commit for a clean second round.
+
+Step 1 is closed as an inactive protocol/session foundation, not C12 fulfillment.
+Step 2 now implements native/bridge admission and setup, exact fresh/warm provider
+fields, stage-specific closed diagnostic classification and actual provider/TLS/
+browser evidence. Successful real-provider key rotation remains a separate
+integration claim from the existing unknown-key cooldown control. The approved
+three-step plan and existing runtime/test/CI limits remain unchanged.
