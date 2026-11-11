@@ -44,6 +44,14 @@ scope write. Tenancy owns the producer/subscriber operation declarations in
 The third module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
 
+P03-6 adds the required provider-history subscriber and its catalogue source.
+`ProviderEventObservationHandler` loads only the exact enqueued tenant target
+through Identity's application contract, then attaches
+`ProviderEventAuditEvidence` to the central MUST owner. It does not write Audit
+SQL or derive tenant authority from provider content. The
+[coverage matrix](audit.md) and [typed-evidence standard](../../standards/18-audit-coverage.md#retained-provider-event-observations)
+own operation semantics; the phase Status owns qualification.
+
 ## Overview
 
 Audit owns **the record of what happened**, and nothing about deciding what should.

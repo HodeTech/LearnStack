@@ -125,6 +125,11 @@ public static class AuditDraftComposer
         ArgumentNullException.ThrowIfNull(changes);
 
         intent.GlobalIdentity?.RequireIntent(intent);
+        if ((intent.Operation == "audit.provider_event.observe") != (intent.ProviderEvent is not null))
+            throw new InvalidOperationException("Provider observation requires its closed typed evidence.");
+        intent.ProviderEvent?.RequireIntent(intent);
+        if (intent.ProviderEvent is not null && changes.Count != 0)
+            throw new InvalidOperationException("Provider observation cannot describe unrelated entity mutations.");
 
         var subject = Subject.Of(intent, changes);
 
@@ -139,8 +144,8 @@ public static class AuditDraftComposer
             Operation = intent.Operation,
             OperationType = intent.OperationType,
             OperationClass = intent.OperationClass,
-            EntityType = intent.EntityType?.Name,
-            EntityId = subject.EntityId,
+            EntityType = intent.ProviderEvent is null ? intent.EntityType?.Name : "User",
+            EntityId = intent.ProviderEvent?.AffectedUserId.Value.ToString("D") ?? subject.EntityId,
             Outcome = outcome,
             ErrorKey = errorKey,
             Reason = null,
@@ -164,6 +169,8 @@ public static class AuditDraftComposer
 
     private static string? ComposeMetadata(AuditIntent intent)
     {
+        if (intent.ProviderEvent is { } provider)
+            return "{\"provider_event\":" + provider.ToJson() + ",\"causation_id\":" + AuditJson.Quote(provider.EventId.ToString("D")) + "}";
         if (intent.GlobalIdentity is { } identity)
         {
             return "{\"identity_authority_id\":" + AuditJson.Quote(identity.AuthorityId.Value.ToString("D"))

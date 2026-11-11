@@ -44,6 +44,21 @@ Tenant BFF diagnostics use only closed lifecycle reasons, with no tokens,
 handles, raw provider errors, profiles or redirect URLs. Metrics carry no host,
 issuer, subject, actor or correlation identity labels. Provider user-event records
 stay in Keycloak, not raw artifacts; local diagnostics are not durable audit.
+The minimized tenant copy authorized by
+[ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+uses the central Audit path, not a diagnostic export.
+
+The separate machine check `identity-provider-mirror` exposes closed source/stage
+faults, last attempted/completed sweep and problem counts/oldest ages. It changes
+no anonymous liveness response. Meter `learnstack.identity` emits
+`learnstack_identity_provider_mirror_health` (0 current, 1 stale/incomplete,
+2 blocked/retention risk), `learnstack_identity_provider_mirror_pending_count`
+and `learnstack_identity_provider_mirror_oldest_problem_age_seconds`. Only the
+closed `reason` label distinguishes problem series. No realm, authority, tenant,
+subject, source event or problem key becomes a metric label. Production failures
+keep process health unhealthy until corrected requalification; source recovery
+does not erase durable historical gaps. The
+[realm runbook](../../infra/keycloak/README.md) owns recovery actions.
 
 Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) /
 [ADR-0079](../decisions/0079-bounded-identity-administration.md) extend that

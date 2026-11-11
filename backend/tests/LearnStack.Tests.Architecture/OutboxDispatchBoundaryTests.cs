@@ -501,6 +501,7 @@ public sealed partial class OutboxDispatchConventionTests
         var platformRoot = types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "AddLearnStackPersistence");
         var authorizationRoot = CheckAuthorizationCredentialRegistration(offenders, census, services);
         var invitationRoot = CheckInvitationCredentialRegistration(offenders, census);
+        var providerRoot = CheckProviderCredentialRegistration(offenders, census);
         var runtimeRoot = types[(InfrastructureAssembly, JobRuntimeRegistration)].Methods.Single(method => method.Name == "AddLearnStackBackgroundJobRuntime");
         var roots = new[] { (Root: outboxRoot, Key: OutboxDispatcherDataSource.Key),
             (Root: platformRoot, Key: PlatformAdminScope.PlatformDataSourceKey) };
@@ -599,6 +600,7 @@ public sealed partial class OutboxDispatchConventionTests
         var credentialReaders = new List<string> { MethodId(outboxRoot), MethodId(platformRoot), MethodId(platformRoot) };
         if (authorizationRoot is not null) credentialReaders.AddRange(Enumerable.Repeat(MethodId(authorizationRoot), 3));
         if (invitationRoot is not null) credentialReaders.Add(MethodId(invitationRoot));
+        if (providerRoot is not null) credentialReaders.Add(MethodId(providerRoot));
         CheckSet(offenders, "connection-string reader census", sites.Where(site => IsConnectionStringRead(site.Target))
             .Select(site => site.Owner), credentialReaders);
 
@@ -628,6 +630,7 @@ public sealed partial class OutboxDispatchConventionTests
                     var expected = method == outboxRoot ? new[] { "OutboxDispatcher" }
                         : method == platformRoot ? ["Default", "PlatformAdmin"]
                         : method == invitationRoot ? ["Default"]
+                        : method == providerRoot ? ["IdentityIngress"]
                         : method == authorizationRoot ? ["Default", "IdentityAuthorization", "AuthorizationEvidence"] : [];
                     if (key is null || !expected.Contains(key, StringComparer.Ordinal))
                         offenders.Add(MethodId(method) + ": unauthorized connection-string read");

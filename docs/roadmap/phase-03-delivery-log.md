@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 357 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 419 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -438,6 +438,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 1 review round 1 and corrections (2026-11-11)](#p03-6-step-1-review-round-1-and-corrections-2026-11-11) — 44 lines
   - [P03-6 Step 1 review round 2 and retained replay correction (2026-11-11)](#p03-6-step-1-review-round-2-and-retained-replay-correction-2026-11-11) — 29 lines
   - [P03-6 Step 1 closeout and Step 2 entry (2026-11-11)](#p03-6-step-1-closeout-and-step-2-entry-2026-11-11) — 25 lines
+  - [P03-6 Step 2 provider-to-Audit implementation (2026-11-11)](#p03-6-step-2-provider-to-audit-implementation-2026-11-11) — 62 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19988,3 +19989,65 @@ inbox-backed Audit consumer and central typed evidence. Tests land with that flo
 no frontend, manual accessibility, session revocation or unrelated authority is
 added. Full packet validation/PR/hosted A/B remain Step 3. Work stays on
 `development`, with no push, PR or CI run started at this checkpoint.
+
+### P03-6 Step 2 provider-to-Audit implementation (2026-11-11)
+
+The bounded production flow now joins Step 1's dormant storage owners. The common
+`IIdentityEventProvider` port has a fixed Keycloak 26.6.2 read-only adapter: fresh
+client credentials, exact token/policy/events routes, twenty selected source
+kinds, bounded response parsing and actual HTTP cleanup before capacity release.
+The development realm owner provisions and verifies a separate
+`learnstack-event-reader` with only `view-events`; it refuses excess grants,
+secret mismatches and unrelated scopes rather than silently adopting them.
+
+The scanner resumes durable ascending retained-window progress, recent slices
+and fair problem retries. Oversized/malformed pages shrink at the same position
+to singletons; durable minimized problems allow later siblings to continue.
+Forward migrations isolate newly expired positions without blocking the page,
+serialize a source identity against earlier minimized window refusals and resolve
+only exact recoverable window problems. Previously committed migrations remain
+unchanged. A provider outage or failed target does not block publication of other
+already accepted targets. Historical gaps are never cleared by a later success.
+
+Each live recipient claim binds one fresh application scope. Its exact target
+and stable identifier-only `UserProviderEventObservedIntegrationEventV1` outbox
+row share the ordinary transaction. The required
+`audit.provider-event-mirror.v1` subscriber uses the shared inbox and Identity
+application contract, then attaches the sole typed `ProviderEventAuditEvidence`
+to the central MUST/SecurityEvent `audit.provider_event.observe` owner. Receipt,
+target, source event and affected User references remain distinct from the
+SystemActor, processing outcome/time and provider outcome/time. No module Audit
+SQL, HTTP ingress, frontend route or session revocation is added.
+
+A separate machine health check and closed problem metrics expose source faults,
+retention risk and durable gaps. The public liveness response is unchanged.
+Provider/SQL exceptions, raw event bodies, tokens, subjects and provider action
+HTML are excluded from retained diagnostic artifacts. Operations, module specs,
+central evidence, provider composition and event documentation are reconciled.
+
+Validation at this handoff:
+
+- Full Release solution build: zero warnings/errors. Full Release Unit suite:
+  3,777 passed, zero failed/skipped.
+- All 46 selected provider Integration cases pass on real PostgreSQL and owned
+  Keycloak/Mailpit containers. These include the installed function/ACL/RLS
+  controls, poison continuation and restart, uncertain/duplicate receipt paths,
+  actual background outbox/inbox/Audit composition, MUST failure/retry, provider
+  outage and failed-target isolation, and the actual read-only provider adapter.
+- The real TLS provider proof produces one account fact in both an Active and a
+  Suspended recipient tenant through the actual application pipeline. Separate
+  real journeys exercise email password reset, password change, TOTP enrollment,
+  logout, login failure and temporary lockout through the selected port. The
+  pinned reset journey emits credential/password update facts; it is not claimed
+  to emit a legacy `RESET_PASSWORD` fact. All twenty raw mappings remain covered
+  by deterministic adapter controls.
+- The realm-control owner passes all ten files / 447 cases, including sixteen
+  reader-specific controls, policy union, real CLI ownership and cleanup.
+- Release compiled ownership/credential-census controls are running. Earlier
+  Debug exploration is not qualification: existing exact opcode controls require
+  the same Release build used by CI. No such test was weakened to fit Debug.
+
+This is the implementation handoff, not Step 2 review closeout or full packet
+qualification. Fresh R1 and R2 reviews, any verified corrections, the complete
+Architecture/Integration suites and same-source hosted A/B remain open. Work is
+on `development`; no P03-6 push, PR, hosted run or merge has occurred.

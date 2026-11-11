@@ -152,6 +152,14 @@ belongs to is decided by what it needs, not by what it is about:
   owns a class fixture rather than changing the shared baseline's profile.
   Offline realm tooling controls run in meta with
   fresh named-case reports and zero skips/todos.
+  ADR-0097's provider mirror additionally qualifies the separate read-only client,
+  credential rotation/disable, retained-window subdivision and persisted recovery.
+  The complete-flow proof uses that actual TLS adapter and installed provider
+  subjects with real app/ingress roles, ordinary outbox/inbox and central MUST
+  Audit in two tenants, including a suspended membership. Stubbed HTTP/storage
+  controls remain distinct from this end-to-end proof; no fabricated event or
+  provider transaction is credited. Source outcomes/time are not processing
+  outcomes/time or evidence of a login in one tenant.
 
 **Where a Docker-bound test lives, and what it takes, is what routes it.**
 `Every_Database_Test_Carries_The_Docker_Trait` scans the whole of

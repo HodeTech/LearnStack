@@ -34,11 +34,22 @@ public sealed partial class ProviderEventStorageTests
         (await shorter.AcceptAsync(id, at, "LOGIN", key)).Should().Be(committed,
             "source expiry cannot erase acknowledgement of an already committed exact fingerprint");
         var expiredNewId = Guid.CreateVersion7();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => shorter.AcceptAsync(expiredNewId, at, "LOGIN", key));
+        var expired = await shorter.AcceptAsync(expiredNewId, at, "LOGIN", key);
+        expired.Accepted.Should().BeFalse();
+        expired.Disposition.Should().Be("out_of_window");
         await using var machine = await OpenAsync(connection);
         (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
             "SELECT count(*) FROM public.identity_provider_event_receipts WHERE provider_event_id=@id", ("id", expiredNewId)))
             .Should().Be(0, "the replay path must not admit or stage a new expired fact");
+        (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
+            "SELECT count(*) FROM public.identity_provider_event_problems WHERE provider_event_id=@id AND reason='out_of_window'", ("id", expiredNewId))).Should().Be(1);
         (await shorter.AcceptAsync(id, at, "LOGIN", key)).Should().Be(committed);
+        await shorter.UpdateSourcePolicyAsync(30 * 24 * 60 * 60);
+        var changed = await shorter.AcceptAsync(expiredNewId, at.AddHours(1), "LOGIN", key);
+        changed.Accepted.Should().BeFalse(); changed.Disposition.Should().Be("source_collision");
+        (await shorter.AcceptAsync(expiredNewId, at, "LOGIN", key)).Accepted.Should().BeTrue();
+        (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
+            "SELECT count(*) FROM public.identity_provider_event_problems WHERE provider_event_id=@id AND reason='out_of_window' AND resolved_at IS NULL", ("id", expiredNewId)))
+            .Should().Be(0, "a newly admissible exact fingerprint resolves only its matching recoverable window problem");
     }
 }

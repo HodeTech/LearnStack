@@ -43,9 +43,11 @@ builder.AddLearnStackCrossCuttingFoundation(
     typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly,
     typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly,
     typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly,
-    typeof(LearnStack.Modules.Identity.Application.AssemblyMarker).Assembly);
+    typeof(LearnStack.Modules.Identity.Application.AssemblyMarker).Assembly,
+    typeof(LearnStack.Modules.Audit.Application.AssemblyMarker).Assembly);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
+builder.Services.AddLearnStackProviderEventMirror(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
 
 // Register and activate the entire closed HTTP boundary together. Minimal hosting

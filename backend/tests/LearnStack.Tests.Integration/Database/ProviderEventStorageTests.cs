@@ -111,10 +111,12 @@ public sealed partial class ProviderEventStorageTests(IdentityMembershipFixture 
         var id = Guid.CreateVersion7();
         var rejected = await Assert.ThrowsAsync<PostgresException>(() => AcceptAsync(id, "CLIENT_LOGIN", null));
         rejected.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
-        rejected = await Assert.ThrowsAsync<PostgresException>(() => AcceptAsync(id, "LOGIN", null, DateTimeOffset.UtcNow.AddDays(-31)));
-        rejected.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
-        rejected = await Assert.ThrowsAsync<PostgresException>(() => AcceptAsync(id, "LOGIN", null, DateTimeOffset.UtcNow.AddHours(1)));
-        rejected.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        foreach (var at in new[] { DateTimeOffset.UtcNow.AddDays(-31), DateTimeOffset.UtcNow.AddHours(1) })
+        {
+            var unaccepted = await AcceptAsync(Guid.CreateVersion7(), "LOGIN", null, at);
+            unaccepted.Accepted.Should().BeFalse();
+            unaccepted.Disposition.Should().Be("out_of_window");
+        }
     }
 
     [Fact]

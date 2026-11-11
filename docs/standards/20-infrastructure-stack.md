@@ -445,6 +445,25 @@ rotation and evidence admission. Discovery owners remain sequential on the
 without enlarging the authorization/evidence lanes. Runtime qualification remains
 in the phase Status block.
 
+### Retained identity-provider history
+
+**Derives from:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+
+`IIdentityEventProvider` / internal `KeycloakIdentityEventProvider` is a separate
+read-only adapter, not an extension of BFF credentials or human administration.
+The API owns the poller, one actual HTTP owner and fixed no-retry provider
+resilience policy. The private `ProviderEventIntakeSource` owns at most two
+actual machine-database checkouts, without a queue or public connector. Actual
+work and cleanup settle before capacity is returned. Shutdown joins these owners;
+a cancellation budget grants no physical-retirement credit.
+
+Ordinary tenant `IOutbox` production and the required Audit inbox subscriber remain
+the only cross-module path. No broker, webhook endpoint or job-worker pool is
+added. The [provider specification](../modules/identity/providers.md#retained-user-event-reader)
+owns adapter configuration; [Database Standards](05-database.md#provider-event-intake-storage)
+owns source qualification and SQL; the [realm runbook](../../infra/keycloak/README.md)
+owns installation and recovery.
+
 ## APISIX Gateway
 
 - APISIX runs in **standalone mode** (YAML hot-reload, no etcd) per ADR-0015.

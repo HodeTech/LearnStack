@@ -1,6 +1,9 @@
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
+using LearnStack.Modules.Identity.Application.Contracts.IntegrationEvents;
+using LearnStack.Modules.Audit.Application.ProviderEvents;
+using LearnStack.Api.Identity;
 using LearnStack.Api.Common;
 using LearnStack.Api.Authentication;
 using LearnStack.Application.Pipeline;
@@ -48,6 +51,9 @@ public static class CrossCuttingFoundationExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(handlerAssemblies);
+        // The required provider mirror subscriber is shipped with this root,
+        // including component roots that supply a smaller MediatR request set.
+        handlerAssemblies = handlerAssemblies.Append(typeof(ProviderEventObservationHandler).Assembly).Distinct().ToArray();
 
         // The Serilog OTLP sink + the OTel pipeline both need
         // ITenantContextAccessor (via enrichers / processor). Register the
@@ -89,8 +95,10 @@ public static class CrossCuttingFoundationExtensions
         // business logic ran, so the obligation the transport advertises was
         // half-delivered. Packet 7's TenantResolverMiddleware writes the same
         // accessor.
+        builder.Services.TryAddScoped<ProviderEventProductionBinding>();
         builder.Services.TryAddTransient<ITenantContext>(sp =>
-            sp.GetRequiredService<ITenantContextAccessor>().Current
+            sp.GetRequiredService<ProviderEventProductionBinding>().Resolve()
+            ?? sp.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
 
         // IClock and IGuidFactory have existed in the kernel since Packet 2 and
@@ -147,9 +155,11 @@ public static class CrossCuttingFoundationExtensions
                 [OutboxSubscriptionManifest.Active("customization.initialize-content-type-default.v1",
                     typeof(InitializeContentTypeDefaultHandler)),
                  OutboxSubscriptionManifest.Active("customization.initialize-taxonomy-default.v1",
-                    typeof(InitializeTaxonomyDefaultHandler))])],
+                    typeof(InitializeTaxonomyDefaultHandler))]),
+             OutboxEventRegistration.Required(typeof(UserProviderEventObservedIntegrationEventV1),
+                [OutboxSubscriptionManifest.Active("audit.provider-event-mirror.v1", typeof(ProviderEventObservationHandler))])],
             [], provider.GetRequiredService<IntegrationEventHandlerRegistry>(),
-            [typeof(TenantCreatedIntegrationEventV1).Assembly]));
+            [typeof(TenantCreatedIntegrationEventV1).Assembly, typeof(UserProviderEventObservedIntegrationEventV1).Assembly]));
         builder.Services.TryAddSingleton(SelectEventBus);
 
         builder.Services.AddProblemDetails();

@@ -18,14 +18,15 @@ request; and redacting or purging a row is the one act in the system that remove
 evidence. All three are recorded, and the last two are recorded in the table they are
 about — which is the arrangement that makes them answerable rather than merely logged.
 
-**No row below is written in this packet.** Packet 9 ships the table, the store, the
-capture, the classifier and the pipeline that fills them; every operation this module
-declares belongs to a surface that lands later — the query API and the export job in
+Packet 9 ships the table, store, capture, classifier and pipeline. The provider
+observation below uses that pipeline under
+[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+The query API and export job remain in
 [Phase 03](../../roadmap/phase-03-identity-admin.md), the override editor in
 [Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), redaction with Phase 03's
 erasure handler, and retention in
-[Phase 11](../../roadmap/phase-11-production-hardening.md). Every row therefore carries
-`(planned)`, and the marker is a claim `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
+[Phase 11](../../roadmap/phase-11-production-hardening.md). Those future rows carry
+`(planned)`, a claim `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
 re-checks on every run: a `(planned)` row whose command has since shipped fails.
 
 This matrix is not the floor —
@@ -51,6 +52,7 @@ each, rather than two more verbs on `event`, which is the resource a tenant read
 
 | Resource | Operation | Class | Notes |
 |---|---|---|---|
+| `provider_event` | `audit.provider_event.observe` | **MUST** (`security-event`) | `ProviderEventObservationHandler` consumes the required transport-owned inbox. Closed typed evidence records a retained account-history observation, with SystemActor separate from the affected User and processing outcome/time separate from provider outcome/time. No tenant-login or human-G13 proof is inferred. |
 | `event` | `audit.event.read` `(planned)` | **SHOULD** (`read-sensitive`) | Someone read a tenant's audit trail. SHOULD rather than MUST because a tenant admin reading their own log is ordinary administration, and a MUST here would make every page of the audit screen write a row into the table it is paging — which is the one place a self-referential write compounds. The tenant may narrow it; the platform-scope read below cannot be narrowed |
 | `event_export` | `audit.event_export.write` `(planned)` | **MUST** | An export produces a file containing the log, outside every policy in this schema and outliving the request that asked for it. The row records who asked and for what range; the file's own retention is [Phase 03](../../roadmap/phase-03-identity-admin.md)'s to settle |
 | `event_export` | `audit.event_export.read` `(planned)` | **MUST** | Collecting the file is a separate act from asking for it, often by a different principal and always at a different time. Two grants in [permissions.md](permissions.md), two rows here |

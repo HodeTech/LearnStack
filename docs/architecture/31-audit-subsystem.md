@@ -18,12 +18,14 @@ compliance-relevant operations across every LearnStack module. This document des
 the pipeline, the durability model, the data model, retention, redaction, and operational
 concerns.
 
-[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) explicitly assigns
-BFF provider events to development Keycloak storage. Local expiry, unreceived
-refresh and outage-local logout have closed diagnostics only until Phase 03's
-authenticated identity-event ingress/mirror. No standalone session audit API,
-atomic provider/BFF durability or change to existing LearnStack MUST writes is
-introduced; [Audit 18](../standards/18-audit-coverage.md#operation-types) owns the rule.
+[ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+adds retained Keycloak account-history observations through frozen tenant targets,
+ordinary outbox/inbox and the central MUST writer. This is not a tenant-login
+assertion. Local expiry, unreceived refresh and outage-local logout still have
+closed diagnostics only; no provider event is fabricated for them. No standalone
+session audit API or atomic provider/BFF commit is introduced.
+[Audit 18](../standards/18-audit-coverage.md#retained-provider-event-observations)
+owns the typed evidence and outcome boundary.
 
 ## 1. Two durability classes
 

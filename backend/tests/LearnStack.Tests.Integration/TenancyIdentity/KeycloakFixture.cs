@@ -20,6 +20,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 {
     internal const string Image = "quay.io/keycloak/keycloak:26.6.2";
     internal const string WebClientSecret = "keycloak-fixture-web-secret";
+    internal const string EventReaderSecret = "keycloak-fixture-event-reader-secret";
     internal const string DemoPassword = "demo-dev-secret";
     private const string AdminUsername = "fixture-admin";
     private readonly string _adminPassword = Guid.NewGuid().ToString("N");
@@ -231,10 +232,10 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 
     // The child owns this pipe. Bootstrap credentials have no public projection or diagnostic record.
     internal async Task WriteReconciliationInputAsync(Stream destination, string scenario,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool includeEventReader = false)
     {
         using var desired = JsonDocument.Parse(await File.ReadAllTextAsync(RealmPath("learnstack"), cancellationToken));
-        await JsonSerializer.SerializeAsync(destination, new
+        var input = JsonSerializer.SerializeToNode(new
         {
             baseUrl = BaseAddress.AbsoluteUri,
             expectedIssuer = Issuer,
@@ -245,7 +246,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             desired = desired.RootElement,
             ca = RootCertificate.ExportCertificatePem(),
             scenario,
-        }, JsonSerializerOptions.Web, cancellationToken);
+        }, JsonSerializerOptions.Web)!.AsObject();
+        if (includeEventReader) input["eventReaderSecret"] = EventReaderSecret;
+        await JsonSerializer.SerializeAsync(destination, input, JsonSerializerOptions.Web, cancellationToken);
     }
 
     internal static string RealmPath(string realm) => Path.Combine(RepositoryRoot(), "infra", "keycloak", "realms", realm + ".json");

@@ -7,7 +7,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Owns a real Node child and a private pipe; no credential enters argv, inherited environment or disk.</summary>
 internal static class KeycloakReconciliationDriver
 {
-    internal static async Task<ReconciliationOutcome> RunAsync(KeycloakFixture fixture, string scenario = "normal")
+    internal static async Task<ReconciliationOutcome> RunAsync(KeycloakFixture fixture, string scenario = "normal", bool includeEventReader = false)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(140));
         var start = new ProcessStartInfo("node")
@@ -36,7 +36,7 @@ internal static class KeycloakReconciliationDriver
             if (!started) throw new InvalidOperationException();
             output = ReadBoundedAsync(child.StandardOutput, deadline.Token);
             errors = ReadBoundedAsync(child.StandardError, deadline.Token);
-            await fixture.WriteReconciliationInputAsync(child.StandardInput.BaseStream, scenario, deadline.Token);
+            await fixture.WriteReconciliationInputAsync(child.StandardInput.BaseStream, scenario, deadline.Token, includeEventReader);
             child.StandardInput.Close();
             await Task.WhenAll(child.WaitForExitAsync(deadline.Token), output, errors);
             if ((await errors).Length != 0) throw new InvalidOperationException();

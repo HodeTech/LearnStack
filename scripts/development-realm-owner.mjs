@@ -47,6 +47,19 @@ export function realmEnvironment(source, ambient = process.env) {
   return Object.freeze(Object.fromEntries(privateKeys.map((key) => [key, values[key]])));
 }
 
+/** API-only event credential; neither the browser/BFF client nor a demo service identity. */
+export function eventReaderEnvironment(source, ambient = process.env) {
+  const values = parseEnv(source);
+  const key = 'IdentityEvents__ClientSecret';
+  const exact = [...source.matchAll(/^IdentityEvents__ClientSecret=/gm)];
+  const aliases = [...source.matchAll(/^[ \t]*(?:export[ \t]+)?IdentityEvents__ClientSecret[ \t]*=/gm)];
+  const value = values[key];
+  if (exact.length !== 1 || aliases.length !== 1 || typeof value !== 'string' || value.length < 16
+      || /[\r\n\0]/.test(value) || value === values.KEYCLOAK_WEB_CLIENT_SECRET || value === values.KEYCLOAK_ADMIN_PASSWORD
+      || ambient[key] !== undefined && ambient[key] !== value) refuse('preflight', 'configuration');
+  return value;
+}
+
 /** Require the selected deployment's explicit immutable pair before migrations. */
 export function seedAuthorityEnvironment(source, ambient = process.env) {
   const values = parseEnv(source);

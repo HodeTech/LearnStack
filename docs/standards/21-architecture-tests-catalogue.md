@@ -7423,6 +7423,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 - **Test owners:**
   [ProviderEventStorageConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventStorageConventionTests.cs),
   [ProviderEventStorageTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventStorageTests.cs).
+- **Flow controls:**
+  [ProviderEventFlowConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventFlowConventionTests.cs),
+  [ProviderEventAdapterTests](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/ProviderEventAdapterTests.cs),
+  [realm reader controls](../../scripts/development-event-reader.test.mjs).
 - **Phase:** 03 (P03-6).
 
 #### `Provider_Event_Mirror_Is_Attributed_And_Idempotent`
@@ -7438,4 +7442,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   restart controls. **Kind:** both.
 - **Status:** **Registered**. Target acceptance/storage tests alone do not qualify
   the required consumer or central Audit composition.
+- **Test owners:**
+  [ProviderEventFlowConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventFlowConventionTests.cs),
+  [ProviderEventFlowTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventFlowTests.cs),
+  [real provider mirror](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/ProviderEventAdapterTests.Mirror.cs),
+  [typed central evidence](../../backend/tests/LearnStack.Tests.Unit/SharedKernel/Audit/ProviderEventAuditEvidenceTests.cs).
 - **Phase:** 03 (P03-6).

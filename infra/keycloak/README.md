@@ -17,8 +17,10 @@ those records.
 [ADR-0070](../../docs/decisions/0070-owned-tenant-bff-sessions.md) authorizes
 development tenant-realm user-event storage. The export retains the pinned
 default-saved selection and adds refresh success/error events. The reconciler
-unions the current effective selection with the eight required login/logout/
-code/refresh success/error types, preserving listeners and admin-event policy.
+unions the current effective selection with login/logout, reset, credential/MFA,
+lockout and code/refresh success/error types, preserving listeners and admin-event
+policy. [ADR-0097](../../docs/decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+selects the twenty mirrored kinds; code/refresh remains provider-only history.
 
 Fresh/default-empty retention is seven days. A warm disabled/default-zero store
 (the pinned API omits zero expiration) needs a bounded empty-history read first.
@@ -30,11 +32,69 @@ to bypass the guard. Separate readback and a zero-write rerun qualify convergenc
 Stored events contain personal identity/address details and stay in the provider
 database, not raw CI artifacts. This affects all tenant-realm users, including
 account-console. Hub/admin-event policy is unchanged. Local BFF expiry/outage
-logout are not durable provider events; Phase 03 owns authenticated event ingress/
-mirroring and Phase 11 owns production retention/security/capacity qualification.
+logout are not durable provider events. The retained-event mirror below handles
+only actually stored provider facts. Phase 11 owns production retention/security/
+capacity qualification.
 This configuration does not activate browser sign-in by itself.
 The native web process requires the separate explicit BFF opt-in documented in
 [web setup](../../frontend/apps/web/README.md#optional-tenant-sign-in).
+
+## Retained-event reader and recovery
+
+The selected private environment must add an independent
+`IdentityEvents__ClientSecret` (at least sixteen characters). Realm reconciliation
+creates `learnstack-event-reader`, a confidential service account with no browser,
+password or full-scope flow, no inherited client scopes and only the
+`realm-management/view-events` role/scope binding. The pinned provider's automatic
+`service_account` scope and newly-created default realm-role assignment are removed
+from this client only. A separate local mapper emits only its admitted event role.
+An existing secret mismatch or excess role/scope/mapper refuses; no silent rotation
+or deletion of an existing account's permissions is performed.
+
+Configure the API independently:
+
+- `ConnectionStrings__IdentityIngress`: the same application database, using only
+  `learnstack_identity_ingress` and its independently provisioned password.
+- `IdentityEvents__RealmId`: the actual immutable `id` from the authenticated
+  `GET /admin/realms/learnstack` representation, not the display name guessed from
+  the URL. Inspect only this field through the deployment's admin workflow; do not
+  retain the full administrative response as an artifact.
+- `IdentityEvents__ClientSecret`: the retained reader secret. It never belongs in
+  a browser, BFF client source, public renderer or Seeder environment.
+- The installed `Identity__AuthorityId` and canonical
+  `Authentication__Tenant__Issuer` must match. HTTPS is mandatory except explicitly
+  local Development loopback HTTP. Redirects and ambient proxy credentials refuse.
+
+The API reads a fresh client-credentials token for every bounded source read.
+Rotating or disabling this client therefore affects subsequent reads; no in-flight
+revocation guarantee is claimed. Rotate the provider credential and private API
+secret together through the admin/secret-store workflow. Never substitute a BFF,
+demo, master or broader admin credential to restore ingestion.
+
+The private `identity-provider-mirror` health check reports unqualified activation,
+stale/incomplete traversal and unresolved retention risk independently of public
+`/healthz` liveness. Source failures log only closed diagnostics. An unreadable page
+is halved to a singleton; its minimized interval/offset problem is persisted before
+other positions continue. Overflow facts keep no partial targets or ACK. Fair
+retries and the retained cursor survive restart; an unresolved source expiry leaves
+a permanent historical-gap signal. Offset/equal-time movement still prevents a
+gap-free capture guarantee.
+
+If setup fails after dispatch, inspect this exact client's current secret, scopes,
+service-account roles and local mapper with the deployment administrator before
+an explicit rerun. Pre-existing broader/conflicting state needs an explicit admin
+repair; deleting retained event history, ledger rows or immutable targets is not a
+repair. Policies longer than thirty days are preserved by reconciliation but block
+mirror activation until the operator explicitly resolves the approved 7–30 day
+mirror policy. Global ledgers retire after 32 days; tenant replay/Audit copies keep
+their independent retention dependencies under Phase 11.
+
+After initial qualification, a source outage does not stop publication of already
+accepted targets. A failed claimed target retains its lease/retry identity while
+other eligible targets continue. Production failure leaves a conservative process
+health fault: inspect the retained claim/outbox state and requalify by restarting
+the corrected process. Restart never clears the database's historical-gap marker.
+Before initial source/policy qualification, mirror activation remains blocked.
 
 ## Realms and accounts
 

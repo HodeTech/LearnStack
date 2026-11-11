@@ -304,7 +304,8 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
 
 Tenant **development** provider events use explicit LOGIN/LOGIN_ERROR,
 LOGOUT/LOGOUT_ERROR, CODE_TO_TOKEN/CODE_TO_TOKEN_ERROR and
-REFRESH_TOKEN/REFRESH_TOKEN_ERROR storage. Merge the existing effective selection;
+REFRESH_TOKEN/REFRESH_TOKEN_ERROR storage. ADR-0097 adds the selected reset,
+credential/MFA and lockout kinds for the retained-event reader. Merge the existing effective selection;
 preserve listeners/admin policy. Fresh/default-empty retention is seven days.
 Warm adoption requires bounded empty-history proof; preserve finite retention
 of at least seven days, refusing shorter/indefinite/ambiguous custom policy before

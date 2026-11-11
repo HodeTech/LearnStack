@@ -6095,6 +6095,10 @@ A retained accepted exact fingerprint reconciles before current source-age
 validation. Source expiry or a shorter qualified policy cannot erase a committed
 acknowledgement; new or still-unaccepted facts keep the activation/retention/
 future-time bounds. Receipt/target IDs and the frozen recipient set never change.
+An observation expiring between HTTP read and SQL admission records a minimized
+`out_of_window` problem and remains unaccepted, allowing later positions to
+continue. A later genuinely admissible exact fingerprint resolves only its
+matching recoverable problem; no acceptance clears an irrecoverable gap.
 Missing/unbound/closed/no-recipient are durable receipt-only outcomes. Overflow
 is durably unaccepted, has no targets/ACK and cannot truncate recipients.
 

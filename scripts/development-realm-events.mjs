@@ -5,6 +5,10 @@ export const developmentEventRetentionSeconds = 604800;
 export const requiredDevelopmentEvents = Object.freeze([
   'LOGIN', 'LOGIN_ERROR', 'LOGOUT', 'LOGOUT_ERROR', 'CODE_TO_TOKEN',
   'CODE_TO_TOKEN_ERROR', 'REFRESH_TOKEN', 'REFRESH_TOKEN_ERROR',
+  'SEND_RESET_PASSWORD', 'SEND_RESET_PASSWORD_ERROR', 'RESET_PASSWORD', 'RESET_PASSWORD_ERROR',
+  'UPDATE_CREDENTIAL', 'UPDATE_CREDENTIAL_ERROR', 'REMOVE_CREDENTIAL', 'REMOVE_CREDENTIAL_ERROR',
+  'UPDATE_PASSWORD', 'UPDATE_PASSWORD_ERROR', 'UPDATE_TOTP', 'UPDATE_TOTP_ERROR',
+  'REMOVE_TOTP', 'REMOVE_TOTP_ERROR', 'USER_DISABLED_BY_TEMPORARY_LOCKOUT', 'USER_DISABLED_BY_PERMANENT_LOCKOUT',
 ]);
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -29,7 +33,7 @@ function normalize(value, stage) {
   result.enabledEventTypes = strings(value.enabledEventTypes, stage);
   // Pinned GET events/config expands the implicit default-saved selection.
   // Never interpret an unavailable/empty effective selection as permission to
-  // replace the provider's other events with only our eight types.
+  // replace the provider's other events with only our required types.
   if (!result.enabledEventTypes.length) refuse(stage, 'event_policy_conflict');
   if (value.eventsListeners !== undefined) result.eventsListeners = strings(value.eventsListeners, stage);
   for (const field of ['adminEventsEnabled', 'adminEventsDetailsEnabled'])

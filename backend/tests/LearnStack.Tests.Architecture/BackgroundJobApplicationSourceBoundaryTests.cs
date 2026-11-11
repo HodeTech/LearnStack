@@ -141,7 +141,8 @@ public sealed partial class OutboxDispatchConventionTests
             (AppJobAuthorizationSource, "QualifyCoreEntryAsync"), (AppJobEvidenceSource, "QualifyCoreEntryAsync"),
             (AppJobDatabaseProof, "OpenAsync"),
             ("LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource", "QualifyAsync"),
-            ("LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource", "ExecuteAsync")]);
+            ("LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource", "ExecuteAsync"),
+            ("LearnStack.Infrastructure.Identity.ProviderEvents.KeycloakIdentityEventProvider", "RunAsync")]);
         CheckJobQualificationEntries(census, types, offenders);
         CheckJobApplicationRetainedFields(census, owner, resources, offenders);
         return offenders;

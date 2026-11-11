@@ -93,7 +93,18 @@ decides when it arrives, and the answer is "when a second process exists".
 | **Domain event** | Inside one module | MediatR `INotification` in-process | `CourseVersionPublished` |
 | **Integration event** | Cross-module | Outbox → `IEventBus.PublishAsync` → transport (in-process dispatcher today; Dapr pub/sub → Kafka from Phase 11) | `OrderPaidV1`, `EnrollmentCreated`, `TenantSuspended` |
 | **Analytics event** | Reporting stream | Same channel as integration events | `LessonCompleted` |
-| **Provider event** | External callback (webhook) | Provider → API endpoint → outbox → ... | `LiveKitParticipantJoined`, `StripeInvoicePaid` |
+| **Provider event** | External provider fact | Authenticated callback or qualified retained pull → confined acceptance → outbox → inbox | P03-6 `UserProviderEventObservedIntegrationEventV1`; future LiveKit/payment callbacks |
+
+P03-6's retained pull derives from
+[ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+Global acceptance freezes tenant targets, then each claimed target and its
+identifier-only outbox row commit on one tenant transaction. The required Audit
+subscriber attaches central typed evidence inside the ordinary inbox transaction.
+That asynchronous observation is MUST-class when consumed; it does not replace
+the original provider store or claim that a particular tenant login occurred.
+The [Identity catalogue](../modules/identity/README.md#integration-event-catalogue)
+names the event and subscription; canonical storage and recovery stay in
+[Database Standards](../standards/05-database.md#provider-event-intake-storage).
 
 ## Outbox flow
 
