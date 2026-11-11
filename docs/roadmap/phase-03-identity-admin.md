@@ -23,7 +23,7 @@
 > records all four steps, reviews, final-head `b96c2f65` A/B (27/27 each) and fifty
 > verified original archives. Manual acceptance covers the earlier UI; later fixes
 > lack a fresh human recheck. Earlier intermittent CI causes remain unlocalized.
-> P03-6 is in progress under Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md) and its [corrected acceptance](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11); Step 1 implements storage/owners; runtime qualification remains separate.
+> P03-6 is in progress under Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md). [Step 1 closes with two review rounds](phase-03-delivery-log.md#p03-6-step-1-closeout-and-step-2-entry-2026-11-11); Step 2 implements the real provider/outbox/Audit flow. Runtime and hosted qualification remain separate.
 > P03-7 through P03-11 have not started. Phase 03 remains open.
 >
 > | Packet | Title | State |

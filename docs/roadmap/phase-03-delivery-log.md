@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 332 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 357 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -437,6 +437,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 1 storage and ownership implementation (2026-11-11)](#p03-6-step-1-storage-and-ownership-implementation-2026-11-11) — 51 lines
   - [P03-6 Step 1 review round 1 and corrections (2026-11-11)](#p03-6-step-1-review-round-1-and-corrections-2026-11-11) — 44 lines
   - [P03-6 Step 1 review round 2 and retained replay correction (2026-11-11)](#p03-6-step-1-review-round-2-and-retained-replay-correction-2026-11-11) — 29 lines
+  - [P03-6 Step 1 closeout and Step 2 entry (2026-11-11)](#p03-6-step-1-closeout-and-step-2-entry-2026-11-11) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19962,3 +19963,28 @@ All 39 intake Integration cases and the applied exact function/body/ACL/trigger
 inspection pass together (40 total). The R2 finding receives a narrow correction
 recheck after commit; complete provider-flow, full-suite and hosted evidence remain
 separate. No new ADR decision or authority is introduced by the repair.
+
+### P03-6 Step 1 closeout and Step 2 entry (2026-11-11)
+
+`94e1abb9` receives the R2 storage reviewer's narrow correction recheck. The
+reviewer confirms that an accepted exact fingerprint returns its original
+receipt before expiry/recipient reads, while new/unaccepted expired facts refuse
+before insertion. No remaining verified R1/R2 finding is open in the dormant
+foundation scope. The recheck reads source and the retained 40-pass test log; it
+is not a new suite run or a third broad review round.
+
+Step 1 closes after implementation `9521b1cc`, R1 corrections `8186c8b9`, R2
+correction `94e1abb9` and two fresh independent review rounds. Its build,
+174-case schema group, 3,750-case Unit suite, 92-case focused Architecture group,
+three lifecycle controls and subsequent 38/40-case correction checks retain their
+individual source boundaries above. They are not summed into a fabricated full
+suite or hosted result. The exploratory failed/cancelled Architecture run remains
+separate history. Both end-to-end catalogue rules stay Registered.
+
+Step 2 proceeds automatically under the same Accepted ADR: bounded read-only
+provider port/adapter and fresh/warm client setup, fair retained-window/problem
+recovery, actual claimed-target production through `IOutbox`, required transport
+inbox-backed Audit consumer and central typed evidence. Tests land with that flow;
+no frontend, manual accessibility, session revocation or unrelated authority is
+added. Full packet validation/PR/hosted A/B remain Step 3. Work stays on
+`development`, with no push, PR or CI run started at this checkpoint.
