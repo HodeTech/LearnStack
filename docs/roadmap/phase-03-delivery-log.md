@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 604 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 668 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -445,6 +445,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 3 composition qualification correction (2026-11-11)](#p03-6-step-3-composition-qualification-correction-2026-11-11) — 19 lines
   - [P03-6 Step 3 first review and enforcement corrections (2026-11-11)](#p03-6-step-3-first-review-and-enforcement-corrections-2026-11-11) — 46 lines
   - [P03-6 Step 3 review closeout and qualification freeze (2026-11-11)](#p03-6-step-3-review-closeout-and-qualification-freeze-2026-11-11) — 28 lines
+  - [P03-6 first hosted A and observation census corrections (2026-11-11)](#p03-6-first-hosted-a-and-observation-census-corrections-2026-11-11) — 64 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20242,3 +20243,67 @@ frozen source; this freeze itself claims neither hosted fit nor merge authority.
 There is no new UI/manual gate, unresolved maintainer decision, duplicate manual
 workflow, branch switch or authorized merge. The phase Status remains in progress
 until final evidence and maintainer review close it.
+
+### P03-6 first hosted A and observation census corrections (2026-11-11)
+
+[PR #43](https://github.com/HodeTech/LearnStack/pull/43) is open, ready for review
+and unmerged. Its first full A,
+[run 43046949090](https://github.com/HodeTech/LearnStack/actions/runs/43046949090),
+uses head `db6defc9` and verified merge source `96dd6f88`. Its final result is
+**20/27 successful jobs**. Four Architecture producers expose six failed controls;
+one ordinary producer exposes one historical table-inventory failure, and both
+required aggregates refuse their incomplete producers. All other jobs pass. The
+**23 available original ZIPs** match their API sizes, SHA-256 digests and ZIP CRCs.
+This is a failed candidate, not qualification; no successful subset replaces a
+complete A and no B is started from this failure.
+
+Two verified structural-control gaps explain the Architecture failures:
+
+- Both observation walkers expand `typeof(IIntegrationEventHandler<>)` in
+  `IntegrationEventHandlerRegistry.IsHandlerContract` as though it acquires every
+  handler implementation. The new Audit handler makes that metadata path reach
+  HTTP authorization metadata and `IdempotentAttribute`'s real `IServiceProvider`
+  parameter. A private compiled-assembly diagnostic establishes the full path;
+  local reproductions confirm the same offender. The correction keeps named-type
+  persistence/locator checks and actual collaborator polymorphism, but does not
+  acquire sibling implementations from a type token or inherited declaration
+  alone. Shared controls exercise both observation roots, metadata/field
+  distinctions, both encounter orders, forbidden type tokens and the existing
+  async/callback/polymorphic checks. This is bounded structural analysis, not
+  arbitrary reflection or dataflow proof.
+- The generic handler census independently pins only the two customization
+  subscriptions, while its mutation test assumes the first manifest is one of
+  them. The provider mirror now sorts first; changing its name or privilege
+  scope leaves that old detector clean. The correction independently pins its
+  event, handler, `audit.provider-event-mirror.v1`, Active readiness and ordinary
+  tenant scope. Per-binding controls cover missing/rebound/duplicate/scoped
+  metadata, coordinated handler-and-metadata disappearance, and clean reordered
+  registrations. Catalogue 21 follows these actual owners.
+
+The ordinary failure is independently reproduced in
+`Fresh_down_reapply_restores_every_job_object_and_retains_existing_event_storage`.
+Its Platform-only reversal retains the three global provider tables owned by
+Identity, but its expected survivor list omits them. Adding the canonical
+`SchemaTableClasses.ProviderIngress` class preserves exact table equality;
+neither discovery nor the historical rollback boundary is relaxed.
+
+No production source, permission, SQL grant, runtime/test/CI setting or Accepted
+ADR body changes in this correction. The existing long local Architecture run
+keeps its original binaries; an isolated output copy compiles only the edited
+Architecture project against the unchanged Release dependencies. Its final
+build has zero warnings/errors and the final focused group passes **9/9** in
+28.033 seconds. An earlier focused run exposes a test-harness baseline mistake
+in the new coordinated-removal control; explicit clean/dirty/restored checks
+correct it before the final pass. The separate final Contract suite passes
+**12/12**. The corrected real PostgreSQL job-storage/rollback group passes
+**195/195** after an isolated Integration build with zero warnings/errors. Both
+reviewers independently recheck that this exact survivor list belongs to Identity
+and report no finding. Full local Architecture/Integration results remain separate and open
+until their actual completion.
+
+A fresh Sol/high first review reports no verified finding. A fresh Terra/high
+second review confirms the corrected removal control and reports no further
+finding. Neither review claims runtime execution or hosted qualification. The
+next push updates the existing PR and starts a new complete A through its normal
+workflow. Full same-source A/B and original-archive reconciliation remain
+mandatory; this record grants neither a duplicate manual workflow nor merge.

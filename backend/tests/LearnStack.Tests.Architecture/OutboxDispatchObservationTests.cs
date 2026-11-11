@@ -125,6 +125,82 @@ public sealed partial class OutboxDispatchConventionTests
     }
 
     [Fact]
+    public void Observation_walk_distinguishes_metadata_from_acquired_collaborators()
+    {
+        using var census = ProductionCensus.Read();
+        var module = census.Modules.Single(item => item.Assembly.Name.Name == "LearnStack.Application");
+        foreach (var (rootName, detector) in new (string, Func<ProductionCensus, SortedSet<string>>)[]
+                 { (Observation, ObservationOffenders), (DeliveryObserver, DeliveryObservationOffenders) })
+            foreach (var kind in new[] { "token", "interface", "base" })
+                foreach (var acquireFirst in new[] { false, true })
+                {
+                    var root = census.Types[(ApiAssembly, rootName)];
+                    var contract = AddProbe(module, "MetadataContract");
+                    contract.Attributes |= TypeAttributes.Abstract;
+                    if (kind == "interface") contract.Attributes |= TypeAttributes.Interface;
+                    var metadata = AddProbe(module, "MetadataOwner");
+                    var acquisition = AddProbe(module, "AcquisitionOwner");
+                    var dirty = AddProbe(module, "DirtySibling");
+                    dirty.Fields.Add(new FieldDefinition("Locator", FieldAttributes.Public, module.ImportReference(typeof(IServiceProvider))));
+                    if (kind == "interface")
+                    {
+                        metadata.Interfaces.Add(new InterfaceImplementation(contract));
+                        dirty.Interfaces.Add(new InterfaceImplementation(contract));
+                    }
+                    else
+                    {
+                        dirty.BaseType = contract;
+                        if (kind == "base") metadata.BaseType = contract;
+                    }
+                    if (kind == "token")
+                    {
+                        var method = new MethodDefinition("ReadType", MethodAttributes.Public | MethodAttributes.Static, module.TypeSystem.Void);
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ldtoken, contract));
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                        metadata.Methods.Add(method);
+                    }
+                    var metadataField = new FieldDefinition("MetadataProbe", FieldAttributes.Private, root.Module.ImportReference(metadata));
+                    var acquisitionField = new FieldDefinition("AcquisitionProbe", FieldAttributes.Private, root.Module.ImportReference(acquisition));
+                    if (acquireFirst) { root.Fields.Add(acquisitionField); root.Fields.Add(metadataField); }
+                    else { root.Fields.Add(metadataField); root.Fields.Add(acquisitionField); }
+                    try
+                    {
+                        detector(census).Should().BeEmpty("a type token or inherited declaration does not acquire sibling implementations");
+                        var acquired = new FieldDefinition("Contract", FieldAttributes.Private, contract);
+                        acquisition.Fields.Add(acquired);
+                        try
+                        {
+                            detector(census).Should().Contain(item => item.Contains("DirtySibling -> System.IServiceProvider"),
+                            "an independently acquired contract expands implementations regardless of traversal order");
+                        }
+                        finally { acquisition.Fields.Remove(acquired); }
+                        detector(census).Should().BeEmpty("removing the collaborator restores the clean graph");
+                        var token = new MethodDefinition("ForbiddenToken", MethodAttributes.Public | MethodAttributes.Static, module.TypeSystem.Void);
+                        token.Body.Instructions.Add(Instruction.Create(OpCodes.Ldtoken, module.ImportReference(typeof(Npgsql.NpgsqlCommand))));
+                        token.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
+                        token.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                        metadata.Methods.Add(token);
+                        try
+                        {
+                            detector(census).Should().Contain(item => item.Contains("Npgsql.NpgsqlCommand"),
+                            "forbidden type references remain visible even when they are metadata tokens");
+                        }
+                        finally { metadata.Methods.Remove(token); }
+                    }
+                    finally
+                    {
+                        root.Fields.Remove(metadataField);
+                        root.Fields.Remove(acquisitionField);
+                        module.Types.Remove(metadata);
+                        module.Types.Remove(acquisition);
+                        module.Types.Remove(dirty);
+                        module.Types.Remove(contract);
+                    }
+                }
+    }
+
+    [Fact]
     public void Observation_registration_control_detects_missing_duplicate_or_replaced_worker_and_check()
     {
         IServiceCollection services = ObservationServices();
@@ -338,6 +414,7 @@ public sealed partial class OutboxDispatchConventionTests
         while (pending.TryDequeue(out var type))
         {
             if (!visited.Add(Key(type))) continue;
+            var acquisitions = new Dictionary<(string Assembly, string Type), bool>();
             foreach (var reference in Il.ReferencedTypeReferences(type))
             {
                 if (reference.Namespace.StartsWith("Npgsql", StringComparison.Ordinal)
@@ -348,12 +425,48 @@ public sealed partial class OutboxDispatchConventionTests
                     offenders.Add(TypeId(type) + " -> " + reference.FullName);
                 if (!types.TryGetValue(Key(reference), out var helper)) continue;
                 pending.Enqueue(helper);
-                if (!helper.IsSealed)
+                if (!helper.IsSealed && (!acquisitions.TryGetValue(Key(helper), out var acquired)
+                        ? acquisitions[Key(helper)] = AcquiresObservationCollaborator(type, helper) : acquired))
                     foreach (var implementation in types.Values.Where(candidate => !candidate.IsInterface && Derives(candidate, helper, types)))
                         pending.Enqueue(implementation);
             }
         }
         return offenders;
+    }
+
+    // A type token or an inherited declaration names a contract without acquiring
+    // an instance of every implementation. Keep scanning that named type, but only
+    // expand implementations when the owner carries an actual collaborator edge.
+    // This is a structural census, not reflection or arbitrary dataflow analysis.
+    private static bool AcquiresObservationCollaborator(TypeDefinition type, TypeDefinition dependency)
+    {
+        var key = Key(dependency);
+        bool Names(TypeReference reference) => Il.ExpandedTypeReferences(reference).Any(item => Key(item) == key);
+        bool OwnOrInherited(TypeReference reference) => Key(reference) == Key(type)
+            || type.BaseType is { } parent && Key(reference) == Key(parent)
+            || type.Interfaces.Any(contract => Key(reference) == Key(contract.InterfaceType));
+        IEnumerable<TypeDefinition> Generated(TypeDefinition owner) => new[] { owner }.Concat(owner.NestedTypes
+            .Where(nested => nested.Name.Contains('<', StringComparison.Ordinal)
+                || nested.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute"))
+            .SelectMany(Generated));
+        bool CapturedOwner(FieldReference field) => field.Name == "<>4__this" && Key(field.FieldType) == Key(type);
+        return Generated(type).Any(owner => owner.Fields.Any(field => Names(field.FieldType) && !CapturedOwner(field))
+                || owner.Properties.Any(property => Names(property.PropertyType))
+                || owner.Events.Any(item => Names(item.EventType)))
+            || Il.Methods(type).Any(pair => Names(pair.Definition.ReturnType)
+                || pair.Definition.Parameters.Any(parameter => Names(parameter.ParameterType))
+                || pair.Definition.HasBody && (pair.Definition.Body.Variables.Any(variable => Names(variable.VariableType)
+                    && !(pair.Definition.DeclaringType != type && Key(variable.VariableType) == Key(type)))
+                    || pair.Definition.Body.Instructions.Any(instruction => instruction.Operand switch
+                    {
+                        TypeReference reference => instruction.OpCode != OpCodes.Ldtoken && Names(reference),
+                        FieldReference field => !CapturedOwner(field) && (Names(field.FieldType)
+                            || !OwnOrInherited(field.DeclaringType) && Names(field.DeclaringType)),
+                        MethodReference target => !OwnOrInherited(target.DeclaringType) && Names(target.DeclaringType)
+                            || Names(target.ReturnType) || target.Parameters.Any(parameter => Names(parameter.ParameterType))
+                            || target is GenericInstanceMethod generic && generic.GenericArguments.Any(Names),
+                        _ => false,
+                    })));
     }
 
     private static IServiceCollection ObservationServices()

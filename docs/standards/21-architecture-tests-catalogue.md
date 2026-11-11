@@ -4096,8 +4096,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   `DeliveryExecutionTests`, `CustomizationDefaultDeliveryTests` and
   `DeliveryDispatchStoreTests`). Step 6's
   [handler/manifest census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryBoundaryTests.cs)
-  requires all production assemblies/layers and the two exact scoped Active
-  bindings. It detects typed construction, inherited implementation/virtual-slot
+  requires all production assemblies/layers and the exact scoped Active bindings
+  for the two customization defaults and the provider-event Audit mirror. Each
+  binding independently pins its event, handler, subscription and ordinary tenant
+  scope; mutation controls cover every binding. It detects typed construction,
+  inherited implementation/virtual-slot
   invocation, DI resolution through statically bound generic helpers, async and
   delegate bypasses, with missing-subject and dirty/clean controls. Generic type
   and method argument membership states bound recursive helper traversal.
@@ -4107,7 +4110,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   three `SetTenantContextAsync` call sites in the ordinary owner, prepared delivery
   owner and durable acceptance, with missing-site and extra interface/concrete/
   inherited/async/delegate caller controls. These implement two of ADR-0040's
-  eight logical setter paths rather than adding a new path. These are bounded
+  logical setter paths rather than adding a new path. These are bounded
   static capability checks, not arbitrary
   reflection, raw SQL transaction analysis or branch-order proofs; the real
   PostgreSQL tests own inbox-before-construction and transaction atomicity.
@@ -4388,7 +4391,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   Due/delayed/leased/deferred/terminal-requested/terminal rows distinguish gauges.
   Labels and diagnostics prohibit unbounded identities or sensitive
   exception/type/payload/connection data; /healthz remains liveness-only.
-  Polymorphic helper traversal covers production-owned contracts. The external
+  Polymorphic helper traversal covers acquired production-owned contracts. A
+  type token used only as reflection metadata does not acquire all implementations;
+  the named type still receives the persistence/locator checks, and a later real
+  collaborator acquisition still expands its implementations. The external
   clock is pinned to the actual singleton `TimeProvider.System` instance; actual
   DI health must follow Healthy → Unhealthy → Healthy on its singleton observation,
   refusing a same-type detached factory.

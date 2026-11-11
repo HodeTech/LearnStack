@@ -1,7 +1,9 @@
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Modules.Audit.Application.ProviderEvents;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
+using LearnStack.Modules.Identity.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Messaging;
@@ -19,12 +21,16 @@ public sealed partial class OutboxDispatchConventionTests
     private const string IntegrationHandlerContract = "LearnStack.SharedKernel.Messaging.IIntegrationEventHandler`1";
     private const string IntegrationSubscription = "LearnStack.Infrastructure.Messaging.IntegrationEventSubscription";
     private const string IntegrationRegistry = "LearnStack.Infrastructure.Messaging.IntegrationEventHandlerRegistry";
-    private static readonly Type[] RequiredDeliveryHandlers =
-        [typeof(InitializeContentTypeDefaultHandler), typeof(InitializeTaxonomyDefaultHandler)];
+    private static readonly (string Id, Type EventType, Type HandlerType)[] RequiredOrdinaryDeliverySubscriptions =
+    [
+        ("customization.initialize-content-type-default.v1", typeof(TenantCreatedIntegrationEventV1), typeof(InitializeContentTypeDefaultHandler)),
+        ("customization.initialize-taxonomy-default.v1", typeof(TenantCreatedIntegrationEventV1), typeof(InitializeTaxonomyDefaultHandler)),
+        ("audit.provider-event-mirror.v1", typeof(UserProviderEventObservedIntegrationEventV1), typeof(ProviderEventObservationHandler)),
+    ];
     private static readonly string[] IntegrationModuleLayers = ["Domain", "Application.Contracts", "Application", "Infrastructure"];
 
     /// <summary>
-    /// ADR-0046 and Accepted P02b-3: every production handler has one declared Active
+    /// ADR-0046, ADR-0097 and Accepted P02b-3: every production handler has one declared Active
     /// subscription and scoped registration; typed invocation and the known reflection
     /// capability stay in the delivery owner. PostgreSQL tests prove claim-before-
     /// construction, context ordering and atomicity. This is not arbitrary reflection
@@ -54,7 +60,7 @@ public sealed partial class OutboxDispatchConventionTests
                 return () => census.Modules.Add(module);
             }, current => IntegrationCoverageOffenders(current, registration));
 
-        foreach (var handler in RequiredDeliveryHandlers)
+        foreach (var handler in RequiredOrdinaryDeliverySubscriptions.Select(item => item.HandlerType).Distinct())
         {
             var subject = census.Types[(handler.Assembly.GetName().Name!, handler.FullName!)];
             var subjectModule = subject.Module;
@@ -63,10 +69,25 @@ public sealed partial class OutboxDispatchConventionTests
                 subjectModule.Types.Remove(subject);
                 return () => subjectModule.Types.Add(subject);
             }, current => IntegrationCoverageOffenders(current, registration));
+            var removedRegistration = registration with
+            {
+                Handlers = registration.Handlers.Where(item => item.HandlerType != handler).ToArray(),
+                Manifests = registration.Manifests.Where(item => item.Subscription.HandlerType != handler).ToArray(),
+                Services = registration.Services.Where(item => item.ServiceType != handler).ToArray(),
+            };
+            IntegrationCoverageOffenders(census, registration).Should().BeEmpty();
+            subjectModule.Types.Remove(subject);
+            try
+            {
+                IntegrationCoverageOffenders(census, removedRegistration).Should().NotBeEmpty(
+                    "removing required handler {0} together with every registration must not make the census vacuously clean", handler.Name);
+            }
+            finally { subjectModule.Types.Add(subject); }
+            IntegrationCoverageOffenders(census, registration).Should().BeEmpty("restoring the handler and its metadata restores the clean census");
         }
 
         // Each production layer is also a possible newly added handler's home.
-        // Comparing with the manifest, rather than requiring just two known names,
+        // Comparing with the manifest, rather than requiring just known names,
         // makes this extra unregistered subject fail everywhere.
         foreach (var module in census.Modules)
             AssertMutation(census, "an unregistered integration handler in " + module.Name, () =>
@@ -184,29 +205,49 @@ public sealed partial class OutboxDispatchConventionTests
         using var census = ProductionCensus.Read();
         var registration = ReadIntegrationDeliveryRegistration();
         IntegrationCoverageOffenders(census, registration).Should().BeEmpty();
-        var first = registration.Handlers[0];
-        var manifest = registration.Manifests[0];
-        var descriptor = registration.Services.Single(service => service.ServiceType == first.HandlerType);
-        var mutations = new[]
+        foreach (var handler in registration.Handlers)
         {
-            registration with { Handlers = registration.Handlers.Skip(1).ToArray() },
-            registration with { Handlers = [.. registration.Handlers, first] },
-            registration with { Handlers = [first with { EventType = typeof(IIntegrationEvent) }, .. registration.Handlers.Skip(1)] },
-            registration with { Handlers = [first with { Handle = typeof(object).GetMethod(nameof(ToString))! }, .. registration.Handlers.Skip(1)] },
-            registration with { Manifests = registration.Manifests.Skip(1).ToArray() },
-            registration with { Manifests = [.. registration.Manifests, manifest] },
-            registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Pending(manifest.Subscription.Id) }, .. registration.Manifests.Skip(1)] },
-            registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Active(manifest.Subscription.Id, typeof(object)) }, .. registration.Manifests.Skip(1)] },
-            registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Active(manifest.Subscription.Id, manifest.Subscription.HandlerType!, OutboxSubscriptionExecutionScope.PrivilegedPlatform) }, .. registration.Manifests.Skip(1)] },
-            registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Active(manifest.Subscription.Id + "-renamed", manifest.Subscription.HandlerType!) }, .. registration.Manifests.Skip(1)] },
-            registration with { Services = registration.Services.Where(service => service != descriptor).ToArray() },
-            registration with { Services = [.. registration.Services, descriptor] },
-            registration with { Services = [.. registration.Services.Where(service => service != descriptor), ServiceDescriptor.Singleton(first.HandlerType, first.HandlerType)] },
-            registration with { Services = [.. registration.Services.Where(service => service != descriptor), ServiceDescriptor.Scoped(first.HandlerType, _ => throw new InvalidOperationException("A metadata census must never construct a handler."))] },
-        };
-        foreach (var mutation in mutations)
-            IntegrationCoverageOffenders(census, mutation).Should().NotBeEmpty(
-                "Fix: handler, manifest, reflective method and concrete scoped registration must agree independently");
+            var others = registration.Handlers.Where(item => item != handler).ToArray();
+            var descriptor = registration.Services.Single(service => service.ServiceType == handler.HandlerType);
+            (string Name, IntegrationDeliveryRegistration Registration)[] mutations =
+            [
+                ("missing handler", registration with { Handlers = others }),
+                ("duplicate handler", registration with { Handlers = [.. registration.Handlers, handler] }),
+                ("rebound event", registration with { Handlers = [handler with { EventType = typeof(IIntegrationEvent) }, .. others] }),
+                ("rebound method", registration with { Handlers = [handler with { Handle = typeof(object).GetMethod(nameof(ToString))! }, .. others] }),
+                ("missing service", registration with { Services = registration.Services.Where(service => service != descriptor).ToArray() }),
+                ("duplicate service", registration with { Services = [.. registration.Services, descriptor] }),
+                ("singleton service", registration with { Services = [.. registration.Services.Where(service => service != descriptor), ServiceDescriptor.Singleton(handler.HandlerType, handler.HandlerType)] }),
+                ("factory service", registration with { Services = [.. registration.Services.Where(service => service != descriptor), ServiceDescriptor.Scoped(handler.HandlerType, _ => throw new InvalidOperationException("A metadata census must never construct a handler."))] }),
+            ];
+            foreach (var (name, mutation) in mutations)
+                IntegrationCoverageOffenders(census, mutation).Should().NotBeEmpty(
+                    "Fix: reject {0} for {1}; handler metadata and concrete scoped registration must agree independently", name, handler.HandlerType.FullName);
+        }
+        foreach (var required in RequiredOrdinaryDeliverySubscriptions)
+        {
+            var manifest = registration.Manifests.Single(item => item.Subscription.Id == required.Id);
+            var others = registration.Manifests.Where(item => item != manifest).ToArray();
+            (string Name, IntegrationDeliveryRegistration Registration)[] mutations =
+            [
+                ("missing manifest", registration with { Manifests = others }),
+                ("duplicate manifest", registration with { Manifests = [.. registration.Manifests, manifest] }),
+                ("rebound event", registration with { Manifests = [manifest with { EventType = typeof(IIntegrationEvent) }, .. others] }),
+                ("Pending subscription", registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Pending(manifest.Subscription.Id) }, .. others] }),
+                ("rebound handler", registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Active(manifest.Subscription.Id, typeof(object)) }, .. others] }),
+                ("privileged scope", registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Active(manifest.Subscription.Id, manifest.Subscription.HandlerType!, OutboxSubscriptionExecutionScope.PrivilegedPlatform) }, .. others] }),
+                ("renamed subscription", registration with { Manifests = [manifest with { Subscription = OutboxSubscriptionManifest.Active(manifest.Subscription.Id + "-renamed", manifest.Subscription.HandlerType!) }, .. others] }),
+            ];
+            foreach (var (name, mutation) in mutations)
+                IntegrationCoverageOffenders(census, mutation).Should().NotBeEmpty(
+                    "Fix: reject {0} for {1}; manifest identity, event, handler and ordinary scope must agree independently", name, manifest.Subscription.Id);
+        }
+        IntegrationCoverageOffenders(census, registration with
+        {
+            Handlers = registration.Handlers.Reverse().ToArray(),
+            Manifests = registration.Manifests.Reverse().ToArray(),
+            Services = registration.Services.Reverse().ToArray(),
+        }).Should().BeEmpty("registration order does not change binding identity");
         IntegrationCoverageOffenders(census, registration).Should().BeEmpty("the actual composition is the clean control");
     }
 
@@ -230,9 +271,10 @@ public sealed partial class OutboxDispatchConventionTests
 
         var bindings = IntegrationHandlerBindings(census.Types).ToArray();
         if (bindings.Length == 0) offenders.Add("Missing nonempty production integration-handler population");
-        foreach (var required in RequiredDeliveryHandlers)
-            if (!bindings.Any(binding => TypeId(binding.Handler) == IntegrationRuntimeTypeId(required)))
-                offenders.Add("Missing real default handler: " + required.FullName);
+        foreach (var required in RequiredOrdinaryDeliverySubscriptions)
+            if (!bindings.Any(binding => TypeId(binding.Handler) == IntegrationRuntimeTypeId(required.HandlerType)
+                    && TypeId(binding.Event) == IntegrationRuntimeTypeId(required.EventType)))
+                offenders.Add("Missing real integration-handler binding: " + required.Id);
         foreach (var binding in bindings.Where(binding => binding.Handler.HasGenericParameters || binding.Event.ContainsGenericParameter))
             offenders.Add("Integration handlers must be closed concrete types: " + TypeId(binding.Handler));
         CheckSet(offenders, "independent handlers and registered metadata",
@@ -244,16 +286,12 @@ public sealed partial class OutboxDispatchConventionTests
             registration.Handlers.Select(handler => IntegrationRuntimeTypeId(handler.EventType) + " -> " + IntegrationRuntimeTypeId(handler.HandlerType)));
         if (registration.Manifests.Select(item => item.Subscription.Id).Distinct(StringComparer.Ordinal).Count() != registration.Manifests.Length)
             offenders.Add("Subscription IDs must be unique");
-        foreach (var (id, handler) in new[]
-                 {
-                     ("customization.initialize-content-type-default.v1", typeof(InitializeContentTypeDefaultHandler)),
-                     ("customization.initialize-taxonomy-default.v1", typeof(InitializeTaxonomyDefaultHandler)),
-                 })
-            if (registration.Manifests.Count(item => item.EventType == typeof(TenantCreatedIntegrationEventV1)
+        foreach (var (id, eventType, handler) in RequiredOrdinaryDeliverySubscriptions)
+            if (registration.Manifests.Count(item => item.EventType == eventType
                     && item.Subscription.Id == id && item.Subscription.HandlerType == handler
                     && item.Subscription.Readiness == OutboxSubscriptionReadiness.Active
                     && item.Subscription.ExecutionScope == OutboxSubscriptionExecutionScope.OrdinaryTenant) != 1)
-                offenders.Add("Missing exact ordinary Active default subscription: " + id);
+                offenders.Add("Missing exact ordinary Active subscription: " + id);
 
         foreach (var handler in registration.Handlers)
         {
