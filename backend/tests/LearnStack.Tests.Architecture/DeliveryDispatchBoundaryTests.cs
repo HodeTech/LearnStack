@@ -389,6 +389,7 @@ public sealed partial class OutboxDispatchConventionTests
         while (pending.TryDequeue(out var type))
         {
             if (!visited.Add(Key(type))) continue;
+            var acquisitions = new Dictionary<(string Assembly, string Type), bool>();
             foreach (var method in Il.Methods(type).Select(item => item.Definition))
                 foreach (var target in MethodOperands(method))
                     if (DynamicResolution(target) || target.Name == "Invoke"
@@ -404,7 +405,8 @@ public sealed partial class OutboxDispatchConventionTests
                     offenders.Add(TypeId(type) + " -> " + reference.FullName);
                 if (!types.TryGetValue(Key(reference), out var helper)) continue;
                 pending.Enqueue(helper);
-                if (!helper.IsSealed)
+                if (!helper.IsSealed && (!acquisitions.TryGetValue(Key(helper), out var acquired)
+                        ? acquisitions[Key(helper)] = AcquiresObservationCollaborator(type, helper) : acquired))
                     foreach (var implementation in types.Values.Where(candidate => !candidate.IsInterface && Derives(candidate, helper, types)))
                         pending.Enqueue(implementation);
             }

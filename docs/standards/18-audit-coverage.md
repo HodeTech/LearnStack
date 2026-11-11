@@ -77,8 +77,9 @@ document is the rule that prevents the audit story from drifting.
 events are stored by the tenant development Keycloak realm under
 [Security 11](11-security.md#tenant-bff-sessions), not written through a new
 LearnStack session-audit API. Local expiry, unreceived refresh and local logout
-during provider outage have only closed lifecycle diagnostics until Phase 03's
-authenticated identity-event ingress/mirror. This explicitly scopes the generic
+during provider outage have only closed lifecycle diagnostics. Retained provider
+facts use the [ADR-0097 mirror](#retained-provider-event-observations), not invented
+local-session facts. This explicitly scopes the generic
 login/token-revocation examples below; no durable local BFF ledger or atomic
 provider/BFF commit is promised. Existing LearnStack MUST operations, baseline
 coverage and tenant override limits remain unchanged. Seven-day development
@@ -635,6 +636,30 @@ and applicable domain policy, not a blanket retention for all MUST rows.
   ([ADR-0044 Amendment 3 § 5](../decisions/0044-audit-write-path.md)).
 - The outbox dispatcher attaches the actor and the correlation id to every event it
   dispatches.
+
+## Retained provider-event observations
+
+**Derives from:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+
+`ProviderEventObservationHandler` alone mints `ProviderEventAuditEvidence` after
+the transport's actual inbox claim and an exact enqueued tenant-target read.
+`AuditStateCapture.AttachProviderEvent` binds it once to that invocation's sole
+`audit.provider_event.observe` intent. `AuditDraftComposer` validates its closed
+shape and owns the final row. This adds one provider-observation evidence producer;
+the HTTP, seed, integration-delivery and job authorization sources remain unchanged.
+
+- The row is tenant-wide SecurityEvent/Must, Actor SystemActor, logical subject
+  `User`/affected UserId. No User aggregate is mutated or captured.
+- Version-one `metadata.provider_event` contains only authority/realm/source event,
+  receipt, target and affected User identifiers, normalized kind, source time and provider
+  outcome. No raw subject, IP, name, detail dictionary or provider error survives.
+- Audit outcome and row timestamp describe processing; source outcome/time remain
+  separate. Account history is not evidence of a login in a particular tenant.
+- The central MUST write and inbox/delivery completion share the business
+  transaction. Duplicate deliveries cannot create another successful observation.
+- Global admission receipts are operational records, not global Audit rows.
+  Tenant targets, delivery envelopes and Audit retain their independent replay/
+  retention dependencies; expiry of global receipts does not erase those links.
 
 ## Trusted authorization evidence
 

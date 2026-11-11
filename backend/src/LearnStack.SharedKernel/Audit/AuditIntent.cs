@@ -106,6 +106,8 @@ public sealed record AuditIntent(
     /// <summary>Closed creation attribution minted by the common global audit entry.</summary>
     public GlobalIdentityCreationReference? GlobalIdentity { get; init; }
 
+    public ProviderEventAuditEvidence? ProviderEvent { get; init; }
+
     /// <summary>The trusted incoming event identity for delivery-originated work.</summary>
     public Guid? CausationId { get; init; }
 

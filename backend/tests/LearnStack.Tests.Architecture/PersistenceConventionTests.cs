@@ -230,6 +230,7 @@ public sealed partial class PersistenceConventionTests
             // ADR-0077's two evidence owners have their own guarded pool and retain actual cleanup.
             // IdentityAuditConventionTests checks the compiled source/session/store ownership boundary.
             "Persistence/AuthorizationEvidenceSource.cs",
+                "ProviderEvents/ProviderEventIntakeSource.cs",
             "Messaging/OutboxDispatcherDataSource.cs",
         ]);
         AssertOperationReadScopeAttachment();

@@ -30,7 +30,7 @@ internal static class AsyncStoreInventoryDocument
             var firstNames = Names(firstParty);
             var vendorNames = Names(vendor);
             var excludedNames = Names(exclusions);
-            Count(firstParty, 12, "first-party");
+            Count(firstParty, 16, "first-party");
             Count(vendor, 12, "vendor");
             Compare(excludedNames, ["idempotency_keys"], "explicit scope exclusion");
             Compare(custody.Select(row => row[0]), CustodyNames, "audit/provider/external/volatile custody");

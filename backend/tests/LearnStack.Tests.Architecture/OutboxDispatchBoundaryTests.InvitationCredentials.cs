@@ -43,12 +43,13 @@ public sealed partial class OutboxDispatchConventionTests
     // root's original argument read through that same generated closure field.
     // Admit only its single unchanged argument-1 capture, never a substituted
     // source, an arbitrary helper or another credential resolver.
-    private static bool InvitationConfigurationArgument(MethodDefinition root, Instruction? argument, ProductionCensus census)
+    private static bool InvitationConfigurationArgument(MethodDefinition root, Instruction? argument, ProductionCensus census,
+        string composition = InvitationComposition)
     {
         if (argument?.OpCode == OpCodes.Ldarg_1) return true;
         if (argument is not { OpCode.Code: Code.Ldfld, Operand: FieldReference field }
             || field.FieldType.FullName != "Microsoft.Extensions.Configuration.IConfiguration"
-            || field.DeclaringType.DeclaringType?.FullName != InvitationComposition
+            || field.DeclaringType.DeclaringType?.FullName != composition
             || !field.DeclaringType.Name.StartsWith("<>c__DisplayClass", StringComparison.Ordinal)) return false;
         var writes = census.FieldInstructionsByFullName(field.FullName).Where(site => site.Instruction.OpCode != OpCodes.Ldfld).ToArray();
         return writes.Length == 1 && writes[0].Body == root && writes[0].Instruction.OpCode == OpCodes.Stfld

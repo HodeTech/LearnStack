@@ -89,6 +89,9 @@ public interface IAuditStateCapture
     void AttachAuthorization(AuthorizationAuditContext context) =>
         throw new InvalidOperationException("This capture has no authorization attachment owner.");
 
+    void AttachProviderEvent(ProviderEventAuditEvidence evidence) =>
+        throw new InvalidOperationException("This capture has no provider evidence attachment owner.");
+
     /// <summary>
     /// The rows are on the ambient transaction. <b>Not</b> durable — the transaction has
     /// not committed. <c>IAuditStore.WritePendingAsync</c>.

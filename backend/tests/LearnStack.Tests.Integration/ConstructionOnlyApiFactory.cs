@@ -67,6 +67,7 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
     {
         var implementation = descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType;
         return implementation == typeof(OutboxProcessor) || implementation == typeof(DeliveryProcessor)
-            || implementation == typeof(BackgroundJobHostedService);
+            || implementation == typeof(BackgroundJobHostedService)
+            || implementation?.FullName == "LearnStack.Api.Identity.ProviderEventMirrorService";
     }
 }

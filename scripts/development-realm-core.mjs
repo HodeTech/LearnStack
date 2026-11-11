@@ -2,12 +2,13 @@ import { buildRealmPlan, buildRealmPreparation, nativeWebScopeDetachmentPath } f
 import { stockConsoleDetachmentPath } from './development-realm-stock-console.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
+import { planEventReader, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
 
 export const realmPassMilliseconds = 120000;
 
 /** Internal core for the owned launcher and isolated provider tests; no CLI overrides. */
 export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, adminPassword,
-  webSecret, manifest, desired, signal, ca, transport = realmRequest, afterVerified }) {
+  webSecret, eventReaderSecret, manifest, desired, signal, ca, transport = realmRequest, afterVerified }) {
   let base;
   try { base = new URL(baseUrl); }
   catch { refuse('preflight', 'configuration'); }
@@ -100,12 +101,18 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
         const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
         if (result.status !== 204) refuse(stage, 'status');
       },
+      detachNewEventReaderDefault: async binding => {
+        const { path, body } = eventReaderDefaultRoleDetachment(binding);
+        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', json: body, stage }, () => { mutations++; });
+        if (result.status !== 204) refuse(stage, 'status');
+      },
       post: async (path, body) => {
         const result = await authenticatedRequest(adminPath(path), { method: 'POST', json: body, stage }, () => { mutations++; });
         if ((result.status < 200 || result.status >= 300) && result.status !== 409) refuse(stage, 'status');
         return { status: result.status, ...(path === 'partialImport' && result.status === 200 ? { body: document(result, stage) } : {}) };
       },
     };
+    const reader = eventReaderSecret === undefined ? null : await planEventReader(admin, eventReaderSecret);
     const preparation = await buildRealmPreparation({ admin, desired, manifest, webSecret });
     if (preparation) {
       stage = 'prepare';
@@ -126,6 +133,12 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     }
     stage = 'readback';
     await plan.verify();
+    if (reader) {
+      stage = 'apply';
+      await reader.apply();
+      stage = 'readback';
+      await reader.verify();
+    }
     const remaining = await buildRealmPlan({ admin, desired, manifest, webSecret });
     if (remaining.actions.length !== 0) refuse(stage, 'readback_conflict');
     if (afterVerified) {

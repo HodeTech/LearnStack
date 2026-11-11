@@ -34,12 +34,13 @@ internal static class SchemaTableClasses
     public static readonly string[] GlobalIdentity = ["users"];
     public static readonly string[] IdentityPlatform = ["identity_authority", "identity_creation_capacity"];
     public static readonly string[] IdentityContextual = ["memberships", "membership_profiles",
-        "membership_role_assignments", "roles", "role_permission_grants", "invitations"];
+        "membership_role_assignments", "roles", "role_permission_grants", "invitations", "identity_provider_event_targets"];
     public static readonly string[] InvitationProvider = ["invitation_email_envelopes", "invitation_email_attempt_receipts"];
+    public static readonly string[] ProviderIngress = ["identity_provider_event_receipts", "identity_provider_event_scan", "identity_provider_event_problems"];
     public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor,
-        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual, .. InvitationProvider];
+        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual, .. InvitationProvider, .. ProviderIngress];
     public static bool AppSelectDenied(string table) => Control.Contains(table) || Vendor.Contains(table)
-        || table == "identity_creation_capacity" || InvitationProvider.Contains(table);
+        || table == "identity_creation_capacity" || InvitationProvider.Contains(table) || ProviderIngress.Contains(table);
 
     internal static Task<List<string>> ReadAsync(DbConnection connection, DbTransaction? transaction = null) =>
         SchemaQueries.ReadStringsAsync(connection, """

@@ -73,4 +73,7 @@ public enum TenantContextOrigin
 
     /// <summary>Verified subject and real host bound only to retained consent history/withdrawal.</summary>
     HostAndConsentSubjectScope,
+
+    /// <summary>Actual private machine claim; only its tenant outbox production owner.</summary>
+    ProviderEventRecipient,
 }

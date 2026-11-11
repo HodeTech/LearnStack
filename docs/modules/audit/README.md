@@ -44,6 +44,14 @@ scope write. Tenancy owns the producer/subscriber operation declarations in
 The third module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
 
+P03-6 adds the required provider-history subscriber and its catalogue source.
+`ProviderEventObservationHandler` loads only the exact enqueued tenant target
+through Identity's application contract, then attaches
+`ProviderEventAuditEvidence` to the central MUST owner. It does not write Audit
+SQL or derive tenant authority from provider content. The
+[coverage matrix](audit.md) and [typed-evidence standard](../../standards/18-audit-coverage.md#retained-provider-event-observations)
+own operation semantics; the phase Status owns qualification.
+
 ## Overview
 
 Audit owns **the record of what happened**, and nothing about deciding what should.
@@ -81,6 +89,11 @@ know before touching it.
   `TransactionBehavior` flushes it immediately before `COMMIT`. A module that called
   `IAuditStore` from a handler would be writing outside the guarantee
   [ADR-0033](../../decisions/0033-audit-durability-model.md) makes.
+- **The subscriber inbox or delivery ledger.** The shared transport claims its
+  inbox before constructing `ProviderEventObservationHandler` and completes it
+  on the same transaction as the central MUST write. The handler attaches typed
+  evidence and writes neither transport storage nor Audit SQL
+  ([ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md#audit-subscription-and-retained-copies)).
 - **The store, the capture and the catalogue.** `PostgresAuditStore`,
   `AuditStateCapture` and `AuditChangeTrackerInterceptor` live in
   `LearnStack.Infrastructure.Audit`, not here
@@ -263,8 +276,8 @@ the intent moves to `RolledBack` or `Indeterminate` and the standalone writer re
 the row on its own short transaction, announcing both session variables from the draft.
 
 **The module publishes no integration event**, so there is no second diagram here. See
-[§ Integration-event catalogue](#integration-event-catalogue) — deliberately empty —
-rather than reading the absence as an omission.
+[§ Integration-event catalogue](#integration-event-catalogue) for its required
+provider-history subscription.
 
 ## Component diagram
 
@@ -350,7 +363,19 @@ Nothing in [ADR-0034](../../decisions/0034-hub-contract-surface-invariant.md)'s 
 surface reads `audit_log` from the operator plane, and one that did would be a new crossing
 — decided by ADR in both repositories, like every other.
 
-This module **consumes** none either. It has no inbox and no projection.
+This module consumes the retained provider-history notification:
+
+| Event | Topic | Subscription | Handler |
+|---|---|---|---|
+| `UserProviderEventObservedIntegrationEventV1` | `learnstack.identity.user` | `audit.provider-event-mirror.v1` (required Active) | `ProviderEventObservationHandler` |
+
+The handler reads the exact retained target through Identity's application
+contract and attaches [`ProviderEventAuditEvidence`](../../glossary.md#audit).
+The successful mirror's MUST row and transport-owned completed inbox commit
+together. Audit owns no inbox table or read-model projection. Source occurrence
+and result remain separate from the mirror's processing time and outcome
+([ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md#audit-subscription-and-retained-copies)).
+
 Accepted [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md)
 uses completed provisioning to initialize Customization defaults; Audit is not
 its mirror consumer. Existing source MUST rows remain on the source transaction.

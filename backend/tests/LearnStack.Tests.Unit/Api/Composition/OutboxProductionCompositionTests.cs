@@ -4,6 +4,8 @@ using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
+using LearnStack.Modules.Identity.Application.Contracts.IntegrationEvents;
+using LearnStack.Modules.Audit.Application.ProviderEvents;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Messaging;
 using Microsoft.AspNetCore.Builder;
@@ -62,8 +64,12 @@ public sealed class OutboxProductionCompositionTests
             .HandlerType.Should().Be<InitializeContentTypeDefaultHandler>();
         resolution.Subscriptions.Single(subscription => subscription.Id == "customization.initialize-taxonomy-default.v1")
             .HandlerType.Should().Be<InitializeTaxonomyDefaultHandler>();
-        handlers.All.Should().HaveCount(2, "both production consumers must be discovered");
+        handlers.All.Should().HaveCount(3, "both provisioning consumers and the required provider mirror must be discovered");
         handlers.For(typeof(TenantCreatedIntegrationEventV1)).Select(subscription => subscription.HandlerType)
             .Should().BeEquivalentTo([typeof(InitializeContentTypeDefaultHandler), typeof(InitializeTaxonomyDefaultHandler)]);
+        var mirror = registry.Resolve(typeof(UserProviderEventObservedIntegrationEventV1).AssemblyQualifiedName);
+        mirror.Disposition.Should().Be(OutboxEventDisposition.Active);
+        mirror.Subscriptions.Should().ContainSingle().Which.HandlerType.Should().Be<ProviderEventObservationHandler>();
+        mirror.Subscriptions[0].Id.Should().Be("audit.provider-event-mirror.v1");
     }
 }

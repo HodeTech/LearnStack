@@ -17,8 +17,10 @@ those records.
 [ADR-0070](../../docs/decisions/0070-owned-tenant-bff-sessions.md) authorizes
 development tenant-realm user-event storage. The export retains the pinned
 default-saved selection and adds refresh success/error events. The reconciler
-unions the current effective selection with the eight required login/logout/
-code/refresh success/error types, preserving listeners and admin-event policy.
+unions the current effective selection with login/logout, reset, credential/MFA,
+lockout and code/refresh success/error types, preserving listeners and admin-event
+policy. [ADR-0097](../../docs/decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+selects the twenty mirrored kinds; code/refresh remains provider-only history.
 
 Fresh/default-empty retention is seven days. A warm disabled/default-zero store
 (the pinned API omits zero expiration) needs a bounded empty-history read first.
@@ -30,17 +32,160 @@ to bypass the guard. Separate readback and a zero-write rerun qualify convergenc
 Stored events contain personal identity/address details and stay in the provider
 database, not raw CI artifacts. This affects all tenant-realm users, including
 account-console. Hub/admin-event policy is unchanged. Local BFF expiry/outage
-logout are not durable provider events; Phase 03 owns authenticated event ingress/
-mirroring and Phase 11 owns production retention/security/capacity qualification.
+logout are not durable provider events. The retained-event mirror below handles
+only actually stored provider facts. Phase 11 owns production retention/security/
+capacity qualification.
 This configuration does not activate browser sign-in by itself.
 The native web process requires the separate explicit BFF opt-in documented in
 [web setup](../../frontend/apps/web/README.md#optional-tenant-sign-in).
+
+## Retained-event reader and recovery
+
+The selected private environment must add an independent
+`IdentityEvents__ClientSecret` (16–4096 characters, nonblank). Realm reconciliation
+creates `learnstack-event-reader`, a confidential service account with no browser,
+password or full-scope flow, no inherited client scopes and only the
+`realm-management/view-events` role/scope binding. The pinned provider's automatic
+`service_account` scope and newly-created default realm-role assignment are removed
+from this client only. A separate local mapper emits only its admitted event role.
+An existing secret mismatch or excess role/scope/mapper refuses; no silent rotation
+or deletion of an existing account's permissions is performed.
+
+Configure the API independently:
+
+- `ConnectionStrings__IdentityIngress`: the same application database, using only
+  `learnstack_identity_ingress` and its independently provisioned password.
+- `IdentityEvents__RealmId`: the actual immutable `id` from the authenticated
+  `GET /admin/realms/learnstack` representation, not the display name guessed from
+  the URL. Inspect only this field through the deployment's admin workflow; do not
+  retain the full administrative response as an artifact.
+- `IdentityEvents__ClientSecret`: the retained reader secret. It never belongs in
+  a browser, BFF client source, public renderer or Seeder environment.
+- The installed `Identity__AuthorityId` and canonical
+  `Authentication__Tenant__Issuer` must match. HTTPS is mandatory except explicitly
+  local Development loopback HTTP. Redirects and ambient proxy credentials refuse.
+
+The API reads a fresh client-credentials token for every bounded source read.
+Rotating or disabling this client therefore affects subsequent reads; no in-flight
+revocation guarantee is claimed. Rotate the provider credential and private API
+secret together through the admin/secret-store workflow. Never substitute a BFF,
+demo, master or broader admin credential to restore ingestion.
+
+The private `identity-provider-mirror` health check reports unqualified activation,
+stale/incomplete traversal and unresolved retention risk independently of public
+`/healthz` liveness. Source failures log only closed diagnostics. An unreadable page
+is halved to a singleton; its minimized interval/offset problem is persisted before
+other positions continue. Overflow facts keep no partial targets or ACK. Fair
+retries and the retained cursor survive restart; an unresolved source expiry leaves
+a permanent historical-gap signal. Offset/equal-time movement still prevents a
+gap-free capture guarantee.
+Unreadable positional problems remain open even if a later retry is empty or
+readable: the source offset can now identify a different event. Readable retry
+facts are accepted independently; do not clear the original problem to silence
+health. Expiry preserves its irrecoverable historical-gap signal.
+
+If setup fails after dispatch, inspect this exact client's current secret, scopes,
+service-account roles and local mapper with the deployment administrator before
+an explicit rerun. Pre-existing broader/conflicting state needs an explicit admin
+repair; deleting retained event history, ledger rows or immutable targets is not a
+repair. Policies longer than thirty days are preserved by reconciliation but block
+mirror activation until the operator explicitly resolves the approved 7–30 day
+mirror policy. Global ledgers retire after 32 days; tenant replay/Audit copies keep
+their independent retention dependencies under Phase 11.
+
+After initial qualification, a source outage does not stop publication of already
+accepted targets. A failed claimed target retains its lease/retry identity while
+other eligible targets continue. Production failure leaves a conservative process
+health fault: inspect the retained claim/outbox state and requalify by restarting
+the corrected process. Restart never clears the database's historical-gap marker.
+Before initial source/policy qualification, mirror activation remains blocked.
+
+### Operator inspection and recovery
+
+The deployment's authorized database administrator owns inspection through the
+existing provisioning console, using its already-authorized superuser/BYPASSRLS
+login. Do not use the migration, application or ingress login: FORCE RLS can hide
+Memberships from those sessions and falsely report no eligible tenants. No new
+role or grant is introduced. The API and event-reader receive no repair endpoint.
+Obtain access through the
+deployment's secret-management workflow; never paste a connection string or raw
+provider response into a ticket. Record only the private problem key, closed
+reason, interval/offset, counts and the intervention/outcome. These locators are
+restricted operational evidence, not public diagnostics or metric labels.
+
+Run the following read-only queries against the application database. Replace the
+UUID/realm literals with the installed source identity. Use the exact tuple from
+the first result for the second query; do not infer an event from its offset alone.
+The limit is an inspection page, not permission to discard additional rows.
+`row_security=off` does not grant bypass: it makes an unauthorized session fail
+rather than silently return rows filtered by RLS. Keep both transactions read-only.
+
+```sql
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '5s';
+SET LOCAL row_security = off;
+SELECT problem_key, reason, provider_event_id, range_from, range_to,
+       source_offset, attempts, next_retry_at, irrecoverable
+FROM public.identity_provider_event_problems
+WHERE authority_id = '00000000-0000-0000-0000-000000000000'::uuid
+  AND realm_id = 'installed-realm-id' AND resolved_at IS NULL
+ORDER BY first_seen_at, problem_key LIMIT 100;
+SELECT historical_gap, earliest_gap_at, last_attempted_at, last_completed_at
+FROM public.identity_provider_event_scan WHERE id = 1;
+ROLLBACK;
+```
+
+For `fanout_exceeded`, inspect the minimized pending receipt and its current
+eligible Membership set. This query exposes internal IDs only, not mailbox,
+provider subject, fingerprint, token or raw event details:
+
+```sql
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '5s';
+SET LOCAL row_security = off;
+SELECT r.provider_event_id, r.disposition, r.accepted_at, r.affected_user_id,
+       u.status AS current_user_status, m.tenant_id,
+       count(m.tenant_id) OVER () AS eligible_tenant_count
+FROM public.identity_provider_event_receipts r
+LEFT JOIN public.users u ON u.id = r.affected_user_id
+LEFT JOIN LATERAL (
+    SELECT DISTINCT tenant_id FROM public.memberships
+    WHERE user_id = r.affected_user_id AND status IN ('Active', 'Suspended')
+      AND deleted_at IS NULL AND deleted_by IS NULL
+) m ON true
+WHERE r.authority_id = '00000000-0000-0000-0000-000000000000'::uuid
+  AND r.realm_id = 'installed-realm-id'
+  AND r.provider_event_id = '00000000-0000-0000-0000-000000000000'::uuid
+ORDER BY m.tenant_id LIMIT 257;
+ROLLBACK;
+```
+
+| Closed reason / state | Operator action and recovery evidence |
+|---|---|
+| `fanout_exceeded` | Confirm the active account and distinct eligible tenants. Correct an erroneous Membership only through the authorized administration operation. Never truncate recipients or fabricate targets/ACK. An admissible retry must commit the complete recipient set; otherwise leave the problem open. |
+| `source_collision` | Preserve the original receipt/targets. Investigate source-ID reuse or changed provider content using the exact source/event tuple in the authorized provider console. A later exact original replay cannot clear a different fingerprint's collision; no SQL rewrite or forced ACK is permitted. |
+| `malformed` / `oversized` | Inspect the bounded source interval through the authorized provider administrator. Correct the source/deployment defect where possible. A readable or empty offset retry can contain another event and cannot establish recovery of the original positional gap. Other positions continue independently. |
+| `out_of_window` | Compare source time, activation lower bound, provider retention and clock health. Correct configuration/clock errors without resetting activation or deleting ledgers. Only a genuinely admissible matching fact can resolve its recoverable problem. |
+| Irrecoverable problem / historical gap | Escalate to the deployment maintainer before source retention expires where possible. Record the affected interval and limitation. Restart, policy extension and retirement never prove missing history recovered or clear the sticky gap. |
+| Source/auth/storage unavailable | Verify the exact confined credential, installed source and same database. Transient qualification failures retry after confirmed cleanup. Unconfirmed cleanup closes the source; only restart the corrected process after its actual owners have ended. |
+| Target production fault | Inspect retained claim and exact outbox state through existing authorized operations, correct the cause and restart the process. Database lease/replay controls own retry; do not edit claim/outbox/Audit rows to force success. |
+
+The private health data includes `retirement_receipts_count`,
+`retirement_problems_count`, `retirement_overdue_seconds` and
+`retirement_unmarked_expiry`. Compare successive observations: a growing count or
+age requires the deployment operator to inspect database latency, locks and worker
+availability. Each turn makes up to sixteen 100/100 retirement commits and yields
+to intake/publication; backlog is retried on the next ordinary worker loop. This
+removes the former one-batch-per-thirty-seconds bottleneck, but finite capacity
+still cannot promise immediate deletion under arbitrary load. Retired unresolved
+problems first preserve their historical-gap signal. No procedure here permits
+manual ledger deletion, history reset, reduced retention or tenant-copy purge.
 
 ## Realms and accounts
 
 | Realm | Population | Clients |
 |-------|------------|---------|
-| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account |
+| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader |
 | `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE; unchanged by P02b-6 |
 
 [SeedData.IdentityUsers](../../backend/src/LearnStack.Tools.Seeder/SeedData.cs)

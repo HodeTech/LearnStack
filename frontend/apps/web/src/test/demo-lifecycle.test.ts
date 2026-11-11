@@ -106,6 +106,7 @@ export async function ${method}() { appendFileSync(${JSON.stringify(join(root, '
     'KEYCLOAK_ADMIN=fixture-admin',
     `KEYCLOAK_ADMIN_PASSWORD=${randomBytes(16).toString('hex')}`,
     `KEYCLOAK_WEB_CLIENT_SECRET=${randomBytes(16).toString('hex')}`,
+    `IdentityEvents__ClientSecret=${randomBytes(24).toString('hex')}`,
     '',
   ].join('\n');
 }

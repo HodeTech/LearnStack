@@ -738,7 +738,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     // Inherited members and a base's own calls/captures do not
                     // acquire every sibling handler. An explicit collaborator
                     // of that same abstract type still expands implementations.
-                    var ownOrInherited = typeKey == Key(reference) || type.BaseType is { } parent && Key(parent) == Key(reference);
+                    var ownOrInherited = typeKey == Key(reference) || type.BaseType is { } parent && Key(parent) == Key(reference)
+                        || type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference));
                     var expand = !ownOrInherited || !(helper.IsInterface || helper.IsAbstract);
                     if (!expand && !acquisitions.TryGetValue((typeKey, Key(reference)), out expand))
                         acquisitions[(typeKey, Key(reference))] = expand = AcquiresHandlerCollaborator(type, Key(reference));
@@ -769,40 +770,56 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         static string Finding(params TypeDefinition[] path) =>
             "Nested HTTP dispatch/helper handler: " + string.Join(" -> ", path.Select(type => type.FullName));
 
-        foreach (var acquiredFirst in new[] { false, true })
-        {
-            var root = Type("Root" + acquiredFirst);
-            var otherRoot = Type("OtherRoot" + acquiredFirst);
-            var parent = Type("Abstract" + acquiredFirst, abstractType: true);
-            var inherited = Type("Inherited" + acquiredFirst);
-            inherited.BaseType = parent;
-            var sibling = Type("Sibling" + acquiredFirst);
-            sibling.BaseType = parent;
-            sibling.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, module.ImportReference(typeof(ISender))));
-            var bridge = Type("Bridge" + acquiredFirst);
-            var later = Type("Later" + acquiredFirst);
-            Edge(bridge, later);
-            Edge(later, bridge); // A shared cyclic dependency must terminate for each root.
-            foreach (var owner in new[] { root, otherRoot })
+        foreach (var interfaceDeclaration in new[] { false, true })
+            foreach (var acquiredFirst in new[] { false, true })
             {
-                Edge(owner, acquiredFirst ? bridge : inherited);
-                Edge(owner, acquiredFirst ? inherited : bridge);
-                Edge(owner, bridge); // Repeated paths preserve their first witness.
+                var suffix = interfaceDeclaration.ToString() + acquiredFirst;
+                var root = Type("Root" + suffix);
+                var otherRoot = Type("OtherRoot" + suffix);
+                var parent = Type("Abstract" + suffix, abstractType: true);
+                if (interfaceDeclaration) { parent.IsInterface = true; parent.BaseType = null; }
+                var inherited = Type("Inherited" + suffix);
+                var sibling = Type("Sibling" + suffix);
+                if (interfaceDeclaration)
+                {
+                    inherited.Interfaces.Add(new InterfaceImplementation(parent));
+                    sibling.Interfaces.Add(new InterfaceImplementation(parent));
+                }
+                else { inherited.BaseType = parent; sibling.BaseType = parent; }
+                sibling.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, module.ImportReference(typeof(ISender))));
+                var bridge = Type("Bridge" + suffix);
+                var later = Type("Later" + suffix);
+                Edge(bridge, later);
+                Edge(later, bridge); // A shared cyclic dependency must terminate for each root.
+                foreach (var owner in new[] { root, otherRoot })
+                {
+                    Edge(owner, acquiredFirst ? bridge : inherited);
+                    Edge(owner, acquiredFirst ? inherited : bridge);
+                    Edge(owner, bridge); // Repeated paths preserve their first witness.
+                }
+                NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
+                    "a base or own-interface declaration alone does not acquire a sibling's sender");
+                var collaborator = Edge(acquiredFirst ? bridge : later, parent);
+                try
+                {
+                    var expected = new[] { root, otherRoot }.Select(owner => acquiredFirst
+                        ? Finding(owner, bridge, parent, sibling) : Finding(owner, bridge, later, parent, sibling));
+                    NestedDispatchOffenders([root, otherRoot], map).Should().Equal(expected,
+                        "both expansion orders must retain each root's first sender witness, including acquisition after a metadata-only visit");
+                }
+                finally { collaborator.DeclaringType.Fields.Remove(collaborator); }
+                NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
+                    "a fresh walk after restoration must not retain the acquired implementations");
+                var ownSender = new FieldDefinition("OwnSender", FieldAttributes.Private, module.ImportReference(typeof(ISender)));
+                inherited.Fields.Add(ownSender);
+                try
+                {
+                    NestedDispatchOffenders([root, otherRoot], map).Should().Equal(
+                        [Finding(root, inherited), Finding(otherRoot, inherited)],
+                        "reaching the real implementation still inspects its own forbidden capabilities");
+                }
+                finally { inherited.Fields.Remove(ownSender); }
             }
-            NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
-                "inheritance alone does not acquire an abstract sibling's sender");
-            var collaborator = Edge(acquiredFirst ? bridge : later, parent);
-            try
-            {
-                var expected = new[] { root, otherRoot }.Select(owner => acquiredFirst
-                    ? Finding(owner, bridge, parent, sibling) : Finding(owner, bridge, later, parent, sibling));
-                NestedDispatchOffenders([root, otherRoot], map).Should().Equal(expected,
-                    "both expansion orders must retain each root's first sender witness, including acquisition after a metadata-only visit");
-            }
-            finally { collaborator.DeclaringType.Fields.Remove(collaborator); }
-            NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
-                "a fresh walk after restoration must not retain the acquired implementations");
-        }
 
         var firstRoot = Type("FirstRoot");
         var secondRoot = Type("SecondRoot");

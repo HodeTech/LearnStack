@@ -1391,3 +1391,18 @@ context writers and three global-self descriptors remain unchanged.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 20 — Claimed provider-recipient authority ceiling (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+Context construction gains only the machine-only
+`TenantContextOrigin.ProviderEventRecipient` ceiling, bound to an actual claimed
+target and confined production act. Existing HTTP resolution matrix rows,
+HostScope ceilings and header assertions remain unchanged; this is not an HTTP
+origin inferred from provider data.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

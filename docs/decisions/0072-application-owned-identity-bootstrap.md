@@ -382,3 +382,18 @@ caller controls; four physical context writers remain.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 4 — Confined machine intake class (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+A separately credentialed provider machine owner gains minimized global
+receipt/problem/scan storage and exact binding/recipient owner projections.
+This is not global-self bootstrap, User creation, email linking or a new
+`identity.user.create` audit discriminator. Post-closure facts are receipt-only;
+accepted historical tenant targets remain named P03-10 inventory subjects.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

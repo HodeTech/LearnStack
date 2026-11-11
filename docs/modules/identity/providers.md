@@ -1,7 +1,8 @@
 # Identity — Provider Adapters
 
-**Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md).
-This is the Accepted bounded invitation provider contract; the
+**Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+and [ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+These are the bounded invitation and retained-event provider contracts; the
 [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification. Acceptance is not evidence of a configured production sender.
 
@@ -24,6 +25,24 @@ owns bounded failure responses. No realm-admin credential or account search is
 introduced. Keycloak owns verification email separately from LearnStack's
 invitation SMTP sender; the [realm setup](../../../infra/keycloak/README.md)
 and phase qualification must establish that provider journey.
+
+## Retained user-event reader
+
+`IIdentityEventProvider` is the common read-only port. Its internal sealed
+`KeycloakIdentityEventProvider` obtains a fresh service token for each operation
+and admits only the pinned token, event-policy and retained-user-event paths.
+Normalization exposes selected typed facts or closed malformed/oversized
+positions; raw provider bodies, user IDs, credentials and provider exceptions do
+not cross the adapter. `IdentityEventKindCodes` owns the selected twenty-kind map.
+
+The API composes one retained HTTP owner, the separately qualified machine
+database source and fresh tenant production scopes. A provider outage stops its
+read lane while already accepted targets remain eligible for outbox production.
+The machine source never lends its connector to an application handler. The
+[database contract](../../standards/05-database.md#provider-event-intake-storage)
+owns receipts, claims, problem recovery and grants; the
+[realm runbook](../../../infra/keycloak/README.md) owns exact configuration,
+credential rotation and operational recovery. Session revocation remains P03-7.
 
 ## Invitation SMTP
 

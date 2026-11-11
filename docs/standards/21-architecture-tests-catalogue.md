@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**348 test methods run in
+**353 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**266 rules in this catalogue are Implemented, and 151 of them are in that assembly.**
+**268 rules in this catalogue are Implemented, and 153 of them are in that assembly.**
 The other 115 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -4096,8 +4096,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   `DeliveryExecutionTests`, `CustomizationDefaultDeliveryTests` and
   `DeliveryDispatchStoreTests`). Step 6's
   [handler/manifest census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryBoundaryTests.cs)
-  requires all production assemblies/layers and the two exact scoped Active
-  bindings. It detects typed construction, inherited implementation/virtual-slot
+  requires all production assemblies/layers and the exact scoped Active bindings
+  for the two customization defaults and the provider-event Audit mirror. Each
+  binding independently pins its event, handler, subscription and ordinary tenant
+  scope; mutation controls cover every binding. It detects typed construction,
+  inherited implementation/virtual-slot
   invocation, DI resolution through statically bound generic helpers, async and
   delegate bypasses, with missing-subject and dirty/clean controls. Generic type
   and method argument membership states bound recursive helper traversal.
@@ -4107,7 +4110,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   three `SetTenantContextAsync` call sites in the ordinary owner, prepared delivery
   owner and durable acceptance, with missing-site and extra interface/concrete/
   inherited/async/delegate caller controls. These implement two of ADR-0040's
-  eight logical setter paths rather than adding a new path. These are bounded
+  logical setter paths rather than adding a new path. These are bounded
   static capability checks, not arbitrary
   reflection, raw SQL transaction analysis or branch-order proofs; the real
   PostgreSQL tests own inbox-before-construction and transaction atomicity.
@@ -4388,7 +4391,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   Due/delayed/leased/deferred/terminal-requested/terminal rows distinguish gauges.
   Labels and diagnostics prohibit unbounded identities or sensitive
   exception/type/payload/connection data; /healthz remains liveness-only.
-  Polymorphic helper traversal covers production-owned contracts. The external
+  Polymorphic helper traversal covers acquired production-owned contracts. A
+  type token used only as reflection metadata does not acquire all implementations;
+  the named type still receives the persistence/locator checks, and a later real
+  collaborator acquisition still expands its implementations. The external
   clock is pinned to the actual singleton `TimeProvider.System` instance; actual
   DI health must follow Healthy → Unhealthy → Healthy on its singleton observation,
   refusing a same-type detached factory.
@@ -7299,8 +7305,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   use OwnConsentEntry/HostAndConsentSubject/ConsentSubjectScope. The one new
   definer reads only `membership_field_consents`; normalized actor, independent
   host ceiling, single-use immutable witness, physical mode and actual owner
-  cannot be substituted. The accepted census is twelve confined definers/twelve
-  logical setters/four physical writers with three global-self descriptors.
+  cannot be substituted. ADR-0097 extends the surrounding census to fifteen confined definers/thirteen
+  logical setters/four physical writers; the three global-self descriptors and
+  this consent function's own authority remain unchanged.
   No Active Membership, ordinary native session, AccountSite/public snapshot,
   value disclosure, Identity table body or `app.scope` is required/granted.
 - **Source:** [Security](11-security.md#retained-consent-subject-admission),
@@ -7405,3 +7412,47 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [OpenApiContractTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.CustomFields.cs),
   [BoundedAdministrationHttpTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/BoundedAdministrationHttpTests.CustomFields.cs).
 - **Phase:** 03 (P03-5 Steps 2–4).
+
+#### `Provider_Event_Ingress_Is_Authenticated_And_Confined`
+
+- **Asserts:** the separate read-only provider identity, fixed retained-event
+  requests, minimized receipts/problems, fair recovery and least-privilege
+  fifth database role cannot become a business directory. Three exact definers,
+  two retained machine checkouts, same-database qualification and one immutable
+  claim minter/ordinary UoW binding constrain scope. No raw provider data is retained.
+- **Source:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
+  [Database](05-database.md#provider-event-intake-storage).
+- **Type:** compiled owner/caller/ACL/function census, dirty controls and real
+  PostgreSQL/provider failures. **Kind:** both.
+- **Status:** **Implemented** — `ProviderEventFlowConventionTests`, compiled
+  storage/source controls and real PostgreSQL/Keycloak flows. The phase Status
+  owns final-source suite/hosted qualification; implementation is not gap-free capture.
+- **Test owners:**
+  [ProviderEventStorageConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventStorageConventionTests.cs),
+  [ProviderEventStorageTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventStorageTests.cs).
+- **Flow controls:**
+  [ProviderEventFlowConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventFlowConventionTests.cs),
+  [ProviderEventAdapterTests](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/ProviderEventAdapterTests.cs),
+  [realm reader controls](../../scripts/development-event-reader.test.mjs).
+- **Phase:** 03 (P03-6).
+
+#### `Provider_Event_Mirror_Is_Attributed_And_Idempotent`
+
+- **Asserts:** one frozen acceptance-time target per eligible tenant becomes one
+  stable EventId through ordinary outbox/inbox and central typed Audit evidence.
+  SystemActor differs from the affected account; provider time/result does not
+  establish a tenant login. Duplicate/unknown commit, expired claim, closure,
+  overflow and Audit failure cannot duplicate, forge or silently lose success.
+- **Source:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
+  [Database](05-database.md#provider-event-intake-storage).
+- **Type:** real app/ingress-role isolation, concurrency, transport, Audit and
+  restart controls. **Kind:** both.
+- **Status:** **Implemented** — `ProviderEventFlowConventionTests` and actual
+  provider/outbox/inbox/central Audit controls, including duplicate/restart and
+  MUST failure/retry. The phase Status owns final-source/hosted qualification.
+- **Test owners:**
+  [ProviderEventFlowConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventFlowConventionTests.cs),
+  [ProviderEventFlowTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventFlowTests.cs),
+  [real provider mirror](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/ProviderEventAdapterTests.Mirror.cs),
+  [typed central evidence](../../backend/tests/LearnStack.Tests.Unit/SharedKernel/Audit/ProviderEventAuditEvidenceTests.cs).
+- **Phase:** 03 (P03-6).

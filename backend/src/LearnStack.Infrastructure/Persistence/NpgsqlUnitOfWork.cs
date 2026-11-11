@@ -405,6 +405,20 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         RequireWriteAllowed();
         ArgumentNullException.ThrowIfNull(context);
 
+        if (_providerRecipient is not null)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("A provider production owner cannot be reannounced or retargeted.");
+        }
+        if (context.Origin == TenantContextOrigin.ProviderEventRecipient
+            && (context is not ProviderEventRecipient recipient || _depth != 1 || _tenantContextIssued
+                || _transaction is null || tenantWideRead || invitationWitness is not null || consentWitness is not null
+                || !recipient.TryBind(this, _transaction, _generation)))
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("Provider production requires its exact unused claim.");
+        }
+
         if (_invitationWitness is not null || (context.Origin == TenantContextOrigin.HostAndInvitationOffer) != (invitationWitness is not null)
             || invitationWitness is not null && (_depth != 1 || _tenantContextIssued || tenantWideRead
                 || !invitationWitness.IsActive || !ReferenceEquals(invitationWitness.Invocation.Context, context)))
@@ -577,6 +591,12 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         _tenantContextAnnouncement = tenantId is { } announcedTenant
             ? new TenantContextAnnouncement(_generation, announcedTenant, organizationId)
             : null;
+        if (context is ProviderEventRecipient providerRecipient)
+        {
+            _providerRecipient = providerRecipient;
+            _providerCancellation = providerRecipient.SourceLifetime.UnsafeRegister(
+                static owner => ((NpgsqlUnitOfWork)owner!).MarkRollbackOnly(), this);
+        }
         if (tenantWideRead)
         {
             _tenantWideRead = true;
@@ -688,6 +708,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     private bool ValidateOperationReadScope(bool requireCurrentFrame = true)
     {
         if (!ValidateFixedSeedRead()) return false;
+        if (_providerRecipient is { } provider && (_transaction is null
+            || !provider.IsBoundTo(this, _transaction, _generation)))
+        {
+            _rollbackOnly = true; _tenantContextIssued = false; _tenantContextAnnouncement = null; return false;
+        }
         if (_invitationWitness is { } invitation && (_transaction is null || _depth != 1 || _mode != invitation.Mode
             || !invitation.IsBoundTo(this, _transaction, _generation)))
         {
@@ -759,6 +784,9 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         _selfDiscoveryWitness = null;
         _invitationWitness = null;
         _consentWitness = null;
+        _providerRecipient = null;
+        _providerCancellation.Dispose();
+        _providerCancellation = default;
     }
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
@@ -917,6 +945,23 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         }
 
         var transaction = _transaction!;
+        var providerRecipient = _providerRecipient;
+        using var providerCommit = providerRecipient is null ? null
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, providerRecipient.SourceLifetime);
+        if (providerRecipient is not null)
+        {
+            try
+            {
+                await ValidateProviderRecipientCommitAsync(providerRecipient, providerCommit!.Token);
+            }
+            catch
+            {
+                MarkRollbackOnly();
+                try { await RollbackCoreAsync(); }
+                catch { /* The failed unit retains cleanup; preserve the claim failure. */ }
+                throw;
+            }
+        }
         _resolvingGlobalIdentity = _resolvingGlobalIdentity || _globalIdentityDescriptor is not null;
         _transaction = null;
         _mode = null;
@@ -925,7 +970,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         using var confidentialDiagnostics = EnterConfidentialCommitDiagnostics(transaction);
         try
         {
-            await transaction.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(providerCommit?.Token ?? cancellationToken);
         }
         catch (Exception commitFailure)
         {

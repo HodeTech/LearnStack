@@ -29,7 +29,7 @@ import { apiCompletionObserver } from './demo-observation.mjs';
 import { publicSeederEnvironment, developmentSeederRuntimeEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 import { demoSource } from './demo-source.mjs';
 import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
-import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
+import { eventReaderEnvironment, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 import { seedAdministrationOriginTenantIds, adoptSeedAdministrationOrigins } from './seed-admin-origins.mjs';
 import { resolveQualifiedPnpm } from '../frontend/scripts/framework-installation.mjs';
@@ -286,8 +286,11 @@ export async function startDemo(mode) {
         return Math.min(bound, workflowDeadline - Date.now());
       });
     }
-    if (mode === 'local' && existsSync(rootEnv))
-      realmEnvironment(await readRealmEnvironmentFile(rootEnv));
+    if (mode === 'local' && existsSync(rootEnv)) {
+      const source = await readRealmEnvironmentFile(rootEnv);
+      realmEnvironment(source);
+      eventReaderEnvironment(source);
+    }
     mkdirSync(join(repositoryRoot, '.data'), { recursive: true });
     try {
       mkdirSync(lock, { mode: 0o700 });
@@ -358,9 +361,9 @@ export async function startDemo(mode) {
     if (mode === 'ci') {
       if (existsSync(rootEnv) || existsSync(join(appRoot, '.env.local')))
         throw new Error('CI requires an isolated checkout without private root/web configuration');
-      const values = parseLocalEnvironment(
-        readFileSync(join(repositoryRoot, '.env.example'), 'utf8'),
-      );
+      const exampleSource = readFileSync(join(repositoryRoot, '.env.example'), 'utf8');
+      eventReaderEnvironment(exampleSource);
+      const values = parseLocalEnvironment(exampleSource);
       for (const [name, suffix] of [
         ['LEARNSTACK_MIGRATION_PW', 'Migration'],
         ['LEARNSTACK_APP_PW', 'Default'],
@@ -396,6 +399,7 @@ export async function startDemo(mode) {
           .join('\n') + '\n';
       writeFileSync(rootEnv, ownedEnvironment, { flag: 'wx', mode: 0o600 });
       realmEnvironment(ownedEnvironment);
+      eventReaderEnvironment(ownedEnvironment);
       await run(
         'openssl',
         [
@@ -424,11 +428,14 @@ export async function startDemo(mode) {
           flag: 'wx',
           mode: 0o600,
         });
-      realmEnvironment(await readRealmEnvironmentFile(rootEnv));
+      const source = await readRealmEnvironmentFile(rootEnv);
+      realmEnvironment(source);
+      eventReaderEnvironment(source);
       await run('node', ['scripts/public-local.mjs', 'prepare'], 'Private local preparation');
     }
     const privateSource = await readRealmEnvironmentFile(rootEnv);
     realmEnvironment(privateSource);
+    eventReaderEnvironment(privateSource);
     const identityEnvironment = seedAuthorityEnvironment(privateSource);
     const rawValues = parseLocalEnvironment(privateSource);
     for (const [key, value] of Object.entries(rawValues))

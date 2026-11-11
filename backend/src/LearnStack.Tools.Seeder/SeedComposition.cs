@@ -307,6 +307,7 @@ public static class SeedComposition
             ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, EducationAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, LearnStack.Modules.Audit.Application.ProviderEvents.ProviderEventAuditCatalogSource>(),
         ]);
 
         services.TryAddSingleton<IAuditCatalog>(provider =>

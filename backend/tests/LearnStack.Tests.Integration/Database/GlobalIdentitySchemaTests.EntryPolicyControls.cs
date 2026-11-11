@@ -24,6 +24,10 @@ public sealed partial class GlobalIdentitySchemaTests
             AND encode(u.subject_key,'hex') = NULLIF(current_setting('app.identity_subject_key',true),'')
             AND u.status = 'Active')
         """;
+    private const string ExpectedProviderOwnerUsing = """
+        current_user = 'learnstack_migration' AND session_user = 'learnstack_identity_ingress'
+        AND status IN ('Active','Suspended') AND deleted_at IS NULL AND deleted_by IS NULL
+        """;
     private const string ExpectedMemberCheck = """
         tenant_id = NULLIF(current_setting('app.tenant_id',true),'')::uuid
         AND ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id',true),'') IS NULL)
@@ -72,7 +76,7 @@ public sealed partial class GlobalIdentitySchemaTests
         try
         {
             await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
-                await ExecuteAsync(owner, null, $"ALTER POLICY memberships_isolation ON public.memberships USING (({ExpectedMemberAppUsing}) OR ({ownerArm}))");
+                await ExecuteAsync(owner, null, $"ALTER POLICY memberships_isolation ON public.memberships USING (({ExpectedMemberAppUsing}) OR ({ExpectedProviderOwnerUsing}) OR ({ownerArm}))");
 
             // The inspector and behavioral readers open independent physical
             // connections after the ALTER POLICY has committed.
@@ -134,9 +138,9 @@ public sealed partial class GlobalIdentitySchemaTests
             "entry_policy_expected.user_id", StringComparison.Ordinal);
         await ExecuteAsync(owner, null, $"""
             CREATE TEMP TABLE entry_policy_expected (
-                tenant_id uuid,organization_id uuid,user_id uuid,status text,deleted_at timestamptz);
+                tenant_id uuid,organization_id uuid,user_id uuid,status text,deleted_at timestamptz,deleted_by uuid);
             CREATE POLICY entry_policy_expected ON entry_policy_expected
-                USING (({ExpectedMemberAppUsing}) OR ({expectedOwner})) WITH CHECK ({ExpectedMemberCheck});
+                USING (({ExpectedMemberAppUsing}) OR ({ExpectedProviderOwnerUsing}) OR ({expectedOwner})) WITH CHECK ({ExpectedMemberCheck});
             """);
         var expected = await ReadMemberPolicySnapshotAsync(owner, "pg_temp.entry_policy_expected", "entry_policy_expected");
         var violations = new List<string>();

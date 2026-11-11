@@ -24,6 +24,8 @@ const hostileAmbient = {
   ConnectionStrings__OutboxDispatcher: 'dispatcher-private',
   ConnectionStrings__IdentityAuthorization: 'unselected-authorization-private',
   ConnectionStrings__AuthorizationEvidence: 'unselected-evidence-private',
+  ConnectionStrings__IdentityIngress: 'unselected-ingress-private',
+  IdentityEvents__ClientSecret: 'unselected-provider-reader-private', IdentityEvents__RealmId: 'unselected-realm',
   Identity__AuthorityId: 'unselected-identity', Authentication__Tenant__Issuer: 'unselected-issuer',
   Deployment__Mode: 'SaaS', KEYCLOAK_ADMIN_PASSWORD: 'provider-private',
   DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0', MSBUILDDISABLENODEREUSE: '0',

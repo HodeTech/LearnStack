@@ -84,6 +84,21 @@ Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
 implemented. The directory contract appears below; closure,
 production first-admin and issuer rebind retain their named later owners.
 
+### Retained provider-event storage
+
+[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+selects a private machine intake and tenant Audit mirror. The
+[canonical storage contract](../../standards/05-database.md#provider-event-intake-storage)
+owns minimized global receipts/problems/progress, frozen tenant targets, three
+confined functions and the fifth database login. Targets are framework delivery
+metadata, not a Membership mutation or human action. Source event time does not
+establish a tenant login; recipient tenants are selected at durable acceptance.
+The API's bounded `ProviderEventMirrorService` drives the fixed
+`IIdentityEventProvider` port, scanner and target publisher. The required Audit
+consumer uses the ordinary inbox and central typed-evidence writer. The
+[provider specification](providers.md#retained-user-event-reader) owns adapter and
+deployment configuration; the phase Status owns final qualification.
+
 ### Aggregate and storage contract
 
 User's authority is [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md);
@@ -678,11 +693,14 @@ global/provider adoption remains ADR-0072's confined owner.
 
 ## Integration-event catalogue
 
-P03-1 publishes no Identity integration event and activates no provider ingress,
-Invitation or closure consumer. P03-4 defines the bounded invitation writers
-above without an email-bearing integration event; P03-6/10 own other later consent/
-closure contracts. Framework domain-event dispatch does not imply a published
-contract.
+P03-1 publishes no Identity integration event. P03-4 defines the bounded invitation
+writers above without an email-bearing integration event. P03-6 adds
+`UserProviderEventObservedIntegrationEventV1` on `learnstack.identity.user`, with
+only `TargetId` beyond the framework envelope. Its required subscription is
+`audit.provider-event-mirror.v1`. Stable target/event IDs and inbox completion
+deduplicate tenant observations; they do not promise gap-free provider capture.
+P03-10 owns closure contracts. Framework domain-event dispatch alone does not
+imply a published contract.
 
 ## Permission matrix
 

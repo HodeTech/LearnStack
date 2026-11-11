@@ -1294,3 +1294,18 @@ standalone evidence lane remains app-role/tenant-scoped; no sentinel, bypass,
 new table or redaction privilege follows. P03-2's new confined seams extend the
 prior eight central seams only when implemented; acceptance does not claim they
 exist. Other decisions and historical Accepted body/status/date remain unchanged.
+
+## Amendment 16 — Typed provider mirror evidence (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The tenant Audit consumer gains one closed typed provider-fact attachment
+through the common intent/composer and existing pending writer. Its one producer
+and one consumer are mechanically inventoried; no new IAuditStore writer or
+arbitrary metadata is added. `audit.provider_event.observe` is MUST/SecurityEvent,
+with SystemActor distinct from the affected subject and provider outcome.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

@@ -728,3 +728,18 @@ Decision, global reader, fence mode or eligibility boundary changes.
   [permissions](../standards/19-permissions.md),
   [audit](../standards/18-audit-coverage.md) and
   [test catalogue](../standards/21-architecture-tests-catalogue.md).
+
+### Amendment 4 — Provider intake function and setter successor (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The current twelve-definer/twelve-logical-setter restatement yields only
+to the three provider owner functions and one claimed-provider-recipient setter:
+fifteen confined definers, thirteen logical setters and the same four physical
+writers. Custom-field, consent, authority and revision-pin decisions remain
+unchanged.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

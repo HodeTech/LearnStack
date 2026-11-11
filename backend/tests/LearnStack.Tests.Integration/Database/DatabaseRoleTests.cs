@@ -42,6 +42,7 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
     [InlineData("learnstack_app", false)]
     [InlineData("learnstack_platform", true)]
     [InlineData("learnstack_outbox_admin", true)]
+    [InlineData("learnstack_identity_ingress", false)]
     public async Task EachRoleExistsWithItsDeclaredBypassPosture(string role, bool expectedBypass)
     {
         await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);

@@ -37,7 +37,9 @@ public sealed partial class OutboxDispatchConventionTests
             "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver",
             "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
             AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission,
-            AppJobAuthorizationSource, AppJobAuthorizationOwner, AppJobEvidenceSource, AppJobEvidenceOwner, AppJobDatabaseProof };
+            AppJobAuthorizationSource, AppJobAuthorizationOwner, AppJobEvidenceSource, AppJobEvidenceOwner, AppJobDatabaseProof,
+            "LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource",
+            "LearnStack.Infrastructure.Identity.ProviderEvents.KeycloakIdentityEventProvider" };
         var types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in subjects)
         {
@@ -138,7 +140,10 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(owner, "ReportMainCleanup", [(AppJobUnit, "DisposeCoreAsync"), (AppJobUnit, "DisposeCoreAsync")]);
         Exact(owner, "RefuseUnrelatedRead", [(subjects[8], "ReadAsync"), (subjects[9], "BelongsToTenantAsync"),
             (AppJobAuthorizationSource, "QualifyCoreEntryAsync"), (AppJobEvidenceSource, "QualifyCoreEntryAsync"),
-            (AppJobDatabaseProof, "OpenAsync")]);
+            (AppJobDatabaseProof, "OpenAsync"),
+            ("LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource", "QualifyAsync"),
+            ("LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource", "ExecuteAsync"),
+            ("LearnStack.Infrastructure.Identity.ProviderEvents.KeycloakIdentityEventProvider", "RunAsync")]);
         CheckJobQualificationEntries(census, types, offenders);
         CheckJobApplicationRetainedFields(census, owner, resources, offenders);
         return offenders;

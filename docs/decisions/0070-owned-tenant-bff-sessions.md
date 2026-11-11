@@ -672,3 +672,18 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 9 — Retained provider history consumer (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The persisted development user-event stream gains a separate authenticated
+read-only application pull consumer. Its finite capture, 7–30-day admitted
+source retention and 32-day application receipt horizon do not change this
+record’s BFF custody, local expiry/logout or provider-store configuration
+preservation. Mirror outage is independent of public/sign-in request execution.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

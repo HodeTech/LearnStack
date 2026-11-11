@@ -1,4 +1,7 @@
 using LearnStack.Modules.Identity.Application.Abstractions;
+using LearnStack.Modules.Identity.Application.Contracts.ProviderEvents;
+using LearnStack.Modules.Identity.Application.ProviderEvents;
+using LearnStack.Modules.Identity.Infrastructure.ProviderEvents;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.CustomFields;
 using LearnStack.Modules.Tenancy.Application.FieldConsents;
@@ -196,6 +199,12 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>
             provider.GetRequiredService<GlobalIdentityEnrollment>());
         services.TryAddScoped<IUnitOfWork>(CreateUnitOfWork);
+        // Required inbox consumers also exist in component roots that do not
+        // start the provider poller. Their fixed tenant reader belongs to the
+        // ordinary persistence foundation, never the machine credential lane.
+        services.TryAddScoped<ProviderEventTargetStore>();
+        services.TryAddScoped<IProviderEventTargetStore>(provider => provider.GetRequiredService<ProviderEventTargetStore>());
+        services.TryAddScoped<IProviderEventAuditFactReader>(provider => provider.GetRequiredService<ProviderEventTargetStore>());
         services.TryAddScoped<LearnStack.SharedKernel.Idempotency.IIdempotencyBusinessOwnerCleanup>(provider =>
             provider.GetRequiredService<IUnitOfWork>() as LearnStack.SharedKernel.Idempotency.IIdempotencyBusinessOwnerCleanup
                 ?? throw new InvalidOperationException("Idempotency cleanup requires the actual business owner."));
@@ -330,6 +339,7 @@ public static class PersistenceCompositionExtensions
             ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, EducationAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, LearnStack.Modules.Audit.Application.ProviderEvents.ProviderEventAuditCatalogSource>(),
         ]);
 
         services.TryAddSingleton<IAuditCatalog>(provider =>

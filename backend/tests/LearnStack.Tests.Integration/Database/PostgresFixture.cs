@@ -89,6 +89,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     private const string AppPassword = "app-test";
     private const string PlatformPassword = "platform-test";
     private const string OutboxPassword = "outbox-test";
+    private const string IngressPassword = "ingress-test";
     private const string ContainerScriptPath = "/tmp/02-create-roles.sql";
 
     // Pinned to the tag infra/compose/dev.yml runs. A fixture on a different major would
@@ -108,6 +109,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithEnvironment("LEARNSTACK_APP_PW", AppPassword)
         .WithEnvironment("LEARNSTACK_PLATFORM_PW", PlatformPassword)
         .WithEnvironment("LEARNSTACK_OUTBOX_PW", OutboxPassword)
+        .WithEnvironment("LEARNSTACK_IDENTITY_INGRESS_PW", IngressPassword)
         // Keep concurrent publishers in one allocator address family, including identity fixtures.
         .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "5432/tcp"))
         .Build();
@@ -123,6 +125,8 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     /// <summary><c>BYPASSRLS</c>; only the outbox dispatcher's equivalent.</summary>
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
+
+    public string IdentityIngressConnectionString => For("learnstack_identity_ingress", IngressPassword);
 
     // An owned auxiliary fixture may attach this database to its disposable Docker network.
     internal string ContainerId => _container.Id;

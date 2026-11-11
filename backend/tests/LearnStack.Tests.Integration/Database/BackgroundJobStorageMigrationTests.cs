@@ -66,7 +66,8 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
         {
             (await SchemaQueries.ReadStringsAsync(owner, SchemaQueries.TableNames)).Should()
                 .BeEquivalentTo(SchemaTableClasses.Existing.Concat(SchemaTableClasses.GlobalIdentity)
-                    .Concat(SchemaTableClasses.IdentityPlatform).Concat(SchemaTableClasses.IdentityContextual),
+                    .Concat(SchemaTableClasses.IdentityPlatform).Concat(SchemaTableClasses.IdentityContextual)
+                    .Concat(SchemaTableClasses.ProviderIngress),
                     "all event-era and independently added Identity data tables survive this Platform-only reversal");
         }
 

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -208,7 +209,8 @@ describe('observational CI demo source checkpoints', () => {
         writeFileSync(join(f.root, 'source.ts'), 'local development change');
         writeFileSync(
           join(f.root, '.env'),
-          'KEYCLOAK_ADMIN=source-control-admin\nKEYCLOAK_ADMIN_PASSWORD=source-control-private\nKEYCLOAK_WEB_CLIENT_SECRET=source-control-web-private\n',
+          'KEYCLOAK_ADMIN=source-control-admin\nKEYCLOAK_ADMIN_PASSWORD=source-control-private\nKEYCLOAK_WEB_CLIENT_SECRET=source-control-web-private\n' +
+            `IdentityEvents__ClientSecret=${randomBytes(24).toString('hex')}\n`,
           { mode: 0o600 },
         );
       }

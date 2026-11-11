@@ -31,6 +31,15 @@ namespace LearnStack.Tests.Unit.Application.Pipeline;
 /// </remarks>
 public sealed class TenantContextBehaviorTests
 {
+    [Fact]
+    public async Task Provider_recipient_origin_reaches_no_ordinary_public_or_provisioning_request()
+    {
+        var context = Resolved(TenantContextOrigin.ProviderEventRecipient);
+        (await RunAsync<DummyCommand>(context)).Called.Should().BeFalse();
+        (await RunAsync<AnonymousReadShapedQuery>(context)).Called.Should().BeFalse();
+        (await RunAsync<ProvisioningShapedCommand>(context)).Called.Should().BeFalse();
+    }
+
     public sealed record DummyCommand : IRequest<Result<string>>;
 
     [AllowsUnresolvedTenantContext]

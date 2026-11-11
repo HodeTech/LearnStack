@@ -208,6 +208,20 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
         }
     }
 
+    public void AttachProviderEvent(ProviderEventAuditEvidence evidence)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        if (!HasOpenFrame) throw new InvalidOperationException("Provider evidence requires an actual audit frame.");
+        var candidates = Enumerable.Range(0, _intents.Count).Where(index => _intentFrames[index] == CurrentFrame
+            && _intents[index].Operation == "audit.provider_event.observe").ToArray();
+        if (candidates.Length != 1 || _intents[candidates[0]].ProviderEvent is not null)
+            throw new InvalidOperationException("Provider evidence requires one unclaimed observation intent.");
+        var index = candidates[0];
+        var attached = _intents[index] with { ProviderEvent = evidence };
+        evidence.BindTo(attached);
+        _intents[index] = attached;
+    }
+
     /// <inheritdoc />
     public void Designate<TId>(IAggregateRoot<TId> aggregate)
         where TId : struct, IStronglyTypedId<Guid>

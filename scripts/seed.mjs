@@ -6,7 +6,7 @@ import { composeProcessEnvironment, composeSelection, composeSelectionFailure, r
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { publicSeederEnvironment, developmentSeederRuntimeEnvironment, authorizationSourceEnvironment } from './demo-database.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
-import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
+import { eventReaderEnvironment, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 import { waitCompose } from './wait-compose.mjs';
 import { seedAdministrationOriginTenantIds, adoptSeedAdministrationOrigins } from './seed-admin-origins.mjs';
@@ -31,6 +31,7 @@ async function selectedConfiguration(selected) {
   if (role !== 'learnstack_app')
     throw new Error('seed: ConnectionStrings__Default must name learnstack_app; credentials were not used.');
   realmEnvironment(source);
+  eventReaderEnvironment(source);
   seedAuthorityEnvironment(source);
   for (const key of ['ConnectionStrings__Default', 'ConnectionStrings__Migration'])
     if (!values[key] || (process.env[key] !== undefined && process.env[key] !== values[key]))

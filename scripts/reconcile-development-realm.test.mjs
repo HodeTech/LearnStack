@@ -111,7 +111,7 @@ async function ownedEntryFixture(t, scenario) {
     await mkdir(join(root, directory), { recursive: true });
   for (const name of ['compose', 'demo-process', 'demo-database', 'reconcile-development-realm',
     'development-realm-owner', 'development-realm-errors', 'development-realm-core', 'development-realm-plan',
-    'development-realm-events',
+    'development-realm-events', 'development-event-reader', 'development-event-reader-test-fixture',
     'development-realm-account', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
     'development-realm-stock-console', 'development-realm-stock-console-test-fixture'])
     await copyFile(new URL(`./${name}.mjs`, import.meta.url), join(root, `scripts/${name}.mjs`));
@@ -124,6 +124,7 @@ async function ownedEntryFixture(t, scenario) {
   await writeFile(join(root, 'package.json'), '{"type":"module"}\n');
   const { secret } = await import('./development-realm-test-fixture.mjs');
   const values = { KEYCLOAK_ADMIN: 'synthetic-admin', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: secret,
+    IdentityEvents__ClientSecret: 'owned-event-reader-fixture-secret',
     ...(scenario.startsWith('foundation-') ? { ConnectionStrings__Default: canary,
       Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
       Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack' } : {}) };
@@ -137,7 +138,7 @@ async function ownedEntryFixture(t, scenario) {
   // CLI, target validation, lock, manifest, full planner/readback and cleanup are real.
   await writeFile(join(root, 'scripts/development-realm-http.mjs'), `
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
-import { provider } from './development-realm-test-fixture.mjs';
+import { providerWithEventReader as provider } from './development-event-reader-test-fixture.mjs';
 import { refuse } from './development-realm-errors.mjs';
 export { realmJson } from './development-realm-http-real.mjs';
 const fixture = provider();
@@ -175,6 +176,7 @@ export async function realmRequest(url, options) {
       return { status, bytes: path === 'users/profile' ? Buffer.from(JSON.stringify(fixture.state.profile)) : Buffer.alloc(0) };
     }
     if (options.method === 'POST') { const result = await fixture.admin.post(path, options.json); return { status: result.status, bytes: Buffer.from(JSON.stringify(result.body ?? {})) }; }
+    if (options.method === 'DELETE') { const status = await fixture.admin.delete(path, options.json); return { status, bytes: Buffer.alloc(0) }; }
     body = await fixture.admin.get(path);
   }
   return { status: 200, bytes: Buffer.from(JSON.stringify(body)) };
@@ -186,7 +188,7 @@ import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 import { manifest } from '../scripts/development-realm-test-fixture.mjs';
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(events)}, JSON.stringify({ command: ${JSON.stringify(command)}, args,
-  privateEnvironment: Object.keys(process.env).some(key => /keycloak|connectionstrings|password|_pw$/i.test(key)) }) + '\\n');
+  privateEnvironment: Object.keys(process.env).some(key => /keycloak|identityevents|connectionstrings|password|_pw$/i.test(key)) }) + '\\n');
 const values = ${JSON.stringify(values)};
 let result;
 if (${JSON.stringify(command)} === 'dotnet') {
@@ -264,7 +266,7 @@ for (const scenario of ['success', 'failure', 'cancel']) {
       if (child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await status; }
     }
     const stdout = Buffer.concat(output).toString(), stderr = Buffer.concat(errors).toString();
-    assert.equal(stdout, scenario === 'success' ? 'realm: completed (0 writes)\n' : '');
+    assert.equal(stdout, scenario === 'success' ? 'realm: completed (4 writes)\n' : '');
     assert.equal(stderr, scenario === 'success' ? '' : `realm: ${scenario === 'failure' ? 'apply/transport' : 'discovery/cancelled'}\n`);
     for (const value of [canary, 'private-test-source', 'synthetic-admin-token', 'synthetic-refresh'])
       assert.ok(!(stdout + stderr).includes(value));
@@ -326,7 +328,7 @@ try {
       clearTimeout(timer);
       if (child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await status; }
     }
-    assert.equal(stdout, scenario === 'foundation-success' ? '{"mutations":0}\n' : '');
+    assert.equal(stdout, scenario === 'foundation-success' ? '{"mutations":4}\n' : '');
     assert.equal(stderr, scenario === 'foundation-success' ? ''
       : `realm: identity/${scenario === 'foundation-cancel' ? 'cancelled' : 'seed_refused'}\n`);
     assert.ok(!(stdout + stderr).includes(canary));
@@ -436,6 +438,8 @@ catch (error) { console.error(realmFailureNotice(error)); process.exitCode = 1; 
       'unestablished process cleanup or changed lock ownership keeps the exclusive lock');
     const events = (await readFile(f.events, 'utf8')).trim().split('\n').map(value => JSON.parse(value));
     assert.deepEqual(events.filter(event => event.provider && event.method !== 'GET'
-      && event.stage !== 'authentication').map(event => [event.stage, event.method]), [['prepare', 'PUT']]);
+      && event.stage !== 'authentication').map(event => [event.stage, event.method]),
+    [['prepare', 'PUT'], ...(scenario.startsWith('prepare-success')
+      ? [['apply', 'POST'], ['apply', 'DELETE'], ['apply', 'POST'], ['apply', 'POST']] : [])]);
   });
 }
