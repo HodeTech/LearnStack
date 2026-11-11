@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 829 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 935 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -450,7 +450,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer review corrections (2026-11-11)](#p03-6-maintainer-review-corrections-2026-11-11) — 72 lines
   - [P03-6 maintainer corrections first implementation review (2026-11-11)](#p03-6-maintainer-corrections-first-implementation-review-2026-11-11) — 28 lines
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
-  - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 19 lines
+  - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
+  - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20473,3 +20474,109 @@ The final live PR evidence records the resulting exact head/merge source and
 attempts; this committed observation does not claim future CI success. The
 maintainer owns review and merge. Development, five existing stashes and the
 settings digest remain protected.
+
+
+### P03-6 merge and delivery closeout (2026-11-12)
+
+The maintainer merges [PR #43](https://github.com/HodeTech/LearnStack/pull/43) at
+01:20:58 Europe/Istanbul on 2026-11-12 (2026-11-11 22:20:58 UTC). Reviewed head
+is `34c450ef`; merge commit `8435300e` has parents `bdd9d93c` and `34c450ef`.
+The reviewed head, actual PR merge source `112d34f8` and fetched merge commit
+share tree `773c73aa`. GitHub metadata and fetched Git objects independently
+confirm the merge and exact file identity. Development fast-forwards to that
+merge without changing files or switching branches.
+
+P03-6 implementation delivery is complete and merged: D09 and the provider-mirror
+part of C11/C19 are delivered under Accepted ADR-0097. The three implementation
+steps, requested two fresh review rounds per step, subsequent census corrections
+and maintainer-review corrections are recorded above. This closes implementation
+delivery; the final-source two-layout evidence follow-up below remains explicit.
+The phase Status block owns packet state. This closeout changes documentation
+only, with no new ADR, privilege, runtime/test/CI setting or implementation step.
+
+Delivered behavior:
+
+- A separate read-only Keycloak service account pulls the selected retained
+  account-history events. A confined machine database login accepts minimized
+  receipts/problems and freezes the eligible Active/Suspended tenant recipients.
+  A receipt commit acknowledges acceptance; provider data never chooses tenant
+  authority or directly publishes a business event.
+- Stable target/EventId identities cross the ordinary tenant outbox and required
+  Audit inbox. Central MUST `audit.provider_event.observe` preserves SystemActor,
+  affected User and distinct source/processing times and outcomes. This is account
+  history, which can predate membership; it is not proof of login to that tenant.
+- Duplicate/reordered facts, unknown/closed/no-recipient subjects, 257-recipient
+  refusal, poison positions, restart, uncertain commit and source expiry retain
+  their exact outcomes. Frozen targets are independent of expiring global receipts.
+  Positional gaps cannot be cleared by a different event moving into the offset.
+- Failed initial qualification retries only after actual cleanup, keeping source
+  identity pinned. Changed retained fingerprints classify before source-age
+  refusal. Bounded independent retirement commits drain backlog fairly; private
+  overdue counts/age expose pressure rather than promising unlimited capacity.
+- Seed/demo validate the separate reader credential before side effects. The
+  operator guide supplies bounded read-only diagnostics through the existing
+  provisioning administrator and fails closed for RLS-filtered sessions. Exact
+  257-recipient visibility and migration-role refusal are exercised. No repair
+  endpoint, new operator grant, forced ACK or raw provider export is added.
+
+Final-head evidence:
+
+- The post-incident whole rerun,
+  [run 43093319658, attempt 2](https://github.com/HodeTech/LearnStack/actions/runs/43093319658/attempts/2),
+  passes **27/27 jobs** at head `34c450ef`, PR source `112d34f8`, base `bdd9d93c`.
+  It is layout **B**. All **25 original ZIPs** are retained and match their API
+  identities, byte sizes and SHA-256 digests; every ZIP CRC passes. Canonical
+  validators reconcile all required producer receipts and exact case unions.
+- Backend completes **4,866** cases and Docker Integration **3,744**, for **8,610**
+  passed cases with no unsuccessful/skipped outcomes. Manifest SHA-256 is
+  `1b9c834fba82113955110860feed68fff453b4f0260b9789803cd620bf08c3d3`;
+  plan SHA-256 is
+  `4fc2fb8a67a82294e9e82a497229ac049f0379d0e877e76e3020e61249614bb8`.
+- Frontend completes **124 web files / 4,099 reported cases** and **12 SDK files /
+  228 cases**, total **4,327**, zero skips/todos, plus successful native ingress
+  and failed-fixture cleanup. File discovery is independent; scenario totals are
+  reconciled runner reports, not independent scenario-registration discovery.
+- The original demo verifies **27 exact JSON/HTML report pairs and nine PNGs**,
+  hard budgets, source/config identity and cleanup. Original OpenAPI evidence
+  verifies unchanged Git snapshot bytes, empty comparisons, the pinned comparator,
+  sixty fixtures and no approval consumption.
+- The earlier four no-listener failures all pass in this complete layout B,
+  independently of the local exact 304-case cohort's 304/304 pass. Neither result
+  identifies the earlier observer/assertion cause; a recurrence remains a failure.
+
+Evidence boundaries and operational handoff:
+
+- There is **no successful opposite-layout A on this final corrected head** and
+  no final-head A/B reconciliation. The earlier complete pair on `89a98998` is a
+  different executable source. Failed attempt 1 on the final head cannot supply
+  A credit: eighteen jobs fail only at upload, ordinary-4 also reports four case
+  failures, and only four original ZIPs exist. Those four are retained and verified;
+  recovered console rows are not replacement original producer packages.
+- GitHub's [service incident](https://www.githubstatus.com/incidents/dvy0t3mvh1lg)
+  is consistent with the upload/502 symptoms; it does not establish every upload's
+  cause or the four tests' cause. Incident resolution precedes the whole retry.
+  Failed candidates keep their actual outcomes and grant no qualification credit.
+- Final-head opposite-layout/pair qualification is an open P03-11 evidence
+  follow-up, not waived by the maintainer's merge. No post-merge rerun of this
+  closed PR is started: the current-attempt identity/original-evidence rules stay
+  in force, including the open-follow-up-PR requirement when GitHub omits merged
+  PR identity. The merge-triggered main run `43111012943` is separately queued at
+  this observation; its different source is not combined into the PR pair.
+- Earlier P03-3/P03-4 final-head B/original-archive follow-ups and P03-3–5 manual
+  evidence boundaries remain open. P03-6 adds no UI or manual accessibility gate.
+  Phase 03 is not complete and Phase 04 is not activated by this merge.
+- Deployment requires the independently configured reader credential, actual
+  immutable realm ID, installed authority/issuer and same-database ingress login.
+  Retained-data migrations require forward repair. Global records target 32-day
+  retirement; source history stays within the accepted 7–30 days. Tenant targets,
+  transport/inbox and Audit retain their coordinated P03-10 erasure / Phase 11
+  retention dependencies. This is not authorization to purge retained copies.
+
+Next by packet order is P03-7: authenticated OIDC back-channel logout (D10/C12).
+G11 remains Open. Its decision pass must name the logout-token purpose/profile,
+route, signature/issuer/audience/time/events/no-nonce rules, replay retention,
+sid/sub session targets, late refresh/callback fencing and actual provider-to-native
+reachability before activation. The retained Audit mirror neither implements nor
+gates that independent revocation contract. P03-8 federation, P03-9 Platform/
+recovery, P03-10 DSAR/global closure and P03-11 exit enforcement remain unstarted.
+This closeout starts no next packet.

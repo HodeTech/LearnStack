@@ -1,11 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-11).** P03-0 through P03-5 implementation delivery is complete.
-> P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)),
-> P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)),
-> P03-3 ([PR #40](https://github.com/HodeTech/LearnStack/pull/40)),
-> P03-4 ([PR #41](https://github.com/HodeTech/LearnStack/pull/41)) and
-> P03-5 ([PR #42](https://github.com/HodeTech/LearnStack/pull/42)) are merged.
+> **Status (2026-11-12).** P03-0 through P03-6 implementation delivery is complete.
 > The [P03-3 closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04)
 > and [P03-4 closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06)
 > record delivered operations, source-bound CI evidence and the remaining proof
@@ -23,8 +18,13 @@
 > records all four steps, reviews, final-head `b96c2f65` A/B (27/27 each) and fifty
 > verified original archives. Manual acceptance covers the earlier UI; later fixes
 > lack a fresh human recheck. Earlier intermittent CI causes remain unlocalized.
-> P03-6 is in progress under Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md); implementation/reviews and prior-source A/B are complete.
-> [Maintainer review corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-2026-11-11) completed both fresh review rounds; final-source qualification remains open at this observation. [PR #43](https://github.com/HodeTech/LearnStack/pull/43) is ready, open and unmerged; no merge is authorized.
+> P03-6 is complete and merged ([PR #43](https://github.com/HodeTech/LearnStack/pull/43), Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)).
+> Its [merge closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12)
+> records all three implementation/review steps, corrections, final-head layout B
+> (27/27 jobs) and 25 verified originals. Opposite-layout A and pair qualification
+> remain an explicit evidence follow-up before P03-11 exit; prior-source A/B and
+> the failed outage attempt do not close it. No new manual UI gate is introduced.
+> P03-7 is next by packet order; P03-7–11 remain unstarted. Phase 03 remains open.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -34,7 +34,7 @@
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
-> | P03-6 | Provider event ingress and audit mirror | In progress — maintainer review corrections; final-source qualification/PR |
+> | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-7 | Back-channel session revocation | Not started |
 > | P03-8 | Tenant federation | Not started |
 > | P03-9 | Platform authority and operational recovery | Not started |
@@ -147,7 +147,7 @@ named part, and the register links each explicit acceptance and vehicle.
 | G7 | Who audits HTTP/application/resource denials and supplies trusted actor/request context? | One evidence owner per refusal, MUST sensitive reads, membership/role/platform/operator/route provenance, trusted IP and bounded user-agent; preserve refusal on audit failure; no generic ADR-0065 budget | P03-2 | ADR-0033/0044; Audit spec, enrichment port and matrices | Accepted — 2026-10-27, [ADR-0077 / P03-2 evidence](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); runtime implemented and qualified; privileged population remains G13 Open |
 | G8 | What makes invitation acceptance and delivery authoritative and recoverable? | Verified current provider email, hashed single-use token, GET inspection only, explicit mutating act, current delegation, accept/revoke/expiry/resend races, aggregate atomicity and bounded delivery independent of Phase 08a | P03-1 only if shared aggregate shape changes; P03-4 writer | Invitation contract; ADR-0042 successor if an exception changes; phase package and delivery handoff | Accepted — 2026-11-04, [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) and [automatic-email package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04); P03-4 delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06) |
 | G9 | How do field definitions and values preserve schema/classification history? | Decide revision pins/active uniqueness, scalar-field compatibility with the existing admitted object profile, nested data, required/default/retire/reclassify/key-reuse behavior, consent and supported localized forms; no raw JSONB bypass | P03-5 before its schema | Customization/privacy contract; ADR-0043 disclosure or successor if needed; module specs | Accepted — 2026-11-10, [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md) and [corrected package](phase-03-delivery-log.md#p03-5-conditional-acceptance-and-step-1-start-2026-11-10); implementation/qualification remain separate |
-| G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Accepted — 2026-11-11, [ADR-0097 and corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11); implementation/qualification separate |
+| G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Accepted — 2026-11-11, [ADR-0097 and corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11); [delivery and evidence record](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12) |
 | G11 | Which back-channel token profile, route and session targets are supported? | Separate OIDC purpose validation, signature/issuer/audience/time/events/no-nonce, replay retention, provider/session indexing and reachability; preserve late-work/accounting fences and unrelated/new session owners | P03-7 | ADR-0070 bounded extension; native route/provider configuration package | Open |
 | G12 | How is realm-level tenant federation confined and safely activated? | Provider ownership, write-only credentials, bounded egress, linking/verified-email trust, MFA assurance, test/activate/rollback and last-login recovery; email/broker claims alone grant no membership | P03-8 | Identity-provider contract under ADR-0004/0064; permission/audit matrices | Open |
 | G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence, production first-admin/provisioning and exceptional recovery, controlled issuer rebind and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Open for human/operator authority; machine-ingress slice only Accepted — 2026-11-11 under [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md) and its [acceptance](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11) |
