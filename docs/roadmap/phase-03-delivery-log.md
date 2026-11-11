@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 668 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 690 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -446,6 +446,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 3 first review and enforcement corrections (2026-11-11)](#p03-6-step-3-first-review-and-enforcement-corrections-2026-11-11) — 46 lines
   - [P03-6 Step 3 review closeout and qualification freeze (2026-11-11)](#p03-6-step-3-review-closeout-and-qualification-freeze-2026-11-11) — 28 lines
   - [P03-6 first hosted A and observation census corrections (2026-11-11)](#p03-6-first-hosted-a-and-observation-census-corrections-2026-11-11) — 64 lines
+  - [P03-6 compiled catalogue total correction (2026-11-11)](#p03-6-compiled-catalogue-total-correction-2026-11-11) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20307,3 +20308,25 @@ finding. Neither review claims runtime execution or hosted qualification. The
 next push updates the existing PR and starts a new complete A through its normal
 workflow. Full same-source A/B and original-archive reconciliation remain
 mandatory; this record grants neither a duplicate manual workflow nor merge.
+
+### P03-6 compiled catalogue total correction (2026-11-11)
+
+[Run 43053335936](https://github.com/HodeTech/LearnStack/actions/runs/43053335936),
+head `85b99ac9` / merge source `3895ab07`, exposes one missed adjacent prose
+update: the new metadata/acquisition companion increases compiled Fact/Theory
+method declarations from **352 to 353**, while Catalogue 21 still publishes 352.
+`CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules` correctly refuses.
+Its exact failure is reproduced locally; updating the published count makes all
+**five corpus controls pass**. No executable, rule-status or time setting changes.
+The previously failed observation/manifest and historical migration controls
+have no new failure in this run at this observation; the first candidate already
+retains the full unchanged-runtime producer history separately.
+
+This candidate is already failed and cannot qualify A or start B. The normal PR
+concurrency rule replaces it on the next push; any still-running job receives
+its actual cancellation outcome, without success credit. Retention keeps all
+available original archives and immutable outcomes after termination. The next
+complete A/B must use the corrected single source. This arithmetic correction
+uses the existing compiled corpus checks; it introduces no decision or extra
+implementation step. Full corrected local Architecture and the earlier local
+Integration run continue with their existing physical owners.
