@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 486 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 530 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -441,6 +441,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 2 provider-to-Audit implementation (2026-11-11)](#p03-6-step-2-provider-to-audit-implementation-2026-11-11) — 62 lines
   - [P03-6 Step 2 first review and recovery correction (2026-11-11)](#p03-6-step-2-first-review-and-recovery-correction-2026-11-11) — 40 lines
   - [P03-6 Step 2 second review and positional-gap correction (2026-11-11)](#p03-6-step-2-second-review-and-positional-gap-correction-2026-11-11) — 27 lines
+  - [P03-6 Step 2 closeout and final qualification entry (2026-11-11)](#p03-6-step-2-closeout-and-final-qualification-entry-2026-11-11) — 25 lines
+  - [P03-6 Step 3 composition qualification correction (2026-11-11)](#p03-6-step-3-composition-qualification-correction-2026-11-11) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20120,3 +20122,47 @@ compiled storage/flow and corpus controls pass; the Release solution builds with
 zero warnings/errors. The canonical database contract and realm recovery runbook
 state this limit. The reviewer receives a narrow correction recheck after commit;
 this is not a third broad review round. Final packet qualification remains open.
+
+### P03-6 Step 2 closeout and final qualification entry (2026-11-11)
+
+The second-round provider reviewer narrowly rechecks `4a37d327` and confirms the
+positional-gap finding closed for both empty and substituted-valid retries. No
+additional broad review or suite execution is attributed to this recheck. Both
+fresh review rounds now have no open verified finding. Step 2 closes through
+`63751d8f`, first-round correction `da8d5077` and second-round correction
+`4a37d327`; each has its own execution/review boundary recorded above.
+
+Step 3 consolidates enforcement, operations and final-source evidence. The two
+catalogue rules now name their actual compiled flow owners and real provider,
+PostgreSQL and central Audit controls as Implemented, without claiming hosted
+qualification. Published counts become 352 compiled methods, 268 Implemented
+catalogue rules, 153 of them in the Architecture assembly and 115 outside it.
+The existing shared-fixture source census includes all four new fixture classes;
+no source timing weight, job ceiling or worker count changes.
+
+The existing operations and subject-copy inventory cover configuration, exact
+least privilege, rotation/disable, source outage, retained claims, unreadable
+positions, sticky historical gaps, global retirement and independent tenant-copy
+retention. There is no new UI or manual accessibility gate. Complete local suites,
+two fresh Step 3 review rounds, final-source PR CI A/B and original-archive
+reconciliation remain required before packet closeout. No P03-6 push, PR, hosted
+run or merge has occurred at entry; work remains on `development`.
+
+### P03-6 Step 3 composition qualification correction (2026-11-11)
+
+The first complete Release backend attempt exposes a component-root registration
+error: roots that install cross-cutting subscribers and ordinary persistence,
+without starting the machine poller, lack `IProviderEventAuditFactReader`. The
+production provider flow passes while these existing HTTP component roots fail
+DI validation. The attempt is cancelled and retained as failed/partial; its
+12-pass Contract and 3,777-pass Unit results do not turn it into full success.
+
+The exact tenant target store and its reader/store aliases now register in the
+ordinary persistence foundation. Only machine polling/production remains in the
+provider-mirror composition. This adds no credential resolution, source alias,
+connection or fallback reader, and no test factory hides the required consumer.
+Existing HTTP correlation/tenant assertion/schema controls and actual provider
+outbox/inbox/Audit controls pass together: 29 cases. The Release solution builds
+with zero warnings/errors; all 111 offline native and 42 result/reconciliation
+controls pass. A corrected complete backend run follows. Final-source CI and
+original-archive qualification remain open.

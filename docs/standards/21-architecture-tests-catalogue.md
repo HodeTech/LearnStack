@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**266 rules in this catalogue are Implemented, and 151 of them are in that assembly.**
+**268 rules in this catalogue are Implemented, and 153 of them are in that assembly.**
 The other 115 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -7418,8 +7418,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [Database](05-database.md#provider-event-intake-storage).
 - **Type:** compiled owner/caller/ACL/function census, dirty controls and real
   PostgreSQL/provider failures. **Kind:** both.
-- **Status:** **Registered**. Storage and private-source controls are foundation
-  evidence; actual provider polling and the complete flow are not qualified by them.
+- **Status:** **Implemented** — `ProviderEventFlowConventionTests`, compiled
+  storage/source controls and real PostgreSQL/Keycloak flows. The phase Status
+  owns final-source suite/hosted qualification; implementation is not gap-free capture.
 - **Test owners:**
   [ProviderEventStorageConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventStorageConventionTests.cs),
   [ProviderEventStorageTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventStorageTests.cs).
@@ -7440,8 +7441,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [Database](05-database.md#provider-event-intake-storage).
 - **Type:** real app/ingress-role isolation, concurrency, transport, Audit and
   restart controls. **Kind:** both.
-- **Status:** **Registered**. Target acceptance/storage tests alone do not qualify
-  the required consumer or central Audit composition.
+- **Status:** **Implemented** — `ProviderEventFlowConventionTests` and actual
+  provider/outbox/inbox/central Audit controls, including duplicate/restart and
+  MUST failure/retry. The phase Status owns final-source/hosted qualification.
 - **Test owners:**
   [ProviderEventFlowConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventFlowConventionTests.cs),
   [ProviderEventFlowTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventFlowTests.cs),
