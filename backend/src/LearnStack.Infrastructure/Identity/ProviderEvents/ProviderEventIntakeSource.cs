@@ -119,6 +119,7 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
         try
         {
             connection = _source.CreateConnection();
+            owner.Connection = connection;
             await connection.OpenAsync(deadline.Token).ConfigureAwait(false);
             await RequireRoleAsync(connection, deadline.Token).ConfigureAwait(false);
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, deadline.Token).ConfigureAwait(false);
@@ -134,6 +135,7 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
         try
         {
             if (connection is not null) await connection.DisposeAsync().ConfigureAwait(false);
+            owner.Connection = null;
             lock (_gate) _owners.Remove(owner);
             owner.Completion.TrySetResult();
         }
@@ -212,6 +214,9 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
 
     private sealed class Owner
     {
+        // Keep the concrete failed connector reachable until confirmed cleanup;
+        // retaining only its slot or completion task would lose that ownership.
+        internal NpgsqlConnection? Connection { get; set; }
         internal TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

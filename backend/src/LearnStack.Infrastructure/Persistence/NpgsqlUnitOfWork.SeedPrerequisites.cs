@@ -134,6 +134,11 @@ public sealed partial class NpgsqlUnitOfWork
 
     public void RequireModuleCommandAllowed(object? context, DbTransaction? transaction, bool isWrite)
     {
+        if (_providerRecipient is not null)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("Provider production cannot execute an ordinary module DbContext command.");
+        }
         if (!HasFixedSeedRead && _seedReadState != SeedReadState.Faulted) return;
         var db = context as DbContext;
         if (_seedReadState != SeedReadState.Verifying || isWrite || !ValidateFixedSeedRead()

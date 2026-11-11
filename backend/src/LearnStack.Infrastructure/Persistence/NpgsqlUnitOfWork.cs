@@ -405,6 +405,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         RequireWriteAllowed();
         ArgumentNullException.ThrowIfNull(context);
 
+        if (_providerRecipient is not null)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("A provider production owner cannot be reannounced or retargeted.");
+        }
         if (context.Origin == TenantContextOrigin.ProviderEventRecipient
             && (context is not ProviderEventRecipient recipient || _depth != 1 || _tenantContextIssued
                 || _transaction is null || tenantWideRead || invitationWitness is not null || consentWitness is not null

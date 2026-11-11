@@ -6098,8 +6098,15 @@ Claim returns one stored target with fresh token and thirty-second database-time
 lease. Only the private `ProviderEventRecipient` minter turns the returned tuple
 into a single-use ordinary production witness. Per-tenant EventIds are fixed
 UUIDv7 values minted by this confined database owner, not recomputed on retries.
+An announced provider owner cannot be reannounced, retargeted or cleared by a
+second setter, even for the same tenant. Ordinary public/protected/provisioning
+requests and module EF commands do not borrow this origin. Only the closed
+production SQL owners and ordinary `IOutbox` perform its target/outbox act.
 The app may only mark enqueue completion; token/lease/current transaction and
-sticky timeout are checked immediately before commit. A deferred target guard
+sticky timeout are checked immediately before commit. Every provider COMMIT also
+requires the claimed target's enqueue mark and exact matching outbox, including
+when no target UPDATE was attempted; an empty or business-only frame refuses.
+A deferred target guard
 requires its exact tenant/EventId/TargetId/type outbox row in that same transaction.
 Target enqueue completion cannot commit separately from its outbox effect.
 The earlier global intake acceptance has its own explicit commit boundary. Target facts and completed enqueue state are immutable.

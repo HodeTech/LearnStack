@@ -33,6 +33,7 @@ internal sealed class ProviderEventTargetConfiguration : IEntityTypeConfiguratio
             .IsUnique().HasDatabaseName("ux_identity_provider_event_targets_source_tenant");
         builder.HasIndex(row => new { row.TenantId, row.Id }).HasDatabaseName("ix_identity_provider_event_targets_tenant_id");
         builder.HasIndex(row => new { row.AffectedUserId, row.Id }).HasDatabaseName("ix_identity_provider_event_targets_subject_id");
+        builder.HasIndex(row => new { row.SubjectKey, row.Id }).HasDatabaseName("ix_identity_provider_event_targets_subject_key");
         builder.HasIndex(row => new { row.ReceivedAt, row.Id }).HasFilter("enqueued_at IS NULL")
             .HasDatabaseName("ix_identity_provider_event_targets_pending");
         builder.DeclarePersonalData(PersonalDataCategory.Identity,

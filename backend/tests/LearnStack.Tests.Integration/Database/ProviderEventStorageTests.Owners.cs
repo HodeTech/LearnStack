@@ -211,10 +211,11 @@ public sealed partial class ProviderEventStorageTests
         await using var frame = await unit.BeginTransactionAsync();
         await unit.SetTenantContextAsync(claim!);
         var remaining = claim!.ClaimUntil - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(150);
+        await StageStorageProductionAsync(unit, claim);
         remaining.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThan(TimeSpan.FromSeconds(31));
         await Task.Delay(remaining);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => frame.CompleteAsync());
-        failure.Message.Should().Be("Provider target claim expired before commit.");
+        failure.Message.Should().Be("Provider target production is incomplete or its claim expired before commit.");
         unit.IsRollbackOnly.Should().BeTrue();
         unit.HasActiveTransaction.Should().BeFalse();
     }

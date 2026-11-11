@@ -429,12 +429,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 259 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 303 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
   - [P03-6 maintainer review corrections and acceptance (2026-11-11)](#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11) — 39 lines
   - [P03-6 Step 1 storage and ownership implementation (2026-11-11)](#p03-6-step-1-storage-and-ownership-implementation-2026-11-11) — 51 lines
+  - [P03-6 Step 1 review round 1 and corrections (2026-11-11)](#p03-6-step-1-review-round-1-and-corrections-2026-11-11) — 44 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19887,3 +19888,47 @@ Verification at the implementation handoff:
   relevant controls and final packet-wide qualification remain explicit work.
 - Documentation guards pass. Two fresh implementation review rounds have not
   run yet; this is their committed handoff, not Step 1 closeout or CI evidence.
+
+### P03-6 Step 1 review round 1 and corrections (2026-11-11)
+
+Two fresh read-only reviewers examine `9521b1cc` against `7ae474c5`:
+`p036_step1_r1_storage` (GPT-6.1 Terra/high, SQL/isolation/concurrency/privacy)
+and `p036_step1_r1_lifetime` (GPT-6.1 Sol/high, source/UoW/lifetime/corpus).
+No Astra is used; neither reviewer edits source or reruns a full suite.
+
+Three verified gaps are corrected before the second round:
+
+- The recipient gate checked only an incoming provider origin. An ordinary
+  second setter could clear the existing provider witness and cancellation
+  registration, including on a foreign/unresolved replacement. Any second
+  provider-owner announcement now poisons/refuses before clearing scope; real
+  same/foreign/unresolved transitions plus source loss cannot commit.
+- A valid claim alone could commit without its target/outbox production. The
+  pre-COMMIT fence now requires both the enqueue mark and exact matching outbox,
+  even if no target UPDATE triggered the deferred guard. Empty and unrelated
+  business-only frames roll back; ordinary module EF commands are refused and
+  the existing request ceiling is explicitly checked for public, ordinary and
+  provisioning requests. This is not a SQL sandbox against arbitrary code that
+  already holds app credentials: the closed production reader/writer/caller
+  inventory and actual `IOutbox` path remain part of Step 2's complete flow.
+- Independently retained targets lacked their subject-key locator index. A new
+  forward migration adds `(subject_key,id)` beside `(affected_user_id,id)`;
+  the previously applied foundation migration is unchanged. Applied-catalogue
+  proof requires both locator indexes.
+
+The source also retains the concrete connector in its actual owner until
+confirmed disposal. The lifetime reviewer raised this as a conditional cleanup
+concern, not a reproduced Npgsql failure; no injected-cleanup-failure proof is
+claimed.
+
+The private-COMMIT consolidation's final three Architecture controls finish
+successfully after the first handoff. R1 correction verification: Release build
+zero warnings/errors; all 38 intake Integration controls, 22 request-ceiling Unit
+controls and 17 focused Architecture/model/privacy controls pass. The expiry
+case stages matching storage-only outbox/target evidence before waiting for the
+real database lease to expire, so missing production cannot masquerade as lease
+proof. Its positive fixture does not qualify actual event serialization,
+transport delivery or the required Audit subscriber.
+
+Round 2 uses new reviewers after this correction commit. No Step 1 closeout,
+complete local/hosted suite, provider flow or CI qualification is claimed here.
