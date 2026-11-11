@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 790 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 809 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -448,7 +448,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 first hosted A and observation census corrections (2026-11-11)](#p03-6-first-hosted-a-and-observation-census-corrections-2026-11-11) — 64 lines
   - [P03-6 compiled catalogue total correction (2026-11-11)](#p03-6-compiled-catalogue-total-correction-2026-11-11) — 23 lines
   - [P03-6 maintainer review corrections (2026-11-11)](#p03-6-maintainer-review-corrections-2026-11-11) — 72 lines
-  - [P03-6 maintainer corrections first implementation review (2026-11-11)](#p03-6-maintainer-corrections-first-implementation-review-2026-11-11) — 27 lines
+  - [P03-6 maintainer corrections first implementation review (2026-11-11)](#p03-6-maintainer-corrections-first-implementation-review-2026-11-11) — 28 lines
+  - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20432,3 +20433,22 @@ Neither reviewer identifies another verified finding in the assigned backend,
 CLI/preflight, reader/reconciler, privacy, health or documentation scope. Reviews
 are static; their conclusions do not independently rerun the earlier suites.
 A fresh second implementation-review round follows these committed fixes.
+
+
+### P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)
+
+Fresh Sol/high backend and Terra/high operations/security reviewers independently
+review `89a98998..7455bff3`, including both first-round fixes, and report no
+verified actionable finding. They inspect the actual source/contracts and
+retained test receipts without claiming a new runtime run. The final focused
+backend provider group passes **53/53**; the structural/corpus group again passes
+**15/15**, and Contract passes **12/12**.
+
+The complete local frontend guard exposes one adjacent fixture omission:
+**123/124 web files**, **4,098/4,099 reported cases** pass. The local-launcher
+source-checkpoint fixture has no independently required reader secret, so the
+new correct preflight refuses before the intended restore-order observation.
+Adding a generated independent credential to that fixture restores its intended
+positive path; all **14/14** source-checkpoint cases pass. Product preflight and
+assertions remain intact. The failed whole run remains a failed result and is not
+combined with targeted passes. A fresh complete guard follows the fixture fix.
