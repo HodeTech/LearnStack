@@ -581,8 +581,9 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The accepted twelve logical setter paths are
-enumerated below; the twelfth is implemented by P03-5; its source-bound proof is recorded in
+`TransactionExecutionCoordinator`. The accepted thirteen logical setter paths are
+enumerated below; ADR-0097 adds only the machine provider-recipient owner.
+Implementation and source-bound proof are recorded in
 the [phase Status](../roadmap/phase-03-identity-admin.md).
 ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth own-context
 discovery reader; their source bounds are in the
@@ -610,7 +611,8 @@ physical unit-of-work writer with the exact operation mode below:
 | `PreContextIdentityAuthorizationReader` | its isolated physical READ ONLY child | Exact verified candidate coverage/grant and Tenancy lifecycle reads; never parent business state or ambient TenantContext |
 | `PreContextSelfDiscoveryScopeReader` | its own short physical READ ONLY one | Single-use captured own-Membership scope witness, followed only by bounded Tenancy label/destination reads |
 | `InvitationEntryScope` | operation-bound existing owner, physical ReadOnly for inspection/result or ordinary ReadWrite for acceptance | Single-use exact offer/host/verified-subject witness; no ordinary native context, directory or general-purpose scope |
-| `ConsentSubjectScope` (Accepted; P03-5 proof pending) | operation-bound existing owner, physical ReadOnly for retained discovery/history or ordinary ReadWrite for withdrawal | Single-use exact operation/actor/subject/real-host/retained-scope/mode witness; no Membership, ordinary native session, custom value or `app.scope` |
+| `ConsentSubjectScope` | operation-bound existing owner, physical ReadOnly for retained discovery/history or ordinary ReadWrite for withdrawal | Single-use exact operation/actor/subject/real-host/retained-scope/mode witness; no Membership, ordinary native session, custom value or `app.scope` |
+| `ProviderEventRecipient` | actual claimed-target owner, ordinary app ReadWrite | Private source-validated single-use target/EventId/tenant/token/lease witness; only its outbox production; no HTTP, Platform, profile or ordinary protected command authority |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -635,7 +637,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the twelve admitted setters connects as `learnstack_app`. A setter that reached
+Every one of the thirteen admitted setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -652,7 +654,7 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the twelve admitted logical paths, the MediatR transaction owner and P02b-3's integration
+Of the thirteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census

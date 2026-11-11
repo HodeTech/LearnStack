@@ -757,6 +757,9 @@ remain their respective authorities.
   all affected exclusive Tenant keys, and retains them through completion under
   [Standard 05](../standards/05-database.md#lock-snapshot-and-adoption-conditions).
   Final-admin recovery/termination still requires its separately accepted contract.
+- Include ADR-0097's provider receipts, retained targets and their transport/Audit
+  links in the subject-store inventory. P03-6 supplies receipt subject-key/User
+  and target User indexes; P03-10 implements locator participation and closure.
 - Implement `IUserReferenceLocator` registration for applicable modules, exact
   privileged result-audit access, idempotent result identity and inbox/commit
   reconciliation. A crash after platform commit must not duplicate result audit.

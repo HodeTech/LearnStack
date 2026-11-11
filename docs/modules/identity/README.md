@@ -84,6 +84,18 @@ Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
 implemented. The directory contract appears below; closure,
 production first-admin and issuer rebind retain their named later owners.
 
+### Retained provider-event storage
+
+[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+selects a private machine intake and tenant Audit mirror. The
+[canonical storage contract](../../standards/05-database.md#provider-event-intake-storage)
+owns minimized global receipts/problems/progress, frozen tenant targets, three
+confined functions and the fifth database login. Targets are framework delivery
+metadata, not a Membership mutation or human action. Source event time does not
+establish a tenant login; recipient tenants are selected at durable acceptance.
+The phase Status owns activation and proof. Storage installation does not imply
+that polling or the required Audit consumer is active.
+
 ### Aggregate and storage contract
 
 User's authority is [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md);

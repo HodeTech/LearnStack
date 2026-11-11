@@ -217,7 +217,8 @@ values can still identify a person; absence of free text is no erasure exemption
 The inventory records subject locators and existing constraints. It grants no
 erasure authority and selects no retention period or deletion order.
 
-The twelve first-party tables are in LearnStack's database. Canonical DDL and grants
+The sixteen first-party tables are in LearnStack's database: twelve Platform
+transport/custody tables and four Identity provider-intake tables. Canonical DDL and grants
 remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 [Inbox and delivery ledger](../standards/05-database.md#inbox), and
 [Background jobs](../standards/05-database.md#background-jobs), including
@@ -238,6 +239,10 @@ remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 | `background_job_recipients` | Immutable tenant/org route, occurrence/manifest/target and accepted child-job receipt | Recipient is a tenant/org route, not a person; reciprocal job links constrain future purge order |
 | `invitation_email_envelopes` | Encrypted recipient/subject/body/fragment link; tenant/org, Invitation/generation/job references, key version, nonce/tag and creation time | Private authenticated custody; application has only immutable-column INSERT and the two fixed provider functions, no directory/read/rewrite/purge grant. Encryption is not anonymisation |
 | `invitation_email_attempt_receipts` | Envelope-to-Invitation/generation linkage plus job/attempt/operation/claim/fence/receipt references, finite submission outcome and timestamps | Terminal evidence is immutable; only the fixed claim/complete functions write it. Unknown does not establish quiescence or release the job reservation |
+| `identity_provider_event_receipts` | Authority/realm/provider-event identity, normalized fingerprint, optional subject digest/affected User, disposition and frozen target count | Global machine-only minimized record; 32-day retirement is independent of tenant evidence |
+| `identity_provider_event_scan` | Singleton source policy, cursor and attempted/traversed/completed times, permanent historical-gap flag | No raw body or subject; a completed traversal with problems is not a complete sweep |
+| `identity_provider_event_problems` | Stable provider-event/fingerprint or interval/offset locator, closed reason and retry/resolution/irrecoverable state | No raw body, raw-body hash, provider error text or arbitrary details; 32-day record retirement preserves the historical-gap flag |
+| `identity_provider_event_targets` | Tenant, affected User/subject digest, provider-event/kind/time and stable receipt/target/event delivery linkage | No receipt FK; retained independently while outbox/delivery/inbox replay or Audit evidence needs it. No runtime target DELETE grant |
 <!-- async-store-first-party:end -->
 
 The complete Platform migration census also includes this explicit scope exclusion.
@@ -718,3 +723,17 @@ anonymizing linkage. Physical expired receipt rows, WAL and backups remain in
 inventory; key rotation and restore retain the keys needed by those rows and backups.
 [Observability](../standards/10-observability.md#custom-field-diagnostic-boundary)
 owns the required sink proof; acceptance is not implementation evidence.
+
+### Provider-event subject references
+
+**Derives from:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+
+The [intake storage contract](../standards/05-database.md#provider-event-intake-storage)
+owns retention/grants. P03-6 supplies subject-key and affected-User indexes on
+receipts, subject lookup on retained targets and stable delivery IDs for transport
+reconciliation. P03-10's locator/closure inventory includes those relations and
+linked outbox, delivery, inbox and Audit rows. Hashes and identifiers remain PII.
+An unbound problem has only its minimized source/interval locator, not a new
+person directory. Receipt retirement cannot authorize removing tenant copies;
+Phase 11 owns coordinated retained-copy purge. Neither exclusion from business
+queries nor source history expiry proves erasure.

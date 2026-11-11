@@ -68,6 +68,7 @@ services:
       LEARNSTACK_APP_PW: ${LEARNSTACK_APP_PW:-learnstack-app-dev}
       LEARNSTACK_PLATFORM_PW: ${LEARNSTACK_PLATFORM_PW:-learnstack-platform-dev}
       LEARNSTACK_OUTBOX_PW: ${LEARNSTACK_OUTBOX_PW:-learnstack-outbox-dev}
+      LEARNSTACK_IDENTITY_INGRESS_PW: ${LEARNSTACK_IDENTITY_INGRESS_PW:-learnstack-identity-ingress-dev}
       # Dev-only. Production secrets come from Vault via ISecretProvider.
     ports:
       - "127.0.0.1:5432:5432"

@@ -464,7 +464,14 @@ LearnStack reads the `amr` claim to know whether MFA was used; sensitive operati
 
 Two audit streams:
 
-- **Keycloak audit** — login success/failure, password change, MFA enroll, account lock. Retained inside Keycloak.
+- **Keycloak audit** — login success/failure, password change, MFA enroll and
+  account lock remain in Keycloak's retained source history.
+  [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+  selects authenticated bounded pull and minimized tenant copies through the
+  ordinary outbox/inbox. Acceptance-time recipients receive provider-global
+  account history; this is not proof of a login to that tenant. The
+  [database contract](../standards/05-database.md#provider-event-intake-storage)
+  confines its machine account and storage. Phase 03 Status owns activation.
 - **LearnStack `AuditLog`** — role change, permission change, invitation, tenant setting change, platform admin bypass. Owned by LearnStack.
 
 ADR-0078 adds central MUST events for actual User creation and initial/explicit

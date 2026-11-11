@@ -529,6 +529,8 @@ public sealed partial class OutboxDispatchConventionTests
             ["database.CommitAsync"] =
             [
                 Owner(InfrastructureAssembly, LifecycleAdapter, "CommitFrameAsync"),
+                // ADR-0097: one private machine transaction owner, never business completion.
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource", "ExecuteAsync"),
                 // ADR-0079/Standard 05: this private helper commits only its own short
                 // app-role receipt transaction, never the ambient business owner.
                 Owner(InfrastructureAssembly, LifecycleIdempotencyStore, "OwnAsync", LifecycleIdempotencyOwnerParameters),

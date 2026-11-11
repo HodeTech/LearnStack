@@ -50,7 +50,7 @@ fresh `postgres-data` volume**:
 | Script | Creates |
 |---|---|
 | `postgres-init/01-create-keycloak-db.sql` | the `keycloak` database Keycloak stores its realm state in |
-| `postgres-init/02-create-roles.sql` | the four database roles of [ADR-0003 Amendment 3](../../docs/decisions/0003-tenant-isolation-defense-in-depth.md) — `learnstack_migration`, `learnstack_app`, `learnstack_platform`, `learnstack_outbox_admin` — reading their passwords from `LEARNSTACK_*_PW` in the environment |
+| `postgres-init/02-create-roles.sql` | the four baseline database roles plus ADR-0097’s confined `learnstack_identity_ingress` login, reading passwords from `LEARNSTACK_*_PW` in the environment |
 
 **A volume created before Phase 02a Packet 6 has no roles**, and nothing will
 tell you: init scripts do not re-run, `make dev` reports healthy, and the first
@@ -62,8 +62,15 @@ volume) and `make dev`, or apply the script by hand:
 docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'   < infra/compose/postgres-init/02-create-roles.sql
 ```
 
-It is idempotent, so re-running it against a cluster that already has the roles
-is a no-op rather than an error.
+The script converges passwords, attributes and memberships on every run; it is
+not a no-op. P03-6's forward Identity migration requires the fifth role to exist.
+For a warm volume, set `LEARNSTACK_IDENTITY_INGRESS_PW` in the selected private
+environment, recreate the postgres container with the existing volume to pass
+the new environment value, then apply the roles script above before `make migrate`.
+Do not delete a volume to add the role. No runtime process receives the migration
+password. The [database contract](../../docs/standards/05-database.md#provider-event-intake-storage)
+owns the private machine source and its bounds; installing storage alone does
+not activate provider polling.
 
 The P03-2 source contract uses two backend-only configuration keys,
 `ConnectionStrings:IdentityAuthorization` and

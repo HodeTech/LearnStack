@@ -1,5 +1,6 @@
 -- Postgres init script — runs ONCE on a fresh `postgres-data` volume, after
--- 01-create-keycloak-db.sql. Provisions the four-role model of
+-- 01-create-keycloak-db.sql. Provisions the four-role baseline plus the confined
+-- fifth provider-intake role of ADR-0097. The baseline is
 -- ADR-0003 Amendment 3, whose canonical definition is
 -- docs/standards/05-database.md § Database roles.
 --
@@ -14,12 +15,13 @@
 -- matching row in `.env.example`, per Standards 12 § Local Infrastructure —
 -- compose files carry no bare credential literals. If a variable is unset the
 -- placeholder stays unbound and this script fails, which aborts initdb and stops
--- the container: a loud failure rather than four passwordless roles.
+-- the container: a loud failure rather than passwordless runtime roles.
 
 \getenv migration_pw LEARNSTACK_MIGRATION_PW
 \getenv app_pw       LEARNSTACK_APP_PW
 \getenv platform_pw  LEARNSTACK_PLATFORM_PW
 \getenv outbox_pw    LEARNSTACK_OUTBOX_PW
+\getenv ingress_pw   LEARNSTACK_IDENTITY_INGRESS_PW
 \getenv db           POSTGRES_DB
 
 -- Idempotent in the shape 01-create-keycloak-db.sql already uses: PostgreSQL has
@@ -50,6 +52,10 @@ SELECT format('CREATE ROLE learnstack_outbox_admin LOGIN PASSWORD %L BYPASSRLS',
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_outbox_admin')
 \gexec
 
+SELECT format('CREATE ROLE learnstack_identity_ingress LOGIN NOINHERIT PASSWORD %L NOBYPASSRLS', :'ingress_pw')
+WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_identity_ingress')
+\gexec
+
 -- Then CONVERGE, unconditionally. The creates above fire only when the role is
 -- absent, so on a cluster that already has them — the documented recovery path
 -- is "apply this file by hand, it is idempotent" — a changed password in `.env`
@@ -62,11 +68,11 @@ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_outbox_admin'
 -- way to put it back. (The runtime refuses to start against such a role anyway —
 -- the composition root asks the server `rolbypassrls OR rolsuper` on every
 -- physical connection — but this is what fixes it rather than reporting it.)
--- NOSUPERUSER on all four, and it is not decoration: a SUPERUSER bypasses row
+-- NOSUPERUSER on all five, and it is not decoration: a SUPERUSER bypasses row
 -- security whatever `rolbypassrls` says — measured — so a superuser
 -- learnstack_app makes every policy in the database inert while the attribute
 -- this script converges still reads `f`. NOCREATEDB / NOCREATEROLE /
--- NOREPLICATION for the same reason in miniature: none of the four needs any of
+-- NOREPLICATION for the same reason in miniature: none of the five needs any of
 -- them, learnstack_migration owns tables rather than databases or roles, and an
 -- attribute nothing needs is one an escalation can use.
 ALTER ROLE learnstack_migration    WITH LOGIN PASSWORD :'migration_pw'
@@ -78,7 +84,10 @@ ALTER ROLE learnstack_platform     WITH LOGIN PASSWORD :'platform_pw'
 ALTER ROLE learnstack_outbox_admin WITH LOGIN PASSWORD :'outbox_pw'
     BYPASSRLS   NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 
--- And revoke every role MEMBERSHIP the four hold. Attributes were only half of
+ALTER ROLE learnstack_identity_ingress WITH LOGIN PASSWORD :'ingress_pw'
+    NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+-- And revoke every role MEMBERSHIP the five hold. Attributes were only half of
 -- it: `GRANT learnstack_platform TO learnstack_app` leaves learnstack_app's own
 -- rolbypassrls false and still lets it `SET ROLE learnstack_platform` — measured,
 -- directly and through a bridge role holding the membership on its behalf. None
@@ -92,8 +101,8 @@ SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
 FROM pg_auth_members am
 JOIN pg_roles granted ON granted.oid = am.roleid
 JOIN pg_roles member  ON member.oid  = am.member
-WHERE member.rolname IN ('learnstack_migration', 'learnstack_app',
-                         'learnstack_platform', 'learnstack_outbox_admin')
+WHERE granted.rolname='learnstack_identity_ingress' OR member.rolname IN ('learnstack_migration', 'learnstack_app',
+                         'learnstack_platform', 'learnstack_outbox_admin', 'learnstack_identity_ingress')
 \gexec
 
 -- No `GRANT learnstack_platform TO learnstack_app`, ever. Membership would make
@@ -125,7 +134,7 @@ WHERE member.rolname IN ('learnstack_migration', 'learnstack_app',
 -- exist.
 REVOKE CONNECT, TEMPORARY ON DATABASE :"db" FROM PUBLIC;
 GRANT CONNECT ON DATABASE :"db"
-    TO learnstack_migration, learnstack_app, learnstack_platform, learnstack_outbox_admin;
+    TO learnstack_migration, learnstack_app, learnstack_platform, learnstack_outbox_admin, learnstack_identity_ingress;
 
 -- Since PostgreSQL 15 the public schema no longer grants CREATE to PUBLIC, and
 -- the schema is owned by pg_database_owner. Without the CREATE grant below the
@@ -136,7 +145,7 @@ GRANT CONNECT ON DATABASE :"db"
 REVOKE ALL   ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO learnstack_migration;
 GRANT USAGE         ON SCHEMA public
-    TO learnstack_app, learnstack_platform, learnstack_outbox_admin;
+    TO learnstack_app, learnstack_platform, learnstack_outbox_admin, learnstack_identity_ingress;
 
 -- No per-table grants here. This script runs at initdb time, before any table
 -- exists, and under the entrypoint's ON_ERROR_STOP a single

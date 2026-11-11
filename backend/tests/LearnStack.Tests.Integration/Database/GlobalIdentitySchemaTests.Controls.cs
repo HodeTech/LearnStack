@@ -320,7 +320,9 @@ public sealed partial class GlobalIdentitySchemaTests
                 if (reader.GetString(9) != function.IdentityArguments || reader.GetInt16(10) != 0) issues.Add(function.Name + ":arguments");
                 if (reader.GetBoolean(11) != function.AppCallable) issues.Add(function.Name + ":app-execute");
                 if (reader.GetBoolean(12)) issues.Add(function.Name + ":public-execute");
-                var permittedGrantees = function.AppCallable ? new[] { "learnstack_app" } : [];
+                var permittedGrantees = function.AppCallable ? new[] { "learnstack_app" }
+                    : function.Name is "fn_identity_provider_event_accept" or "fn_identity_provider_event_claim" or "fn_identity_provider_event_retire"
+                    ? new[] { "learnstack_identity_ingress" } : [];
                 if (!reader.GetFieldValue<string[]>(13).SequenceEqual(permittedGrantees)) issues.Add(function.Name + ":execution-grantees");
                 if (reader.GetBoolean(14) != function.Strict || reader.GetString(15) != "u" || reader.GetBoolean(16))
                     issues.Add(function.Name + ":execution-properties");
@@ -397,25 +399,28 @@ public sealed partial class GlobalIdentitySchemaTests
             return new CanonicalFunction(name, "public." + name + "(" + string.Join(',', types) + ")",
                 string.Join(", ", parameters),
                 match.Groups["returns"].Value.ToLowerInvariant(), attributes.Contains("SECURITY DEFINER", StringComparison.Ordinal),
-                sql.Contains("GRANT EXECUTE ON FUNCTION public." + name + "(", StringComparison.Ordinal),
+                Regex.IsMatch(sql, @"GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\." + Regex.Escape(name)
+                    + @"\([^;]*?\)\s+TO\s+learnstack_app\s*;", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5)),
                 match.Groups["body"].Value, match.Value, triggers,
                 FunctionLanguage().Match(attributes).Groups[1].Value.ToLowerInvariant(),
                 attributes.Contains("IMMUTABLE", StringComparison.Ordinal) ? "i"
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(23, "the closed set includes the Tenancy consent-scope definer");
-        functions.Count(function => function.Definer).Should().Be(12);
+        functions.Should().HaveCount(27, "the closed set includes three provider definers and one target transition guard");
+        functions.Count(function => function.Definer).Should().Be(15);
         functions.Single(function => function.Name == "fn_tenancy_own_field_consent_scope").Signature
             .Should().Be("public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)",
                 nameof(MembershipFieldConsentStorageTests.Definer_scope_is_subject_and_host_capped_with_a_closed_bounded_interface));
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(26);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(28);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");
         foreach (var function in functions)
         {
-            var forbidden = function.Name.StartsWith("fn_invitation_", StringComparison.Ordinal) ? EntryForbiddenFunctionBody()
+            var forbidden = function.Name.StartsWith("fn_identity_provider_", StringComparison.Ordinal)
+                ? ProviderForbiddenFunctionBody()
+                : function.Name.StartsWith("fn_invitation_", StringComparison.Ordinal) ? EntryForbiddenFunctionBody()
                 : function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry" or "fn_tenancy_own_field_consent_scope"
                 ? EntryForbiddenFunctionBody()
                 : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
@@ -460,7 +465,7 @@ public sealed partial class GlobalIdentitySchemaTests
         bool Definer, bool AppCallable, string Body, string Definition, TriggerContract[] Triggers, string Language, string Volatility, bool Strict);
     private sealed record TriggerContract(string Name, string Table, int Type, bool Deferrable, bool InitiallyDeferred, string Enabled);
 
-    private static string NormalizeReturn(string value) => Regex.Replace(value, @"\s+", "").ToLowerInvariant();
+    private static string NormalizeReturn(string value) => Regex.Replace(value.ToLowerInvariant().Replace("timestamp with time zone", "timestamptz", StringComparison.Ordinal), @"\s+", "");
 
     [GeneratedRegex(@"\bCREATE\s+(?<replace>OR\s+REPLACE\s+)?FUNCTION\s+public\.(?<name>[a-z0-9_]+)\s*\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>TABLE\s*\([^)]*\)|[a-z]+)\s+(?<attributes>.*?)\bAS\s+(?<delimiter>\$[a-z0-9_]*\$)(?<body>.*?)\k<delimiter>\s*;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FunctionDeclaration();
@@ -470,6 +475,8 @@ public sealed partial class GlobalIdentitySchemaTests
     private static partial Regex TriggerDeclaration();
     [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bRETURN\s+QUERY\b|\bSELECT\s+(?!1\b)", RegexOptions.IgnoreCase)]
     private static partial Regex ForbiddenFunctionBody();
+    [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(", RegexOptions.IgnoreCase)]
+    private static partial Regex ProviderForbiddenFunctionBody();
     [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bRETURN\s+QUERY\b|\bpg_(?:try_)?advisory_(?:xact_)?lock(?:_shared)?\s*\(", RegexOptions.IgnoreCase)]
     private static partial Regex ContextualForbiddenFunctionBody();
     [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bpg_(?:try_)?advisory_(?:xact_)?lock(?:_shared)?\s*\(", RegexOptions.IgnoreCase)]

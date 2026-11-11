@@ -7299,8 +7299,9 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   use OwnConsentEntry/HostAndConsentSubject/ConsentSubjectScope. The one new
   definer reads only `membership_field_consents`; normalized actor, independent
   host ceiling, single-use immutable witness, physical mode and actual owner
-  cannot be substituted. The accepted census is twelve confined definers/twelve
-  logical setters/four physical writers with three global-self descriptors.
+  cannot be substituted. ADR-0097 extends the surrounding census to fifteen confined definers/thirteen
+  logical setters/four physical writers; the three global-self descriptors and
+  this consent function's own authority remain unchanged.
   No Active Membership, ordinary native session, AccountSite/public snapshot,
   value disclosure, Identity table body or `app.scope` is required/granted.
 - **Source:** [Security](11-security.md#retained-consent-subject-admission),
@@ -7405,3 +7406,36 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [OpenApiContractTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.CustomFields.cs),
   [BoundedAdministrationHttpTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/BoundedAdministrationHttpTests.CustomFields.cs).
 - **Phase:** 03 (P03-5 Steps 2–4).
+
+#### `Provider_Event_Ingress_Is_Authenticated_And_Confined`
+
+- **Asserts:** the separate read-only provider identity, fixed retained-event
+  requests, minimized receipts/problems, fair recovery and least-privilege
+  fifth database role cannot become a business directory. Three exact definers,
+  two retained machine checkouts, same-database qualification and one immutable
+  claim minter/ordinary UoW binding constrain scope. No raw provider data is retained.
+- **Source:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
+  [Database](05-database.md#provider-event-intake-storage).
+- **Type:** compiled owner/caller/ACL/function census, dirty controls and real
+  PostgreSQL/provider failures. **Kind:** both.
+- **Status:** **Registered**. Storage and private-source controls are foundation
+  evidence; actual provider polling and the complete flow are not qualified by them.
+- **Test owners:**
+  [ProviderEventStorageConventionTests](../../backend/tests/LearnStack.Tests.Architecture/ProviderEventStorageConventionTests.cs),
+  [ProviderEventStorageTests](../../backend/tests/LearnStack.Tests.Integration/Database/ProviderEventStorageTests.cs).
+- **Phase:** 03 (P03-6).
+
+#### `Provider_Event_Mirror_Is_Attributed_And_Idempotent`
+
+- **Asserts:** one frozen acceptance-time target per eligible tenant becomes one
+  stable EventId through ordinary outbox/inbox and central typed Audit evidence.
+  SystemActor differs from the affected account; provider time/result does not
+  establish a tenant login. Duplicate/unknown commit, expired claim, closure,
+  overflow and Audit failure cannot duplicate, forge or silently lose success.
+- **Source:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
+  [Database](05-database.md#provider-event-intake-storage).
+- **Type:** real app/ingress-role isolation, concurrency, transport, Audit and
+  restart controls. **Kind:** both.
+- **Status:** **Registered**. Target acceptance/storage tests alone do not qualify
+  the required consumer or central Audit composition.
+- **Phase:** 03 (P03-6).

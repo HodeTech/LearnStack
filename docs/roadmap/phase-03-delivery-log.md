@@ -429,11 +429,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 208 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 259 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
   - [P03-6 maintainer review corrections and acceptance (2026-11-11)](#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11) — 39 lines
+  - [P03-6 Step 1 storage and ownership implementation (2026-11-11)](#p03-6-step-1-storage-and-ownership-implementation-2026-11-11) — 51 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19835,3 +19836,54 @@ Amendments in ADR-0003/0036/0040/0044/0070/0072/0077/0095 point to exact extensi
 without changing their bodies. No new global Audit writer or public API is added.
 The three implementation steps and commit/two-fresh-review loop remain in force.
 Step 1 begins with canonical storage/source/owner reconciliation and tests.
+
+### P03-6 Step 1 storage and ownership implementation (2026-11-11)
+
+ADR-0097's first implementation lands as an inactive foundation on
+`development`. No provider poll, HTTP adapter, required Audit consumer or
+application activation is claimed by this commit. Those owners join in Step 2.
+
+- One forward Identity migration installs the three global minimized relations,
+  tenant-owned immutable target model/filter/RLS, fifteen-definer census, fixed
+  accept/claim/retire functions and two target-transition/outbox triggers. The
+  Membership owner-read arm admits only the machine session's nondeleted
+  Active/Suspended snapshot; ordinary app/self predicates stay unchanged.
+- The deploy-owned roles script provisions/converges the separate fifth login
+  and removes incoming/outgoing memberships. Fresh fixture and warm-volume
+  instructions own that prerequisite before migration. Runtime receives no
+  migration credential and has no target/global-directory bypass.
+- A dedicated source retains at most two actual machine checkouts, uses finite
+  driver/server I/O settings, joins cleanup and binds qualification to a live
+  business-database marker. Every checkout refuses unexpected role attributes,
+  business/column grants or privileged functions. Its one private transaction
+  owner commits the fixed operations before exposing a result or minted claim.
+- A private-source-minted immutable recipient binds once to the actual ordinary
+  writable UoW. Source cancellation poisons that unit; pre-COMMIT row locking
+  revalidates the exact target/EventId/tenant/token with database lease time.
+  Target completion still requires its matching outbox in the same transaction.
+- Canonical storage, security, privacy inventory, module/deployment guides and
+  catalogue are reconciled. Both new end-to-end rules remain Registered:
+  storage/source evidence is not provider/Audit-flow qualification.
+
+Verification at the implementation handoff:
+
+- Release solution build: zero warnings/errors. Full Unit suite: 3,750 passed.
+- Real PostgreSQL schema/role/policy/function/index/dirty-control group: 174
+  passed. After centralizing the private machine COMMIT, all 30 new intake
+  controls pass again, including a genuine thirty-second database lease expiry,
+  source-loss rollback, independent wrong-database refusal, two occupied owners,
+  counterfeit/read-only/nested origins, concurrent deduplication, 257-recipient
+  refusal with later facts and restart, collision and retained-gap retirement.
+- Actual post-COMMIT termination of the test's own connector loses its final
+  database-call result; stable identity recovers exactly one target. This does
+  not claim suppression of a particular network-level COMMIT-ACK frame.
+- Focused Architecture group: 92 passed, including source/witness, setter,
+  storage inventory and job-source capability/retention controls. The subsequent
+  private-COMMIT consolidation's delivery-lifecycle control is running at this
+  handoff; it is not recorded as passed yet.
+- The first broad Architecture exploration exposed the old caller/inventory
+  expectations and was cancelled after its source was superseded. Its failed
+  output is retained, not converted to a complete-suite pass. The corrected
+  relevant controls and final packet-wide qualification remain explicit work.
+- Documentation guards pass. Two fresh implementation review rounds have not
+  run yet; this is their committed handoff, not Step 1 closeout or CI evidence.

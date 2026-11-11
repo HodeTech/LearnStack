@@ -774,11 +774,19 @@ public sealed partial class TenancySchemaTests
             method!.GetCustomAttributes(typeof(FactAttribute), inherit: true).Should().NotBeEmpty(
                 "provider metadata policies have executable role-specific clean/dirty application controls");
         }
+        foreach (var proof in ProviderEventStorageTests.WithCheckProofs.Values)
+        {
+            var method = typeof(ProviderEventStorageTests).GetMethod(proof);
+            method.Should().NotBeNull();
+            method!.GetCustomAttributes(typeof(FactAttribute), inherit: true).Should().NotBeEmpty(
+                "provider intake policies have independent clean/dirty role and tenant controls");
+        }
         guarded.Should().BeEquivalentTo(
             ForeignTenantWrites.Keys.Concat(OwnerForeignTenantWrites.Keys)
                 .Concat(GlobalIdentitySchemaTests.WithCheckProofs.Keys)
                 .Concat(IdentityMembershipTests.WithCheckProofs.Keys)
-                .Concat(InvitationProviderWithCheckProofs.Keys),
+                .Concat(InvitationProviderWithCheckProofs.Keys)
+                .Concat(ProviderEventStorageTests.WithCheckProofs.Keys),
             "every table whose policy constrains a write has a write that proves it, "
             + "and every case here names a table that still has one");
     }
@@ -1316,7 +1324,7 @@ public sealed partial class TenancySchemaTests
     public async Task TheGrantMatrixIsExactlyWhatTheMigrationsWrote()
     {
         // There is no ALTER DEFAULT PRIVILEGES, so every grant is one a migration
-        // wrote. All three non-owner grantees are asserted, across every chain:
+        // wrote. All four non-owner grantees are asserted, across every chain:
         // BYPASSRLS bypasses policies and not GRANTs, so for learnstack_platform
         // and learnstack_outbox_admin this matrix is the whole of the bound, and a
         // widened grant on either is invisible in any other assertion. Measured:
@@ -1330,7 +1338,7 @@ public sealed partial class TenancySchemaTests
             SELECT grantee || ' ' || table_name || ' ' || string_agg(privilege_type, ',' ORDER BY privilege_type)
             FROM information_schema.table_privileges
             WHERE table_schema = 'public'
-              AND grantee IN ('learnstack_app', 'learnstack_platform', 'learnstack_outbox_admin', 'PUBLIC')
+              AND grantee IN ('learnstack_app', 'learnstack_platform', 'learnstack_outbox_admin', 'learnstack_identity_ingress', 'PUBLIC')
             GROUP BY grantee, table_name
             """);
 
@@ -1344,7 +1352,11 @@ public sealed partial class TenancySchemaTests
                 "learnstack_app membership_profiles INSERT,SELECT,UPDATE",
                 "learnstack_app roles INSERT,SELECT,UPDATE",
                 "learnstack_app membership_role_assignments DELETE,INSERT,SELECT",
-                "learnstack_app role_permission_grants DELETE,INSERT,SELECT"]),
+                "learnstack_app role_permission_grants DELETE,INSERT,SELECT",
+                "learnstack_app identity_provider_event_targets SELECT",
+                "learnstack_identity_ingress identity_provider_event_receipts SELECT",
+                "learnstack_identity_ingress identity_provider_event_scan INSERT,SELECT",
+                "learnstack_identity_ingress identity_provider_event_problems INSERT,SELECT"]),
         "every line is one line of the migration chains' grant matrices, and "
         + "learnstack_outbox_admin holds only declared outbox/delivery scheduling columns "
         + "and terminal audit INSERT");

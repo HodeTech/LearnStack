@@ -882,8 +882,10 @@ it applies to the owner as well, and per-tenant data migrations under
 Rejected alternative, recorded so it is not re-derived: a `SECURITY DEFINER` function
 fronting the lookup would be tighter still — `learnstack_app` would hold `EXECUTE` and
 no table privilege at all — but the function needs an owner that bypasses row security,
-and that is a fifth database role. The four-role model is closed; a fifth requires an
-ADR ([ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)).
+and that would require a separately authorized database role. Additional roles
+require an ADR ([ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)).
+ADR-0097's fifth role has no bypass and only provider-intake authority; it does
+not alter this host-resolution decision.
 
 `tenant_domains` is a different table and stays tenant-owned: it holds the tenant's own
 domain lifecycle and verification state, read and written under tenant context.
@@ -968,8 +970,10 @@ is touched on a cache miss rather than on every request
 
 ### Database roles
 
-Four roles, four **separate login credentials**, four connection strings. The model is
-closed; a fifth role requires an ADR.
+The original four roles retain separate login credentials and connection strings.
+[ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+adds only the [confined fifth machine role](#provider-event-intake-storage); the
+role model remains closed.
 
 | Role | Connection string | Present in | Used by | RLS posture |
 |------|---|---|---------|-------------|
@@ -977,6 +981,7 @@ closed; a fifth role requires an ADR.
 | `learnstack_app` | `ConnectionStrings:Default` | API host, worker host | every request-path and job-path `DbContext` | `NOBYPASSRLS` |
 | `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | API host, worker host | `EnterPlatformAdminScope(reason)` and nothing else | `BYPASSRLS` |
 | `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | API host only; never Seeder or web | confined dispatcher infrastructure only | `BYPASSRLS` |
+| `learnstack_identity_ingress` | `ConnectionStrings:IdentityEventIngress` | API provider-ingress lane only | fixed minimized intake/claim/retire and scan/problem progress; no business/Audit/outbox grants | `NOINHERIT`, `NOBYPASSRLS` |
 
 Migration **credentials** remain deploy-only. The five [enumerated Identity
 SECURITY DEFINER contracts](#confined-owner-functions) deliberately add runtime
@@ -4731,7 +4736,9 @@ personal data; it is neither anonymisation nor authentication authority.
 
 ### Global owners and privileges
 
-The four login roles remain unchanged. Global runtime owners connect as
+The four-role global-User baseline is unchanged; ADR-0097 adds a separate
+[confined machine login](#provider-event-intake-storage), not a global-User owner.
+Global runtime owners connect as
 `learnstack_app`, NOBYPASSRLS. Each transaction announces only its verified
 `app.identity_authority_id` and `app.identity_subject_key` (canonical lowercase
 hex of the 32-byte key), using parameterized transaction-local setters. Neither
@@ -5641,7 +5648,9 @@ Implemented P03-4 contract; the
 the earlier eight-function/ten-setter counts describe their historical slices.
 The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
 setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
-implements twelve definers/twelve logical setters, preserving those four physical
+implements twelve definers/twelve logical setters. The
+[provider-event extension](#provider-event-intake-storage) brings the current
+census to fifteen definers/thirteen logical setters, preserving those four physical
 writers; qualification remains source-bound in the phase Status. SMTP adds no tenant setter.
 
 ### Invitation root and constrained transitions
@@ -5988,3 +5997,117 @@ same key; compromise requires operator write quiescence, in-flight resolution
 and an explicit historical-replay invalidation decision. Do not delete unresolved
 rows to rotate. Fingerprints remain Sensitive personal linkage across app/platform
 access, WAL, backups, recycling and the P03-10 inventory; HMAC does not anonymize.
+
+## Provider event intake storage
+
+**Derives from:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
+The phase Status owns delivery/proof. This contract does not authorize a provider
+history query from an ordinary application scope.
+
+### Machine role and physical source
+
+`learnstack_identity_ingress` is a fifth separate LOGIN, NOINHERIT/NOBYPASSRLS,
+NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION. No role membership in either
+direction, ownership, schema CREATE or business/Audit/outbox privilege is allowed.
+The deploy-owned roles script converges attributes/password and removes incoming
+as well as outgoing memberships. Runtime never acquires migration credentials.
+
+`ConnectionStrings:IdentityEventIngress` configures a private
+`ProviderEventIntakeSource`: two retained owners/checkouts per API process,
+no admission queue, MaxPoolSize two, reset enabled, no multiplexing/enlistment or
+parameter/error-detail logging. Five-second shared operation cancellation,
+finite driver/server statement/lock/idle bounds and one-second driver cancellation
+retain actual I/O/cleanup. Unconfirmed cleanup keeps its slot/pool and closes
+admission; disposal joins actual owners. Independent business-database marker
+qualification binds the source to the installed authority's physical database,
+not merely the same configured database name. No datasource alias, arbitrary SQL
+or callback is exposed to its callers. The source is forbidden in job/external
+provider execution. Its pool is additional to the existing connection ledger.
+
+### Identity-owned relation and grant classes
+
+| Relation | Class / immutable data | Runtime grants |
+|---|---|---|
+| `identity_provider_event_receipts` | Global minimized source identity, normalized fingerprint, subject key/affected User linkage, accepted-or-unaccepted disposition, first received/accepted time and frozen target count | Ingress SELECT only; three owner functions perform the named writes/retirement; no app/platform/outbox rights |
+| `identity_provider_event_scan` | Global singleton source/authority/realm and immutable activation lower bound; bounded retention policy and cursor/attempt/traversal/completion/historical-gap progress | Ingress SELECT/initial INSERT and explicitly enumerated progress-column UPDATE; no source retargeting UPDATE, DELETE or app access |
+| `identity_provider_event_problems` | Global stable event problem or interval/offset locator, closed reason, bounded retry/age/resolution state; never raw payload/body hash/error text | Ingress SELECT/INSERT and only retry/resolution-column UPDATE; retirement only through its function |
+| `identity_provider_event_targets` | Tenant-owned independently retained normalized fact, affected subject, stable ReceiptId/TargetId/EventId and scheduler/completion state; no FK to the expiring receipt | App SELECT under tenant RLS and only `enqueued_at` UPDATE; ingress has no direct rights; exact owner functions create/claim |
+
+Every relation has ENABLE and FORCE RLS. Global policy arms name only the
+migration owner and confined machine role, with receipt writes owner-only.
+The target's single isolation policy admits its actual announced app tenant or
+the migration owner; an arbitrary provider field cannot announce scope. Target
+creation uses the owner function, not an ordinary EF mutation. The Domain marker,
+Identity EF filter/model, actual app-role isolation and closed applied-table
+class census cover the tenant target. It has no organization scope to widen.
+
+[The Identity DDL installer](../../backend/src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/ProviderEventStorageDdl.cs)
+and [target model](../../backend/src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/ProviderEventTargetConfiguration.cs)
+implement the relation, grant and function contracts above.
+The forward migration installs this class without changing previously applied
+SQL. Down refuses retained-data loss; deployment rollback needs forward repair.
+Indexes on affected UserId/subject key land in P03-6, not in a later DSAR backfill.
+
+The additional Membership `USING` arm is exactly migration-current-user plus
+machine-session-user plus nondeleted Active/Suspended rows. It permits the fixed
+acceptance function's snapshot, never direct machine SELECT or a normal owner
+self read. The complete current predicate retains the original app and global-self
+arms and the independent existing `WITH CHECK`:
+
+```sql
+ALTER POLICY memberships_isolation ON public.memberships USING (
+    (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+     AND (organization_id IS NULL
+          OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+          OR NULLIF(current_setting('app.scope', true), '') = 'tenant'))
+    OR (current_user = 'learnstack_migration'
+        AND session_user = 'learnstack_identity_ingress'
+        AND status IN ('Active', 'Suspended')
+        AND deleted_at IS NULL AND deleted_by IS NULL)
+    OR (current_user = 'learnstack_migration'
+        AND status = 'Active' AND deleted_at IS NULL
+        AND EXISTS (SELECT FROM public.users u
+            WHERE u.id = public.memberships.user_id
+              AND u.authority_id::text = NULLIF(current_setting('app.identity_authority_id', true), '')
+              AND encode(u.subject_key, 'hex') = NULLIF(current_setting('app.identity_subject_key', true), '')
+              AND u.status = 'Active'))
+);
+```
+
+### Function and completion confinement
+
+The confined definer census is fifteen: twelve existing plus
+`fn_identity_provider_event_accept`, `fn_identity_provider_event_claim` and
+`fn_identity_provider_event_retire`. All run as the NOBYPASSRLS migration owner
+under FORCE RLS, fixed `search_path=pg_catalog`, qualified static relations and
+same-transaction PUBLIC EXECUTE revoke; only the ingress role receives EXECUTE.
+The exact SQL/ACL/owner/caller census admits no fourth provider definer.
+
+Acceptance validates installed source, selected kind, finite/current retained
+time and 32-byte optional subject key. Stable `(authority, realm, provider ID)`
+uniqueness owns deduplication. A separate post-conflict statement reads the
+winning receipt under READ COMMITTED. Different normalized content records a
+collision without rewriting accepted evidence. User shared fencing precedes a
+fresh status/Membership snapshot; Active/Suspended nondeleted memberships supply
+at most 256 distinct tenant recipients. Owner visibility for that query is
+explicitly restricted to ingress execution; ordinary app visibility is unchanged.
+Missing/unbound/closed/no-recipient are durable receipt-only outcomes. Overflow
+is durably unaccepted, has no targets/ACK and cannot truncate recipients.
+
+Claim returns one stored target with fresh token and thirty-second database-time
+lease. Only the private `ProviderEventRecipient` minter turns the returned tuple
+into a single-use ordinary production witness. Per-tenant EventIds are fixed
+UUIDv7 values minted by this confined database owner, not recomputed on retries.
+The app may only mark enqueue completion; token/lease/current transaction and
+sticky timeout are checked immediately before commit. A deferred target guard
+requires its exact tenant/EventId/TargetId/type outbox row in that same transaction.
+Target enqueue completion cannot commit separately from its outbox effect.
+The earlier global intake acceptance has its own explicit commit boundary. Target facts and completed enqueue state are immutable.
+
+Retire removes at most 100 receipts and 100 problem records per invocation after
+32 days, separately from retained tenant targets. It records historical gap state
+before deleting unresolved problem evidence. The source accepts at most 30-day
+history and never resets its activation boundary; receipt retirement is not a
+replay permission. Target, outbox, delivery/inbox and Audit copies retain their
+coordinated Phase 11 retention dependency. P03-10 owns subject erasure across all
+these stores and immutable linkage; no global erasure writer is added here.

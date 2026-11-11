@@ -162,6 +162,13 @@ public sealed class SchemaFixture : IAsyncLifetime
             RowsVisibleToTenantA[table] = table == "roles" ? 8 : table == "role_permission_grants" ? 7 : 2;
             RowsVisibleToTenantB[table] = table == "roles" ? 8 : table == "role_permission_grants" ? 7 : 1;
         }
+        RowsVisibleToTenantA["identity_provider_event_targets"] = 0;
+        RowsVisibleToTenantB["identity_provider_event_targets"] = 0;
+        foreach (var table in SchemaTableClasses.ProviderIngress)
+        {
+            RowsVisibleToTenantA[table] = SchemaTableClasses.SelectDenied;
+            RowsVisibleToTenantB[table] = SchemaTableClasses.SelectDenied;
+        }
         foreach (var table in SchemaTableClasses.JobTenant)
         {
             RowsVisibleToTenantA[table] = table == "background_job_reservations" ? 3 : 1;
