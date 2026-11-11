@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 419 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 459 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -439,6 +439,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 1 review round 2 and retained replay correction (2026-11-11)](#p03-6-step-1-review-round-2-and-retained-replay-correction-2026-11-11) — 29 lines
   - [P03-6 Step 1 closeout and Step 2 entry (2026-11-11)](#p03-6-step-1-closeout-and-step-2-entry-2026-11-11) — 25 lines
   - [P03-6 Step 2 provider-to-Audit implementation (2026-11-11)](#p03-6-step-2-provider-to-audit-implementation-2026-11-11) — 62 lines
+  - [P03-6 Step 2 first review and recovery correction (2026-11-11)](#p03-6-step-2-first-review-and-recovery-correction-2026-11-11) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20051,3 +20052,43 @@ This is the implementation handoff, not Step 2 review closeout or full packet
 qualification. Fresh R1 and R2 reviews, any verified corrections, the complete
 Architecture/Integration suites and same-source hosted A/B remain open. Work is
 on `development`; no P03-6 push, PR, hosted run or merge has occurred.
+
+### P03-6 Step 2 first review and recovery correction (2026-11-11)
+
+Implementation `63751d8f` receives fresh Sol/high provider/recovery/security and
+Terra/high tenant/Audit/atomicity reviews. The tenant/Audit reviewer reports no
+actionable finding after tracing the live claim, exact outbox pre-COMMIT gate,
+retained target and central evidence. The source reviewer identifies one verified
+Major: after a completed sweep clears both cursors, an outage exceeding source
+retention could start and finish a new window without preserving the lost
+historical interval. No raw provider evidence or independent suite execution is
+claimed by either read-only review.
+
+A forward migration adds the narrowly writable `recovery_anchor_at` progress
+column. Completion stores the actual source upper bound, distinct from later
+processing time. New sweeps and source-policy replacement preserve a sticky gap
+when that frontier expired under the previously qualified retention. A retention
+increase cannot resurrect lost history. The exact machine-role column census and
+canonical database contract include only this additional progress field. Two
+real PostgreSQL cases complete, age the source boundary while leaving processing
+time recent, restart, complete again and retire; both unchanged retention and a
+longer replacement policy keep the historical gap and critical health.
+
+Root qualification also corrects the new compiled census's attribution of an
+async producer lambda to its written source method, the published compiled
+method count (352), the current machine connection-key spelling and the four new
+shared-fixture class witnesses in the existing shard plan. No clock, shard count,
+worker, authority or unrelated test is relaxed. The overly broad exploratory
+Outbox-class filter is cancelled rather than counted as a full-suite pass.
+
+Correction validation: zero-warning Release build; all 76 selected ownership,
+credential, corpus, dependency and audit Architecture controls pass; both new
+recovery cases pass; all 88 shard controls pass; documentation guards pass. The
+corrected source also passes the prior 46 provider Integration controls. During
+fixture development the two new cases first fail on a DateTime/DateTimeOffset
+scalar cast; that test-only conversion is corrected before their passing rerun.
+Earlier partial/failing runs remain separate, not qualification credit.
+
+No verified first-round finding remains after the correction. Fresh second-round
+review follows its commit. Full packet suites, source-bound hosted A/B and
+original archives remain Step 3; no P03-6 push, PR or hosted run has started.

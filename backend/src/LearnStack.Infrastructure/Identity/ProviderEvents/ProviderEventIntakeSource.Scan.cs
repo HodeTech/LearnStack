@@ -20,17 +20,19 @@ public sealed partial class ProviderEventIntakeSource
             await using var command = new NpgsqlCommand("""
                 WITH timing AS (SELECT date_trunc('milliseconds',clock_timestamp()) AS at), bounds AS (
                     SELECT t.at,GREATEST(s.activation_lower,t.at-make_interval(secs=>s.retention_seconds)) AS low
-                    FROM public.identity_provider_event_scan s CROSS JOIN timing t WHERE s.id=1)
+                    FROM public.identity_provider_event_scan s CROSS JOIN timing t WHERE s.id=1), continuity AS (
+                    SELECT b.*,LEAST(s.recovery_anchor_at,COALESCE(s.cursor_to,s.recovery_anchor_at)) AS frontier
+                    FROM bounds b CROSS JOIN public.identity_provider_event_scan s WHERE s.id=1)
                 UPDATE public.identity_provider_event_scan s SET
-                    historical_gap=s.historical_gap OR COALESCE(s.cursor_to<b.at-make_interval(secs=>s.retention_seconds),false),
-                    earliest_gap_at=CASE WHEN s.cursor_to<b.at-make_interval(secs=>s.retention_seconds)
-                        THEN LEAST(s.earliest_gap_at,s.cursor_from) ELSE s.earliest_gap_at END,
+                    historical_gap=s.historical_gap OR b.frontier<b.at-make_interval(secs=>s.retention_seconds),
+                    earliest_gap_at=CASE WHEN b.frontier<b.at-make_interval(secs=>s.retention_seconds)
+                        THEN LEAST(s.earliest_gap_at,b.frontier) ELSE s.earliest_gap_at END,
                     cursor_from=CASE WHEN s.cursor_from IS NULL OR s.cursor_to<b.at-make_interval(secs=>s.retention_seconds)
                         THEN date_trunc('milliseconds',b.low)+CASE WHEN date_trunc('milliseconds',b.low)<b.low THEN interval '1 millisecond' ELSE interval '0' END
                         ELSE s.cursor_from END,
                     cursor_to=CASE WHEN s.cursor_to IS NULL OR s.cursor_to<b.at-make_interval(secs=>s.retention_seconds) THEN b.at ELSE s.cursor_to END,
                     cursor_offset=CASE WHEN s.cursor_from IS NULL OR s.cursor_to<b.at-make_interval(secs=>s.retention_seconds) THEN 0 ELSE s.cursor_offset END,
-                    last_attempted_at=b.at FROM bounds b WHERE s.id=1;
+                    last_attempted_at=b.at FROM continuity b WHERE s.id=1;
                 """ + ScanColumns + " FROM public.identity_provider_event_scan WHERE id=1", connection, transaction);
             return await ReadScanRowAsync(command, deadline).ConfigureAwait(false);
         }, token);
@@ -48,6 +50,7 @@ public sealed partial class ProviderEventIntakeSource
                     cursor_from=CASE WHEN @finished THEN NULL ELSE cursor_from END,
                     cursor_to=CASE WHEN @finished THEN NULL ELSE cursor_to END,
                     last_traversed_at=CASE WHEN @finished THEN clock_timestamp() ELSE last_traversed_at END,
+                    recovery_anchor_at=CASE WHEN @finished THEN GREATEST(recovery_anchor_at,@to) ELSE recovery_anchor_at END,
                     last_completed_at=CASE WHEN @finished AND NOT historical_gap AND NOT EXISTS (
                         SELECT FROM public.identity_provider_event_problems p WHERE p.resolved_at IS NULL
                             AND p.range_from<=@to AND p.range_to>=@from)
@@ -136,8 +139,8 @@ public sealed partial class ProviderEventIntakeSource
         if (retentionSeconds is < 604800 or > 2592000) throw new ArgumentOutOfRangeException(nameof(retentionSeconds));
         return ExecuteAsync(async (connection, transaction, deadline) =>
         {
-            await using var command = new NpgsqlCommand("UPDATE public.identity_provider_event_scan SET retention_seconds=@seconds WHERE id=1", connection, transaction);
-            command.Parameters.AddWithValue("seconds", retentionSeconds);
+            await using var command = new NpgsqlCommand(UpdatePolicySql, connection, transaction);
+            command.Parameters.AddWithValue("retention", retentionSeconds);
             await command.ExecuteNonQueryAsync(deadline).ConfigureAwait(false);
             return true;
         }, token);
@@ -179,6 +182,17 @@ public sealed partial class ProviderEventIntakeSource
                 }
             return new ProviderEventHealthState(critical, degraded, attempted, completed, counts.ToImmutable());
         }, token);
+
+    // Detect expiry under the previously qualified retention before replacing
+    // it. Increasing retention cannot resurrect source history already lost.
+    private const string UpdatePolicySql = """
+        WITH timing AS (SELECT clock_timestamp() AS at)
+        UPDATE public.identity_provider_event_scan SET
+            historical_gap=historical_gap OR LEAST(recovery_anchor_at,COALESCE(cursor_to,recovery_anchor_at))<t.at-make_interval(secs=>retention_seconds),
+            earliest_gap_at=CASE WHEN LEAST(recovery_anchor_at,COALESCE(cursor_to,recovery_anchor_at))<t.at-make_interval(secs=>retention_seconds)
+                THEN LEAST(earliest_gap_at,recovery_anchor_at,COALESCE(cursor_to,recovery_anchor_at)) ELSE earliest_gap_at END,
+            retention_seconds=@retention FROM timing t WHERE id=1
+        """;
 
     private const string ScanColumns = "SELECT activation_lower,retention_seconds,cursor_from,cursor_to,cursor_offset,last_traversed_at,last_completed_at,historical_gap,earliest_gap_at";
 

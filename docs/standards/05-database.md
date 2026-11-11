@@ -981,7 +981,7 @@ role model remains closed.
 | `learnstack_app` | `ConnectionStrings:Default` | API host, worker host | every request-path and job-path `DbContext` | `NOBYPASSRLS` |
 | `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | API host, worker host | `EnterPlatformAdminScope(reason)` and nothing else | `BYPASSRLS` |
 | `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | API host only; never Seeder or web | confined dispatcher infrastructure only | `BYPASSRLS` |
-| `learnstack_identity_ingress` | `ConnectionStrings:IdentityEventIngress` | API provider-ingress lane only | fixed minimized intake/claim/retire and scan/problem progress; no business/Audit/outbox grants | `NOINHERIT`, `NOBYPASSRLS` |
+| `learnstack_identity_ingress` | `ConnectionStrings:IdentityIngress` | API provider-ingress lane only | fixed minimized intake/claim/retire and scan/problem progress; no business/Audit/outbox grants | `NOINHERIT`, `NOBYPASSRLS` |
 
 Migration **credentials** remain deploy-only. The five [enumerated Identity
 SECURITY DEFINER contracts](#confined-owner-functions) deliberately add runtime
@@ -6012,7 +6012,7 @@ direction, ownership, schema CREATE or business/Audit/outbox privilege is allowe
 The deploy-owned roles script converges attributes/password and removes incoming
 as well as outgoing memberships. Runtime never acquires migration credentials.
 
-`ConnectionStrings:IdentityEventIngress` configures a private
+`ConnectionStrings:IdentityIngress` configures a private
 `ProviderEventIntakeSource`: two retained owners/checkouts per API process,
 no admission queue, MaxPoolSize two, reset enabled, no multiplexing/enlistment or
 parameter/error-detail logging. Five-second shared operation cancellation,
@@ -6029,7 +6029,7 @@ provider execution. Its pool is additional to the existing connection ledger.
 | Relation | Class / immutable data | Runtime grants |
 |---|---|---|
 | `identity_provider_event_receipts` | Global minimized source identity, normalized fingerprint, subject key/affected User linkage, accepted-or-unaccepted disposition, first received/accepted time and frozen target count | Ingress SELECT only; three owner functions perform the named writes/retirement; no app/platform/outbox rights |
-| `identity_provider_event_scan` | Global singleton source/authority/realm and immutable activation lower bound; bounded retention policy and cursor/attempt/traversal/completion/historical-gap progress | Ingress SELECT/initial INSERT and explicitly enumerated progress-column UPDATE; no source retargeting UPDATE, DELETE or app access |
+| `identity_provider_event_scan` | Global singleton source/authority/realm and immutable activation lower bound; bounded retention policy, source-time recovery anchor and cursor/attempt/traversal/completion/historical-gap progress | Ingress SELECT/initial INSERT and explicitly enumerated progress-column UPDATE; no source retargeting UPDATE, DELETE or app access |
 | `identity_provider_event_problems` | Global stable event problem or interval/offset locator, closed reason, bounded retry/age/resolution state; never raw payload/body hash/error text | Ingress SELECT/INSERT and only retry/resolution-column UPDATE; retirement only through its function |
 | `identity_provider_event_targets` | Tenant-owned independently retained normalized fact, affected subject, stable ReceiptId/TargetId/EventId and scheduler/completion state; no FK to the expiring receipt | App SELECT under tenant RLS and only `enqueued_at` UPDATE; ingress has no direct rights; exact owner functions create/claim |
 
@@ -6101,6 +6101,14 @@ continue. A later genuinely admissible exact fingerprint resolves only its
 matching recoverable problem; no acceptance clears an irrecoverable gap.
 Missing/unbound/closed/no-recipient are durable receipt-only outcomes. Overflow
 is durably unaccepted, has no targets/ACK and cannot truncate recipients.
+
+The scan's `recovery_anchor_at` begins at activation and advances to a completed
+traversal's source upper bound, never its later processing timestamp. Starting
+another sweep or replacing the qualified retention first compares that frontier
+with the prior retained lower bound. Expired continuity sets the sticky
+historical-gap/earliest-gap pair even when completed cursors are NULL. A later
+traversal, process restart, retirement or retention increase cannot clear it.
+This is conservative recovery accounting, not proof of gap-free source capture.
 
 Claim returns one stored target with fresh token and thirty-second database-time
 lease. Only the private `ProviderEventRecipient` minter turns the returned tuple

@@ -83,7 +83,7 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
                 if (await install.ExecuteScalarAsync(deadline).ConfigureAwait(false) is not true)
                     throw new InvalidOperationException("Provider intake stored source does not match configuration.");
             }
-            await using (var policy = new NpgsqlCommand("UPDATE public.identity_provider_event_scan SET retention_seconds=@retention WHERE id=1", connection, transaction))
+            await using (var policy = new NpgsqlCommand(UpdatePolicySql, connection, transaction))
             {
                 policy.Parameters.AddWithValue("retention", profile.RetentionSeconds);
                 await policy.ExecuteNonQueryAsync(deadline).ConfigureAwait(false);
@@ -180,7 +180,7 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
                         AND has_column_privilege(r.oid,c.oid,a.attnum,'UPDATE') AND NOT
                         (c.relname='identity_provider_event_scan' AND a.attname IN
                             ('retention_seconds','cursor_from','cursor_to','cursor_offset','last_attempted_at','last_traversed_at',
-                                'last_completed_at','historical_gap','earliest_gap_at')
+                                'last_completed_at','historical_gap','earliest_gap_at','recovery_anchor_at')
                         OR c.relname='identity_provider_event_problems' AND a.attname IN
                             ('last_seen_at','next_retry_at','attempts','resolved_at','irrecoverable'))))
             """, connection);

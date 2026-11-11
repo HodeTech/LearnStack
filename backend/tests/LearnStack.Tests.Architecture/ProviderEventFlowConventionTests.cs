@@ -95,7 +95,20 @@ public sealed class ProviderEventFlowConventionTests
             .SelectMany(type => Il.Methods(type).Where(method => method.Definition.HasBody)
                 .SelectMany(method => method.Definition.Body.Instructions.Where(instruction => instruction.Operand is MethodReference reference
                     && reference.DeclaringType.FullName == owner && reference.Name == member)
-                    .Select(_ => type.FullName + "." + method.DeclaredAs))).Distinct().Order(StringComparer.Ordinal).ToArray();
+                    .Select(_ => type.FullName + "." + WrittenMethod(method.Definition, method.DeclaredAs)))).Distinct().Order(StringComparer.Ordinal).ToArray();
+        private static string WrittenMethod(MethodDefinition method, string fallback)
+        {
+            // Async lambdas live inside display classes, whose numeric name does
+            // not identify their source method. Keep attribution to the method
+            // encoded in the lambda/state-machine name, not that display class.
+            foreach (var name in new[] { method.Name, method.DeclaringType.Name })
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(name, "<([A-Za-z_][A-Za-z0-9_]*)>",
+                    System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+                if (match.Success) return match.Groups[1].Value;
+            }
+            return fallback;
+        }
         private static IEnumerable<TypeDefinition> Flatten(TypeDefinition type) => new[] { type }.Concat(type.NestedTypes.SelectMany(Flatten));
         public void Dispose() { foreach (var module in Modules) module.Dispose(); }
     }
