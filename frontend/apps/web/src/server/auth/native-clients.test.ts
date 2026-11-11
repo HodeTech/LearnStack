@@ -29,6 +29,7 @@ const scope = { ...binding, tenantId, organizationId: null };
 const identity: ProviderIdentity = {
   issuer: configuration.issuer,
   subject: 'opaque-subject',
+  sid: 'owned-provider-session',
   actorId: null,
   tenantId: null,
   organizationId: null,

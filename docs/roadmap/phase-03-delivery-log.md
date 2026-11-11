@@ -452,12 +452,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 262 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 313 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
   - [P03-7 proposal approval readiness (2026-11-12)](#p03-7-proposal-approval-readiness-2026-11-12) — 32 lines
   - [P03-7 maintainer review corrections and acceptance (2026-11-12)](#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) — 36 lines
+  - [P03-7 Step 1 protocol and owner implementation (2026-11-12)](#p03-7-step-1-protocol-and-owner-implementation-2026-11-12) — 51 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20848,3 +20849,54 @@ source freeze and PR/CI A/B with original archives. Every step commits, receives
 fresh round one/fixes/commit and different fresh round two/fixes/commit. Existing
 runtime/test/CI clocks are not enlarged. Any genuinely new architectural decision
 returns to the maintainer before code; routine implementation continues.
+
+### P03-7 Step 1 protocol and owner implementation (2026-11-12)
+
+Step 1 implements the Accepted ADR-0098 protocol/session slice; no machine route,
+bridge listener or provider field is activated. `jose` moves from devDependencies
+into runtime dependencies at the same pinned version; the lockfile changes only
+that importer category. Qualified frozen installation verifies the current patch.
+
+Delivered in the native-only adapter/store:
+
+- Real library-owned RS256 verification, strict duplicate-name JSON parsing,
+  exact type/events/no-nonce/issuer/audience/sid/time profile, bounded fixed-issuer
+  discovery/JWKS cache and joined single-flight work. Errors carry closed reasons.
+- Required signed sid continuity on code/refresh credentials; the store preserves
+  it through reconstructed bundles. Grants reporting offline_access refuse.
+- Atomic replay/fence reservation and exact issuer/sid/optional-sub closure,
+  retained targets through actual retirement, unknown-identity callback and held
+  refresh/selection/switch/invitation controls. No browser facade gains revoke
+  capability. Unsafe clock movement seals notification admission; stopped state
+  can clear evidence only when actual retained work permits it.
+- Fence sweeps snapshot owners once and use finite target sets/minimum unknown
+  admission, avoiding owner-by-fence nested scans. A full 1,024-owner/4,096-fence
+  control retains ignored-abort work and preserves 1,023 unrelated sessions.
+  Private state counts include saturated/unavailable and oldest held age.
+
+Verification before the first implementation review:
+
+- Qualified native build, TypeScript and changed-source lint pass. Release backend
+  build passes with zero warnings/errors; five CorpusConsistency cases pass.
+- Twelve selected frontend files complete 1,100/1,100 reported cases, zero
+  failures/skips/todos. This includes real pinned Next protocol positives and
+  missing-activity/nonzero-stop negatives, the existing 559 admission controls,
+  provider/store/invitation/capacity/clock and exact source/dependency fences.
+  It is a selected cohort, not the complete frontend package or hosted C12 proof.
+- Initial cohort failures identify missing new modules in the minimal copied BFF
+  harness and the intentional source-hash drift from its sid fixture. Add only
+  the three actual dependencies to its explicit inventory, review the changed
+  producer source and update its exact pin. Dirty controls remain unchanged; the
+  same actual protocol positives and negatives then pass. Earlier failed receipts
+  remain separate and grant no qualification credit.
+- Installer first refuses an old development reader reservation. Its exact record
+  predates the later host restart, proving all original host processes ended;
+  preserve record bytes and host-lifetime evidence, recheck unchanged identity and
+  no competing records, then retire only that reservation. Outputs/cache metadata,
+  the five stashes and editor settings remain untouched. This uses existing owner
+  recovery, not PID-age stealing or a new automatic reconciler.
+
+The implementation is committed before fresh independent review round one and
+then round two, with verified fixes committed between them. Step 2 starts only
+after that cycle. Real Keycloak notification, normal bridge setup, network/TLS,
+browser revocation and complete final-source CI A/B remain open.

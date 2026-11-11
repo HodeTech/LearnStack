@@ -99,6 +99,7 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
     const now = Math.floor(Date.now() / 1000);
     const id = await new SignJWT({
       sub: 'external-subject',
+      sid: 'provider-session',
       iss: issuer,
       aud: 'learnstack-web',
       iat: now,
@@ -227,6 +228,7 @@ describe('inactive tenant RP boundary', () => {
     expect(result.identity).toEqual({
       issuer,
       subject: 'external-subject',
+      sid: 'provider-session',
       actorId,
       tenantId,
       organizationId: null,
@@ -320,6 +322,7 @@ describe('inactive tenant RP boundary', () => {
       expect(result.identity).toEqual({
         issuer,
         subject: 'external-subject',
+        sid: 'provider-session',
         actorId: actor,
         tenantId: tenant,
         organizationId: organization,
@@ -454,8 +457,32 @@ describe('inactive tenant RP boundary', () => {
     },
   );
 
+  it.each([undefined, '', 'a\n', 'é'.repeat(128)])(
+    'requires a bounded provider session at both grants (%#)',
+    async (sid) => {
+      const f = await fixture();
+      const { result } = await f.login();
+      f.setClaims({ sid });
+      await expect(f.login()).rejects.toMatchObject({ reason: 'identity' });
+      await expect(f.provider.refresh(result.refreshToken!, result.identity)).rejects.toMatchObject(
+        { reason: 'identity' },
+      );
+    },
+  );
+
+  it('refuses offline access in grant scope on redemption and refresh', async () => {
+    const f = await fixture();
+    const { result } = await f.login();
+    f.setTokens({ scope: 'openid offline_access profile' });
+    await expect(f.login()).rejects.toMatchObject({ reason: 'response' });
+    await expect(f.provider.refresh(result.refreshToken!, result.identity)).rejects.toMatchObject({
+      reason: 'response',
+    });
+  });
+
   for (const patch of [
     { sub: 'replacement-subject' },
+    { sid: 'replacement-session' },
     { user_id: '019a154b-0000-7000-8000-000000000012' },
     { tenant_id: '20000000-0000-4000-8000-000000000002' },
     { organization_id: tenantId },

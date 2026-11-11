@@ -236,7 +236,7 @@ export function instrumentCopiedBffRuntime(
       await (await import('next/dist/trace/index.js')).flushAllTraces();
       control.proof.emit({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} });
     } });
-    const credentials = () => ({ accessToken: ${token}, refreshToken: ${token}, idToken: ${token}, identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const credentials = () => ({ accessToken: ${token}, refreshToken: ${token}, idToken: ${token}, identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', sid: 'owned-provider-session', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
     const member = {membershipId: '019a154b-0000-7000-8000-000000000012', userId: '019a154b-0000-7000-8000-000000000011', organizationId: null, status: 'Active', displayName: 'Fixture member', preferredLocale: null, roleIds: ['019a154b-0000-7000-8000-000000000013'], version: '0'};
     const role = {roleId: '019a154b-0000-7000-8000-000000000013', builtInKey: 'TenantAdmin', capabilityScope: 'Tenant', version: '0', grants: [{scope: 'Tenant', key: 'identity.membership.admin'}], adoptedReleaseVersion: 1, adoptedReleaseFingerprint: 'a'.repeat(64)};
     const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
@@ -564,6 +564,9 @@ export async function prepareBffProof({
     'http-protocol',
     'logout-response',
     'provider',
+    'backchannel-contract',
+    'backchannel-state',
+    'backchannel-verifier',
     'provider-core',
     'provider-error',
     'provider-transport',

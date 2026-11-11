@@ -2,6 +2,9 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OwnMembershipProfile } from '@learnstack/sdk/administration-server';
 
+import type { VerifiedLogoutToken } from './backchannel-contract.js';
+import { BackchannelState, matchesProviderLogout } from './backchannel-state.js';
+import type { ProviderLogoutTarget } from './backchannel-state.js';
 import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
@@ -91,6 +94,8 @@ type Group = {
 };
 type Owner = {
   id: string;
+  admittedAt: number;
+  providerTarget?: ProviderLogoutTarget;
   invitation?: Owner;
   custody?: {
     revision: object;
@@ -150,6 +155,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   readonly #states = new Map<string, Owner>();
   readonly #logoutStates = new Map<string, Owner>();
   readonly #groups = new Map<string, Group>();
+  readonly #backchannel: BackchannelState;
   readonly #dependencies: SessionDependencies;
   readonly #preparation: NativePagePreparation | undefined;
   readonly #timer: ReturnType<typeof setInterval>;
@@ -158,6 +164,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
 
   constructor(dependencies: SessionDependencies, preparation?: NativePagePreparation) {
     this.#dependencies = dependencies;
+    this.#backchannel = new BackchannelState({
+      monotonic: () => this.#now(),
+      utc: () => this.#utc(),
+    });
     this.#preparation = preparation;
     this.#timer = setInterval(() => this.sweep(), BFF_LIMITS.sweepMs);
     this.#timer.unref();
@@ -233,6 +243,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     if (entry.logoutState) this.#logoutStates.delete(entry.logoutState);
     entry.source = '';
     entry.subject = undefined;
+    entry.providerTarget = undefined;
     entry.transaction = undefined;
     entry.verification = undefined;
     entry.logoutState = undefined;
@@ -249,6 +260,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#groups.delete(this.#groupKey(entry.group.host, entry.group.browser));
   }
   #close(entry: Owner) {
+    if (entry.phase === 'closing') {
+      this.#release(entry);
+      return;
+    }
     this.#abortPages(entry);
     this.#clearCursorKey(entry);
     this.#clearPageCursorKey(entry);
@@ -726,7 +741,17 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       displayName: account.displayName,
     });
   }
+  #bindProviderTarget(entry: Owner, credentials: ProviderCredentials) {
+    const target = Object.freeze({
+      issuer: credentials.identity.issuer,
+      sid: credentials.identity.sid,
+      subject: credentials.identity.subject,
+    });
+    if (!this.#backchannel.accepts(target)) throw new BffSessionError('revoked');
+    entry.providerTarget = target;
+  }
   #reserveSubject(entry: Owner, credentials: ProviderCredentials) {
+    this.#bindProviderTarget(entry, credentials);
     const key = JSON.stringify([credentials.identity.issuer, credentials.identity.subject]);
     if (
       [...this.#owners.values()].filter((owner) => owner.subject?.key === key).length >=
@@ -753,13 +778,18 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   #bundle(next: ProviderCredentials, previous?: ProviderCredentials) {
     if (
       !next ||
+      typeof next.identity?.sid !== 'string' ||
+      !next.identity.sid ||
+      Buffer.byteLength(next.identity.sid) > 255 ||
+      // eslint-disable-next-line no-control-regex -- Provider-session identifiers reject controls at the custody boundary.
+      /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(next.identity.sid) ||
       (!next.refreshToken && !previous?.refreshToken) ||
       !Number.isFinite(next.accessExpiresAt) ||
       !Number.isFinite(next.refreshExpiresAt) ||
       next.accessExpiresAt <= this.#now() ||
       next.refreshExpiresAt <= this.#now() ||
       (previous &&
-        (['issuer', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
+        (['issuer', 'sid', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
           (key) =>
             previous.identity[key as keyof typeof previous.identity] !==
             next.identity[key as keyof typeof next.identity],
@@ -771,6 +801,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       idToken: next.idToken,
       identity: Object.freeze({
         issuer: next.identity.issuer,
+        sid: next.identity.sid,
         subject: next.identity.subject,
         actorId: next.identity.actorId,
         tenantId: next.identity.tenantId,
@@ -860,6 +891,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const now = this.#now();
     const owner: Owner = {
       id: opaque(),
+      admittedAt: now,
       group,
       epoch: group.epoch,
       source: input.source,
@@ -959,6 +991,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     ) {
       // A fresh own-result/acceptance already confirmed this exact actor and active Membership.
       // Reuse the established session without resetting its account, CSRF or lifetime.
+      this.#bindProviderTarget(owner, old.credentials!);
       custody.credentialsOwner = old;
       custody.code = undefined;
       if (credentialOwner !== old && credentialOwner.phase === 'entry')
@@ -970,6 +1003,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const phase = old ? 'switching' : 'selecting';
     const entry: Owner = {
       id: opaque(),
+      admittedAt: now,
       group: owner.group,
       epoch: owner.epoch,
       source,
@@ -1221,6 +1255,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       }
       this.#release(entry);
     }
+    this.#sweepBackchannel();
   }
 
   async start(input: Parameters<BffSessionStore['start']>[0]): Promise<LoginStart> {
@@ -1279,6 +1314,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const now = this.#now();
     const entry: Owner = {
       id: opaque(),
+      admittedAt: now,
       group,
       epoch: group.epoch,
       source: input.source,
@@ -1385,6 +1421,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             throw new BffSessionError('account_change');
           }
           if (!offer.subject) this.#reserveSubject(offer, credentials);
+          else this.#bindProviderTarget(offer, credentials);
           const previousCredentials = offer.custody!.credentialsOwner;
           offer.custody!.credentialsOwner = entry;
           if (previousCredentials?.phase === 'entry') this.#close(previousCredentials);
@@ -1817,6 +1854,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const now = this.#now();
     const entry: Owner = {
       id: opaque(),
+      admittedAt: now,
       group: old.group,
       epoch: old.epoch,
       source,
@@ -2249,6 +2287,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       completed = resolve;
     });
     this.#stopped = true;
+    this.#backchannel.stop();
     clearInterval(this.#timer);
     const entries = [...this.#owners.values()];
     const work = entries.flatMap((entry) => [...entry.work]);
@@ -2258,9 +2297,47 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     }
     void Promise.allSettled(work).then(() => {
       for (const entry of entries) this.#release(entry);
+      this.#sweepBackchannel();
       completed();
     });
     return this.#stopping;
+  }
+
+  #sweepBackchannel() {
+    // Snapshot once: a full fence census must not scan every retained owner per fence.
+    let earliestUnknown = Infinity;
+    const sessions = new Set<string>();
+    const identities = new Set<string>();
+    for (const entry of this.#owners.values()) {
+      const target = entry.providerTarget;
+      if (!target) earliestUnknown = Math.min(earliestUnknown, entry.admittedAt);
+      else {
+        sessions.add(JSON.stringify([target.issuer, target.sid]));
+        identities.add(JSON.stringify([target.issuer, target.sid, target.subject]));
+      }
+    }
+    this.#backchannel.sweep(
+      (fence) =>
+        earliestUnknown <= fence.horizon ||
+        (fence.subject === null
+          ? sessions.has(JSON.stringify([fence.issuer, fence.sid]))
+          : identities.has(JSON.stringify([fence.issuer, fence.sid, fence.subject]))),
+    );
+  }
+  /** Native installation capability; deliberately absent from BffSessionStore. */
+  applyProviderLogout(token: VerifiedLogoutToken): 'accepted' | 'duplicate' {
+    this.#sweepBackchannel();
+    return this.#backchannel.apply(token, () => {
+      for (const owner of [...this.#owners.values()])
+        if (owner.providerTarget && matchesProviderLogout(owner.providerTarget, token)) {
+          for (const linked of [...this.#owners.values()])
+            if (linked !== owner && linked.custody?.credentialsOwner === owner) this.#close(linked);
+          this.#close(owner);
+        }
+    });
+  }
+  backchannelCounts() {
+    return this.#backchannel.counts();
   }
 
   /** Scalar observation only: tests/health never acquire tokens or indexes. */

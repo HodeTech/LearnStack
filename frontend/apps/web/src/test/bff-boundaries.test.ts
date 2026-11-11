@@ -260,7 +260,8 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
     );
     expect(declared.dependencies['openid-client']).toBe('6.8.8');
-    expect(declared.devDependencies.jose).toBe('6.2.13');
+    expect(declared.dependencies.jose).toBe('6.2.13');
+    expect(declared.devDependencies).not.toHaveProperty('jose');
     expect(manifest(client, 'openid-client').version).toBe('6.8.8');
     expect(manifest(oauth, 'oauth4webapi').version).toBe('3.8.8');
     expect(manifest(directJose, 'jose').version).toBe('6.2.13');

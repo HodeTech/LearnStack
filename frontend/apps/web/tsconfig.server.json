@@ -15,6 +15,7 @@
     "src/server/public-admission-runtime.ts",
     "src/server/auth/session-runtime.ts",
     "src/server/auth/provider-core.ts",
+    "src/server/auth/backchannel-verifier.ts",
     "src/server/auth/account-client.ts",
     "src/server/auth/native-session-client.ts",
     "src/server/auth/native-administration-client.ts",

@@ -26,6 +26,7 @@ const privateCanary = 'private-credential-canary';
 const identity: ProviderIdentity = {
   issuer: 'https://identity.example.test/realms/learnstack',
   subject: 'opaque-subject',
+  sid: 'owned-provider-session',
   actorId: '019a154b-0000-7000-8000-000000000011',
   tenantId: '10000000-0000-4000-8000-000000000001',
   organizationId: null,
