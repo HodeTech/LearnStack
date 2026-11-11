@@ -24,7 +24,7 @@
 > verified original archives. Manual acceptance covers the earlier UI; later fixes
 > lack a fresh human recheck. Earlier intermittent CI causes remain unlocalized.
 > P03-6 is in progress under Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md); implementation/reviews and prior-source A/B are complete.
-> [Maintainer review corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-2026-11-11) need fresh reviews and final-source qualification. [PR #43](https://github.com/HodeTech/LearnStack/pull/43) is ready, open and unmerged; no merge is authorized.
+> [Maintainer review corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-2026-11-11) completed both fresh review rounds; final-source qualification remains open at this observation. [PR #43](https://github.com/HodeTech/LearnStack/pull/43) is ready, open and unmerged; no merge is authorized.
 >
 > | Packet | Title | State |
 > |---|---|---|
