@@ -452,13 +452,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 313 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 331 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
   - [P03-7 proposal approval readiness (2026-11-12)](#p03-7-proposal-approval-readiness-2026-11-12) — 32 lines
   - [P03-7 maintainer review corrections and acceptance (2026-11-12)](#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) — 36 lines
   - [P03-7 Step 1 protocol and owner implementation (2026-11-12)](#p03-7-step-1-protocol-and-owner-implementation-2026-11-12) — 51 lines
+  - [P03-7 Step 1 independent review round one (2026-11-12)](#p03-7-step-1-independent-review-round-one-2026-11-12) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20900,3 +20901,21 @@ The implementation is committed before fresh independent review round one and
 then round two, with verified fixes committed between them. Step 2 starts only
 after that cycle. Real Keycloak notification, normal bridge setup, network/TLS,
 browser revocation and complete final-source CI A/B remain open.
+
+### P03-7 Step 1 independent review round one (2026-11-12)
+
+Fresh Sol protocol/security and Terra ownership/corpus reviewers inspect
+`af401bae` against `9497c930`, Accepted ADR-0098, the existing session contracts
+and retained selected-cohort evidence. Both approve within Step 1 scope with no
+verified actionable finding; no source fix is manufactured for a clean review.
+They run no additional heavy suite, build, provider mutation or installation.
+
+The protocol review records one explicit Step 2 pre-activation integration
+obligation: preserve provider/clock/capacity versus token-refusal stages for the
+closed unavailable/refused diagnostic categories. The shared 400 HTTP failure
+response must not be mistaken for equal underlying causes, and raw errors remain
+forbidden. No notification route or diagnostic classification is activated in
+Step 1; this handoff remains part of Step 2, not a shipped runtime claim.
+
+Step 1 now receives a different fresh review pair before its closeout. Real
+provider/TLS/normal-setup/browser and complete A/B obligations remain open.
