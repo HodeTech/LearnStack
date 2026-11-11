@@ -155,7 +155,7 @@ public sealed class FixedSeedIdentityCompletionReader(IdentityDbContext db, IUni
         SeedIdentityCompletionDeclaration declaration)
     {
         var manifest = IdentityFoundationManifest.Version1;
-        var release = IdentityRoleRelease.Version2;
+        var release = IdentityRoleRelease.Current;
         if (grants.Select(row => (row.RoleId, row.Scope, row.PermissionKey)).Distinct().Count() != grants.Count) return false;
         foreach (var row in roles)
         {
@@ -168,9 +168,8 @@ public sealed class FixedSeedIdentityCompletionReader(IdentityDbContext db, IUni
                 || !ValidStamps(row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy, row.DeletedAt, row.DeletedBy,
                     row.Version, required is not null)
                 || required is not null && (key != required.BuiltInKey || scope != required.Scope)
-                || !(row.ReleaseVersion == manifest.Version && row.ReleaseFingerprint == manifest.Fingerprint
-                    || key == BuiltInRoleKey.TenantAdmin && scope == PermissionScope.Tenant && row.Version > 0
-                        && release.IsExact(row.ReleaseVersion, row.ReleaseFingerprint))) return false;
+                || !release.IsValidAdoptionState(key, scope, row.ReleaseVersion, row.ReleaseFingerprint)
+                || row.ReleaseVersion != manifest.Version && row.Version == 0) return false;
 
             var values = new List<PermissionDefinition>();
             foreach (var grant in grants.Where(value => value.RoleId == row.Id))

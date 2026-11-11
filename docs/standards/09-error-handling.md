@@ -682,3 +682,12 @@ The architecture tests and Roslyn analyzers that enforce the rules above
 are listed in
 [21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](21-architecture-tests-catalogue.md);
 that catalogue is the canonical reference for every identifier.
+
+## Custom-field failures
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires fixed codes and structural locations or indices for validation failures;
+no attempted value, tenant-authored key, label, notice or provider exception text is
+echoed. Byte-limit and capacity failures are actionable without truncating stored
+values. Stale consent predecessor and resource version require a fresh read, not
+automatic retry. Phase 03 owns implementation and proof.

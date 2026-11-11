@@ -28,6 +28,15 @@ public sealed partial class IdentityMembershipTests
         const string Predecessor = "20261026043921_correct_identity_admission_parent_sqlstate";
         await using var database = await CreateHistoricalIdentityDatabaseAsync(Predecessor);
         await SeedHistoricalIdentityGraphAsync(database);
+        // The production EF model reads Profile.custom_fields, which did not exist
+        // at this historical Identity predecessor. Prove the missing column, then
+        // add only its current storage shape without changing historical guard SQL.
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            var missingColumn = () => ExecuteAsync(owner, null, "SELECT custom_fields FROM public.membership_profiles LIMIT 0");
+            (await missingColumn.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42703");
+            await ExecuteAsync(owner, null, "ALTER TABLE public.membership_profiles ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '[]'::jsonb");
+        }
         await using var migration = HistoricalIdentityMigration(database);
         var predecessorFunctions = await ReadIdentityFunctionsAsync(database);
         if (corrected) await AssertParentLifecycleCorrectionAsync(database, migration, predecessorFunctions);
@@ -86,6 +95,13 @@ public sealed partial class IdentityMembershipTests
             ("member", LearnerMembershipA), ("role", instructor))).Should().Be(corrected ? 0 : 1);
         await read.RollbackAsync();
         if (!corrected) await AssertParentLifecycleCorrectionAsync(database, migration, predecessorFunctions);
+        // Let the real current migration install its own column and constraint.
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            (await ScalarAsync<long>(owner, null, "SELECT count(*) FROM public.membership_profiles WHERE custom_fields <> '[]'::jsonb"))
+                .Should().Be(0, "the historical compatibility column must stay inert before fixture cleanup");
+            await ExecuteAsync(owner, null, "ALTER TABLE public.membership_profiles DROP COLUMN custom_fields");
+        }
         await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
         await AssertFreshIdentityChainAsync(database);
         migration.Database.HasPendingModelChanges().Should().BeFalse();

@@ -514,9 +514,10 @@ Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersec
 with normal reconciliation, query filters and RLS; it cannot widen through claims
 or the tenant-scope read hatch. Publication, access and lifecycle remain explicit
 application predicates. The four context writers remain unchanged; the current
-closed contract has eleven logical Tenant setters below under ADR-0093; its
-invitation contract is Accepted with runtime proof pending. Host resolution, flag-loader
-connections and rejected-assertion audit keep their separately sanctioned paths.
+delivered baseline has eleven logical Tenant setters under ADR-0093;
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md) registers
+the twelfth consent-subject path below, with implementation/proof tracked
+separately. Host resolution, flag-loader connections and rejected-assertion audit keep their separately sanctioned paths.
 
 READ ONLY protects the enlisted ambient transaction. Structural guards detect
 controller/helper/independent-connection bypasses; real app-role HTTP/database
@@ -580,9 +581,11 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The current eleven logical setter paths are
-enumerated below. ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth
-own-context discovery reader; their source bounds are in the
+`TransactionExecutionCoordinator`. The accepted twelve logical setter paths are
+enumerated below; the twelfth is implemented by P03-5; its source-bound proof is recorded in
+the [phase Status](../roadmap/phase-03-identity-admin.md).
+ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth own-context
+discovery reader; their source bounds are in the
 [owner census](#owner-and-setter-census). ADR-0077's confined evidence methods and
 ADR-0080's scope-only enable/clear sites do not add logical Tenant setters. The set
 is closed
@@ -590,9 +593,9 @@ is closed
 with its dated Amendments, is the authority; it is reproduced here because this
 section is the placement authority). Two set it on the **ambient** transaction;
 eight own a **short transaction of their own** under their exact source contract;
-ADR-0093 adds one **operation-bound invitation witness** setter using the existing
-physical unit-of-work writer, ReadOnly for inspection/result and ordinary
-ReadWrite for acceptance:
+ADR-0093 adds one **operation-bound invitation witness** setter and ADR-0095
+one **operation-bound consent-subject witness** setter. Both use the existing
+physical unit-of-work writer with the exact operation mode below:
 
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
@@ -607,6 +610,7 @@ ReadWrite for acceptance:
 | `PreContextIdentityAuthorizationReader` | its isolated physical READ ONLY child | Exact verified candidate coverage/grant and Tenancy lifecycle reads; never parent business state or ambient TenantContext |
 | `PreContextSelfDiscoveryScopeReader` | its own short physical READ ONLY one | Single-use captured own-Membership scope witness, followed only by bounded Tenancy label/destination reads |
 | `InvitationEntryScope` | operation-bound existing owner, physical ReadOnly for inspection/result or ordinary ReadWrite for acceptance | Single-use exact offer/host/verified-subject witness; no ordinary native context, directory or general-purpose scope |
+| `ConsentSubjectScope` (Accepted; P03-5 proof pending) | operation-bound existing owner, physical ReadOnly for retained discovery/history or ordinary ReadWrite for withdrawal | Single-use exact operation/actor/subject/real-host/retained-scope/mode witness; no Membership, ordinary native session, custom value or `app.scope` |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -631,7 +635,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the eleven setters connects as `learnstack_app`. A setter that reached
+Every one of the twelve admitted setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -648,7 +652,7 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the eleven logical paths, the MediatR transaction owner and P02b-3's integration
+Of the twelve admitted logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census
@@ -661,7 +665,9 @@ the two standalone audit writers and the two cached-projection loaders, issue ra
 The ninth and tenth use their confined common-owner announcement seams and exact
 source/generation guards. The eleventh consumes its operation-bound invitation
 witness through the existing physical unit-of-work writer. The preliminary
-offer function owner closes before that consumer owner starts.
+offer function owner closes before that consumer owner starts. The twelfth
+consumes its distinct consent-subject witness after its preliminary owner closes;
+its retained history/withdrawal modes cannot be exchanged or reused.
 `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
@@ -1268,7 +1274,8 @@ business continuation, including when a nested/post-lock parent already exists.
 Tenancy's lifecycle reader uses this same physical child owner/generation.
 
 Ten is the P03-3 logical setter baseline under ADR-0078; ADR-0093 adds the
-eleventh operation-bound invitation setter described below. The
+eleventh invitation setter. ADR-0095 registers the twelfth consent-subject setter
+and confined definer in the [retained-consent contract](#retained-consent-subject-admission). The
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns current
 implementation, activation and proof for those paths.
 The ninth's reader/owner has source, database and exact trusted-source controls.
@@ -1567,8 +1574,10 @@ construction fails, return only to local `/api/auth/signin`; do not restore the
 discarded credentials. Provider SSO logout may affect other institution tabs, so
 localized recovery explains that scope without promising their continued login.
 
-An Off capability preview supplies nine finite Booleans with the exact predicates
-in the Identity specification. False previews produce no denial event and do
+The delivered Off capability preview supplies nine finite Booleans. ADR-0095
+registers the tenth, `canManageCustomFields`, with exact predicate/activation in
+[Permissions](19-permissions.md#custom-fields-and-version-3-adoption); the Identity
+specification owns the complete projection. False previews produce no denial event and do
 not replace fresh mutation checks. Role/permission configuration reads remain
 MUST; aggregate ETags never silently cover independent capability state.
 
@@ -1613,9 +1622,9 @@ foreign-purpose or reused evidence refuses before announcement. The new
 `HostAndInvitationOffer` origin admits only inspection, acceptance and original
 own-result consumers. It grants no PublicSurface, AccountSite, directory,
 ordinary protected act, Platform capability or SQL hatch. The existing four
-physical context writers implement eleven logical tenant setters. Standard 05
-owns eleven confined definers: the prior eight, exact offer entry and the two
-SMTP source lease functions; accepting this census proves no runtime body/ACL.
+physical context writers implement the eleven-path invitation baseline. Standard 05
+owns its eleven confined definers and the separately registered ADR-0095 twelfth
+consent-only function/setter; accepting an extension proves no runtime body/ACL.
 
 New actors use deliberate opt-in global-self bootstrap first, committing and
 disposing its owner before tenant work. Disabled bootstrap stays disabled.
@@ -1697,6 +1706,71 @@ for unsettled work. GET renders navigation; secret inspection/result use POST
 bodies. Real app-role source/body/ACL, competing-commit, provider changed-email,
 SMTP fault/reconciliation, sink-canary and HTTPS/browser controls precede
 activation. Human accessibility evidence remains an independent obligation.
+
+## Retained consent-subject admission
+
+**Derives from:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+**Accepted; P03-5 implementation/qualification pending.** `OwnConsentEntry` and
+`HostAndConsentSubject` admit only host-capped retained own-scope discovery, exact
+history and withdrawal. They require stock credential validation, verified
+provider subject, existing issuer/sub quota admission, an existing Active global
+binding and independent still-live Tenant/Organization host classification.
+They do not require Active Membership, administrative tenant lifecycle,
+AccountSite or public-site snapshot. Unknown/released/disabled hosts and global
+Closing/Closed identities refuse. P03-9/10 own terminated-host/global-closure
+recovery; this is no deployment-wide consent directory.
+
+The [Standard 05 function/owner contract](05-database.md#confined-consent-subject-function-and-owner)
+is canonical: its only table body is retained `membership_field_consents`; its
+normalized actor and real-host ceiling cannot come from submitted fields.
+`ConsentSubjectScope` consumes the one-use immutable exact operation/actor/
+subject/host/retained-scope/mode witness only on its actual owner. Retained
+history is physically ReadOnly; withdrawal is ordinary ReadWrite. It supplies
+no Membership authority, ordinary native session, value disclosure, permission
+grant or tenant-wide `app.scope`. Global eligibility is the completed Active
+binding lookup before entry. After the exclusive Tenant fence, withdrawal
+rechecks retained subject/tuple/org, witness and predecessor; admitted withdrawal
+can finish after concurrent closure only as revocation evidence. P03-10 settles
+or reconciles these owners/unknown commits before fulfillment, under ADR-0095
+Amendment 1. No second global lookup/admin-state function is used. Closed-body SQL
+is not provider/JWT validation.
+
+Ordinary grant remains separate: actor's own current Active Membership, admitted
+scope lifecycle, actual host/session and explicit exact notice confirmation.
+No admin checkbox or profile-write grant manufactures consent; OwnMembershipRead
+never dispatches mutation. Deprecated-revision grants require an exact retained
+value pin. Existing retained tuple reads/withdrawal require neither a retained
+value nor Active definition/Membership. Original-write consent evidence remains
+immutable; ordinary disclosure additionally checks latest Granted state at its
+authorized observation. Withdrawal withholds retained sensitive values and does
+not erase them. P03-10 owns separately authorized fulfillment.
+
+Native `/account/consents` uses the existing bounded credentialed entry handle
+and a fixed consent-only HTML shell. The closed `/api/auth/entry/consents` and
+`/api/auth/entry/consents/withdraw` POSTs enforce Origin/CSRF and existing entry
+owner/lifetime/capacity; no CurrentSession, branding or public configuration read
+is admitted. Missing/expired handles restart sign-in without bootstrap or
+Membership creation. The accepted package owns the exact method/path/request
+census, including distinct own/admin custom-value PATCH requests; no generic
+native proxy or arbitrary dispatcher follows. The three global-self descriptors,
+roles and four physical context writers remain unchanged.
+
+New P03-5 body-bearing replay uses only the [scoped versioned HMAC ring and
+metadata read](05-database.md#custom-field-replay-key-custody). Existing fingerprint
+bytes and unrelated route behavior remain unchanged. Key IDs/HMAC and retained
+consent linkage remain personal data in app/platform custody, WAL and backups;
+logical expiry is no deletion/key-retirement proof. All custom values (including
+None), schemas, labels and notices receive whole-payload diagnostic exclusion
+under [Observability](10-observability.md); fixed structural errors disclose no
+tenant-authored keys, attempted values or notice text. Authorized responses and
+separately authorized fulfillment retain their own disclosure rules.
+
+Real app-role/source/native controls must cover Suspended/Revoked Membership,
+Suspended Tenant, Archived Organization, grant-with-failed-save, removed value,
+retired definition, wrong actor/host/org/mode, stale predecessor/replay, global
+closure and late old-entry publication. Acceptance alone establishes none of
+these outcomes; [the catalogue](21-architecture-tests-catalogue.md#p03-5-custom-field-and-consent-controls)
+names the implemented controls and the phase records their source-bound proof.
 
 ## Incident Response
 

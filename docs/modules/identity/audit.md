@@ -149,7 +149,7 @@ census or a reflection/name heuristic.
 | Invitation | Recipient email; current/consumed verifier; inviter, acceptor, result Membership, Role/version and generation/job references | Email/verifiers are redacted in snapshots; actor/relationship links remain classified; closed disposition is centrally captured, with no value-bearing diagnostics |
 
 No provider credentials, raw invitation token, browser binding, global active
-scope or dormant custom-field blob belongs in these models. Invitation verifiers
+scope or dormant custom-field blob belongs in the existing foundation models. Invitation verifiers
 remain the explicitly sensitive one-way credential fields described above.
 Publication does not make arbitrary tenant text diagnostically safe. SQL-only/control/vendor inventory remains in canonical
 [Data Protection](../../architecture/23-data-protection.md), not another durable-store list.
@@ -224,3 +224,20 @@ operation event, not anonymous data or diagnostic permission. SecurityEvent and
 ReadSensitive retention remain policy targets; Phase 11 owns automatic purge,
 while P03-10 owns applicable export/closure/linkage location. Acceptance does not
 qualify the new provider, database, browser, race or failure proofs.
+
+## Membership custom values
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+classifies own and administrator custom-value writes MUST on Membership; an
+other-person value read is MUST ReadSensitive before disclosure and own read is
+explicit Off. The entire Profile custom-fields property is Sensitive and redacted
+in snapshots and diffs, including values classified None. The catalogue binds the
+exact application requests below; HTTP/native activation
+and qualification are recorded in the Phase 03 Status block.
+
+| Resource | Operation | Class | Request |
+|---|---|---|---|
+| MembershipProfile under Membership | `identity.membership.custom_fields_write` | **MUST** (`update`) | `SetMembershipCustomFieldsCommand`, `SetOwnMembershipCustomFieldsCommand`; their safe original-Membership receipts use the existing exact admin/own profile receipt-read bindings. |
+| Membership custom values | `identity.membership.custom_fields_read` | **MUST** (`read-sensitive`) | `GetMembershipCustomFieldsQuery` |
+
+`GetOwnMembershipCustomFieldsQuery` is an explicit Off binding.

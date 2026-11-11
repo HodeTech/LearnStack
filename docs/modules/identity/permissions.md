@@ -234,3 +234,13 @@ an existing nonkernel grant. Protected resource DTO ETags do not validate these
 separate current previews. Native transport admits only the joint package's exact
 operations; neither capability flags nor the permission registry creates a generic
 proxy, Server Action or browser credential.
+
+## Membership custom values
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+uses distinct own and administrator PATCH requests. Existing scoped
+`identity.membership_profile.write` grants and their exact self/admin target
+predicates govern writes; own-Membership read alone grants no mutation. Current
+consent and exact definition eligibility are independently checked. No global
+profile or cross-organization authority follows. The own/admin API/native
+consumers are implemented; Phase 03 owns source-bound qualification.

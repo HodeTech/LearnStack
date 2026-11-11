@@ -626,7 +626,7 @@ public sealed class UnitOfWorkTests
             counts[table] = (long)(await command.ExecuteScalarAsync())!;
         }
 
-        counts.Should().HaveCount(9, "TenancyDbContext maps nine entity types");
+        counts.Should().HaveCount(10, "TenancyDbContext includes the append-only field consent root");
 
         // ONE declared exception, and the sweep still enumerates the catalogue rather than
         // a hand-written list of names. A list fails open — which is how a second

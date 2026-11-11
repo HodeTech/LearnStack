@@ -727,3 +727,23 @@ renderer is delivered by this amendment; P02d-2 and P02d-6 own implementation.
   — the runtime cost model, validation timing, cache strategy and declared limits.
 - [Phase 04 § Customization Key Shape and Immutable Schema Versions](../roadmap/phase-04-cms-media-pages.md)
   — the owner of the open question in § 6.
+
+### Amendment 6 — Finite Membership field envelope and constructive admission (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md#a-form-profile-within-the-existing-validator)
+adds a narrower Membership form profile over this decision's unchanged admission
+gates. Both schemas and instances use the closed object envelope containing only
+`value`; both use `IJsonSchemaValidator`. The per-type keyword allowlist, finite
+bounds and numeric representation rules refuse unsupported shapes/annotations.
+Admission constructs and validates a nonempty finite witness for every node,
+including optional children; publication rechecks it and proves individual and
+combined-required-set serialization feasibility within existing transport limits.
+Immutable definition revisions preserve historical interpretation; no general
+JSON Schema satisfiability solver, automatic conversion or new content-reader
+commit guarantee is selected. Customization's specification owns its consumer
+profile; [Standard 05](../standards/05-database.md#custom-field-and-consent-storage)
+owns persistence and fencing.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

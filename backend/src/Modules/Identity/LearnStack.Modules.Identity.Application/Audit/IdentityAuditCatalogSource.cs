@@ -1,4 +1,5 @@
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
@@ -55,6 +56,10 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<ReadRoleReceiptQuery>("identity.role.read_receipt", OperationType.ReadSensitive, typeof(Role));
         builder.MustAudit<SetMembershipProfileCommand>(IdentityOperationPolicySource.MembershipProfileWriteOperation, OperationType.Update, typeof(Membership));
         builder.MustAudit<SetOwnMembershipProfileCommand>(IdentityOperationPolicySource.MembershipProfileWriteOperation, OperationType.Update, typeof(Membership));
+        builder.Off<GetOwnMembershipCustomFieldsQuery>();
+        builder.MustAudit<GetMembershipCustomFieldsQuery>(IdentityOperationPolicySource.MembershipCustomFieldsReadOperation, OperationType.ReadSensitive, typeof(Membership));
+        builder.MustAudit<SetMembershipCustomFieldsCommand>(IdentityOperationPolicySource.MembershipCustomFieldsWriteOperation, OperationType.Update, typeof(Membership));
+        builder.MustAudit<SetOwnMembershipCustomFieldsCommand>(IdentityOperationPolicySource.MembershipCustomFieldsWriteOperation, OperationType.Update, typeof(Membership));
         builder.MustAudit<ChangeMembershipStatusCommand>(IdentityOperationPolicySource.MembershipStatusOperation, OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<ReplaceMembershipRoleAssignmentsCommand>(IdentityOperationPolicySource.MembershipAssignmentsOperation, OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<ChangeRoleGrantsCommand>("identity.role.change_grants", OperationType.SecurityEvent, typeof(Role));

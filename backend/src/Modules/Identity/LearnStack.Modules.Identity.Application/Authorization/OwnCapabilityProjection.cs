@@ -22,7 +22,8 @@ internal static class OwnCapabilityProjection
                     IdentityPolicyEvaluation.IsRegistered(definition, catalog) && role.Grants.Contains(definition)));
         return new(tenantAdmin, facts.OrganizationId is not null && memberAdmin, memberAdmin && profile, memberAdmin,
             roleRead, roleWrite, roleWrite, profile && facts.Memberships.Any(member => member.OrganizationId == facts.OrganizationId),
-            facts.OrganizationId is null && Holds(facts, catalog, BoundedTenancyAdministrationPermissions.OrganizationAdministration));
+            facts.OrganizationId is null && Holds(facts, catalog, BoundedTenancyAdministrationPermissions.OrganizationAdministration),
+            facts.OrganizationId is null && Holds(facts, catalog, BoundedCustomFieldPermissions.Definition));
     }
 
     internal static bool CanGrant(IdentityAuthorizationResult facts, IOperationPolicyCatalog catalog, PermissionDefinition target) =>

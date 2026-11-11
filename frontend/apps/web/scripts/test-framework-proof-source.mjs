@@ -203,6 +203,8 @@ test('admission copied runtime preserves real settled barrier and one shutdown o
     const source = readFileSync(join(sourceApp, 'scripts/public-server-runtime.mjs'), 'utf8');
     const transformed = instrumentCopiedAdmissionRuntime(source);
     assert.equal(transformed.includes("process.on('message'"), false);
+    assert.ok(transformed.includes('nativeConsentTarget(binding.target)'));
+    assert.ok(transformed.includes('consentHandler(binding, request, response)'));
     assert.ok(transformed.includes("if (message.op === 'settled') await completions.settled()"));
     assert.ok(
       transformed.includes("control.proof.emit({ kind: 'shutdown', counts: admission.counts() })"),

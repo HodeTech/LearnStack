@@ -1084,3 +1084,37 @@ P02d-6 admission must complete before the initial shell flushes, per
 - Mobile-native portal out of scope until web is stable.
 - Offline support out of scope.
 - Splitting into multiple Next.js apps is a Phase-9+ consideration.
+
+## Membership custom-field forms
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires a finite type-specific editor and forms, literal localized labels and
+notices, actual authored locale on fallback, capacity feedback and explicit
+remove/replacement. Requiredness applies to submission, not access; removal-only
+remains usable. Own consent history and withdrawal remain independently discoverable
+on the fixed consent-only entry after Membership lifecycle loss. Stale submissions
+require an explicit fresh read, never automatic retry. The tenth advisory capability
+is sourced from current registered Tenant authority in orgless context; API and
+application checks remain authoritative. Phase 03 owns activation and proof.
+
+Membership answer forms retain the same finite typed/grouped controls without
+JavaScript. The native parser resolves immutable descriptors through the owning
+authorized getter; it never trusts a posted control schema. It ignores only
+schema-declared inactive branches and retains unknown/duplicate-control refusal.
+Text answers use multiline controls; an explicit reversible mode preserves exact
+CR/LF combinations and literal backslashes. Enum controls post bounded choice
+indices resolved through the authorized immutable schema, preserving values that
+HTML parsing would normalize. Validation counts decoded values. JavaScript-free
+scalar Draft editing retains the actual type, limits and authored form labels;
+enum/object/list definitions use their prefilled complete editor instead of a
+scalar fallback that would change the schema.
+Definition enum literals, localized labels and consent notices use that same
+lossless editor. Native author forms pair text with a closed representation mode
+and validate decoded UTF-8 limits. Invalid visible input clears the prepared
+proposal; it cannot submit the previous valid text. Recovery retains the submitted
+representation, preserving notice bytes and their domain-separated hash.
+Required missing answers are completed before an optional selected answer.
+Validation recovery preserves submitted numeric lexemes and the original version;
+only an actual validation refusal may obtain matching descriptors through one
+existing bounded getter. Failed or retired descriptor recovery offers an explicit
+fresh read and retained read-only input, without automatic mutation retry.

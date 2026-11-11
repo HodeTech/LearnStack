@@ -20,7 +20,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var request = endpoint.Request.Assembly.GetName().Name + ":" + endpoint.Request.FullName;
             var value = new RequestValue(request);
             if (EvaluateDescriptor(descriptor, "For", shape.Operation, map) != new Evaluation(true,
-                    new DescriptorValue(shape.Operation, request, shape.Kind, shape.Operation is 7 or 11)))
+                    new DescriptorValue(shape.Operation, request, shape.Kind, shape.Operation is 7 or 11 or 15)))
                 yield return "Unexpected protected descriptor: exact enum-to-request relation " + shape.Name;
             if (EvaluateDescriptor(descriptor, "OperationFor", value, map) != new Evaluation(true, shape.Operation))
                 yield return "Unexpected protected descriptor: exact request-to-enum relation " + shape.Name;

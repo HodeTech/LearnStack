@@ -12,6 +12,20 @@ namespace LearnStack.Tests.Integration.Database;
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 public sealed class InvitationSmtpStorageTests(InvitationSmtpStorageFixture fixture) : IClassFixture<InvitationSmtpStorageFixture>
 {
+    private static readonly string[] DefinerFunctions = new[]
+        {
+            "fn_identity_admin_admission_state", "fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
+            "fn_identity_creation_attempt_admission", "fn_identity_invitation_entry", "fn_identity_membership_admission_guard",
+            "fn_identity_self_membership_scopes", "fn_identity_user_capacity_guard", "fn_identity_user_creation_audit_guard",
+            "fn_invitation_smtp_claim_or_read", "fn_invitation_smtp_complete_attempt", "fn_tenancy_own_field_consent_scope",
+        };
+    private static readonly string[] AppExecutableDefinerFunctions = new[]
+        {
+            "fn_identity_admin_admission_state", "fn_identity_audit_evidence", "fn_identity_creation_attempt_admission",
+            "fn_identity_invitation_entry", "fn_identity_self_membership_scopes", "fn_invitation_smtp_claim_or_read",
+            "fn_invitation_smtp_complete_attempt", "fn_tenancy_own_field_consent_scope",
+        };
+
     [Fact]
     public async Task App_has_only_immutable_envelope_insert_and_two_function_grants()
     {
@@ -22,10 +36,23 @@ public sealed class InvitationSmtpStorageTests(InvitationSmtpStorageFixture fixt
                 (await ScalarAsync<bool>(app, $"SELECT has_table_privilege(current_user,'public.{table}','{action}')")).Should().BeFalse();
         (await ScalarAsync<bool>(app, "SELECT has_any_column_privilege(current_user,'public.invitation_email_envelopes','INSERT')")).Should().BeTrue();
         (await ScalarAsync<bool>(app, "SELECT has_any_column_privilege(current_user,'public.invitation_email_attempt_receipts','INSERT')")).Should().BeFalse();
-        (await ScalarAsync<long>(app, """
-            SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        var definers = await ScalarAsync<string[]>(app, """
+            SELECT array_agg(p.proname ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             WHERE n.nspname='public' AND p.prosecdef
-            """)).Should().Be(11);
+            """);
+        definers.Should().BeEquivalentTo(DefinerFunctions);
+        (await ScalarAsync<string[]>(app, """
+            SELECT array_agg(p.proname ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+            WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege(current_user,p.oid,'EXECUTE')
+            """)).Should().BeEquivalentTo(AppExecutableDefinerFunctions);
+        (await ScalarAsync<long>(app, """
+            SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace,
+              LATERAL aclexplode(COALESCE(p.proacl, acldefault('f',p.proowner))) acl
+            WHERE n.nspname='public' AND p.prosecdef AND acl.grantee=0 AND acl.privilege_type='EXECUTE'
+            """)).Should().Be(0, "no security-definer authority is executable by PUBLIC");
+        (await ScalarAsync<bool>(app, """
+            SELECT to_regprocedure('public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)') IS NOT NULL
+            """)).Should().BeTrue("the retained-consent reader has its exact reviewed signature");
     }
 
     [Fact]

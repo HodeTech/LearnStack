@@ -568,3 +568,20 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+## Amendment 12 — Confined retained consent-subject scope (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds one bounded
+Tenancy owner-read exception: `fn_tenancy_own_field_consent_scope` reads only
+`membership_field_consents` for the verified normalized actor and independently
+classified real host. Closed list/exact modes disclose retained owned scope keys,
+never Memberships, values, grants or provider data. Its exact owner/RLS/ACL/body/
+caller contract belongs to [Standard 05](../standards/05-database.md#custom-field-and-consent-storage).
+The accepted census becomes twelve confined definers and twelve logical tenant
+setters, using the same four physical context writers and existing roles.
+Ordinary consent storage retains marker/filter/FORCE RLS/explicit WITH CHECK and
+append-only SELECT/INSERT grants; no cross-module FK or general bypass follows.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

@@ -389,20 +389,24 @@ first, storing values in `membership_profiles.custom_fields`, never global
 `User` is not a new-write target; any legacy label/migration input requires an
 explicit bounded decision before admission.
 
-Customization owns the definition aggregate; the target module owns its values
-and consumes definitions through an application contract. The definition holds
-target/key, required PII category, schema, localized label and required/sort
-metadata. Its revision and value-pin shape follows the immutable-version boundary
-in § 4 and closes in
-[Phase 03 G9](../roadmap/phase-03-identity-admin.md#the-decision-register) before
-the first migration. An unversioned tenant/target/key uniqueness constraint cannot
-stand in for definition history or the single-active-definition constraint.
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md) accepts
+immutable tenant-wide Membership definition revisions, permanent concept keys and
+one Active revision. Identity stores exact definition ID/version pins with values;
+Customization supplies uncached tenant-filtered exact reads through its application
+contract. Historical pins keep their original classification and are read-only until
+explicitly removed or replaced. Replacement requires fresh validation and, for
+`PII-Sensitive` exactly, personal consent; it never transfers consent or converts data.
 
-G9 decides required-field introduction, unknown/null/default values, retirement,
-key reuse, classification changes, nested values and sensitive-consent evidence.
-Retiring a definition cannot leave stored PII invisible to export/redaction. Field
-schema admission also reconciles scalar types with the existing nonempty
-root-properties profile; it never bypasses `IJsonSchemaValidator`.
+The admitted schema is a closed draft-2020-12 object envelope containing only
+required `value`. Its finite scalar, object and array profile uses the existing
+`IJsonSchemaValidator`; admission constructs and validates a nonempty witness and
+publication proves individual and combined required-set serialization feasibility.
+The ADR owns the exact grammar, numeric representation and limits. There are at most
+20 Active definitions and stored slots, 100 retained concepts, 1,000 revisions and
+20 live Drafts per tenant; a schema is at most 2 KiB, authoring input and submission
+4 KiB each, and stored collection 32 KiB. Discard never releases history. Requiredness
+applies to explicit form submission, not sign-in or membership creation; pure removal
+remains possible. `None` is explicit, not a DSAR exclusion.
 
 Readers and writes use the target module's authorized membership/entity contract.
 A generic `SetCustomField(User, ...)` helper is not a write path: it would restore
@@ -861,7 +865,7 @@ reads it.
   **Amendment** draws the genericity boundary and requires the domain-neutral renaming in
   [§ 3](#3-worked-example-three-tenants-same-modules).
 - ADR-0013 — Page Block Schema Versioning.
-- ADR-0017 — Tenant + Organization Hierarchy (custom fields can be org-scoped or
+- ADR-0017 — Tenant + Organization Hierarchy (later custom-field targets may be org-scoped or
   tenant-wide).
 - ADR-0021 — Feature-Based Entitlement (some customization surfaces gated by plan tier).
 - [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) — the

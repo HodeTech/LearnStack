@@ -143,6 +143,8 @@ function evaluateHttpSurface(
     'apps/web/src/app/(studio)/studio/invitations/page.tsx',
     'apps/web/src/app/(studio)/studio/invitations/[invitationId]/page.tsx',
     'apps/web/src/app/(studio)/studio/invitation-policy/page.tsx',
+    'apps/web/src/app/(studio)/studio/custom-fields/page.tsx',
+    'apps/web/src/app/(studio)/studio/custom-fields/[definitionId]/page.tsx',
     'apps/web/src/app/(portal)/portal/page.tsx',
     'apps/web/src/app/(portal)/portal/profile/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/page.tsx',
@@ -533,19 +535,20 @@ function globalObject(
   node: ts.Node,
   checker: ts.TypeChecker,
   visited = new Set<ts.Node>(),
+  lookup = declarations,
 ): boolean {
   node = unwrapped(node);
   if (visited.has(node)) return false;
   visited.add(node);
   if (ts.isIdentifier(node)) {
-    const bindings = declarations(node, checker);
+    const bindings = lookup(node, checker);
     if (['globalThis', 'window', 'self', 'global'].includes(node.text) && bindings.length === 0)
       return true;
     return bindings.some(
       (declaration) =>
         ts.isVariableDeclaration(declaration) &&
         declaration.initializer !== undefined &&
-        globalObject(declaration.initializer, checker, visited),
+        globalObject(declaration.initializer, checker, visited, lookup),
     );
   }
   return false;
@@ -715,7 +718,72 @@ export function unsupportedSourceFindings(names: readonly string[]): Finding[] {
     }));
 }
 
+type GraphSourceSyntax = {
+  readonly file: ts.SourceFile;
+  readonly imports: readonly { readonly expression: ts.Node | undefined; readonly node: ts.Node }[];
+};
+
+function graphSourceSyntax(name: string, source: string): GraphSourceSyntax {
+  const file = ts.createSourceFile(
+    name,
+    source,
+    ts.ScriptTarget.ES2022,
+    true,
+    name.endsWith('.json')
+      ? ts.ScriptKind.JSON
+      : name.endsWith('.tsx')
+        ? ts.ScriptKind.TSX
+        : ts.ScriptKind.TS,
+  );
+  const imports: { expression: ts.Node | undefined; node: ts.Node }[] = [];
+  const add = (expression: ts.Node | undefined, node: ts.Node) =>
+    imports.push({ expression, node });
+  walk(file, (node) => {
+    if (ts.isImportDeclaration(node) && runtimeImport(node)) add(node.moduleSpecifier, node);
+    else if (ts.isExportDeclaration(node) && node.moduleSpecifier && runtimeExport(node))
+      add(node.moduleSpecifier, node);
+    else if (
+      ts.isImportEqualsDeclaration(node) &&
+      !node.isTypeOnly &&
+      ts.isExternalModuleReference(node.moduleReference)
+    )
+      add(node.moduleReference.expression, node);
+    else if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    )
+      add(node.arguments[0], node);
+  });
+  return { file, imports };
+}
+
+/** Reuse syntax only within one owner; every census gets a fresh checker and graph. */
+export function createSourceGraphEvaluator(): (sources: SourceCensus) => SourceGraph {
+  let previous = new Map<string, GraphSourceSyntax & { readonly source: string }>();
+  return (sources) => {
+    const current = new Map<string, GraphSourceSyntax & { readonly source: string }>();
+    const graph = evaluateSourceGraph(sources, (name, source) => {
+      const cached = previous.get(name);
+      const syntax =
+        cached?.source === source ? cached : { source, ...graphSourceSyntax(name, source) };
+      current.set(name, syntax);
+      return syntax;
+    });
+    // Keep one current text/version per present path; removed paths cannot survive.
+    previous = current;
+    return graph;
+  };
+}
+
 export function buildSourceGraph(sources: SourceCensus): SourceGraph {
+  return evaluateSourceGraph(sources, graphSourceSyntax);
+}
+
+function evaluateSourceGraph(
+  sources: SourceCensus,
+  syntax: (name: string, source: string) => GraphSourceSyntax,
+): SourceGraph {
   const unresolved: Finding[] = [];
   for (const [file, source] of Object.entries(sources)) {
     if (!file.endsWith('.json')) continue;
@@ -729,22 +797,10 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
       });
     }
   }
-  const files = new Map(
-    Object.entries(sources).map(([name, source]) => [
-      name,
-      ts.createSourceFile(
-        name,
-        source,
-        ts.ScriptTarget.ES2022,
-        true,
-        name.endsWith('.json')
-          ? ts.ScriptKind.JSON
-          : name.endsWith('.tsx')
-            ? ts.ScriptKind.TSX
-            : ts.ScriptKind.TS,
-      ),
-    ]),
+  const parsed = new Map(
+    Object.entries(sources).map(([name, source]) => [name, syntax(name, source)]),
   );
+  const files = new Map([...parsed].map(([name, value]) => [name, value.file]));
   const resolveModule = (specifier: string, from: string): string | undefined => {
     let base: string;
     if (specifier.startsWith('.'))
@@ -788,7 +844,7 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
   };
   const checker = ts.createProgram([...files.keys()], options, host).getTypeChecker();
   const edges = new Map<string, string[]>();
-  for (const [name, file] of files) {
+  for (const [name, value] of parsed) {
     const targets: string[] = [];
     const add = (expression: ts.Node | undefined, node: ts.Node) => {
       const specifier = constantString(expression, checker);
@@ -814,23 +870,8 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
           ),
         );
     };
-    walk(file, (node) => {
-      if (ts.isImportDeclaration(node) && runtimeImport(node)) add(node.moduleSpecifier, node);
-      else if (ts.isExportDeclaration(node) && node.moduleSpecifier && runtimeExport(node))
-        add(node.moduleSpecifier, node);
-      else if (
-        ts.isImportEqualsDeclaration(node) &&
-        !node.isTypeOnly &&
-        ts.isExternalModuleReference(node.moduleReference)
-      )
-        add(node.moduleReference.expression, node);
-      else if (
-        ts.isCallExpression(node) &&
-        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
-      )
-        add(node.arguments[0], node);
-    });
+    // Occurrences are syntax-only; values and targets use this census's checker/resolver.
+    for (const { expression, node } of value.imports) add(expression, node);
     edges.set(name, [...new Set(targets)].sort());
   }
   return { files, checker, edges, unresolved, resolveModule };
@@ -1238,11 +1279,28 @@ export function transportFindings(graph: SourceGraph): Finding[] {
 /** Browser persistence and script-readable cookies cannot become credential stores. */
 export function browserStorageFindings(graph: SourceGraph): Finding[] {
   const findings: Finding[] = [];
+  // Cache only context-free declarations within this fixed checker/analysis.
+  // Recursive boolean answers still depend on each path's visited set.
+  const bindings = new WeakMap<ts.Node, readonly ts.Declaration[]>();
+  const lookup: typeof declarations = (node, checker) => {
+    const cached = bindings.get(node);
+    if (cached !== undefined) return cached;
+    const current = declarations(node, checker);
+    bindings.set(node, current);
+    return current;
+  };
   for (const file of graph.files.values())
     walk(file, (node) => {
+      const expression = unwrapped(node);
+      if (
+        !ts.isIdentifier(expression) &&
+        !ts.isPropertyAccessExpression(expression) &&
+        !ts.isElementAccessExpression(expression)
+      )
+        return;
       if (
         ['localStorage', 'sessionStorage', 'indexedDB', 'cookieStore', 'document.cookie'].some(
-          (name) => globalBuiltin(node, name, graph.checker),
+          (name) => globalBuiltin(node, name, graph.checker, new Set(), lookup),
         )
       )
         findings.push(
@@ -2222,6 +2280,7 @@ function globalBuiltin(
   name: string,
   checker: ts.TypeChecker,
   visited = new Set<ts.Node>(),
+  lookup = declarations,
 ): boolean {
   node = unwrapped(node);
   if (visited.has(node)) return false;
@@ -2231,23 +2290,23 @@ function globalBuiltin(
   if (receiver && memberName(node, checker) === name.slice(dot + 1)) {
     if (
       dot < 0
-        ? globalObject(receiver, checker)
-        : globalBuiltin(receiver, name.slice(0, dot), checker, new Set(visited))
+        ? globalObject(receiver, checker, new Set(), lookup)
+        : globalBuiltin(receiver, name.slice(0, dot), checker, new Set(visited), lookup)
     )
       return true;
   }
-  if (ts.isIdentifier(node) && node.text === name && declarations(node, checker).length === 0)
+  if (ts.isIdentifier(node) && node.text === name && lookup(node, checker).length === 0)
     return true;
-  return declarations(node, checker).some((declaration) => {
+  return lookup(node, checker).some((declaration) => {
     if (ts.isVariableDeclaration(declaration) && declaration.initializer)
-      return globalBuiltin(declaration.initializer, name, checker, new Set(visited));
+      return globalBuiltin(declaration.initializer, name, checker, new Set(visited), lookup);
     if (ts.isBindingElement(declaration)) {
       const binding = objectBinding(declaration, checker);
       return (
         binding?.name === name.slice(dot + 1) &&
         (dot < 0
-          ? globalObject(binding.receiver, checker)
-          : globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited)))
+          ? globalObject(binding.receiver, checker, new Set(), lookup)
+          : globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited), lookup))
       );
     }
     return false;

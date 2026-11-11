@@ -55,6 +55,23 @@ export const NATIVE_OPERATION_KINDS = Object.freeze([
   'revokeInvitation',
   'reissueInvitation',
   'setInvitationLifetime',
+  'listCustomFieldDefinitions',
+  'getCustomFieldDefinition',
+  'listCustomFieldRevisions',
+  'getMembershipCustomFields',
+  'getOwnCustomFields',
+  'registerCustomFieldDefinition',
+  'reviseCustomFieldDefinition',
+  'publishCustomFieldDefinition',
+  'retireCustomFieldDefinition',
+  'discardCustomFieldDefinition',
+  'setMembershipCustomFields',
+  'setOwnCustomFields',
+  'getOwnFieldConsent',
+  'grantOwnFieldConsent',
+  'listOwnConsentScopes',
+  'listOwnConsentHistory',
+  'withdrawOwnFieldConsent',
 ]);
 const OPERATION_SET = new Set(NATIVE_OPERATION_KINDS);
 

@@ -196,6 +196,9 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 | **`IPublicTenantConfigurationReader`** | P02d-4's typed internal live-scope and locale configuration reader, on the announced read-only transaction. Valid emptiness, unavailable scope and invalid stored configuration stay distinct; [Tenancy contract](modules/tenancy/README.md#p02d-4-public-configuration-contract). |
 | **`ITenantLocaleEligibilityReader`** | Contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract). |
 | **`x-fields`** | Optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
+| **Custom-field revision pin** | Association of one contextual value with the exact tenant/target-qualified definition ID and version that interpret and classify it. A successor definition does not change that association. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the P03-5 contract. |
+| **Custom-field form profile** | Finite field shapes and metadata admitted in addition to the existing JSON Schema gates so each accepted field has a supported form control and bounded representation. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the profile. |
+| **Membership field consent** | Personal grant or withdrawal for an exact contextual Membership, sensitive definition revision and purpose/notice pin. Its evidence is separate from stored values and administrative permission; withdrawal is not erasure. [ADR-0095](decisions/0095-revision-pinned-membership-custom-fields.md) owns the accepted Tenancy contract. |
 
 | Term | Definition |
 |------|------------|
@@ -272,7 +275,7 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 |------|------------|
 | **Durable asynchronous store** | Persisted event/job envelope, execution or completion history that outlives its request/process, including linkable control identifiers. The [canonical inventory](architecture/23-data-protection.md#durable-asynchronous-store-inventory) distinguishes those stores from ordinary module tables and volatile BFF custody. |
 | **Retained copy** | A separate provider, diagnostic, database/WAL or backup copy whose removal is not established by deleting its source row or invalidating a local session. Its retention and completion evidence belong to the inventory's named owner. |
-| **PII Category** | One of `PII-Identity`, `PII-Behaviour`, `PII-Sensitive`, `Payment`, `Audit`. Each category has its own redaction, retention, and erasure rules. |
+| **PII Category** | One of `PII-Identity`, `PII-Behaviour`, `PII-Sensitive`, `Payment`, `Audit`. `None` is a separate explicit nonpersonal-data declaration, never a default or an automatic exclusion of subject-linked data from fulfillment. Each category has its own redaction, retention, and erasure rules. |
 | **Data Controller** | The tenant. Decides what personal data is collected and why. |
 | **Data Processor** | LearnStack. Processes personal data on the controller's instructions. |
 | **Right of Access** | The user's KVKK/GDPR right to receive an export of their personal data. |

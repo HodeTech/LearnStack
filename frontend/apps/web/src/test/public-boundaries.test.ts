@@ -27,6 +27,7 @@ import {
   clientBoundaryFindings,
   closedHttpSurfaceFindings,
   createHttpSurfaceEvaluator,
+  createSourceGraphEvaluator,
   hasDirective,
   hasServerOnlyMarker,
   I18N_REQUEST,
@@ -50,6 +51,7 @@ import type {
   Finding,
   ResolutionConfig,
   SourceCensus,
+  SourceGraph,
   WorkspaceEntry,
 } from './public-boundary-analysis';
 
@@ -268,6 +270,39 @@ describe('ADR-0053 production public boundaries', () => {
     );
   });
   it.each([
+    'apps/web/src/app/(studio)/studio/custom-fields/page.tsx',
+    'apps/web/src/app/(studio)/studio/custom-fields/[definitionId]/page.tsx',
+  ])(
+    'retains the exact custom-field page without admitting actions or sibling routes: %s',
+    (file) => {
+      const current = httpSources();
+      const evaluate = createHttpSurfaceEvaluator();
+      clean(evaluate(current), 'The two declared custom-field pages are admitted.');
+      const missing: Record<string, string> = { ...current };
+      delete missing[file];
+      expect(evaluate(missing)).toContainEqual({
+        file,
+        line: 1,
+        reason: 'Fix: retain the approved HTTP entry point.',
+      });
+      expect(evaluate({ ...current, [file]: '"use server";\n' + current[file] })).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            file,
+            reason: 'Fix: no Server Action is admitted by the closed BFF surface.',
+          }),
+        ]),
+      );
+      const sibling = file.replace('/page.tsx', '/relay/page.tsx');
+      expect(evaluate({ ...current, [sibling]: current[file]! })).toContainEqual({
+        file: sibling,
+        line: 1,
+        reason: 'Fix: keep the approved HTTP entry-point census closed.',
+      });
+      clean(evaluate(current), 'Restoring the exact custom-field pages restores admission.');
+    },
+  );
+  it.each([
     [
       'wrong development module',
       (source: string) => source.replace('../../scripts/framework-development.mjs', './routing'),
@@ -390,6 +425,65 @@ describe('ADR-0053 production public boundaries', () => {
     check();
     expect(evaluate(source).some((item) => item.file === probe)).toBe(true);
   });
+  it('reuses only current graph syntax while edits, removals and independent owners match fresh analysis', () => {
+    const evaluate = createSourceGraphEvaluator();
+    const other = createSourceGraphEvaluator();
+    const helper = 'apps/web/src/lib/graph-control.ts';
+    const next = 'apps/web/src/lib/next-control.ts';
+    const data = 'apps/web/src/lib/graph-options.json';
+    const secret = 'apps/web/src/server/graph-secret.ts';
+    const render = 'apps/web/src/components/auth/graph-control.tsx';
+    const baseline: SourceCensus = {
+      [probe]: '"use client"; import { route } from "@/lib/graph-control"; void import(route);',
+      [helper]: 'export const route = "@/lib/graph-options.json";',
+      [data]: '{"size":1}',
+      [secret]: 'export const secret = true;',
+      [render]: 'import "@/lib/graph-control"; export const View = () => null;',
+    };
+    const current = { ...baseline };
+    const observations = (graph: SourceGraph) => ({
+      files: [...graph.files.keys()],
+      edges: [...graph.edges],
+      unresolved: graph.unresolved,
+      private: privateServerFiles(graph),
+      clients: clientBoundaryFindings(graph),
+      renders: preparedPageRenderFindings(graph, [render]),
+    });
+    const verify = () => {
+      const graph = evaluate(current);
+      expect(observations(graph)).toEqual(observations(buildSourceGraph(current)));
+      expect(observations(other(baseline))).toEqual(observations(buildSourceGraph(baseline)));
+      return graph;
+    };
+    const first = verify();
+    const reused = verify();
+    expect(reused.files.get(probe)).toBe(first.files.get(probe));
+    expect(reused.checker).not.toBe(first.checker);
+    expect(other(baseline).files.get(probe)).not.toBe(first.files.get(probe));
+    expect(clientBoundaryFindings(first)).toEqual([]);
+    current[helper] = 'export const route = "@/server/graph-secret"; queueMicrotask(() => {});';
+    const dirty = verify();
+    expect(clientBoundaryFindings(dirty)).toContainEqual(expect.objectContaining({ file: probe }));
+    expect(preparedPageRenderFindings(dirty, [render])).toContainEqual(
+      expect.objectContaining({ file: helper }),
+    );
+    current[helper] = 'export { route } from "./next-control";';
+    current[next] = 'export const route = "@/server/graph-secret";';
+    expect(reachable(verify(), [probe])).toContain(secret);
+    delete current[next];
+    expect(verify().unresolved).not.toEqual([]);
+    current[helper] = baseline[helper]!;
+    current[data] = '{"size":';
+    expect(verify().unresolved).toContainEqual(expect.objectContaining({ file: data }));
+    delete current[data];
+    expect(verify().files.has(data)).toBe(false);
+    current[data] = baseline[data]!;
+    const restored = verify();
+    expect(restored.files.get(data)).not.toBe(first.files.get(data));
+    expect(clientBoundaryFindings(restored)).toEqual([]);
+    expect(preparedPageRenderFindings(restored, [render])).toEqual([]);
+    expect(restored.unresolved).toEqual([]);
+  });
   it('keeps imported helpers in fixture-named production directories visible', () => {
     expect(omittedProductionDirectory('apps/web/src/test')).toBe(true);
     for (const directory of ['fixtures', '__fixtures__', '__tests__', 'test']) {
@@ -405,6 +499,39 @@ describe('ADR-0053 production public boundaries', () => {
       expect(transportFindings(graph).map((item) => item.file)).toContain(helper);
     }
   });
+  it('keeps browser custody declaration work local to each graph analysis', () => {
+    const helper = 'apps/web/src/lib/storage-control.ts';
+    const current = {
+      [probe]: 'import { storage } from "@/lib/storage-control"; storage.getItem("token");',
+      [helper]: 'export const storage = globalThis.localStorage;',
+    };
+    const evaluate = createSourceGraphEvaluator();
+    const inspect = () => {
+      const graph = evaluate(current);
+      const queries = new Map<ts.Node, number>();
+      const checker = new Proxy(graph.checker, {
+        get(target, key) {
+          if (key === 'getSymbolAtLocation')
+            return (node: ts.Node) => {
+              queries.set(node, (queries.get(node) ?? 0) + 1);
+              return target.getSymbolAtLocation(node);
+            };
+          return Reflect.get(target, key);
+        },
+      });
+      const findings = browserStorageFindings({ ...graph, checker });
+      expect(queries.size).toBeGreaterThan(0);
+      expect(Math.max(...queries.values())).toBe(1);
+      return findings;
+    };
+    const original = inspect();
+    expect(original).not.toEqual([]);
+    current[helper] = 'export const storage = new Map<string, string>();';
+    expect(inspect()).toEqual([]);
+    current[helper] = 'export const storage = globalThis.localStorage;';
+    expect(inspect()).toEqual(original);
+  });
+
   it('refuses browser storage and cookie access including receiver aliases', () => {
     clean(browserStorageFindings(production), 'Fix: retain server-side credential custody.');
     for (const source of [
@@ -818,8 +945,9 @@ describe('ADR-0053 production public boundaries', () => {
     ).toBe(true);
   }, 20_000); // Rebuilds the complete graph for each planted native transport and bundle edge.
   it('selected protected RSCs consume prepared pages without creating later IO or framework work', () => {
+    const evaluate = createSourceGraphEvaluator();
     clean(
-      preparedPageRenderFindings(production, scaffoldRoots),
+      preparedPageRenderFindings(evaluate(sources), scaffoldRoots),
       'Fix: native preparation owns work; selected protected RSCs only read and render.',
     );
     const shell = 'apps/web/src/components/auth/shell.tsx';
@@ -836,12 +964,13 @@ describe('ADR-0053 production public boundaries', () => {
       '\nvoid import("./unmodeled-work");',
     ])
       expect(
-        preparedPageRenderFindings(graphWith(shell, source + addition), scaffoldRoots).some(
-          (item) => item.file === shell,
-        ),
+        preparedPageRenderFindings(
+          evaluate({ ...sources, [shell]: source + addition }),
+          scaffoldRoots,
+        ).some((item) => item.file === shell),
       ).toBe(true);
     const helper = 'apps/web/src/components/auth/late-work.ts';
-    const dirty = buildSourceGraph({
+    const dirty = evaluate({
       ...sources,
       [shell]: source + '\nimport "./late-work";',
       [helper]: 'export const result = new Promise(resolve => resolve(1));',
@@ -1203,14 +1332,25 @@ describe('server boundary planted controls', () => {
       (name) => name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json'),
     );
     expect(catalogues.length).toBeGreaterThan(0);
-    for (const catalogue of catalogues) {
-      const graph = buildSourceGraph({
-        ...sources,
-        [probe]: `"use client"; import messages from "@/${catalogue.slice('apps/web/src/'.length)}"; export const leaked = messages;`,
-      });
-      expect(clientBoundaryFindings(graph)).toEqual(
+    const controls = catalogues.map((catalogue, index) => ({
+      catalogue,
+      client: `apps/web/src/app/(public)/catalogue-control-${index}.ts`,
+    }));
+    const graph = buildSourceGraph({
+      ...sources,
+      ...Object.fromEntries(
+        controls.map(({ catalogue, client }) => [
+          client,
+          `"use client"; import messages from "@/${catalogue.slice('apps/web/src/'.length)}"; export const leaked = messages;`,
+        ]),
+      ),
+    });
+    const findings = clientBoundaryFindings(graph);
+    for (const { catalogue, client } of controls) {
+      expect(reachable(graph, [client])).toEqual([client, catalogue].sort());
+      expect(findings).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ file: probe, reason: expect.stringContaining(catalogue) }),
+          expect.objectContaining({ file: client, reason: expect.stringContaining(catalogue) }),
         ]),
       );
     }

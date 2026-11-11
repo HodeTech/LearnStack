@@ -51,7 +51,8 @@ public abstract class RoleGrantCommandHandlerBase(IRoleWriteStore store, ITenant
         };
         if (!RoleGrantInput.ValidId(rawId) || version < 0) return Fail("lockey_validation_failed");
         if (request is AdoptRoleGrantManifestCommand manifest
-            && !IdentityRoleRelease.Version2.IsExact(manifest.ManifestVersion, manifest.ManifestFingerprint)) return Fail("lockey_forbidden");
+            && (IdentityRoleRelease.Find(manifest.ManifestVersion) is not { } requestedRelease
+                || !requestedRelease.IsExact(manifest.ManifestVersion, manifest.ManifestFingerprint))) return Fail("lockey_forbidden");
         if (request is ChangeRoleGrantsCommand { Grants.IsDefault: true }) return Fail("lockey_validation_failed");
         try
         {
@@ -97,13 +98,13 @@ public abstract class RoleGrantCommandHandlerBase(IRoleWriteStore store, ITenant
 
     private bool Visible(Role? role) => role is { DeletedAt: null, DeletedBy: null } && role.TenantId == context.TenantId
         && IdentityFoundationManifest.Version1.FindTemplate(role.BuiltInKey, role.PermissionScope) is not null
-        && IdentityRoleRelease.Version2.IsValidAdoptionState(role);
+        && IdentityRoleRelease.Current.IsValidAdoptionState(role);
 
     private static ImmutableArray<PermissionDefinition> Desired(object request, Role role) => request switch
     {
         ChangeRoleGrantsCommand change => change.Grants,
-        AdoptRoleGrantManifestCommand => [.. role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))
-            .Union(IdentityRoleRelease.Version2.TenantAdminDelta)],
+        AdoptRoleGrantManifestCommand adoption => [.. role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))
+            .Union(IdentityRoleRelease.Find(adoption.ManifestVersion)!.TenantAdminDelta)],
         _ => throw new ArgumentException("Role grant request is invalid.", nameof(request)),
     };
 

@@ -26,6 +26,14 @@ public sealed partial class AuthenticationAuthorityTests
     private static readonly string IdentityCopyConstructor = Signature(Identity, ".ctor", "System.Void", Identity);
     private static readonly Dictionary<string, string> ApprovedSites = new(StringComparer.Ordinal)
     {
+        [ConsentCredential + "..ctor"] = Signature(ConsentCredential, ".ctor", "System.Void", Http, Feature, Verified, "System.String"),
+        [ConsentCredential + ".Capture"] = Signature(ConsentCredential, "Capture", ConsentCredential, Http, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified),
+        [ConsentCredential + ".get_Subject"] = Signature(ConsentCredential, "get_Subject", Verified),
+        [ConsentCredential + ".IsCurrent"] = Signature(ConsentCredential, "IsCurrent", "System.Boolean", Http),
+        [ConsentSource + ".IsCurrent"] = Signature(ConsentSource, "IsCurrent", "System.Boolean", Http),
+        [ConsentSource + ".PrepareAsync"] = Signature(ConsentSource, "PrepareAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>>", Http),
+        [ConsentSource + ".ForInvocation"] = Signature(ConsentSource, "ForInvocation", "LearnStack.SharedKernel.Identity.ConsentSubjectScopeWitness", "LearnStack.SharedKernel.Permissions.OperationInvocation"),
+        [ConsentSource + ".get_Actor"] = Signature(ConsentSource, "get_Actor", OptionalUser),
         [InvitationCredential + "..ctor"] = Signature(InvitationCredential, ".ctor", "System.Void", Http, Feature, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified, "System.String"),
         [InvitationCredential + ".Capture"] = Signature(InvitationCredential, "Capture", InvitationCredential, Http, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified),
         [InvitationCredential + ".get_Subject"] = Signature(InvitationCredential, "get_Subject", Verified),
@@ -55,7 +63,7 @@ public sealed partial class AuthenticationAuthorityTests
         [Native + ".get_Actor"] = Signature(Native, "get_Actor", User),
         [NativeSource + "..ctor"] = Signature(NativeSource, ".ctor", "System.Void", Http, Host, Verified,
             Authentication + "SubjectAdmissionDecision", Provenance, Tenant, Organization, Authentication + "GlobalSelfOperation",
-            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock", Authentication + "InvitationEntryOperation"),
+            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock", Authentication + "InvitationEntryOperation", Authentication + "ConsentSubjectOperation"),
         [NativeSource + ".IsCurrent"] = Signature(NativeSource, "IsCurrent", "System.Boolean", Http),
         [NativeMiddleware + ".InvokeAsync"] = Signature(NativeMiddleware, "InvokeAsync", TaskType, Http,
             "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock"),
@@ -70,7 +78,7 @@ public sealed partial class AuthenticationAuthorityTests
         [Authentication + "OperationAuthorizationHandler.HandleAsync"] = Signature(Authentication + "OperationAuthorizationHandler", "HandleAsync", TaskType,
             "Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext"),
         [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
-            Authentication + "SubjectAdmissionDecision", Provenance, Native, InvitationSource),
+            Authentication + "SubjectAdmissionDecision", Provenance, Native, InvitationSource, ConsentSource),
         [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
         [CredentialWitness + ".get_Identity"] = Signature(CredentialWitness, "get_Identity", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
@@ -192,7 +200,8 @@ public sealed partial class AuthenticationAuthorityTests
             ["Decision"] = Authentication + "SubjectAdmissionDecision",
             ["Provenance"] = Provenance,
             ["Native"] = Native,
-            ["Invitation"] = InvitationSource
+            ["Invitation"] = InvitationSource,
+            ["Consent"] = ConsentSource
         };
         return witness.IsSealed && witness.IsNestedPrivate && witness.BaseType.FullName == "System.Object"
             && !witness.HasInterfaces && !witness.HasEvents && !witness.HasNestedTypes && !witness.HasGenericParameters
@@ -248,11 +257,16 @@ public sealed partial class AuthenticationAuthorityTests
         instruction.OpCode.Code is Code.Box or Code.Stelem_Ref
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference field
             && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType) && !IsClosedExceptionStorage(method, instruction)
+            && !IsClosedConsentRequestStore(method, instruction)
         || instruction.Operand is MethodReference target && ExportsProjection(target)
             && !IsClosedWitnessForwarding(method, instruction, target)
             && !IsClosedUserAgentFormatting(method, instruction, target)
             && !IsClosedHttpEndpointForwarding(method, instruction, target)
-            && !IsClosedInvitationForwarding(method, instruction, target));
+            && !IsClosedInvitationForwarding(method, instruction, target)
+            && !IsClosedConsentForwarding(method, instruction, target)
+        || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference consentField
+            && consentField.DeclaringType.FullName == ConsentSource && consentField.Name == "_request"
+            && !IsClosedConsentRequestStore(method, instruction));
 
     // The token is either hashed for the pending-token equality gate or stored in
     // the request-local credential. No other encoded-token read is admitted here.
@@ -422,7 +436,8 @@ public sealed partial class AuthenticationAuthorityTests
             || LoadedLocal(method.Definition, policyLoad) is not { } local || local.VariableType.FullName != "System.Type") return false;
         var stores = method.Definition.Body.Instructions.Where(i => StoresLocal(i, local)).ToArray();
         return stores.Length == 1 && stores[0].Previous?.Operand is MethodReference source
-            && source.FullName == "System.Type LearnStack.Api.Authentication.InvitationEntrySource::get_EffectiveRequestType()";
+            && source.FullName is "System.Type LearnStack.Api.Authentication.InvitationEntrySource::get_EffectiveRequestType()"
+                or "System.Type LearnStack.Api.Authentication.ConsentSubjectSource::get_EffectiveRequestType()";
     }
 
     // Release emits a constrained Object.ToString for the StringValues value.

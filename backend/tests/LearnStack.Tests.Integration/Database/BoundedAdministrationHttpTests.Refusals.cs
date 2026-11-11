@@ -7,6 +7,10 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class BoundedAdministrationHttpTests
 {
+    private static readonly string[] OwnCapabilityWireNames = new[] { "canAdoptRoleRelease", "canChangeRoleGrants", "canManageCustomFields", "canManageMemberships",
+                "canManageOrganizations", "canReadOrganizationMembers", "canReadRoles", "canReadTenantMembers",
+                "canWriteMemberProfiles", "canWriteOwnProfile" };
+
     [Fact]
     public async Task Every_new_action_masks_missing_credentials_and_challenges_invalid_credentials_before_dispatch()
     {
@@ -92,8 +96,10 @@ public sealed partial class BoundedAdministrationHttpTests
         using (var preview = await SendAsync(client, learner, "/api/v1/identity/me/capabilities"))
         {
             var body = await JsonAsync(preview);
-            Assert.Equal(9, body.EnumerateObject().Count());
+            Assert.Equal(OwnCapabilityWireNames,
+                body.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
             Assert.False(body.GetProperty("canReadRoles").GetBoolean());
+            Assert.False(body.GetProperty("canManageCustomFields").GetBoolean());
             Assert.Null(preview.Headers.ETag);
             Assert.Empty(await proof.AuditAsync(preview, Tenant));
         }

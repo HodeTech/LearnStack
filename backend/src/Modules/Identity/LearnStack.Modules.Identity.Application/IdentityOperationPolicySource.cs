@@ -1,4 +1,5 @@
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
@@ -25,6 +26,10 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public const string OwnMembershipProfileReadOperation = "identity.membership_profile.read_own";
     public const string MembershipProfileWriteOperation = "identity.membership_profile.write";
     public const string OwnMembershipProfileWriteOperation = "identity.membership_profile.write_own";
+    public const string MembershipCustomFieldsReadOperation = "identity.membership.custom_fields_read";
+    public const string OwnMembershipCustomFieldsReadOperation = "identity.membership.custom_fields_read_own";
+    public const string MembershipCustomFieldsWriteOperation = "identity.membership.custom_fields_write";
+    public const string OwnMembershipCustomFieldsWriteOperation = "identity.membership.custom_fields_write_own";
     public const string MembershipStatusOperation = "identity.membership.change_status";
     public const string MembershipAssignmentsOperation = "identity.membership.replace_role_assignments";
     public static PermissionDefinition OrganizationMembershipAdministration { get; } = new(PermissionScope.Organization, IdentityFoundationManifest.MembershipAdmin);
@@ -74,6 +79,14 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
             [new([MembershipAdministration, ProfileWrite]), new([MembershipAdministration, OrganizationProfileWrite]),
                 new([OrganizationMembershipAdministration, ProfileWrite]), new([OrganizationMembershipAdministration, OrganizationProfileWrite])]),
         OperationPolicy.ForProtected<SetOwnMembershipProfileCommand>(OwnMembershipProfileWriteOperation,
+            [new([ProfileWrite]), new([OrganizationProfileWrite])]),
+        OperationPolicy.ForProtected<GetMembershipCustomFieldsQuery>(MembershipCustomFieldsReadOperation,
+            [new([MembershipAdministration], OperationReadScope.Tenant), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForOwnMembershipRead<GetOwnMembershipCustomFieldsQuery>(OwnMembershipCustomFieldsReadOperation),
+        OperationPolicy.ForProtected<SetMembershipCustomFieldsCommand>(MembershipCustomFieldsWriteOperation,
+            [new([MembershipAdministration, ProfileWrite]), new([MembershipAdministration, OrganizationProfileWrite]),
+                new([OrganizationMembershipAdministration, ProfileWrite]), new([OrganizationMembershipAdministration, OrganizationProfileWrite])]),
+        OperationPolicy.ForProtected<SetOwnMembershipCustomFieldsCommand>(OwnMembershipCustomFieldsWriteOperation,
             [new([ProfileWrite]), new([OrganizationProfileWrite])]),
         OperationPolicy.ForProtected<ChangeMembershipStatusCommand>(MembershipStatusOperation,
             [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),

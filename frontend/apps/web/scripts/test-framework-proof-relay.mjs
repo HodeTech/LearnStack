@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import ts from 'typescript';
+
 import {
   createBffShutdownValidator,
   createCopiedChildProof,
@@ -261,7 +263,25 @@ test('BFF validates full native operation union and ordered shutdown frames', ()
     .split('export type NativeOperation =')[1]
     ?.split('export type NativeOperationResult =')[0];
   assert.ok(union, 'NativeOperation union available');
-  const kinds = [...union.matchAll(/'([A-Za-z][A-Za-z0-9]+)'/g)].map((match) => match[1]);
+  const source = ts.createSourceFile(
+    'native-operation-contract.ts',
+    contract,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const kinds = [];
+  const literals = (node) => {
+    if (ts.isLiteralTypeNode(node) && ts.isStringLiteral(node.literal))
+      kinds.push(node.literal.text);
+    else ts.forEachChild(node, literals);
+  };
+  const visit = (node) => {
+    if (ts.isPropertySignature(node) && node.name.getText(source) === 'kind' && node.type)
+      literals(node.type);
+    else ts.forEachChild(node, visit);
+  };
+  visit(source);
+  for (const status of ['Draft', 'Active', 'Deprecated']) assert.ok(!kinds.includes(status));
   assert.deepEqual([...NATIVE_OPERATION_KINDS].sort(), kinds.sort());
   const { receiver } = child('bff');
   receiver.onCommand((command) => {
@@ -271,7 +291,7 @@ test('BFF validates full native operation union and ordered shutdown frames', ()
         now: command.milliseconds,
         refreshes: 0,
         accounts: 0,
-        administrations: { listOrganizations: 1, selectDefaultOrganization: 1 },
+        administrations: Object.fromEntries(NATIVE_OPERATION_KINDS.map((kind) => [kind, 1])),
       });
     else receiver.emit({ kind: 'render-state', held: 0, frames: 0, snapshots: null });
   });

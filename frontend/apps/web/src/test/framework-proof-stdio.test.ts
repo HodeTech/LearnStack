@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import type { ExecFileSyncOptionsWithStringEncoding } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 import ts from 'typescript';
@@ -21,6 +21,7 @@ const sources = [
   ['framework-router-matrix.test.ts', 2],
   ['framework-router-faults.cases.ts', 2],
   ['demo-dotnet-owner.test.ts', 1],
+  ['framework-provenance.test.ts', 1],
 ] as const;
 
 function optionsFromWrappers(): ExecFileSyncOptionsWithStringEncoding[] {
@@ -78,12 +79,17 @@ function optionsFromWrappers(): ExecFileSyncOptionsWithStringEncoding[] {
           value.elements.map((element) => (ts.isStringLiteral(element) ? element.text : '')),
         ).toEqual(['ignore', 'pipe', 'pipe']);
         all.push(
-          runInNewContext(`(${options.getText(file)})`, {
-            process,
-            environment,
-            frontend: directory,
-            script: 'framework-router-fault.test.mjs',
-          }) as ExecFileSyncOptionsWithStringEncoding,
+          runInNewContext(
+            `(${options.getText(file).replaceAll('import.meta.url', JSON.stringify(pathToFileURL(join(directory, name)).href))})`,
+            {
+              process,
+              URL,
+              fileURLToPath,
+              environment,
+              frontend: directory,
+              script: 'framework-router-fault.test.mjs',
+            },
+          ) as ExecFileSyncOptionsWithStringEncoding,
         );
       }
       ts.forEachChild(node, visit);
@@ -148,7 +154,7 @@ function probe(options: ExecFileSyncOptionsWithStringEncoding, exit: number): Ou
 
 it('captures both actual parent channels on successful and failed subprocesses at every declared site', () => {
   const options = optionsFromWrappers();
-  expect(options.length).toBe(12);
+  expect(options.length).toBe(13);
   for (const option of options) {
     expect(probe(option, 0)).toEqual({
       stdoutBytes: 0,
@@ -169,7 +175,7 @@ it('captures both actual parent channels on successful and failed subprocesses a
 
 it('detects Node stderr forwarding when each actual wrapper omits stdio', () => {
   const options = optionsFromWrappers();
-  expect(options.length).toBe(12);
+  expect(options.length).toBe(13);
   for (const option of options) {
     const unsafe = { ...option };
     delete unsafe.stdio;

@@ -10,6 +10,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readBrowserDevToolsPort, waitForBrowserDevTools } from './admission-browser.mjs';
+import {
+  verifyCustomFieldBrowser,
+  verifyCustomFieldNoScript,
+} from './bff-custom-fields-browser.mjs';
 import { startBffProof } from './bff-proof-host.mjs';
 import {
   assertBffCookieAttributes,
@@ -577,6 +581,17 @@ try {
         assert.equal(await specific.inputValue(), 'Fixture member');
       }
     }
+    if (!counter && !pageCounter && site === input.sites[0]) {
+      await verifyCustomFieldBrowser({
+        page,
+        site,
+        mark: (value) => {
+          stage = value;
+        },
+      });
+      // Explicit private fixture setup for the later profile journeys; consent grants no permission.
+      await host.restoreCustomFieldProfilePermission();
+    }
     // Preserve the exact existing GET history mutation witness below.
     await page.goto(origin(site) + '/studio');
     await page.locator('[data-bff-protected]').waitFor();
@@ -847,6 +862,15 @@ try {
     const nativeBody = await nativePage.content();
     for (const cookie of noScriptCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
       assert.equal(nativeBody.includes(cookie.value), false);
+    if (!counter && !pageCounter)
+      await verifyCustomFieldNoScript({
+        page: nativePage,
+        site,
+        replacement: site === input.sites[0] ? [true, false] : [false, true],
+        mark: (value) => {
+          stage = value;
+        },
+      });
     stage = 'browser-no-script-signout';
     await nativePage.locator('form[action="/api/auth/signout"] button').click();
     await nativePage.waitForURL(

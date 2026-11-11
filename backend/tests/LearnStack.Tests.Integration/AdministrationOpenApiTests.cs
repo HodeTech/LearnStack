@@ -51,6 +51,7 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
     private static readonly string[] NullableVersionTypes = ["null", "string"];
 
     private static readonly string[] ProfileFields = ["displayName", "preferredLocale"];
+    private static readonly string[] CapabilityFlags = ["canAdoptRoleRelease", "canChangeRoleGrants", "canManageCustomFields", "canManageMemberships", "canManageOrganizations", "canReadOrganizationMembers", "canReadRoles", "canReadTenantMembers", "canWriteMemberProfiles", "canWriteOwnProfile"];
 
     private static readonly (string Path, string Method, string Operation, string? Input)[] Operations =
     [
@@ -157,7 +158,8 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
             Assert.False(schemas.GetProperty(name).GetProperty("additionalProperties").GetBoolean());
         Assert.Equal(ProfileFields, schemas.GetProperty("MembershipProfileInput")
             .GetProperty("required").EnumerateArray().Select(value => value.GetString()).Order(StringComparer.Ordinal));
-        Assert.Equal(9, schemas.GetProperty("OwnCapabilitiesDto").GetProperty("properties").EnumerateObject().Count());
+        Assert.Equal(CapabilityFlags,
+            schemas.GetProperty("OwnCapabilitiesDto").GetProperty("properties").EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
         var invitation = schemas.GetProperty("InvitationResponse").GetProperty("properties");
         Assert.Equal(InvitationFields,
             invitation.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
@@ -190,8 +192,10 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
             .Select(item => item.GetProperty("properties")).Select(properties =>
                 Assert.Single(properties.GetProperty("scope").GetProperty("enum").EnumerateArray()).GetString() + ":" +
                 Assert.Single(properties.GetProperty("key").GetProperty("enum").EnumerateArray()).GetString()).ToArray();
-        Assert.Equal(8, pairs.Length);
-        Assert.Equal(8, pairs.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(9, pairs.Length);
+        Assert.Equal(9, pairs.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains("Tenant:customization.custom_field.admin", pairs);
+        Assert.DoesNotContain("Organization:customization.custom_field.admin", pairs);
         Assert.Contains("Tenant:identity.role.admin", pairs);
         Assert.Contains("Organization:identity.membership.admin", pairs);
         Assert.DoesNotContain("Organization:identity.role.admin", pairs);

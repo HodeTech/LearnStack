@@ -1,5 +1,10 @@
-import { isInvitationEmail, type GrantInput } from '@learnstack/sdk/administration-server';
+import {
+  isInvitationEmail,
+  type GrantInput,
+  type MembershipCustomFields,
+} from '@learnstack/sdk/administration-server';
 
+import { CUSTOM_FIELD_FORMS, customFieldForm } from './custom-field-forms.js';
 import { BffInputError } from './input-error.js';
 import type { NativeScope } from './native-contract.js';
 import type { NativeOperation } from './native-operation-contract.js';
@@ -17,6 +22,7 @@ const pairs = new Set([
   'Tenant:tenancy.organization.admin',
   'Tenant:tenancy.locale.write',
   'Tenant:tenancy.setting.write',
+  'Tenant:customization.custom_field.admin',
 ]);
 function required(fields: URLSearchParams, key: string): string {
   const value = fields.get(key);
@@ -46,7 +52,7 @@ function arrayField<T>(raw: string, item: (reader: JsonArrayReader) => T): reado
   const values: T[] = [];
   if (!reader.maybe(']')) {
     do {
-      if (values.length === 8) throw new BffInputError();
+      if (values.length === 9) throw new BffInputError();
       values.push(item(reader));
     } while (reader.maybe(','));
     reader.take(']');
@@ -128,6 +134,7 @@ export class BffInvitationInputError extends BffInputError {
   }
 }
 export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  ...CUSTOM_FIELD_FORMS,
   '/api/studio/membership-profile': [...common, 'membershipId', 'displayName', 'preferredLocale'],
   '/api/studio/membership-roles': [...common, 'membershipId', 'roleIds'],
   '/api/studio/membership-status': [...common, 'membershipId', 'status'],
@@ -168,7 +175,9 @@ function profile(fields: URLSearchParams) {
 export function bffAdministrationForm(
   path: string,
   fields: URLSearchParams,
+  customFields?: MembershipCustomFields,
 ): Readonly<{ operation: NativeOperation; destination: string }> {
+  if (Object.hasOwn(CUSTOM_FIELD_FORMS, path)) return customFieldForm(path, fields, customFields);
   const allowed = BFF_ADMIN_FORMS[path];
   if (!allowed) throw new BffInputError();
   const names = [...fields.keys()];

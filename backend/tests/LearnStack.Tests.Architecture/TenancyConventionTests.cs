@@ -159,7 +159,7 @@ public sealed partial class TenancyConventionTests
         // announcement carriers belong to the closed ambient/writing/reading set.
         // ADR-0080/0081 reuse the existing ReadWrite unit of work for those two
         // statements; its partial is not a new logical tenant setter or a reader
-        // opening a READ ONLY transaction. The ten logical setters stay unchanged.
+        // opening a READ ONLY transaction. The twelve logical setters include invitation and consent entry, which reuse the existing physical owner.
         // The shared sanitizer removes only the reviewed literal arguments after
         // checking their owner, method, gates and SQL pair. Additional statements
         // in that partial remain visible and receive no file-wide exemption.

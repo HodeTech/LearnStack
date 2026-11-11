@@ -23,6 +23,7 @@ export function bffFixture(
   options: {
     account?: SessionDependencies['account'];
     invitations?: SessionDependencies['invitations'];
+    retainedConsent?: SessionDependencies['retainedConsent'];
     unscopedProvider?: boolean;
   } = {},
 ) {
@@ -109,6 +110,7 @@ export function bffFixture(
           canAdoptRoleRelease: true,
           canWriteOwnProfile: true,
           canManageOrganizations: true,
+          canManageCustomFields: true,
         },
       };
     if (operation.kind === 'getOwnProfile')
@@ -158,6 +160,7 @@ export function bffFixture(
       native,
       administration,
       invitations: options.invitations,
+      retainedConsent: options.retainedConsent,
       account: options.account ?? account,
       clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
     },

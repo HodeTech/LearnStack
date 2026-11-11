@@ -19,7 +19,7 @@ Every aggregate that may hold personal data must declare its PII category at des
 Every aggregate's domain spec must record its PII categories.
 [Phase 03 G19](../roadmap/phase-03-identity-admin.md#the-decision-register) owns the
 classification census and planted missing-annotation control before its first
-identity PII writer; G9 extends it for custom-field revision history. The
+identity PII writer; ADR-0095 extends it for custom-field revision history. The
 implemented mapped-property census requires explicit semantics; it does not infer personal data from an email/phone/address name or arbitrary stored text.
 
 <a id="proposed-identity-foundation-and-classification-ownership"></a>
@@ -261,12 +261,14 @@ govern personal data; exclusion here grants no erasure exemption.
 | `tenant_domains` | Tenancy host configuration |
 | `tenant_locales` | Tenancy locale configuration |
 | `tenant_settings` | Tenancy configuration |
+| `membership_field_consents` | Synchronous append-only personal consent evidence, with subject/actor, Membership, exact definition/purpose/notice and predecessor linkage; [the field privacy contract](#revision-pinned-custom-field-privacy) owns P03-10 fulfillment and Phase 11 retention. Withdrawal is neither erasure nor asynchronous delivery |
 | `tenant_feature_flags` | Tenancy feature configuration |
 | `platform_entitlement_cache` | Entitlement projection |
 | `platform_host_to_tenant` | Host-resolution projection |
 | `platform_killswitches` | Platform feature configuration |
 | `customization_generations` | Customization publication metadata |
 | `tenant_content_types` | Customization definitions |
+| `tenant_custom_field_defs` | Synchronous immutable revision-pinned Membership field definitions, including authored metadata/classification/notices and creator/update attribution; [the field privacy contract](#revision-pinned-custom-field-privacy) owns subject linkage and fulfillment, without an asynchronous delivery copy |
 | `tenant_level_taxonomies` | Customization definitions |
 | `tenant_level_taxonomy_items` | Customization definition items |
 | `courses` | Education aggregate |
@@ -698,3 +700,21 @@ A separate data-protection runbook (`docs/runbooks/data-protection.md`) lands in
   actor/entity/causation identifiers and causal metadata. Phase 03's bounded
   first-writer decision must reconcile those references with accountability; the
   existing redaction grant does not establish complete anonymisation.
+
+## Revision-pinned custom-field privacy
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+classifies each definition revision explicitly; `PII-Sensitive` alone requires
+purpose-specific personal consent. `None` does not automatically exclude a
+subject-linked value from P03-10 fulfillment. Withdrawal withholds ordinary
+disclosure but does not erase values or evidence. P03-10 owns fulfillment and
+Phase 11 owns operational retention and backup purge.
+
+All custom values, schemas, labels and notices are excluded as whole payloads from
+diagnostics and audit snapshots/diffs. The Profile collection has static Sensitive
+classification and whole-property redaction; consent links and keyed replay
+fingerprints remain personal data. HMAC reduces guessing exposure without
+anonymizing linkage. Physical expired receipt rows, WAL and backups remain in
+inventory; key rotation and restore retain the keys needed by those rows and backups.
+[Observability](../standards/10-observability.md#custom-field-diagnostic-boundary)
+owns the required sink proof; acceptance is not implementation evidence.

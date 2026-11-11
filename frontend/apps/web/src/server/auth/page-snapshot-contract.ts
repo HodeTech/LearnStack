@@ -1,5 +1,10 @@
 import type { IngressContext } from '../ingress.js';
-import type { NativeEntrySnapshot, NativePageSnapshot, PageSite } from './page-contract.js';
+import type {
+  NativeEntrySnapshot,
+  NativePageSnapshot,
+  NativeConsentSnapshot,
+  PageSite,
+} from './page-contract.js';
 
 /** Native bootstrap injection only. The ticket's authority lives in an actual-frame WeakMap. */
 export type NativeSnapshotTicket = Readonly<{
@@ -20,6 +25,7 @@ export type NativePageLease = Readonly<{
   track: (actualWork: PromiseLike<unknown>) => void;
   publish: (page: NativePageSnapshot) => NativePageSnapshot;
   publishEntry: (entry: NativeEntrySnapshot) => NativeEntrySnapshot;
+  publishConsent: (value: NativeConsentSnapshot) => NativeConsentSnapshot;
   abort: () => void;
 }>;
 

@@ -73,6 +73,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       every other protection setting unchanged. The
       [packet delivery record](../docs/roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
+      [ADR-0096](../docs/decisions/0096-p035-administration-contract-baseline.md)
+      permits one exact, explicitly approved P03-5 incompatibility; raw findings
+      remain retained. Additional findings, altered approval/comparison inputs or
+      failed tools/controls still refuse. Actual API/SDK behavior and final-source
+      CI qualification remain separate; the job is not a general pre-MVP bypass.
     - `public demo + lighthouse` — **required since P02d-7, 2026-10-11.** The
       first complete [real PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
       passes before activation. Downloaded artifacts confirm all nine pages,

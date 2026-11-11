@@ -201,6 +201,7 @@ export function admitIncomingRequest(
     path === '/api/auth' ||
     path?.startsWith('/api/auth/') ||
     (path !== undefined && BFF_POST_PATHS.includes(path)) ||
+    path === '/account/consents' ||
     path === '/invitations' ||
     path === '/invitations/confirm' ||
     path === '/studio' ||
@@ -255,10 +256,12 @@ export function parseLocalEnvironment(source: string): Record<string, string> {
   const values: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const line of source.split(/\r?\n/)) {
     if (/^\s*(?:#.*)?$/.test(line)) continue;
-    const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
+    const match = /^([A-Za-z_][A-Za-z0-9_-]*)=(.*)$/.exec(line);
     if (!match || Object.hasOwn(values, match[1] ?? ''))
       throw new Error('Invalid local environment');
     const key = match[1] ?? '';
+    if (key.includes('-') && !/^Idempotency__CustomFields__Keys__[A-Za-z0-9_-]+$/.test(key))
+      throw new Error('Invalid local environment');
     let value = match[2] ?? '';
     if (value.startsWith("'") || value.startsWith('"')) {
       if (value.length < 2 || value.at(-1) !== value[0])
@@ -433,6 +436,40 @@ export function loadLocalEnvironment(
         throw new Error('Invalid API invitation email configuration');
       result[key] = value;
     }
+  }
+  // Only the API launcher selects this closed secret namespace. Invalid or
+  // conflicting selected values remain invalid for the operation-local API
+  // check instead of preventing unrelated routes from starting.
+  const current = 'Idempotency__CustomFields__CurrentKeyId';
+  const prefix = 'Idempotency__CustomFields__Keys__';
+  for (const key of Object.keys(result))
+    if (key === current || key.startsWith(prefix)) delete result[key];
+  if (options.apiAuthentication) {
+    const inputs = [source, projection, environment];
+    const names = new Set(
+      inputs.flatMap((input) => Object.keys(input).filter((key) => key.startsWith(prefix))),
+    );
+    const safe = (value: string | undefined) =>
+      value !== undefined && !containsControl(value) && Buffer.byteLength(value) <= 256
+        ? value
+        : '';
+    const select = (key: string) => {
+      const found = inputs
+        .map((input) => input[key])
+        .filter((value): value is string => value !== undefined);
+      return new Set(found).size === 1 ? safe(found[0]) : '';
+    };
+    if (inputs.some((input) => input[current] !== undefined)) result[current] = select(current);
+    let invalid = names.size > 4;
+    for (const name of [...names].slice(0, 5)) {
+      const id = name.slice(prefix.length);
+      if (!/^[a-z0-9-]{1,32}$/.test(id)) {
+        invalid = true;
+        continue;
+      }
+      result[name] = select(name);
+    }
+    if (invalid) result[`${prefix}invalid_id`] = '';
   }
   return result;
 }

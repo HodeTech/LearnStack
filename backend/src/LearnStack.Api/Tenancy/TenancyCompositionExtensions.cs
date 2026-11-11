@@ -282,8 +282,12 @@ public static class TenancyCompositionExtensions
         // ADR-0079's protected routes select ADR-0037's durable-store trigger.
         // Each store phase owns and disposes a short app-role transaction; it
         // never borrows or retargets the request's ambient business owner.
-        services.AddSingleton<LearnStack.SharedKernel.Idempotency.IIdempotencyStore,
-            LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore>();
+        services.AddSingleton<LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore>();
+        services.AddSingleton<LearnStack.SharedKernel.Idempotency.IIdempotencyStore>(sp =>
+            sp.GetRequiredService<LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore>());
+        services.AddSingleton<LearnStack.SharedKernel.Idempotency.ICustomFieldIdempotencyMetadataReader>(sp =>
+            sp.GetRequiredService<LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore>());
+        services.AddScoped<LearnStack.Api.Idempotency.CustomFieldFingerprintService>();
 
         return services;
     }

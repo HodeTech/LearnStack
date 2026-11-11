@@ -86,6 +86,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["event_deliveries"] = 1,
         ["inbox_messages"] = 1,
         ["tenant_content_types"] = 1,
+        ["tenant_custom_field_defs"] = 1,
+        ["membership_field_consents"] = 1,
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
@@ -121,6 +123,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["event_deliveries"] = 1,
         ["inbox_messages"] = 1,
         ["tenant_content_types"] = 1,
+        ["tenant_custom_field_defs"] = 1,
+        ["membership_field_consents"] = 1,
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
@@ -184,6 +188,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         await BackgroundJobSchemaSeed.SeedAsync(Postgres.AppConnectionString, Postgres.OutboxConnectionString);
         await HangfireSchemaSeed.SeedAsync(Postgres.OutboxConnectionString);
         await IdentityMembershipFixture.SeedSchemaAsync(Postgres.MigrationConnectionString, Postgres.AppConnectionString);
+        await CustomFieldFoundationSchemaSeed.SeedAsync(Postgres.AppConnectionString);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();

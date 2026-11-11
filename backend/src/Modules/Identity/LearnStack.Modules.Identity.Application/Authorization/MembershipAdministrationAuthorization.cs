@@ -1,4 +1,5 @@
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Audit;
@@ -20,11 +21,13 @@ public sealed class MembershipAdministrationAuthorization(IIdentityAuthorization
         && invocation.Candidate is { IsActive: true, SourceKind: AuthorizationSourceKind.Http } candidate
         && request is GetMembershipDetailQuery or GetOwnMembershipProfileQuery or SetMembershipProfileCommand
             or SetOwnMembershipProfileCommand or ChangeMembershipStatusCommand or ReplaceMembershipRoleAssignmentsCommand
+            or GetMembershipCustomFieldsQuery or GetOwnMembershipCustomFieldsQuery
+            or SetMembershipCustomFieldsCommand or SetOwnMembershipCustomFieldsCommand
         && catalog.TryGet(request.GetType(), out var policy) && ReferenceEquals(invocation.Policy, policy)
         && policy.RequestType == request.GetType()
-        && (request is GetOwnMembershipProfileQuery ? policy.Kind == OperationPolicyKind.OwnMembershipRead
+        && (request is GetOwnMembershipProfileQuery or GetOwnMembershipCustomFieldsQuery ? policy.Kind == OperationPolicyKind.OwnMembershipRead
             : policy.Kind == OperationPolicyKind.Protected)
-        && (request is GetMembershipDetailQuery || policy.ReadScope == OperationReadScope.Scoped
+        && (request is GetMembershipDetailQuery or GetMembershipCustomFieldsQuery || policy.ReadScope == OperationReadScope.Scoped
             && policy.Alternatives.All(clause => clause.ReadScope == OperationReadScope.Scoped))
         && context.IsResolved && context.TenantId != TenantId.PlatformSentinel
         && context.UserId is { } actor && StronglyTypedId.IsAssigned(actor) && actor != UserId.SystemActor
@@ -50,15 +53,16 @@ public sealed class MembershipAdministrationAuthorization(IIdentityAuthorization
             || target.DeletedBy is not null || target.Status is not (MembershipStatus.Active or MembershipStatus.Suspended)
             || ExplicitTarget(request) is { } id && target.Id.Value != id)
             return Refused(ProtectedOperationOutcome.NotCovered, AuthorizationRefusalReason.ResourceScope, policy);
-        var tenantRead = request is GetMembershipDetailQuery && policy.MatchedClause?.ReadScope == OperationReadScope.Tenant;
+        var tenantRead = (request is GetMembershipDetailQuery or GetMembershipCustomFieldsQuery) && policy.MatchedClause?.ReadScope == OperationReadScope.Tenant;
         if (!tenantRead && target.OrganizationId != context.OrganizationId)
             return Refused(ProtectedOperationOutcome.NotCovered, AuthorizationRefusalReason.ResourceScope, policy);
         if (request is GetOwnMembershipProfileQuery or SetOwnMembershipProfileCommand
+                or GetOwnMembershipCustomFieldsQuery or SetOwnMembershipCustomFieldsCommand
             && (target.UserId != candidate.Actor || target.Status != MembershipStatus.Active
                 || !facts.Memberships.Any(member => member.MembershipId == target.Id.Value
                     && member.OrganizationId == context.OrganizationId)))
             return Refused(ProtectedOperationOutcome.NotCovered, AuthorizationRefusalReason.Ownership, policy);
-        if (request is SetMembershipProfileCommand && target.Status != MembershipStatus.Active)
+        if ((request is SetMembershipProfileCommand or SetMembershipCustomFieldsCommand) && target.Status != MembershipStatus.Active)
             return Refused(ProtectedOperationOutcome.Forbidden, AuthorizationRefusalReason.ResourceScope, policy);
         if (!CanDelegate(request, target, addedRoles, facts, candidate))
             return Refused(ProtectedOperationOutcome.Forbidden, AuthorizationRefusalReason.Delegation, policy);
@@ -103,6 +107,8 @@ public sealed class MembershipAdministrationAuthorization(IIdentityAuthorization
     private static Guid? ExplicitTarget(object request) => request switch
     {
         GetMembershipDetailQuery detail => detail.MembershipId,
+        GetMembershipCustomFieldsQuery fields => fields.MembershipId,
+        SetMembershipCustomFieldsCommand fields => fields.MembershipId,
         SetMembershipProfileCommand profile => profile.MembershipId,
         ChangeMembershipStatusCommand status => status.MembershipId,
         ReplaceMembershipRoleAssignmentsCommand assignments => assignments.MembershipId,

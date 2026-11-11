@@ -2,6 +2,7 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using MediatR;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Tenancy.Application.Settings;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,9 @@ public static class TenantSettingsRegistration
         // DI services. Register a complete TenantSettingRegistry before this call
         // to replace the default; the constructor also supports isolated tests.
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetTenantInvitationPolicyQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipFieldConsentQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(ListOwnFieldConsentScopesQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(ListOwnMembershipFieldConsentsQuery)));
         services.TryAddScoped<InvitationPolicyReader>();
         services.TryAddScoped<IInvitationPolicyReader>(provider => provider.GetRequiredService<InvitationPolicyReader>());
         services.TryAddScoped<IInvitationMessageContextReader>(provider => provider.GetRequiredService<InvitationPolicyReader>());

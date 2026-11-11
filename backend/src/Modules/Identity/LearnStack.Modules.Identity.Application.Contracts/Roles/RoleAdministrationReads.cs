@@ -7,7 +7,7 @@ namespace LearnStack.Modules.Identity.Application.Contracts.Roles;
 
 public sealed record ListRolesQuery() : IRequest<Result<RoleDirectoryDto>>;
 public sealed record GetRoleDetailQuery(Guid RoleId) : IRequest<Result<RoleDetailDto>>;
-public sealed record GetPermissionRegistryQuery() : IRequest<Result<PermissionRegistryDto>>;
+public sealed record GetPermissionRegistryQuery(int SourceReleaseVersion = 1) : IRequest<Result<PermissionRegistryDto>>;
 
 public sealed record RoleDirectoryItemDto(Guid RoleId, string BuiltInKey, PermissionScope CapabilityScope, long Version);
 public sealed record RoleDirectoryDto(ImmutableArray<RoleDirectoryItemDto> Items);

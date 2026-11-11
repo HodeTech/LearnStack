@@ -91,7 +91,7 @@ internal sealed class TenantIdentityBindingAdmissionMiddleware(RequestDelegate n
 
         feature.Identity = new ValidatedTenantIdentity(subject.Issuer, subject.Subject, actor,
             subject.TenantId, subject.OrganizationId);
-        if (context.Features.Get<NativeSessionSourceFeature>() is { InvitationOperation: null })
+        if (context.Features.Get<NativeSessionSourceFeature>() is { InvitationOperation: null, ConsentOperation: null })
         {
             var native = NativeScopeEvidence.TryMint(context, feature.Identity);
             if (native is null)

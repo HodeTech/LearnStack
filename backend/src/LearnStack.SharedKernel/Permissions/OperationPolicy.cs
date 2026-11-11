@@ -3,7 +3,7 @@ using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Permissions;
 
-public enum OperationPolicyKind { PublicRead = 1, AccountRead = 2, Protected = 3, FiniteTrusted = 4, NativeSessionAdmission = 5, OwnMembershipRead = 6, InvitationEntry = 7 }
+public enum OperationPolicyKind { PublicRead = 1, AccountRead = 2, Protected = 3, FiniteTrusted = 4, NativeSessionAdmission = 5, OwnMembershipRead = 6, InvitationEntry = 7, OwnFieldConsentGrant = 8, OwnConsentEntry = 9 }
 public enum OperationReadScope { Scoped = 0, Tenant = 1 }
 
 /// <summary>Definition composition is separate from stored grants and operation admission.</summary>
@@ -103,6 +103,12 @@ public sealed class OperationPolicy
 
     public static OperationPolicy ForInvitationEntry<TRequest>(string id) =>
         new(typeof(TRequest), id, OperationPolicyKind.InvitationEntry, null, OperationReadScope.Scoped, [], false);
+
+    public static OperationPolicy ForOwnFieldConsentGrant<TRequest>(string id) =>
+        new(typeof(TRequest), id, OperationPolicyKind.OwnFieldConsentGrant, null, OperationReadScope.Scoped, [], false);
+
+    public static OperationPolicy ForOwnConsentEntry<TRequest>(string id) =>
+        new(typeof(TRequest), id, OperationPolicyKind.OwnConsentEntry, null, OperationReadScope.Scoped, [], false);
 
     public static OperationPolicy ForProtected<TRequest>(string id, PermissionDefinition permission,
         OperationReadScope readScope = OperationReadScope.Scoped, bool requiresOrglessWrite = false, bool requiresOrganization = false) =>

@@ -75,6 +75,13 @@ public sealed partial class TransactionExecutionCoordinator(
                     throw new InvalidOperationException("Invitation execution requires its exact fresh owner.");
                 scope = await entry.BeginInvitationEntryTransactionAsync(invitation, tenantContext, cancellationToken);
             }
+            else if (authorization?.CurrentConsentWitness is { } consent)
+            {
+                if (!openingOwner || consent.Mode != mode || consent.Invocation.Policy.RequestType != operationType
+                    || !ReferenceEquals(consent.Invocation.Operation, operation) || unitOfWork is not IConsentSubjectUnitOfWork entry)
+                    throw new InvalidOperationException("Consent execution requires its exact fresh owner.");
+                scope = await entry.BeginConsentSubjectTransactionAsync(consent, tenantContext, cancellationToken);
+            }
             else scope = await unitOfWork.BeginTransactionAsync(mode, cancellationToken);
         }
         catch
@@ -158,6 +165,7 @@ public sealed partial class TransactionExecutionCoordinator(
         AuthorizationEvidenceCoordinator.CommitBatch? evidenceBatch = null;
         var committing = false;
         var failed = false;
+        var confidential = CustomFieldDiagnosticOperations.Contains(operationType);
 
         try
         {
@@ -180,6 +188,11 @@ public sealed partial class TransactionExecutionCoordinator(
                 if (!scope.IsOwner || unitOfWork is not IInvitationEntryUnitOfWork entry || !entry.IsInvitationEntryOwner(invitation))
                     throw new InvalidOperationException("Invitation execution lost its owner.");
             }
+            else if (authorization?.CurrentConsentWitness is { } consent)
+            {
+                if (!scope.IsOwner || unitOfWork is not IConsentSubjectUnitOfWork entry || !entry.IsConsentSubjectOwner(consent))
+                    throw new InvalidOperationException("Consent execution lost its owner.");
+            }
             else if (!tenantContext.IsResolved && provisioning is not null)
             {
                 await unitOfWork.SetProvisioningTenantContextAsync(
@@ -193,6 +206,11 @@ public sealed partial class TransactionExecutionCoordinator(
                 else
                     await unitOfWork.SetTenantContextAsync(announcementContext, cancellationToken);
             }
+
+            // Diagnostic privacy attaches to the physical transaction, without
+            // conferring scope, permission, or completion credit.
+            if (confidential && unitOfWork is IConfidentialCommitUnitOfWork confidentialOwner)
+                confidentialOwner.CaptureConfidentialCommitDiagnostics();
 
             // Capture causal identity at the trusted entry. Nested invocations inherit it;
             // asynchronous work keeps SystemActor effective without impersonating a human.
@@ -298,6 +316,9 @@ public sealed partial class TransactionExecutionCoordinator(
             }
             catch (Exception commitFailure)
             {
+                var reportedFailure = confidential && scope.IsOwner && !unitOfWork.HasActiveTransaction
+                    && commitFailure is not OperationCanceledException
+                    ? new ConfidentialCommitProviderException() : commitFailure;
                 if (unitOfWork.HasActiveTransaction)
                 {
                     // The adapter detaches its transaction before physical COMMIT.
@@ -309,7 +330,7 @@ public sealed partial class TransactionExecutionCoordinator(
                 else if (scope.IsOwner)
                 {
                     if (unitOfWork.IsRollbackOnly) capture.MarkRolledBack();
-                    else capture.MarkIndeterminate(commitFailure);
+                    else capture.MarkIndeterminate(reportedFailure);
                 }
                 authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: false);
 
@@ -328,8 +349,9 @@ public sealed partial class TransactionExecutionCoordinator(
                     && !invocation.HasProducedWork && capture.Changes.Count == 0
                     && capture.Intents.Count != 0 && capture.Intents.All(intent =>
                         intent.OperationClass == OperationClass.Must && intent.OperationType == OperationType.ReadSensitive))
-                    throw new AuditWriteFailedException("The sensitive read's MUST evidence could not be committed.", commitFailure);
+                    throw new AuditWriteFailedException("The sensitive read's MUST evidence could not be committed.", reportedFailure);
 
+                if (!ReferenceEquals(reportedFailure, commitFailure)) throw reportedFailure;
                 throw;
             }
 
@@ -364,7 +386,7 @@ public sealed partial class TransactionExecutionCoordinator(
             catch (Exception rollbackFailure)
             {
                 LogRollbackFailure(logger, operationName,
-                    globalOwner is not null || typeof(IIdentityPermissionRequest).IsAssignableFrom(operationType)
+                    confidential || globalOwner is not null || typeof(IIdentityPermissionRequest).IsAssignableFrom(operationType)
                         || dispatchFailure is ProviderException { ProviderName: "identity-storage" }
                         || AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : rollbackFailure);
             }

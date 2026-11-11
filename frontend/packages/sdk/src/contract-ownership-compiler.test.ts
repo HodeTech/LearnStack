@@ -27,15 +27,23 @@ function errors(source: string, generated: string): string[] {
     .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
 }
 
-it('the production ownership binding rejects an unowned generated GET, and removing it loses that protection', () => {
+const unowned =
+  schema +
+  "\nexport interface paths { '/api/v1/unowned': { get: operations['GetAccountSite'] }; }\n";
+
+it('the production ownership binding accepts the current generated contract', () => {
   expect(server).toContain('true satisfies GetContractOwnership<');
   expect(errors(server, schema)).toEqual([]);
-  const unowned =
-    schema +
-    "\nexport interface paths { '/api/v1/unowned': { get: operations['GetAccountSite'] }; }\n";
+});
+
+it('the production ownership binding rejects an unowned generated GET', () => {
+  expect(server).toContain('true satisfies GetContractOwnership<');
   expect(errors(server, unowned)).toEqual([
     expect.stringContaining("Type 'true' does not satisfy the expected type 'false'"),
   ]);
+});
+
+it('removing the production ownership binding loses the unowned GET protection', () => {
   const unchecked = server.replace(/true satisfies GetContractOwnership<[\s\S]*?>;/, 'true;');
   expect(unchecked).not.toBe(server);
   expect(errors(unchecked, unowned)).toEqual([]);

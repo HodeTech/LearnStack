@@ -54,6 +54,27 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
       throw new Error('Invalid API invitation email configuration');
     environment[key] = value;
   }
+  // The API alone receives selected custom-field HMAC configuration. Invalid
+  // material remains invalid for the API's per-operation check; it must not
+  // prevent unrelated routes from starting or borrow ambient values.
+  const customCurrent = 'Idempotency__CustomFields__CurrentKeyId';
+  const customPrefix = 'Idempotency__CustomFields__Keys__';
+  const safeValue = (value) =>
+    typeof value === 'string' && !/[\x00-\x1f\x7f]/.test(value) && Buffer.byteLength(value) <= 256
+      ? value
+      : '';
+  if (values[customCurrent] !== undefined) environment[customCurrent] = safeValue(values[customCurrent]);
+  const customKeys = Object.keys(values).filter((key) => key.startsWith(customPrefix));
+  let invalid = customKeys.length > 4;
+  for (const key of customKeys.slice(0, 5)) {
+    const id = key.slice(customPrefix.length);
+    if (!/^[a-z0-9-]{1,32}$/.test(id)) {
+      invalid = true;
+      continue;
+    }
+    environment[key] = safeValue(values[key]);
+  }
+  if (invalid) environment[`${customPrefix}invalid_id`] = '';
   // This launcher owns native HTTPS on 3000. The production API retains its
   // independent default of 443; no secret or bootstrap opt-in is synthesized.
   environment.Identity__NativeSession__HttpsPort ??= '3000';

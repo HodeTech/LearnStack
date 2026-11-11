@@ -1,4 +1,5 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
+using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -18,6 +19,13 @@ public sealed class TenancyOperationPolicySource : IOperationPolicySource
             .Append(new(PublicSite, Assignable: false));
     public IEnumerable<OperationPolicy> Policies =>
     [
+        OperationPolicy.ForOwnFieldConsentGrant<GrantOwnMembershipFieldConsentCommand>("tenancy.membership_field_consent.grant"),
+        OperationPolicy.ForOwnConsentEntry<WithdrawOwnMembershipFieldConsentCommand>("tenancy.membership_field_consent.withdraw"),
+        OperationPolicy.ForOwnConsentEntry<ListOwnFieldConsentScopesQuery>("tenancy.membership_field_consent.scopes"),
+        OperationPolicy.ForOwnConsentEntry<ListOwnMembershipFieldConsentsQuery>("tenancy.membership_field_consent.history"),
+        OperationPolicy.ForOwnConsentEntry<ReadOwnWithdrawnFieldConsentReceiptQuery>("tenancy.membership_field_consent.read_withdraw_receipt"),
+        OperationPolicy.ForOwnMembershipRead<ReadOwnGrantedFieldConsentReceiptQuery>("tenancy.membership_field_consent.read_grant_receipt"),
+        OperationPolicy.ForOwnMembershipRead<GetOwnMembershipFieldConsentQuery>("tenancy.membership_field_consent.get_own"),
         OperationPolicy.ForOwnMembershipRead<GetTenantInvitationPolicyQuery>("tenancy.setting.read_invitation_policy"),
         OperationPolicy.ForOwnMembershipRead<ReadInvitationPolicyReceiptQuery>("tenancy.setting.read_invitation_receipt"),
         OperationPolicy.ForProtected<SetTenantInvitationLifetimeCommand>("tenancy.setting.write_invitation_lifetime", BoundedTenancyAdministrationPermissions.SettingWrite, requiresOrglessWrite: true),

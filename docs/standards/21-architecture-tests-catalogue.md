@@ -81,6 +81,10 @@ the new rule and extension below remain Registered until their controls ship.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
+Accepted custom-field/consent extensions derive from
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md); their
+[implemented controls](#p03-5-custom-field-and-consent-controls) name their actual test owners;
+source-bound qualification is recorded by Phase 03.
 The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -173,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**341 test methods run in
+**348 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -214,8 +218,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**257 rules in this catalogue are Implemented, and 150 of them are in that assembly.**
-The other 107 are no less binding, and most could not live there. The table says where
+**266 rules in this catalogue are Implemented, and 151 of them are in that assembly.**
+The other 115 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3217,7 +3221,8 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Source:** [Phase 03 § Tenant Custom Fields](../roadmap/phase-03-identity-admin.md);
   [ADR-0018](../decisions/0018-tenant-driven-customization-model.md).
 - **Type:** xUnit + reflection, plus a migration scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`CustomFieldDefinitionConventionTests`).
+- **Test owner:** [CustomFieldDefinitionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/CustomFieldDefinitionConventionTests.cs), including nonnullable/no-default migration and planted missing/nullable/wrong-type/default-category controls.
 - **Phase:** 03.
 
 #### `Tenant_Scoped_Export_Contains_No_Foreign_Tenant_Rows`
@@ -5993,16 +5998,24 @@ of structural detection.
 
 - **Asserts:** production composition and committed snapshot have the same document
   after object-key normalization, preserving array order; exactly eight public
-  operations and four public GET wrappers exist, alongside the separate
-  authenticated AccountSite and membership-directory GET contracts (ten operations
-  and six GET contracts). The four public wrappers and AccountSite-only native
-  authenticated transport remain closed. Drift and policy-breaking
-  fixtures fail the pinned diff/generation checks.
-- **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31.
+  operations and four public GET wrappers exist, alongside exact delivered
+  authenticated/administration/retained-consent operation and SDK method censuses.
+  Public, AccountSite and administration callers remain separate and closed.
+  Drift and policy-breaking fixtures fail the pinned diff/generation checks.
+  ADR-0096 admits only its Accepted-decision-bound snapshots, full findings and
+  comparison identities after successful fresh controls; malformed or repointed
+  carriers, extra findings, changed tools/policy and file/fixture/bootstrap entry
+  cannot consume approval. Actual API/SDK behavior is separate evidence.
+- **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31;
+  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md).
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
 - **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); ten-operation, disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
-- **Phase:** 02d (P02d-4 Step 4); 03 (P03-2 Step 5 contract extension).
+- **Extension boundary:** ADR-0096 acceptance does not establish delivery of its
+  admission extension. The original Implemented status above describes its
+  recorded baseline; [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns
+  P03-5 implementation, reviews, runtime and complete A/B evidence.
+- **Phase:** 02d (P02d-4 Step 4); 03 (P03-2/P03-5 contract extensions).
 
 ## P02d-5 public server rendering controls
 
@@ -6592,7 +6605,10 @@ Prior receipts do not qualify subsequent source changes.
   and primitive outer-owner/proof-channel status, without claiming runtime-child
   retirement. Router source controls expose fixed names and bounded primitive
   classifications and a bounded observed TAP prefix, without raw caught
-  payloads or stdout text. Unavailable/buffered progress is not proof of no work;
+  payloads or stdout text. The provenance wrapper separately exposes only bounded
+  process classification and a current contiguous TAP prefix capped at its 112
+  controls; names, messages, paths and raw output remain private. Unavailable or
+  buffered progress is not proof of no work;
   observed progress cannot qualify a failed process. Closed-error and reporter canary
   controls preserve that boundary, including actual copied-wrapper children,
   dirty schemas and a sink closed after the observed child result. Diagnostic
@@ -7127,9 +7143,11 @@ and fixture definitions make the implemented controls non-vacuous.
 #### `Invitation_Entry_Is_Offer_And_Subject_Confined`
 
 - **Asserts:** only the exact native authenticated inspection/accept/result
-  consumers may use HostAndInvitationOffer and InvitationEntryScope. Eleven
-  logical setters/four physical context writers and eleven confined definers
-  remain exact; mode/host/subject/operation reuse, arbitrary scope selectors,
+  consumers may use HostAndInvitationOffer and InvitationEntryScope. The delivered
+  invitation slice has eleven logical setters/four physical context writers and
+  eleven confined definers; ADR-0095 separately registers its twelfth logical
+  setter/definer without changing the four writers. The delivered invitation census
+  and new registered extension remain distinct; mode/host/subject/operation reuse, arbitrary scope selectors,
   raw-code SQL parameters and generic external DB access refuse.
 - **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
   [Security](11-security.md#verified-invitation-admission),
@@ -7202,3 +7220,188 @@ and fixture definitions make the implemented controls non-vacuous.
   [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns complete
   packet qualification; SMTP submission acceptance is not inbox delivery.
 - **Phase:** 03 (P03-4).
+
+
+## P03-5 custom-field and consent controls
+
+**Derives from:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+These implemented controls run against nonempty production consumers, planted
+negative twins and positive controls. Their initial complete hosted A/B evidence
+is recorded in the [P03-5 qualification record](../roadmap/phase-03-delivery-log.md#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10).
+Implementation status does not replace source-bound qualification or human
+accessibility evidence.
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof state.
+
+#### `Custom_Field_Definitions_Are_Immutable_And_Constructively_Admitted`
+
+- **Asserts:** Membership-only immutable definition revisions, reservations,
+  Active uniqueness and retained/draft budgets are enforced. The existing schema
+  and instance validator receives the exact `value` object envelope; the finite
+  per-type keyword allowlist, depth/container units, safe-integer/binary64
+  normalization, every-node constructive nonemptiness witness and individual/
+  combined-required-set serialized/encoded feasibility refuse unsupported or
+  unprovable inputs before persistence/publication. Published metadata cannot edit
+  in place; discard never frees reserved history.
+- **Source:** [ADR-0095 form profile and budgets](../decisions/0095-revision-pinned-membership-custom-fields.md#a-form-profile-within-the-existing-validator),
+  [Database](05-database.md#definition-and-value-persistence).
+- **Type:** compiled/source and real validator/storage boundary controls,
+  including contradictory optional/nested/enum witnesses, multibyte/escaped
+  limits, safe edges/unsafe neighbors and actual serializer round trips.
+  **Kind:** both.
+- **Status:** **Implemented** (`CustomFieldDefinitionCommandTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [CustomFieldDefinitionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/CustomFieldDefinitionConventionTests.cs),
+  [CustomFieldFormProfileTests.cs](../../backend/tests/LearnStack.Tests.Unit/Customization/CustomFieldFormProfileTests.cs),
+  [CustomFieldDefinitionCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionCommandTests.cs).
+- **Phase:** 03 (P03-5 Step 1; transport round trips complete in Steps 3–4).
+
+#### `Custom_Field_Active_Eligibility_Is_Commit_Fenced`
+
+- **Asserts:** named SHARED value and EXCLUSIVE definition/consent writers use
+  the canonical Tenant key, strongest complete plan and separate fresh post-wait
+  reads, retaining the fence through COMMIT/rollback. Both winner orders prevent
+  a new stale Active pin or withdrawn evidence write. User-before-Tenant ordering,
+  no upgrade and unchanged historical content-reader contract remain.
+- **Source:** [Database canonical fence](05-database.md#custom-field-commit-fence),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** source/caller checks and real PostgreSQL competing value/publication/
+  retirement/withdrawal, cancellation, failed MUST and commit controls.
+  **Kind:** both.
+- **Status:** **Implemented** (`MembershipCustomFieldFenceTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [MembershipCustomFieldFenceTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldFenceTests.cs),
+  [CustomFieldDefinitionCapacityCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionCapacityCommandTests.cs).
+- **Phase:** 03 (P03-5 Steps 1–2; combined qualification Step 4).
+
+#### `Field_Consent_Storage_Is_Append_Only_And_Scope_Bound`
+
+- **Asserts:** typed Tenancy consent roots derive exact grant scope from owned
+  Membership and withdrawal scope from retained consent. Sequence/predecessor,
+  NULL-org semantics, immutable purpose/notice locale/hash, no cross-module FK/
+  navigation/join and root-specific MUST subject are enforced. App SELECT/INSERT
+  and owner-bound immutable guards forbid UPDATE/DELETE/TRUNCATE; no value or
+  provider data enters consent. Same-state requests append nothing; durable
+  sixty-second grant cooldown survives replicas/restarts and never blocks withdrawal.
+- **Source:** [Database consent contract](05-database.md#append-only-consent-root-and-privileges),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** applied schema/RLS/grant/body/PII/audit checks and real app-role
+  tenant/two-org/NULL-org/foreign-ID, owner mutation, race and rollback controls.
+  **Kind:** both.
+- **Status:** **Implemented** (`MembershipFieldConsentStorageTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [MembershipFieldConsentStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipFieldConsentStorageTests.cs),
+  [ConsentSubjectPipelineAuditTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/ConsentSubjectPipelineAuditTests.cs).
+- **Phase:** 03 (P03-5 Steps 1–2).
+
+#### `Consent_Subject_Entry_Is_Host_And_Actor_Confined`
+
+- **Asserts:** only closed list/select discovery, exact history and withdrawal
+  use OwnConsentEntry/HostAndConsentSubject/ConsentSubjectScope. The one new
+  definer reads only `membership_field_consents`; normalized actor, independent
+  host ceiling, single-use immutable witness, physical mode and actual owner
+  cannot be substituted. The accepted census is twelve confined definers/twelve
+  logical setters/four physical writers with three global-self descriptors.
+  No Active Membership, ordinary native session, AccountSite/public snapshot,
+  value disclosure, Identity table body or `app.scope` is required/granted.
+- **Source:** [Security](11-security.md#retained-consent-subject-admission),
+  [Database exact function/owner](05-database.md#confined-consent-subject-function-and-owner),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** nonempty source/operation/body/ACL/caller census plus real app-role/
+  native lifecycle-loss, failed-save/no-value/retired-definition, wrong subject/
+  host/org/mode, witness reuse, closure, late-publication and cleanup controls.
+  **Kind:** both.
+- **Status:** **Implemented** (`ConsentSubjectCapturedOwnerTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [ConsentSubjectConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/ConsentSubjectConventionTests.cs),
+  [ConsentSubjectCapturedOwnerTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/ConsentSubjectCapturedOwnerTests.cs),
+  [BoundedAdministrationHttpTests.ConsentEntry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/BoundedAdministrationHttpTests.ConsentEntry.cs).
+- **Phase:** 03 (P03-5 Step 1 groundwork; activation Step 3, combined proof Step 4).
+
+#### `Custom_Field_Values_Use_Exact_Pins_And_Current_Consent`
+
+- **Asserts:** MembershipProfile slots retain exact immutable revision and
+  original-write consent IDs. Explicit own/admin PATCH set/remove operations
+  preserve omitted slots and validate the server effective required set; latest
+  Granted exact-tuple evidence controls sensitive write, disclosure and
+  completeness. Withdrawal withholds retained values; reconsent restores only
+  that exact tuple without rewriting original evidence. Pure removal is usable
+  with incomplete fields or capacity exhaustion; no conversion/successor copy occurs.
+- **Source:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md),
+  [Database](05-database.md#definition-and-value-persistence),
+  [Permissions](19-permissions.md#exact-operation-authority).
+- **Type:** direct application/API/native behavior and real database/audit
+  tests for self/admin/other-org targets, historical downgrade, stale consent,
+  mixed set/remove, 32 KiB retained slots and rollback. **Kind:** both.
+- **Status:** **Implemented** (`MembershipCustomFieldCommandTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [MembershipCustomFieldCommandTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldCommandTests.cs),
+  [MembershipCustomFieldDiagnosticSinkTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs).
+- **Phase:** 03 (P03-5 Steps 2–4).
+
+#### `Custom_Field_Replay_Uses_Scoped_Versioned_Hmac`
+
+- **Asserts:** only new body-bearing P03-5 operations use prefixed version/key-ID/
+  HMAC text with one actor/scope/operation/precondition/method/path/query/body
+  implementation in early admission and the filter. Existing digest bytes remain
+  unchanged. Narrow tenant-bound metadata reads include expired physical rows
+  without exposing body/receipt; missing/unknown keys fail before claim/disclosure.
+  Current-plus-three retained key custody, replica rotation/restart/restore,
+  physical-row retention and backup-key ownership do not silently delete unresolved
+  replay facts or anonymize personal linkage.
+- **Source:** [Database replay/key custody](05-database.md#custom-field-replay-key-custody),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md#derived-replay-fingerprints).
+- **Type:** crypto/store/source and real persisted replay controls, including
+  candidate guessing without key, both call sites, old-hash golden compatibility,
+  changed body/precondition, same-key original-target reauthorization, stale
+  different-key predecessor, rotation/key loss and no raw/unkeyed copies.
+  **Kind:** both.
+- **Status:** **Implemented** (`PostgresIdempotencyStoreTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [CustomFieldFingerprintServiceTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/CustomFieldFingerprintServiceTests.cs),
+  [PostgresIdempotencyStoreTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/PostgresIdempotencyStoreTests.CustomFields.cs).
+- **Phase:** 03 (P03-5 Steps 1–3; combined qualification Step 4).
+
+#### `Role_Registry_V3_Is_An_Explicit_One_Pair_Delta`
+
+- **Asserts:** one SharedKernel Tenant custom-field-admin definition feeds
+  registration; explicit exact v2→v3 Tenant Admin adoption adds only that pair.
+  v1→v2 remains discoverable and must precede v3. Historical v2 helper/guard/
+  manifest/fingerprint bytes, current seeds and prior nonkernel removals survive
+  fresh/forward chains, repeat/unknown/stale/custom-role refusals and warm seed.
+- **Source:** [Permissions canonical adoption](19-permissions.md#custom-fields-and-version-3-adoption),
+  [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+- **Type:** compiled/SQL artifact equivalence and real adoption/seed/grant/MUST
+  rollback controls with removed-grant positive cases. **Kind:** both.
+- **Status:** **Implemented** (`RoleGrantCommandIntegrationTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [RoleReleaseV3Tests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/RoleReleaseV3Tests.cs),
+  [RoleGrantCommandIntegrationTests.Registry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/RoleGrantCommandIntegrationTests.Registry.cs).
+- **Phase:** 03 (P03-5 Step 1; discoverability activation Step 3).
+
+#### `Custom_Field_Transport_And_Diagnostics_Are_Closed`
+
+- **Asserts:** exact API/SDK/native manifests and parsers activate together,
+  including distinct own/admin PATCH, bounded concept revision history, the tenth
+  advisory capability and fixed consent-only entry shell/POSTs. No generic proxy
+  or OwnMembershipRead mutation appears. All values (including None), schemas,
+  labels and notices are excluded as whole payloads from diagnostics, validation/
+  L1 errors and marked audit snapshots/diffs using the existing redacted token.
+  Authorized value responses retain their independent disclosure admission.
+- **Source:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md),
+  [Security](11-security.md#retained-consent-subject-admission),
+  [Observability](10-observability.md), [Permissions](19-permissions.md#exact-operation-authority).
+- **Type:** nonempty compiled/OpenAPI/SDK/native census plus nested canaries and
+  safe positive controls for immediate/deferred database failure, serialized
+  logs/spans/local error archives/Sentry/validation/L1 responses/audit capture;
+  actual request/response/snapshot budgets and browser/no-JavaScript journeys.
+  **Kind:** both.
+- **Companion controls:**
+  [definition/notice sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/CustomFieldDefinitionDiagnosticSinkTests.cs),
+  [None/Sensitive value sink canaries](../../backend/tests/LearnStack.Tests.Integration/Database/MembershipCustomFieldDiagnosticSinkTests.cs)
+  and [capture-bound nested privacy](../../backend/tests/LearnStack.Tests.Unit/Audit/ConfidentialAuditDiagnosticsTests.cs).
+- **Status:** **Implemented** (`MembershipCustomFieldDiagnosticSinkTests`); companion owners below, source-bound proof separate.
+- **Test owners:**
+  [AuthenticatedHttpSurfaceTests.ConsentAndCustomFields.cs](../../backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.ConsentAndCustomFields.cs),
+  [OpenApiContractTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.CustomFields.cs),
+  [BoundedAdministrationHttpTests.CustomFields.cs](../../backend/tests/LearnStack.Tests.Integration/Database/BoundedAdministrationHttpTests.CustomFields.cs).
+- **Phase:** 03 (P03-5 Steps 2–4).

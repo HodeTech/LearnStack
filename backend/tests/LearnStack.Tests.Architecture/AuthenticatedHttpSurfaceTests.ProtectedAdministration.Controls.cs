@@ -90,6 +90,19 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var controller = map["LearnStack.Api:" + endpoint.Controller];
             var action = controller.Methods.Single(method => method.Name == endpoint.Action);
             ProtectedHandoff(controller, action, endpoint).Should().BeTrue();
+            if (controller.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController"
+                || controller.FullName == "LearnStack.Api.Customization.CustomFieldDefinitionsController" && action.Name is ("Retire" or "Discard"))
+            {
+                var bodyMethods = controller.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController"
+                    ? ActionBodies(controller, action.Name).ToArray() : ActionBodies(controller, "Transition").ToArray();
+                var operand = bodyMethods.SelectMany(method => method.Body.Instructions)
+                    .First(instruction => instruction.Operand is MethodReference target && HandoffSignature(target));
+                var saved = operand.Operand;
+                operand.Operand = controller.Module.ImportReference(typeof(string).GetMethod(nameof(string.ToString), Type.EmptyTypes)!);
+                try { ProtectedHandoff(controller, action, endpoint).Should().BeFalse("removing the exact captured handoff is detected"); }
+                finally { operand.Operand = saved; }
+                continue;
+            }
             var body = ActionBodies(controller, action.Name).Single(method => method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference target && HandoffSignature(target)));
             var handoff = body.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target && HandoffSignature(target));
             var request = Argument(body, handoff, 3)!;

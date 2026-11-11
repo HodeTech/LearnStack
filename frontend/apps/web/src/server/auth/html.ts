@@ -6,6 +6,7 @@ import {
   roleLabel,
   statusLabel,
 } from '@/components/auth/admin-labels';
+import { customFieldMutationContent } from '@/components/auth/custom-field-recovery';
 import { BFF_HISTORY_SOURCE } from '@/components/auth/history';
 import { publicThemeCss } from '@/components/public/theme';
 import { createAdministrationTranslator } from '@/i18n/administration-catalogues';
@@ -60,7 +61,7 @@ function entryContent(page: Extract<BffPage, { kind: 'entry' }>, copy: AuthCopy)
   if (entry.displayLabel === null)
     return `<p>${escape(copy('entry.reauthenticate'))}</p>${signout}`;
   const label = `<p>${escape(copy('entry.account'))}: <strong>${escape(entry.displayLabel)}</strong></p><p>${escape(copy('entry.confirm'))}</p>`;
-  const retry = `<p><a href="/api/auth/entry">${escape(copy('entry.retry'))}</a></p>`;
+  const retry = `<p><a href="/api/auth/entry">${escape(copy('entry.retry'))}</a></p><p><a href="/account/consents">${escape(copy('consents.title'))}</a></p>`;
   if (entry.identityState === 'missing')
     return `${label}<p>${escape(copy('entry.missing'))}</p><form action="/api/auth/entry/create" method="post">${proof}<button type="submit">${escape(copy('entry.create'))}</button></form>${retry}${signout}`;
   if (!entry.contexts)
@@ -198,6 +199,8 @@ function mutationContent(
   locale: string,
   site: PageSite,
 ): string {
+  const customField = customFieldMutationContent(page, locale, site);
+  if (customField !== null) return customField;
   if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-'))
     return invitationValidationContent(page, copy, locale);
   if (page.reason === 'validation') {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using OpenTelemetry;
@@ -13,5 +14,6 @@ internal sealed class IdentityStorageSpanProcessor : BaseProcessor<Activity>
         IdentityStorageTraceBoundary.ApplyBeforeExport(data);
         TenantLocaleReadTraceBoundary.ApplyBeforeExport(data);
         TenancyAdministrationTraceBoundary.ApplyBeforeExport(data);
+        CustomFieldDefinitionTraceBoundary.ApplyBeforeExport(data);
     }
 }

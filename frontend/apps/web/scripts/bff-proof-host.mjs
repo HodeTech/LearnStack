@@ -17,6 +17,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  createCustomFieldBrowserFixture,
+  customFieldBrowserExactText,
+  customFieldBrowserNoticeHash,
+} from './bff-custom-fields-fixture.mjs';
+import {
   bffListenerFailureDetail,
   createBffCookieScanner,
   rememberBffCookies,
@@ -164,6 +169,7 @@ export function instrumentCopiedBffRuntime(
     marker,
     clockBase,
     ownershipCase,
+    profilePermissionFile,
   },
 ) {
   let launcher = sourceText;
@@ -219,6 +225,13 @@ export function instrumentCopiedBffRuntime(
       if (value.action === 'release') releaseRender();
       control.proof.emit({kind: 'render-state', held: renderWork.size, frames: bffRequests?.counts() ?? 0, snapshots: bffRequests?.snapshotCounts() ?? null});
     } else if (value.kind === 'advance') {
+      ${
+        uiMode && typeof profilePermissionFile === 'string'
+          ? `// A private parent-owned setup marker changes fixture permissions, never consent.
+      try { if (readFileSync(${JSON.stringify(profilePermissionFile)}, 'utf8') === 'restore-profile-write-v1') customFieldBrowser.restoreProfilePermissionForFixture(); }
+      catch (error) { if (error?.code !== 'ENOENT') throw new Error('Owned permission setup failed'); }`
+          : ''
+      }
       now += value.milliseconds;
       await (await import('next/dist/trace/index.js')).flushAllTraces();
       control.proof.emit({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} });
@@ -229,10 +242,13 @@ export function instrumentCopiedBffRuntime(
     const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
     const pageInfo = {nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false};
     const success = (data, version = false) => ({kind: 'success', status: 200, data: structuredClone(data), etag: version ? '"' + data.version + '"' : null, location: null, replayed: false});
+    const customFieldBrowser = (${createCustomFieldBrowserFixture.toString()})({success,pageInfo,member,noticeHash:${JSON.stringify(customFieldBrowserNoticeHash)},exactText:${JSON.stringify(customFieldBrowserExactText)}});
     const fixtureAdministration = async (_token, binding, operation) => {
       administrations[operation.kind] = (administrations[operation.kind] ?? 0) + 1;
+      const custom = customFieldBrowser.call(operation, binding);
+      if (custom !== undefined) return custom;
       switch (operation.kind) {
-        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: true, canManageOrganizations: true});
+        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: !customFieldBrowser.profileReadOnly, canManageOrganizations: true, canManageCustomFields: true});
         case 'getOwnProfile': return success(ownProfile, true);
         case 'listMemberships':
         case 'listOrganizationMemberships': { if (${mutation === 'unavailable-pages'}) return {kind: 'transport-error'}; const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
@@ -568,6 +584,9 @@ export async function prepareBffProof({
     'native-invitation-contract',
     'native-invitation-client',
     'native-invitation-http',
+    'native-consent-http',
+    'consent-response-contract',
+    'custom-field-forms',
     'invitation-session',
     'invitation-copy',
     'invitation-html',
@@ -593,6 +612,7 @@ export async function prepareBffProof({
       join(source, 'src/i18n/messages', locale, 'invitation.json'),
       join(directory, 'invitation.json'),
     );
+    cpSync(join(source, 'src/i18n/messages', locale, 'auth.json'), join(directory, 'auth.json'));
   }
   if (mutation === 'activity') {
     const path = join(app, 'src/server/auth/request-runtime.ts');
@@ -764,6 +784,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
         marker,
         clockBase,
         ownershipCase,
+        profilePermissionFile: join(root, 'custom-field-profile-permission'),
       },
     ),
   );
@@ -1040,8 +1061,20 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
           });
           server.broker.send({ kind: 'render-control', action });
         });
+      const restoreCustomFieldProfilePermission = async () => {
+        assert.ok(uiMode && !external, 'Private UI fixture setup only');
+        owner.assertActive();
+        const setup = join(root, 'custom-field-profile-permission');
+        writeFileSync(setup, 'restore-profile-write-v1', { mode: 0o600 });
+        try {
+          await advance(0);
+        } finally {
+          rmSync(setup, { force: true });
+        }
+      };
       const view = {
         app,
+        restoreCustomFieldProfilePermission,
         server,
         advance,
         renderControl,

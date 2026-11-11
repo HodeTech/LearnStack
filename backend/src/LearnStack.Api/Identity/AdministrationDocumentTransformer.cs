@@ -14,7 +14,7 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
 {
     private static readonly string[] CapabilityFlagNames =
     ["canReadTenantMembers", "canReadOrganizationMembers", "canWriteMemberProfiles", "canManageMemberships",
-        "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations"];
+        "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations", "canManageCustomFields"];
 
     private sealed record Contract(string Path, HttpMethod Method, string Operation, string? Response,
         string? Body = null, bool Versioned = false, bool Paged = false, bool Creates = false,
@@ -220,11 +220,11 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         schemas["RoleSummaryResponse"] = Object(("roleId", Uuid()), ("builtInKey", BuiltInRole()), ("capabilityScope", Scope()), ("version", Version()));
         schemas["RoleDirectoryResponse"] = Object(("items", Array(Ref("RoleSummaryResponse"), 8)));
         schemas["RoleDetailResponse"] = Object(("roleId", Uuid()), ("builtInKey", BuiltInRole()), ("capabilityScope", Scope()), ("version", Version()),
-            ("grants", Array(Ref("AdministrationGrantResponse"), 8, true)), ("adoptedReleaseVersion", Integer()), ("adoptedReleaseFingerprint", Digest()));
+            ("grants", Array(Ref("AdministrationGrantResponse"), 9, true)), ("adoptedReleaseVersion", Integer()), ("adoptedReleaseFingerprint", Digest()));
         schemas["PermissionRegistryItemResponse"] = Object(("scope", Scope()), ("key", Text(false, 128)), ("labelKey", Text()), ("canGrant", Boolean()));
         schemas["RoleReleaseResponse"] = Object(("version", Integer()), ("fingerprint", Digest()),
-            ("tenantAdminDelta", Array(Ref("AdministrationGrantResponse"), 8, true)));
-        schemas["PermissionRegistryResponse"] = Object(("items", Array(Ref("PermissionRegistryItemResponse"), 8)), ("release", Ref("RoleReleaseResponse")));
+            ("tenantAdminDelta", Array(Ref("AdministrationGrantResponse"), 9, true)));
+        schemas["PermissionRegistryResponse"] = Object(("items", Array(Ref("PermissionRegistryItemResponse"), 9)), ("release", Ref("RoleReleaseResponse")));
         schemas["OwnCapabilitiesDto"] = Object(CapabilityFlagNames
             .Select(name => (name, (IOpenApiSchema)Boolean())).ToArray());
         schemas["OwnMembershipContextResponse"] = Object(("tenantId", Uuid()), ("organizationId", Uuid(true)),
@@ -238,7 +238,7 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         schemas["MembershipProfileInput"] = Object(("displayName", Text(true, 128)), ("preferredLocale", Text(true, 35)));
         schemas["MembershipRolesInput"] = Object(("roleIds", Array(Uuid(), 8, true)));
         schemas["MembershipStatusInput"] = Object(("status", Enum("Active", "Suspended", "Revoked")));
-        schemas["RoleGrantsInput"] = Object(("grants", Array(Ref("AdministrationGrantResponse"), 8, true)));
+        schemas["RoleGrantsInput"] = Object(("grants", Array(Ref("AdministrationGrantResponse"), 9, true)));
         schemas["RoleManifestInput"] = Object(("manifestVersion", Integer()), ("manifestFingerprint", Digest()));
         schemas["OrganizationCreateInput"] = Object(("slug", Text(false, 63)), ("displayName", Text(false, 200)));
         schemas["OrganizationRenameInput"] = Object(("displayName", Text(false, 200)));

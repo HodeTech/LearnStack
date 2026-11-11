@@ -39,6 +39,8 @@ export function installBffSessionRuntime(
     discardEntry: owner.discardEntry.bind(owner),
     operate: owner.operate.bind(owner),
     preparePage: owner.preparePage.bind(owner),
+    retainConsent: owner.retainConsent.bind(owner),
+    retainedConsent: owner.retainedConsent.bind(owner),
     peek: owner.peek.bind(owner),
     admit: owner.admit.bind(owner),
     signout: owner.signout.bind(owner),

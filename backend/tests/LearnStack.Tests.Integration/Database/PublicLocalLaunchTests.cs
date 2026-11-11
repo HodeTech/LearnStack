@@ -78,6 +78,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
                 "src/server/auth/provider.ts", "src/server/auth/session-contract.ts",
                 "src/server/auth/invitation-session.ts", "src/server/auth/native-invitation-contract.ts",
                 "src/server/auth/session-path.ts", "src/server/auth/session-projection.ts",
+                "src/server/auth/consent-response-contract.ts",
             })
                 File.Copy(Path.Combine(repository, "frontend/apps/web", file), Path.Combine(app, file));
             Directory.CreateSymbolicLink(Path.Combine(app, "node_modules"), Path.Combine(repository, "frontend/apps/web/node_modules"));

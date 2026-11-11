@@ -14,13 +14,14 @@ MediatR request or audited write. It creates no intent or business-state mutatio
 Any production request introduced for it must be audit Off; test-only requests
 stay test-only. [The module contract](README.md#primary-read-flow-resolving-a-tenants-shapes) owns the read.
 
-Six operations below exist: Phase 02a Packet 8's `ContentType` and
-`LevelTaxonomy` register/publish, plus P02b-3's separate default initializers.
-Eight more rows are classification ahead of code and carry `(planned)` in the
+Eleven write operations below exist: Phase 02a Packet 8's `ContentType` and
+`LevelTaxonomy` register/publish, P02b-3's separate default initializers and
+P03-5's five definition lifecycle commands.
+The original eight additional rows are classification ahead of code and carry `(planned)` in the
 `Operation` column ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md));
 the last row carries no slug at all, and its own cell says why.
 
-**All six write MUST rows**, and publication is the one that matters most: it
+**All eleven write MUST rows**, and publication is the one that matters most: it
 retires the incumbent and makes every subsequent write of that content type validate
 against a new shape, and the row is what records who changed what a tenant's data is
 allowed to look like. `CustomizationAuditCatalogSource` declares the same operations in
@@ -33,7 +34,7 @@ one, and `AuditCoverageTests` joins them in both directions
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). Catalogue → matrix
 is total: every entry this module's `IAuditCatalogSource` registers has a row here
 carrying the same slug, and one that does not fails. Matrix → catalogue binds only to a
-slug whose request type **exists**, so the eight `(planned)` rows are classification and
+slug whose request type **exists**, so the original eight `(planned)` rows are classification and
 not drift — and a `(planned)` row whose command has since shipped fails, which is what
 keeps the marker from becoming a hole rather than a claim. Both integration
 handlers coordinate classified nested commands and are explicitly
@@ -169,6 +170,29 @@ metadata as explicit None with purpose. These describe reusable definitions,
 not stored person-specific field values. Inherited actor references and stamps
 use the [common declarations](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership).
 The complete final-model census includes taxonomy children and rejects omitted
-properties. Future dynamic personal values require G9's revision-aware semantic
+properties. Dynamic personal values follow ADR-0095 revision-aware semantic
 classification, consent and diagnostics; a definition's None category does not
 classify values subsequently authored against it.
+
+## Membership field definitions
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+classifies register, draft edit, publish, retire and discard as MUST on the
+`TenantCustomFieldDef` root. The catalogue must explicitly classify definition
+configuration reads Off before dispatch. Publication designates the successor via
+`IAuditSubject.Designate` when the incumbent is also tracked. Schema, labels and
+notices are whole-payload redacted. The request types, exact slugs and HTTP/native
+consumers are implemented. Phase 03 records source-bound qualification separately
+from catalogue registration.
+
+| Resource | Operation | Class | Request |
+|---|---|---|---|
+| `TenantCustomFieldDef` | `customization.custom_field.register` | **MUST** (create) | `RegisterCustomFieldDefinitionCommand` |
+| `TenantCustomFieldDef` | `customization.custom_field.revise` | **MUST** (update) | `ReviseCustomFieldDefinitionDraftCommand` |
+| `TenantCustomFieldDef` | `customization.custom_field.publish` | **MUST** (update) | `PublishCustomFieldDefinitionCommand` |
+| `TenantCustomFieldDef` | `customization.custom_field.retire` | **MUST** (update) | `RetireCustomFieldDefinitionCommand` |
+| `TenantCustomFieldDef` | `customization.custom_field.discard` | **MUST** (delete) | `DiscardCustomFieldDefinitionDraftCommand` |
+| Original retained definition outcome | `customization.custom_field.read_receipt` | **MUST** (`read-sensitive`) | `ReadCustomFieldDefinitionReceiptQuery`; current definition-admin authority, including a discarded original Draft; no schema or notice receipt. |
+
+`ListCustomFieldDefinitionsQuery`, `GetCustomFieldDefinitionQuery` and
+`ListCustomFieldDefinitionRevisionsQuery` are explicit Off bindings.

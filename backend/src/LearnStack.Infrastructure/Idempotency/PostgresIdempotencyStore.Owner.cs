@@ -84,14 +84,15 @@ public sealed partial class PostgresIdempotencyStore
         CancellationToken cancellationToken, params (string Name, object Value)[] values)
     {
         await using var command = Command(connection, transaction, sql);
-        foreach (var (name, value) in values) command.Parameters.AddWithValue(name, value);
+        foreach (var (name, item) in values) command.Parameters.AddWithValue(name, item);
         return await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task<T> ScalarAsync<T>(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, params (string Name, object Value)[] values)
     {
         await using var command = Command(connection, transaction, sql);
+        foreach (var (name, item) in values) command.Parameters.AddWithValue(name, item);
         var value = await command.ExecuteScalarAsync(cancellationToken);
         return value is null or DBNull ? default! : (T)value;
     }

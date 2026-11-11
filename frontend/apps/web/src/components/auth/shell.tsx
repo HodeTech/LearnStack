@@ -4,6 +4,7 @@ import 'server-only';
 import {
   createAdministrationTranslator,
   preferredPageLocale,
+  getAdministrationCatalogue,
 } from '@/i18n/administration-catalogues';
 import type { AdminCopy, ProfileCopy } from '@/i18n/administration-catalogues';
 import { createAuthTranslator } from '@/i18n/auth-catalogues';
@@ -15,6 +16,12 @@ import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
 import { InvitationDetails, InvitationDirectory, InvitationPolicy } from './admin-invitations';
 import { MemberDetails, MemberDirectory } from './admin-members';
 import { RoleDetails, RoleDirectory } from './admin-roles';
+import { CustomFieldDirectory, CustomFieldDetails } from './custom-fields';
+import {
+  MemberCustomFields,
+  OwnConsentHistory,
+  OwnConsentHistoryContinuation,
+} from './member-custom-fields';
 import { SessionControls } from './session';
 
 type PageKind = PageView['kind'];
@@ -30,6 +37,8 @@ function title(kind: PageKind, admin: AdminCopy, profile: ProfileCopy, copy: Aut
     invitations: admin('invitations.title'),
     invitation: admin('invitations.detail_title'),
     invitation_policy: admin('invitations.policy_title'),
+    custom_fields: admin('custom_fields.title'),
+    custom_field: admin('custom_fields.detail_title'),
   };
   return titles[kind];
 }
@@ -47,7 +56,16 @@ function PageContents({
   readonly admin: AdminCopy;
   readonly profile: ProfileCopy;
 }) {
+  const fieldCopy = getAdministrationCatalogue(locale).messages.admin.custom_fields;
   switch (view.kind) {
+    case 'custom_fields':
+      return (
+        <CustomFieldDirectory snapshot={snapshot} view={view} locale={locale} copy={fieldCopy} />
+      );
+    case 'custom_field':
+      return (
+        <CustomFieldDetails snapshot={snapshot} view={view} locale={locale} copy={fieldCopy} />
+      );
     case 'invitations':
       return <InvitationDirectory snapshot={snapshot} view={view} locale={locale} admin={admin} />;
     case 'invitation':
@@ -64,6 +82,7 @@ function PageContents({
           locale={locale}
           admin={admin}
           profile={profile}
+          fieldCopy={fieldCopy}
         />
       );
     case 'roles':
@@ -71,27 +90,56 @@ function PageContents({
     case 'role':
       return <RoleDetails snapshot={snapshot} view={view} admin={admin} />;
     case 'profile': {
-      if (snapshot.profileState !== 'available' || !snapshot.ownProfile)
-        return (
-          <p>{snapshot.profileState === 'missing' ? profile('missing') : profile('unavailable')}</p>
-        );
       const value = snapshot.ownProfile;
-      return view.canWrite && snapshot.capabilities?.canWriteOwnProfile ? (
-        <form action="/api/account/profile" method="post">
-          <MutationFields snapshot={snapshot} index={0} version={value.version} />
-          <ProfileFields
-            snapshot={snapshot}
-            value={value}
-            locale={locale}
-            profile={profile}
-            prefix="own-profile"
-          />
-        </form>
-      ) : (
+      return (
         <>
-          <p>{profile('read_only')}</p>
-          <ProfileValues value={value} locale={locale} profile={profile} />
-          <p>{profile('fallback')}</p>
+          {snapshot.profileState !== 'available' || !value ? (
+            <p>
+              {snapshot.profileState === 'missing' ? profile('missing') : profile('unavailable')}
+            </p>
+          ) : view.canWrite && snapshot.capabilities?.canWriteOwnProfile ? (
+            <form action="/api/account/profile" method="post">
+              <MutationFields snapshot={snapshot} index={0} version={value.version} />
+              <ProfileFields
+                snapshot={snapshot}
+                value={value}
+                locale={locale}
+                profile={profile}
+                prefix="own-profile"
+              />
+            </form>
+          ) : (
+            <>
+              <p>{profile('read_only')}</p>
+              <ProfileValues value={value} locale={locale} profile={profile} />
+              <p>{profile('fallback')}</p>
+            </>
+          )}
+          {view.customFields && (
+            <MemberCustomFields
+              snapshot={snapshot}
+              fields={view.customFields}
+              canWrite={Boolean(view.canWrite && snapshot.capabilities?.canWriteOwnProfile)}
+              own
+              selectedFieldId={view.selectedFieldId}
+              locale={locale}
+              copy={fieldCopy}
+            />
+          )}
+          {view.consentHistoryIncomplete && view.customFields && (
+            <OwnConsentHistoryContinuation
+              membershipId={view.customFields.membershipId}
+              copy={fieldCopy}
+            />
+          )}
+          {view.consents && (
+            <OwnConsentHistory
+              snapshot={snapshot}
+              history={view.consents}
+              locale={locale}
+              copy={fieldCopy}
+            />
+          )}
         </>
       );
     }
@@ -181,6 +229,10 @@ export function PreparedAccountPage({
           {snapshot.scopeKind === 'tenant' && (
             <a href="/studio/invitation-policy">{admin('navigation.invitation_policy')}</a>
           )}
+          {snapshot.scopeKind === 'tenant' && capabilities?.canManageCustomFields && (
+            <a href="/studio/custom-fields">{admin('navigation.custom_fields')}</a>
+          )}
+          <a href="/account/consents">{admin('custom_fields.consent_history')}</a>
           <a href="/portal/profile">{admin('navigation.profile')}</a>
           <a href="/api/auth/entry">{admin('navigation.contexts')}</a>
           <a href={'/' + snapshot.site.defaultLocale + '/courses'}>{copy('shell.catalog')}</a>
@@ -203,7 +255,9 @@ export function PreparedAccountPage({
                   snapshot.outcome.reason === 'invalid_cursor'
                     ? kind === 'invitations'
                       ? '/studio/invitations'
-                      : '/studio/members'
+                      : kind === 'custom_fields' || kind === 'custom_field'
+                        ? '/studio/custom-fields'
+                        : '/studio/members'
                     : snapshot.target
                 }
               >

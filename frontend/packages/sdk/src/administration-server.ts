@@ -41,9 +41,17 @@ import {
   version,
 } from './administration-policy.js';
 import type { AdministrationShape } from './administration-policy.js';
+import { createCustomFieldServerSdk } from './custom-field-server.js';
 import { appError, parseProblem } from './response-policy.js';
 
 export type * from './administration-contract.js';
+export type * from './custom-field-contract.js';
+export {
+  createCustomFieldServerSdk,
+  parseCustomFieldJson,
+  parseCustomFieldNumber,
+  isCustomFieldSchema,
+} from './custom-field-server.js';
 /** The invitation API's mailbox grammar, for callers that must refuse a recipient before sending. */
 export { invitationEmail as isInvitationEmail } from './administration-policy.js';
 
@@ -270,6 +278,7 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
     );
   }
   return Object.freeze({
+    ...createCustomFieldServerSdk(transport),
     listInvitations: (options?: AdministrationPageOptions) =>
       request<InvitationPage>(
         'invitations',
@@ -403,10 +412,17 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
         200,
         options,
       ),
-    getPermissions: (options?: AdministrationReadOptions) =>
+    getPermissions: (
+      options?: AdministrationReadOptions & Readonly<{ sourceReleaseVersion?: 1 | 2 }>,
+    ) =>
       request<PermissionRegistry>(
         'permissions',
-        () => ({ path: '/api/v1/identity/permissions' }),
+        () => ({
+          path:
+            options?.sourceReleaseVersion === undefined
+              ? '/api/v1/identity/permissions'
+              : '/api/v1/identity/permissions?sourceReleaseVersion=' + options.sourceReleaseVersion,
+        }),
         200,
         options,
       ),
@@ -483,7 +499,7 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
         resource('/api/v1/identity/roles', id)?.concat('/manifest-adoptions'),
         'POST',
         { manifestVersion, manifestFingerprint },
-        manifestVersion === 2 &&
+        (manifestVersion === 2 || manifestVersion === 3) &&
           typeof manifestFingerprint === 'string' &&
           /^[0-9a-f]{64}$/.test(manifestFingerprint),
         options,
@@ -530,3 +546,13 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
 }
 
 export type AdministrationServerSdk = ReturnType<typeof createAdministrationServerSdk>;
+
+export {
+  customFieldChoiceToken,
+  customFieldTextMode,
+  decodeCustomFieldChoice,
+  decodeCustomFieldText,
+  encodeCustomFieldText,
+  normalizeCustomFieldEditorLines,
+} from './custom-field-form-text.js';
+export type { CustomFieldTextMode } from './custom-field-form-text.js';

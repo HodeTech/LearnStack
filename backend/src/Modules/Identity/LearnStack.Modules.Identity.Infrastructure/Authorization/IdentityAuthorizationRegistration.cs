@@ -27,7 +27,9 @@ public static class IdentityAuthorizationRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IOperationPolicySource, IdentityOperationPolicySource>());
         services.TryAddScoped<IProtectedOperationAuthorizer>(provider => new IdentityOperationAuthorizer(
-            () => provider.GetRequiredService<IIdentityAuthorizationReader>(), provider.GetRequiredService<IOperationPolicyCatalog>(), provider.GetServices<LearnStack.SharedKernel.Identity.IInvitationEntryScopeSource>()));
+            () => provider.GetRequiredService<IIdentityAuthorizationReader>(), provider.GetRequiredService<IOperationPolicyCatalog>(),
+            provider.GetServices<LearnStack.SharedKernel.Identity.IInvitationEntryScopeSource>(),
+            provider.GetServices<LearnStack.SharedKernel.Identity.IConsentSubjectScopeSource>()));
         services.TryAddScoped<MembershipAdministrationAuthorization>();
         services.TryAddScoped<IdentityReceiptAuthorization>();
         services.TryAddScoped<IdentityAdministrationReadAuthorization>();

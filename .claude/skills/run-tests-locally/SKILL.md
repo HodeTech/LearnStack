@@ -125,6 +125,15 @@ dotnet test --configuration Release backend/tests/LearnStack.Tests.Architecture 
   --no-restore
 ```
 
+Catalogue status, owner or published-count edits also require the focused
+`CorpusConsistencyTests` group, even when only Markdown changes. Its counts use
+compiled reflection, not source-text attribute counts:
+
+```bash
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Architecture \
+  --no-restore --filter FullyQualifiedName~CorpusConsistencyTests
+```
+
 Common failure messages and fixes, from the rules that are **implemented today**.
 A rule you expected and do not see here is probably **Registered** against a later
 phase — check its Status line in

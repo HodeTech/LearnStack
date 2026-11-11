@@ -230,6 +230,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                          "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                          "browser-not-live", "browser-connect", "browser-context", "browser-entry-confirmation",
                          "browser-administration-pages", "browser-no-script",
+                         "browser-custom-field-author-boolean", "browser-custom-field-author-number", "browser-custom-field-author-enum", "browser-custom-field-own-consent", "browser-custom-field-retirement", "browser-custom-field-no-script",
                          "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers",
                          "browser-administration-counter-progress", "browser-administration-counter-status", "browser-administration-counter-cache",
                          "browser-administration-counter-wrapper", "browser-administration-counter-heading", "browser-administration-counter-view",
@@ -250,6 +251,10 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 .Should().Be("browser-history-revalidation_unexpected_output");
             (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nPRIVATE-CANARY\n"))
                 .Should().Be("browser-launch_unexpected_output");
+            (await ClosedErrorAsync("BFF browser fixture failed: browser-custom-field-author-PRIVATE-CANARY\n"))
+                .Should().Be("unexpected_output");
+            (await ClosedErrorAsync("BFF browser fixture failed: browser-custom-field-own-consent\nPRIVATE-CANARY\n"))
+                .Should().Be("browser-custom-field-own-consent_unexpected_output");
             (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF session cleanup failed.\n"))
                 .Should().Be("native-stop_cleanup_failed");
             (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF browser cleanup failed.\n"))
@@ -576,8 +581,8 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                     "the actual BFF journey persists provider event type {0}", type);
             }
             (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) =>
-                auditBefore[index] + 11 + (site.MapHostToDefaultOrganization ? 0 : 1)),
-                "NULL-org administrator selections, six selected-page read events and original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
+                auditBefore[index] + 12 + (site.MapHostToDefaultOrganization ? 0 : 1)),
+                "NULL-org administrator selections, seven selected-page read events and original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
             output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events/membership-revocation=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }
@@ -602,7 +607,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
 
     private static async Task<JsonElement> LoginAsync(BffNativeDriver native, KeycloakBrowserFlow browser,
         SeedIdentity identity, string password, BffWireCookies cookies, TenantRealmApiObservation observation,
-        string returnPath = "/studio", string? atHost = null)
+        string returnPath = "/studio", string? atHost = null, bool verifyConsentEntry = false)
     {
         var before = observation.Reads.Count(row => row.Actor is not null);
         var host = atHost ?? Host(identity.Tenant);
@@ -626,6 +631,46 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         entry.Data.GetProperty("state").GetString().Should().Be("entry");
         entry.Data.GetProperty("identityState").GetString().Should().Be("active");
         var membership = SeedData.IdentityMemberships.Single(value => value.Identity == identity);
+        if (verifyConsentEntry)
+        {
+            // Existing credentialed entry custody exercises the real consent-subject producer before any
+            // CurrentSession admission. The child returns only bounded HTML-derived counts/Booleans.
+            var consentCookies = cookies.Header;
+            var consentReads = observation.Reads.Count;
+            var consentScopes = await native.RequestAsync(host, "/account/consents", consentCookies);
+            consentScopes.Status.Should().Be(200);
+            consentScopes.Cache.Should().Be("no-store");
+            consentScopes.Cookies.Should().BeEmpty("consent discovery reuses the existing credentialed entry jar");
+            consentScopes.Data.EnumerateObject().Select(value => value.Name).Should().BeEquivalentTo(
+                ["kind", "scopeForms", "withdrawForms", "historyLoaded", "historyProtected"]);
+            consentScopes.Data.GetProperty("kind").GetString().Should().Be("consent_entry");
+            consentScopes.Data.GetProperty("scopeForms").GetInt32().Should().BeInRange(1, 20,
+                "a 200 anonymous sign-in page is insufficient: actual own-scope POST forms must be present");
+            consentScopes.Data.GetProperty("withdrawForms").GetInt32().Should().Be(0);
+            consentScopes.Data.GetProperty("historyLoaded").GetBoolean().Should().BeFalse();
+            consentScopes.Data.GetProperty("historyProtected").GetBoolean().Should().BeTrue();
+            consentScopes.PrivateFree.Should().BeTrue();
+            var consentHistory = await native.RequestAsync(host, "/account/consents?membershipId="
+                + membership.MembershipId.ToString("D"), consentCookies);
+            consentHistory.Status.Should().Be(200);
+            consentHistory.Cache.Should().Be("no-store");
+            consentHistory.Cookies.Should().BeEmpty();
+            consentHistory.Data.EnumerateObject().Select(value => value.Name).Should().BeEquivalentTo(
+                ["kind", "scopeForms", "withdrawForms", "historyLoaded", "historyProtected"]);
+            consentHistory.Data.GetProperty("kind").GetString().Should().Be("consent_entry");
+            consentHistory.Data.GetProperty("scopeForms").GetInt32().Should().BeInRange(1, 20);
+            consentHistory.Data.GetProperty("withdrawForms").GetInt32().Should().BeInRange(1, 20,
+                "arranged retained grants must produce actual exact-evidence withdrawal forms, not just an empty history heading");
+            consentHistory.Data.GetProperty("historyLoaded").GetBoolean().Should().BeTrue(
+                "the same real entry credential reaches the arranged nonempty exact own-Membership consent history");
+            consentHistory.Data.GetProperty("historyProtected").GetBoolean().Should().BeTrue();
+            consentHistory.PrivateFree.Should().BeTrue();
+            cookies.Header.Should().Be(consentCookies);
+            observation.Reads.Count.Should().Be(consentReads,
+                "retained consent entry/history use neither public-site nor AccountSite projection admission");
+            observation.Reads.Count(row => row.Actor is not null).Should().Be(before,
+                "no CurrentSession is admitted before the later explicit selection");
+        }
         var selectionBody = Form("csrfToken", entry.Data.GetProperty("csrfToken").GetString()!)
             + "&" + Form("tenantId", identity.Tenant.TenantId.Value.ToString("D"));
         if (membership.OrganizationId is { } organization)

@@ -4,6 +4,8 @@ import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
 import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
 import { roleLabel, statusLabel } from './admin-labels';
+import type { FieldCopy } from './custom-field-controls';
+import { MemberCustomFields } from './member-custom-fields';
 
 export function MemberDirectory({
   view,
@@ -55,12 +57,14 @@ export function MemberDetails({
   locale,
   admin,
   profile,
+  fieldCopy,
 }: {
   readonly snapshot: NativePageSnapshot;
   readonly view: Extract<PageView, { kind: 'member' }>;
   readonly locale: string;
   readonly admin: AdminCopy;
   readonly profile: ProfileCopy;
+  readonly fieldCopy: FieldCopy;
 }) {
   const member = view.member;
   const target = ['membershipId', member.membershipId] as const;
@@ -125,6 +129,17 @@ export function MemberDetails({
           <ProfileValues value={member} locale={locale} profile={profile} />
         )}
       </section>
+      {view.customFields && (
+        <MemberCustomFields
+          snapshot={snapshot}
+          fields={view.customFields}
+          canWrite={Boolean(canWrite)}
+          own={false}
+          selectedFieldId={view.selectedFieldId}
+          locale={locale}
+          copy={fieldCopy}
+        />
+      )}
       <section aria-labelledby="member-roles-title">
         <h2 id="member-roles-title">{admin('members.assignments')}</h2>
         {roles === null ? (

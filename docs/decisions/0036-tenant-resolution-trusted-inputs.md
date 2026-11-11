@@ -1372,3 +1372,22 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 19 — Host-capped retained consent-subject origin (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds the closed
+`HostAndConsentSubject` origin only for retained own-scope discovery, exact
+history and withdrawal under `OwnConsentEntry`. Verified provider subject,
+quota, existing Active binding and independently classified live host remain
+mandatory; Active Membership, AccountSite and public-site admission do not.
+A captured single-use witness binds operation, actor, subject, actual host,
+retained scope and physical mode. It cannot create ordinary native scope,
+Membership authority, custom-value disclosure or tenant-wide `app.scope`.
+[Security](../standards/11-security.md#retained-consent-subject-admission) owns
+admission; [Standard 05](../standards/05-database.md#custom-field-and-consent-storage)
+owns the consent-only function and twelfth logical setter. The four physical
+context writers and three global-self descriptors remain unchanged.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

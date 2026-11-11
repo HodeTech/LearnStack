@@ -383,7 +383,7 @@ be uninstalled from absence alone. Only a recognized pristine incomplete prefix
 may resume, with current fence/version evidence rechecked at each possible write
 under [Standard 05](05-database.md#p03-3-storage-and-replay-contract).
 Incompatible/foreign or edited partial state refuses before remaining writes;
-earlier committed facts remain. Ordinary seed never adopts v2. Realm roles and
+earlier committed facts remain. Ordinary seed never adopts v2 or v3. Realm roles and
 SystemActor cannot supply manifests or authority.
 [Identity's seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
 owns ordering and interrupted-run disposition.
@@ -411,8 +411,9 @@ implementation proof. Current qualification state lives in the
 ADR-0076 replaces the live
 admission/delegation deferrals above while retaining P03-1's exact five assignable
 pairs, eight templates, two-pair admin kernel and fixed v1 seed manifest.
-ADR-0079 adds the exact v2 contract below; registration remains distinct from
-grants. Implementation and qualification state remain in the
+ADR-0079 adds the exact v2 contract below; ADR-0095 registers the explicit
+v2→v3 delta in the [custom-field extension](#custom-fields-and-version-3-adoption).
+Registration remains distinct from grants. Implementation and qualification state remain in the
 [phase Status block](../roadmap/phase-03-identity-admin.md).
 
 | Virtual Tenant definition | Existing PublicSurface requests |
@@ -464,7 +465,8 @@ production application acts, each with one Role root and expected Role row versi
 Both require current Tenant Admin/role-admin authority, orgless write scope,
 concurrency/kernel guards and post-lock reauthorization. Ordinary grant changes
 retain the current delegation ceiling and cannot grant authority the actor lacks;
-only the exact first-v2-adoption exception below admits its three new keys.
+only the exact first-v2-adoption exception below admits its three new keys, and
+the separately accepted v2→v3 exception admits its one new pair.
 An eligible Tenant Admin holding Tenant `identity.role.admin` may author an exact
 registered Organization pair only while holding the same key's Tenant pair.
 That is an explicit authoring relation, not scoped-key equivalence or evaluation
@@ -513,7 +515,7 @@ automatic grant. P03-4 runtime qualification remains in the phase Status block.
 Existing holders of Tenant `tenancy.setting.write` gain the additional exact
 orgless operation on `identity.invitation.ttl_days`, 1–30 days. A v1 tenant
 without that pair uses the 14-day default but cannot edit it. The explicit v2
-adoption below remains the only exceptional new-key grant path; registration,
+adoption below remains the only exceptional path for those three v2 keys; registration,
 warm seed and invitation creation cannot grant or restore the pair. An additional
 invitation-policy permission is not selected. No generic setting writer follows.
 
@@ -564,3 +566,72 @@ owns their exact operation bindings. Permission-registry/Role disclosures and
 protected receipt reads are separately MUST audited before disclosure. Stored
 successful receipts require current target-specific disclosure authority, not a
 cached permission or reexecution of the original mutation.
+
+
+## Custom fields and version-3 adoption
+
+**Derives from:** [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
+**Accepted contract; P03-5 implementation/proof pending in the
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md).** v3 is exactly v2 plus
+Tenant `customization.custom_field.admin`: nine assignable pairs total, with no
+Organization counterpart, wildcard, new template or automatic Editor grant.
+Define the pair once in SharedKernel's bounded permission definitions;
+Customization's module policy source registers it. Registration, definition
+creation, startup, migration and warm seed grant nothing. Current new seeds
+remain on their selected v1 manifest; valid installed v3 state is preserved.
+
+### Explicit v2 to v3 adoption
+
+Only the exact built-in orgless Tenant Admin role at exact v2 may deliberately
+adopt v3, under current Active NULL-org Membership/global admission, both kernel
+pairs, Tenant role-admin authority, expected Role ETag and retained exclusive
+Tenant fence. Validate source marker/fingerprint and requested release/fingerprint
+before the atomic one-pair delta, v3 marker advance and MUST audit. A v1 role must
+first adopt v2; direct v1→v3, downgrade, custom/Organization role, unknown/mismatched
+release or stale source refuses. Same-release replay retains the existing
+outcome contract. Both exact v1→v2 and v2→v3 transitions remain discoverable in
+registry DTO/UI.
+
+The v3 fingerprint uses the existing unsigned-32-bit big-endian length-framed
+SHA-256 algorithm over domain `learnstack.identity.role.release.v3`, exact v2
+fingerprint, `TenantAdmin:Tenant`, then ordered delta
+`Tenant:customization.custom_field.admin:True`. Historical v1/v2 manifest bytes,
+fingerprints and shipped v2 helper/guard behavior remain unchanged, including on
+a fresh migration chain. A forward migration adds v3 validation; it does not
+rewrite the old generated artifact. The one-pair delta preserves prior nonkernel
+v1/v2 removals, including profile-write or Tenancy pairs. No manifest restore or
+seed repair is allowed.
+
+### Exact operation authority
+
+Definition list/exact revision/concept history and register/revise/publish/retire/
+discard require Tenant `customization.custom_field.admin` in the applicable
+orgless context. Existing Tenant/Organization `identity.membership_profile.write`
+holders gain custom-value writes only under existing exact own/admin target
+predicates; another person's write additionally requires membership-admin.
+Own and administrative PATCH requests remain distinct. These grants supply no
+global User mutation, broad definition directory, cross-org write or consent
+creation power. The accepted package and module matrices own the closed request/
+method/path census; generic proxy dispatch is not admitted.
+
+GrantOwnMembershipFieldConsentCommand requires the actor's own current Active
+Membership, admitted lifecycle/host/session and explicit exact notice confirmation,
+without admin or profile-write permission. WithdrawOwnMembershipFieldConsentCommand
+and retained history/discovery use only the distinct
+[OwnConsentEntry contract](11-security.md#retained-consent-subject-admission).
+They require verified Active global binding plus real-host-capped retained
+subject evidence, without current Active Membership or administrative grant.
+OwnMembershipRead remains read-only; these two exact commands confer no general
+own-mutation authority. Same-key receipts reauthorize the original actor/target;
+stale different-key predecessor conflicts and never silently retries.
+
+`canManageCustomFields` is the tenth advisory administration capability: current
+Tenant definition-admin authority in applicable orgless write context. Identity's
+projection evaluates the registered SharedKernel pair with fresh facts/catalogue
+without importing Customization.Domain. It is no grant, ETag or reusable mutation
+admission. DTO/OpenAPI/SDK/native exact parsers, labels, manifests and capability
+controls change together with activation; both API and direct application
+policies remain authoritative after a stale/revoked flag. Exact current-target
+protected receipt disclosure and the existing denial/audit mechanisms apply;
+[Standard 05](05-database.md#custom-field-replay-key-custody) owns only the new
+P03-5 HMAC fingerprint/key-metadata extension, preserving historical hashes.

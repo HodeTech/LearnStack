@@ -179,3 +179,11 @@ proof; Phase 06 still owns the full authenticated browser matrix. The
 - Disabling zoom or fixing viewport scale.
 - Conveying meaning by color alone.
 - Auto-playing audio.
+
+## Membership custom-field forms
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires grouped nested labels, predictable add/remove controls, validation hints
+and error summaries. Consent controls and history remain independently available;
+declining a required sensitive field leaves the form incomplete without denying
+existing access. Phase 03 owns implementation and proof.

@@ -538,3 +538,14 @@ own their executable setup and preservation rules.
   signed scope nor a retained candidate proves current Membership or permission.
 - **Migration path away from Keycloak.** Unlikely, but: usernames + emails are stable, so a migration to Authentik or a custom provider is mechanical. Refresh tokens would not migrate; users would re-authenticate.
 - **Federation complexity.** Per-tenant SSO requires careful admin UX to avoid misconfiguration; tenant admins should not be able to break their own login by removing the only IdP.
+
+## Membership custom fields and consent
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+accepts revision-pinned MembershipProfile values and independent personal consent.
+The exact own and administrative value mutations are PATCH operations using existing
+target predicates; own read authority alone grants no mutation. The separate
+`OwnConsentEntry` admits retained-subject history and withdrawal under a real host
+ceiling even after Membership lifecycle loss, without CurrentSession or a public
+site read. Grant remains an explicit act by the subject's current Active Membership.
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery and proof.

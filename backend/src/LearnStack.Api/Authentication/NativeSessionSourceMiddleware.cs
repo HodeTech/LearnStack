@@ -62,11 +62,12 @@ internal sealed class NativeSessionSourceMiddleware(RequestDelegate next)
 
         var operation = GlobalSelfOperation.ForPath(context.Request.Path);
         var invitation = InvitationEntryOperation.ForPath(context.Request.Path);
+        var consent = ConsentSubjectOperation.ForPath(context.Request.Path);
         var hasTenant = context.Request.Headers.ContainsKey(NativeSessionSourcePolicy.TenantHeader);
         var hasOrganization = context.Request.Headers.ContainsKey(NativeSessionSourcePolicy.OrganizationHeader);
         TenantId? tenant = null;
         OrganizationId? organization = null;
-        if (operation is not null || invitation is not null)
+        if (operation is not null || invitation is not null || consent is not null)
         {
             if (hasTenant || hasOrganization)
             {
@@ -99,7 +100,7 @@ internal sealed class NativeSessionSourceMiddleware(RequestDelegate next)
         }
 
         context.Features.Set(new NativeSessionSourceFeature(context, host, subject, decision, provenance,
-            tenant, organization, operation, hosts, policy, clock, invitation));
+            tenant, organization, operation, hosts, policy, clock, invitation, consent));
         await next(context);
     }
 

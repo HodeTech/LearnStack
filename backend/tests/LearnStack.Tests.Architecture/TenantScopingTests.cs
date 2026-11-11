@@ -411,7 +411,45 @@ public sealed class TenantScopingTests
         var installed = assembly.Migrations.SelectMany(pair =>
             assembly.CreateMigration(pair.Value, identity.Database.ProviderName!).UpOperations)
             .OfType<SqlOperation>().Select(operation => operation.Sql.Replace("public.", "", StringComparison.Ordinal));
-        return string.Join("\n", files.Select(File.ReadAllText).Concat(installed));
+        // These two helpers are invoked from the actual Tenancy and Customization
+        // Up operations. Read those operations, not the helper source: removing the
+        // Install call must remove its policy from this census. Limit the additions
+        // to the two new tables so older literal migration SQL is not counted twice.
+        using var tenancy = Modules.ModelOnly<TenancyDbContext>();
+        using var customization = Modules.ModelOnly<CustomizationDbContext>();
+        var consent = InstalledTablePolicySql(tenancy, "membership_field_consents");
+        var definitions = InstalledTablePolicySql(customization, "tenant_custom_field_defs");
+        consent.Should().NotBeEmpty("the consent migration must install its own RLS policy");
+        definitions.Should().NotBeEmpty("the field definition migration must install its own RLS policy");
+        return string.Join("\n", files.Select(File.ReadAllText).Concat(installed).Concat(consent).Concat(definitions));
+    }
+
+    private static string[] InstalledTablePolicySql(DbContext context, string table)
+    {
+        var assembly = context.GetService<IMigrationsAssembly>();
+        var declaration = new Regex($@"CREATE POLICY\s+\w+\s+ON\s+(?:public\.)?{Regex.Escape(table)}\b",
+            RegexOptions.IgnoreCase);
+        return assembly.Migrations.SelectMany(pair =>
+                assembly.CreateMigration(pair.Value, context.Database.ProviderName!).UpOperations)
+            .OfType<SqlOperation>().Select(operation => operation.Sql)
+            .Where(sql => declaration.IsMatch(sql))
+            .Select(sql => sql.Replace("public.", "", StringComparison.Ordinal))
+            .ToArray();
+    }
+
+    [Fact]
+    public void Installed_policy_census_rejects_missing_and_wrong_tenant_checks()
+    {
+        using var tenancy = Modules.ModelOnly<TenancyDbContext>();
+        var installed = InstalledTablePolicySql(tenancy, "membership_field_consents");
+        installed.Should().ContainSingle();
+        InstalledTablePolicySql(tenancy, "missing_consent_probe").Should().BeEmpty();
+        var policy = PermissivePolicyFor(installed[0], "membership_field_consents");
+        PolicyReadsTheTenant(policy, "tenant_id").Should().BeTrue();
+        var broken = policy.Replace("tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid",
+            "true", StringComparison.Ordinal);
+        broken.Should().NotBe(policy);
+        PolicyReadsTheTenant(broken, "tenant_id").Should().BeFalse();
     }
 
     private static void AssertRowSecurity(string migrations, string table, string keyColumn)

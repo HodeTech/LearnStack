@@ -155,6 +155,24 @@ public sealed class AggregateWriteTests
             TakesDomainObject(writer, domains).Should().BeTrue($"{writer.Name} must remain visible to the census; Fix: inspect domain objects inside every wrapper");
             WriteStoreConstructions(writer).Should().BeEmpty("these planted writes must fail the production guard rather than count as sanctioned stores");
         }
+        var definitionPort = typeof(LearnStack.Modules.Customization.Application.Abstractions.ICustomFieldDefinitionStore);
+        var memberPort = typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipCustomFieldStore);
+        WriteStoreConstructions(definitionPort).Should().ContainSingle().Which.GetGenericArguments()[0]
+            .Should().Be<LearnStack.Modules.Customization.Domain.TenantCustomFieldDef>();
+        WriteStoreConstructions(memberPort).Should().ContainSingle().Which.GetGenericArguments()[0]
+            .Should().Be<Membership>();
+        AggregatesWrittenBy(typeof(LearnStack.Modules.Customization.Application.CustomFields.CustomFieldDefinitionCommandHandlers)
+            .GetConstructors().Single()).Should().BeEquivalentTo([typeof(LearnStack.Modules.Customization.Domain.TenantCustomFieldDef)]);
+        AggregatesWrittenBy(typeof(LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor)
+            .GetConstructors().Single()).Should().BeEquivalentTo([typeof(Membership)]);
+        foreach (var handler in new[]
+        {
+            typeof(LearnStack.Modules.Identity.Application.CustomFields.SetMembershipCustomFieldsCommandHandler),
+            typeof(LearnStack.Modules.Identity.Application.CustomFields.SetOwnMembershipCustomFieldsCommandHandler),
+        })
+            handler.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType)
+                .Should().Equal(new[] { typeof(LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor) },
+                    "both command handlers delegate only to the countable single-Membership executor");
         TakesDomainObject(typeof(ICourseWriteStore), domains).Should().BeTrue();
         WriteStoreConstructions(typeof(ICourseWriteStore)).Should().ContainSingle();
         var tenancyDomains = new HashSet<Assembly> { typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting).Assembly };

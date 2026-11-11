@@ -2,23 +2,51 @@ import { createAdministrationServerSdk } from '@learnstack/sdk/administration-se
 
 import { createNativeApiTransport } from './native-api-transport.js';
 import type { NativeApiConfiguration } from './native-api-transport.js';
+import type { NativeBinding, NativeScope } from './native-contract.js';
 import type {
   NativeAdministrationCaller,
+  NativeRetainedConsentCaller,
   NativeOperationResult,
+  NativeOperation,
 } from './native-operation-contract.js';
 
 /** One explicit dispatcher over the generated SDK's finite operations; no generic HTTP capability escapes. */
 export function createNativeAdministrationCaller(
   configuration: NativeApiConfiguration,
   transport: typeof fetch,
-): NativeAdministrationCaller {
+) {
+  return createCaller(configuration, transport) satisfies NativeAdministrationCaller;
+}
+export function createNativeRetainedConsentCaller(
+  configuration: NativeApiConfiguration,
+  transport: typeof fetch,
+): NativeRetainedConsentCaller {
+  return createCaller(configuration, transport);
+}
+function createCaller(configuration: NativeApiConfiguration, transport: typeof fetch) {
   const request = createNativeApiTransport(configuration, transport);
-  return async (token, binding, operation, signal) => {
+  return async (
+    token: string,
+    binding: NativeBinding & Partial<NativeScope>,
+    operation: NativeOperation,
+    signal: AbortSignal,
+  ): Promise<NativeOperationResult> => {
     if (signal.aborted) return { kind: 'cancelled' };
     let failure: unknown;
     const sdk = createAdministrationServerSdk(async (path, init) => {
       try {
-        return await request(token, binding, binding, path, init, signal);
+        return await request(
+          token,
+          binding,
+          ['listOwnConsentScopes', 'listOwnConsentHistory', 'withdrawOwnFieldConsent'].includes(
+            operation.kind,
+          )
+            ? null
+            : (binding as NativeBinding & NativeScope),
+          path,
+          init,
+          signal,
+        );
       } catch (error) {
         failure = error;
         throw error;
@@ -32,6 +60,111 @@ export function createNativeAdministrationCaller(
     });
     let result: NativeOperationResult;
     switch (operation.kind) {
+      case 'listCustomFieldDefinitions':
+        result = await sdk.listCustomFieldDefinitions({
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+          status: operation.status,
+        });
+        break;
+      case 'getCustomFieldDefinition':
+        result = await sdk.getCustomFieldDefinition(operation.id, read);
+        break;
+      case 'listCustomFieldRevisions':
+        result = await sdk.listCustomFieldRevisions(operation.id, {
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'getMembershipCustomFields':
+        result = await sdk.getMembershipCustomFields(operation.id, read);
+        break;
+      case 'getOwnCustomFields':
+        result = await sdk.getOwnCustomFields(read);
+        break;
+      case 'registerCustomFieldDefinition':
+        result = await sdk.registerCustomFieldDefinition(operation.input, {
+          ...read,
+          idempotencyKey: operation.idempotencyKey,
+        });
+        break;
+      case 'reviseCustomFieldDefinition':
+        result = await sdk.reviseCustomFieldDefinition(
+          operation.id,
+          operation.input,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'publishCustomFieldDefinition':
+        result = await sdk.publishCustomFieldDefinition(
+          operation.id,
+          operation.expectedIncumbentId,
+          operation.expectedIncumbentVersion,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'retireCustomFieldDefinition':
+        result = await sdk.retireCustomFieldDefinition(
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'discardCustomFieldDefinition':
+        result = await sdk.discardCustomFieldDefinition(
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'setMembershipCustomFields':
+        result = await sdk.setMembershipCustomFields(
+          operation.id,
+          operation.patch,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'setOwnCustomFields':
+        result = await sdk.setOwnCustomFields(
+          operation.patch,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'getOwnFieldConsent':
+        result = await sdk.getOwnFieldConsent(
+          operation.membershipId,
+          operation.definitionId,
+          operation.definitionVersion,
+          read,
+        );
+        break;
+      case 'listOwnConsentScopes':
+        result = await sdk.listOwnConsentScopes({
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'listOwnConsentHistory':
+        result = await sdk.listOwnConsentHistory(operation.membershipId, {
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'grantOwnFieldConsent':
+        result = await sdk.grantOwnFieldConsent(operation.input, {
+          ...read,
+          idempotencyKey: operation.idempotencyKey,
+        });
+        break;
+      case 'withdrawOwnFieldConsent':
+        result = await sdk.withdrawOwnFieldConsent(operation.membershipId, operation.input, {
+          ...read,
+          idempotencyKey: operation.idempotencyKey,
+        });
+        break;
+
       case 'listMemberships':
         result = await sdk.listMemberships({
           ...read,
@@ -110,7 +243,10 @@ export function createNativeAdministrationCaller(
         result = await sdk.getRole(operation.id, read);
         break;
       case 'getPermissions':
-        result = await sdk.getPermissions(read);
+        result = await sdk.getPermissions({
+          ...read,
+          sourceReleaseVersion: operation.sourceReleaseVersion,
+        });
         break;
       case 'listOrganizations':
         result = await sdk.listOrganizations({

@@ -1,3 +1,5 @@
+import type { DemoCleanupObservation } from '../../../../scripts/demo-process.mjs';
+
 export class PublicDemoFailure extends Error {
   constructor(reason: unknown, cause?: unknown);
   reason: string;
@@ -14,6 +16,7 @@ export interface PublicDemoFailureRecord {
   workerStage: string | null;
   exitCode: number | null;
   signal: string | null;
+  cleanup?: readonly DemoCleanupObservation[];
 }
 
 export type PublicDemoChildStatus = {

@@ -37,7 +37,9 @@ namespace LearnStack.Infrastructure.Persistence;
 /// <para>
 /// <b>Three rules that only look like details.</b> Acknowledged COMMIT returns
 /// before transaction cleanup; the owning frame, unit disposal or next begin
-/// disposes that resource. Faulted COMMIT preserves its original exception.
+/// disposes that resource. Faulted COMMIT preserves its original exception,
+/// except for the explicitly captured custom-field diagnostic boundary, which
+/// reports a fixed provider fault without changing the indeterminate outcome.
 /// A rollback on a unit with nothing to resolve is a no-op, because
 /// rollback is cleanup and cleanup must never throw over the exception it is
 /// cleaning up after — measured, the strict form replaced every commit-time
@@ -49,7 +51,7 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </remarks>
 public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView,
     IPreContextSelfDiscoveryUnitOfWork, IFixedSeedPrerequisiteUnitOfWork, IUnitOfWorkWriteGuard,
-    IUnitOfWorkContextEnrollment, IInvitationEntryUnitOfWork
+    IUnitOfWorkContextEnrollment, IInvitationEntryUnitOfWork, IConsentSubjectUnitOfWork, IConfidentialCommitUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -168,7 +170,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         ObjectDisposedException.ThrowIf(_disposed || _idempotencyEnding, this);
         RequireWriteAllowed();
 
-        if (_selfDiscoveryWitness is not null || _invitationWitness is not null)
+        if (_selfDiscoveryWitness is not null || _invitationWitness is not null || _consentWitness is not null)
         {
             MarkRollbackOnly();
             throw new InvalidOperationException("A transaction cannot join a captured entry owner.");
@@ -395,7 +397,8 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         SetTenantContextCoreAsync(context, readWitness, tenantWideRead: true, cancellationToken);
 
     private async Task SetTenantContextCoreAsync(ITenantContext context, OperationReadWitness? readWitness,
-        bool tenantWideRead, CancellationToken cancellationToken, InvitationEntryScopeWitness? invitationWitness = null)
+        bool tenantWideRead, CancellationToken cancellationToken, InvitationEntryScopeWitness? invitationWitness = null,
+        ConsentSubjectScopeWitness? consentWitness = null)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -408,6 +411,14 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         {
             MarkRollbackOnly();
             throw new InvalidOperationException("Invitation context requires its exact unused witness.");
+        }
+        if (_consentWitness is not null
+            || (context.Origin == TenantContextOrigin.HostAndConsentSubjectScope) != (consentWitness is not null)
+            || consentWitness is not null && (invitationWitness is not null || _depth != 1 || _tenantContextIssued
+                || tenantWideRead || !consentWitness.IsActive || !ReferenceEquals(consentWitness.Invocation.Context, context)))
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("Consent context requires its exact unused subject witness.");
         }
         if (IsGlobalIdentityTransaction || _selfDiscoveryWitness is not null)
         {
@@ -503,6 +514,9 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
             ? normalizedOrganization.Value.ToString()
             : string.Empty;
 
+        if (consentWitness is not null && (!consentWitness.TryBindTo(this, _transaction, _generation, _mode!.Value)
+            || consentWitness.TenantId != tenantId || consentWitness.OrganizationId != organizationId
+            || !consentWitness.IsBoundTo(this, _transaction, _generation))) RefuseOperationReadScope();
         if (invitationWitness is not null && (!invitationWitness.TryBindTo(this, _transaction, _generation, _mode!.Value)
             || invitationWitness.Offer.TenantId != tenantId || invitationWitness.Offer.OrganizationId != organizationId))
             RefuseOperationReadScope();
@@ -554,6 +568,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
             if (!invitationWitness.IsBoundTo(this, _transaction, _generation)) RefuseOperationReadScope();
             _invitationWitness = invitationWitness;
         }
+        if (consentWitness is not null)
+        {
+            if (!consentWitness.IsBoundTo(this, _transaction, _generation)) RefuseOperationReadScope();
+            _consentWitness = consentWitness;
+        }
         _tenantContextIssued = true;
         _tenantContextAnnouncement = tenantId is { } announcedTenant
             ? new TenantContextAnnouncement(_generation, announcedTenant, organizationId)
@@ -574,7 +593,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         ObjectDisposedException.ThrowIf(_disposed, this);
         RequireWriteAllowed();
 
-        if (_tenantWideRead || _readScopeFaulted || _invitationWitness is not null || _selfDiscoveryWitness is not null) RefuseOperationReadScope();
+        if (_tenantWideRead || _readScopeFaulted || _invitationWitness is not null || _consentWitness is not null || _selfDiscoveryWitness is not null) RefuseOperationReadScope();
 
         if (IsGlobalIdentityTransaction)
         {
@@ -674,6 +693,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         {
             _rollbackOnly = true; _tenantContextIssued = false; _tenantContextAnnouncement = null; return false;
         }
+        if (_consentWitness is { } consent && (_transaction is null || _depth != 1 || _mode != consent.Mode
+            || !consent.IsBoundTo(this, _transaction, _generation)))
+        {
+            _rollbackOnly = true; _tenantContextIssued = false; _tenantContextAnnouncement = null; return false;
+        }
         if (_selfDiscoveryWitness is { } own && !own.IsBoundTo(this))
         {
             _rollbackOnly = true;
@@ -734,6 +758,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         _globalIdentitySealed = false;
         _selfDiscoveryWitness = null;
         _invitationWitness = null;
+        _consentWitness = null;
     }
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
@@ -897,11 +922,12 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         _mode = null;
         ClearTenantContextAnnouncement();
 
+        using var confidentialDiagnostics = EnterConfidentialCommitDiagnostics(transaction);
         try
         {
             await transaction.CommitAsync(cancellationToken);
         }
-        catch
+        catch (Exception commitFailure)
         {
             // Unknown COMMIT remains the primary failure even if resource cleanup
             // also fails. No explicit rollback can establish its server outcome.
@@ -915,6 +941,8 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
                 _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: false);
                 // Connection cleanup remains owned by this unit.
             }
+            if (confidentialDiagnostics is not null && commitFailure is not OperationCanceledException)
+                throw new LearnStack.SharedKernel.Errors.ConfidentialCommitProviderException();
             throw;
         }
         finally

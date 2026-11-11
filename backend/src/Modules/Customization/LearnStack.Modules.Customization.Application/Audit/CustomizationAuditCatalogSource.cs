@@ -1,4 +1,5 @@
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
+using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Modules.Customization.Domain;
@@ -25,6 +26,17 @@ public sealed class CustomizationAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        builder.MustAudit<ReadCustomFieldDefinitionReceiptQuery>("customization.custom_field.read_receipt", OperationType.ReadSensitive, typeof(TenantCustomFieldDef));
+        builder.Off<GetCustomFieldDefinitionQuery>();
+        builder.Off<ListCustomFieldDefinitionsQuery>();
+        builder.Off<ListCustomFieldDefinitionRevisionsQuery>();
+        builder
+            .MustAudit<RegisterCustomFieldDefinitionCommand>("customization.custom_field.register", OperationType.Create, typeof(TenantCustomFieldDef))
+            .MustAudit<ReviseCustomFieldDefinitionDraftCommand>("customization.custom_field.revise", OperationType.Update, typeof(TenantCustomFieldDef))
+            .MustAudit<PublishCustomFieldDefinitionCommand>("customization.custom_field.publish", OperationType.Update, typeof(TenantCustomFieldDef))
+            .MustAudit<RetireCustomFieldDefinitionCommand>("customization.custom_field.retire", OperationType.Update, typeof(TenantCustomFieldDef))
+            .MustAudit<DiscardCustomFieldDefinitionDraftCommand>("customization.custom_field.discard", OperationType.Delete, typeof(TenantCustomFieldDef));
 
         builder.Off<GetContentTypeSeedStateQuery>();
         builder.Off<GetTaxonomySeedStateQuery>();

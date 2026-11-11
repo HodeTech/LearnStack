@@ -79,7 +79,7 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
             {
                 ApplicationName = typeof(Program).Assembly.FullName,
                 EnvironmentName = Environments.Development,
-                ContentRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/LearnStack.Api")),
+                ContentRootPath = ApiContentRoot(),
             });
             builder.WebHost.UseTestServer();
             InvitationEmailFixtureConfiguration.AddTo(builder.WebHost);
@@ -121,6 +121,18 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
             _app.StartAsync().GetAwaiter().GetResult();
             return _app;
         }
+    }
+
+    private static string ApiContentRoot()
+    {
+        // The compiled test output may live under --artifacts-path rather than
+        // backend/tests; identify the actual source instead of counting parents.
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "backend", "src", "LearnStack.Api");
+            if (File.Exists(Path.Combine(candidate, "LearnStack.Api.csproj"))) return candidate;
+        }
+        throw new InvalidOperationException("Cannot locate the component host API source.");
     }
 
     public void Dispose()

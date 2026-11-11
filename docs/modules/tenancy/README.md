@@ -447,11 +447,32 @@ its host; its tenant administration origin remains the recovery destination.
 Fresh CI still requires its original complete nine-page/27-audit population;
 edited local state does not replace that source-bound qualification.
 
+### Personal field consent (accepted contract)
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+assigns Tenancy an append-only `MembershipFieldConsent` root. Grant requires the
+person's own current Active Membership, explicit confirmation and an eligible exact
+revision; history and withdrawal use the separate retained-subject `OwnConsentEntry`,
+including after Membership suspension/revocation or tenant/organization lifecycle
+loss. A fixed consent-only shell uses the existing entry handle, not CurrentSession
+or public configuration. A confined Tenancy-only definer and single-use logical
+scope setter provide host-capped retained linkage without general membership authority.
+
+Each act pins purpose, exact definition revision, authored notice locale and a
+domain-separated hash of that locale's notice; sequence, not time, selects state.
+The root uses tenant/organization markers, EF filtering and FORCE RLS with check;
+Identity and Customization IDs are values without cross-module FKs. Grant derives
+scope from the owning Membership; withdrawal derives it from retained consent.
+The root and its MUST audit commit together. History resolves notices in a bounded
+owning-contract batch. The [Phase 03 Status](../../roadmap/phase-03-identity-admin.md)
+tracks implementation and proof.
+
 ## Entity-relationship diagram
 
-Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
-`TenantSetting` — the four that implement `IAggregateRoot<TId>`, the last two by the
-promotion below. `SetTenantBrandingCommand` writes `TenantSetting`; no command
+Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain`,
+`TenantSetting` and `MembershipFieldConsent` — the five that implement
+`IAggregateRoot<TId>`. The Domain/Setting promotion is described below; consent
+is the independent append-only root described above. `SetTenantBrandingCommand` writes `TenantSetting`; no command
 writes `TenantDomain` yet.
 `PlatformHostMapping` and `PlatformEntitlement` are projections rather than
 aggregate roots. The accepted fixed seed-origin act writes its mapping projection
@@ -486,6 +507,7 @@ erDiagram
     TENANTS ||--o{ TENANT_LOCALES : "publishes in"
     TENANTS ||--o{ TENANT_SETTINGS : "configures"
     TENANTS ||--o{ TENANT_FEATURE_FLAGS : "switches"
+    TENANTS ||--o{ MEMBERSHIP_FIELD_CONSENTS : "planned tenant scope"
     TENANTS ||--o| PLATFORM_ENTITLEMENT_CACHE : "is entitled by"
     TENANTS ||--o{ PLATFORM_HOST_TO_TENANT : "is reached at"
     ORGANIZATIONS ||--o{ TENANT_SETTINGS : "overrides"
@@ -495,6 +517,8 @@ erDiagram
 
 Text fallback, for renderers without Mermaid:
 
+- Planned consent records are independent roots; their Membership and definition IDs
+  are values, not cross-module foreign keys.
 - `tenants` is the root. Its `id` **is** the tenant id — there is no `tenant_id`
   column, which is why its RLS policy keys on `id`.
 - `organizations.tenant_id → tenants.id`, single-column by the one written

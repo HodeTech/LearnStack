@@ -1,6 +1,6 @@
 import { setTimeout as pause } from 'node:timers/promises';
 
-import { DemoCommandError } from '../../../../scripts/demo-process.mjs';
+import { DemoCommandError, demoCleanupObservations } from '../../../../scripts/demo-process.mjs';
 
 const stages = new Set([
   'setup',
@@ -139,6 +139,7 @@ export function publicDemoFailure(stage, error, input = {}, child, signal) {
     process = null;
     status = undefined;
   }
+  const cleanup = phase === 'cleanup' ? demoCleanupObservations(error) : [];
   return {
     stage: phase,
     reason,
@@ -156,6 +157,7 @@ export function publicDemoFailure(stage, error, input = {}, child, signal) {
         ? status.exitCode
         : null,
     signal: signals.has(status?.signalCode) ? status.signalCode : null,
+    ...(cleanup.length ? { cleanup } : {}),
   };
 }
 

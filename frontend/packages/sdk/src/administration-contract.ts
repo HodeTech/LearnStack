@@ -71,6 +71,15 @@ export type InvitationPolicyWriteOptions = AdministrationCreateOptions &
 
 /** Exact wire ownership; these declarations grant no native caller or browser transport. */
 export const ADMINISTRATION_GET_CONTRACTS = Object.freeze({
+  '/api/v1/customization/custom-field-definitions': 'ListCustomFieldDefinitions',
+  '/api/v1/customization/custom-field-definitions/{id}': 'GetCustomFieldDefinition',
+  '/api/v1/customization/custom-field-definitions/{id}/revisions':
+    'ListCustomFieldDefinitionRevisions',
+  '/api/v1/identity/memberships/{id}/custom-fields': 'GetMembershipCustomFields',
+  '/api/v1/identity/me/custom-fields': 'GetOwnMembershipCustomFields',
+  '/api/v1/tenancy/membership-field-consents/own': 'GetOwnMembershipFieldConsent',
+  '/api/v1/tenancy/membership-field-consents/own/scopes': 'ListOwnFieldConsentScopes',
+  '/api/v1/tenancy/membership-field-consents/own/history': 'ListOwnMembershipFieldConsents',
   '/api/v1/identity/organization-memberships': 'ListOrganizationMemberships',
   '/api/v1/identity/memberships/{id}': 'GetMembershipDetail',
   '/api/v1/identity/me/profile': 'GetOwnMembershipProfile',

@@ -180,3 +180,13 @@ never direct Tenancy SQL. [Standard 19](../../standards/19-permissions.md#invita
 owns grant adoption semantics and the
 [API standard](../../standards/04-api-design.md#verified-invitation-transport)
 owns exact transport/replay consumers.
+
+## Personal field consent
+
+[ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+grants no admin authority to capture personal consent. The distinct grant policy
+requires the actor's own current Active Membership, current host/session and
+explicit confirmation. `OwnConsentEntry` instead admits host-capped retained
+subject discovery, history and withdrawal without Active Membership; its confined
+scope conveys no general Membership or value access. API/native consumers are
+implemented; Phase 03 records source-bound qualification.

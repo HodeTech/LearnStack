@@ -1,4 +1,8 @@
-import type { NativeEntrySnapshot, NativePageSnapshot } from './page-contract.js';
+import type {
+  NativeEntrySnapshot,
+  NativePageSnapshot,
+  NativeConsentSnapshot,
+} from './page-contract.js';
 import type { NativePageLease } from './page-snapshot-contract.js';
 
 const maximumSnapshots = 128;
@@ -174,7 +178,9 @@ export function createPageSnapshotPool() {
           return unavailable();
         }
       };
-      const publish = <T extends NativePageSnapshot | NativeEntrySnapshot>(value: T): T => {
+      const publish = <T extends NativePageSnapshot | NativeEntrySnapshot | NativeConsentSnapshot>(
+        value: T,
+      ): T => {
         response.assertCurrent();
         assertLive();
         if (published) return unavailable();
@@ -235,6 +241,9 @@ export function createPageSnapshotPool() {
         },
         publishEntry(entry: NativeEntrySnapshot) {
           return publish(entry);
+        },
+        publishConsent(value: NativeConsentSnapshot) {
+          return publish(value);
         },
         abort,
       });

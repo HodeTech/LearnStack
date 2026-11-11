@@ -75,6 +75,13 @@ Summary so reviewers don't have to chase a link to know the shape:
   [ADR-0019](../decisions/0019-learnstack-hub.md) and is not governed by
   ADR-0024.
 
+[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) grants one
+bounded pre-MVP exception to the new-major requirement. Only its exact snapshots,
+full findings and comparison identities can obtain explicit Git-backed approval;
+all other changes retain ADR-0024. This does not establish runtime behavior or
+permit mixed old/new consumers. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
+owns implementation and qualification.
+
 For the breaking/non-breaking matrix, the exact header set
 (`Deprecation` per RFC 9745, `Sunset` per RFC 8594, `Link:
 rel="successor-version"`), OpenAPI extensions (`x-sunset` / `x-successor`
@@ -851,3 +858,35 @@ Public but rate-limited.
 - Mixing API versions in a single endpoint.
 - Inconsistent casing.
 - Echoing internal error messages to clients.
+
+## Membership custom-field transport
+
+[ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+requires separate own/admin PATCH value operations, POST-only consent acts and
+strong If-Match on existing resources. Protected replay reauthorizes the original
+target; consent binds predecessor and returns the original receipt, not a current
+state assertion. New body-bearing P03-5 operations use versioned HMAC-SHA256 over
+the length-framed request/context with the deployment-shared `ISecretProvider` key
+ring. Existing fingerprints stay byte-identical. Retain keys for physically present
+rows including logically expired ones and for matching backups; missing keys fail
+closed. Receipts contain versions and immutable targets, not values or notices.
+The Phase 03 package owns the exact endpoint census and implementation status.
+
+The definition and value receipts are exactly `{id, version}`; consent receipts
+are exactly `{evidenceId, sequence, isGranted}`. Versions/sequences are canonical
+decimal strings. Consent POSTs reject If-Match and return no ETag: their body
+carries the exact predecessor, and a receipt describes a historical act. A stored
+withdrawal replay selects its exact MUST receipt query during HTTP admission,
+before any mutation intent, on the original withdrawal-purpose writable owner.
+A completed result discovered only after mutation admission requires a fresh
+request; it cannot retarget that witness into a receipt read.
+
+Definition pages return at most twenty latest retained revision projections,
+with the active incumbent pin, through the existing definition-admin boundary.
+The store batches the page; it does not query each item separately. Revision
+pages remain exact-concept keyset pages. All pages use the standard forward-only
+PageInfo. A definition GET observes the active incumbent independently; publication
+still fences and compares both supplied versions. Profile fields disclose only
+exact authorized metadata, normalized schema objects and current consent state;
+withheld answers remain absent. Current consent also appears for an unanswered
+active Sensitive revision so personal notice capture does not depend on a value.

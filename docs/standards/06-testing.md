@@ -320,7 +320,14 @@ and were read as running.
 ### API Contract Tests
 
 - Validate every endpoint against the published OpenAPI.
-- Breaking changes require a version bump.
+- Breaking changes require a version bump, except the one exact transition in
+  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md). Its
+  Git-snapshot approval binds the Accepted decision, complete finding sets and
+  comparison identities; it cannot approve a failed tool/control or a new finding.
+  Fresh policy controls and actual registry/Role/capability/replacement API/SDK
+  behavior remain independently required. File/fixture/bootstrap modes cannot
+  consume approval. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
+  owns extension implementation and final-source qualification.
 - **P02d-4 Step 4 delivered:** the contract suite compares the production
   composition's served document with `backend/openapi/v1.json`, preserving array
   order. Eight GET/HEAD operations, exact parameters/statuses and recursive DTO
@@ -388,6 +395,10 @@ corrupt or substituted member refuses the pair. Closed operation diagnostics
 distinguish actual child exit, spawn, deadline, cancellation and daemon failure;
 cleanup never borrows a signal sent intentionally during teardown. Raw provider
 messages and private configuration do not enter these receipt diagnostics.
+Locally constructed cleanup errors may also retain closed stage/owner/reason
+labels for process stop/drain, completion accounting, Compose and private-file
+removal. Provider error trees and copied diagnostic properties supply no labels;
+these observations never acknowledge successful retirement or relax a deadline.
 
 The frontend workspace pins Playwright and Lighthouse as development tools.
 Lighthouse's transitive development `axe-core@4.14.0` does not supply a standalone

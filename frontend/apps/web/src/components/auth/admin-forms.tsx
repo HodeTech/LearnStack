@@ -14,7 +14,7 @@ export function MutationFields({
   readonly snapshot: NativePageSnapshot;
   readonly index: number;
   readonly version: string;
-  readonly target?: readonly ['membershipId' | 'roleId' | 'invitationId', string];
+  readonly target?: readonly ['membershipId' | 'roleId' | 'invitationId' | 'definitionId', string];
 }) {
   const key = snapshot.formKeys[index];
   if (!key || !/^[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('Prepared form unavailable');

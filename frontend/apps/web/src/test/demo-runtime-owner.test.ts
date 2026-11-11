@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from 'vitest';
 
 import { DemoProcesses } from '../../../../../scripts/demo-process.mjs';
+import { publicDemoFailure } from '../../scripts/public-demo-diagnostics.mjs';
 
 test('the managed native driver waits beyond generic escalation for a graceful owner', async () => {
   const processes = new DemoProcesses(new AbortController().signal);
@@ -46,7 +47,13 @@ test('a spontaneously completed runtime owner is not credited as requested retir
     ownedRuntime: true,
   });
   await once(running.child, 'close');
-  await expect(processes.dispose()).rejects.toThrow('private files retained');
+  const error = await processes.dispose().catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(AggregateError);
+  expect(publicDemoFailure('cleanup', error)).toMatchObject({
+    cleanup: [{ stage: 'process-stop', owner: 'native-web', reason: 'unconfirmed' }],
+    exitCode: null,
+    signal: null,
+  });
   expect(running.child.exitCode).toBe(0);
   expect(running.child.signalCode).toBeNull();
 });

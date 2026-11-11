@@ -64,6 +64,8 @@ public sealed class TenancyDbContext(
 
     public DbSet<Organization> Organizations => Set<Organization>();
 
+    public DbSet<MembershipFieldConsent> MembershipFieldConsents => Set<MembershipFieldConsent>();
+
     public DbSet<TenantDomain> TenantDomains => Set<TenantDomain>();
 
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();

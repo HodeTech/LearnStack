@@ -37,7 +37,11 @@ export function validTarget(value: string): boolean {
   }
 }
 
-export function bffQueryFields(text: string, allowed: readonly string[]) {
+export function bffQueryFields(
+  text: string,
+  allowed: readonly string[],
+  dynamic?: (name: string) => boolean,
+) {
   const query = new URLSearchParams();
   try {
     for (const pair of text ? text.split('&') : []) {
@@ -45,7 +49,7 @@ export function bffQueryFields(text: string, allowed: readonly string[]) {
       if (!pair || equal < 0) throw new BffInputError();
       const decode = (value: string) => decodeURIComponent(value.replace(/\+/g, ' '));
       const key = decode(pair.slice(0, equal));
-      if (!allowed.includes(key) || query.has(key)) throw new BffInputError();
+      if ((!allowed.includes(key) && !dynamic?.(key)) || query.has(key)) throw new BffInputError();
       query.set(key, decode(pair.slice(equal + 1)));
     }
   } catch {
@@ -88,11 +92,25 @@ export function bffDocumentQuery(target: string, nativeFlight = false) {
   const path = target.split('?', 1)[0]!;
   if (path === '/' || !isNativeReturnPath(path)) throw new BffInputError();
   const allowed =
-    path === '/studio/members' || path === '/studio/invitations' ? ['cursor', 'limit'] : [];
+    path === '/studio/members' ||
+    path === '/studio/invitations' ||
+    path === '/studio/custom-fields' ||
+    path.startsWith('/studio/custom-fields/')
+      ? ['cursor', 'limit']
+      : path === '/portal/profile' || path.startsWith('/studio/members/')
+        ? ['field', 'consentCursor']
+        : [];
   const fields = bffQuery(target, nativeFlight ? [...allowed, '_rsc'] : allowed);
   if (fields.has('_rsc')) {
     if (!/^[\x21-\x7e]{1,128}$/.test(fields.get('_rsc')!)) throw new BffInputError();
     fields.delete('_rsc');
   }
-  return Object.freeze({ target: path, ...bffPageQuery(fields) });
+  const selectedFieldId = fields.get('field');
+  if (
+    selectedFieldId !== null &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(selectedFieldId)
+  )
+    throw new BffInputError();
+  const consentCursor = bffCursor(fields.get('consentCursor'));
+  return Object.freeze({ target: path, selectedFieldId, consentCursor, ...bffPageQuery(fields) });
 }

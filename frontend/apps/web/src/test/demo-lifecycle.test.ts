@@ -42,6 +42,7 @@ import {
   publicWebEnvironment,
 } from '../../../../../scripts/public-runtime.mjs';
 import { defaultServices, healthyServices } from '../../../../../scripts/wait-compose.mjs';
+import { publicDemoFailure } from '../../scripts/public-demo-diagnostics.mjs';
 
 function writePrivateFileSync(path: string, source: Parameters<typeof writeFileSync>[1]) {
   writeFileSync(path, source, { mode: 0o600 });
@@ -1360,6 +1361,20 @@ describe('owned real process lifecycle', () => {
 });
 
 describe('independent owned cleanup attempts', () => {
+  it('attributes private removal refusal only after prior cleanup succeeds', async () => {
+    const cause = new Error('private removal sentinel');
+    const error = await disposeDemoResources({
+      processes: { dispose: async () => {} },
+      removePrivate: () => {
+        throw cause;
+      },
+    }).catch((error: unknown) => error);
+    expect((error as AggregateError).errors).toEqual([cause]);
+    expect(publicDemoFailure('cleanup', error)).toMatchObject({
+      cleanup: [{ stage: 'private-files', owner: 'private', reason: 'unconfirmed' }],
+    });
+    expect(JSON.stringify(publicDemoFailure('cleanup', error))).not.toContain(cause.message);
+  });
   it.each(['processes', 'observer', 'compose'])(
     'retains private state and failure after %s fails, without skipping other teardown',
     async (stage) => {
@@ -1379,6 +1394,13 @@ describe('independent owned cleanup attempts', () => {
       expect(error).toBeInstanceOf(AggregateError);
       expect((error as AggregateError).errors).toEqual([cause]);
       expect((error as Error).message).not.toContain(cause.message);
+      const detail = {
+        processes: { stage: 'processes', owner: 'unknown', reason: 'unconfirmed' },
+        observer: { stage: 'completions', owner: 'observer', reason: 'unconfirmed' },
+        compose: { stage: 'compose', owner: 'compose', reason: 'unconfirmed' },
+      }[stage];
+      expect(publicDemoFailure('cleanup', error)).toMatchObject({ cleanup: [detail] });
+      expect(JSON.stringify(publicDemoFailure('cleanup', error))).not.toContain(cause.message);
     },
   );
   it.each([false, true])(

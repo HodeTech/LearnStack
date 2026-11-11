@@ -676,3 +676,22 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 5 — Explicit v3 delta and protected custom-field consumers (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds exactly one
+assignable Tenant pair, `customization.custom_field.admin`, through explicit
+v2→v3 Tenant Admin adoption. v1 must first adopt v2; previous nonkernel removals,
+historical v2 guard/manifest/fingerprint bytes and current seeds remain unchanged.
+One SharedKernel definition feeds Customization registration and Identity's tenth
+advisory capability, `canManageCustomFields`; registration grants nothing.
+Existing scoped profile-write holders gain bounded custom-value PATCH operations.
+New protected definition/value/consent receipt consumers reauthorize exact
+original targets. Only new body-bearing P03-5 operations use the scoped versioned
+HMAC path; historical fingerprints remain byte-identical. [Permissions](../standards/19-permissions.md#custom-fields-and-version-3-adoption)
+owns adoption; [Standard 05](../standards/05-database.md#custom-field-replay-key-custody)
+owns metadata/key custody. No generic proxy or settings permission is added.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

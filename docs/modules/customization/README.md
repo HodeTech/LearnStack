@@ -42,13 +42,14 @@ plan.
   cache key this module's reads compose. Not an aggregate
   ([ADR-0043 § 7](../../decisions/0043-customization-payload-validation.md)).
 
-**Phase 03 addition, not yet implemented:** `TenantCustomFieldDef` belongs to
-Customization; Identity owns the membership values and consumes the definition
-contract. [G9](../../roadmap/phase-03-identity-admin.md#the-decision-register)
-settles immutable revisions, value pins, classification history and schema
-admission before that aggregate's first migration. Its permission/audit matrices
-and module-spec diagrams extend with the implementation, not with a second
-Identity-owned definition table.
+**Accepted Phase 03 addition:** [ADR-0095](../../decisions/0095-revision-pinned-membership-custom-fields.md)
+assigns `TenantCustomFieldDef` to Customization and revision-pinned Membership values
+to Identity. The [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns
+implementation and qualification. Definitions are tenant-wide, permanently reserve
+concept/version history and admit only Membership. The finite envelope profile,
+constructive satisfiability and serialization budgets are specified in the ADR.
+Writers take the exclusive Tenant fence; Identity's uncached exact reader takes the
+shared fence through commit, distinct from the existing content reader's timing.
 
 **It does not own:**
 
@@ -126,6 +127,25 @@ row per tenant and references nothing.
 Every one of the four is under `ENABLE` **and** `FORCE ROW LEVEL SECURITY` with
 the tenant-owned tenant-wide policy from
 [Database Standards § Table classes](../../standards/05-database.md).
+
+**Planned ADR-0095 addition:** `TenantCustomFieldDef` is a tenant-wide root
+with exact revision identity and no cross-module foreign key from a Profile. The
+above diagram describes the existing tables; the planned root adds one Active
+revision per tenant/target/concept and retains discarded reservations.
+
+```mermaid
+erDiagram
+    TENANT_CUSTOM_FIELD_DEFINITION {
+        uuid id PK
+        uuid tenant_id
+        varchar concept_key
+        int schema_version
+        text status
+    }
+```
+
+Text fallback: each planned definition revision is a separate tenant-owned root;
+Identity retains its ID/version as values, not a database relationship.
 
 ## State diagrams
 

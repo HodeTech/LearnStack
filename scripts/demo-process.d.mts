@@ -68,3 +68,43 @@ export class DemoProcesses {
   ): Promise<string>;
   dispose(): Promise<void>;
 }
+
+export interface DemoCleanupObservation {
+  readonly stage:
+    | "processes"
+    | "process-stop"
+    | "process-drain"
+    | "process-output"
+    | "completions"
+    | "compose"
+    | "compose-down"
+    | "compose-empty"
+    | "private-files"
+    | "cleanup-deadline";
+  readonly owner:
+    | "command"
+    | "daemon"
+    | "native-web"
+    | "compose"
+    | "observer"
+    | "private"
+    | "coordinator"
+    | "unknown";
+  readonly reason: "unconfirmed" | "forced" | "deadline" | "output" | "refused";
+}
+export class DemoCleanupError extends AggregateError {
+  constructor(
+    errors: Iterable<unknown>,
+    details: readonly DemoCleanupObservation[],
+    message?: string,
+  );
+}
+export function demoCleanupObservations(
+  error: unknown,
+): readonly DemoCleanupObservation[];
+export function demoCleanupDetails(
+  error: unknown,
+  stage: DemoCleanupObservation["stage"],
+  owner: DemoCleanupObservation["owner"],
+  reason?: DemoCleanupObservation["reason"],
+): readonly DemoCleanupObservation[];

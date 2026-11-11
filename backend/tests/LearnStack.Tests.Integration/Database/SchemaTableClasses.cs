@@ -28,6 +28,7 @@ internal static class SchemaTableClasses
         "event_deliveries", "inbox_messages", "tenant_content_types", "tenant_level_taxonomies",
         "tenant_level_taxonomy_items", "customization_generations", "audit_log", "audit_config",
         "platform_killswitches", "courses", "lessons", "course_translations", "lesson_translations",
+        "tenant_custom_field_defs", "membership_field_consents",
     ];
 
     public static readonly string[] GlobalIdentity = ["users"];

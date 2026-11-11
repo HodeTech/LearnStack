@@ -1,3 +1,13 @@
+import type {
+  CustomFieldDefinition,
+  CustomFieldPage,
+  MembershipCustomFields,
+  ConsentHistory,
+  ConsentScopes,
+  LocalizedText,
+  FormLabel,
+} from '@learnstack/sdk/administration-server';
+
 import type { EntryProjection, NativeReturnPath } from './session-contract.js';
 import type { SessionProjection } from './session-projection.js';
 
@@ -24,6 +34,7 @@ export type PageCapabilities = Readonly<{
   canAdoptRoleRelease: boolean;
   canWriteOwnProfile: boolean;
   canManageOrganizations: boolean;
+  canManageCustomFields: boolean;
 }>;
 export type PageProfile = Readonly<{
   displayName: string | null;
@@ -107,6 +118,8 @@ export type PageView =
       kind: 'member';
       member: PageMemberDetail;
       roles: readonly PageRole[] | null;
+      customFields?: MembershipCustomFields;
+      selectedFieldId?: string | null;
     }>
   | Readonly<{ kind: 'roles'; roles: readonly PageRole[] }>
   | Readonly<{
@@ -117,7 +130,14 @@ export type PageView =
       canChangeGrants: boolean;
       canAdoptRelease: boolean;
     }>
-  | Readonly<{ kind: 'profile'; canWrite: boolean }>
+  | Readonly<{
+      kind: 'profile';
+      canWrite: boolean;
+      customFields?: MembershipCustomFields;
+      consents?: ConsentHistory;
+      consentHistoryIncomplete?: boolean;
+      selectedFieldId?: string | null;
+    }>
   | Readonly<{
       kind: 'invitations';
       items: readonly PageInvitation[];
@@ -127,7 +147,15 @@ export type PageView =
       limit: number;
     }>
   | Readonly<{ kind: 'invitation'; invitation: PageInvitation }>
-  | Readonly<{ kind: 'invitation_policy'; policy: PageInvitationPolicy }>;
+  | Readonly<{ kind: 'invitation_policy'; policy: PageInvitationPolicy }>
+  | Readonly<{ kind: 'custom_fields'; definitions: CustomFieldPage; limit: number }>
+  | Readonly<{
+      kind: 'custom_field';
+      definition: CustomFieldDefinition;
+      revisions: CustomFieldPage;
+      expectedIncumbentId: string | null;
+      expectedIncumbentVersion: string | null;
+    }>;
 
 export type NativePageSnapshot = Readonly<{
   target: NativeReturnPath;
@@ -182,6 +210,12 @@ export type NativeActionPage = Readonly<
         | 'days'
       )[];
       retryable: boolean;
+      customFieldControls?: readonly Readonly<{
+        index: number;
+        schema: unknown;
+        labels: LocalizedText;
+        formLabels: readonly FormLabel[] | null;
+      }>[];
       roleLabels?: readonly Pick<PageRole, 'roleId' | 'builtInKey' | 'capabilityScope'>[];
     }
   | { kind: 'account_change'; csrfToken: string }
@@ -203,3 +237,14 @@ export type NativeEntrySnapshot = Readonly<{
         returnPath: NativeReturnPath;
       }>;
 }>;
+
+export type NativeConsentSnapshot =
+  | Readonly<{
+      kind: 'consents';
+      scopes: ConsentScopes;
+      history: ConsentHistory | null;
+      membershipId: string | null;
+      csrfToken: string;
+      formKeys: readonly string[];
+    }>
+  | Readonly<{ kind: 'consent_result'; status: number }>;

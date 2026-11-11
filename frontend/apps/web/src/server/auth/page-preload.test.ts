@@ -26,6 +26,7 @@ const capabilities: PageCapabilities = {
   canAdoptRoleRelease: true,
   canWriteOwnProfile: true,
   canManageOrganizations: true,
+  canManageCustomFields: true,
 };
 const member: MembershipDetail = {
   membershipId: memberId,
@@ -112,6 +113,16 @@ function fixture(overrides: Partial<Record<NativeOperation['kind'], NativeOperat
     getOwnCapabilities: success(capabilities),
     getOwnProfile: success({ displayName: 'Current actor', preferredLocale: 'tr', version: '3' }),
     getMembership: success(member),
+    getOwnCustomFields: success({ membershipId: memberId, version: '7', fields: [] }),
+    getMembershipCustomFields: success({ membershipId: memberId, version: '7', fields: [] }),
+    listOwnConsentScopes: success({
+      items: [{ membershipId: memberId, tenantId: actor, organizationId: null }],
+      pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+    }),
+    listOwnConsentHistory: success({
+      items: [],
+      pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+    }),
     listInvitations: success({
       items: [invitation],
       pageInfo: {
@@ -182,9 +193,17 @@ describe('finite native page preparation reads and safe projections', () => {
   it.each([
     ['/studio', 'studio', []],
     ['/portal', 'portal', []],
-    ['/portal/profile', 'profile', []],
+    [
+      '/portal/profile',
+      'profile',
+      ['getOwnCustomFields', 'listOwnConsentScopes', 'listOwnConsentHistory'],
+    ],
     ['/studio/members', 'members', ['listMemberships']],
-    ['/studio/members/' + memberId, 'member', ['getMembership', 'listRoles']],
+    [
+      '/studio/members/' + memberId,
+      'member',
+      ['getMembership', 'listRoles', 'getMembershipCustomFields'],
+    ],
     ['/studio/roles', 'roles', ['listRoles']],
     ['/studio/invitations', 'invitations', ['listInvitations', 'listInvitableRoles']],
     ['/studio/invitations/' + memberId, 'invitation', ['getInvitation', 'listInvitableRoles']],
@@ -200,6 +219,117 @@ describe('finite native page preparation reads and safe projections', () => {
     expect(JSON.stringify(result)).not.toContain('userId');
   });
 
+  it('keeps custom definition pages at twenty without reducing existing directory pages', () => {
+    expect(nativeDocumentPlan('/studio/custom-fields?limit=100', false).limit).toBe(20);
+    expect(nativeDocumentPlan('/studio/members?limit=100', false).limit).toBe(100);
+    expect(nativeDocumentPlan('/studio/invitations?limit=25', false).limit).toBe(25);
+  });
+  it('does not disclose a partial profile when its custom fields read is refused', async () => {
+    const test = fixture({ getOwnCustomFields: refused(403) });
+    const result = await test.load('/portal/profile');
+    expect(result.outcome).toMatchObject({ kind: 'failure', reason: 'denied' });
+    expect(test.calls()).toEqual(['getOwnCapabilities', 'getOwnProfile', 'getOwnCustomFields']);
+  });
+  it('keeps a new profile ready without inventing history or requesting it', async () => {
+    const test = fixture({
+      listOwnConsentScopes: success({
+        items: [],
+        pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+      }),
+      listOwnConsentHistory: refused(404),
+    });
+    const result = await test.load('/portal/profile');
+    expect(result.outcome).toMatchObject({ kind: 'ready', view: { kind: 'profile' } });
+    expect(
+      result.outcome.kind === 'ready' && result.outcome.view.kind === 'profile'
+        ? result.outcome.view.consents
+        : null,
+    ).toBeUndefined();
+    expect(test.calls()).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+      'getOwnCustomFields',
+      'listOwnConsentScopes',
+    ]);
+  });
+  it('loads history only for the exact current membership and organization', async () => {
+    const test = fixture();
+    const result = await test.load('/portal/profile');
+    expect(result.outcome).toMatchObject({
+      kind: 'ready',
+      view: { kind: 'profile', consents: { items: [] } },
+    });
+    expect(test.read).toHaveBeenLastCalledWith({
+      kind: 'listOwnConsentHistory',
+      membershipId: memberId,
+      limit: 20,
+      cursor: undefined,
+    });
+  });
+  it.each([
+    { membershipId: roleId, organizationId: null },
+    { membershipId: memberId, organizationId },
+  ])('does not retarget or scan another retained scope: %j', async (scope) => {
+    const test = fixture({
+      listOwnConsentScopes: success({
+        items: [{ ...scope, tenantId: actor }],
+        pageInfo: {
+          nextCursor: 'next-scope',
+          previousCursor: null,
+          hasNext: true,
+          hasPrevious: false,
+        },
+      }),
+      listOwnConsentHistory: refused(404),
+    });
+    const result = await test.load('/portal/profile');
+    expect(result.outcome).toMatchObject({ kind: 'ready', view: { kind: 'profile' } });
+    expect(
+      result.outcome.kind === 'ready' && result.outcome.view.kind === 'profile'
+        ? result.outcome.view.consents
+        : null,
+    ).toBeUndefined();
+    expect(test.calls().filter((call) => call === 'listOwnConsentScopes')).toHaveLength(1);
+    expect(test.calls()).not.toContain('listOwnConsentHistory');
+  });
+  it('marks discovery incomplete when twenty earlier scopes leave the current membership beyond the page', async () => {
+    const test = fixture({
+      listOwnConsentScopes: success({
+        items: Array.from({ length: 20 }, (_, index) => ({
+          membershipId: `019a154b-0000-7000-8000-${String(index + 100).padStart(12, '0')}`,
+          tenantId: actor,
+          organizationId: null,
+        })),
+        pageInfo: {
+          nextCursor: 'next-scope',
+          previousCursor: null,
+          hasNext: true,
+          hasPrevious: false,
+        },
+      }),
+    });
+    const result = await test.load('/portal/profile');
+    expect(result.outcome).toMatchObject({
+      kind: 'ready',
+      view: {
+        kind: 'profile',
+        consentHistoryIncomplete: true,
+        customFields: { membershipId: memberId },
+      },
+    });
+    expect(test.read).toHaveBeenLastCalledWith({ kind: 'listOwnConsentScopes', limit: 20 });
+    expect(test.calls()).not.toContain('listOwnConsentHistory');
+  });
+  it.each(['listOwnConsentScopes', 'listOwnConsentHistory'] as const)(
+    'withholds the profile when %s is refused',
+    async (kind) => {
+      const test = fixture({ [kind]: refused(404) });
+      const result = await test.load('/portal/profile');
+      expect(result.outcome).toMatchObject({ kind: 'failure' });
+      if (kind === 'listOwnConsentScopes')
+        expect(test.calls()).not.toContain('listOwnConsentHistory');
+    },
+  );
   it('uses the branch directory when only organization coverage is available and seals pagination', async () => {
     const test = fixture({
       getOwnCapabilities: success({ ...capabilities, canReadTenantMembers: false }),
@@ -224,7 +354,12 @@ describe('finite native page preparation reads and safe projections', () => {
   it('allows independent member management without requesting inaccessible role choices', async () => {
     const test = fixture({ getOwnCapabilities: success({ ...capabilities, canReadRoles: false }) });
     const result = await test.load('/studio/members/' + memberId);
-    expect(test.calls()).toEqual(['getOwnCapabilities', 'getOwnProfile', 'getMembership']);
+    expect(test.calls()).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+      'getMembership',
+      'getMembershipCustomFields',
+    ]);
     expect(result.outcome).toMatchObject({
       kind: 'ready',
       view: {

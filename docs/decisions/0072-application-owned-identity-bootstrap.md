@@ -365,3 +365,20 @@ P03-3 implementation closes only after durable budget/restart/concurrent creator
 central audit failure/unknown commit, terminal binding, exact function privilege,
 provider/native association and real no-session/browser controls pass. P03-9
 issuer/production onboarding and P03-10 closure/redaction ownership remain.
+
+### Amendment 3 — Consent-only subject recovery without a User directory (2026-11-10)
+
+[ADR-0095](0095-revision-pinned-membership-custom-fields.md) adds the separate
+`OwnConsentEntry` path for an existing Active globally bound subject after local
+Membership/lifecycle loss. Its one new Tenancy-only confined function reads
+retained consent linkage, never Identity tables; the existing state-only Identity
+contract freshly checks global admission after the Tenant fence. Existing global
+closure ordering, terminal binding behavior and global/tenant owner separation
+remain. No bootstrap, new global-self descriptor, User field, User directory or
+creation budget exception follows. [Standard 05](../standards/05-database.md#custom-field-and-consent-storage)
+owns the accepted twelve-definer/twelve-logical-setter census and closed body/
+caller controls; four physical context writers remain.
+
+Historical Accepted body, Status, Date, Deciders and prior rationale remain
+unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
+and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).

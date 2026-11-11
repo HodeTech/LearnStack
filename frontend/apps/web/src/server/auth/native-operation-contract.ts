@@ -1,5 +1,9 @@
 import type {
   AdministrationServerSdk,
+  CustomFieldInput,
+  CustomFieldPatch,
+  ConsentGrant,
+  ConsentWithdrawal,
   GrantInput,
   InvitationInput,
   InvitationPolicyPrecondition,
@@ -31,10 +35,10 @@ export type NativeOperation =
         | 'getOwnProfile'
         | 'getOwnCapabilities'
         | 'listRoles'
-        | 'getPermissions'
         | 'listInvitableRoles'
         | 'getInvitationPolicy';
     }>
+  | Readonly<{ kind: 'getPermissions'; sourceReleaseVersion?: 1 | 2 }>
   | Readonly<{ kind: 'createInvitation'; invitation: InvitationInput; idempotencyKey: string }>
   | (Readonly<{ kind: 'revokeInvitation' | 'reissueInvitation'; id: string }> & Write)
   | Readonly<{
@@ -63,7 +67,61 @@ export type NativeOperation =
     }>
   | (Readonly<{ kind: 'renameOrganization'; id: string; displayName: string }> & Write)
   | (Readonly<{ kind: 'archiveOrganization'; id: string }> & Write)
-  | (Readonly<{ kind: 'selectDefaultOrganization'; organizationId: string }> & Write);
+  | (Readonly<{ kind: 'selectDefaultOrganization'; organizationId: string }> & Write)
+  | (Readonly<{ kind: 'listCustomFieldDefinitions'; status?: 'Draft' | 'Active' | 'Deprecated' }> &
+      Page)
+  | (Readonly<{ kind: 'getCustomFieldDefinition' | 'listCustomFieldRevisions'; id: string }> & Page)
+  | Readonly<{ kind: 'getMembershipCustomFields'; id: string }>
+  | Readonly<{ kind: 'getOwnCustomFields' }>
+  | Readonly<{
+      kind: 'registerCustomFieldDefinition';
+      input: CustomFieldInput | string;
+      idempotencyKey: string;
+    }>
+  | (Readonly<{
+      kind: 'reviseCustomFieldDefinition';
+      id: string;
+      input: CustomFieldInput | string;
+    }> &
+      Write)
+  | (Readonly<{
+      kind: 'publishCustomFieldDefinition';
+      id: string;
+      expectedIncumbentId: string | null;
+      expectedIncumbentVersion: string | null;
+    }> &
+      Write)
+  | (Readonly<{
+      kind: 'retireCustomFieldDefinition' | 'discardCustomFieldDefinition';
+      id: string;
+    }> &
+      Write)
+  | (Readonly<{ kind: 'setMembershipCustomFields'; id: string; patch: CustomFieldPatch | string }> &
+      Write)
+  | (Readonly<{ kind: 'setOwnCustomFields'; patch: CustomFieldPatch | string }> & Write)
+  | Readonly<{
+      kind: 'getOwnFieldConsent';
+      membershipId: string;
+      definitionId: string;
+      definitionVersion: number;
+    }>
+  | Readonly<{ kind: 'grantOwnFieldConsent'; input: ConsentGrant; idempotencyKey: string }>
+  | RetainedConsentOperation;
+export type RetainedConsentOperation =
+  | (Readonly<{ kind: 'listOwnConsentScopes' }> & Page)
+  | (Readonly<{ kind: 'listOwnConsentHistory'; membershipId: string }> & Page)
+  | Readonly<{
+      kind: 'withdrawOwnFieldConsent';
+      membershipId: string;
+      input: ConsentWithdrawal;
+      idempotencyKey: string;
+    }>;
+export type NativeRetainedConsentCaller = (
+  token: string,
+  binding: NativeBinding,
+  operation: RetainedConsentOperation,
+  signal: AbortSignal,
+) => Promise<NativeOperationResult>;
 
 export type NativeOperationResult = Awaited<
   ReturnType<AdministrationServerSdk[keyof AdministrationServerSdk]>

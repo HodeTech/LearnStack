@@ -57,6 +57,15 @@ describe('generated GET contract ownership', () => {
   it('keeps every selected GET authenticated without expanding public or AccountSite transport', () => {
     expect(AUTHENTICATED_GET_CONTRACTS).toEqual({
       '/api/v1/account/site': 'GetAccountSite',
+      '/api/v1/customization/custom-field-definitions': 'ListCustomFieldDefinitions',
+      '/api/v1/customization/custom-field-definitions/{id}': 'GetCustomFieldDefinition',
+      '/api/v1/customization/custom-field-definitions/{id}/revisions':
+        'ListCustomFieldDefinitionRevisions',
+      '/api/v1/identity/memberships/{id}/custom-fields': 'GetMembershipCustomFields',
+      '/api/v1/identity/me/custom-fields': 'GetOwnMembershipCustomFields',
+      '/api/v1/tenancy/membership-field-consents/own': 'GetOwnMembershipFieldConsent',
+      '/api/v1/tenancy/membership-field-consents/own/scopes': 'ListOwnFieldConsentScopes',
+      '/api/v1/tenancy/membership-field-consents/own/history': 'ListOwnMembershipFieldConsents',
       '/api/v1/identity/memberships': 'ListMemberships',
       '/api/v1/identity/self': 'GetIdentitySelf',
       '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts',
@@ -103,6 +112,14 @@ describe('generated GET contract ownership', () => {
       | 'GetInvitation'
       | 'ListInvitableRoles'
       | 'GetTenantInvitationPolicy'
+      | 'ListCustomFieldDefinitions'
+      | 'GetCustomFieldDefinition'
+      | 'ListCustomFieldDefinitionRevisions'
+      | 'GetMembershipCustomFields'
+      | 'GetOwnMembershipCustomFields'
+      | 'GetOwnMembershipFieldConsent'
+      | 'ListOwnFieldConsentScopes'
+      | 'ListOwnMembershipFieldConsents'
     >();
     expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
     expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();

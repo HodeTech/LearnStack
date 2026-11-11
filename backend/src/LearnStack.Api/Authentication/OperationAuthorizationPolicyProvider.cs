@@ -24,7 +24,7 @@ internal sealed class OperationAuthorizationPolicyProvider(IOptions<Authorizatio
         return Task.FromResult(policy is
         {
             Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead
-            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry
+            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry or OperationPolicyKind.OwnFieldConsentGrant
         }
             ? new AuthorizationPolicy([new OperationPolicyRequirement(policy)], [TenantAuthenticationRegistration.Scheme]) : null);
     }
@@ -60,7 +60,15 @@ internal sealed class OperationAuthorizationHandler(OperationHttpClassifier clas
                     context.Fail();
                     continue;
                 }
-                var response = policy.Kind == OperationPolicyKind.InvitationEntry
+                var response = policy.Kind == OperationPolicyKind.OwnConsentEntry
+                    ? http.Features.Get<ConsentSubjectSource>() is { } consent && consent.IsCurrent(http)
+                        && consent.EffectiveRequestType is { } consentType
+                        ? ProtectedAdministrationDescriptor.ForRequest(policy.RequestType) is not null
+                            ? await ProtectedReplayHttpAdmission.AuthorizeAsync(http, policy, classifier,
+                                tenantContext, store, candidates, operations)
+                            : await operations().CheckHttpAsync(consentType, http.GetEndpoint()!, http.RequestAborted)
+                        : LearnStack.SharedKernel.Results.Result.Fail<LearnStack.SharedKernel.Results.None>(TenantContextFactory.Refused)
+                    : policy.Kind == OperationPolicyKind.InvitationEntry
                     ? http.Features.Get<InvitationEntrySource>() is { } invitation && invitation.IsCurrent(http)
                         && invitation.EffectiveRequestType is { } requestType
                         ? await operations().CheckHttpAsync(requestType, http.GetEndpoint()!, http.RequestAborted)

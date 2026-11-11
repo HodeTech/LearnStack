@@ -1,3 +1,4 @@
+import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import type {
   InvitationCommand,
   InvitationContinuation,
@@ -13,6 +14,8 @@ import type {
 import type { NativeInvitationApi } from './native-invitation-contract.js';
 import type {
   NativeAdministrationCaller,
+  NativeRetainedConsentCaller,
+  RetainedConsentOperation,
   NativeOperation,
   NativeOperationResult,
 } from './native-operation-contract.js';
@@ -64,6 +67,8 @@ export type NativeReturnPath =
   | '/studio/invitations'
   | `/studio/invitations/${string}`
   | '/studio/invitation-policy'
+  | '/studio/custom-fields'
+  | `/studio/custom-fields/${string}`
   | '/studio/roles'
   | `/studio/roles/${string}`
   | '/portal'
@@ -153,6 +158,7 @@ export type SessionDependencies = Readonly<{
   native: NativeSessionApi;
   administration: NativeAdministrationCaller;
   invitations?: NativeInvitationApi;
+  retainedConsent?: NativeRetainedConsentCaller;
   diagnostic?: (reason: SessionFailure) => void;
   /** Internal deterministic test clock, never deployment configuration. */
   clock?: Readonly<{ monotonic: () => number; utc: () => number }>;
@@ -244,6 +250,14 @@ export interface BffSessionStore {
     source: string,
     input: PagePreparation,
   ): Promise<NativePageSnapshot | NativeEntrySnapshot>;
+  retainConsent(binding: SessionBinding, lease: NativeConsentResponseLease): string;
+  retainedConsent(
+    binding: SessionBinding,
+    source: string,
+    operation: RetainedConsentOperation,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult>;
   peek(binding: SessionBinding): SessionProjection | null;
   admit(
     binding: SessionBinding,

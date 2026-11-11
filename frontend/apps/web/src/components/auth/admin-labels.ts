@@ -25,6 +25,7 @@ export function permissionLabel(grant: PageGrant, admin: AdminCopy): string {
     'Tenant:identity.membership.admin': admin('permissions.tenant_members'),
     'Organization:identity.membership.admin': admin('permissions.organization_members'),
     'Tenant:identity.role.admin': admin('permissions.roles'),
+    'Tenant:customization.custom_field.admin': admin('permissions.custom_fields'),
     'Tenant:identity.membership_profile.write': admin('permissions.tenant_profiles'),
     'Organization:identity.membership_profile.write': admin('permissions.organization_profiles'),
     'Tenant:tenancy.organization.admin': admin('permissions.organizations'),
