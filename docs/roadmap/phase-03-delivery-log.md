@@ -429,6 +429,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 112 lines
+  - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19622,3 +19624,115 @@ before that writer too. No provider-ingress design is accepted by this closeout.
 P03-7 back-channel logout, P03-8 federation, P03-9 Platform/recovery, P03-10
 DSAR/global closure and P03-11 exit enforcement remain unstarted. Phase 03 is
 not complete, and Phase 04 is not activated. This closeout starts no next packet.
+
+## P03-6 — Provider event ingress and Audit mirror
+
+### P03-6 provider-event decision pass and proposed package (2026-11-11)
+
+**Decision pass only.** The maintainer confirms P03-6, correcting the earlier
+P03-7/P03-6 wording. Work remains on `development`; the clean entry source is
+`834547b8`. No provider client, executable adapter, role, function, migration,
+context writer or Audit consumer is implemented by this record.
+
+[ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+is Proposed. G10 and only its required machine-ingress part of G13 need explicit
+approval before their first writer. P03-9's human operator/Platform authority,
+recovery and controlled issuer rebind remain Open. P03-7 is a separate packet.
+
+#### Reverified premises and review disposition
+
+- Phase 03 D09/C11/C19 require authenticated intake, durable acceptance, stable
+  provider identity, deduplication, explicit unknown/no-/multi-member routing,
+  source privacy and an outbox/inbox-backed Audit mirror. G10 is Open.
+- P02b-6/7 development configuration stores selected Keycloak user events with
+  seven-day default and preserved longer finite retention. This is provider
+  history, not an implemented LearnStack ingress, session ledger or Audit mirror.
+- At entry, `PostgresOutbox` requires the enrolled writable tenant owner and live
+  announcement. Its EventId is the globally unique outbox primary key. Shared
+  inbox identity is `(tenant, subscription, event)`; ordinary event execution
+  runs as SystemActor and cannot perform a privileged global operation.
+- Audit has no provider-event subscription. Existing global audit is confined to
+  `identity.user.create`. Global-self discovery is person-bound, not a service
+  account directory. Neither is repurposed for intake.
+- Two independent read-only audits examine actual runtime/contracts and pinned
+  provider behavior. Their findings are design constraints, not implementation
+  reviews or runtime qualification. They identify forced-RLS owner visibility,
+  pre-COMMIT lease fencing, duplicate-insert visibility, frozen recipient IDs,
+  subject/actor separation and retained-copy dependencies; the proposal names
+  those obligations explicitly.
+- Pinned 26.6.2 source verifies persistent event IDs, `view-events` authentication,
+  inclusive timestamp filters and offset/time-only paging. A plain listener's
+  exception does not establish transactional durable delivery. Repeated pull is
+  chosen with an explicit finite-recovery residual, not a gap-free capture claim.
+
+#### Decision surface for the maintainer
+
+The ADR supplies one coupled package: read-only provider pull; finite retained
+history recovery; minimized global dispositions; one target per acceptance-time
+recipient tenant; one separate least-privilege provider client and one confined
+fifth database login; three additional owner functions and one logical setter;
+central typed Audit evidence and required inbox-backed consumer. It also names
+32-day global receipt retirement, retained tenant-copy dependencies and the
+P03-10/Phase 11 ownership boundaries. No source result is represented as an
+actual tenant login, and no provider event changes Membership, profile or session.
+
+This is a substantive security/persistence/privacy decision, not routine code
+approval. Existing limits and histories are unchanged while the ADR is Proposed.
+The no-new-authority alternatives and the stronger Java spool alternative are
+recorded in the ADR; no second decision is silently left to a later code step.
+
+#### Three implementation steps after acceptance
+
+| Step | Reviewable result and principal paths | Verification before step closure |
+|---|---|---|
+| 1 — Qualified storage and execution owners | Reconciled canonical carriers; forward Identity migration, role/function/target constraints, dedicated source, exact claim/witness/UoW owner in `backend/src/LearnStack.Infrastructure*`, `LearnStack.Application`, SharedKernel and Identity; construction/registration stays inactive until the complete flow lands | Real PostgreSQL app/ingress-role RLS and ACL controls, exact function/owner/source/origin census, concurrent duplicate and stale/lost-COMMIT/claim tests; focused Architecture/unit/integration suites and doc checks |
+| 2 — Real provider through tenant Audit | SharedKernel provider port and direct HTTP Keycloak adapter, API-host poll/fanout owners, typed Identity fact/read contract, actual Audit subscriber and central evidence composer; API composition, fresh/warm realm/service-client/private-source setup and operating guides | Real least-privilege Keycloak sign-in/error/reset/credential/lockout facts, outage/restart/full sweep, all dispositions, two-tenant fanout and spoof/closure controls, transport duplicate/reorder/audit rollback, raw-data/log canaries, zero-write warm rerun and credential rotation/disable |
+| 3 — Enforcement and PR qualification | Complete production-subject catalogue/structural mutants, operational/retention/recovery handoff, source-bound evidence and final docs; no new UI or unrelated runtime work | Required full local suites, docs guards, two fresh review rounds, then final-source complete hosted A/B and original-archive reconciliation through the actual PR workflow; preserve every failed/partial run separately |
+
+Each step is implemented and committed, reviewed in round 1, corrected/committed,
+then reviewed by fresh agents in round 2 and corrected/committed. Reviews use
+current Sol/Terra models chosen for the lens; no Astra. Step 1/2 tests remain with
+their implementation, not postponed to Step 3. After step closure proceed
+automatically unless a real decision/blocker arises. No branch/worktree is
+created. The final PR is opened for maintainer review; no merge is authorized.
+
+A complete flow activates only when all its owners and required consumer exist;
+Step 1 supplies testable storage/ownership, not an enabled half-feature. Step 3
+is proof consolidation and operating handoff, not an excuse to omit tests or
+schema/privacy controls in earlier steps.
+
+#### Canonical carrier inventory
+
+- Accepted predecessor bodies remain historical. On approval append bounded
+  extension Amendments to ADR-0003, ADR-0036, ADR-0040, ADR-0044, ADR-0070,
+  ADR-0072, ADR-0077 and ADR-0095. ADR-0046/0057's ordinary transport contract is
+  preserved; link the new producer/consumer without relabeling source audit as
+  an asynchronous mirror. Do not reserve Amendment numbers.
+- Standards 02/04/05/06/08/10/11/12/13/18/19/20/21 where the new source, role,
+  SQL/logging privacy, classification, event, health or proof inventories apply;
+  no new public API or permission is inferred. Canonical DDL/grants remain in
+  Standard 05, tenant origin/setter/source and machine authority in Standard 11,
+  audit fields/classification in Standard 18 and provider policy in Standard 20.
+- Architecture 13 (provider-history mirror), 15 (outbox/inbox flow), 23 (all
+  durable personal-data copies) and 31 (typed central audit evidence); Identity
+  README/audit/providers and Audit README/audit/permissions as applicable.
+- `infra/keycloak/README.md`, realm export/reconciler and tests; composition and
+  private example templates, `.github/CONTRIBUTING.md` and relevant provider/
+  event/test workflow guidance if their current claims become stale. No private
+  credential or raw provider event is a checked-in fixture/artifact.
+- Phase 03 Status/register, this append-only log/generated index, ADR index and
+  glossary. Proposal entries close no gate or catalogue implementation status.
+
+#### Product, performance and proof boundaries
+
+This packet adds backend security evidence and its operating path, not a new
+screen. Existing login, invitation, Studio and public rendering must remain
+independent of a stopped mirror. Tenant UI does not display queued/sent or
+instant sign-out claims for provider history. Phase 06 owns the Audit viewer;
+P03-7 owns authenticated back-channel revocation.
+
+Read amplification, source outage/retention risk, extra source connections and
+retained copies are explicit review subjects. Match actual resources to bounds;
+a timeout, canceled wait or process exit does not prove cleanup. No new package,
+request or CI timeout is proposed. Full A/B, original archive verification and
+actual provider behavior are separate from document approval or local success.

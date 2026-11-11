@@ -23,8 +23,8 @@
 > records all four steps, reviews, final-head `b96c2f65` A/B (27/27 each) and fifty
 > verified original archives. Manual acceptance covers the earlier UI; later fixes
 > lack a fresh human recheck. Earlier intermittent CI causes remain unlocalized.
-> P03-6 through P03-11 have not started. P03-6 is next by packet order and needs
-> its G10 decision before the first provider-ingress writer. Phase 03 remains open.
+> P03-6's decision pass proposes [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md) and its [three-step package](phase-03-delivery-log.md#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11); G10/machine-ingress G13 await approval, with no executable work.
+> P03-7 through P03-11 have not started. Phase 03 remains open.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -34,7 +34,7 @@
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
-> | P03-6 | Provider event ingress and audit mirror | Not started |
+> | P03-6 | Provider event ingress and audit mirror | Decision pass in progress — Proposed ADR-0097; no executable implementation |
 > | P03-7 | Back-channel session revocation | Not started |
 > | P03-8 | Tenant federation | Not started |
 > | P03-9 | Platform authority and operational recovery | Not started |
