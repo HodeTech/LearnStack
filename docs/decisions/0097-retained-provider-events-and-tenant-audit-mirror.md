@@ -123,6 +123,8 @@ explicitly resolves it; history is never deleted or silently shortened.
   older than two hours is degraded; approaching source retention minus 24 hours
   is critical. An observed recovery gap remains recorded; restarting or finishing
   a later scan does not retroactively prove that missing history was captured.
+  This is a separately registered machine health check, not a new anonymous
+  diagnostics route or a change to the existing public liveness response.
 
 ### Global receipt and immutable attribution
 
@@ -131,6 +133,8 @@ The provider ID is validated against the pinned UUID profile and retained; no
 fresh application UUID, timestamp or payload equality replaces it. A separate
 owner-minted ReceiptId identifies local custody.
 
+Each returned fact must match its requested realm, selected type and inclusive
+scan window; a malformed or out-of-window response is not accepted as history.
 The allowlisted immutable fact contains source identity, source occurrence time,
 closed type/outcome, and the existing authority/opaque-subject equality key when
 present. No raw subject, username, email, IP, session ID, client attributes,
@@ -238,7 +242,9 @@ and affected UserId. Only the validated mirror consumer mints it; no arbitrary
 metadata dictionary or private module audit writer is admitted. Extend the
 central composer and trusted evidence-producer census together.
 
-`identity.provider_event.observe` is MUST/SecurityEvent. Its actor is SystemActor;
+`audit.provider_event.observe` is MUST/SecurityEvent, declared by Audit's own
+catalogue and matrix. It records the mirror, not an Identity mutation; the
+request-keyed slug keeps the declaring module prefix. Its actor is SystemActor;
 the affected person is a separately named subject reference, never fabricated
 human causation. The row timestamp is processing time; provider occurrence and
 provider result are distinct typed evidence. Audit success means the mirror

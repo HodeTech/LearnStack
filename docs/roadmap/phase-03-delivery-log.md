@@ -429,8 +429,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 112 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 142 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
+  - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19736,3 +19737,33 @@ retained copies are explicit review subjects. Match actual resources to bounds;
 a timeout, canceled wait or process exit does not prove cleanup. No new package,
 request or CI timeout is proposed. Full A/B, original archive verification and
 actual provider behavior are separate from document approval or local success.
+
+### P03-6 proposal review round 1 and catalogue correction (2026-11-11)
+
+Two fresh reviewers inspect draft `8d7a5139` without changing files:
+
+- GPT-6.1 Terra / high reviews role/function/owner authority, forced RLS,
+  witness/transaction fencing, receipt/target retention and central Audit reuse.
+  No actionable Blocker, Major or Minor is reported for that lens.
+- GPT-6.1 Sol / high verifies pinned provider semantics, catalogue, recovery,
+  attribution/privacy and configuration/diagnostic carriers. No actionable
+  Blocker, Major or Minor is reported. Its source verification is a document
+  review, not executed provider or application qualification.
+
+The author independently verifies `AuditCatalogBuilder.Add`'s enforced module
+prefix: a request-keyed registration owned by Audit cannot declare the initial
+`identity.provider_event.observe` spelling. The proposal now uses
+`audit.provider_event.observe`, declared by Audit's own catalogue/matrix. This
+records the mirror rather than an Identity mutation and avoids widening the
+catalogue builder or adding an off-path writer. No executable implementation
+had used the earlier proposed spelling.
+
+The draft also states that returned facts must match the requested realm/type/
+window and that machine health adds no anonymous route or liveness change.
+These are proposal corrections before approval. G10/G13 remain Open and
+ADR-0097 remains Proposed; fresh round 2 reviews the corrected package.
+
+Document verification at this boundary: 3,558 fragment links resolve;
+roadmap structure and all three generated indexes pass; all seven ADR-status
+controls pass. The initial Status-block line-budget failure is corrected without
+relaxing the guard. No runtime test or hosted CI is claimed or started.
