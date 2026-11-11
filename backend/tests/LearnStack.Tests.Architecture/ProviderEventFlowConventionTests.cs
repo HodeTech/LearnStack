@@ -44,7 +44,6 @@ public sealed class ProviderEventFlowConventionTests
         census.Callers(intake, "QualifyAsync").Should().Equal(runtime + "QualifyAsync");
         census.Callers(intake, "ClaimAsync").Should().Equal(runtime + "ExecuteAsync");
         census.Callers(intake, "RecordPageProblemAsync").Should().Equal(scanner + "ReadAndAcceptAsync");
-        census.Callers(intake, "ResolvePageProblemAsync").Should().Equal(scanner + "RetryOneAsync");
         census.Callers("LearnStack.SharedKernel.Identity.IIdentityEventProvider", "ReadAsync")
             .Should().BeEquivalentTo([scanner + "ReadAndAcceptAsync", scanner + "RetryOneAsync"]);
         census.Callers("LearnStack.SharedKernel.Identity.IIdentityEventProvider", "ReadPolicyAsync").Should().Equal(runtime + "ReadSourceSliceAsync");

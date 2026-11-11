@@ -6109,6 +6109,10 @@ with the prior retained lower bound. Expired continuity sets the sticky
 historical-gap/earliest-gap pair even when completed cursors are NULL. A later
 traversal, process restart, retirement or retention increase cannot clear it.
 This is conservative recovery accounting, not proof of gap-free source capture.
+An unreadable singleton has no normalized immutable identity. Empty or readable
+offset retries do not resolve that coverage problem: pagination movement can
+substitute a different event. Readable retry facts earn only their own acceptance;
+the original positional gap remains unresolved and eventually irrecoverable.
 
 Claim returns one stored target with fresh token and thirty-second database-time
 lease. Only the private `ProviderEventRecipient` minter turns the returned tuple

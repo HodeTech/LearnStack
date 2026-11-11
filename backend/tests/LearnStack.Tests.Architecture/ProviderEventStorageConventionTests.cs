@@ -26,7 +26,7 @@ public sealed class ProviderEventStorageConventionTests
             .Where(method => !method.IsSpecialName).Select(method => method.Name)
             .Should().BeEquivalentTo("QualifyAsync", "AcceptAsync", "ClaimAsync", "RetireAsync", "DisposeAsync",
                 "ReadScanAsync", "BeginSweepAsync", "AdvanceSweepAsync", "RecordPageProblemAsync", "TakeProblemAsync",
-                "ReadPendingFactAsync", "ResolvePageProblemAsync", "UpdateSourcePolicyAsync", "ReadHealthAsync");
+                "ReadPendingFactAsync", "UpdateSourcePolicyAsync", "ReadHealthAsync");
     }
 
     [Fact]

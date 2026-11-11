@@ -64,4 +64,39 @@ public sealed class ProviderEventRecoveryGapTests(IdentityMembershipFixture fixt
         }
         catch { await source.DisposeAsync(); throw; }
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Empty_or_substituted_position_retry_never_clears_an_unidentified_coverage_gap(bool substitutedFact)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
+        await IdentityMembershipFixture.SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
+        var connection = new NpgsqlConnectionStringBuilder(fixture.Postgres.IdentityIngressConnectionString)
+        { Database = new NpgsqlConnectionStringBuilder(database.AppConnectionString).Database }.ConnectionString;
+        await using var source = await SourceAsync(connection, database.AppConnectionString, 604800);
+        var initial = await source.BeginSweepAsync();
+        await source.RecordPageProblemAsync(new(initial.From!.Value, initial.To!.Value, 0, 1), IdentityEventPageIssue.Malformed);
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            await IdentityMembershipFixture.ExecuteAsync(owner, null,
+                "UPDATE public.identity_provider_event_problems SET next_retry_at=clock_timestamp()-interval '1 second'");
+        var laterFact = new IdentityProviderEvent(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), IdentityProviderEventKind.Login, null);
+        var scanner = new ProviderEventScanner(new MovedPositionProvider(substitutedFact ? laterFact : null), source);
+        await scanner.RetryOneAsync();
+        (await scanner.SweepPageAsync()).Should().BeTrue();
+        await using var restarted = await SourceAsync(connection, database.AppConnectionString, 604800);
+        (await restarted.ReadScanAsync()).LastCompletedAt.Should().BeNull("position movement cannot attest the original unreadable fact");
+        (await restarted.ReadHealthAsync()).Problems.Should().ContainSingle(problem => problem.Reason == "malformed" && problem.Count == 1);
+        await using var machine = (NpgsqlConnection)await PostgresFixture.OpenAsync(connection);
+        (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
+            "SELECT count(*) FROM public.identity_provider_event_receipts WHERE accepted_at IS NOT NULL"))
+            .Should().Be(substitutedFact ? 1 : 0, "any readable replacement earns only its own independent acceptance");
+    }
+
+    private sealed class MovedPositionProvider(IdentityProviderEvent? replacement) : IIdentityEventProvider
+    {
+        public Task<IdentityEventSourcePolicy> ReadPolicyAsync(CancellationToken cancellationToken = default) => Task.FromResult(new IdentityEventSourcePolicy(604800));
+        public Task<IdentityEventPage> ReadAsync(IdentityEventRead request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(IdentityEventPage.Read(request.Maximum == 1 && replacement is not null ? [IdentityEventReadItem.Observed(replacement)] : []));
+    }
 }

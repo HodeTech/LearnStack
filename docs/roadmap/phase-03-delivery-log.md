@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 459 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 486 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -440,6 +440,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 1 closeout and Step 2 entry (2026-11-11)](#p03-6-step-1-closeout-and-step-2-entry-2026-11-11) — 25 lines
   - [P03-6 Step 2 provider-to-Audit implementation (2026-11-11)](#p03-6-step-2-provider-to-audit-implementation-2026-11-11) — 62 lines
   - [P03-6 Step 2 first review and recovery correction (2026-11-11)](#p03-6-step-2-first-review-and-recovery-correction-2026-11-11) — 40 lines
+  - [P03-6 Step 2 second review and positional-gap correction (2026-11-11)](#p03-6-step-2-second-review-and-positional-gap-correction-2026-11-11) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20092,3 +20093,30 @@ Earlier partial/failing runs remain separate, not qualification credit.
 No verified first-round finding remains after the correction. Fresh second-round
 review follows its commit. Full packet suites, source-bound hosted A/B and
 original archives remain Step 3; no P03-6 push, PR or hosted run has started.
+
+### P03-6 Step 2 second review and positional-gap correction (2026-11-11)
+
+Fresh Terra/high provider/recovery and Sol/high ownership/Audit reviewers inspect
+`63751d8f` plus `da8d5077`. The ownership reviewer reports no actionable finding
+and independently confirms the source-time recovery-anchor repair. The provider
+reviewer identifies one Major: an empty retry at an earlier unreadable offset
+could resolve the problem without proving that the original fact was recovered.
+Neither reviewer runs the suites or claims independent hosted evidence.
+
+The correction also covers a nonempty substituted event. A malformed singleton
+has no normalized stable identity, and Keycloak offset movement cannot prove
+that a later readable item is that original fact. Scanner retry may accept the
+readable item's own stable identity, but the positional coverage problem remains
+unresolved through expiry/retirement. The unsafe automatic resolver is removed
+from the private source's closed public-method/caller census; there is no raw-body
+hash, guessed identity, source deletion or operator success switch. Normalized
+stable-fingerprint recovery retains its separately proven behavior.
+
+Two actual PostgreSQL cases exercise empty and substituted-valid retries, a later
+finished sweep and source restart. Neither permits a complete-sweep claim; the
+substituted fact earns only its own independent receipt. Together with the two
+R1 retention/restart cases all four recovery cases pass. All nine selected
+compiled storage/flow and corpus controls pass; the Release solution builds with
+zero warnings/errors. The canonical database contract and realm recovery runbook
+state this limit. The reviewer receives a narrow correction recheck after commit;
+this is not a third broad review round. Final packet qualification remains open.

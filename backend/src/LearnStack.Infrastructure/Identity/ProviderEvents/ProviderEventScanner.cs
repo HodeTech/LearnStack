@@ -38,8 +38,10 @@ public sealed class ProviderEventScanner(IIdentityEventProvider provider, Provid
         if (result.Issue is not null || result.Items.Any(item => item.Disposition == IdentityEventItemDisposition.Malformed)) return;
         foreach (var item in result.Items)
             await AcceptItemAsync(item, token).ConfigureAwait(false);
-        // Position retries cannot prove an expired historical position; the source leaves those unresolved.
-        await source.ResolvePageProblemAsync(problem, token).ConfigureAwait(false);
+        // The original unreadable position has no normalized immutable identity.
+        // A missing or valid replacement at this offset cannot prove recovery of
+        // that fact. Keep its coverage problem unresolved through retirement;
+        // useful retry facts still receive their independent acceptance ACK.
     }
 
     private async Task<Progress> ReadAndAcceptAsync(IdentityEventRead original, CancellationToken token)

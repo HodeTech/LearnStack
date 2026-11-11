@@ -121,19 +121,6 @@ public sealed partial class ProviderEventIntakeSource
                 row.GetFieldValue<DateTimeOffset>(1), row.GetString(2), row.IsDBNull(3) ? null : IdentitySubjectKey.FromBytes(row.GetFieldValue<byte[]>(3)));
         }, token);
 
-    public Task ResolvePageProblemAsync(ProviderEventProblem problem, CancellationToken token = default) =>
-        ExecuteAsync(async (connection, transaction, deadline) =>
-        {
-            await using var command = new NpgsqlCommand("""
-                UPDATE public.identity_provider_event_problems SET resolved_at=clock_timestamp()
-                WHERE problem_key=@key AND authority_id=@authority AND realm_id=@realm AND reason IN ('malformed','oversized')
-                    AND NOT irrecoverable AND range_to>=clock_timestamp()-make_interval(secs=>(SELECT retention_seconds FROM public.identity_provider_event_scan WHERE id=1))
-                """, connection, transaction);
-            BindProfile(command, _profile!); command.Parameters.AddWithValue("key", problem.Key);
-            await command.ExecuteNonQueryAsync(deadline).ConfigureAwait(false);
-            return true;
-        }, token);
-
     public Task UpdateSourcePolicyAsync(int retentionSeconds, CancellationToken token = default)
     {
         if (retentionSeconds is < 604800 or > 2592000) throw new ArgumentOutOfRangeException(nameof(retentionSeconds));

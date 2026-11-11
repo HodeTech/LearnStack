@@ -79,6 +79,10 @@ other positions continue. Overflow facts keep no partial targets or ACK. Fair
 retries and the retained cursor survive restart; an unresolved source expiry leaves
 a permanent historical-gap signal. Offset/equal-time movement still prevents a
 gap-free capture guarantee.
+Unreadable positional problems remain open even if a later retry is empty or
+readable: the source offset can now identify a different event. Readable retry
+facts are accepted independently; do not clear the original problem to silence
+health. Expiry preserves its irrecoverable historical-gap signal.
 
 If setup fails after dispatch, inspect this exact client's current secret, scopes,
 service-account roles and local mapper with the deployment administrator before
@@ -100,7 +104,7 @@ Before initial source/policy qualification, mirror activation remains blocked.
 
 | Realm | Population | Clients |
 |-------|------------|---------|
-| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account |
+| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader |
 | `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE; unchanged by P02b-6 |
 
 [SeedData.IdentityUsers](../../backend/src/LearnStack.Tools.Seeder/SeedData.cs)
