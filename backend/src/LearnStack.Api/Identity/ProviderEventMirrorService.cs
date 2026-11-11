@@ -68,8 +68,11 @@ internal sealed class ProviderEventMirrorService(IServiceProvider services, ISer
                     {
                         stage = ProviderMirrorStage.Maintenance;
                         await source.RetireAsync(stoppingToken);
-                        health.Observe(await source.ReadHealthAsync(stoppingToken), !_sourceBlocked);
-                        _maintenanceDue = clock.UtcNow.AddSeconds(30);
+                        var snapshot = await source.ReadHealthAsync(stoppingToken);
+                        health.Observe(snapshot, !_sourceBlocked);
+                        // Backlog gets another finite slice on the next ordinary
+                        // loop, after source reads and target production get a turn.
+                        _maintenanceDue = snapshot.HasRetirementBacklog ? clock.UtcNow : clock.UtcNow.AddSeconds(30);
                     }
                 }
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);

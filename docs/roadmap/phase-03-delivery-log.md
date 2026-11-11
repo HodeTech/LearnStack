@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 690 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 762 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -446,7 +446,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 3 first review and enforcement corrections (2026-11-11)](#p03-6-step-3-first-review-and-enforcement-corrections-2026-11-11) — 46 lines
   - [P03-6 Step 3 review closeout and qualification freeze (2026-11-11)](#p03-6-step-3-review-closeout-and-qualification-freeze-2026-11-11) — 28 lines
   - [P03-6 first hosted A and observation census corrections (2026-11-11)](#p03-6-first-hosted-a-and-observation-census-corrections-2026-11-11) — 64 lines
-  - [P03-6 compiled catalogue total correction (2026-11-11)](#p03-6-compiled-catalogue-total-correction-2026-11-11) — 22 lines
+  - [P03-6 compiled catalogue total correction (2026-11-11)](#p03-6-compiled-catalogue-total-correction-2026-11-11) — 23 lines
+  - [P03-6 maintainer review corrections (2026-11-11)](#p03-6-maintainer-review-corrections-2026-11-11) — 71 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20330,3 +20331,75 @@ complete A/B must use the corrected single source. This arithmetic correction
 uses the existing compiled corpus checks; it introduces no decision or extra
 implementation step. Full corrected local Architecture and the earlier local
 Integration run continue with their existing physical owners.
+
+
+### P03-6 maintainer review corrections (2026-11-11)
+
+The maintainer requests independent verification and correction of the PR #43
+review, while confirming that the application has no active external consumers.
+The prior frozen head `89a98998` / merge source `3bc7952c` qualified in
+[run 43057304673](https://github.com/HodeTech/LearnStack/actions/runs/43057304673),
+whole attempts 1 and 2: **27/27 jobs each**, with **25 original ZIPs per attempt**
+verified by API identity/size, SHA-256 and ZIP CRC. Each attempt reconciles 8,606
+backend cases and 4,300 reported frontend cases, plus native ingress, 27 public
+audits and unchanged OpenAPI. An independent audit confirms both originals and
+same-source reconciliation. These remain evidence for that earlier source;
+the corrections below need their own final-source qualification.
+
+Five concrete review findings are confirmed:
+
+- A failed/cancelled initial machine qualification retained its failed Task.
+  Retry now occurs only after the old attempt completes physical cleanup; the
+  closed-source and immutable profile/retarget guards remain. PostgreSQL controls
+  exercise cancelled and failed first attempts followed by successful retry.
+- A changed retained fingerprint could reach source-window classification first.
+  A new forward-only migration classifies that retained identity collision before
+  the age check. Accepted original replay and new expired identities keep their
+  separate outcomes. Earlier migration bodies remain historical.
+- One 100/100 retirement batch per thirty seconds constrained recovery throughput.
+  The owner now makes up to sixteen independent bounded commits per worker turn,
+  yields to intake/publication and resumes remaining work on the next loop.
+  Problem-only backlog cannot be mistaken for completion. Private counts and
+  oldest overdue age expose global 32-day retirement lag. Finite capacity remains
+  a retention target, not a hard deletion-time guarantee under arbitrary load.
+- Seed/demo omitted the independently required reader credential from preflight.
+  Existing shared validation now runs before stack/migration/seed side effects,
+  including raw CI source validation. Nonblank/maximum-length checks match the
+  existing runtime adapter; no secret policy or runtime privilege is broadened.
+- The recovery runbook lacked a concrete authorized inspection path. It now names
+  the existing deployment database operator, read-only bounded problem/receipt/
+  Membership queries and category-specific actions. It grants no SQL repair,
+  forced ACK, raw-data export, history reset or tenant-copy deletion authority.
+
+The Audit module's obsolete “consumes none” text is also corrected to name its
+required provider notification and transport-owned inbox. Glossary entries link
+the existing typed evidence and origin ceiling without introducing another rule.
+
+The broad review's H1/H3/H4/H5 proposals conflict with Accepted ownership and
+composition contracts: shutdown joins actual owners; seed verification is
+Seeder-only; common scoped provider binding supplies the immutable context; the
+provider's no-retry resilience policy is deliberately fixed. H2 is contradicted
+by existing empty-configuration composition controls. H6's future-kind hypothesis
+is not a current failure: constructors reject undefined kinds and all nine
+selected error kinds map to failure. The issuer is validated before URL slicing;
+source cursors initialize atomically; target access requires its enrolled unit;
+receipt expiry intentionally has no FK that could delete retained tenant targets.
+The existing disposable database, interface-acquisition mutation, required-handler
+census and actual provider→outbox→Audit controls address the concrete test claims.
+Unspecified lower-severity summaries do not establish an executable defect or
+justify unrelated redesign. Accepted ADR bodies, role/definer/setter censuses,
+provider selection, authorization, test scope and runtime/CI time settings remain.
+
+Initial verification passes: Release build with zero warnings/errors; full Unit
+**3,780/3,780**; actual PostgreSQL provider storage **44/44**; focused reader/owner/
+reconciliation Node controls **107/107**; lifecycle suites **237/237**, including
+27 new actual seed/local-demo/CI-demo refusal cases and shell entry coverage.
+These targeted outcomes do not replace final complete hosted A/B. Implementation
+review rounds, final validation and PR synchronization follow this committed
+correction package. P03-6 remains in progress and PR #43 remains ready/unmerged.
+
+The pre-review structural group passes **15/15**, including all five corpus
+checks; real provider flow plus forward-only rollback pass **4/4** after the new
+migration head is reconciled. Backend format, focused web lint and documentation
+guards pass. One initial format check detects the new migration's missing UTF-8
+BOM; correcting its encoding makes the required backend format check pass.

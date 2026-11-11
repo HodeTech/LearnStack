@@ -42,7 +42,7 @@ The native web process requires the separate explicit BFF opt-in documented in
 ## Retained-event reader and recovery
 
 The selected private environment must add an independent
-`IdentityEvents__ClientSecret` (at least sixteen characters). Realm reconciliation
+`IdentityEvents__ClientSecret` (16–4096 characters, nonblank). Realm reconciliation
 creates `learnstack-event-reader`, a confidential service account with no browser,
 password or full-scope flow, no inherited client scopes and only the
 `realm-management/view-events` role/scope binding. The pinned provider's automatic
@@ -99,6 +99,80 @@ other eligible targets continue. Production failure leaves a conservative proces
 health fault: inspect the retained claim/outbox state and requalify by restarting
 the corrected process. Restart never clears the database's historical-gap marker.
 Before initial source/policy qualification, mirror activation remains blocked.
+
+### Operator inspection and recovery
+
+The deployment's authorized database operator owns inspection through the existing
+migration-owner administrative console. The API, event-reader client and ingress
+login receive no additional grants or repair endpoint. Obtain access through the
+deployment's secret-management workflow; never paste a connection string or raw
+provider response into a ticket. Record only the private problem key, closed
+reason, interval/offset, counts and the intervention/outcome. These locators are
+restricted operational evidence, not public diagnostics or metric labels.
+
+Run the following read-only queries against the application database. Replace the
+UUID/realm literals with the installed source identity. Use the exact tuple from
+the first result for the second query; do not infer an event from its offset alone.
+The limit is an inspection page, not permission to discard additional rows.
+
+```sql
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '5s';
+SELECT problem_key, reason, provider_event_id, range_from, range_to,
+       source_offset, attempts, next_retry_at, irrecoverable
+FROM public.identity_provider_event_problems
+WHERE authority_id = '00000000-0000-0000-0000-000000000000'::uuid
+  AND realm_id = 'installed-realm-id' AND resolved_at IS NULL
+ORDER BY first_seen_at, problem_key LIMIT 100;
+SELECT historical_gap, earliest_gap_at, last_attempted_at, last_completed_at
+FROM public.identity_provider_event_scan WHERE id = 1;
+ROLLBACK;
+```
+
+For `fanout_exceeded`, inspect the minimized pending receipt and its current
+eligible Membership set. This query exposes internal IDs only, not mailbox,
+provider subject, fingerprint, token or raw event details:
+
+```sql
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '5s';
+SELECT r.provider_event_id, r.disposition, r.accepted_at, r.affected_user_id,
+       u.status AS current_user_status, m.tenant_id,
+       count(m.tenant_id) OVER () AS eligible_tenant_count
+FROM public.identity_provider_event_receipts r
+LEFT JOIN public.users u ON u.id = r.affected_user_id
+LEFT JOIN LATERAL (
+    SELECT DISTINCT tenant_id FROM public.memberships
+    WHERE user_id = r.affected_user_id AND status IN ('Active', 'Suspended')
+      AND deleted_at IS NULL AND deleted_by IS NULL
+) m ON true
+WHERE r.authority_id = '00000000-0000-0000-0000-000000000000'::uuid
+  AND r.realm_id = 'installed-realm-id'
+  AND r.provider_event_id = '00000000-0000-0000-0000-000000000000'::uuid
+ORDER BY m.tenant_id LIMIT 257;
+ROLLBACK;
+```
+
+| Closed reason / state | Operator action and recovery evidence |
+|---|---|
+| `fanout_exceeded` | Confirm the active account and distinct eligible tenants. Correct an erroneous Membership only through the authorized administration operation. Never truncate recipients or fabricate targets/ACK. An admissible retry must commit the complete recipient set; otherwise leave the problem open. |
+| `source_collision` | Preserve the original receipt/targets. Investigate source-ID reuse or changed provider content using the exact source/event tuple in the authorized provider console. A later exact original replay cannot clear a different fingerprint's collision; no SQL rewrite or forced ACK is permitted. |
+| `malformed` / `oversized` | Inspect the bounded source interval through the authorized provider administrator. Correct the source/deployment defect where possible. A readable or empty offset retry can contain another event and cannot establish recovery of the original positional gap. Other positions continue independently. |
+| `out_of_window` | Compare source time, activation lower bound, provider retention and clock health. Correct configuration/clock errors without resetting activation or deleting ledgers. Only a genuinely admissible matching fact can resolve its recoverable problem. |
+| Irrecoverable problem / historical gap | Escalate to the deployment maintainer before source retention expires where possible. Record the affected interval and limitation. Restart, policy extension and retirement never prove missing history recovered or clear the sticky gap. |
+| Source/auth/storage unavailable | Verify the exact confined credential, installed source and same database. Transient qualification failures retry after confirmed cleanup. Unconfirmed cleanup closes the source; only restart the corrected process after its actual owners have ended. |
+| Target production fault | Inspect retained claim and exact outbox state through existing authorized operations, correct the cause and restart the process. Database lease/replay controls own retry; do not edit claim/outbox/Audit rows to force success. |
+
+The private health data includes `retirement_receipts_count`,
+`retirement_problems_count`, `retirement_overdue_seconds` and
+`retirement_unmarked_expiry`. Compare successive observations: a growing count or
+age requires the deployment operator to inspect database latency, locks and worker
+availability. Each turn makes up to sixteen 100/100 retirement commits and yields
+to intake/publication; backlog is retried on the next ordinary worker loop. This
+removes the former one-batch-per-thirty-seconds bottleneck, but finite capacity
+still cannot promise immediate deletion under arbitrary load. Retired unresolved
+problems first preserve their historical-gap signal. No procedure here permits
+manual ledger deletion, history reset, reduced retention or tenant-copy purge.
 
 ## Realms and accounts
 

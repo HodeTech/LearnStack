@@ -207,6 +207,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         envelopeParent.Should().Throw<NotSupportedException>().WithMessage("Parent scope locking requires a reviewed forward migration.");
         Action retainedFields = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.membership_revision_pinned_custom_fields().DownOperations;
         retainedFields.Should().Throw<NotSupportedException>().WithMessage("Retained membership custom fields require a reviewed forward migration.");
+        Action recoveryAnchor = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.preserve_provider_recovery_anchor().DownOperations;
+        recoveryAnchor.Should().Throw<NotSupportedException>().WithMessage("Provider recovery continuity requires a forward repair.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
@@ -214,7 +216,7 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
             (platform, "20261105020229_lock_invitation_envelope_parent", PlatformReversibleHead,
                 "20261110013140_add_custom_field_protected_receipts", "Retained custom field receipts require a reviewed forward migration."),
             (identity, "20261109230238_role_registry_release_v3", IdentityReversibleHead,
-                "20261111160000_preserve_provider_recovery_anchor", "Provider recovery continuity requires a forward repair."),
+                "20261111180000_classify_retained_provider_collision", "Provider receipt collision classification requires a forward repair."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

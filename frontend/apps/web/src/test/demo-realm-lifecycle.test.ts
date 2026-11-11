@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parseEnv } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -139,6 +140,7 @@ export function publicServerConfiguration(values) {
     KEYCLOAK_ADMIN: 'fixture-admin',
     KEYCLOAK_ADMIN_PASSWORD: canaries[0]!,
     KEYCLOAK_WEB_CLIENT_SECRET: canaries[1]!,
+    IdentityEvents__ClientSecret: randomBytes(24).toString('hex'),
     Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
     Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack',
     LEARNSTACK_PUBLIC_API_ORIGIN: 'http://127.0.0.1:5080',
@@ -1265,6 +1267,92 @@ DemoProcesses.prototype.dispose = async function() {
 });
 
 describe('private configuration refuses launch before commands', () => {
+  it.each(
+    [
+      'missing',
+      'short',
+      'whitespace',
+      'oversized',
+      'duplicate',
+      'alias',
+      'web reuse',
+      'admin reuse',
+      'ambient mismatch',
+    ].flatMap((kind) => ['seed', 'demo-local', 'demo-ci'].map((entry) => ({ kind, entry }))),
+  )(
+    'refuses reader secret $kind at the actual $entry CLI before stack/migration/seed work',
+    ({ kind, entry }) => {
+      const f = fixture();
+      // Copy the committed example only; the operator's private configuration is never read.
+      let source = readFileSync(new URL('../../../../../.env.example', import.meta.url), 'utf8');
+      const values = parseEnv(source);
+      const key = 'IdentityEvents__ClientSecret';
+      const assignment = `${key}=${values[key]}\n`;
+      if (kind === 'missing') source = source.replace(assignment, '');
+      if (kind === 'short') source = source.replace(assignment, `${key}=short\n`);
+      if (kind === 'whitespace')
+        source = source.replace(assignment, `${key}="${' '.repeat(16)}"\n`);
+      if (kind === 'oversized') source = source.replace(assignment, `${key}=${'x'.repeat(4097)}\n`);
+      if (kind === 'duplicate') source += assignment;
+      if (kind === 'alias') source = source.replace(assignment, `export ${assignment}`);
+      if (kind === 'web reuse')
+        source = source.replace(assignment, `${key}=${values.KEYCLOAK_WEB_CLIENT_SECRET}\n`);
+      if (kind === 'admin reuse')
+        source = source.replace(assignment, `${key}=${values.KEYCLOAK_ADMIN_PASSWORD}\n`);
+      if (kind === 'ambient mismatch')
+        Object.assign(f.env, { [key]: randomBytes(24).toString('hex') });
+      const file = join(
+        f.root,
+        entry === 'seed' ? 'selected.env' : entry === 'demo-ci' ? '.env.example' : '.env',
+      );
+      writePrivateFileSync(file, source);
+      const result = execute(
+        f,
+        entry === 'seed' ? 'seed' : 'demo',
+        entry === 'demo-ci' ? 'ci-preflight' : 'preflight',
+        entry === 'demo-ci' ? 'ci' : 'local',
+        true,
+      );
+      expect(result.exitCode).toBe(1);
+      expect(result.notice).toBe('realm: preflight/configuration');
+      for (const event of [
+        'stack-up',
+        'postgres-ready',
+        'migrate',
+        'appseed',
+        'realm-start',
+        'daemon',
+      ])
+        expect(result.events).not.toContain(event);
+      expect(
+        result.commands.some(
+          ({ args }) => args.includes('--project-name') || args.includes('migrate'),
+        ),
+      ).toBe(false);
+      if (entry !== 'demo-ci') expect(result.commands).toEqual([]);
+      expect(existsSync(join(f.root, 'actions'))).toBe(false);
+      expect(readFileSync(file, 'utf8')).toBe(source);
+      if (entry === 'demo-ci') expect(existsSync(join(f.root, '.env'))).toBe(false);
+      if (entry === 'seed') {
+        for (const args of [[], ['--validate-config']]) {
+          const shell = spawnSync('bash', [join(f.root, 'scripts/seed.sh'), ...args], {
+            cwd: f.root,
+            env: { ...f.env, LEARNSTACK_COMPOSE_ENV_FILE: file },
+            encoding: 'utf8',
+            timeout: 5000,
+          });
+          expect(shell.error).toBeUndefined();
+          expect(shell.status).toBe(1);
+          expect(shell.signal).toBeNull();
+          expect(shell.stdout).toBe('');
+          expect(shell.stderr).toBe('realm: preflight/configuration\n');
+          expect(existsSync(join(f.root, 'actions'))).toBe(false);
+          expect(readFileSync(file, 'utf8')).toBe(source);
+        }
+      }
+    },
+  );
+
   for (const [label, auxiliary] of [
     [
       'both empty',

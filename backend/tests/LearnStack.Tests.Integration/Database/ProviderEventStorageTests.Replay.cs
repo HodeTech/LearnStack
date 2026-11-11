@@ -31,6 +31,9 @@ public sealed partial class ProviderEventStorageTests
         }
         await using var shorter = new ProviderEventIntakeSource(connection);
         await shorter.QualifyAsync(new(IdentityMembershipFixture.Authority.AuthorityId, "learnstack", 7 * 24 * 60 * 60), proof);
+        var changedRetained = await shorter.AcceptAsync(id, at.AddHours(1), "LOGIN", key);
+        changedRetained.Accepted.Should().BeFalse();
+        changedRetained.Disposition.Should().Be("source_collision");
         (await shorter.AcceptAsync(id, at, "LOGIN", key)).Should().Be(committed,
             "source expiry cannot erase acknowledgement of an already committed exact fingerprint");
         var expiredNewId = Guid.CreateVersion7();
@@ -38,6 +41,10 @@ public sealed partial class ProviderEventStorageTests
         expired.Accepted.Should().BeFalse();
         expired.Disposition.Should().Be("out_of_window");
         await using var machine = await OpenAsync(connection);
+        (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
+            "SELECT count(*) FROM public.identity_provider_event_problems WHERE provider_event_id=@id AND reason='source_collision'", ("id", id))).Should().Be(1);
+        (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
+            "SELECT count(*) FROM public.identity_provider_event_problems WHERE provider_event_id=@id AND reason='out_of_window'", ("id", id))).Should().Be(0);
         (await IdentityMembershipFixture.ScalarAsync<long>(machine, null,
             "SELECT count(*) FROM public.identity_provider_event_receipts WHERE provider_event_id=@id", ("id", expiredNewId)))
             .Should().Be(0, "the replay path must not admit or stage a new expired fact");

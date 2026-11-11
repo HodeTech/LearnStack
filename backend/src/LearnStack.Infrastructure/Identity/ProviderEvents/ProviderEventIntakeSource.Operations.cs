@@ -56,13 +56,41 @@ public sealed partial class ProviderEventIntakeSource
         public override string ToString() => nameof(StoredClaim);
     }
 
-    public Task<int> RetireAsync(CancellationToken token = default) => ExecuteAsync(async (connection, transaction, deadline) =>
+    // Each function call keeps its original 100/100 bound. Separate commits
+    // make progress durable even if a later slice fails; the finite batch count
+    // yields back to source reads and target publication under sustained load.
+    internal const int RetirementBatchesPerSlice = 16;
+
+    public async Task<int> RetireAsync(CancellationToken token = default)
     {
-        int result;
-        await using (var command = new NpgsqlCommand("SELECT public.fn_identity_provider_event_retire()", connection, transaction))
-            result = (int)(await command.ExecuteScalarAsync(deadline).ConfigureAwait(false))!;
-        return result;
-    }, token);
+        var removed = 0;
+        for (var batch = 0; batch < RetirementBatchesPerSlice; batch++)
+        {
+            var progress = await ExecuteAsync(async (connection, transaction, deadline) =>
+            {
+                int count;
+                await using (var command = new NpgsqlCommand("SELECT public.fn_identity_provider_event_retire()", connection, transaction))
+                    count = (int)(await command.ExecuteScalarAsync(deadline).ConfigureAwait(false))!;
+                // Receipt count alone cannot signal completion: a problem-only
+                // backlog also needs retirement, including source-expiry marking.
+                await using var pending = new NpgsqlCommand("""
+                    SELECT EXISTS(SELECT FROM public.identity_provider_event_receipts
+                            WHERE received_at<clock_timestamp()-interval '32 days')
+                        OR EXISTS(SELECT FROM public.identity_provider_event_problems
+                            WHERE first_seen_at<clock_timestamp()-interval '32 days')
+                        OR EXISTS(SELECT FROM public.identity_provider_event_problems p
+                            WHERE p.resolved_at IS NULL AND NOT p.irrecoverable
+                                AND p.range_to<clock_timestamp()-make_interval(secs=>(
+                                    SELECT retention_seconds FROM public.identity_provider_event_scan WHERE id=1)))
+                    """, connection, transaction);
+                return (Removed: count, Pending: (bool)(await pending.ExecuteScalarAsync(deadline).ConfigureAwait(false))!);
+            }, token).ConfigureAwait(false);
+            removed = checked(removed + progress.Removed);
+            if (!progress.Pending) break;
+        }
+        return removed;
+    }
+
 }
 
 public sealed record ProviderEventAcceptance(Guid ReceiptId, string Disposition, bool Accepted, int TargetCount)

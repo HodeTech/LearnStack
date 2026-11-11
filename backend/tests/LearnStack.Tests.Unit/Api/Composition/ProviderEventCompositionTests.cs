@@ -16,6 +16,29 @@ namespace LearnStack.Tests.Unit.Api.Composition;
 public sealed class ProviderEventCompositionTests
 {
     [Fact]
+    public async Task Private_health_exposes_retirement_backlog_and_recovers_only_after_it_drains()
+    {
+        var services = new ServiceCollection();
+        services.AddMetrics();
+        await using var provider = services.BuildServiceProvider();
+        var health = new ProviderEventMirrorHealth(provider.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>());
+        var now = DateTimeOffset.UtcNow;
+        var current = new ProviderEventHealthState(false, false, now, now, []);
+        health.Observe(current with { RetirableReceipts = 105, RetirableProblems = 205, OldestRetirementOverdueSeconds = 123 }, true);
+        var overdue = await health.CheckHealthAsync(new());
+        overdue.Status.Should().Be(HealthStatus.Unhealthy);
+        overdue.Data["retirement_receipts_count"].Should().Be(105L);
+        overdue.Data["retirement_problems_count"].Should().Be(205L);
+        overdue.Data["retirement_overdue_seconds"].Should().Be(123d);
+        health.Observe(current, true);
+        (await health.CheckHealthAsync(new())).Status.Should().Be(HealthStatus.Healthy);
+        health.ProductionFailed();
+        health.Observe(current, true);
+        (await health.CheckHealthAsync(new())).Status.Should().Be(HealthStatus.Unhealthy,
+            "retirement success cannot conceal an unrelated production ownership failure");
+    }
+
+    [Fact]
     public async Task Machine_source_is_one_lazy_owned_singleton_and_publication_uses_fresh_scopes()
     {
         var services = new ServiceCollection();

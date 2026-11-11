@@ -6132,8 +6132,14 @@ Target enqueue completion cannot commit separately from its outbox effect.
 The earlier global intake acceptance has its own explicit commit boundary. Target facts and completed enqueue state are immutable.
 
 Retire removes at most 100 receipts and 100 problem records per invocation after
-32 days, separately from retained tenant targets. It records historical gap state
-before deleting unresolved problem evidence. The source accepts at most 30-day
+32 days, separately from retained tenant targets. The machine owner drains up to
+sixteen such independently committed batches per worker turn. Remaining receipt,
+problem or source-expiry marking work schedules another turn after source reads
+and target publication, rather than waiting another thirty seconds. Zero removed
+receipts does not imply an empty problem backlog. Private health exposes overdue
+receipt/problem counts and oldest overdue age; finite throughput is not a
+hard deletion-time guarantee. It records historical gap state before deleting
+unresolved problem evidence. The source accepts at most 30-day
 history and never resets its activation boundary; receipt retirement is not a
 replay permission. Target, outbox, delivery/inbox and Audit copies retain their
 coordinated Phase 11 retention dependency. P03-10 owns subject erasure across all

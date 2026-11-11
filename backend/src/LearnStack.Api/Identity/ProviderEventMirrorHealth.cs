@@ -21,6 +21,9 @@ internal sealed class ProviderEventMirrorHealth : IHealthCheck
         }, description: "0=current traversal, 1=stale/incomplete, 2=blocked or unresolved retention risk; never a gap-free capture assertion.");
         meter.CreateObservableGauge("learnstack_identity_provider_mirror_pending_count", () => Problems(false));
         meter.CreateObservableGauge("learnstack_identity_provider_mirror_oldest_problem_age_seconds", () => Problems(true), "s");
+        meter.CreateObservableGauge("learnstack_identity_provider_mirror_retirement_pending_count", Retirement);
+        meter.CreateObservableGauge("learnstack_identity_provider_mirror_retirement_overdue_seconds", () =>
+        { lock (_gate) return _snapshot?.OldestRetirementOverdueSeconds ?? 0; }, "s");
     }
     internal void Blocked(ProviderMirrorStage stage, IdentityEventProviderFailure? failure) =>
         Set(HealthCheckResult.Unhealthy("Provider mirror source or storage is unavailable.", data: new Dictionary<string, object>
@@ -40,8 +43,14 @@ internal sealed class ProviderEventMirrorHealth : IHealthCheck
         bool productionFaulted;
         lock (_gate) { _snapshot = snapshot; productionFaulted = _productionFaulted; }
         data.Add("production_faulted", productionFaulted);
+        data.Add("retirement_receipts_count", snapshot.RetirableReceipts);
+        data.Add("retirement_problems_count", snapshot.RetirableProblems);
+        data.Add("retirement_overdue_seconds", snapshot.OldestRetirementOverdueSeconds);
+        data.Add("retirement_unmarked_expiry", snapshot.HasUnmarkedExpiredProblems);
         if (!sourceReady) return; // Keep the closed source/auth fault rather than overwriting it with ledger-read success.
         Set(productionFaulted ? HealthCheckResult.Unhealthy("Provider target production failed; inspect retained targets and requalify the process.", data: data)
+            : snapshot.RetirableReceipts > 0 || snapshot.RetirableProblems > 0
+                ? HealthCheckResult.Unhealthy("Provider global retirement is overdue; inspect storage throughput.", data: data)
             : snapshot.Critical ? HealthCheckResult.Unhealthy("Provider mirror has an unresolved retention risk or historical gap.", data: data)
             : snapshot.Degraded ? HealthCheckResult.Degraded("Provider mirror has no recent complete retained traversal.", data: data)
             : HealthCheckResult.Healthy("Provider mirror retained traversal is current; gap-free capture is not guaranteed.", data));
@@ -55,6 +64,14 @@ internal sealed class ProviderEventMirrorHealth : IHealthCheck
             return new Measurement<double>(problem is null ? 0 : age ? problem.OldestAgeSeconds : problem.Count,
                 new KeyValuePair<string, object?>("reason", reason));
         }).ToArray();
+    }
+    private Measurement<long>[] Retirement()
+    {
+        lock (_gate) return
+        [
+            new(_snapshot?.RetirableReceipts ?? 0, new KeyValuePair<string, object?>("kind", "receipt")),
+            new(_snapshot?.RetirableProblems ?? 0, new KeyValuePair<string, object?>("kind", "problem")),
+        ];
     }
     private readonly object _gate = new();
     private void Set(HealthCheckResult value) { lock (_gate) _current = value; }

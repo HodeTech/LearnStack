@@ -72,9 +72,27 @@ public sealed partial class ProviderEventStorageTests
     }
 
     [Fact]
+    public async Task Failed_qualification_can_retry_after_cleanup_without_retargeting()
+    {
+        await using var source = new ProviderEventIntakeSource(fixture.Postgres.IdentityIngressConnectionString);
+        await using var business = ApplicationDataSource.Build(fixture.Postgres.AppConnectionString);
+        await using var proof = await DatabaseQualificationProof.OpenAsync(business);
+        var profile = new ProviderEventIntakeProfile(IdentityMembershipFixture.Authority.AuthorityId, "learnstack", 604800);
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => source.QualifyAsync(profile, proof, cancelled.Token));
+        source.IsQualified.Should().BeFalse();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => source.QualifyAsync(
+            new(profile.AuthorityId, "other", profile.RetentionSeconds), proof));
+        await source.QualifyAsync(profile, proof);
+        source.IsQualified.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task A_matching_role_and_schema_in_a_different_database_cannot_qualify()
     {
         await using var other = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
+        await IdentityMembershipFixture.SeedSchemaAsync(other.MigrationConnectionString, other.AppConnectionString);
         var selected = new NpgsqlConnectionStringBuilder(fixture.Postgres.IdentityIngressConnectionString)
         { Database = new NpgsqlConnectionStringBuilder(other.AppConnectionString).Database };
         await using var source = new ProviderEventIntakeSource(selected.ConnectionString);
@@ -84,6 +102,10 @@ public sealed partial class ProviderEventStorageTests
             new(IdentityMembershipFixture.Authority.AuthorityId, "learnstack", 604800), proof));
         failure.Message.Should().Be("Provider intake does not reach the qualified business database.");
         source.IsQualified.Should().BeFalse();
+        await using var correctBusiness = ApplicationDataSource.Build(other.AppConnectionString);
+        await using var correctProof = await DatabaseQualificationProof.OpenAsync(correctBusiness);
+        await source.QualifyAsync(new(IdentityMembershipFixture.Authority.AuthorityId, "learnstack", 604800), correctProof);
+        source.IsQualified.Should().BeTrue();
     }
 
     [Fact]

@@ -54,7 +54,8 @@ export function eventReaderEnvironment(source, ambient = process.env) {
   const exact = [...source.matchAll(/^IdentityEvents__ClientSecret=/gm)];
   const aliases = [...source.matchAll(/^[ \t]*(?:export[ \t]+)?IdentityEvents__ClientSecret[ \t]*=/gm)];
   const value = values[key];
-  if (exact.length !== 1 || aliases.length !== 1 || typeof value !== 'string' || value.length < 16
+  if (exact.length !== 1 || aliases.length !== 1 || typeof value !== 'string' || !value.trim()
+      || value.length < 16 || value.length > 4096
       || /[\r\n\0]/.test(value) || value === values.KEYCLOAK_WEB_CLIENT_SECRET || value === values.KEYCLOAK_ADMIN_PASSWORD
       || ambient[key] !== undefined && ambient[key] !== value) refuse('preflight', 'configuration');
   return value;

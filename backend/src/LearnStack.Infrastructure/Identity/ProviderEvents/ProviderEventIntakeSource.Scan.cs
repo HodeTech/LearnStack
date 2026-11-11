@@ -167,7 +167,25 @@ public sealed partial class ProviderEventIntakeSource
                         throw new InvalidOperationException("Provider source health category is invalid.");
                     counts.Add(new(reason, row.GetInt64(1), row.GetDouble(2)));
                 }
-            return new ProviderEventHealthState(critical, degraded, attempted, completed, counts.ToImmutable());
+            await using var retirement = new NpgsqlCommand("""
+                SELECT
+                    (SELECT count(*) FROM public.identity_provider_event_receipts
+                        WHERE received_at<clock_timestamp()-interval '32 days'),
+                    (SELECT count(*) FROM public.identity_provider_event_problems
+                        WHERE first_seen_at<clock_timestamp()-interval '32 days'),
+                    GREATEST(0,EXTRACT(epoch FROM clock_timestamp()-interval '32 days'-LEAST(
+                        (SELECT min(received_at) FROM public.identity_provider_event_receipts),
+                        (SELECT min(first_seen_at) FROM public.identity_provider_event_problems))))::double precision,
+                    EXISTS(SELECT FROM public.identity_provider_event_problems p
+                        WHERE p.resolved_at IS NULL AND NOT p.irrecoverable
+                            AND p.range_to<clock_timestamp()-make_interval(secs=>(
+                                SELECT retention_seconds FROM public.identity_provider_event_scan WHERE id=1)))
+                """, connection, transaction);
+            await using var retirementRow = await retirement.ExecuteReaderAsync(deadline).ConfigureAwait(false);
+            if (!await retirementRow.ReadAsync(deadline).ConfigureAwait(false))
+                throw new InvalidOperationException("Provider retirement health is unavailable.");
+            return new ProviderEventHealthState(critical, degraded, attempted, completed, counts.ToImmutable(),
+                retirementRow.GetInt64(0), retirementRow.GetInt64(1), retirementRow.GetDouble(2), retirementRow.GetBoolean(3));
         }, token);
 
     // Detect expiry under the previously qualified retention before replacing
@@ -214,4 +232,9 @@ public sealed record ProviderPendingFact(Guid EventId, DateTimeOffset OccurredAt
 }
 public sealed record ProviderEventProblemHealth(string Reason, long Count, double OldestAgeSeconds);
 public sealed record ProviderEventHealthState(bool Critical, bool Degraded, DateTimeOffset? LastAttemptedAt,
-    DateTimeOffset? LastCompletedAt, ImmutableArray<ProviderEventProblemHealth> Problems);
+    DateTimeOffset? LastCompletedAt, ImmutableArray<ProviderEventProblemHealth> Problems,
+    long RetirableReceipts = 0, long RetirableProblems = 0, double OldestRetirementOverdueSeconds = 0,
+    bool HasUnmarkedExpiredProblems = false)
+{
+    public bool HasRetirementBacklog => RetirableReceipts > 0 || RetirableProblems > 0 || HasUnmarkedExpiredProblems;
+}
