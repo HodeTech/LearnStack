@@ -23,7 +23,7 @@
 > records all four steps, reviews, final-head `b96c2f65` A/B (27/27 each) and fifty
 > verified original archives. Manual acceptance covers the earlier UI; later fixes
 > lack a fresh human recheck. Earlier intermittent CI causes remain unlocalized.
-> P03-6 is in progress under Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md). [Steps 1–2 close with two review rounds each](phase-03-delivery-log.md#p03-6-step-2-closeout-and-final-qualification-entry-2026-11-11). The real provider/outbox/Audit flow is implemented; Step 3 owns final suites, PR and hosted A/B/original-archive qualification.
+> P03-6 is in progress under Accepted [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md). [All three implementation/review steps are closed](phase-03-delivery-log.md#p03-6-step-3-review-closeout-and-qualification-freeze-2026-11-11). Final complete-suite, PR and hosted A/B/original-archive qualification remain open; no merge is authorized.
 > P03-7 through P03-11 have not started. Phase 03 remains open.
 >
 > | Packet | Title | State |
@@ -34,7 +34,7 @@
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
-> | P03-6 | Provider event ingress and audit mirror | In progress — Steps 1–2 implemented/reviewed; Step 3 final qualification/PR |
+> | P03-6 | Provider event ingress and audit mirror | In progress — all implementation/review steps closed; final qualification/PR |
 > | P03-7 | Back-channel session revocation | Not started |
 > | P03-8 | Tenant federation | Not started |
 > | P03-9 | Platform authority and operational recovery | Not started |
