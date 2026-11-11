@@ -62,16 +62,7 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
     {
         await ExecuteAsync(async (connection, transaction, deadline) =>
         {
-            await using (var marker = new NpgsqlCommand("""
-                SELECT EXISTS (SELECT FROM pg_catalog.pg_locks WHERE locktype='advisory' AND granted AND mode='ExclusiveLock'
-                    AND database=(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database())
-                    AND pid=@business_pid AND objsubid=2 AND classid::bigint=@business_first AND objid::bigint=@business_second)
-                """, connection, transaction))
-            {
-                DatabaseQualificationProof.Bind(marker, proof);
-                if (await marker.ExecuteScalarAsync(deadline).ConfigureAwait(false) is not true)
-                    throw new InvalidOperationException("Provider intake does not reach the qualified business database.");
-            }
+            await RequireBusinessDatabaseAsync(connection, transaction, proof, deadline).ConfigureAwait(false);
             await using (var install = new NpgsqlCommand("""
                 INSERT INTO public.identity_provider_event_scan(id,authority_id,realm_id,activation_lower,retention_seconds)
                 VALUES(1,@authority,@realm,clock_timestamp()-make_interval(secs=>@retention),@retention)
@@ -97,6 +88,21 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
             ObjectDisposedException.ThrowIf(_closed, this);
             _qualified = true;
         }
+    }
+
+    private static async Task RequireBusinessDatabaseAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        DatabaseQualificationProof proof, CancellationToken deadline)
+    {
+        proof.RequireActive();
+        await using var marker = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT FROM pg_catalog.pg_locks WHERE locktype='advisory' AND granted AND mode='ExclusiveLock'
+                AND database=(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database())
+                AND pid=@business_pid AND objsubid=2 AND classid::bigint=@business_first AND objid::bigint=@business_second)
+            """, connection, transaction);
+        DatabaseQualificationProof.Bind(marker, proof);
+        if (await marker.ExecuteScalarAsync(deadline).ConfigureAwait(false) is not true)
+            throw new InvalidOperationException("Provider intake does not reach the qualified business database.");
+        proof.RequireActive();
     }
 
     private async Task<T> ExecuteAsync<T>(Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<T>> operation,
@@ -206,8 +212,19 @@ public sealed partial class ProviderEventIntakeSource : ProviderEventRecipient.M
 
     private async Task DisposeCoreAsync(Owner[] owners)
     {
-        await _lifetime.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll(owners.Select(owner => owner.Completion.Task)).ConfigureAwait(false);
+        ExceptionDispatchInfo? failure = null;
+        try { await _lifetime.CancelAsync().ConfigureAwait(false); }
+        catch (Exception cancellation) when (cancellation is not OutOfMemoryException and not StackOverflowException)
+        { failure = ExceptionDispatchInfo.Capture(new InvalidOperationException("Provider intake cancellation cleanup is unconfirmed.")); }
+        foreach (var owner in owners)
+        {
+            try { await owner.Completion.Task.ConfigureAwait(false); }
+            catch (Exception cleanup) when (cleanup is not OutOfMemoryException and not StackOverflowException)
+            { failure ??= ExceptionDispatchInfo.Capture(cleanup); }
+        }
+        // Every other actual owner has now joined. An unconfirmed cleanup still
+        // retains the pool/connector instead of claiming disposal succeeded.
+        failure?.Throw();
         await _source.DisposeAsync().ConfigureAwait(false);
         _lifetime.Dispose();
     }

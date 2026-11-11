@@ -42,6 +42,7 @@ public sealed class ProviderEventFlowConventionTests
         census.Callers(intake, "AcceptAsync").Should().BeEquivalentTo([scanner + "AcceptItemAsync", scanner + "RetryOneAsync"],
             "Fix: only the bounded authenticated scanner and its retained-fact replay may admit global observations");
         census.Callers(intake, "QualifyAsync").Should().Equal(runtime + "QualifyAsync");
+        census.Callers(intake, "RequireBusinessDatabaseAsync").Should().Equal(intake + ".QualifyCoreAsync");
         census.Callers(intake, "ClaimAsync").Should().Equal(runtime + "ExecuteAsync");
         census.Callers(intake, "RecordPageProblemAsync").Should().Equal(scanner + "ReadAndAcceptAsync");
         census.Callers("LearnStack.SharedKernel.Identity.IIdentityEventProvider", "ReadAsync")

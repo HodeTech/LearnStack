@@ -16,6 +16,7 @@ public sealed class InvitationSmtpStorageTests(InvitationSmtpStorageFixture fixt
         {
             "fn_identity_admin_admission_state", "fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
             "fn_identity_creation_attempt_admission", "fn_identity_invitation_entry", "fn_identity_membership_admission_guard",
+            "fn_identity_provider_event_accept", "fn_identity_provider_event_claim", "fn_identity_provider_event_retire",
             "fn_identity_self_membership_scopes", "fn_identity_user_capacity_guard", "fn_identity_user_creation_audit_guard",
             "fn_invitation_smtp_claim_or_read", "fn_invitation_smtp_complete_attempt", "fn_tenancy_own_field_consent_scope",
         };

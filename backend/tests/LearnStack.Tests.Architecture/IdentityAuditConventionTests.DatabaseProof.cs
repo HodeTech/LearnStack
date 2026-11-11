@@ -12,6 +12,8 @@ public sealed partial class IdentityAuditConventionTests
     private const string SourcesStartup = "LearnStack.Api.Authentication.TenantAuthorizationSourcesStartupService";
     private const string AuthorizationSource = "LearnStack.Infrastructure.Persistence.IdentityAuthorizationReadSource";
     private const string AuthorizationOwner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
+    private const string ProviderIntake = "LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource";
+    private const string ProviderRuntime = "LearnStack.Api.Identity.ProviderEventMirrorService";
 
     private static void CheckDatabaseProofControls(EvidenceCensus census)
     {
@@ -26,6 +28,8 @@ public sealed partial class IdentityAuditConventionTests
             (MainQualification, "OpenDatabaseQualificationProofAsync", DatabaseProof, "OpenAsync"),
             (AuthorizationOwner, "QualifyAsync", DatabaseProof, "Bind"),
             (EvidenceSession, "QualifyAsync", DatabaseProof, "Bind"),
+            (ProviderIntake, "RequireBusinessDatabaseAsync", DatabaseProof, "Bind"),
+            (ProviderRuntime, "QualifyAsync", MainQualification, "OpenDatabaseQualificationProofAsync"),
         }) EvidenceDirty(census, DatabaseProofOffenders, () => EvidenceRemoveCall(census.Body(owner, method), target, gate));
         foreach (var caller in census.Methods.Where(method =>
                      census.Owner(method) == SourcesStartup + "::StartAsync"
@@ -43,17 +47,24 @@ public sealed partial class IdentityAuditConventionTests
     {
         var errors = new List<string>();
         EvidenceCallers(census, errors, DatabaseProof, "OpenAsync", [(MainQualification, "OpenDatabaseQualificationProofAsync", 1)]);
-        EvidenceCallers(census, errors, DatabaseProof, "Bind", [(AuthorizationOwner, "QualifyAsync", 1), (EvidenceSession, "QualifyAsync", 1)]);
+        EvidenceCallers(census, errors, DatabaseProof, "Bind", [(AuthorizationOwner, "QualifyAsync", 1), (EvidenceSession, "QualifyAsync", 1),
+            (ProviderIntake, "RequireBusinessDatabaseAsync", 1)]);
         EvidenceCallers(census, errors, DatabaseProof, ".ctor", [(DatabaseProof, "OpenAsync", 1)]);
         EvidenceRequire(census, errors, DatabaseProof, "OpenAsync", EvidenceRoleGuard, "RefuseBypassRoleAsync");
         EvidenceRequire(census, errors, DatabaseProof, "Bind", DatabaseProof, "RequireActive");
         foreach (var owner in new[] { AuthorizationOwner, EvidenceSession })
             EvidenceRequire(census, errors, owner, "QualifyAsync", DatabaseProof, "Bind");
+        EvidenceRequire(census, errors, ProviderIntake, "RequireBusinessDatabaseAsync", DatabaseProof, "Bind");
         var openCallers = census.Methods.Where(method => method.Body.Instructions.Any(instruction =>
             EvidenceIsCall(instruction, MainQualification, "OpenDatabaseQualificationProofAsync"))).ToArray();
-        if (openCallers.Length != 2 || !openCallers.Any(method => census.Owner(method) == SourcesStartup + "::StartAsync")
+        if (openCallers.Length != 3 || !openCallers.Any(method => census.Owner(method) == SourcesStartup + "::StartAsync")
+            || !openCallers.Any(method => census.Owner(method) == ProviderRuntime + "::QualifyAsync")
             || !openCallers.Any(method => method.Module.Assembly.Name.Name == "LearnStack.Tools.Seeder" && census.Owner(method) == "Program::<Main>$"))
-            errors.Add("Only the actual API/Seeder startup roots open the business database witness.");
+            errors.Add("Only the actual API/Seeder startup and provider qualification roots open the business database witness.");
+        var providerQualifications = EvidenceCalls(census.Body(ProviderRuntime, "QualifyAsync"), ProviderIntake, "QualifyAsync").ToArray();
+        if (providerQualifications.Length != 1 || providerQualifications[0].Operand is not MethodReference qualified
+            || qualified.Parameters.Count != 3 || qualified.Parameters[1].ParameterType.FullName != DatabaseProof)
+            errors.Add("Provider intake qualification must consume the actual business witness.");
         var startup = census.Body(SourcesStartup, "StartAsync");
         foreach (var target in new[] { AuthorizationSource, EvidenceSource }) RequireBound(startup, target, 1);
         var seeder = census.Methods.Single(method => method.Module.Assembly.Name.Name == "LearnStack.Tools.Seeder"

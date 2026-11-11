@@ -100,13 +100,15 @@ public sealed class PlatformAdminScopeConventionTests
         // is a rule matching its own vocabulary rather than a credential.
         SourceScan.FilesContaining(SourceScan.SourceRoot, "GetConnectionString", except: null)
             .Should().BeEquivalentTo(
-                [CompositionFile, OutboxCompositionFile, InvitationCompositionFile],
+                [CompositionFile, OutboxCompositionFile, InvitationCompositionFile, "LearnStack.Api/Composition/ProviderEventComposition.cs"],
                 "each credential has an explicitly confined composition root");
 
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, OutboxCompositionFile))
             .Should().NotContain("PlatformAdmin", "outbox composition must never read the platform credential");
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, InvitationCompositionFile))
             .Should().NotContain("PlatformAdmin", "SMTP custody reuses only the application credential; the compiled census pins the exact read and private source factory");
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, "LearnStack.Api/Composition/ProviderEventComposition.cs"))
+            .Should().NotContain("PlatformAdmin", "provider intake has only its separate machine credential; the compiled census pins that exact factory");
 
         // Leg 2b — the OTHER way to read the same value. GetConnectionString(name) is
         // sugar for configuration[$"ConnectionStrings:{name}"], so the indexer form

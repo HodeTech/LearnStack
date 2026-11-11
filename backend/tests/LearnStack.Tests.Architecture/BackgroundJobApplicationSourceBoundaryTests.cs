@@ -38,7 +38,8 @@ public sealed partial class OutboxDispatchConventionTests
             "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
             AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission,
             AppJobAuthorizationSource, AppJobAuthorizationOwner, AppJobEvidenceSource, AppJobEvidenceOwner, AppJobDatabaseProof,
-            "LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource" };
+            "LearnStack.Infrastructure.Identity.ProviderEvents.ProviderEventIntakeSource",
+            "LearnStack.Infrastructure.Identity.ProviderEvents.KeycloakIdentityEventProvider" };
         var types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in subjects)
         {

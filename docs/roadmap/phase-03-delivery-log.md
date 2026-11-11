@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 530 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 576 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -443,6 +443,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 Step 2 second review and positional-gap correction (2026-11-11)](#p03-6-step-2-second-review-and-positional-gap-correction-2026-11-11) — 27 lines
   - [P03-6 Step 2 closeout and final qualification entry (2026-11-11)](#p03-6-step-2-closeout-and-final-qualification-entry-2026-11-11) — 25 lines
   - [P03-6 Step 3 composition qualification correction (2026-11-11)](#p03-6-step-3-composition-qualification-correction-2026-11-11) — 19 lines
+  - [P03-6 Step 3 first review and enforcement corrections (2026-11-11)](#p03-6-step-3-first-review-and-enforcement-corrections-2026-11-11) — 46 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20166,3 +20167,49 @@ outbox/inbox/Audit controls pass together: 29 cases. The Release solution builds
 with zero warnings/errors; all 111 offline native and 42 result/reconciliation
 controls pass. A corrected complete backend run follows. Final-source CI and
 original-archive qualification remain open.
+
+### P03-6 Step 3 first review and enforcement corrections (2026-11-11)
+
+The implementation handoff is `11778c73`. A fresh Sol/high enforcement review
+also inspects the qualification corrections in progress. It verifies one Major:
+a sequential disposal join could return at the first faulted retained completion
+while another checkout was still cleaning up. Contrary to an initial author
+assumption, the actual cleanup catch does fault that private completion signal.
+The correction retains failures while awaiting every remaining completion, then
+propagates the failure without disposing an unsettled pool. Cancellation-callback
+failure likewise cannot bypass the remaining joins.
+
+Two controlled private-completion cases exercise the real source's public
+`DisposeAsync` with either owner failing and the other delayed. Disposal stays
+pending until the delayed completion, preserves the original failure and reuses
+one disposal result. The fixture opens no connector; this does not claim an
+injected real Npgsql cleanup failure or additional physical-retirement proof.
+Actual source/database qualification, occupied owners and caller cancellation
+remain covered by the PostgreSQL controls.
+
+The broader qualification attempts also expose stale closed inventories, not
+permission to weaken them. The corrections name exactly the three additional
+non-app-executable definers, four tables/current forward-only migration head,
+private machine connector, literal credential root and actual qualification
+borrowers. Historical reversible prefixes and app EXECUTE allowlists remain
+unchanged. The provider adapter is included in the compiled job-source subject
+map before its denied-job-entry call is inspected. The actual database marker
+check has a named private helper and a closed caller; the API poller's exact
+qualification act joins the existing API/Seeder proof-opener census.
+
+The HTTP graph distinguishes declaring an implemented interface from acquiring
+that interface as a collaborator. Only sibling expansion from the descriptive
+edge changes; actual bodies/fields/helpers still traverse. Interface variants
+extend both queue orders and roots: a sibling sender remains descriptive, an
+explicit interface acquisition reaches it, and a sender on the reached
+implementation still refuses. There is no broad provider-handler exemption.
+
+Validation: zero-warning Release build, all 3,779 Unit cases and 58 selected
+real PostgreSQL source/SMTP/migration cases pass. The longer 14-case Architecture
+run passes thirteen, including HTTP baseline/route/nested controls, source/role
+censuses and retained job-source mutants; its sole old callback witness mismatch
+is then corrected, and all ten proof/source/corpus controls pass together.
+The earlier 63-case provider/TLS/action/flow/storage run remains separate evidence.
+Failed/cancelled full attempts are not full-suite qualification. The first-round
+reviewer receives the committed disposal correction for a narrow recheck; a
+fresh second-round reviewer and complete final qualification still follow.
