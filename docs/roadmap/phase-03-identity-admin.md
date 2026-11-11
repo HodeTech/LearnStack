@@ -1,10 +1,11 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-11).** P03-0 through P03-4 implementation delivery is complete.
+> **Status (2026-11-11).** P03-0 through P03-5 implementation delivery is complete.
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)),
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)),
-> P03-3 ([PR #40](https://github.com/HodeTech/LearnStack/pull/40)) and
-> P03-4 ([PR #41](https://github.com/HodeTech/LearnStack/pull/41)) are merged.
+> P03-3 ([PR #40](https://github.com/HodeTech/LearnStack/pull/40)),
+> P03-4 ([PR #41](https://github.com/HodeTech/LearnStack/pull/41)) and
+> P03-5 ([PR #42](https://github.com/HodeTech/LearnStack/pull/42)) are merged.
 > The [P03-3 closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04)
 > and [P03-4 closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06)
 > record delivered operations, source-bound CI evidence and the remaining proof
@@ -16,15 +17,14 @@
 > remains maintainer-deferred and unexecuted for P03-3. For P03-4 the maintainer
 > [accepted manual accessibility checks](phase-03-delivery-log.md#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05)
 > for `0fcc486a`; later label, form-error and landing changes were not rechecked.
-> P03-4/G8 is Accepted under [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)
-> and its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04);
-> its [review corrections](phase-03-delivery-log.md#p03-4-step-7-review-corrections-2026-11-06)
-> list the decisions that remain the maintainer's call.
-> P03-5's [accepted contract and four-step plan](phase-03-delivery-log.md#p03-5-conditional-acceptance-and-step-1-start-2026-11-10)
-> follow [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md).
-> P03-5 [Step 1](phase-03-delivery-log.md#p03-5-step-1-two-round-review-and-stored-schema-correction-2026-11-10) and [Step 2](phase-03-delivery-log.md#p03-5-step-2-two-round-review-closeout-2026-11-10) close with two review rounds each.
-> [Step 3 and its two review rounds](phase-03-delivery-log.md#p03-5-step-3-second-review-corrections-and-qualification-handoff-2026-11-10) close for implementation; [Step 4 combined qualification](phase-03-delivery-log.md#p03-5-step-4-combined-qualification-and-boundary-reconciliation-2026-11-10) has [complete A/B evidence and PR review corrections](phase-03-delivery-log.md#p03-5-complete-ab-evidence-and-pr-review-corrections-2026-11-10). [Hosted corrections and manual UX preparation](phase-03-delivery-log.md#p03-5-hosted-failure-corrections-and-human-ux-environment-2026-11-10) record the review environment. [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) is Accepted after maintainer review and development-only confirmation; its bounded gate implementation and two fresh review rounds are complete.
-> [PR #42](https://github.com/HodeTech/LearnStack/pull/42) remains open and unmerged. Complete A/B at `1c1f4f80` is recorded above; [review corrections pass two fresh rounds](phase-03-delivery-log.md#p03-5-pr-correction-second-review-and-ci-handoff-2026-11-10), and current-revision CI remains source-bound in that PR. [The latest complete A and cleanup-only B refusal](phase-03-delivery-log.md#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) retain the current diagnostic boundary. [SDK compiler-state isolation](phase-03-delivery-log.md#p03-5-verified-a-and-sdk-compiler-state-isolation-2026-11-10) records the earlier correction. [P03-5 manual checks are maintainer-accepted](phase-03-delivery-log.md#p03-5-correction-reviews-and-maintainer-manual-acceptance-2026-11-10). P03-6 through P03-11 have not started.
+> P03-5 is complete under Accepted [ADR-0095](../decisions/0095-revision-pinned-membership-custom-fields.md)
+> and [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md).
+> Its [merge closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11)
+> records all four steps, reviews, final-head `b96c2f65` A/B (27/27 each) and fifty
+> verified original archives. Manual acceptance covers the earlier UI; later fixes
+> lack a fresh human recheck. Earlier intermittent CI causes remain unlocalized.
+> P03-6 through P03-11 have not started. P03-6 is next by packet order and needs
+> its G10 decision before the first provider-ingress writer. Phase 03 remains open.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -33,7 +33,7 @@
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
-> | P03-5 | Custom fields and privacy classification | ADR-0095/G9 Accepted — Steps 1–4 implemented; complete A/B at `1c1f4f80`; corrections reviewed twice; current-source checks in PR #42; unmerged |
+> | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |
 > | P03-8 | Tenant federation | Not started |

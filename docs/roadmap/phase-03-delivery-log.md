@@ -389,7 +389,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
   - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
   - [P03-4 merge and delivery closeout (2026-11-06)](#p03-4-merge-and-delivery-closeout-2026-11-06) — 61 lines
-- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,635 lines
+- [P03-5 — Custom fields and privacy classification](#p03-5--custom-fields-and-privacy-classification) — 1,716 lines
   - [P03-5 proposed custom-field contract and plan (2026-11-10)](#p03-5-proposed-custom-field-contract-and-plan-2026-11-10) — 184 lines
   - [P03-5 proposal review round 1 and corrections (2026-11-10)](#p03-5-proposal-review-round-1-and-corrections-2026-11-10) — 26 lines
   - [P03-5 proposal review round 2 and corrections (2026-11-10)](#p03-5-proposal-review-round-2-and-corrections-2026-11-10) — 31 lines
@@ -427,7 +427,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 reviewed-source A and cleanup-only B refusal (2026-11-11)](#p03-5-reviewed-source-a-and-cleanup-only-b-refusal-2026-11-11) — 41 lines
   - [P03-5 cleanup attribution review closeout (2026-11-11)](#p03-5-cleanup-attribution-review-closeout-2026-11-11) — 22 lines
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
-  - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 14 lines
+  - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
+  - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19540,3 +19541,84 @@ complete A, retained/audited originals, then whole B. A predecessor's failed or
 superseded run remains separately retained without qualification credit. The
 existing five-second case threshold and every other runtime/test/job bound remain
 unchanged. No new ADR or maintainer decision is needed for this work reduction.
+
+
+### P03-5 merge and delivery closeout (2026-11-11)
+
+The maintainer merges [PR #42](https://github.com/HodeTech/LearnStack/pull/42) at
+10:40:16 Europe/Istanbul (07:40:16 UTC). Reviewed head is `b96c2f65`; the merge
+commit is `bdd9d93c`, with parents `570c4cca` and `b96c2f65`. The reviewed head,
+actual PR merge source `221a650e` and fetched merge commit share tree `3ca0446c`.
+GitHub metadata and the fetched Git objects independently confirm the merge and
+source identity. Development fast-forwards to that merge without changing files.
+P03-5 implementation delivery, including D07 and D08's custom-value extension,
+is complete and merged. The phase Status block owns packet state.
+
+Delivered behavior:
+
+- Studio authors localized, target-qualified, immutable custom-field revisions
+  with mandatory privacy classification. Successors, retirement and key reuse
+  preserve the interpretation of retained values; Payment classification refuses.
+- Member and own-profile forms validate the admitted schema and retain exact
+  revision pins. Explicit removal, required/optional and nested/list controls
+  preserve unsaved drafts while inactive controls stay out of submissions.
+- Sensitive values require separate append-only consent evidence. Withdrawal
+  withholds access and retains history; the retained self-service path grants
+  neither Membership nor directory authority. SDK and UI independently reject
+  populated Sensitive responses without valid Granted consent.
+- Customization owns definitions, Identity owns Membership values and Tenancy
+  owns consent. Ordered fences, app-role PostgreSQL isolation, redaction and
+  same-transaction MUST audit protect the writes and disclosures. Global User
+  storage gains no tenant-authored fields.
+- Explicit registry-v3 adoption adds the field-administration permission. The
+  API/SDK/native/web bundle moves together under Accepted ADR-0095/0096. The
+  exact pre-MVP compatibility approval retains the incompatible finding sets;
+  it does not authorize future contract changes or automatic grants.
+
+Final-source evidence:
+
+- [Complete A](https://github.com/HodeTech/LearnStack/actions/runs/42917381387/attempts/1)
+  and [whole B](https://github.com/HodeTech/LearnStack/actions/runs/42917381387/attempts/2)
+  each complete 27/27 jobs at head `b96c2f65`, source `221a650e`, base `570c4cca`.
+  All 25 A originals are retained and audited before B is requested. All fifty
+  original ZIPs match API byte sizes and SHA-256 and pass ZIP CRC checks.
+- Each attempt reconciles 4,831 backend and 3,690 integration cases. Frontend
+  completes 124 web files / 4,072 reported cases and twelve SDK files / 228 cases
+  (4,300 total), zero skips/todos, plus native ingress and cleanup. File discovery
+  is independently reconciled; reported case consistency is not independent
+  discovery of an expected case-identity set.
+- Plan, toolchain and populations match across attempts; expected distinct
+  Architecture/ordinary/shared layouts and separate whole-run job identities
+  reconcile all twenty backend producers. Each attempt verifies OpenAPI's exact
+  5 raw / 5 normalized / 54 companion findings, approval/tool identity and both
+  sixty-case controls. The approval still records `compatibility: false`.
+- Each demo produces 27 JSON/HTML report pairs and nine screenshots, passes its
+  hard budgets and completes cleanup. Product and subsequent focused corrections
+  have two fresh independent review rounds, as recorded above. This closeout
+  changes documentation only and starts no new test, timer or runtime policy.
+
+Evidence boundaries and operational handoff:
+
+- The maintainer reports all keyboard, VoiceOver, zoom/reflow and contrast checks
+  acceptable on 2026-11-10 in the actual native UI with synthetic API/provider
+  data. Later draft/label corrections have automated controls; they are not a
+  fresh manual accessibility execution. P03-11 reconciles remaining human proof.
+- Earlier provenance-child, capacity-admission rollback and demo-cleanup-only
+  failures remain unlocalized. The final A/B does not establish their causes.
+  Failed, canceled and superseded runs stay separate and supply no final-source
+  qualification credit. A recurrence remains a failing check.
+- Deployment needs the shared custom-field HMAC key ring with historical keys
+  retained, explicit release adoption in order 1→2→3 and the five forward
+  migrations. Retained-data Down operations refuse; use reviewed forward repair
+  and coordinate bundle rollback with installed data. These are operating
+  prerequisites, not omitted P03-5 implementation.
+- P03-3/P03-4 final-head B/original-archive and manual-evidence follow-ups remain
+  separately owned by P03-11. This packet's complete A/B does not close them.
+
+Next by packet order is P03-6: authenticated durable provider ingress and the
+attributed, deduplicated Audit mirror (D09/C11/C19). G10 remains Open; if the
+selected ingress requires privileged/global intake, its G13 authority closes
+before that writer too. No provider-ingress design is accepted by this closeout.
+P03-7 back-channel logout, P03-8 federation, P03-9 Platform/recovery, P03-10
+DSAR/global closure and P03-11 exit enforcement remain unstarted. Phase 03 is
+not complete, and Phase 04 is not activated. This closeout starts no next packet.
