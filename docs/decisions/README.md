@@ -146,6 +146,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0098 | [Session-Targeted Back-Channel Logout](0098-session-targeted-back-channel-logout.md) | Signed session-targeted native ingress, bounded replay/late-publication fences and usable local TLS reachability; no runtime change before approval | P03-7 / G11 before the first affected writer |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

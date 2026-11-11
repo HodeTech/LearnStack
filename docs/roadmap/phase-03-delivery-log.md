@@ -452,6 +452,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 164 lines
+  - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
+  - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20580,3 +20583,167 @@ reachability before activation. The retained Audit mirror neither implements nor
 gates that independent revocation contract. P03-8 federation, P03-9 Platform/
 recovery, P03-10 DSAR/global closure and P03-11 exit enforcement remain unstarted.
 This closeout starts no next packet.
+
+## P03-7 — Back-channel session revocation
+
+### P03-7 proposed back-channel logout package (2026-11-12)
+
+**Status: Proposed.** The maintainer requests P03-7 through `implement-task`, on
+`development`, with existing-document review before implementation and explicit
+approval before any new ADR's dependent code. Each implementation step requires
+a commit, fresh independent review round one, verified fixes/commit, then a
+different fresh review round two and verified fixes/commit. Continue between
+steps without an unnecessary permission stop. No Astra model is used.
+
+Baseline is clean `development` at `778161b6`. The five existing stashes and
+editor-settings digest are captured and preserved; no branch switch, stash,
+private environment access, listener change or provider mutation occurs in this
+pass. P03-6's merged delivery and explicit final-head A/B evidence gap remain
+historical and separately tracked. This proposal grants no old packet proof.
+
+#### Problem, document review and decision boundary
+
+P03-7 delivers D10/C12: authenticated provider-to-native logout must close the
+exact provider SSO's local owners without reviving them through held work or
+closing unrelated independent sessions. G11 is Open. The retained Audit mirror
+is neither the notification credential nor a prerequisite for this mechanism.
+
+The decision pass compares Phase 03's packet/G11/C12 with ADR-0054/0064/0070/
+0071/0078/0083/0084/0093/0097, Authentication/Frontend/Deployment/Audit architecture,
+Standards 06/07/10/11/18/20/21, native provider/session/ingress code and current
+Keycloak reconciliation/TLS/integration-test ownership. The existing roadmap
+entry and `implement-task`/`start-task`/`write-adr` workflows govern the pass.
+The load-bearing findings are:
+
+| Finding at HEAD | Proposed action |
+|---|---|
+| Provider identity lacks `sid`; issuer/sub capacity accounting is not a revocation index | Retain signed sid and continuity in the native adapter/store; no subject-wide fallback |
+| Redemption can be held before its identity is known | Retain a separate bounded target fence through relevant actual owner settlement, checking before any later publication |
+| Ordinary POST assumes browser Origin/CSRF and live tenant bootstrap | Add exactly one signed machine-purpose native route; preserve every browser guard |
+| Current OIDC errata requires exp and Keycloak 26.6.2 supplies it | Validate separate type/events/no-nonce plus signature/issuer/audience/finite time and replay |
+| Keycloak sends sid only with session-required; frontchannel clients skip backchannel | Explicit client attribute ownership, fresh/warm readback and negative configuration controls |
+| Native TLS is loopback-only; provider-side DNS/trust/reachability is not established | Ship an owned callback-only TLS bridge and runnable normal local setup, alongside real container-to-native proof |
+| Sender source establishes no durable retry guarantee | ACK only local gate closure; retain outage/capacity and refresh/expiry fallback limits |
+
+These are actual missing capabilities or unaccepted decisions, not claims that
+the historical ADR-0070 baseline was false. Accepted bodies remain intact. New
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) proposes
+G11's coupled contract; it closes nothing until explicit maintainer acceptance.
+Private source audits and current upstream inspection are decision inputs, not
+executed Keycloak/native/browser or A/B evidence.
+
+#### Choices presented together
+
+- One fixed machine POST, exact issuer/client and required sid. Shared SSO on two
+  hosts closes together; different provider sid and later independent login stay
+  usable. No subject-wide logout, new admin button or API JWT revocation.
+- Existing single-process credential owner, bounded replay and late-publication
+  fences. Initial selected notification limits are eight actual verifications,
+  4,096 replay records and 4,096 target fences; no live eviction. Accepted token
+  lifetime/age ceiling is five minutes with 30-second skew; actual pinned provider
+  tokens normally expire after two minutes. These are judged limits, not load
+  measurements or reserved completion/cleanup intervals.
+- Existing browser quotas, ten-second signal settings, application/readiness/
+  shutdown/CI limits and actual-work retirement stay fixed. A source ignoring
+  cancellation can retain capacity indefinitely within the entry cap.
+- A callback-only local TLS bridge, independently configured certificates and
+  provider public-CA trust, with no ordinary native listener widening or generic
+  proxy. Existing private configuration is not silently overwritten. Normal
+  supported setup must be runnable and tested, not represented by a fixture only.
+- Delivered authenticated notification closes local gates promptly. Native,
+  bridge/JWKS/network outage or capacity refusal can miss the notification; no
+  automatic eventual delivery, arbitrary account-disable propagation or immediate
+  already-issued API-token invalidation is promised. Existing fallback remains.
+
+#### Three implementation steps after approval
+
+1. **Protocol and native ownership.** Reconcile acceptance carriers; pin the
+   existing resolved jose version directly; implement separate Logout Token
+   verification and sid continuity, bounded indexes/replay/fences, atomic admission
+   and real retained-work cleanup. Extend actual provider/store tests with signed
+   dirty controls, capacities/clocks, held unknown-identity callback, refresh,
+   selection/replacement/invitation and independent sessions. Route activation
+   remains closed. Commit and complete both fresh review/fix rounds.
+2. **Reachable native/provider integration and UX.** Wire the machine route before
+   Next/business bootstrap, new actual request ownership, callback-only bridge and
+   normal Make/demo/seed configuration/trust lifecycle. Extend fresh/warm realm
+   reconciliation only for named client attributes, separate readback and zero-write
+   rerun. Prove actual Keycloak-to-native delivery and exact shared/distinct SSO
+   targeting through trusted TLS; disabled/untrusted bridge defeats that proof.
+   Verify localized reauthentication, public anonymity, late response/history
+   behavior and redaction. Commit and complete both fresh review/fix rounds.
+3. **Full proof and PR.** Complete applicable Release backend/architecture and
+   guarded frontend, native/browser/public and docs checks. Commit current docs
+   and complete both fresh review/fix rounds, then freeze source/config and open
+   the PR. Complete its workflow A/B and original-archive validation; retain any
+   failure without qualification credit and update PR evidence after success.
+   A material source fix receives review and fresh qualification. Never merge
+   the PR as agent.
+
+Reviewers use fresh Sol/Terra agents with effort matched to security/ownership
+complexity and separate runtime/corpus/operations lenses. The primary agent
+validates findings against actual surrounding contracts before changing code.
+Only material remaining findings receive focused follow-up; do not create more
+steps or repeated broad review merely because a suggestion exists.
+
+#### Acceptance and implementation carrier inventory
+
+- Dated bounded Amendments: ADR-0054 machine method/purpose, ADR-0070 remote
+  provider-session extension; ADR-0078 navigation keeps application scope/races.
+  No original metadata/body rewrite or full Superseded status.
+- Canonical rules: Testing 06; Frontend Architecture 07; Observability 10;
+  Security 11; Infrastructure 12 for bridge/network setup; Audit 18's explicit
+  native evidence boundary; Infrastructure Stack 20; Catalogue 21's four existing
+  BFF obligations, new controls named separately from baseline status.
+- Architecture 13 logout/delivery, Architecture 14 native BFF, Architecture 25
+  single-process reachability, Architecture 31 provider/local audit distinction;
+  glossary, Phase 03 G11/Status and append-only dated records.
+- Native implementation: `frontend/apps/web/src/server/auth/` provider transport,
+  contracts/store/holder and machine handler; `src/server/ingress.ts`, native
+  admission/request-owner integration and `scripts/public-server-runtime.mjs`.
+  No generic Next route/action or credential-bearing SDK surface.
+- Operator/runtime setup: `frontend/apps/web/README.md`, `infra/keycloak/README.md`,
+  `infra/keycloak/realms/learnstack.json`, `infra/compose/dev.yml`/README,
+  `.env.example`, frontend environment/configuration allowlists, `Makefile`,
+  `scripts/development-realm-*.mjs`, shared seed/demo ownership and the fixed local
+  bridge helper. Private files and machine hosts/trust remain operator-owned.
+- Skills dispatched: `add-integration-test` for provider/native negative proof,
+  `run-tests-locally`,
+  `standards-check`, `code-review`, `commit-and-pr`; `local-dev-setup` and
+  `seed-tenant` current guidance is reconciled where setup changes. Ordinary
+  `add-frontend-route` is inapplicable: it excludes new authentication actions.
+  The .NET `add-provider-adapter` workflow is consulted for applicability, not
+  copied into the native RP adapter: ADR-0070/0098 own its TypeScript port and
+  no-retry transport. It applies if a .NET provider adapter is actually needed.
+- Proof owners: existing provider/session/ingress tests and dedicated back-channel
+  tests under the same complete discovery; `TenantBffSessionTests` partials,
+  `KeycloakFixture`/TLS helper, owned BFF Node fixtures/browser history proof, realm
+  preparation tests, bridge actual-request/cleanup and default-path setup tests.
+  Fixture-only reachability never substitutes for the shipped normal setup.
+
+Before approval no dependent runtime, lockfile, client registration or security
+standard changes land. Proposed docs are committed for review only. Acceptance,
+implementation, executed reviews and final-source qualification stay distinct.
+
+### P03-7 proposal review round one and corrections (2026-11-12)
+
+Two fresh independent reviewers inspect the proposed record against the current
+runtime and corpus. The security/lifecycle reviewer reports no verified finding.
+The delivery/provider reviewer identifies a real carrier mismatch: Keycloak's
+`frontchannelLogout` is a top-level client field, not an attribute, while the
+initial carrier wording permits only named attributes. The revised proposal
+explicitly owns that one top-level field alongside the three back-channel
+attributes; fresh/warm readback and zero-write rerun must cover both locations.
+The original package remains historical; its "named client attributes" wording
+is read with this explicit top-level addition before implementation.
+
+The primary agent also specifies callback bridge Host versus TLS name/SNI,
+container-reachable bind/DNS/public-root trust, independent opt-in and conflicting
+configuration refusal. These are required normal setup, not fixture exemptions.
+The final step commits documentation/reviews before freezing/opening the PR and
+running its CI; CI is not claimed before a PR exists. The native adapter follows
+ADR-0070/0098 rather than copying a .NET/Polly skill into TypeScript.
+
+No runtime or provider experiment is run by these proposal reviews. The corrected
+proposal remains Proposed and G11 Open pending maintainer approval; a new fresh
+round reviews the revised surface before readiness is recorded.

@@ -24,7 +24,7 @@
 > (27/27 jobs) and 25 verified originals. Opposite-layout A and pair qualification
 > remain an explicit evidence follow-up before P03-11 exit; prior-source A/B and
 > the failed outage attempt do not close it. No new manual UI gate is introduced.
-> P03-7 is next by packet order; P03-7–11 remain unstarted. Phase 03 remains open.
+> P03-7's [decision pass and proposed ADR-0098](phase-03-delivery-log.md#p03-7-proposed-back-channel-logout-package-2026-11-12) are in progress; G11 stays Open and implementation awaits approval. P03-8–11 remain unstarted; Phase 03 stays open.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -35,7 +35,7 @@
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
-> | P03-7 | Back-channel session revocation | Not started |
+> | P03-7 | Back-channel session revocation | Decision pass — [proposed ADR-0098 package](phase-03-delivery-log.md#p03-7-proposed-back-channel-logout-package-2026-11-12); no runtime changes |
 > | P03-8 | Tenant federation | Not started |
 > | P03-9 | Platform authority and operational recovery | Not started |
 > | P03-10 | DSAR and global account closure | Not started |
