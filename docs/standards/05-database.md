@@ -6083,7 +6083,7 @@ under FORCE RLS, fixed `search_path=pg_catalog`, qualified static relations and
 same-transaction PUBLIC EXECUTE revoke; only the ingress role receives EXECUTE.
 The exact SQL/ACL/owner/caller census admits no fourth provider definer.
 
-Acceptance validates installed source, selected kind, finite/current retained
+New acceptance validates installed source, selected kind, finite/current retained
 time and 32-byte optional subject key. Stable `(authority, realm, provider ID)`
 uniqueness owns deduplication. A separate post-conflict statement reads the
 winning receipt under READ COMMITTED. Different normalized content records a
@@ -6091,6 +6091,10 @@ collision without rewriting accepted evidence. User shared fencing precedes a
 fresh status/Membership snapshot; Active/Suspended nondeleted memberships supply
 at most 256 distinct tenant recipients. Owner visibility for that query is
 explicitly restricted to ingress execution; ordinary app visibility is unchanged.
+A retained accepted exact fingerprint reconciles before current source-age
+validation. Source expiry or a shorter qualified policy cannot erase a committed
+acknowledgement; new or still-unaccepted facts keep the activation/retention/
+future-time bounds. Receipt/target IDs and the frozen recipient set never change.
 Missing/unbound/closed/no-recipient are durable receipt-only outcomes. Overflow
 is durably unaccepted, has no targets/ACK and cannot truncate recipients.
 

@@ -429,13 +429,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 303 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 332 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
   - [P03-6 maintainer review corrections and acceptance (2026-11-11)](#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11) — 39 lines
   - [P03-6 Step 1 storage and ownership implementation (2026-11-11)](#p03-6-step-1-storage-and-ownership-implementation-2026-11-11) — 51 lines
   - [P03-6 Step 1 review round 1 and corrections (2026-11-11)](#p03-6-step-1-review-round-1-and-corrections-2026-11-11) — 44 lines
+  - [P03-6 Step 1 review round 2 and retained replay correction (2026-11-11)](#p03-6-step-1-review-round-2-and-retained-replay-correction-2026-11-11) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19932,3 +19933,32 @@ transport delivery or the required Audit subscriber.
 
 Round 2 uses new reviewers after this correction commit. No Step 1 closeout,
 complete local/hosted suite, provider flow or CI qualification is claimed here.
+
+### P03-6 Step 1 review round 2 and retained replay correction (2026-11-11)
+
+Fresh R2 reviewers read the complete `7ae474c5..8186c8b9` foundation range:
+`p036_step1_r2_storage` (GPT-6.1 Sol/high) and
+`p036_step1_r2_ownership` (GPT-6.1 Terra/high). Both confirm the three R1
+corrections; the ownership lens reports no additional verified finding. Neither
+reviewer runs the suites or changes source.
+
+The storage lens finds one further Major: current source-age validation preceded
+matching accepted-receipt reconciliation. An acknowledged or uncertain-COMMIT
+fact could no longer verify its original result after provider expiry even though
+its 32-day receipt and independent targets remained retained. This is not new
+source admission and must not lose its durable result.
+
+A forward function replacement reconciles the already accepted exact normalized
+fingerprint first. New/unaccepted facts still pass the current activation,
+retention and future-time bounds; recipients are never recomputed on accepted
+replay. The original applied foundation migration/function text stays historical.
+A disposable real database qualifies thirty days, accepts an eight-day fact,
+recreates the source under seven days and verifies the identical committed result;
+a new eight-day fact refuses without creating a receipt. This deterministic
+policy-contraction control also exposes the same expiry ordering boundary without
+changing clocks or sleeping through source retention.
+
+All 39 intake Integration cases and the applied exact function/body/ACL/trigger
+inspection pass together (40 total). The R2 finding receives a narrow correction
+recheck after commit; complete provider-flow, full-suite and hosted evidence remain
+separate. No new ADR decision or authority is introduced by the repair.
