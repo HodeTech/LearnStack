@@ -457,8 +457,11 @@ LearnStack reads the `amr` claim to know whether MFA was used; sensitive operati
   invalidate another host's later refresh; independent provider sessions are not
   intentionally revoked. Already issued API JWTs keep their acceptance bound.
 - Local logout succeeds even during provider outage. After navigating away,
-  automatic return is not guaranteed. Phase 03 owns authenticated back-channel
-  logout before immediate disablement/sign-out-everywhere is promised.
+  automatic return is not guaranteed. Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) selects signed sid-targeted
+  native notification, separate from browser logout and retained event mirroring.
+  It closes matched local gates only on delivered validated notification; generic
+  disable edits, API JWT invalidation and guaranteed retry are not promised.
+  Phase 03 Status owns actual delivery/qualification.
 
 ## Audit
 

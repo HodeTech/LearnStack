@@ -569,3 +569,14 @@ Accepted [ADR-0087](0087-native-frontend-proof-windows.md) supersedes only
 frontend test orchestration rows. Runtime result/cancellation policy, actual
 family ownership, first-stop shutdown observer, publication fences, unlisted
 bounds and complete qualification remain. This body remains historical.
+
+### Amendment 5 — Callback listener ownership navigation (2026-11-12)
+
+Accepted [ADR-0098](0098-session-targeted-back-channel-logout.md) places a
+callback-only TLS bridge module/listener in the existing private runtime child.
+It adds no worker or independent credential owner. Setup ownership registers
+before asynchronous creation/bind; this record's irreversible startup stop and
+parent-channel-loss latch prevent later binding and retain partial/listener/request
+work through actual retirement. The existing watchdog supplies failure, not
+retirement credit. This dated navigation leaves the Decision, body and metadata
+unchanged; executed early-stop/parent-loss qualification remains P03-7.

@@ -340,6 +340,12 @@ snapshots. Acceptance is separate from runtime/browser qualification; the phase
 Status block owns delivery. No general proxy, protected client cache or Server
 Action is admitted by this extension.
 
+Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) adds one machine-purpose logout POST and callback-only
+TLS listener in the same private runtime child. Signed provider session identity
+selects process-local targets across hosts, never application scope. Unknown-identity
+callbacks and retained work remain fenced; ordinary browser Origin/CSRF and
+API bootstrap stay intact. Phase 03 Status owns delivery and qualification.
+
 ## Page-Block Resolver
 
 The CMS stores pages as ordered lists of blocks. The renderer resolves each block to a

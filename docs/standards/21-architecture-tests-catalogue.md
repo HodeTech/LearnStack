@@ -6448,6 +6448,13 @@ administration and prepared-page controls; its
 [Status block](../roadmap/phase-03-identity-admin.md) owns their qualification.
 Prior receipts do not qualify subsequent source changes.
 
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) extends these same four canonical rules with separate Logout Token
+validation, sid continuity/exact targets, atomic bounded replay/late-publication
+fences, clocks/capacity/actual retirement, fixed machine route and owned TLS
+bridge startup/parent-loss, and real provider-to-native normal-setup proof. The
+extension is **Registered** pending its implementation and executed controls;
+existing baseline statuses and architecture rule counts do not change.
+
 #### `Bff_Credentials_And_Projections_Are_Confined`
 
 - **Asserts:** only the native owner/RP adapter holds credentials; public wrappers,

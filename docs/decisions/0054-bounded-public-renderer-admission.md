@@ -450,3 +450,13 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 13 — Signed native logout notification (2026-11-12)
+
+Accepted [ADR-0098](0098-session-targeted-back-channel-logout.md) adds exactly one
+machine-purpose native POST before Next and tenant bootstrap. Its fixed authority,
+signed Logout Token, bounded actual request admission and no-cookie response are
+independent of browser Origin/CSRF. Every ordinary method/host/bootstrap guard
+remains. The callback-only TLS listener shares the existing private runtime child.
+This bounded extension preserves this record's historical body and metadata;
+acceptance supplies no executed notification or reachability proof.

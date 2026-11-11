@@ -367,3 +367,13 @@ Budgets are reviewed quarterly. Cost dashboards drive the next review.
 - Pushing images without a git sha tag.
 - Deploys without rollback plan documented in the PR.
 - Long-running interactive sessions on the database (audit log records them).
+
+## Native logout callback transport
+
+**Derives from:** [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md). Its optional local TLS listener is owned by the
+existing native child and serves only the fixed machine POST. Normal setup
+provides a container-reachable bind/DNS mapping and public-root provider trust;
+fixed loopback forwarding validates native certificate name/SNI independently of
+callback Host. Preserve private certificates and machine trust. Fixture-only
+reachability does not deliver normal demo setup; disabled/untrusted bridge tests
+must defeat the same real provider-to-native proof.

@@ -302,6 +302,49 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   enabled-development callback/logout canary scans console and trace artifacts;
   removing the trace guard must fail even with console logging disabled.
 
+### Native back-channel logout
+
+**Derives from:** [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md). G11 acceptance does not establish runtime proof.
+The native machine route is exactly POST `/api/auth/backchannel/keycloak` at the
+configured callback authority, before Next/tenant bootstrap. Only a validated
+Logout Token grants local revocation; actual socket peer is admission accounting,
+not provider identity. No browser Origin/CSRF or cookie is required here; ordinary
+browser guards remain. Return empty no-store 200 on accepted/idempotent delivery
+and 400 on invalid or failed processing, including capacity/key unavailability.
+
+| Boundary | Selected policy |
+|---|---|
+| Token | Compact JWS, RS256, `typ=logout+jwt`, exact issuer/client, required iat/exp/jti/sid, no nonce; optional sub must match |
+| Event | `http://schemas.openid.net/event/backchannel-logout` with empty object; unknown claims have no authority |
+| Time | Positive lifetime/maximum age 300 s, future/expiry skew 30 s; preserve two-minute provider issuance |
+| Replay/fences | 4,096 each, atomic reserve+gate closure; duplicate token digest is idempotent; changed jti payload refuses |
+| Fence lifetime | At least max(accept+5 min,exp+skew) and all relevant actual unknown-identity/closing work |
+| Request admission | Eight actual requests/process, two/canonical socket peer, no queue; include body/provider cleanup |
+| Input | Structural media/declared-size checks first; reserve before streaming, 16 KiB UTF-8 form, one logout_token |
+| Provider work | Existing fixed-endpoint/no-redirect 10 s signal and 256 KiB decoded response bound; physical join required |
+
+Require signed sid on code and refresh grants and preserve it; never request or
+accept offline_access. Optional provider scope inventory is not native support.
+Index all credential/closing/invitation owners through actual retirement. Fence
+unknown-identity callbacks before custody/publication; retain capacity on abort.
+These process-local limits do not provide DDoS protection or distributed fairness.
+No unsafe clock change may re-admit a token whose replay record was retired.
+
+The callback-only TLS bridge runs in the existing private runtime child, with
+fixed native TLS destination/name/trust and fixed callback Host. Register setup
+before async bind under irreversible startup-stop/parent-loss; join partial and
+actual request/listener work. No new worker, generic proxy or ordinary listener
+widening. Keycloak owns three named back-channel attributes and top-level
+frontchannelLogout=false; exact configuration and real TLS reachability need proof.
+
+Private closed saturated state, scalar occupancy and oldest held age identify
+notification unavailability. Uncooperative work can pin every fence indefinitely.
+Never force a TTL or evict safety state. Recover the dependency or retire/restart
+the managed native family under [owner-loss recovery](07-frontend-architecture.md#frontend-runtime-owner-loss-recovery),
+with actual-family evidence before reservation cleanup; restart signs sessions
+out. Provider delivery has no durable retry guarantee; refresh/expiry is fallback,
+and API JWT acceptance is unchanged. No new session audit ledger is inferred.
+
 Tenant **development** provider events use explicit LOGIN/LOGIN_ERROR,
 LOGOUT/LOGOUT_ERROR, CODE_TO_TOKEN/CODE_TO_TOKEN_ERROR and
 REFRESH_TOKEN/REFRESH_TOKEN_ERROR storage. ADR-0097 adds the selected reset,

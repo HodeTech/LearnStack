@@ -452,11 +452,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 226 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 262 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
   - [P03-7 proposal approval readiness (2026-11-12)](#p03-7-proposal-approval-readiness-2026-11-12) — 32 lines
+  - [P03-7 maintainer review corrections and acceptance (2026-11-12)](#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20811,3 +20812,39 @@ remain unchanged. Application suites and CI are not run for this proposal.
 Implementation begins only after explicit maintainer approval, using the three
 steps and requested commit/two-fresh-review/fix cycle without another routine
 permission stop. Any genuinely new authority decision returns for approval.
+
+### P03-7 maintainer review corrections and acceptance (2026-11-12)
+
+**Status: Accepted.** The maintainer authorizes analysis/correction of the supplied
+reviews, acceptance of ADR-0098 and implementation without another routine stop.
+They confirm the application remains in development with no active consumers;
+no backward-compatibility shim is required. This accepts the three-step package
+with the bounded corrections below, not executed runtime/provider/CI proof.
+G11 is Accepted; C12 implementation/qualification remains open.
+
+| Review finding | Verified disposition |
+|---|---|
+| 503 diverges from OIDC §2.8 | Confirmed; select empty no-store 400 for invalid/failed processing, including saturation or key unavailability. Closed local diagnostics distinguish unavailable without a retry promise. |
+| Fences can stay saturated indefinitely | Real availability tradeoff, now explicit: private closed saturated state, occupancy/oldest-held age; recover dependency or retire/restart the managed runtime through existing actual-family recovery. No TTL eviction, forced credit release or cached-PGID signal. |
+| Unauthenticated traffic can occupy verifier slots | Confirmed residual risk; structural headers/size before reserve, eight actual requests/process and two per real socket peer, reserve before streaming to avoid unbounded readers, syntax before crypto/JWKS. This is no DDoS or provider-reservation guarantee. |
+| Optional offline_access already exists | Confirmed, but native requests only openid/profile/email. Preserve optional provider inventory; refuse offline access in grant responses and qualify absence from defaults. No new offline support or broad client mutation. |
+| Peer/provenance meaning | Peer supplies admission accounting only; signed fixed-purpose token is authority. Loopback access cannot substitute. The bridge accounts its actual peer and forwards no trusted asserted-peer shortcut. |
+| Bridge/sidecar and frontchannel options | Compare explicitly; use existing runtime child for one owned callback-only listener, not new process/iframe ownership. |
+| Dated Amendment wording | Explicit dated bounded Amendments to ADR-0054/0070, dated navigation Amendments to ADR-0078/0084; original bodies/statuses/metadata retained. |
+| jose is currently devDependency | Corrected: move the already pinned version into runtime dependencies, preserve one resolved copy. |
+| Exact event URI, exp/typ/time profile and references | Name exact event URI, cite §§2.4/2.6, explicitly choose stricter pinned-provider typ and bounded receipt headroom while preserving two-minute issuance; add ADR-0054/0083/0084/0093 references. |
+| Repeated limits and glossary lifecycle wording | ADR owns selected decision/rationale; canonical ongoing Security 11 owns runtime rule table. Historical approval records are not another mutable authority. Glossary defines terms and links the decision rather than duplicating status. No broad cosmetic rewrite. |
+
+Acceptance reconciles Standards 06/07/10/11/12/18/20/21, Architecture 13/14/25/31,
+ADR index and phase Status/register. Four existing BFF catalogue rules receive
+an explicitly Registered extension; their baseline status and counts do not
+promote. Native notification diagnostics remain inside the named BFF exception,
+not new durable audit operations. Existing DB grants/definers/setters are unchanged.
+
+Implementation keeps the approved three steps. Step 1 adds protocol/session
+ownership with route inactive; Step 2 delivers native/provider/bridge and normal
+setup plus real integration; Step 3 completes full proof, requested reviews,
+source freeze and PR/CI A/B with original archives. Every step commits, receives
+fresh round one/fixes/commit and different fresh round two/fixes/commit. Existing
+runtime/test/CI clocks are not enlarged. Any genuinely new architectural decision
+returns to the maintainer before code; routine implementation continues.

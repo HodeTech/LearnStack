@@ -63,6 +63,12 @@ Phase 11 owns a distributed adapter before multiple native web processes must
 serve one session; atomic refresh/revocation/interruption proofs gate that swap.
 This credential owner is separate from `ICacheService` and the public request holder.
 
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) adds a callback-only TLS bridge/listener inside that same native
+runtime child. Its fixed TLS target/Host and actual startup/stop ownership are
+not a generic proxy or second credential store. The machine adapter uses the
+existing RP transport, with no automatic grant/revocation retry; production
+edge/distributed qualification retains Phase 11 ownership.
+
 ## Demand-Gated Building Blocks
 
 **Read this section before the rest of the document.** Most of what follows describes

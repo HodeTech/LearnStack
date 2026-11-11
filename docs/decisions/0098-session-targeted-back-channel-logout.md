@@ -2,13 +2,14 @@
 
 ## Status
 
-Proposed — 2026-11-12. G11 remains Open; no runtime or provider configuration
-change is authorized until maintainer acceptance.
+Accepted — 2026-11-12, after maintainer review corrections and explicit
+authorization to accept the record and implement the three-step package.
+Acceptance is not executed provider, native, browser or hosted qualification.
 
 **Date:** 2026-11-12
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
-On acceptance this extends [ADR-0070](0070-owned-tenant-bff-sessions.md)'s native
+This extends [ADR-0070](0070-owned-tenant-bff-sessions.md)'s native
 session owner and [ADR-0054](0054-bounded-public-renderer-admission.md)'s closed
 method admission with one machine-purpose route. It narrows the browser-only
 Origin/host-bootstrap reading for that route, not ordinary browser operations.
@@ -50,6 +51,12 @@ provider, native, browser or hosted qualification.
 5. **Durable/distributed sessions or a new broker** (not selected). Adds credential
    persistence and cross-process coordination without a current deployment need.
    Phase 11 retains the existing distributed-store trigger.
+6. **Separate bridge sidecar/reverse proxy** (not selected for local delivery).
+   Adds process/configuration ownership for one fixed route. A listener in the
+   existing runtime child reuses its stop latch; deployment edges remain usable
+   transports without becoming session owners.
+7. **Front-channel logout** (not selected). Requires a live browser/iframe path;
+   direct provider notification can close retained local owners without it.
 
 ## Decision
 
@@ -72,7 +79,7 @@ Code redemption precedes identity discovery. The native listener binds loopback;
 no back-channel route or client registration currently exists.
 
 The [OIDC specification](https://openid.net/specs/openid-connect-backchannel-1_0.html)
-requires separate logout-purpose validation, including `exp` in errata set 1.
+§§2.4/2.6 require separate logout-purpose validation, including `exp`.
 Pinned [Keycloak 26.6.2 token generation](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/jose/jws/DefaultTokenManager.java)
 sets a two-minute expiration and supplies `sid` when session-required is true.
 Its logout category uses the ID-token signing algorithm. These are source findings,
@@ -83,26 +90,35 @@ not a newly executed provider experiment.
 - Use the existing exact `learnstack` issuer and confidential `learnstack-web`
   client. Register back-channel session-required true, front-channel logout false
   and offline-token revocation false; retain RS256 and no ID-token encryption.
-  No offline access, new provider administrator or new realm is introduced.
+  Request exactly `openid profile email`; reject a grant response including
+  `offline_access`. Preserve the client's optional scope inventory, but qualify
+  that offline access is not a default scope. Its optional availability is not
+  native support; offline-token revocation remains outside this profile. No new
+  provider administrator or realm is introduced.
 - Initial and refreshed signed ID tokens require a nonempty bounded opaque `sid`.
   Refresh preserves it exactly, alongside current issuer/sub continuity. Missing
   or changed sid refuses publication; no fallback to subject-wide targeting.
-- Pin the already resolved MIT `jose` 6.2.13 as a direct web dependency for this
+- Move the existing MIT `jose` 6.2.13 devDependency into web `dependencies` for this
   adapter. Cryptographic verification remains library-owned; openid-client's
   grant, nonce and PKCE paths remain. Prove one resolved copy of each dependency.
 - Require compact signed JWS, `alg=RS256`, `typ=logout+jwt`, a bounded nonempty
   `kid`, and signature verification against the fixed issuer JWKS. Reject JWE,
   unsigned/HMAC algorithms, token-selected key URLs/keys and unsupported critical
-  headers. Bounded JSON parsing rejects duplicate member names before use.
+  headers. Requiring typ is deliberately stricter than OIDC's recommendation
+  and matches this pinned provider. Bounded JSON parsing rejects duplicate
+  member names before use.
 - Require exact issuer and audience `learnstack-web` (string or singleton array),
   safe integer `iat`/`exp`, nonempty `jti` and `sid`; optional `sub` must satisfy
   the existing exact opaque-subject grammar. Sid/jti are at most 255 UTF-8 bytes,
   without controls, trimming or case folding. Subject-only tokens refuse.
 - Require `0 < exp - iat <= 300` seconds, age at most 300 seconds and future
   issuance at most 30 seconds; expiration admits at most 30 seconds clock skew.
-  Pinned Keycloak's ordinary two-minute token fits this selected ceiling.
+  The five-minute ceiling is bounded receipt/clock headroom, not an instruction
+  to lengthen provider issuance; Keycloak's two-minute setting is preserved.
+  An exact 120-second difference is not required across separately read clocks.
   Absent, malformed or overlong times refuse independently of signature.
-- Require `events` to contain the back-channel logout URI with an empty object;
+- Require `events` to contain
+  `http://schemas.openid.net/event/backchannel-logout` with an empty object;
   prohibit `nonce` even if null. Ignore otherwise unknown claims/form values;
   they confer no additional action. ID/access tokens never substitute.
 - Discovery/JWKS retain the fixed endpoint, no redirects, 256 KiB decoded response
@@ -120,7 +136,11 @@ Provider upgrades re-run exact claims, signature, sid and delivery qualification
 It accepts only the privately configured callback authority and exact path, with
 no query/fragment/alias. Disabled BFF or absent explicit back-channel activation
 masks it as 404. Native admission captures actual socket provenance; supplied
-forwarding/provenance/tenant headers grant nothing.
+forwarding/provenance/tenant headers grant nothing. The peer identifies only
+local admission accounting, never an authenticated provider: another loopback
+process can reach the native route but still needs a valid signed Logout Token.
+The bridge independently accounts its real container-facing peer and never
+forwards an asserted peer to widen native authority.
 
 This route deliberately has no browser Origin/CSRF, cookie or live tenant-host
 bootstrap requirement. Its authority is the validated logout credential for the
@@ -136,7 +156,9 @@ fields. Input and provider stages use the existing ten-second signal settings;
 neither setting proves physical completion. Empty no-store 200 acknowledges a
 valid committed local revoke, including an unknown/already-ended target. Invalid
 input/token returns empty no-store 400. Admission saturation or unavailable key
-verification returns bounded no-store 503, with no partial revoke or success ACK.
+verification also returns empty no-store 400, as OIDC §2.8 requires for failed
+logout. Closed local categories distinguish refusal from unavailability without
+an HTTP retry promise, partial revoke or success ACK.
 
 Explicit opt-in requires a fixed operator-owned HTTPS callback URL and agreeing
 provider registration. `LEARNSTACK_BFF_BACKCHANNEL_ENABLED` absent/false retains
@@ -218,10 +240,17 @@ request or token timed out. Sweeps retire only proven-unneeded entries.
 
 Replay reservation, needed fence reservation and known-owner gate closure form
 one synchronous store transition after validation, with no await in between.
-If any required slot is unavailable, change nothing and return 503; never evict
+If any required slot is unavailable, change nothing and return 400; never evict
 live evidence or partially acknowledge. Allow at most eight actual in-flight
-notification verifications, including body/provider cleanup, with no waiting
-queue. Malformed or unauthenticated input allocates no replay/fence entry.
+notification requests, including body/provider cleanup, and two per canonical
+socket peer, with no queue. Check method/path/media/declared-size structure
+before acquiring a slot; acquire before consuming a streamed body, then enforce
+the decoded bound and syntax before crypto/JWKS. Parsing without a reservation
+would permit unbounded readers. Unauthenticated traffic can occupy these finite
+slots; shared/NAT/bridge peers share the two-slot allowance. This is bounded
+admission, not DDoS prevention or reserved provider availability. All limits are
+process-local; Phase 11 must qualify distributed/proxy admission before that
+topology. Malformed or unauthenticated input allocates no replay/fence entry.
 Clock rollback cannot make a retired token acceptable again: derive retention
 from captured UTC/monotonic bounds and fail notification validation closed on
 unsafe clock discontinuity. Do not silently shorten retention on a clock change.
@@ -249,7 +278,9 @@ through retirement and shutdown under ADR-0070/0083/0084.
   scalar occupancy only. No token, sid, sub, jti, cookie, raw exception or request
   body in logs/traces/browser/test receipts. Local action is not a durable session
   audit row; P03-6's retained provider facts keep their independent semantics.
-  Extend Standard 18's existing BFF evidence boundary explicitly.
+  [Standard 18 § Operation Types](../standards/18-audit-coverage.md#operation-types)
+  explicitly classifies these four local categories within the existing BFF
+  exception, not as new durable audit operations.
 
 ## Consequences
 
@@ -266,7 +297,14 @@ through retirement and shutdown under ADR-0070/0083/0084.
 - Local operators must configure bridge TLS/reachability and provider trust.
   Public listener widening and disabled certificate checks are not substitutes.
 - Verification, replay and fence limits can refuse legitimate notification bursts.
-  Unsettled work can retain capacity indefinitely; no successful delivery guarantee.
+  Unsettled unknown-identity work can pin all fences and disable notification
+  acceptance until it settles or the managed native runtime is retired/restarted.
+  Expose private scalar occupancy/oldest-held age and a closed saturated state.
+  The operator first diagnoses stopped dependency/work, then requests managed
+  stop; failed stop follows Standard 07's owner-loss recovery with actual-family
+  evidence before reservation cleanup/restart. Restart signs all local users out.
+  Never delete a live fence, force a TTL, release a held owner, kill an unverified
+  cached PGID or call an uncertain stop clean to restore availability.
 - Restart loses volatile sessions and replay state; multi-instance continuity is
   unsupported. Already-admitted external work and sent responses are irreversible.
 
@@ -282,8 +320,8 @@ through retirement and shutdown under ADR-0070/0083/0084.
 ## Implementation Notes
 
 1. After acceptance, record G11 and append bounded dated Amendments to ADR-0054
-   and ADR-0070; ADR-0078 and ADR-0084 receive navigation to their retained
-   scope/race and startup/stop ownership boundaries.
+   and ADR-0070; ADR-0078 and ADR-0084 receive dated navigation Amendments to
+   their retained scope/race and startup/stop ownership boundaries.
    Reconcile Standards 06/07/10/11/12/18/20/21, Architecture 13/14/25/31, glossary,
    native/web and Keycloak/Compose setup, environment examples and applicable
    local setup/provider/test skills. Keep the existing audit/grant censuses.
@@ -346,10 +384,14 @@ or status promotion follows from approval alone.
   [Security 11](../standards/11-security.md#tenant-bff-sessions),
   [Audit 18](../standards/18-audit-coverage.md#operation-types),
   [Catalogue 21](../standards/21-architecture-tests-catalogue.md#p02b-7-tenant-bff-obligations).
-- [ADR-0064](0064-tenant-api-authentication-boundary.md),
+- [ADR-0054](0054-bounded-public-renderer-admission.md),
+  [ADR-0064](0064-tenant-api-authentication-boundary.md),
   [ADR-0070](0070-owned-tenant-bff-sessions.md),
   [ADR-0071](0071-uncertain-account-site-refusals.md),
   [ADR-0078](0078-native-session-scope-and-self-entry.md),
+  [ADR-0083](0083-owned-next-response-compression-cleanup.md),
+  [ADR-0084](0084-owned-frontend-runtime-process-families.md),
+  [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md),
   [ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md).
 - [OIDC Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html),
   [Keycloak 26.6.2 ResourceAdminManager](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/ResourceAdminManager.java),

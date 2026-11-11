@@ -85,6 +85,11 @@ provider/BFF commit is promised. Existing LearnStack MUST operations, baseline
 coverage and tenant override limits remain unchanged. Seven-day development
 provider retention is not the application's security-event retention.
 
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) includes native notification accepted/duplicate/refused/unavailable
+within the existing Tenant BFF exception above: closed local diagnostics only,
+no new durable operation, session ledger or atomic provider/BFF commit. The
+retained provider mirror remains independent; no tenant is invented for ACKs.
+
 This standard uses **OperationType** to mean *what kind of operation produced the
 audit row* — distinct from `OperationClass` in [ADR-0016](../decisions/0016-audit-log-subsystem.md),
 which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
