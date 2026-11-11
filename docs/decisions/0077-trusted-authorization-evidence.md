@@ -362,3 +362,20 @@ together; accepting either record alone opens no protected surface.
   [Audit subsystem](../architecture/31-audit-subsystem.md),
   [Data Protection](../architecture/23-data-protection.md).
 - [Revised P03-2 package](../roadmap/phase-03-delivery-log.md#p03-2-maintainer-review-and-revised-package-2026-10-27).
+
+## Amendments
+
+### Amendment 1 — Separate provider mirror attachment population (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The validated provider-mirror consumer may create only its fixed typed
+provider evidence attachment for the central Audit composer. Existing
+authorization occurrences, denial/provenance factories and HTTP/application
+populations remain separately confined. This creates no human Platform/Hub
+provenance or generalized evidence dictionary.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

@@ -139,13 +139,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0094 | [Forty-Five-Minute Backend Execution Windows](0094-forty-five-minute-backend-execution-windows.md) | Accepted 2026-11-06 at maintainer direction: verified Architecture and ordinary Docker producers get a 45-minute (2,700-second) whole-job ceiling and matching observation bounds; base/native twenty, reserve, operation limits, counts, plan and complete fresh A/B stay fixed. Dated ADR-0062, ADR-0063, ADR-0075 and ADR-0082 amendments preserve predecessor history. |
 | 0095 | [Revision-Pinned Membership Custom Fields](0095-revision-pinned-membership-custom-fields.md) | Accepted 2026-11-10 after maintainer review corrections: immutable Membership definitions/value pins, finite satisfiable forms, personal consent and retained-subject withdrawal entry, explicit v3 adoption and scoped keyed replay. Implementation/qualification stays in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
 | 0096 | [P03-5 Administration Contract Baseline](0096-p035-administration-contract-baseline.md) | Accepted 2026-11-10 after maintainer review and development-only/no-active-use confirmation: one exact snapshot/finding/comparator-bound incompatibility, with coordinated consumers and separate runtime/CI proof. Delivery stays in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
+| 0097 | [Retained Provider Events and Tenant Audit Mirror](0097-retained-provider-events-and-tenant-audit-mirror.md) | Accepted 2026-11-11 after maintainer review: confined machine intake, finite pull recovery, nonblocking durable problem handling and frozen tenant Audit targets; implementation/qualification stay in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0097 | [Retained Provider Events and Tenant Audit Mirror](0097-retained-provider-events-and-tenant-audit-mirror.md) | Read-only provider pull, finite recovery, confined machine intake and frozen tenant Audit projections; approval pending | P03-6/G10 and only the required machine-ingress part of G13, before any executable writer |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

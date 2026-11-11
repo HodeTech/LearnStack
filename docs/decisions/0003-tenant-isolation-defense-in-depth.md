@@ -585,3 +585,18 @@ append-only SELECT/INSERT grants; no cross-module FK or general bypass follows.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+## Amendment 13 — Confined provider-event machine role and storage (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The four-role baseline gains only `learnstack_identity_ingress`, a separate
+NOINHERIT/NOBYPASSRLS login without business, Audit or outbox grants. Three
+confined owner functions and their exact FORCE-RLS policy/ACL/caller controls
+extend the current twelve-function census to fifteen. No ordinary app-role
+global directory or generic bypass is added.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

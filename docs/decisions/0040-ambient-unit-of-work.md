@@ -960,3 +960,18 @@ module ownership, and no new connector or role is introduced.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 21 — Claim-bound provider target production (2026-11-11)
+
+[ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md) supplies
+the bounded new authority. This record’s body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The thirteenth logical tenant setter consumes a private single-use
+provider-recipient witness on the ordinary writable owner. The same four
+physical context writers remain. Target completion, stable EventId outbox
+enqueue and database-time live-lease/sticky-timeout checks share the owning
+transaction; loss of ownership poisons the whole unit before physical COMMIT.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification; acceptance alone installs no runtime subject.

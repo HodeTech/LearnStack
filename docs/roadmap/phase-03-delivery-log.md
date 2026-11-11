@@ -429,10 +429,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 169 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 208 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
+  - [P03-6 maintainer review corrections and acceptance (2026-11-11)](#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -19795,3 +19796,42 @@ remain Open until approval is recorded. On approval reconcile the named
 canonical carriers and begin Step 1 automatically; no extra routine permission
 is required. Human Platform authority, logout and later phase work remain owned
 by their existing gates, not silently approved by this proposal.
+
+### P03-6 maintainer review corrections and acceptance (2026-11-11)
+
+**Accepted.** The maintainer authorizes ADR-0097 after analysis and correction of
+external review findings, and directs implementation to continue. The application
+is not actively used; no legacy-client compatibility layer is required. This
+approves the recorded finite source capture, acceptance-time provider-global
+recipient disclosure and retained tenant-copy costs, not runtime qualification.
+
+Review disposition:
+
+- The poison-item finding is confirmed. A persistent fanout overflow must not
+  block valid siblings or subsequent historical ranges. The corrected decision
+  durably records unaccepted normalized items and minimized unreadable positions,
+  subdivides bad pages to singleton probes, schedules fair problem retries and
+  continues traversal. No ACK/target/complete-sweep credit is invented; expiry
+  preserves an irrecoverable gap. Include the 257-recipient + later valid event +
+  restart proof and oversized/malformed singleton controls in implementation.
+- The generic "system origin" wording is replaced by the exact
+  `TenantContextOrigin.ProviderEventRecipient` ceiling. Inspection of the actual
+  enum shows that ADR-0036's boundary already includes non-HTTP Ambient execution;
+  therefore its context-construction carrier remains relevant, while its HTTP
+  resolution matrix is explicitly unchanged. ADR-0040 owns the logical setter.
+- Thirty days is LearnStack's full-sweep/dedup policy maximum, not a Keycloak
+  maximum. Tooling means the existing P02b-6 development realm reconciler;
+  preserved longer policies refuse application mirror activation.
+- The new typed attachment has exactly one producer and one central-composer
+  consumer. Existing authorization populations/provenance minters remain separate
+  inventories; no combined historical count is invented.
+- The provider source's two-checkout allocation is independent, with a link to
+  the existing dedicated-source ownership pattern. P03-6 owns locator indexes
+  in its migration now; P03-10 consumes them with the durable-copy inventory.
+
+ADR-0097 moves to Accepted and the active index. G10 closes; G13 closes only for
+this machine ingress. Human Platform/operator authority remains Open. Dated
+Amendments in ADR-0003/0036/0040/0044/0070/0072/0077/0095 point to exact extensions
+without changing their bodies. No new global Audit writer or public API is added.
+The three implementation steps and commit/two-fresh-review loop remain in force.
+Step 1 begins with canonical storage/source/owner reconciliation and tests.

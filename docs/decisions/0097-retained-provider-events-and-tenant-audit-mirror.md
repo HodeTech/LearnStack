@@ -2,15 +2,19 @@
 
 ## Status
 
-**Proposed — 2026-11-11.** P03-6/G10 and the machine-ingress part of G13
-require the maintainer's explicit approval before implementation. No provider
-client, role, migration, function, tenant origin or consumer is installed by this
-proposal. Human Platform authority and recovery remain P03-9/G13 Open.
+**Accepted — 2026-11-11.** The maintainer approves P03-6/G10 and only the
+machine-ingress part of G13 after the review corrections recorded in the
+[acceptance entry](../roadmap/phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11).
+Acceptance installs no runtime capability. Human Platform authority and recovery
+remain P03-9/G13 Open. The application has no active external users; this package
+does not owe a legacy-client compatibility layer.
 
-**Bounded changes on acceptance:** this record extends ADR-0003's four-role
+**Bounded changes:** this record extends ADR-0003's four-role
 model with one confined machine login and its twelve-function census with the
-three functions below; ADR-0036/0040's origin/announcement census gains only the
-provider-recipient owner. ADR-0072's global storage boundary admits the named
+three functions below. ADR-0036's context-construction/authority-ceiling boundary
+gains the machine-only `TenantContextOrigin.ProviderEventRecipient`; its HTTP
+resolution matrix is unchanged. ADR-0040's logical announcement census gains
+only the provider-recipient owner. ADR-0072's global storage boundary admits the named
 intake class, without widening bootstrap or its global audit discriminator.
 ADR-0044/0077 gain one typed central mirror-evidence producer. ADR-0070's
 development-only provider retention gains an application consumer; its session
@@ -19,7 +23,7 @@ remain in force. Dated Amendments name these additions without rewriting the
 Accepted bodies or marking the whole records Superseded.
 
 **Date:** 2026-11-11
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
 ## Decision Drivers
 
@@ -96,9 +100,12 @@ history, not an invented complete pre-activation history. No automatic User
 creation, profile/email synchronization or identity merging occurs.
 
 The adapter qualifies enabled event storage, required types and finite retention
-of 7–30 days. Fresh development retention stays seven days. A longer existing
-policy is preserved by tooling but refuses mirror activation until the operator
-explicitly resolves it; history is never deleted or silently shortened.
+of 7–30 days. Thirty days is LearnStack's selected policy maximum, not a
+Keycloak configuration limit: it bounds full-sweep read amplification and keeps
+source replay inside the 32-day receipt horizon. Fresh development retention
+stays seven days. A longer existing policy is preserved by the P02b-6 development
+realm reconciler but refuses mirror activation until the operator explicitly
+resolves it; history is never deleted or silently shortened.
 
 - Startup and hourly retained-window sweeps use inclusive millisecond bounds,
   ascending source time and bounded offset pages. Recent five-minute reads every
@@ -125,6 +132,44 @@ explicitly resolves it; history is never deleted or silently shortened.
   a later scan does not retroactively prove that missing history was captured.
   This is a separately registered machine health check, not a new anonymous
   diagnostics route or a change to the existing public liveness response.
+
+### Unresolved facts and continued scanning
+
+One problematic item must not monopolize recovery of other retained history.
+The global scan ledger owns durable, minimized problem records as part of the
+same confined machine class; this adds no fourth definer or public recovery API.
+
+- A normalized event that cannot be accepted, including a 257-tenant recipient
+  set, records its stable source identity, immutable normalized fingerprint,
+  closed refusal category and retry state. It is **unaccepted**, has no target,
+  and earns no acceptance ACK. Successful siblings on that page commit normally;
+  later pages and other time ranges continue. Retrying an unaccepted record may
+  freeze recipients only when it first becomes acceptable; accepted recipients
+  are never recomputed. A collision never overwrites an accepted fact.
+- Malformed or oversized pages are retried with progressively smaller `max`
+  values down to one at the same position. An unreadable singleton records only
+  authority/realm, requested time interval, offset and closed reason. No raw body,
+  arbitrary error, email, subject or body hash is retained. Continue probing the
+  next position and schedule other intervals independently. Offset movement is
+  already an acknowledged source limitation; a skipped position is an unresolved
+  coverage gap, never evidence that an event was durably accepted.
+- Problem retries use bounded fair work slices separate from forward scanning;
+  restart resumes both queues. No immediate loop on one poison item and no
+  source deletion, target truncation or timestamp watermark can hide it.
+  Database unavailability, authentication or invalid source policy stop the
+  affected lane; inability to persist a problem never authorizes progress ACK.
+- Traversal may finish with unresolved problems, but the sweep is not marked
+  complete. Coverage health names the closed problem category, age and count;
+  the existing two-hour/retention-minus-24-hour thresholds still apply. Source
+  expiry changes a problem to a recorded irrecoverable gap, not success. Retain
+  minimized problem records for 32 days and retain the singleton's historical
+  gap flag/earliest-gap time after retirement.
+- The operating guide gives read-only problem inspection and correction of
+  source policy/availability before retry. Fanout overflow requires correcting
+  the real Membership state through existing authorized administration or a new
+  reviewed fanout decision; operators cannot edit targets or bypass the cap.
+  Malformed provider output requires provider repair. Manual fabricated ACK or
+  a generic global replay/repair command is not part of this package.
 
 ### Global receipt and immutable attribution
 
@@ -182,11 +227,13 @@ outbox access. It is not a Platform Admin. A provider-only data source with at
 most two actual checkouts per API process performs only the named intake,
 claim, retirement and fixed sweep-ledger operations. Five-second shared SQL I/O
 budgets, finite server/driver bounds, cleanup retention and startup qualification
-follow the existing dedicated-source pattern; credentials are never exposed to a
+follow the [dedicated-source ownership pattern](../standards/05-database.md#dedicated-provider-source-and-uncertain-commits).
+Two is this lane's independent allocation, not a share of SMTP's four checkouts
+or the ordinary application pool. Credentials are never exposed to a
 module, ordinary UoW, HTTP endpoint or native process.
 
-Identity owns global `identity_provider_event_receipts` and its singleton scan
-ledger, with no app-role SELECT/INSERT/UPDATE. Tenant-owned
+Identity owns global `identity_provider_event_receipts`, the minimized problem
+ledger and its singleton scan ledger, with no app-role SELECT/INSERT/UPDATE. Tenant-owned
 `identity_provider_event_targets` contains the independently retained minimized
 fact, stable target/EventId, tenant, optional affected UserId and scheduling
 state. It uses the normal marker/filter/FORCE-RLS/test layers, org NULL, and
@@ -200,7 +247,7 @@ arms under FORCE RLS and same-transaction PUBLIC EXECUTE revocation:
 |---|---|
 | `fn_identity_provider_event_accept` | Ingress role only; exact installed authority and selected normalized fact; lock/recheck binding, create receipt and complete frozen target set atomically. No context setter or provider/person projection. |
 | `fn_identity_provider_event_claim` | Ingress role only; claim one due frozen target with fresh acquisition token and database-time lease. Return only that target's execution keys, never User/Membership/profile rows or a general tenant list. |
-| `fn_identity_provider_event_retire` | Ingress role only; bounded removal of receipts older than 32 days. No target, business, outbox, inbox or Audit deletion. |
+| `fn_identity_provider_event_retire` | Ingress role only; bounded removal of receipts/problem records older than 32 days while preserving historical gap state. No target, business, outbox, inbox or Audit deletion. |
 
 This extends the qualified twelve-function census to fifteen. Owner privileges
 are inherently wider than function projections; actual bodies, policies, ACLs and
@@ -211,8 +258,9 @@ cryptographic database proof that Keycloak emitted an argument.
 The actual claimed target mints a private single-use `ProviderEventRecipient`
 witness bound to target/EventId, tenant, acquisition token, deadline and owner.
 Only its closed producer can announce that tenant using the existing ordinary
-app UoW and physical writer. This is the thirteenth logical tenant setter and a
-new system origin, restricted to this production act; four physical context
+app UoW and physical writer. This is the thirteenth logical tenant setter and
+the machine-only `TenantContextOrigin.ProviderEventRecipient` authority ceiling,
+restricted to this production act; four physical context
 writers remain. A caller UUID, tenant header, service JWT or ordinary event
 envelope cannot substitute for the witness. HTTP/native routes cannot enter it.
 
@@ -240,7 +288,12 @@ One closed typed `ProviderEventAuditEvidence` attachment to the central intent
 carries source occurrence time, selected type/outcome, receipt/target/event keys
 and affected UserId. Only the validated mirror consumer mints it; no arbitrary
 metadata dictionary or private module audit writer is admitted. Extend the
-central composer and trusted evidence-producer census together.
+central composer with an explicit one-producer/one-consumer attachment census:
+the validated mirror consumer's factory is its sole producer and the central
+composer its sole consumer. This is separate from the existing
+[authorization evidence populations](../standards/18-audit-coverage.md#evidence-populations)
+and trusted transport-provenance minters; it does not claim they already form
+one combined numbered census or widen any of their factories.
 
 `audit.provider_event.observe` is MUST/SecurityEvent, declared by Audit's own
 catalogue and matrix. It records the mirror, not an Identity mutation; the
@@ -262,8 +315,10 @@ and coordinated purge belong to Phase 11 with the existing transport/Audit
 retention work; this baseline does not bound total durable tenant history.
 
 P03-6 adds all receipt, target, source-history, envelope, inbox/delivery and Audit
-references to the P03-10 subject-store inventory, including indexes for affected
-UserId/subject key. Facts accepted before later closure remain historical copies;
+references to the P03-10 subject-store inventory. P03-6's own migration installs
+the affected-UserId/subject-key locator indexes now; P03-10 consumes them rather
+than backfilling missing indexing. Facts accepted before later closure remain
+historical copies;
 new post-closure intake is receipt-only. P03-10 must reconcile pending copies and
 immutable Audit linkage before its erasure writer ships. This decision grants
 no global erasure, Audit redaction, Platform gate, recovery endpoint or read UI.
@@ -340,6 +395,10 @@ controls rather than inventing duplicate names for those rules.
 - Actual least-privilege provider reads, wrong issuer/realm/credentials, redirects,
   malformed/oversized data, required-type/retention drift, source outage/restart,
   repeated/equal-time/late pages, incomplete sweeps and preserved gap evidence.
+- A persistent 257-tenant refusal followed by a valid historical event, sibling
+  acceptance and restart; malformed/oversized singleton subdivision, fair retries,
+  no raw-body retention and never-complete coverage until resolution. Source
+  expiry preserves an irrecoverable gap through problem-record retirement.
 - Real login success/error, reset, generic credential/MFA and lockout events;
   unchanged provider credentials/configuration and no fake event attribution.
 - All disposition rows, one subject across two tenants/multiple organizations,
