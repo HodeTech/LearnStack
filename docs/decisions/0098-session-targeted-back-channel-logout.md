@@ -56,10 +56,11 @@ provider, native, browser or hosted qualification.
 LearnStack accepts a separately validated, signed OIDC Logout Token at one native
 machine POST route and revokes owners matching its exact issuer/provider-session
 identity across hosts. The existing session owner atomically retains replay and
-late-publication fences before acknowledging the notification. A fixed local TLS
-bridge supplies development-container reachability without widening the ordinary
-native listener or opening a generic proxy. Browser sign-out, application scope,
-actual-work retirement and the existing refresh/expiry fallback remain independent.
+late-publication fences before acknowledging the notification. A callback-only TLS
+bridge in the existing native runtime child supplies container reachability without
+widening the ordinary native listener or opening a generic proxy. Browser sign-out,
+application scope, actual-work retirement and existing refresh/expiry fallback
+remain independent.
 
 ## Context
 
@@ -141,8 +142,7 @@ Explicit opt-in requires a fixed operator-owned HTTPS callback URL and agreeing
 provider registration. `LEARNSTACK_BFF_BACKCHANNEL_ENABLED` absent/false retains
 the existing fallback; true additionally requires BFF enabled and a valid
 `LEARNSTACK_BFF_BACKCHANNEL_URL`. The URL is configuration, never request input.
-Normal
-local setup includes a callback-only TLS bridge with its own explicit certificate,
+Normal local setup includes a callback-only TLS bridge with its explicit certificate,
 private key, listen address/port and fixed loopback native destination. It accepts
 only this method/path, bounds input/concurrency, preserves token bytes, and uses
 verified TLS plus a fixed callback Host when forwarding. No caller selects its
@@ -165,10 +165,18 @@ The shared development preparation owns only the named client attributes
 trust. Conflicting callback configuration refuses before mutation unless explicitly
 adopted through the operator setup; disabled mode grants no silent retargeting.
 Preserve credentials, provider IDs, unrelated client/realm/event configuration and
-`learnstack-hub`. Existing
-private certificates/trust are not overwritten or installed into machine trust.
-The bridge is an explicitly owned local helper, joined by the launcher/demo stop
-path; normal local usage has a documented runnable setup, not just a test relay.
+`learnstack-hub`. Existing private certificates/trust are not overwritten or
+installed into machine trust.
+
+The bridge is a module/listener in the existing private native runtime child,
+not a new worker process or independent credential owner. Register its setup,
+listener and request ownership before asynchronous creation/bind. ADR-0084's
+irreversible startup-stop/parent-channel-loss latch covers every bridge phase:
+an early stop prevents later binding, partial resources are closed, and all
+already-started setup/listener/request work is joined through actual retirement.
+The existing first-request shutdown watchdog reports failure; its expiry grants
+no retirement credit or late-start permission. Normal local usage has a runnable
+setup and uses the same launcher/demo stop ownership, not just a test relay.
 Its externally reachable socket exposes only signed logout admission. Production
 TLS edge/proxy provenance and distributed deployment remain Phase 11; a callback
 URL alone is not evidence that either has shipped.
@@ -194,8 +202,9 @@ Use separate bounded stores, each with at most 4,096 entries:
 - **Replay:** `(issuer, jti)` plus a digest of the verified token and its acceptance
   deadline. A byte-identical valid duplicate returns 200 without repeating state
   effects; the same jti with changed bytes refuses. Retain through `exp + skew`.
-- **Logout fences:** exact target plus a native acceptance sequence. Retain at
-  least five minutes after acceptance and through physical settlement of every
+- **Logout fences:** exact target plus a native acceptance sequence. Retain until
+  at least the later of acceptance plus five minutes and `exp + skew`, mapped to
+  the captured monotonic bound, and through physical settlement of every
   identity-unknown owner admitted before that horizon, plus indexed matching
   closing work. Check new callbacks against any retained matching fence too.
   Later independent sign-in has a fresh provider sid and remains possible.
@@ -267,13 +276,14 @@ through retirement and shutdown under ADR-0070/0083/0084.
   application-audit writer, Hub crossing, new broker or distributed session store.
 - Existing BFF budgets, browser/API/runtime deadlines and CI ceilings stay fixed.
   New notification budgets are selected bounds, not measured throughput claims.
-- This packet adds no new product screen. Existing UI regressions are verified;
+- This packet adds no new product screen. It requires existing UI regression proof;
   changed interaction/copy, if required, receives actual accessibility evidence.
 
 ## Implementation Notes
 
 1. After acceptance, record G11 and append bounded dated Amendments to ADR-0054
-   and ADR-0070; ADR-0078 receives navigation to its retained scope/race boundary.
+   and ADR-0070; ADR-0078 and ADR-0084 receive navigation to their retained
+   scope/race and startup/stop ownership boundaries.
    Reconcile Standards 06/07/10/11/12/18/20/21, Architecture 13/14/25/31, glossary,
    native/web and Keycloak/Compose setup, environment examples and applicable
    local setup/provider/test skills. Keep the existing audit/grant censuses.
@@ -321,6 +331,9 @@ or status promotion follows from approval alone.
 - Actual native method/authority/provenance/body guards and browser-CSRF dirty
   controls. Production raw trace/body/token canaries include the bridge and new
   purpose; no direct public/SDK credential access.
+- Stop and parent-channel loss before/during bridge creation and binding, held
+  setup/read/forward work and partially started listeners: no later bind, no
+  admission after stop, no false clean shutdown and eventual actual retirement.
 - Real pinned provider claims/registration, shared versus independent SSO and
   actual callback reachability; stale configuration, untrusted TLS and unreachable
   bridge negatives. Preserve account/client/event/secret continuity and safe

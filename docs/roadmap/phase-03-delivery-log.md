@@ -452,9 +452,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 164 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 226 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
+  - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
+  - [P03-7 proposal approval readiness (2026-11-12)](#p03-7-proposal-approval-readiness-2026-11-12) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20747,3 +20749,65 @@ ADR-0070/0098 rather than copying a .NET/Polly skill into TypeScript.
 No runtime or provider experiment is run by these proposal reviews. The corrected
 proposal remains Proposed and G11 Open pending maintainer approval; a new fresh
 round reviews the revised surface before readiness is recorded.
+
+### P03-7 proposal review round two and lifecycle correction (2026-11-12)
+
+Two different fresh reviewers inspect `5d5823cc` against `778161b6` and the current
+native/provider contracts. The security reviewer finds no verified security
+defect. The delivery reviewer identifies one Major gap: a bridge started during
+asynchronous preparation needs the same irreversible startup-stop/parent-loss
+rule as the existing native listener, not merely a promise to join normal stop.
+
+The revised ADR makes the bridge a module/listener in the existing private native
+runtime child, with no new worker or credential owner. Setup ownership registers
+before creation/bind; early stop/parent-channel loss prevents all later binding,
+closes partial resources and joins actually started setup/request/listener work.
+The existing watchdog reports failure without supplying retirement credit.
+Step 2 adds early-stop/parent-loss/held-bind/forward-work and actual-retirement
+controls. ADR-0084 receives navigation at acceptance, not a new worker topology.
+The original package's bridge-helper wording is constrained by this record.
+
+The primary agent aligns the minimum fence horizon to the later of five minutes
+after acceptance and the accepted token's expiration plus skew, while retaining
+all relevant unknown-identity and closing owners through physical settlement.
+This removes a 300-versus-up-to-360-second ambiguity without changing browser or
+test limits. The reviewer treats it as a useful clarification, not a demonstrated
+resurrection finding. Glossary entries define terms without duplicating lifecycle
+status; that remains in the ADR/phase register.
+
+These are proposal corrections only. Runtime, lockfile, client registration,
+listeners, certificates, trust and CI remain untouched. Focused reinspection of
+the corrections is required before approval readiness; no third broad round is
+inferred solely from these bounded fixes.
+
+### P03-7 proposal approval readiness (2026-11-12)
+
+**Status: Proposed; maintainer decision pending.** The complete approval surface
+is [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md), the
+[three-step package](#p03-7-proposed-back-channel-logout-package-2026-11-12) and
+the two correction records above. G11 remains Open. No standard, Accepted ADR,
+runtime, lockfile, provider field, trust or listener has changed.
+
+Two independent source audits precede drafting. Round one then uses fresh Terra
+security/lifecycle and Sol delivery/provider reviewers; round two uses different
+fresh Sol security and Terra delivery reviewers. Verified findings are closed:
+top-level `frontchannelLogout` ownership/readback (R1) and bridge startup-stop/
+parent-loss ownership (R2). Both round-two reviewers reinspect the bounded fixes
+and confirm no remaining actionable finding. These are document/source reviews,
+not executed provider, browser, startup-race or hosted qualification.
+
+The selected bridge is one callback-only TLS listener/module in the existing
+private native runtime child; it introduces no new worker. Its externally
+reachable bind, certificate/public-root setup and actual stop ownership are
+part of Step 2, including normal demo usage. It never widens ordinary listener
+admission or forwards a caller-selected destination. Replay/fence/verification
+budgets and residual delivery/outage costs remain explicitly proposed choices.
+
+Documentation validation checks the full-tree Markdown fragments, phase/log
+shape, generated indexes, unique Proposed lifecycle, append-only historical
+delivery body and absence of forbidden local-only references in the new diff.
+Only Markdown changes are committed on development; existing stashes/settings
+remain unchanged. Application suites and CI are not run for this proposal.
+Implementation begins only after explicit maintainer approval, using the three
+steps and requested commit/two-fresh-review/fix cycle without another routine
+permission stop. Any genuinely new authority decision returns for approval.
