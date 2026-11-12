@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 623 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 640 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -467,7 +467,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 32 lines
   - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 17 lines
   - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 33 lines
-  - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 43 lines
+  - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 44 lines
+  - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21219,3 +21220,20 @@ Commit it, run two different fresh independent review/fix rounds, complete curre
 frontend/provider regressions and freeze the reviewed source for the PR's complete
 A/B and original-archive reconciliation. Earlier-source successes stay separate;
 no agent merge or prior-packet proof promotion is authorized.
+
+
+### P03-7 CI correction independent review round one (2026-11-12)
+
+Fresh Sol security/ownership and Terra performance/evidence reviewers inspect
+`9aea4f40..a251c2a5` and the immediate state/store contracts. Both approve with no
+actionable finding. They verify the lazy snapshot remains synchronous and uses
+all current owners, including unknown and closing work, at the same retirement
+predicate boundary. Clock sealing, exact target matching, atomic reservations,
+stop and actual cleanup remain unchanged. No fix is manufactured for a clean
+review, and no capacity/test/CI setting changes.
+
+The reviews distinguish the selected 38 passing controls and local comparative
+timing from the ongoing complete frontend guard and still-open final-source
+provider/hosted proof. Different fresh reviewers perform round two before the
+final source freeze and single PR synchronization. Earlier-source A-only successes
+and failed/cancelled attempts remain separate and unqualified as a final pair.
