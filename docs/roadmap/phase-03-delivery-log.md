@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 1,022 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 1,035 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -477,7 +477,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
   - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
-  - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 59 lines
+  - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 72 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21628,3 +21628,16 @@ Release build reports zero warnings/errors. All 111 native-owner controls,
 including the exact two added source mappings and privacy/boundary negatives,
 and five corpus cases pass. Documentation checks resolve 3,664 fragments and
 all three current delivery indexes. Fresh correction reviews remain required.
+
+Two fresh review rounds complete on `2691076e..e0472e45`: Sol code/privacy and
+Terra operations/evidence first, then different Sol code and Terra lifecycle
+reviewers. All approve without actionable findings; their source inspection
+does not independently rerun the tests or qualify hosted execution. The fixed
+actual-host witness also reports no global producer listener after the test and
+after fixture cleanup, with a successful real test and normal process completion.
+Keep the failed intermediate controls and old counterfactuals separately.
+
+Freeze the correction plus this documentation closeout for one PR update and
+new-source complete A/B. PR proof owns exact final source/run IDs and unchanged
+original archive reconciliation. No further source commit is needed merely to
+narrate successful CI IDs. Maintainer review/merge and qualification remain open.
