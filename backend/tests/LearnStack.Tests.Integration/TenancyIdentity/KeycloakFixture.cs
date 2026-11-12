@@ -45,6 +45,8 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         ? realm : throw new InvalidOperationException("Keycloak fixture realm is outside the closed provider boundary.");
     internal X509Certificate2 RootCertificate => _tls?.RootCertificate
         ?? throw new InvalidOperationException("Keycloak fixture certificate authority is not initialized.");
+    internal string CallbackCertificate => Encoding.ASCII.GetString(_tls!.CallbackCertificatePem);
+    internal string CallbackPrivateKey => Encoding.ASCII.GetString(_tls!.CallbackPrivateKeyPem);
 
     internal static async Task<KeycloakFixture> StartAsync(string? tenantRealmJson = null)
     {
@@ -99,7 +101,11 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithLogger(NullLogger.Instance)
                 .WithNetwork(_network)
                 .WithPortBinding(8443, true)
-                .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "8443/tcp"))
+                .WithCreateParameterModifier(parameters =>
+                {
+                    ContainerLoopbackPorts.Configure(parameters, "8443/tcp");
+                    parameters.HostConfig!.ExtraHosts = ["host.docker.internal:host-gateway"];
+                })
                 .WithEnvironment("KC_DB", "postgres")
                 .WithEnvironment("KC_DB_URL", "jdbc:postgresql://identity-database:5432/keycloak")
                 .WithEnvironment("KC_DB_USERNAME", "keycloak")
@@ -111,6 +117,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithResourceMapping(Encoding.UTF8.GetBytes(tenantImport), "/opt/keycloak/data/import/learnstack-realm.json")
                 .WithResourceMapping(hubImport, "/opt/keycloak/data/import/learnstack-hub-realm.json")
                 .WithResourceMapping(_tls.ServerCertificatePem, "/opt/keycloak/conf/fixture-cert.pem")
+                // Public-only root for the same callback TLS trust path as normal Docker setup.
+                .WithResourceMapping(Encoding.ASCII.GetBytes(_tls.RootCertificate.ExportCertificatePem()),
+                    "/opt/keycloak/conf/truststores/callback-root.pem")
                 .WithResourceMapping(_tls.ServerPrivateKeyPem, "/opt/keycloak/conf/fixture-key.pem", 1000, 0,
                     UnixFileModes.UserRead | UnixFileModes.UserWrite)
                 .WithCommand("start-dev", "--import-realm", "--log-level=ERROR", "--http-enabled=false", "--https-port=8443",
@@ -232,7 +241,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 
     // The child owns this pipe. Bootstrap credentials have no public projection or diagnostic record.
     internal async Task WriteReconciliationInputAsync(Stream destination, string scenario,
-        CancellationToken cancellationToken, bool includeEventReader = false)
+        CancellationToken cancellationToken, bool includeEventReader = false, string? backchannelUrl = null)
     {
         using var desired = JsonDocument.Parse(await File.ReadAllTextAsync(RealmPath("learnstack"), cancellationToken));
         var input = JsonSerializer.SerializeToNode(new
@@ -248,6 +257,8 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             scenario,
         }, JsonSerializerOptions.Web)!.AsObject();
         if (includeEventReader) input["eventReaderSecret"] = EventReaderSecret;
+        if (backchannelUrl is not null)
+            input["backchannel"] = JsonSerializer.SerializeToNode(new { enabled = true, url = backchannelUrl });
         await JsonSerializer.SerializeAsync(destination, input, JsonSerializerOptions.Web, cancellationToken);
     }
 

@@ -9,6 +9,7 @@ import { RealmError, realmFailureNotice, refuse } from './development-realm-erro
 import { eventReaderEnvironment, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 import { waitCompose } from './wait-compose.mjs';
+import { developmentBackchannelConfiguration } from './development-backchannel.mjs';
 import { seedAdministrationOriginTenantIds, adoptSeedAdministrationOrigins } from './seed-admin-origins.mjs';
 
 const backendRoot = join(repositoryRoot, 'backend');
@@ -33,6 +34,7 @@ async function selectedConfiguration(selected) {
   realmEnvironment(source);
   eventReaderEnvironment(source);
   seedAuthorityEnvironment(source);
+  await developmentBackchannelConfiguration({ source });
   for (const key of ['ConnectionStrings__Default', 'ConnectionStrings__Migration'])
     if (!values[key] || (process.env[key] !== undefined && process.env[key] !== values[key]))
       refuse('preflight', 'configuration');

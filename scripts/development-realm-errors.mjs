@@ -7,6 +7,7 @@ const reasons = new Set([
   'unsupported', 'response', 'status', 'redirect', 'deadline', 'cancelled',
   'transport', 'lock_busy', 'body_limit', 'readback_conflict', 'cleanup',
   'missing_web_secret', 'private_file', 'event_policy_conflict', 'seed_refused',
+  'backchannel_configuration', 'backchannel_conflict',
 ]);
 
 /** Neither upstream objects nor arbitrary caller text can become a diagnostic. */
@@ -41,6 +42,8 @@ export function realmFailureNotice(error) {
     message += '\nrealm: retain the confidential client secret in the selected private file; see infra/keycloak/README.md#secret-continuity-and-recovery';
   else if (error.reason === 'event_policy_conflict')
     message += '\nrealm: resolve the existing event retention policy explicitly without deleting history; see infra/keycloak/README.md#development-authentication-events';
+  else if (['backchannel_configuration', 'backchannel_conflict'].includes(error.reason))
+    message += '\nrealm: verify explicit callback/native TLS, private source agreement and retained callback ownership; see infra/keycloak/README.md#native-back-channel-logout';
   else if (error.reason === 'lock_busy')
     message += '\nrealm: verify the previous owner has stopped before removing its private lock; see infra/keycloak/README.md#lock-recovery';
   if (error.preparationDispatched === true)

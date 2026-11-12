@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 347 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 409 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -460,7 +460,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 maintainer review corrections and acceptance (2026-11-12)](#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) — 36 lines
   - [P03-7 Step 1 protocol and owner implementation (2026-11-12)](#p03-7-step-1-protocol-and-owner-implementation-2026-11-12) — 51 lines
   - [P03-7 Step 1 independent review round one (2026-11-12)](#p03-7-step-1-independent-review-round-one-2026-11-12) — 18 lines
-  - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 16 lines
+  - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 17 lines
+  - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 61 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20936,3 +20937,65 @@ fields, stage-specific closed diagnostic classification and actual provider/TLS/
 browser evidence. Successful real-provider key rotation remains a separate
 integration claim from the existing unknown-key cooldown control. The approved
 three-step plan and existing runtime/test/CI limits remain unchanged.
+
+
+### P03-7 Step 2 native callback and actual provider delivery (2026-11-12)
+
+Implement Accepted ADR-0098's closed machine route, native TLS bridge and normal
+operator setup on development. The callback remains opt-in. The ordinary native
+listener stays loopback; the bridge lives in the same managed private child and
+forwards only the fixed callback over verified TLS with explicit native CA and
+localhost SNI. Private installer closures apply logout; the global session facade
+receives neither revocation nor diagnostic authority.
+
+The native boundary reserves actual process/peer capacity before streaming,
+checks the bounded form before crypto and returns empty no-store 200/400 without
+cookies. Token refusal and closed provider/clock/capacity/stopped unavailability
+remain distinct private evidence. Admitted reads, responses, verification,
+forwarding and pending listener binds retain ownership through actual retirement.
+An irreversible bridge start/stop latch prevents later listening after stop;
+readiness is published only after all required listeners bind.
+
+Normal dev/seed/demo paths qualify agreeing private settings, certificate/key
+and both public roots before startup. Explicit `make backchannel-tls` creates
+only absent owned callback material. Keycloak receives only the public callback
+root in a read-only trust directory and the Docker host-gateway mapping. The
+reconciler owns only the three selected web callback attributes and top-level
+frontchannel setting, refuses foreign callbacks and unsupported signing/encryption
+or default offline access, independently reads back and performs a zero-write
+rerun. Existing account, secret, API/Hub and unrelated configuration owners remain.
+
+Local verification before the first fresh implementation review:
+
+- The complete source-censused realm controls pass 457/457 cases in twelve files,
+  with zero cancellations/skips/todos. New setup and callback-plan controls cover
+  public-only trust, source conflicts, wrong roots, exact fresh/warm fields,
+  foreign state, readback failure and disabled preservation.
+- Six native/source files pass 113/113 reported cases: exact source/owner census,
+  signed token checks, HTTP capacity/body retirement and two actual TLS hops.
+  Bridge controls include wrong native trust, stop before/during bind and held
+  forwarding. This selected cohort is not the complete web package.
+- The new real Keycloak/application-role/native test passes both enabled and
+  disabled-bridge populations. Actual admin session logout closes the same SSO
+  across two admitted hosts, preserves a distinct device and later SSO, and makes
+  no API/bootstrap read itself. Passive browser session reads retain their normal
+  anonymous bootstrap; they do not grant a business read. Independent provider
+  callback readback and a zero-write rerun pass. No raw provider token, identifier,
+  private key or callback body enters the retained result.
+- The existing real pinned Next protocol positive passes after the copied proof
+  observes the listener's current address at the new readiness point. The earlier
+  failed startup was a stale fixture-local address binding, not provider delivery.
+  Earlier failed attempts remain separate and grant no qualification credit.
+
+The existing native process-family/startup controls pass: two wrapper cases,
+including 25 actual process-family controls, and inert dependency startup cases
+with actual sockets. Added bridge setup controls cover synchronous stop, held bind,
+partial failure and readiness ordering; they do not qualify production TLS. The
+existing BFF route/boundary cohort passes 71/71 cases, including actual Next
+production UI/protocol and missing-activity/nonzero-stop negative controls.
+Native build, full web TypeScript, changed-source lint and Release solution build
+pass with zero backend warnings/errors. Complete-source validation continues in
+Step 3. The implementation receives a committed first review round and
+then a different fresh second round before Step 2 closes. C12/final-source hosted
+A/B, original archive reconciliation and PR remain open; no new timer or previous
+packet's qualification credit is inferred.

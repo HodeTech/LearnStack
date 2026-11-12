@@ -13,6 +13,12 @@ const unknownRefreshMs = 30_000;
 
 type JsonObject = Record<string, unknown>;
 
+class LogoutVerificationUnavailable extends BffProviderError {
+  constructor(readonly stage: 'provider' | 'clock' | 'capacity') {
+    super('response');
+  }
+}
+
 /** JSON.parse alone silently accepts duplicate names, including escaped equivalents. */
 function uniqueJson(text: string): unknown {
   let pos = 0;
@@ -112,7 +118,7 @@ function decode(part: string): unknown {
   return uniqueJson(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
 }
 
-/** Inactive native adapter. Its only network destinations are fixed by the issuer. */
+/** Native logout adapter. Its only network destinations are fixed by the issuer. */
 export function createLogoutTokenVerifier(
   input: Readonly<{ issuer: string; allowLoopbackHttp?: boolean }>,
   transport: typeof fetch,
@@ -147,7 +153,13 @@ export function createLogoutTokenVerifier(
   let active = 0;
 
   async function keys(signal: AbortSignal | undefined, now: number) {
-    if (pending) return pending;
+    if (pending) {
+      try {
+        return await pending;
+      } catch {
+        throw new LogoutVerificationUnavailable('provider');
+      }
+    }
     const operation = providerOperation(issuer, signal, transport);
     pending = (async () => {
       const discovery = await operation.fetch(`${issuer}/.well-known/openid-configuration`);
@@ -187,6 +199,8 @@ export function createLogoutTokenVerifier(
     })();
     try {
       return await pending;
+    } catch {
+      throw new LogoutVerificationUnavailable('provider');
     } finally {
       pending = undefined;
     }
@@ -194,11 +208,12 @@ export function createLogoutTokenVerifier(
 
   return Object.freeze({
     async verify(token: string, signal?: AbortSignal): Promise<VerifiedLogoutToken> {
-      if (active >= 8) throw new BffProviderError('response');
+      if (active >= 8) throw new LogoutVerificationUnavailable('capacity');
       active++;
       try {
         const now = clock();
-        if (!Number.isSafeInteger(now) || now < lastClock) throw new BffProviderError('response');
+        if (!Number.isSafeInteger(now) || now < lastClock)
+          throw new LogoutVerificationUnavailable('clock');
         lastClock = now;
         if (signal?.aborted) throw new BffProviderError('cancelled');
         if (typeof token !== 'string' || Buffer.byteLength(token, 'utf8') > maxTokenBytes)
@@ -252,7 +267,7 @@ export function createLogoutTokenVerifier(
           await compactVerify(token, keyset, { algorithms: ['RS256'] });
         } catch (error) {
           if (!(error instanceof errors.JWKSNoMatchingKey)) throw error;
-          if (pending) keyset = await pending;
+          if (pending) keyset = await keys(signal, now);
           else {
             if (now - lastUnknownRefresh < unknownRefreshMs) throw error;
             lastUnknownRefresh = now;
@@ -269,7 +284,7 @@ export function createLogoutTokenVerifier(
           iat * 1000 < finished - 300_000 ||
           exp * 1000 < finished - 30_000
         )
-          throw new BffProviderError('response');
+          throw new LogoutVerificationUnavailable('clock');
         lastClock = finished;
         return Object.freeze({
           issuer,

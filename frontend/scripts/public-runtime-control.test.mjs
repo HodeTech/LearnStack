@@ -9,6 +9,7 @@ import { connect } from 'node:tls';
 import { pathToFileURL } from 'node:url';
 
 // Inert dependency fixtures exercise the actual native startup/shutdown owner.
+// The bridge fixture owns a real inert socket, not the production bridge/TLS code.
 // They do not qualify initialized Next, workers, copied proof relay or family joins.
 const runtimeUrl = new URL('../apps/web/scripts/public-server-runtime.mjs', import.meta.url);
 const source = await readFile(runtimeUrl, 'utf8');
@@ -78,8 +79,8 @@ async function fixture(options = {}) {
     'state.mjs': `
       export const state = { events: [], options: ${JSON.stringify({ ...options, port })} };
       const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
-      for (const name of ['import', 'prepare', 'requests', 'sessions', 'close', 'listen', 'upgrade']) state[name + 'Gate'] = deferred();
-      for (const name of ['import', 'prepare', 'close', 'listen', 'upgrade']) state[name + 'Started'] = deferred();
+      for (const name of ['import', 'prepare', 'requests', 'sessions', 'close', 'listen', 'upgrade', 'bridgeBind']) state[name + 'Gate'] = deferred();
+      for (const name of ['import', 'prepare', 'close', 'listen', 'upgrade', 'bridgeBind']) state[name + 'Started'] = deferred();
       state.event = (name) => { state.events.push(name); state.onEvent?.(name); };
     `,
     'development.mjs': `
@@ -114,6 +115,62 @@ async function fixture(options = {}) {
         state.event('configuration');
         if (state.options.rejectConfiguration) throw new Error('credential-redaction-marker');
         return {enabled: state.options.bff === true, issuer: 'https://fixture.invalid'};
+      }
+    `,
+    'backchannel-config.mjs': `
+      import { state } from './state.mjs';
+      export function backchannelConfiguration(_root, _env, bff) {
+        if (state.options.bridge && !bff) throw new Error('Fixture requires BFF');
+        return state.options.bridge ? { enabled: true, authority: 'callback.invalid', port: 0, bindAddress: '127.0.0.1' } : { enabled: false };
+      }
+    `,
+    'backchannel-http.mjs': `
+      import { state } from './state.mjs';
+      export const BACKCHANNEL_PATH = '/api/auth/backchannel/keycloak';
+      export const createBackchannelAdmission = () => ({ counts: () => ({active: 0, peers: 0}) });
+      export function createNativeBackchannel({verify, apply}) {
+        if (typeof verify !== 'function' || typeof apply !== 'function') throw new Error('Fixture callback wiring failed');
+        state.event('backchannel-created');
+        return { handle(_request, response) { response.writeHead(400); response.end(); }, async stop() { state.event('backchannel-stop'); } };
+      }
+    `,
+    'backchannel-verifier.mjs': `export const createLogoutTokenVerifier = () => ({ verify: async () => ({}) });`,
+    'backchannel-bridge.mjs': `
+      import { createServer } from 'node:http';
+      import { state } from './state.mjs';
+      export function createBackchannelBridge(config, admission, nativePort) {
+        if (!config.enabled || !admission || nativePort !== state.options.port) throw new Error('Fixture bridge wiring failed');
+        const server = createServer((_req, res) => res.end());
+        state.bridgeServer = server;
+        let start, stopped = false, stop;
+        state.event('bridge-created');
+        return {
+          server,
+          start() {
+            if (stopped || start) throw new Error('Fixture bridge stopped');
+            state.event('bridge-bind-start');
+            start = new Promise((resolve, reject) => {
+              server.once('error', reject);
+              server.listen(0, '127.0.0.1', async () => {
+                state.event('bridge-bound'); state.bridgeBindStarted.resolve();
+                if (state.options.holdBridgeBind) await state.bridgeBindGate.promise;
+                if (state.options.rejectBridgeBind) reject(new Error('credential-redaction-marker'));
+                else resolve();
+              });
+            });
+            return start;
+          },
+          stop() {
+            if (stop) return stop;
+            stopped = true; state.event('bridge-stop');
+            stop = (async () => {
+              await start?.catch(() => {});
+              if (server.listening) await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+              state.event('bridge-joined');
+            })();
+            return stop;
+          },
+        };
       }
     `,
     'logout.mjs': 'export const protectBffLogoutResponse = () => {};',
@@ -174,7 +231,7 @@ async function fixture(options = {}) {
       export function installBffSessionRuntime() {
         state.event('sessions-created');
         if (state.options.rejectSessions) throw new Error('credential-redaction-marker');
-        return {store: {}, async stop() { state.event('sessions-stop'); if (state.options.holdSessions) await state.sessionsGate.promise; state.event('sessions-joined'); }};
+        return {store: {}, applyProviderLogout() { return 'accepted'; }, backchannelCounts() { return {}; }, async stop() { state.event('sessions-stop'); if (state.options.holdSessions) await state.sessionsGate.promise; state.event('sessions-joined'); }};
       }
     `,
     'next.mjs': `
@@ -233,6 +290,10 @@ async function fixture(options = {}) {
     ['./development-hmr.mjs', './hmr.mjs'],
     ['../../../scripts/framework-development.mjs', './development.mjs'],
     ['../.server/auth/configuration.js', './configuration.mjs'],
+    ['../.server/auth/backchannel-configuration.js', './backchannel-config.mjs'],
+    ['../.server/auth/backchannel-http.js', './backchannel-http.mjs'],
+    ['../.server/auth/backchannel-verifier.js', './backchannel-verifier.mjs'],
+    ['../.server/auth/backchannel-bridge.js', './backchannel-bridge.mjs'],
     ['../.server/auth/logout-response.js', './logout.mjs'],
     ['../.server/ingress.js', './ingress.mjs'],
     ['../.server/public-admission-runtime.js', './admission.mjs'],
@@ -444,6 +505,51 @@ try {
   assert.equal(listening.state.server.listening, false);
   assert.equal(listening.state.events.includes('server-closed'), true);
 
+  const beforeBridge = await fixture({ bff: true, bridge: true });
+  beforeBridge.state.onEvent = (event) => {
+    if (event === 'bridge-created') beforeBridge.stop();
+  };
+  await beforeBridge.start();
+  await beforeBridge.joined();
+  assert.equal(beforeBridge.ready.length, 0);
+  assert.equal(beforeBridge.state.events.includes('bridge-bind-start'), false);
+  assert.equal(beforeBridge.state.events.includes('bridge-joined'), true);
+  assert.equal(beforeBridge.state.bridgeServer.listening, false);
+
+  const bridgeBinding = await fixture({ bff: true, bridge: true, holdBridgeBind: true });
+  const bridgeStart = bridgeBinding.start();
+  await bridgeBinding.state.bridgeBindStarted.promise;
+  const bridgeStop = bridgeBinding.stop();
+  await pending(bridgeStop);
+  assert.equal(bridgeBinding.state.bridgeServer.listening, true);
+  assert.equal(bridgeBinding.state.events.includes('bridge-stop'), true);
+  assert.equal(bridgeBinding.ready.length, 0);
+  bridgeBinding.state.bridgeBindGate.resolve();
+  await Promise.all([bridgeStart, bridgeStop]);
+  assert.equal(bridgeBinding.ready.length, 0);
+  assert.equal(bridgeBinding.state.bridgeServer.listening, false);
+  assert.equal(bridgeBinding.state.events.includes('bridge-joined'), true);
+  assert.equal(bridgeBinding.state.server.listening, false);
+
+  const bridgeFault = await fixture({ bff: true, bridge: true, rejectBridgeBind: true });
+  await bridgeFault.start();
+  await assert.rejects(bridgeFault.joined(), /^Error: Public server shutdown failed$/);
+  assert.equal(bridgeFault.ready.length, 0);
+  assert.equal(bridgeFault.state.bridgeServer.listening, false);
+  assert.equal(bridgeFault.state.events.includes('bridge-joined'), true);
+  assert.equal(bridgeFault.state.server.listening, false);
+
+  const bridgeHealthy = await fixture({ bff: true, bridge: true });
+  await bridgeHealthy.start();
+  assert.equal(bridgeHealthy.ready.length, 1);
+  assert.equal(
+    bridgeHealthy.state.events.indexOf('bridge-bound') <
+      bridgeHealthy.state.events.indexOf('ready'),
+    true,
+  );
+  await bridgeHealthy.stop();
+  assert.equal(bridgeHealthy.state.bridgeServer.listening, false);
+
   const healthy = await fixture();
   await healthy.start();
   assert.equal(healthy.ready.length, 1);
@@ -527,9 +633,20 @@ try {
   );
 } finally {
   for (const state of fixtureStates) {
-    for (const name of ['import', 'prepare', 'requests', 'sessions', 'close', 'listen', 'upgrade'])
+    for (const name of [
+      'import',
+      'prepare',
+      'requests',
+      'sessions',
+      'close',
+      'listen',
+      'upgrade',
+      'bridgeBind',
+    ])
       state[name + 'Gate'].resolve();
     state.upgradeSocket?.destroy();
+    if (state.bridgeServer?.listening)
+      await new Promise((resolve) => state.bridgeServer.close(resolve));
     if (state.server?.listening) {
       const closed = new Promise((resolve) => state.server.close(resolve));
       state.server.closeAllConnections();

@@ -596,6 +596,9 @@ export function productionDemoSources(
     const config = JSON.parse(serverConfig);
     const expected = [
       'src/server/auth/account-client.ts',
+      'src/server/auth/backchannel-bridge.ts',
+      'src/server/auth/backchannel-configuration.ts',
+      'src/server/auth/backchannel-http.ts',
       'src/server/auth/backchannel-verifier.ts',
       'src/server/auth/configuration.ts',
       'src/server/auth/http-protocol.ts',
@@ -824,7 +827,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '3343883e1fd933523298e8d190337690aecc566bc8c863b87be2ca0d88482d07',
+            '2be56f3cf5ed9effd46715ebf292bd830731a66f11c68a412cb8b745dc35eaf9',
           ],
           [
             'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',

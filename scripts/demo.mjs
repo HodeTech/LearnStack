@@ -15,6 +15,7 @@ import { getCACertificates } from 'node:tls';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { composeProcessEnvironment, composeSelection, repositoryRoot } from './compose.mjs';
+import { developmentBackchannelConfiguration, initializeKeycloakTrust } from './development-backchannel.mjs';
 import {
   DemoCommandError,
   DemoProcesses,
@@ -290,6 +291,7 @@ export async function startDemo(mode) {
       const source = await readRealmEnvironmentFile(rootEnv);
       realmEnvironment(source);
       eventReaderEnvironment(source);
+      await developmentBackchannelConfiguration({ source });
     }
     mkdirSync(join(repositoryRoot, '.data'), { recursive: true });
     try {
@@ -431,11 +433,13 @@ export async function startDemo(mode) {
       const source = await readRealmEnvironmentFile(rootEnv);
       realmEnvironment(source);
       eventReaderEnvironment(source);
+      await developmentBackchannelConfiguration({ source });
       await run('node', ['scripts/public-local.mjs', 'prepare'], 'Private local preparation');
     }
     const privateSource = await readRealmEnvironmentFile(rootEnv);
     realmEnvironment(privateSource);
     eventReaderEnvironment(privateSource);
+    const backchannel = await developmentBackchannelConfiguration({ source: privateSource });
     const identityEnvironment = seedAuthorityEnvironment(privateSource);
     const rawValues = parseLocalEnvironment(privateSource);
     for (const [key, value] of Object.entries(rawValues))
@@ -481,6 +485,7 @@ export async function startDemo(mode) {
       LEARNSTACK_COMPOSE_ENV_FILE: rootEnv,
     };
     selected = composeSelection(mode === 'ci' ? 'e2e' : 'dev', composeEnvironment);
+    await initializeKeycloakTrust({ configuration: backchannel });
     // Selection can remove inherited Docker controls assigned in the private file.
     validateLocalDockerContext(selected.env, JSON.parse(await run('docker', ['context', 'inspect'],
       'Selected Docker context', { env: selected.env, capture: true, timeout: 5000 })));

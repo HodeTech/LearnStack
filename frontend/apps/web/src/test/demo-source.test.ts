@@ -178,6 +178,7 @@ describe('observational CI demo source checkpoints', () => {
         'compose',
         'development-realm-owner',
         'development-realm-errors',
+        'development-backchannel',
       ])
         writeFileSync(
           join(f.root, `scripts/${name}.mjs`),

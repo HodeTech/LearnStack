@@ -158,6 +158,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       repositoryRoot,
       commandArgs,
     );
+    if (commandArgs.includes('up')) {
+      const { developmentBackchannelConfiguration, initializeKeycloakTrust } = await import('./development-backchannel.mjs');
+      const configuration = await developmentBackchannelConfiguration({ source: readComposeEnvironmentFile(selected.file) });
+      await initializeKeycloakTrust({ configuration });
+    }
     const child = spawn('docker', [...selected.args, ...commandArgs], {
       cwd: selected.cwd,
       env: selected.env,

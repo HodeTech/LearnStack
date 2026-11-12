@@ -8,6 +8,7 @@ import { publicSeederEnvironment, developmentSeederRuntimeEnvironment } from './
 import { reconcileRealm, realmPassMilliseconds } from './development-realm-core.mjs';
 import { acquireRealmLock, eventReaderEnvironment, isLocalDockerEndpoint, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
+import { developmentBackchannelConfiguration, validateKeycloakBackchannelTrust } from './development-backchannel.mjs';
 
 /** Shared seed/demo operation. Neither target nor secrets are command-line parameters. */
 export async function reconcileDevelopmentRealm({ selected, signal, seedIdentityFoundation = false }) {
@@ -26,6 +27,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
         || (selected.env.DOCKER_HOST && !isLocalDockerEndpoint(selected.env.DOCKER_HOST)))
       refuse('preflight', 'configuration');
     const source = await readRealmEnvironmentFile(selected.file);
+    const backchannel = await developmentBackchannelConfiguration({ source });
     const values = realmEnvironment(source);
     const eventReaderSecret = eventReaderEnvironment(source);
     const identityEnvironment = seedIdentityFoundation ? seedAuthorityEnvironment(source) : undefined;
@@ -36,6 +38,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     const inspections = JSON.parse(await run(['inspect', ids[0]]));
     if (!Array.isArray(inspections) || inspections.length !== 1) refuse('preflight', 'configuration');
     const target = validateRealmTarget(selected, model, ids, inspections[0], context, values);
+    await validateKeycloakBackchannelTrust({ configuration: backchannel, inspected: inspections[0] });
     lock = await acquireRealmLock(target.lockIdentity);
     const manifest = JSON.parse(await processes.run('dotnet', [join(repositoryRoot,
       'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'), '--identity-manifest'], {
@@ -45,7 +48,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     const desired = JSON.parse(await readFile(join(repositoryRoot, 'infra/keycloak/realms/learnstack.json'), 'utf8'));
     result = await reconcileRealm({ ...target, adminUsername: values.KEYCLOAK_ADMIN,
       adminPassword: values.KEYCLOAK_ADMIN_PASSWORD, webSecret: values.KEYCLOAK_WEB_CLIENT_SECRET, eventReaderSecret,
-      manifest, desired, signal: active,
+      manifest, desired, backchannel, signal: active,
       afterVerified: !seedIdentityFoundation ? undefined : async witness => {
         const applicationConnection = parseEnv(source).ConnectionStrings__Default;
         if (!applicationConnection || witness.issuer !== identityEnvironment.Authentication__Tenant__Issuer)

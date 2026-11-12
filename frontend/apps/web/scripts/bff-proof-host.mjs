@@ -372,7 +372,7 @@ export function instrumentCopiedBffRuntime(
     launcher = replace(
       launcher,
       "if (!ready) throw new Error('Public HTTPS listener failed');",
-      "if (!ready) throw new Error('Public HTTPS listener failed');\n              control.proof.emit({ kind: 'proof-listener', port: address.port });",
+      "if (!ready) throw new Error('Public HTTPS listener failed');\n    control.proof.emit({ kind: 'proof-listener', port: server.address().port });",
     );
   }
   return launcher;
@@ -567,6 +567,9 @@ export async function prepareBffProof({
     'backchannel-contract',
     'backchannel-state',
     'backchannel-verifier',
+    'backchannel-configuration',
+    'backchannel-http',
+    'backchannel-bridge',
     'provider-core',
     'provider-error',
     'provider-transport',
@@ -976,6 +979,24 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       randomListener,
     });
     env.NODE_EXTRA_CA_CERTS = trust.caPath;
+  }
+  if (external?.backchannel) {
+    const callback = external.backchannel;
+    for (const [name, value] of Object.entries({
+      'callback-cert.pem': callback.certificate,
+      'callback-key.pem': callback.privateKey,
+      'callback-ca.pem': callback.authority,
+    }))
+      writeFileSync(join(root, name), value, { mode: 0o600, flag: 'wx' });
+    Object.assign(env, {
+      LEARNSTACK_BFF_BACKCHANNEL_ENABLED: 'true',
+      LEARNSTACK_BFF_BACKCHANNEL_URL: callback.url,
+      LEARNSTACK_BFF_BACKCHANNEL_BIND_ADDRESS: '0.0.0.0',
+      LEARNSTACK_BFF_BACKCHANNEL_TLS_CERT: join(root, 'callback-cert.pem'),
+      LEARNSTACK_BFF_BACKCHANNEL_TLS_KEY: join(root, 'callback-key.pem'),
+      LEARNSTACK_BFF_BACKCHANNEL_CA: join(root, 'callback-ca.pem'),
+      LEARNSTACK_BFF_BACKCHANNEL_NATIVE_CA: join(root, 'cert.pem'),
+    });
   }
   // Compile the copied current sources: never let stale workstation output
   // qualify the native side while Next compiles different bundled sources.

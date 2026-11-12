@@ -231,12 +231,18 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
       KC_FEATURES: token-exchange,admin-fine-grained-authz
+      KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/truststores
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
       # Realm seed JSONs (learnstack + learnstack-hub) — Keycloak imports them
       # at first start when the realms do not yet exist in the DB.
       - ../keycloak/realms:/opt/keycloak/data/import:ro
+      # The owned launcher prepares this directory before Compose (empty when
+      # disabled). Only the callback PUBLIC root is copied here; no keys.
+      - ../../.data/keycloak-trust:/opt/keycloak/conf/truststores:ro
     depends_on:
       postgres:
         condition: service_healthy

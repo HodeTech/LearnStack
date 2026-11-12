@@ -53,7 +53,10 @@ help: ## Show this help, listing every target and its one-line description.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_.-]+:.*?## / {printf "  $(CYAN)%-18s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ─── Dev infrastructure ───────────────────────────────────────────────────
-.PHONY: public-env public-api public-web
+.PHONY: public-env public-api public-web backchannel-tls
+backchannel-tls: ## Create missing owned local callback TLS material (no trust or env edits).
+	node scripts/setup-development-backchannel.mjs
+
 public-env: .env ## Generate the private local renderer secret (no hosts/trust edits).
 	(cd frontend && pnpm --filter @learnstack/web build:ingress)
 	node scripts/public-local.mjs prepare

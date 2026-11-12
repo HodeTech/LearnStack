@@ -77,6 +77,7 @@ function seedFixture(root: string) {
     'demo-process.mjs',
     'development-realm-owner.mjs',
     'development-realm-errors.mjs',
+    'development-backchannel.mjs',
   ])
     writeFileSync(
       join(root, 'scripts', file),
@@ -315,7 +316,7 @@ describe('shared explicit demo stack selection', () => {
     const root = temporary();
     mkdirSync(join(root, 'bin'));
     mkdirSync(join(root, 'scripts'));
-    for (const name of ['compose', 'development-realm-errors'])
+    for (const name of ['compose', 'development-realm-errors', 'development-backchannel'])
       writeFileSync(
         join(root, `scripts/${name}.mjs`),
         readFileSync(new URL(`../../../../../scripts/${name}.mjs`, import.meta.url)),
@@ -620,7 +621,13 @@ if (seed) process.stdout.write('seed-result: {"version":2,"freshTenantIds":[],"q
       join(root, 'scripts/connection-string.awk'),
       readFileSync(new URL('../../../../../scripts/connection-string.awk', import.meta.url)),
     );
-    for (const name of ['migrate', 'compose', 'demo-database', 'development-realm-errors'])
+    for (const name of [
+      'migrate',
+      'compose',
+      'demo-database',
+      'development-realm-errors',
+      'development-backchannel',
+    ])
       writeFileSync(
         join(root, `scripts/${name}.mjs`),
         readFileSync(new URL(`../../../../../scripts/${name}.mjs`, import.meta.url)),

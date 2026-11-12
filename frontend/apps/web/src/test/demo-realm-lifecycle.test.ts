@@ -45,6 +45,7 @@ function fixture() {
     'public-runtime',
     'development-realm-owner',
     'development-realm-errors',
+    'development-backchannel',
   ])
     writeFileSync(
       join(root, `scripts/${name}.mjs`),

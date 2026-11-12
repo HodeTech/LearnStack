@@ -4,6 +4,7 @@ import { identityClaims, mergeOwnedMappers, validateEffectiveMappers, validateNa
 import { readRealmGroups, readUserGroupIds } from './development-realm-groups.mjs';
 import { exactCreatedAccountAccess, planAccountSelfService } from './development-realm-account.mjs';
 import { planRealmEvents, requiredDevelopmentEvents, developmentEventRetentionSeconds } from './development-realm-events.mjs';
+import { developmentBackchannelUrl } from './development-backchannel.mjs';
 
 const managedScope = 'learnstack-tenant-api';
 const nativeScope = 'learnstack-native-session';
@@ -377,7 +378,7 @@ function mergedProfile(current, desired) {
   return merged;
 }
 
-function mergedClient(current, wanted, webSecret) {
+function mergedClient(current, wanted, webSecret, backchannel) {
   const body = {};
   for (const name of ownClientFields) {
     if (name in wanted) body[name] = copy(wanted[name]);
@@ -387,6 +388,14 @@ function mergedClient(current, wanted, webSecret) {
     && equal([...current.redirectUris].sort(), [...body.redirectUris].sort()))
     body.redirectUris = copy(current.redirectUris);
   body.attributes = { ...(current.attributes ?? {}), ...wanted.attributes };
+  if (wanted.clientId === 'learnstack-web' && backchannel?.enabled === true) {
+    body.frontchannelLogout = false;
+    Object.assign(body.attributes, {
+      'backchannel.logout.url': backchannel.url,
+      'backchannel.logout.session.required': 'true',
+      'backchannel.logout.revoke.offline.tokens': 'false',
+    });
+  }
   delete body.attributes['access.token.lifespan'];
   if (wanted.clientId === 'learnstack-web' && current.publicClient === true) body.secret = webSecret;
   return body;
@@ -396,6 +405,8 @@ function clientPatch(current, expected) {
   const patch = {};
   for (const field of ownClientFields)
     if (field in expected && !equal(current[field], expected[field])) patch[field] = copy(expected[field]);
+  if (Object.hasOwn(expected, 'frontchannelLogout') && current.frontchannelLogout !== expected.frontchannelLogout)
+    patch.frontchannelLogout = expected.frontchannelLogout;
   if ('secret' in expected) patch.secret = expected.secret;
   const attributes = Object.fromEntries(Object.entries(expected.attributes)
     .filter(([name, value]) => !equal(current.attributes?.[name], value)));
@@ -452,17 +463,17 @@ function exactCreatedAccess(roles, credentials, roleId, account) {
 }
 
 /** A complete read-only preflight. No ordinary mutation escapes before identity qualification. */
-export async function buildRealmPlan({ admin, desired, manifest, webSecret }) {
+export async function buildRealmPlan({ admin, desired, manifest, webSecret, backchannel }) {
   validateInputs(desired, manifest, webSecret);
   const events = await planRealmEvents(admin);
   const before = await snapshot(admin, desired, manifest, 'plan');
-  return assemblePlan({ admin, desired, manifest, webSecret, before, events });
+  return assemblePlan({ admin, desired, manifest, webSecret, backchannel, before, events });
 }
 
 // Only this internal path defers checks needing newly visible protected values.
 // Every other qualifier is shared with the ordinary planner. Provisional actions
 // never escape: the caller receives only a profile and its exact verification.
-export async function buildRealmPreparation({ admin, desired, manifest, webSecret }) {
+export async function buildRealmPreparation({ admin, desired, manifest, webSecret, backchannel }) {
   validateInputs(desired, manifest, webSecret);
   const events = await planRealmEvents(admin);
   const current = requireObject(await admin.get('users/profile'), 'prepare');
@@ -486,13 +497,16 @@ export async function buildRealmPreparation({ admin, desired, manifest, webSecre
   preflightBody(expected);
   preflightResponse(expected);
   const before = await snapshot(admin, desired, manifest, 'plan', { preparationProfile: current, preparing: true });
-  await assemblePlan({ admin, desired, manifest, webSecret, before, events, preparationOnly: true });
+  await assemblePlan({ admin, desired, manifest, webSecret, backchannel, before, events, preparationOnly: true });
   return Object.freeze({ profile: copy(expected), verify: actual => {
     if (!equal(actual, expected)) refuse('prepare', 'readback_conflict');
   } });
 }
 
-async function assemblePlan({ admin, desired, manifest, webSecret, before, events, preparationOnly = false }) {
+async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, before, events, preparationOnly = false }) {
+  if (backchannel !== undefined && (typeof backchannel !== 'object' || backchannel === null
+    || ![true, false].includes(backchannel.enabled))) refuse('plan', 'backchannel_configuration');
+  if (backchannel?.enabled === true) developmentBackchannelUrl(backchannel.url);
   const actions = [];
   const add = (label, apply, body) => {
     preflightBody(body);
@@ -577,7 +591,19 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
     if (baseline.client.serviceAccountsEnabled !== wanted.serviceAccountsEnabled)
       refuse('plan', 'unsupported');
     if (name === 'learnstack-web' && baseline.client.publicClient !== true && baseline.secret !== webSecret) refuse('plan', 'secret_conflict');
-    const body = mergedClient(baseline.client, wanted, webSecret);
+    if (name === 'learnstack-web') {
+      if (baseline.defaults.some(scope => scope.name === 'offline_access')
+        || wanted.defaultClientScopes.includes('offline_access')) refuse('plan', 'backchannel_conflict');
+      if (backchannel?.enabled === true) {
+        const attrs = baseline.client.attributes ?? {};
+        const retainedUrl = attrs['backchannel.logout.url'];
+        if (retainedUrl !== undefined && retainedUrl !== '' && retainedUrl !== backchannel.url
+          || (attrs['id.token.signed.response.alg'] || before.realm.defaultSignatureAlgorithm || 'RS256') !== 'RS256'
+          || ['id.token.encrypted.response.alg', 'id.token.encrypted.response.enc'].some(key => attrs[key]))
+          refuse('plan', 'backchannel_conflict');
+      }
+    }
+    const body = mergedClient(baseline.client, wanted, webSecret, backchannel);
     expectedClients.set(name, { ...baseline.client, ...omit(body, ['secret']) });
     const patch = clientPatch(baseline.client, body);
     if (Object.keys(patch).length) {

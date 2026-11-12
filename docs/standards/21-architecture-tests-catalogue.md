@@ -6455,6 +6455,16 @@ bridge startup/parent-loss, and real provider-to-native normal-setup proof. The
 extension is **Registered** pending its implementation and executed controls;
 existing baseline statuses and architecture rule counts do not change.
 
+The extension's implementation owners are the native `backchannel-*` controls,
+`session-store-backchannel.test.ts`, the native startup owner controls and
+`TenantBffSessionTests.Backchannel.cs`. The actual provider test uses Keycloak's
+admin session logout through the callback TLS bridge, with a disabled-bridge
+counterexample, exact shared SSO targets and distinct/later SSO preservation.
+`scripts/development-backchannel.test.mjs` and
+`scripts/development-realm-backchannel.test.mjs` own normal setup/trust and closed
+fresh/warm field reconciliation. These local controls do not promote the
+extension's proof status or replace final-source hosted qualification.
+
 #### `Bff_Credentials_And_Projections_Are_Confined`
 
 - **Asserts:** only the native owner/RP adapter holds credentials; public wrappers,

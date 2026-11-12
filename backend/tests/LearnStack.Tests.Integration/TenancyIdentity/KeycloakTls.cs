@@ -14,6 +14,8 @@ internal sealed class KeycloakTls : IDisposable
     internal X509Certificate2 RootCertificate { get; }
     internal byte[] ServerCertificatePem { get; }
     internal byte[] ServerPrivateKeyPem { get; }
+    internal byte[] CallbackCertificatePem { get; }
+    internal byte[] CallbackPrivateKeyPem { get; }
 
     internal KeycloakTls()
     {
@@ -47,12 +49,30 @@ internal sealed class KeycloakTls : IDisposable
 
         ServerCertificatePem = Encoding.ASCII.GetBytes(server.ExportCertificatePem());
         ServerPrivateKeyPem = Encoding.ASCII.GetBytes(serverKey.ExportPkcs8PrivateKeyPem());
+        using var callbackKey = RSA.Create(2048);
+        var callbackRequest = new CertificateRequest("CN=host.docker.internal", callbackKey,
+            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        callbackRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        callbackRequest.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
+        callbackRequest.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
+            new OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
+        var callbackNames = new SubjectAlternativeNameBuilder();
+        callbackNames.AddDnsName("host.docker.internal");
+        callbackRequest.CertificateExtensions.Add(callbackNames.Build());
+        var callbackSerial = RandomNumberGenerator.GetBytes(16);
+        callbackSerial[0] &= 0x7f;
+        callbackSerial[^1] |= 1;
+        using var callback = callbackRequest.Create(authority, now.AddMinutes(-5), now.AddHours(24), callbackSerial);
+        CallbackCertificatePem = Encoding.ASCII.GetBytes(callback.ExportCertificatePem());
+        CallbackPrivateKeyPem = Encoding.ASCII.GetBytes(callbackKey.ExportPkcs8PrivateKeyPem());
         RootCertificate = X509CertificateLoader.LoadCertificate(authority.Export(X509ContentType.Cert));
     }
 
     public void Dispose()
     {
         CryptographicOperations.ZeroMemory(ServerPrivateKeyPem);
+        CryptographicOperations.ZeroMemory(CallbackPrivateKeyPem);
         RootCertificate.Dispose();
     }
 }

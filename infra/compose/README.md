@@ -18,6 +18,19 @@ mismatch. Existing file permissions require explicit operator correction.
 The end-to-end overlay
 adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
+### Native callback trust
+
+Before starting Keycloak, the owned Compose launcher prepares
+`.data/keycloak-trust` (empty when callback delivery is disabled). The directory
+is mounted read-only into Keycloak's configured truststore path. An explicitly
+enabled native callback copies only its qualified public root there and uses
+`host.docker.internal:host-gateway` to reach the callback-only TLS listener in the
+existing native child. Follow the
+[single setup and recovery recipe](../keycloak/README.md#native-back-channel-logout)
+before opt-in; do not mount private CA keys, widen the ordinary native listener,
+or bypass TLS verification. Direct raw `docker compose up` commands must prepare
+the owned directory through the normal `make dev` path first.
+
 ### Data plane (Phase 01 packet 3)
 
 | Service | Image | Local endpoint | Default credentials |

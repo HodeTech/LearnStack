@@ -25,6 +25,18 @@ there is no general `/api/*` proxy or browser-to-backend bearer forwarding.
 
 ## Optional tenant sign-in
 
+Optional provider-driven logout uses the callback-only TLS listener in the same
+managed native child. It defaults disabled. Follow the
+[realm setup recipe](../../../infra/keycloak/README.md#native-back-channel-logout)
+for explicit `LEARNSTACK_BFF_BACKCHANNEL_*` values, `make backchannel-tls`, the
+public callback CA mounted into Keycloak and the separate public root verifying
+the existing native `localhost` certificate. Normal `make seed`/`make demo` and
+development watch use this setup. The ordinary web listener remains loopback.
+[Security 11](../../../docs/standards/11-security.md#native-back-channel-logout)
+owns limits and outage behavior; the recipe also covers actual managed-family
+restart and session loss. Never use a TLS bypass or clear retained fences to
+recover saturation.
+
 First complete the root [HTTPS Quickstart](../../../README.md#quickstart), start
 the selected infrastructure with `make dev`, and converge it with `make seed`.
 Keep the API running through `make public-api`. On the default development

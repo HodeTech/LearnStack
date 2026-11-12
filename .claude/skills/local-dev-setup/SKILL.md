@@ -101,6 +101,16 @@ contents out of tool output, command arguments and committed files.
 
 ### Step 3: Bring up the stack
 
+Optional native back-channel logout follows the
+[realm setup recipe](../../../infra/keycloak/README.md#native-back-channel-logout).
+It is explicitly disabled by default. Before enabling it, the operator runs
+`make backchannel-tls`, supplies the existing native certificate's public root
+through `LEARNSTACK_BFF_BACKCHANNEL_NATIVE_CA`, and adds every agreed callback
+setting without replacing private values. `make dev` prepares the public-only
+Keycloak trust directory before Compose; seed/demo share the same read-only
+preflight. Follow that recipe for TLS/conflict failures, saturation and actual
+managed-family restart; never evict fences or reclaim by PID/lock age.
+
 ```bash
 make dev        # the daily loop: 7 services, the ones the backend can call
 make dev-gated  # all 14, including Valkey, Kafka, kafka-ui, Vault, APISIX and Dapr

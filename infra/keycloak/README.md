@@ -338,6 +338,102 @@ and single-link status. Never remove the whole directory, glob locks or delete
 a lock based only on elapsed time. Explicitly rerun convergence afterwards;
 partial Admin REST writes remain durable and are re-read.
 
+## Native back-channel logout
+
+[Security 11](../../docs/standards/11-security.md#native-back-channel-logout)
+owns protocol, capacity, replay/fence and failure policy. This local setup enables
+the callback-only TLS listener inside the existing managed native child. It adds
+no worker or application authority and does not widen the ordinary web listener.
+The default `LEARNSTACK_BFF_BACKCHANNEL_ENABLED=false` keeps the listener and
+provider reconciliation inactive; ordinary native/browser guards still apply.
+
+Prepare the ordinary native TLS leaf and BFF settings first, following
+[web sign-in](../../frontend/apps/web/README.md#optional-tenant-sign-in).
+Supply the **public** root that verifies that existing leaf at `localhost`, for
+example the `rootCA.pem` under `mkcert -CAROOT`. Never copy its private root key.
+Then explicitly create the missing callback material:
+
+```bash
+make backchannel-tls
+```
+
+This one-shot command exclusively creates `.data/tls/backchannel/` with a
+`host.docker.internal` leaf, private leaf key and public callback root. Its
+temporary signing key is deleted after generation. It refuses existing or
+partial output; inspect it privately instead of overwriting or rotating it.
+It edits no environment file, hosts entry or machine trust store.
+
+Add these explicit settings to the selected private root source. Preserve its
+existing BFF secret, authority and ordinary certificate values. Any values also
+present in web `.env.local` or the process environment must agree.
+
+```dotenv
+LEARNSTACK_BFF_ENABLED=true
+LEARNSTACK_BFF_BACKCHANNEL_ENABLED=true
+LEARNSTACK_BFF_BACKCHANNEL_URL=https://host.docker.internal:3443/api/auth/backchannel/keycloak
+LEARNSTACK_BFF_BACKCHANNEL_BIND_ADDRESS=0.0.0.0
+LEARNSTACK_BFF_BACKCHANNEL_TLS_CERT=.data/tls/backchannel/leaf.pem
+LEARNSTACK_BFF_BACKCHANNEL_TLS_KEY=.data/tls/backchannel/leaf-key.pem
+LEARNSTACK_BFF_BACKCHANNEL_CA=.data/tls/backchannel/ca.pem
+LEARNSTACK_BFF_BACKCHANNEL_NATIVE_CA=/absolute/path/to/mkcert/rootCA.pem
+```
+
+Use an available callback port; the HTTPS URL must retain the exact path and
+fixed authority. Only IPv4 `0.0.0.0` or `127.0.0.1` binding is supported. Docker
+provider delivery uses `0.0.0.0` and `host.docker.internal`; loopback binding is
+for a provider running on the workstation. The callback leaf must cover its URL
+hostname, and its key must have owner-only permissions. Public certificates must
+be current-user-owned regular, nonsymlink, single-link files without group/other
+write permissions. The shared preflight validates callback and native trust before
+stack start or any realm mutation; missing material and source conflicts refuse.
+Do not use `NODE_TLS_REJECT_UNAUTHORIZED=0` or copy any root private key.
+
+Run `make seed`, then `make demo` for the managed production demo, or
+`make public-api` and `make public-web` for separate development terminals.
+`make dev`, seed and demo prepare the fixed `.data/keycloak-trust` directory
+before Compose. When enabled they exclusively copy only the qualified public
+callback root to `callback-root.pem`; an existing different root refuses. Compose
+mounts that directory read-only at `/opt/keycloak/conf/truststores`, sets
+`KC_TRUSTSTORE_PATHS` and maps `host.docker.internal:host-gateway`. Disabled first
+start uses an empty directory, avoiding nonexistent file mounts. Existing trust
+is preserved when disabled. A previously running Keycloak must be recreated by
+the normal `make dev` path to acquire changed mount/environment settings; realm
+setup verifies the selected running container has the actual trust/host route.
+
+Fresh and warm convergence qualify effective RS256 with no ID-token encryption.
+Only the web client's `backchannel.logout.url`,
+`backchannel.logout.session.required=true`,
+`backchannel.logout.revoke.offline.tokens=false` and top-level
+`frontchannelLogout=false` are newly owned. A nonempty existing foreign callback
+URL refuses before any write. API/Hub clients, secrets, IDs, accounts, admin/event
+policy and unrelated fields remain under their existing owners. Default
+`offline_access` on the web client refuses; optional inventory is retained and
+does not authorize the native client to request or accept it. Independent exact
+readback and a zero-write converged pass are required for either setup population.
+
+For `preflight/backchannel_configuration`, inspect private source agreement,
+file ownership/permissions, certificate validity/SAN/pair, both public roots and
+the selected container's actual mount/environment/host route. For
+`plan/backchannel_conflict`, inspect the retained callback, default scopes and
+signing/encryption profile; make an explicit operator correction after confirming
+ownership. No automatic retargeting or private-file repair occurs. A token URL
+alone does not prove provider-to-native reachability; exercise a real provider
+logout against the running native family before claiming it.
+
+For callback failures or saturation, use private diagnostics described by
+[Security 11](../../docs/standards/11-security.md#native-back-channel-logout): closed
+state, scalar occupancy and oldest held age distinguish pinned work from bad
+trust, unavailable signing keys or an unreachable callback. Restore the failing
+dependency first. If restart is required, stop the actual owning `make demo` or
+`make public-web` process, join its whole managed native family and follow
+[owner-loss recovery](../../docs/standards/07-frontend-architecture.md#frontend-runtime-owner-loss-recovery)
+before clearing an ownership reservation. Then restart that same normal command.
+Never evict replay/fence state, steal an old PID/lock by age, or kill an unrelated
+process. Restart loses process-local sessions and signs users out. Provider
+delivery has no durable retry guarantee; a missed notification relies on refresh
+or expiry, and existing API JWT acceptance is unchanged. Phase 11 owns production
+edge, distributed delivery and operational hardening.
+
 ## Tenant client contract
 
 `learnstack-web` permits authorization code with S256 PKCE and a server-held
