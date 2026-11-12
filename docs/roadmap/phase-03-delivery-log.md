@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 906 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 940 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -475,7 +475,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 28 lines
   - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
   - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
-  - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 27 lines
+  - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
+  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21510,3 +21511,43 @@ reconciliation. Previous-source A/B receives no credit for this correction.
 Record the passing source-bound pair in PR proof without another source commit
 merely to narrate CI IDs. The packet remains in maintainer review handoff until
 merge; no new runtime/test/CI clock, permission or deployment policy is selected.
+
+
+### P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)
+
+The reviewed `7fe0fb9f` source passes complete hosted A attempts 1 and 3, each
+27/27 jobs, but neither opposite-layout B qualifies. Attempt 2 finishes 23/27:
+five cases fail during shared Keycloak startup, four no-listener producer rows
+fail and one uncertain self-creation COMMIT row fails; the integration aggregate
+refuses. Attempt 4 finishes 25/27: the same four producer rows fail and the
+integration aggregate refuses. No failed-job rerun or partial-result combination
+receives qualification credit.
+
+All 25 originals from each passing A and all 24 published originals from each
+failed B are retained with original API metadata, byte counts, SHA-256 and CRC
+checks at `artifacts/p037-deep-review/ci/{ReviewA,ReviewB,RecoveryA,RecoveryB}/originals/`.
+Each failed B lacks the integration success archive; its absence is recorded,
+not repaired by fabrication. Complete workflow/frontend logs are retained before
+another attempt. The final B frontend report still reconciles 4,425 passing cases.
+
+Local Release replay passes all 275 exact case IDs from the failed producer
+shard, a narrow six-case API/producer sequence and both creation-durability rows.
+These results neither identify the hosted causes nor qualify the failed B.
+The existing finite `failureLocations` projection omits both failing source
+files, so their sanitized results cannot identify the assertion line. Extend
+that closed source-code map for `ProducerExecutionTests.cs` and
+`GlobalIdentityBootstrapTests.CreationDurability.cs`; keep raw assertion text,
+stack traces, paths and provider material excluded. Existing privacy controls
+cover both path separators, duplicate/lookalike names and invalid line bounds.
+The eight-location limit, all test outcomes, cleanup and timing remain intact.
+
+This is a diagnostic correction, not a claim to repair the hosted cause. Commit
+it, complete both fresh review rounds and freeze one new source for the normal
+complete A followed by whole-run B. Do not repeat the unchanged failed source
+without the missing observation or relax its no-listener assertion.
+
+Local correction checks pass: 111 native-owner controls, 88 shard/aggregate
+controls (including their 42 result controls), five corpus cases, ADR status,
+roadmap structure, all three delivery indexes and 3,662 fragment links. The
+standalone result-control run also passes. These offline checks establish the
+finite diagnostic projection and existing refusals, not hosted failure repair.
