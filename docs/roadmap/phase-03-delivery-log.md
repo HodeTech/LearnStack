@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 962 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 1,022 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -476,7 +476,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
   - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
   - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
-  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 55 lines
+  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
+  - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 59 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21567,3 +21568,63 @@ are complete; freeze this source for one automatic PR workflow and, only after
 its complete successful audit, one whole-run opposite-layout attempt. PR proof
 owns the final source/run IDs and archived results. Qualification remains open;
 no timer, test premise or cleanup assertion is weakened to obtain a green run.
+
+
+### P03-7 faulted test-owner lifetime correction (2026-11-12)
+
+New-source A `43239722329` / `2691076e` fails an existing recurrence application
+ownership case at the shared thirty-second polling helper. Its six callers
+cannot be distinguished by the retained helper line alone. The exact local
+case passes once; this does not identify the hosted predicate or repair its
+cause. Add the exact `BackgroundJobRecurrenceStoreTests.ApplicationOwnership.cs`
+caller and the changed admission-test source to the finite source-location
+census, preserving all privacy and numeric bounds.
+
+The same source's producer no-listener B remains unexecuted. A separate concrete
+local witness finds a test-lifetime defect: the selected blocked-admission test
+passes, but its API telemetry listener survives both client disposal and reported
+fixture cleanup. The control has no listener before the test and creates real
+activities afterward. The test constructs and explicitly joins a deliberately
+faulting limiter, yet its factory registration gives DI a second disposal claim.
+That fault interrupts host cleanup. Register the externally created instance
+instead; retain the scenario's explicit fault/child-resource assertions. Add
+false-before, live-host-positive and false-after-disposal controls to the actual
+existing test. Do not rename the producer's source, disable telemetry or weaken
+its no-listener assertion. This demonstrates a real fixture leak, not independent
+attribution of the historical hosted stack frames.
+
+After that witness, stop the two remaining jobs of the already failed A to
+proceed with correction. It ends cancelled: 22 successful jobs, two cancelled
+producer jobs and three failures including both required aggregates. Retain all
+23 published original ZIPs with API byte/digest/CRC checks and complete workflow
+and frontend logs at `artifacts/p037-diagnostic-location/ci/ReviewA/`; both missing
+aggregate archives are recorded. Its frontend reconciles 4,425 passing cases.
+No complete-A/B or cleanup qualification is inferred from this cancelled run.
+The failed ordinary-1 original and the controlled lifecycle witness also remain
+separately retained. The first two witness invocations fail content-root setup
+before the actual test and receive no behavioral credit; the third invokes the
+real test successfully and observes the surviving listener.
+
+Validate the new regression against the original registration, then the fixed
+registration. Complete both fresh review rounds and freeze one corrected source
+for a new complete A followed by whole-run B; the unrelated recurrence timeout
+remains unlocalized unless a later receipt identifies its caller. No product,
+runtime/test/CI timing, authority or cleanup policy changes.
+
+The immediate process-wide post-disposal assertion is too broad: a healthy
+factory control also observes entry-point cleanup still finishing after client
+disposal. Observe an additional source registered only with the real admission
+test host instead, and join its actual unsubscription under the existing
+fifteen-second `AdmissionDeadline`. No elapsed deadline counts as retirement.
+The original producer source/assertions are unchanged. With the original
+factory-owned limiter restored, this final control times out without claiming
+cleanup; earlier immediate-assertion attempts remain failed intermediate checks.
+
+The final fixed Release run passes the two sticky-fault origins, blocked cleanup
+and all four unchanged producer no-listener exits: seven cases, zero skips. The
+final original-registration counterfactual fails its actual-retirement wait;
+restoring the externally owned instance makes the same controls pass again.
+Release build reports zero warnings/errors. All 111 native-owner controls,
+including the exact two added source mappings and privacy/boundary negatives,
+and five corpus cases pass. Documentation checks resolve 3,664 fragments and
+all three current delivery indexes. Fresh correction reviews remain required.

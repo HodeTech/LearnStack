@@ -796,6 +796,7 @@ except launcher.Refusal as failure:
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
                 'OutboxProcessorTests.cs', 'AuthorizationReadSourceTests.cs',
+                'AuthenticatedRateLimitTests.Admission.cs',
                 'ProducerExecutionTests.cs', 'GlobalIdentityBootstrapTests.CreationDurability.cs',
                 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs',
@@ -808,14 +809,15 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
                 'BackgroundJobRecurrenceStoreTests.Runtime.cs',
+                'BackgroundJobRecurrenceStoreTests.ApplicationOwnership.cs',
                 'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs',
                 'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():
-            directory = 'TenancyIdentity' if filename in {
+            directory = '' if filename == 'AuthenticatedRateLimitTests.Admission.cs' else ('TenancyIdentity' if filename in {
                 'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs',
-                'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'} else 'Database'
+                'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'} else 'Database')
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration' / directory / filename).is_file())
             progress.failure_locations.clear()
             item = self.execution_result(cases[0]); item['Outcome'] = 2
@@ -831,22 +833,31 @@ except launcher.Refusal as failure:
         item = self.execution_result(cases[0]); item['Outcome'] = 2
         item['ErrorMessage'] = 'PRIVATE-CANARY assertion and provider material'
         item['ErrorStackTrace'] = (
+            '/private/PRIVATE-CANARY/AuthenticatedRateLimitTests.Admission.cs:line 199\n'
             '/private/PRIVATE-CANARY/ProducerExecutionTests.cs:line 557\n'
             'C:\\private\\PRIVATE-CANARY\\GlobalIdentityBootstrapTests.CreationDurability.cs:line 70\n'
             '/private/ProducerExecutionTests.cs:line 557\n'
             '/private/UnexpectedProducerExecutionTests.cs:line 901\n'
             '/private/GlobalIdentityBootstrapTests.CreationDurability.cs:line 0\n'
-            '/private/ProducerExecutionTests.cs:line 10001\n')
+            '/private/ProducerExecutionTests.cs:line 10001\n'
+            '/private/BackgroundJobRecurrenceStoreTests.Runtime.cs:line 230\n'
+            '/private/BackgroundJobRecurrenceStoreTests.ApplicationOwnership.cs:line 71\n')
         with contextlib.redirect_stdout(io.StringIO()):
             progress.results({'NewTestResults': [item]})
         self.assertEqual([
+            {'source': 'authenticated_admission_test', 'line': 199},
             {'source': 'identity_creation_durability_test', 'line': 70},
-            {'source': 'producer_execution_test', 'line': 557}],
+            {'source': 'producer_execution_test', 'line': 557},
+            {'source': 'recurrence_application_ownership', 'line': 71},
+            {'source': 'recurrence_runtime', 'line': 230}],
             progress.failure_locations[0]['locations'])
         measurement = self.root / 'producer-creation-failure-locations.json'
         self.owner.write_json(measurement, {'failureLocations': progress.failure_locations})
         for forbidden in ('PRIVATE-CANARY', 'private', 'ErrorMessage', 'ErrorStackTrace',
-                          'ProducerExecutionTests.cs', 'GlobalIdentityBootstrapTests.CreationDurability.cs'):
+                          'ProducerExecutionTests.cs', 'GlobalIdentityBootstrapTests.CreationDurability.cs',
+                          'AuthenticatedRateLimitTests.Admission.cs',
+                          'BackgroundJobRecurrenceStoreTests.Runtime.cs',
+                          'BackgroundJobRecurrenceStoreTests.ApplicationOwnership.cs'):
             self.assertNotIn(forbidden, measurement.read_text())
         self.assertFalse(progress.completed, 'A location supplies no successful completion or cleanup witness')
         labels = {

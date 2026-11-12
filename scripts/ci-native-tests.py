@@ -87,6 +87,7 @@ STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
     'AuthorizationReadSourceTests.cs': 'authorization_read_source',
+    'AuthenticatedRateLimitTests.Admission.cs': 'authenticated_admission_test',
     'ProducerExecutionTests.cs': 'producer_execution_test',
     'GlobalIdentityBootstrapTests.CreationDurability.cs': 'identity_creation_durability_test',
     'OutboxProcessorTests.cs': 'outbox_processor',
@@ -107,6 +108,7 @@ FAILURE_SOURCES = {
     'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs': 'positive_sdk_settlement_prepare',
     'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs': 'recurrence_native_ownership',
     'BackgroundJobRecurrenceStoreTests.Runtime.cs': 'recurrence_runtime',
+    'BackgroundJobRecurrenceStoreTests.ApplicationOwnership.cs': 'recurrence_application_ownership',
     'BackgroundJobRuntimeFacadeTests.AuxiliaryCleanup.cs': 'facade_auxiliary_cleanup',
     'BackgroundJobRuntimeFacadeTests.Business.cs': 'facade_business',
     'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
