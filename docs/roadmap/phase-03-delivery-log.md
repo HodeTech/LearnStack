@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 723 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 740 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -470,7 +470,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 44 lines
   - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 17 lines
   - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 34 lines
-  - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 48 lines
+  - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 49 lines
+  - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21322,3 +21323,20 @@ complete run pass. Keep that failure separate, without a root-cause claim.
 Full current frontend/provider regressions and focused independent reviews remain
 open. These material source changes invalidate the previous frozen-source PR
 qualification; fresh final-source CI evidence is required before merge.
+
+
+### P03-7 PR corrections first review (2026-11-12)
+
+Sol lifecycle/security and Terra configuration/evidence reviewers independently
+inspect `19eb7ec0..409c64d2` and the immediate contracts. Both approve without
+verified actionable findings. They confirm the shared child deadline and
+independent waiters, signal/liveness publication checks, original lifecycle
+failure classification and actual-work retention; and the single-read web mode
+qualification, source agreement, unchanged physical admission and real refusal
+proof. No generic forced-settlement or new capacity policy is inferred.
+
+Current targeted evidence remains 219 frontend controls, 458 realm controls,
+Release build, typecheck/lint/docs and the actual two-reason refusal case. The
+complete frontend and current provider/browser regressions remain separate work.
+A different fresh reviewer pair performs round two before final-source freeze;
+old frozen-source CI is retained only for its original source.
