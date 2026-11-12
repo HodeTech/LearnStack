@@ -35,7 +35,7 @@
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
-> | P03-7 | Back-channel session revocation | Review handoff — [runtime correction reviews complete](phase-03-delivery-log.md#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12); [hosted failure-location correction](phase-03-delivery-log.md#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) under review; [PR #44](https://github.com/HodeTech/LearnStack/pull/44) tracks qualification and maintainer review/merge |
+> | P03-7 | Back-channel session revocation | Review handoff — [runtime correction reviews complete](phase-03-delivery-log.md#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12); [hosted failure-location correction reviews complete](phase-03-delivery-log.md#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12); [PR #44](https://github.com/HodeTech/LearnStack/pull/44) tracks qualification and maintainer review/merge |
 > | P03-8 | Tenant federation | Not started |
 > | P03-9 | Platform authority and operational recovery | Not started |
 > | P03-10 | DSAR and global account closure | Not started |

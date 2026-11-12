@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 953 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 962 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -476,7 +476,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
   - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
   - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
-  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 46 lines
+  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 55 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21558,3 +21558,12 @@ edge: hard kill before exclusive trust publication can leave staging material
 without a retained target. Add the absent-target inspection/retry branch to the
 existing operator recipe; keep stopped-owner, exact-path and no-wildcard limits.
 No trust publication code or recovery authority changes.
+
+Both first-round reviewers also approve the operator-recipe addition. Different
+Sol code/privacy and Terra operations/evidence reviewers complete the second
+round on the entire correction without actionable findings. These are static
+reviews, not new runtime qualification. The correction and documentation checks
+are complete; freeze this source for one automatic PR workflow and, only after
+its complete successful audit, one whole-run opposite-layout attempt. PR proof
+owns the final source/run IDs and archived results. Qualification remains open;
+no timer, test premise or cleanup assertion is weakened to obtain a green run.
