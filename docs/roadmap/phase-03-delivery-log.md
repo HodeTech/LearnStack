@@ -479,9 +479,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 111 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 151 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
+  - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
+    - [Maintainer decisions recorded after the first review (2026-11-13)](#maintainer-decisions-recorded-after-the-first-review-2026-11-13) — 12 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21846,3 +21848,43 @@ rounds because a suggestion exists.
 Before approval no runtime, realm, client, lockfile or standard changes land. Proposed
 documents are committed for review only; acceptance, implementation, executed reviews
 and final-source qualification stay distinct.
+
+### P03-8 proposal review round one and corrections (2026-11-13)
+
+Two fresh independent reviewers inspected the proposed ADR-0099 against the corpus,
+the repository and the pinned Keycloak 26.6.2 sources: a security/provider lens (Opus,
+high effort) and a corpus/feasibility lens (Sonnet, high effort). The primary agent
+verified each load-bearing claim in the Keycloak source before changing the record.
+
+| Verified finding | Correction |
+|---|---|
+| A broker that creates users for an unregistered address lets a hostile tenant IdP pre-create the future owner's account; the owner's password reset sets `emailVerified`, the IdP link survives and ADR-0093's check then passes for the attacker | Maintainer decision: **the broker creates no accounts**. The first-broker flow detects an existing user, confirms the link and re-authenticates; unknown addresses fail closed. SSO becomes a convenience for an existing verified local account, and brokered sign-in no longer touches the new-subject budgets |
+| The `idp_link` application-initiated action is registered enabled and checks only `manage-account`, which every realm user holds; one confirmation links any broker | Reconciliation disables `idp_link`; a Step 2 negative control proves it |
+| The account console lists and links every broker whose `showInAccountConsole` is `ALWAYS` (default); `hideOnLogin` is unrelated | `showInAccountConsole=NEVER` joins the fixed profile and readback; the account-console qualification fallback is no longer needed |
+| `prompt=login` with an existing SSO session and a different brokered user ends in `DIFFERENT_USER_AUTHENTICATED`; the proposed test could not work and would leave a user behind | Maintainer decision: **the test signs in as yourself**; the IdP identity must resolve to the admin's own account, the first test links it (stated), the BFF checks `idp` and subject and keeps the admin session; no end-session |
+| Draft, hidden and unentitled brokers are reachable by `kc_idp_hint` from any tenant host, and the alias survived repointing | The `idp` claim is a security control: the BFF refuses a brokered token on any host whose Active alias differs, at redemption and refresh, so Disable ends brokered sessions within the access-token lifetime. Identity-bearing Configure starts a new alias generation and deletes the old broker, dropping its links |
+| The fixed profile missed live trust keys and server-side fetch targets (logout, introspection, SAML artifact/SLO/metadata URL, JWT grant, client assertions, NameID format) | The profile is a closed per-protocol allow-list with exact key-set readback; the unguarded fetch targets are unset or forced off |
+| `${…}` and the `**********` literal in a client secret are interpreted by Keycloak; a PUT logs the unstripped representation when admin-event details are enabled | Secrets are refused for both forms; the realm invariant disables admin-event details |
+| The Decision claimed Keycloak never fetches; configuration and sign-in differ | Scoped to configuration; the residual DNS and test-secret exposure moves to Consequences and the runbook |
+| Begin/Complete ownership, idempotency, ETag, deadlines and revoked-actor settlement were unspecified; Resume of Configure lacked a stored desired state | An application service sends two top-level commands; Complete is an operation-bound continuation on its own token; budgets, receipts, a stored desired digest and the superseded-operation orphan rule are stated |
+| Storage, display-name rules, state semantics (Rotate, Disabled Configure, lapse) and audit slugs were underspecified | Columns, CHECK intent, display-name rules, "Active means tested including the secret", Disabled stays Disabled until Enable, lapse keeps Disable/Delete, and eleven named operations are fixed |
+| The native input bound is 16 KiB, so metadata paste is infeasible | URL or manual fields with at most two PEM certificates; no paste |
+| Missing carriers | ADR-0021, 0052 and 0068 join the Amendment list with Standards 01/04, the Phase 11 carrier and port naming; tenant offboarding is named to P03-10, the orphan sweep to P03-9 |
+| Seed admins adopt registry v1→v4 in order | Step 1 plans the consecutive adoption chain |
+
+Reviewers' unverified items stay Step 2 controls: Keycloak's SAML metadata parser
+hardening, whether attribute import can touch protected token attributes for a linked
+user, and that the reset action resumes a link only in the browser holding the pending
+session. Review is static; it is not provider, native or browser evidence.
+
+#### Maintainer decisions recorded after the first review (2026-11-13)
+
+- **The broker creates no accounts** (rather than creating them with a verified-domain
+  restriction, or creating them and accepting the pre-creation residual).
+- **The required interactive test signs the administrator in as themselves**, with no
+  audited bypass; an administrator whose IdP email differs from their LearnStack
+  email cannot pass it and must use a matching IdP account or another administrator.
+
+These two answers revise the 2026-11-13 package's first-broker and test descriptions;
+ADR-0099 carries the current contract. Acceptance of the revised ADR remains a separate
+maintainer act.
