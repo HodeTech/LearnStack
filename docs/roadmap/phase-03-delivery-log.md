@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 740 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 768 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -471,7 +471,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 17 lines
   - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 34 lines
   - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 49 lines
-  - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 16 lines
+  - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 17 lines
+  - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21340,3 +21341,31 @@ Release build, typecheck/lint/docs and the actual two-reason refusal case. The
 complete frontend and current provider/browser regressions remain separate work.
 A different fresh reviewer pair performs round two before final-source freeze;
 old frozen-source CI is retained only for its original source.
+
+
+### P03-7 PR corrections second review and source freeze (2026-11-12)
+
+Different fresh Terra lifecycle and Sol configuration/evidence reviewers inspect
+`19eb7ec0..98f33514`, implementation `409c64d2`. Both approve without verified
+actionable findings. Both requested review rounds of the bounded correction are
+complete. Physical-hop admission and distinct bridge capacity diagnostics remain
+unchanged under ADR-0098; no new multi-peer throughput promise is introduced.
+
+The current complete frontend guard passes 130 discovered web files/4,190
+reported cases and twelve SDK files/228 reported cases: 4,418 total, zero
+skips/todos. Web wall time is 323.00 seconds and SDK 86.95 seconds. The actual
+Keycloak TLS/SSO targeting regression and independent stock Chromium
+cookie/history control pass 2/2, with 66.393 and 54.010 seconds of case execution.
+The real structured refusal proof passes for both labels without writes. The
+219 focused controls, complete 458-case realm census, Release build,
+TypeScript/lint and native build also pass. No fresh manual accessibility or
+natural BFCache evidence is inferred.
+
+After final documentation/corpus checks, freeze this reviewed source and update
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) once. It owns the new
+complete same-source A, subsequent whole-run opposite-layout B and original ZIP
+integrity/result/assignment reconciliation. Keep previous-source qualification
+separate; it cannot qualify these material corrections. Record the passing pair
+in PR proof without creating another source revision just to narrate CI IDs.
+P03-7 remains in maintainer review handoff until merge. No runtime/test/CI clock,
+capacity, permission, token profile or independent packet boundary changes.
