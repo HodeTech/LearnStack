@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 640 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 674 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -468,7 +468,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 17 lines
   - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 33 lines
   - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 44 lines
-  - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 16 lines
+  - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 17 lines
+  - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21237,3 +21238,37 @@ timing from the ongoing complete frontend guard and still-open final-source
 provider/hosted proof. Different fresh reviewers perform round two before the
 final source freeze and single PR synchronization. Earlier-source A-only successes
 and failed/cancelled attempts remain separate and unqualified as a final pair.
+
+
+### P03-7 CI correction second review and new source freeze (2026-11-12)
+
+Different fresh Terra security/correctness and Sol performance/delivery reviewers
+inspect the correction through `ea0315bd`, runtime `a251c2a5`. Both approve with no
+actionable finding. The lazy snapshot includes every retained owner, remains
+synchronous and per-sweep, and preserves unknown/closing work, clock, stop,
+matching, capacity and actual-retirement contracts. Both requested fresh review
+rounds of the material correction are complete; no artificial fix is introduced.
+
+Current executable inputs pass the complete guarded frontend: 130 discovered web
+files/4,178 reported cases and twelve SDK files/228 reported cases, 4,406 total,
+zero skips/todos. Web wall time is 310.00 seconds and SDK 101.90 seconds. The
+unchanged full-capacity control passes within that complete run. The actual
+Keycloak callback-trust/SSO targeting and separate stock Chromium cookie/history
+regression pass 2/2 in 126 seconds with the corrected native store. No natural
+BFCache or fresh manual-accessibility evidence is inferred. The selected 38-case
+receipt, native build, TypeScript, lint and formatting also pass.
+
+Freeze this reviewed implementation after the final documentation checks and
+synchronize PR #44 once. The material runtime change requires a new complete
+same-source A followed by a whole-run opposite-layout B. Retain original API
+artifact ZIP bytes, metadata and raw logs before rerunning; verify byte count,
+SHA-256/CRC, source/plan/toolchain/assignment and complete result unions. Earlier
+`9aea4f40` A-only successes and failed/cancelled attempts stay separate and provide
+no final-source qualification. No test, application or CI clock is enlarged.
+
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) tracks the frozen-source
+qualification evidence and maintainer review. Update that proof when the complete
+runs and original-archive audits finish; do not create another source revision
+merely to narrate passing run IDs. P03-7 remains in review handoff until maintainer
+merge. Prior packet evidence gaps and P03-8–11 remain separately owned; no agent
+merge or earlier receipt borrowing is authorized.
