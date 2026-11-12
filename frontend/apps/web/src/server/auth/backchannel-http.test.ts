@@ -10,10 +10,12 @@ import { createBackchannelAdmission, createNativeBackchannel } from './backchann
 describe('native backchannel HTTP admission', () => {
   it('accepts only the exact machine request and retires actual work', async () => {
     let applied = 0;
+    const diagnostics: unknown[] = [];
     const admission = createBackchannelAdmission();
     const handler = createNativeBackchannel({
       authority: 'callback.test:4443',
       admission,
+      diagnostic: (category, stage) => diagnostics.push({ category, ...(stage ? { stage } : {}) }),
       verify: async () => ({
         issuer: 'issuer',
         sid: 'sid',
@@ -85,6 +87,8 @@ describe('native backchannel HTTP admission', () => {
         expect((await send(body)).status).toBe(400);
       expect((await send('logout_token=x', 'GET')).status).toBe(400);
       expect((await send('logout_token=x', 'POST', 'other.test')).status).toBe(400);
+      expect(diagnostics).toContainEqual({ category: 'refused' });
+      expect(JSON.stringify(diagnostics)).not.toMatch(/signed|logout_token|other\.test/);
       expect(
         (
           await send(

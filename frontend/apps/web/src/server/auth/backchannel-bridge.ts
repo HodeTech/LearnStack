@@ -3,7 +3,11 @@ import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { createServer, request as httpsRequest } from 'node:https';
 
 import type { BackchannelConfiguration } from './backchannel-configuration.js';
-import { createBackchannelHttp, type Admission } from './backchannel-http.js';
+import {
+  createBackchannelHttp,
+  type Admission,
+  type BackchannelDiagnosticSink,
+} from './backchannel-http.js';
 
 function ownedFile(path: string, privateKey = false): Buffer {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -36,6 +40,7 @@ export function createBackchannelBridge(
   configuration: Enabled,
   admission: Admission,
   nativePort: number,
+  diagnostic?: BackchannelDiagnosticSink,
 ) {
   const certificate = ownedFile(configuration.certificate);
   const ca = new X509Certificate(ownedFile(configuration.ca));
@@ -60,45 +65,51 @@ export function createBackchannelBridge(
   const handler = createBackchannelHttp({
     authority: configuration.authority,
     admission,
+    diagnostic,
     async process(_token, body) {
-      return new Promise((resolve) => {
-        let result: 'accepted' | 'refused' | 'unavailable' = 'unavailable';
-        const request = httpsRequest(
-          {
-            hostname: '127.0.0.1',
-            port: nativePort,
-            servername: 'localhost',
-            ca: nativeCa,
-            rejectUnauthorized: true,
-            method: 'POST',
-            path: '/api/auth/backchannel/keycloak',
-            headers: {
-              host: configuration.authority,
-              'content-type': 'application/x-www-form-urlencoded',
-              'content-length': body.length,
+      return new Promise<'accepted' | 'refused' | { category: 'unavailable'; stage: 'native' }>(
+        (resolve) => {
+          let result: 'accepted' | 'refused' | { category: 'unavailable'; stage: 'native' } = {
+            category: 'unavailable',
+            stage: 'native',
+          };
+          const request = httpsRequest(
+            {
+              hostname: '127.0.0.1',
+              port: nativePort,
+              servername: 'localhost',
+              ca: nativeCa,
+              rejectUnauthorized: true,
+              method: 'POST',
+              path: '/api/auth/backchannel/keycloak',
+              headers: {
+                host: configuration.authority,
+                'content-type': 'application/x-www-form-urlencoded',
+                'content-length': body.length,
+              },
+              agent: false,
             },
-            agent: false,
-          },
-          (response) => {
-            response.resume();
-            response.once('end', () => {
-              result = response.statusCode === 200 ? 'accepted' : 'refused';
-            });
-            response.once('error', () => {
-              result = 'unavailable';
-            });
-          },
-        );
-        outgoing.add(request);
-        request.once('close', () => {
-          outgoing.delete(request);
-          resolve(result);
-        });
-        request.once('error', () => {
-          result = 'unavailable';
-        });
-        request.end(body);
-      });
+            (response) => {
+              response.resume();
+              response.once('end', () => {
+                result = response.statusCode === 200 ? 'accepted' : 'refused';
+              });
+              response.once('error', () => {
+                result = { category: 'unavailable', stage: 'native' };
+              });
+            },
+          );
+          outgoing.add(request);
+          request.once('close', () => {
+            outgoing.delete(request);
+            resolve(result);
+          });
+          request.once('error', () => {
+            result = { category: 'unavailable', stage: 'native' };
+          });
+          request.end(body);
+        },
+      );
     },
   });
   const server = createServer(

@@ -5,7 +5,8 @@ import type { VerifiedLogoutToken } from './backchannel-contract.js';
 
 export const BACKCHANNEL_PATH = '/api/auth/backchannel/keycloak';
 export type BackchannelDiagnostic = 'accepted' | 'duplicate' | 'refused' | 'unavailable';
-type Stage = 'provider' | 'clock' | 'capacity' | 'stopped';
+type Stage = 'provider' | 'native' | 'clock' | 'capacity' | 'stopped';
+export type BackchannelDiagnosticSink = (category: BackchannelDiagnostic, stage?: Stage) => void;
 type Outcome = BackchannelDiagnostic | { category: BackchannelDiagnostic; stage: Stage };
 export function createBackchannelAdmission() {
   let active = 0;
@@ -87,13 +88,14 @@ export function createBackchannelHttp(options: {
   authority: string;
   admission: Admission;
   process: (token: string, bytes: Buffer) => Promise<Outcome>;
-  diagnostic?: (category: BackchannelDiagnostic, stage?: Stage) => void;
+  diagnostic?: BackchannelDiagnosticSink;
 }) {
   let stopping = false;
   const tasks = new Set<Promise<void>>();
   const requests = new Set<IncomingMessage>();
   function handle(request: IncomingMessage, response: ServerResponse) {
     if (stopping || !headers(request, options.authority)) {
+      options.diagnostic?.(stopping ? 'unavailable' : 'refused', stopping ? 'stopped' : undefined);
       refuseRequest(request, response);
       return;
     }
@@ -155,7 +157,7 @@ export function createNativeBackchannel(options: {
   admission: Admission;
   verify: (token: string) => Promise<VerifiedLogoutToken>;
   apply: (token: VerifiedLogoutToken) => 'accepted' | 'duplicate';
-  diagnostic?: (category: BackchannelDiagnostic, stage?: Stage) => void;
+  diagnostic?: BackchannelDiagnosticSink;
 }) {
   return createBackchannelHttp({
     ...options,

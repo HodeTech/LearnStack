@@ -1,7 +1,8 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmod, lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { developmentBackchannelConfiguration, developmentBackchannelUrl, initializeKeycloakTrust,
@@ -42,14 +43,67 @@ test('explicit operator setup creates bounded owned material, deletes root priva
   assert.equal((await config()).enabled, true);
 });
 
-test('disabled defaults require no TLS files or trust file mount', async () => {
-  const empty = await mkdtemp(join(tmpdir(), 'learnstack-backchannel-disabled-'));
+test('normal Compose up transitions disabled empty trust to the verified root identity without caller overrides', async () => {
+  const empty = await realpath(await mkdtemp(join(tmpdir(), 'learnstack-backchannel-disabled-')));
   try {
     const configuration = await developmentBackchannelConfiguration({ source: '', ambient: {}, root: empty });
     assert.deepEqual(configuration, { enabled: false });
-    await initializeKeycloakTrust({ root: empty, configuration });
+    assert.equal(await initializeKeycloakTrust({ root: empty, configuration }), 'empty');
     assert.deepEqual(await readdir(join(empty, '.data/keycloak-trust')), []);
-    await initializeKeycloakTrust({ root: empty, configuration });
+    for (const directory of ['scripts', 'bin', 'infra/compose']) await mkdir(join(empty, directory), { recursive: true });
+    for (const name of ['compose', 'development-backchannel', 'development-realm-errors'])
+      await copyFile(new URL(`./${name}.mjs`, import.meta.url), join(empty, `scripts/${name}.mjs`));
+    await copyFile(new URL('../infra/compose/dev.yml', import.meta.url), join(empty, 'infra/compose/dev.yml'));
+    const recorded = join(empty, 'docker-calls.jsonl');
+    await writeFile(join(empty, 'bin/docker'), `#!${process.execPath}
+import { appendFileSync } from 'node:fs';
+appendFileSync(${JSON.stringify(recorded)}, JSON.stringify({
+  digest: process.env.LEARNSTACK_KEYCLOAK_TRUST_SHA256,
+  args: process.argv.slice(2),
+  // macOS/libuv may inject this encoding marker into a spawned process.
+  environmentKeys: Object.keys(process.env).filter(key => key !== '__CF_USER_TEXT_ENCODING').sort(),
+}) + '\\n');
+`, { mode: 0o700 });
+    // The owned CLI receives no workstation configuration. Its selected source
+    // is synthetic, and only nonsecret identity/argument evidence is recorded.
+    const selectedSource = join(empty, '.env');
+    const key = 'synthetic-keycloak-web-secret';
+    await writeFile(selectedSource, `KEYCLOAK_WEB_CLIENT_SECRET=${key}\nLEARNSTACK_BFF_BACKCHANNEL_ENABLED=false\n`, { mode: 0o600 });
+    const up = () => execFileSync(process.execPath, [join(empty, 'scripts/compose.mjs'), 'selected', 'up', '-d'], {
+      cwd: empty, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'pipe'],
+      env: { PATH: join(empty, 'bin'), LEARNSTACK_KEYCLOAK_TRUST_SHA256: 'forged-caller-digest',
+        UNRELATED_CALLER_SECRET: 'synthetic-unrelated-secret', ConnectionStrings__Default: 'synthetic-database-secret' },
+    });
+    assert.equal(up(), '');
+    assert.deepEqual(await readdir(join(empty, '.data/keycloak-trust')), []);
+    await mkdir(join(empty, '.data/tls/backchannel'), { recursive: true, mode: 0o700 });
+    for (const name of ['ca.pem', 'leaf.pem', 'leaf-key.pem']) {
+      const target = join(empty, '.data/tls/backchannel', name);
+      await copyFile(join(root, '.data/tls/backchannel', name), target);
+      await chmod(target, 0o600);
+    }
+    await copyFile(join(root, 'native.pem'), join(empty, 'native.pem'));
+    await writeFile(selectedSource, `KEYCLOAK_WEB_CLIENT_SECRET=${key}\n${source}`, { mode: 0o600 });
+    assert.equal(up(), '');
+    const publicRoot = await readFile(join(empty, '.data/tls/backchannel/ca.pem'));
+    const actualDigest = createHash('sha256').update(publicRoot).digest('hex');
+    const calls = (await readFile(recorded, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(calls, ['empty', actualDigest].map(digest => ({ digest,
+      args: ['compose', '--project-name', 'learnstack-dev', '--env-file', selectedSource,
+        '-f', join(empty, 'infra/compose/dev.yml'), 'up', '-d'],
+      environmentKeys: ['LEARNSTACK_KEYCLOAK_TRUST_SHA256', 'PATH'],
+    })));
+    const mountedRoot = join(empty, '.data/keycloak-trust/callback-root.pem');
+    assert.deepEqual(await readFile(mountedRoot), publicRoot);
+    const enabled = await developmentBackchannelConfiguration({ source, root: empty, ambient: {} });
+    const inspected = { Mounts: [{ Destination: '/opt/keycloak/conf/truststores', Type: 'bind',
+      Source: join(empty, '.data/keycloak-trust'), RW: false }],
+      Config: { Env: ['KC_TRUSTSTORE_PATHS=/opt/keycloak/conf/truststores'],
+        Labels: { 'learnstack.backchannel-trust-sha256': calls[0].digest } },
+      HostConfig: { ExtraHosts: ['host.docker.internal:host-gateway'] } };
+    await rejected(validateKeycloakBackchannelTrust({ root: empty, configuration: enabled, inspected }));
+    inspected.Config.Labels['learnstack.backchannel-trust-sha256'] = calls[1].digest;
+    await validateKeycloakBackchannelTrust({ root: empty, configuration: enabled, inspected });
   } finally { await rm(empty, { recursive: true, force: true }); }
 });
 
@@ -95,7 +149,8 @@ test('certificate trust, native trust, key pair and private permissions fail clo
 
 test('public provider trust route is exact, readonly, repeatable and refuses replacement', async () => {
   const configuration = await config();
-  await initializeKeycloakTrust({ root, configuration });
+  const trustDigest = await initializeKeycloakTrust({ root, configuration });
+  assert.match(trustDigest, /^[0-9a-f]{64}$/);
   const directory = join(root, '.data/keycloak-trust');
   const path = join(directory, 'callback-root.pem');
   const bytes = await readFile(path);
@@ -106,7 +161,7 @@ test('public provider trust route is exact, readonly, repeatable and refuses rep
   await initializeKeycloakTrust({ root, configuration });
   assert.equal((await lstat(path)).ino, state.ino);
   const inspected = { Mounts: [{ Destination: '/opt/keycloak/conf/truststores', Type: 'bind', Source: directory, RW: false }],
-    Config: { Env: ['KC_TRUSTSTORE_PATHS=/opt/keycloak/conf/truststores'] },
+    Config: { Env: ['KC_TRUSTSTORE_PATHS=/opt/keycloak/conf/truststores'], Labels: { 'learnstack.backchannel-trust-sha256': trustDigest } },
     HostConfig: { ExtraHosts: ['host.docker.internal:host-gateway'] } };
   await validateKeycloakBackchannelTrust({ root, configuration, inspected });
   for (const modify of [
@@ -114,10 +169,14 @@ test('public provider trust route is exact, readonly, repeatable and refuses rep
     value => { value.Mounts[0].Source = '/foreign'; },
     value => { value.Config.Env = []; },
     value => { value.HostConfig.ExtraHosts = []; },
+    value => { value.Config.Labels['learnstack.backchannel-trust-sha256'] = 'empty'; },
   ]) {
     const dirty = structuredClone(inspected); modify(dirty);
     await rejected(validateKeycloakBackchannelTrust({ root, configuration, inspected: dirty }));
   }
+  // A provider started while disabled cannot claim a root installed later.
+  // Only a newly configured provider carrying that root identity qualifies.
+  assert.equal(await initializeKeycloakTrust({ root, configuration: {enabled: false} }), trustDigest);
   await rejected(initializeKeycloakTrust({ root, configuration: { ...configuration, ca: join(root, 'native.pem') } }));
   assert.deepEqual(await readFile(path), bytes);
   await mkdir(join(directory, 'unexpected'));

@@ -150,7 +150,7 @@ export function composeSelection(mode, environment = process.env, root = reposit
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const commandArgs = process.argv.slice(3);
-    const selected = composeSelection(
+    let selected = composeSelection(
       process.argv[2] === 'selected'
         ? (process.env.LEARNSTACK_COMPOSE_MODE ?? 'dev')
         : process.argv[2],
@@ -159,9 +159,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       commandArgs,
     );
     if (commandArgs.includes('up')) {
-      const { developmentBackchannelConfiguration, initializeKeycloakTrust } = await import('./development-backchannel.mjs');
+      const { developmentBackchannelConfiguration, initializeKeycloakTrust, keycloakTrustDigestVariable } = await import('./development-backchannel.mjs');
       const configuration = await developmentBackchannelConfiguration({ source: readComposeEnvironmentFile(selected.file) });
-      await initializeKeycloakTrust({ configuration });
+      const digest = await initializeKeycloakTrust({ configuration });
+      selected = { ...selected, env: { ...selected.env, [keycloakTrustDigestVariable]: digest } };
     }
     const child = spawn('docker', [...selected.args, ...commandArgs], {
       cwd: selected.cwd,

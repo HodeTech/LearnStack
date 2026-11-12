@@ -1,4 +1,4 @@
-import { X509Certificate, createPrivateKey } from 'node:crypto';
+import { X509Certificate, createPrivateKey, createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -13,6 +13,9 @@ const sourceNames = [...names, 'LEARNSTACK_BFF_ENABLED', 'LEARNSTACK_BFF_ISSUER'
   'LEARNSTACK_PUBLIC_TLS_CERT', 'LEARNSTACK_PUBLIC_TLS_KEY', 'KEYCLOAK_WEB_CLIENT_SECRET',
   'Identity__AuthorityId', 'Identity__NativeSession__CurrentSecret'];
 export const backchannelPath = '/api/auth/backchannel/keycloak';
+export const keycloakTrustDigestVariable = 'LEARNSTACK_KEYCLOAK_TRUST_SHA256';
+const trustLabel = 'learnstack.backchannel-trust-sha256';
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 export function developmentBackchannelUrl(value) {
   try {
@@ -129,20 +132,23 @@ export async function initializeKeycloakTrust({ root = defaultRoot, configuratio
     const target = join(directory, 'callback-root.pem');
     if (!configuration.enabled) {
       if (entries.length) {
-        publicCertificate(await ownedFile(target));
+        const retained = await ownedFile(target);
+        publicCertificate(retained);
         if (((await lstat(target)).mode & 0o777) !== 0o644) throw new Error();
+        return digest(retained);
       }
-      return;
+      return 'empty';
     }
     const bytes = await ownedFile(configuration.ca);
     publicCertificate(bytes);
     if (entries.length) {
       if (!(await ownedFile(target)).equals(bytes) || ((await lstat(target)).mode & 0o777) !== 0o644) throw new Error();
-      return;
+      return digest(bytes);
     }
     const handle = await open(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o644);
     try { await handle.chmod(0o644); await handle.writeFile(bytes); }
     finally { await handle.close(); }
+    return digest(bytes);
   } catch { refuse('preflight', 'backchannel_configuration'); }
 }
 
@@ -158,6 +164,7 @@ export async function validateKeycloakBackchannelTrust({ configuration, inspecte
     if (mounts?.length !== 1 || mounts[0].Type !== 'bind' || mounts[0].Source !== directory || mounts[0].RW !== false
       || !inspected.Config?.Env?.includes('KC_TRUSTSTORE_PATHS=/opt/keycloak/conf/truststores')
       || !inspected.HostConfig?.ExtraHosts?.includes('host.docker.internal:host-gateway')
+      || inspected.Config?.Labels?.[trustLabel] !== digest(await ownedFile(configuration.ca))
       || !(await ownedFile(join(directory, 'callback-root.pem'))).equals(await ownedFile(configuration.ca))) throw new Error();
   } catch { refuse('preflight', 'backchannel_configuration'); }
 }

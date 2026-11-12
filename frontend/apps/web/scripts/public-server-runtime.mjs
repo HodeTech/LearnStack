@@ -9,6 +9,7 @@ export async function startPublicRuntime(control) {
   let bffRequests;
   let bffSessions;
   let backchannel;
+  let backchannelDiagnostic;
   let bridge;
   let invitationHandler;
   let nativeInvitationTarget;
@@ -270,18 +271,20 @@ export async function startPublicRuntime(control) {
       bffSessions = installBffSessionRuntime(dependencies, bffRequests.preparation);
       if (backchannelConfig.enabled) {
         const verifier = createLogoutTokenVerifier(bff, globalThis.fetch);
+        backchannelDiagnostic = (boundary, category, stage) =>
+          console.warn('BFF backchannel', {
+            boundary,
+            category,
+            ...(stage ? { stage } : {}),
+            ...backchannelAdmission.counts(),
+            ...bffSessions.backchannelCounts(),
+          });
         backchannel = createNativeBackchannel({
           authority: backchannelConfig.authority,
           admission: backchannelAdmission,
           verify: verifier.verify,
           apply: bffSessions.applyProviderLogout,
-          diagnostic: (category, stage) =>
-            console.warn('BFF backchannel', {
-              category,
-              ...(stage ? { stage } : {}),
-              ...backchannelAdmission.counts(),
-              ...bffSessions.backchannelCounts(),
-            }),
+          diagnostic: (category, stage) => backchannelDiagnostic('native', category, stage),
         });
       }
       nativeInvitationTarget = invitationTarget;
@@ -432,7 +435,12 @@ export async function startPublicRuntime(control) {
     if (backchannelConfig.enabled) {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('Public HTTPS listener failed');
-      bridge = createBackchannelBridge(backchannelConfig, backchannelAdmission, address.port);
+      bridge = createBackchannelBridge(
+        backchannelConfig,
+        backchannelAdmission,
+        address.port,
+        (category, stage) => backchannelDiagnostic('bridge', category, stage),
+      );
       assertStarting();
       bridge.server.on('error', listenerFault);
       await ownSetup(bridge.start());

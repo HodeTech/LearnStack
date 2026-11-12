@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 409 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 457 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -461,7 +461,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 1 protocol and owner implementation (2026-11-12)](#p03-7-step-1-protocol-and-owner-implementation-2026-11-12) — 51 lines
   - [P03-7 Step 1 independent review round one (2026-11-12)](#p03-7-step-1-independent-review-round-one-2026-11-12) — 18 lines
   - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 17 lines
-  - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 61 lines
+  - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 62 lines
+  - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 47 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20999,3 +21000,51 @@ Step 3. The implementation receives a committed first review round and
 then a different fresh second round before Step 2 closes. C12/final-source hosted
 A/B, original archive reconciliation and PR remain open; no new timer or previous
 packet's qualification credit is inferred.
+
+
+### P03-7 Step 2 first review and verified corrections (2026-11-12)
+
+Fresh Terra protocol/lifetime and Sol operator/corpus reviewers inspect committed
+`285f3ba1` against `3d1ef12f`, Accepted ADR-0098 and retained local evidence. They
+identify two independently verified Major findings; both require implementation
+correction before the next fresh round. No approved process-local capacity,
+retention, delivery or API-token limitation is relabelled as a defect.
+
+- Bridge-local transport/capacity and early structural refusal lacked the native
+  handler's closed diagnostic sink. Wire distinct fixed bridge/native boundary
+  labels, closed native-forwarding unavailability and structural refusal without
+  raw errors or request values. Real TLS trust-failure, held forwarding,
+  saturation, malformed form and structural controls inspect bounded diagnostic
+  shapes and privacy. Transport success is not a second native acceptance.
+- A Keycloak started with empty callback trust could retain its startup-loaded
+  truststore after the public root was first copied into the mount. Bind the
+  derived public-root SHA-256 to only that Compose service's configuration, so
+  normal owned dev/demo startup recreates the selected provider when needed.
+  Reject stale running startup labels despite matching current mounted bytes.
+  The private source and caller cannot select the derived identity. Normal CLI
+  disabled/enabled controls observe the exact empty-to-root identity transition
+  and retain caller/environment confinement. Operator guidance names the restart
+  and preserved database/accounts.
+
+The actual Keycloak test now exercises three populations: no bridge, an enabled
+bridge without provider CA trust, and a trusted provider recreated on the same
+loopback endpoint. Only the last closes the exact shared SSO target. User/client
+IDs, existing database/network and issuer remain; a separately observed
+reconciliation is zero-write. Distinct/later SSO and passive/notification API
+boundaries remain. This real 86-second passing test establishes trust recovery;
+it does not turn provider delivery into durable retry or qualify a full actual
+make/demo run. A later failure-only SDK exception-redaction catch receives the
+next Release compile; the completed test's successful path is unchanged.
+
+The focused native diagnostic/startup cohort passes 32/32 reported cases; full
+web TypeScript passes. All twelve source-censused realm files pass 457/457 cases.
+Earlier failed diagnostic/lifecycle receipts remain separate. Dependent current
+normal-launcher confinement controls are reconciled for the derived public
+Docker metadata only; no general environment exemption is introduced. The full dependent lifecycle
+file passes 103/103 cases after exact Docker-only digest checks and forged-value/
+non-Docker leakage counterexamples; the other three dependent fixture files pass
+181/181 cases. Release solution compile, changed native lint and documentation
+checks pass. Private provider ID/URL comparisons expose Boolean/count assertions
+rather than raw values on failure. The fixes are committed before a different
+fresh second review pair.
+Final-source full suites, C12/CI A/B, original archives and PR remain open.

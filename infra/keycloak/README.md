@@ -396,9 +396,14 @@ callback root to `callback-root.pem`; an existing different root refuses. Compos
 mounts that directory read-only at `/opt/keycloak/conf/truststores`, sets
 `KC_TRUSTSTORE_PATHS` and maps `host.docker.internal:host-gateway`. Disabled first
 start uses an empty directory, avoiding nonexistent file mounts. Existing trust
-is preserved when disabled. A previously running Keycloak must be recreated by
-the normal `make dev` path to acquire changed mount/environment settings; realm
-setup verifies the selected running container has the actual trust/host route.
+is preserved when disabled. The launcher binds the public-root SHA-256 to the
+Keycloak service configuration; enabling after an empty-trust startup changes
+that configuration and normal `make dev` / `make seed` / `make demo` recreates
+the selected Keycloak container. Its database and accounts are retained. This
+restart is required because Keycloak loads trust at startup. The digest is
+computed from the qualified public file, never an operator override. Realm setup
+refuses a running container whose startup label still identifies empty or
+different trust, even when its current mount already contains the new file.
 
 Fresh and warm convergence qualify effective RS256 with no ID-token encryption.
 Only the web client's `backchannel.logout.url`,

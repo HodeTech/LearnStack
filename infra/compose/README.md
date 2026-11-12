@@ -28,8 +28,9 @@ enabled native callback copies only its qualified public root there and uses
 existing native child. Follow the
 [single setup and recovery recipe](../keycloak/README.md#native-back-channel-logout)
 before opt-in; do not mount private CA keys, widen the ordinary native listener,
-or bypass TLS verification. Direct raw `docker compose up` commands must prepare
-the owned directory through the normal `make dev` path first.
+or bypass TLS verification. Use the normal owned launchers: they compute the
+public-root service identity needed to reload Keycloak trust. Raw `docker compose
+up` does not qualify callback activation.
 
 ### Data plane (Phase 01 packet 3)
 

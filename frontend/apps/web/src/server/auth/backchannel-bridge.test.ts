@@ -9,7 +9,11 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 
 import { createBackchannelBridge } from './backchannel-bridge.js';
-import { createBackchannelAdmission, createNativeBackchannel } from './backchannel-http.js';
+import {
+  createBackchannelAdmission,
+  createNativeBackchannel,
+  type BackchannelDiagnosticSink,
+} from './backchannel-http.js';
 
 it('forwards only the fixed callback over verified TLS and joins both listeners', async () => {
   const root = mkdtempSync(join(tmpdir(), 'backchannel-test-'));
@@ -40,6 +44,7 @@ it('forwards only the fixed callback over verified TLS and joins both listeners'
   );
   chmodSync(key, 0o600);
   const admission = createBackchannelAdmission();
+  const diagnostics: unknown[] = [];
   let applied = 0;
   const native = createNativeBackchannel({
     authority: 'localhost:4443',
@@ -76,32 +81,58 @@ it('forwards only the fixed callback over verified TLS and joins both listeners'
     },
     admission,
     address.port,
+    (category, stage) =>
+      diagnostics.push({ boundary: 'bridge', category, ...(stage ? { stage } : {}) }),
   );
   await bridge.start();
   const target = bridge.server.address();
   if (!target || typeof target === 'string') throw new Error();
   try {
-    const status = await new Promise<number | undefined>((resolve, reject) => {
-      const req = request(
-        {
-          host: '127.0.0.1',
-          port: target.port,
-          servername: 'localhost',
-          ca: readFileSync(cert),
-          method: 'POST',
-          path: '/api/auth/backchannel/keycloak',
-          headers: { host: 'localhost:4443', 'content-type': 'application/x-www-form-urlencoded' },
-        },
-        (res) => {
-          res.resume();
-          res.on('end', () => resolve(res.statusCode));
-        },
-      );
-      req.on('error', reject);
-      req.end('logout_token=signed');
-    });
+    const call = (body = 'logout_token=signed') =>
+      new Promise<number | undefined>((resolve, reject) => {
+        const req = request(
+          {
+            host: '127.0.0.1',
+            port: target.port,
+            servername: 'localhost',
+            ca: readFileSync(cert),
+            method: 'POST',
+            path: '/api/auth/backchannel/keycloak',
+            headers: {
+              host: 'localhost:4443',
+              'content-type': 'application/x-www-form-urlencoded',
+            },
+          },
+          (res) => {
+            res.resume();
+            res.on('end', () => resolve(res.statusCode));
+          },
+        );
+        req.on('error', reject);
+        req.end(body);
+      });
+    const status = await call();
     expect(status).toBe(200);
     expect(applied).toBe(1);
+    expect(diagnostics).toEqual([{ boundary: 'bridge', category: 'accepted' }]);
+    await expect.poll(() => admission.counts().active).toBe(0);
+    const first = admission.reserve('127.0.0.1')!;
+    const second = admission.reserve('127.0.0.1')!;
+    try {
+      expect(await call()).toBe(400);
+      expect(diagnostics).toContainEqual({
+        boundary: 'bridge',
+        category: 'unavailable',
+        stage: 'capacity',
+      });
+    } finally {
+      first();
+      second();
+    }
+    expect(await call('logout_token=%zz')).toBe(400);
+    expect(diagnostics).toContainEqual({ boundary: 'bridge', category: 'refused' });
+    expect(applied).toBe(1);
+    expect(JSON.stringify(diagnostics)).not.toMatch(/signed|logout_token|%zz|localhost/);
   } finally {
     await bridge.stop();
     await native.stop();
@@ -222,6 +253,9 @@ it('refuses an untrusted native TLS peer and joins a held forwarded socket', asy
     nativeCa: wrongCert,
   };
   const admission = createBackchannelAdmission();
+  const diagnostics: unknown[] = [];
+  const diagnostic: BackchannelDiagnosticSink = (category, stage) =>
+    diagnostics.push({ boundary: 'bridge', category, ...(stage ? { stage } : {}) });
   const call = (port: number) =>
     new Promise<number | undefined>((resolve, reject) => {
       const req = request(
@@ -243,11 +277,13 @@ it('refuses an untrusted native TLS peer and joins a held forwarded socket', asy
       req.end('logout_token=signed');
     });
   try {
-    const untrusted = createBackchannelBridge(config, admission, address.port);
+    const untrusted = createBackchannelBridge(config, admission, address.port, diagnostic);
     await untrusted.start();
     const untrustedAddress = untrusted.server.address();
     if (!untrustedAddress || typeof untrustedAddress === 'string') throw new Error();
     expect(await call(untrustedAddress.port)).toBe(400);
+    expect(diagnostics).toEqual([{ boundary: 'bridge', category: 'unavailable', stage: 'native' }]);
+    expect(JSON.stringify(diagnostics)).not.toMatch(/signed|logout_token|CERT|Error|localhost/);
     await untrusted.stop();
     const held = createBackchannelBridge({ ...config, nativeCa: cert }, admission, address.port);
     await held.start();

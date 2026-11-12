@@ -246,7 +246,8 @@ function execute(
   const harness = join(f.root, 'scripts/fixture-harness.mjs');
   writeFileSync(
     harness,
-    `import { copyFileSync, writeFileSync } from 'node:fs';
+    `import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { DemoProcesses } from './demo-process.mjs';
 import { composeSelection } from './compose.mjs';
@@ -279,6 +280,13 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
     ...(migration ? ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'] : []),
     ...(options.label === 'Contextual seed convergence' || options.label === 'Application seed convergence' ? ['ConnectionStrings__Default'] : [])]);
+  const trustKey = 'LEARNSTACK_KEYCLOAK_TRUST_SHA256';
+  const selectedDocker = command === 'docker' && (isCompose || options.label === 'Selected Docker context');
+  if (selectedDocker) {
+    const root = join(${JSON.stringify(f.root)}, '.data/keycloak-trust/callback-root.pem');
+    const expected = existsSync(root) ? createHash('sha256').update(readFileSync(root)).digest('hex') : 'empty';
+    if (env[trustKey] === expected) allowed.add(trustKey);
+  }
   // The app seed is recognised by its real, argument-free Release DLL call too.
   if (applicationSeed) for (const key of ['ConnectionStrings__Default', 'Identity__AuthorityId',
     'Authentication__Tenant__Issuer', 'Deployment__Mode']) allowed.add(key);
@@ -292,7 +300,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
       : ['HTTP_PROXY', 'http_proxy', 'NUGET_PACKAGES'])
       .every(key => process.env[key] === undefined || env[key] === process.env[key]),
-    confined: (isCompose || Object.keys(env).every(key => allowed.has(key))) && runtimeIdentity });
+    confined: Object.keys(env).every(key => allowed.has(key)) && runtimeIdentity });
   if (migration) f.migrationSelection = env.LEARNSTACK_COMPOSE_PROJECT?.startsWith('learnstack-demo-')
     && env.LEARNSTACK_COMPOSE_ENV_FILE === join(${JSON.stringify(f.root)}, '.env')
     && env.LEARNSTACK_COMPOSE_MODE === 'e2e' && env.ConnectionStrings__Migration?.includes('Username=learnstack_migration');
@@ -431,13 +439,18 @@ function makeSeedFixture() {
   // These are command-wiring controls. The real provider proofs own Docker and .NET behavior.
   writeFileSync(
     join(f.root, 'scripts/boundary-observer.mjs'),
-    `import { appendFileSync, readFileSync } from 'node:fs';
+    `import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { parseEnv } from 'node:util';
 export const values = parseEnv(readFileSync(${JSON.stringify(selectedFile)}, 'utf8'));
-export function record(stage, connection, selected = true) {
+export function record(stage, connection, selected = true, dockerTrust = false) {
   const permitted = connection === undefined ? undefined : 'ConnectionStrings__' + connection;
+  const root = ${JSON.stringify(join(f.root, '.data/keycloak-trust/callback-root.pem'))};
+  const expectedTrust = existsSync(root) ? createHash('sha256').update(readFileSync(root)).digest('hex') : 'empty';
   const confined = Object.keys(process.env).every(key =>
-    !/keycloak|connectionstrings|_pw$|password|bff|debug|private/i.test(key) || key === permitted);
+    !/keycloak|connectionstrings|_pw$|password|bff|debug|private/i.test(key) || key === permitted
+    || (dockerTrust && selected && ['stack-up', 'readiness-config'].includes(stage)
+      && key === 'LEARNSTACK_KEYCLOAK_TRUST_SHA256' && process.env[key] === expectedTrust));
   const connectionMatches = permitted === undefined || process.env[permitted] === values[permitted];
   const metadataMatches = connection !== 'Migration' || stage === 'authority-install' || (
     process.env.LEARNSTACK_COMPOSE_PROJECT === ${JSON.stringify(project)}
@@ -489,9 +502,9 @@ if (JSON.stringify(args) === JSON.stringify(['compose', 'version'])) {
     && args[args.indexOf('--env-file') + 1] === ${JSON.stringify(selectedFile)}
     && args.filter(arg => arg === '-f').length === 2;
   const names = ['postgres', 'keycloak', 'one', 'two', 'three', 'four', 'five'];
-  if (args.includes('up') && args.at(-1) === '-d') record('stack-up', undefined, selected);
+  if (args.includes('up') && args.at(-1) === '-d') record('stack-up', undefined, selected, true);
   else if (args.includes('config') && args.at(-1) === 'json') {
-    record('readiness-config', undefined, selected);
+    record('readiness-config', undefined, selected, true);
     process.stdout.write(JSON.stringify({ services: Object.fromEntries(names.map(name => [name, {}])) }));
   } else if (args.includes('ps') && args.at(-1) === 'json') {
     record('readiness-status', undefined, selected);
@@ -555,6 +568,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     DOCKER_HOST: 'unix:///fixture/docker.sock',
     DOCKER_CONFIG: dockerConfiguration,
     UNRELATED_PRIVATE_VALUE: randomBytes(20).toString('hex'),
+    LEARNSTACK_KEYCLOAK_TRUST_SHA256: 'forged-caller-trust-digest',
     DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
     MSBUILDDISABLENODEREUSE: '0',
   };
@@ -1040,6 +1054,28 @@ DemoProcesses.prototype.dispose = async function() {
     expect(confined(events)).toBe(true);
     expect(events.every((event) => event.selected)).toBe(true);
     expect(events.at(-1)?.parentPrivate).toBe(true);
+
+    const docker = join(f.root, 'bin/docker');
+    const dockerSource = readFileSync(docker, 'utf8');
+    const forgedTrust = dockerSource.replace(
+      "record('stack-up', undefined, selected, true)",
+      "(process.env.LEARNSTACK_KEYCLOAK_TRUST_SHA256 = 'forged-child-trust-digest', record('stack-up', undefined, selected, true))",
+    );
+    expect(forgedTrust).not.toBe(dockerSource);
+    writeFileSync(docker, forgedTrust);
+    expect(f.run().find((event) => event.stage === 'stack-up')?.confined).toBe(false);
+    writeFileSync(docker, dockerSource);
+
+    const dotnet = join(f.root, 'bin/dotnet');
+    const dotnetSource = readFileSync(dotnet, 'utf8');
+    const leakedTrust = dotnetSource.replace(
+      "record('seeder-build')",
+      "(process.env.LEARNSTACK_KEYCLOAK_TRUST_SHA256 = 'empty', record('seeder-build'))",
+    );
+    expect(leakedTrust).not.toBe(dotnetSource);
+    writeFileSync(dotnet, leakedTrust);
+    expect(f.run().find((event) => event.stage === 'seeder-build')?.confined).toBe(false);
+    writeFileSync(dotnet, dotnetSource);
 
     const makefile = join(f.root, 'Makefile');
     const source = readFileSync(makefile, 'utf8');
