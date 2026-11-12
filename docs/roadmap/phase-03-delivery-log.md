@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 940 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 953 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -476,7 +476,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
   - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
   - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
-  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 33 lines
+  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 46 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21551,3 +21551,10 @@ controls (including their 42 result controls), five corpus cases, ADR status,
 roadmap structure, all three delivery indexes and 3,662 fragment links. The
 standalone result-control run also passes. These offline checks establish the
 finite diagnostic projection and existing refusals, not hosted failure repair.
+
+The first fresh Sol privacy and Luna evidence reviews approve this correction
+without findings. A newly posted PR comment identifies a valid documentation
+edge: hard kill before exclusive trust publication can leave staging material
+without a retained target. Add the absent-target inspection/retry branch to the
+existing operator recipe; keep stopped-owner, exact-path and no-wildcard limits.
+No trust publication code or recovery authority changes.

@@ -521,7 +521,11 @@ destination aside into an unused private backup before rerunning setup.
 Trust publication never replaces an existing `callback-root.pem`. If a hard kill
 leaves a public staging link under `.data/.keycloak-trust-*`, compare that exact
 file to the retained target and configured public root before explicitly removing
-the staging link and its empty directory. A zero-length or different retained
+the staging link and its empty directory. If the retained target is absent,
+inspect the exact staging file against the configured public root instead.
+After confirming it belongs to the stopped publication attempt, remove only that
+identified staging file and its empty directory, then retry the owned launcher.
+A zero-length or different retained
 target requires stopping the selected provider and moving only that inspected
 public file aside, then rerunning the owned launcher to publish the configured
 root and recreate the provider. Keep `.data/keycloak-trust/` itself in place;
