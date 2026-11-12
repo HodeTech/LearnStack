@@ -479,6 +479,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 111 lines
+  - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
+    - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21732,3 +21735,114 @@ remain unstarted. Phase 03 stays in progress; this closeout starts no next packe
 Closeout documentation passes fragment/roadmap/index checks, ADR-status controls
 and five corpus-consistency cases. These checks validate the documentation
 handoff and add no new runtime or hosted qualification claim.
+
+## P03-8 — Tenant federation
+
+### P03-8 proposed tenant federation package (2026-11-13)
+
+**Status: Proposed.** The maintainer requests P03-8 through `implement-task` on
+`development`, with existing-document review first, a new ADR submitted for approval
+before any dependent code, and product decisions presented before work. Each
+implementation step commits, receives a fresh independent review round with verified
+fixes and a commit, then a second fresh round with fixes and a commit, and the next
+step follows without a permission stop. No Astra model is used; agents are Sonnet
+unless a security/ownership lens justifies Opus.
+
+Baseline is clean `development` at `0e029dcf`. No branch switch, provider mutation
+or private-environment access occurs in this pass. The open P03-3 through P03-7
+final-head qualification gaps remain historical and separately tracked; this
+proposal grants none of them credit.
+
+#### Problem, document review and decision boundary
+
+P03-8 delivers D11/C13: a tenant admin configures a SAML or OIDC identity provider
+brokered through the shared realm without gaining realm authority, egress, account
+linking or membership. G12 is Open. The review compares Phase 03's packet, G12, C13
+and D11 with ADR-0004/0033/0064/0070/0072/0078/0079/0093/0095/0097/0098, Architecture
+13/24/26, Standards 04/05/07/11/18/19/20/21, the Identity module specifications, the
+realm export and its reconciliation scripts, the BFF and API provider code, and the
+pinned Keycloak 26.6.2 sources. The load-bearing findings are:
+
+| Finding at HEAD | Proposed action |
+|---|---|
+| The realm declares no brokers, flows or first-broker flow, so stock existing-account linking would apply | Realm-owned `learnstack-first-broker-login`: re-authentication-only linking, no email or auto-link path |
+| Keycloak's JSON `import-config fromUrl` fetches any URL with no address check | LearnStack egress guard fetches; only the multipart `file` form is admitted |
+| `manage-identity-providers` is realm-wide; no runtime Admin adapter exists and P02b-6 reserves a reopened pass for one | New ADR-0099, dedicated confidential client, enumerated calls, alias derived by LearnStack, two-sided ownership proof |
+| Standard 11 A10 requires allow-listed egress while P02b m-38 keeps private IdPs legitimate and the policy undecided | Public-only by default, operator allow-list of exact hosts, never tenant input |
+| ADR-0093 trusts UserInfo `email_verified`; an IdP-asserted address would cross tenants | `trustEmail=false` always; Keycloak's own VERIFY_EMAIL purpose; no trusted-domain setting |
+| Brokered new subjects share ADR-0078's 10/minute, 100/day, 10,000 budgets | No new budget; tenant IdP abuse equals open registration; operator disable named as P03-9 |
+| MFA is stated four ways and no code reads `amr`/`acr`; the token profile whitelists neither | Brokered sign-in carries no LearnStack MFA assurance; correct Architecture 13; enforcement stays Phase 11 |
+| The BFF request is fixed, sign-in has one local action and anonymous pages must not depend on the provider | Host-bound anonymous DB-only read, BFF hint, `federation_test` purpose and ID-token-only `idp` mapper |
+| A provider write cannot join the MUST-audit transaction | Intent-first Begin, idempotent provider call, Complete; Resume for pending/uncertain |
+| Standard 18 has no `config-change` type; baseline already lists provider-credential rotation | Classify existing types; rotation is MUST baseline |
+| A new Tenant key needs registry v4, explicit adoption and an eleventh advisory capability | `identity.federation.admin`, one Tenant key, no organization counterpart |
+| ADR-0021 uses `sso.saml.enabled` in one snippet while code and its own later text use `identity.sso.saml`; OIDC has no plan row | Correct at acceptance; no Hub key or contract change |
+| The seed personas' `manage-account` can reach account-console linked accounts | Qualify the hidden-IdP path on the pinned provider; named fallback removes the capability |
+
+These are missing capabilities and unaccepted decisions, not claims that earlier
+Accepted records were false. Source audits and upstream inspection are decision inputs,
+not executed provider, native or browser evidence.
+
+#### Maintainer decisions recorded 2026-11-13
+
+- **Interactive test required** before activation (rather than a server-side
+  pre-check with first-sign-in verification).
+- **Existing-account linking only through that account's own re-authentication**
+  (rather than refusing every duplicate).
+- **One connection per tenant** (rather than several).
+
+Acceptance of ADR-0099 itself remains a separate maintainer act.
+
+#### Choices presented together
+
+- One connection per tenant, Draft/Active/Disabled, protocol fixed per connection.
+- A fixed broker profile with no tenant-selectable trust, flow, mapper or egress.
+- Public-only egress with an operator allow-list; no claim that LearnStack closes
+  Keycloak's later DNS exposure.
+- Intent-first provider operations over the job runtime or an in-transaction call.
+- A fixed 10-second request deadline with four-second provider and five-second egress
+  calls, 60-second stale-pending takeover, 10-minute test attempts and a 24-hour
+  test-to-activation window. These are judged limits, not measured throughput.
+- No JIT provisioning, SCIM, claim mapping, trusted-domain email or SSO-only
+  enforcement. None has an owning phase; each would need its own decision.
+
+#### Three implementation steps after approval
+
+1. **Contract and storage.** `FederationConnection`, migration/RLS/census,
+   registry v4 and capability, policy source and audit catalogue, entitlement gate,
+   commands/queries over a fake provider port, HTTP/OpenAPI census and
+   learnstack_app database, unit and architecture proof.
+2. **Provider and realm.** Egress fetcher, Keycloak adapter, fresh/warm realm
+   reconciliation of the admin client, first-broker flow and `idp` mapper with
+   zero-write rerun, and real two-tenant OIDC and SAML brokers with linking, email,
+   confinement, egress and recovery negatives.
+3. **Native and Studio, then qualification.** Public sign-in read, BFF hint and test
+   purpose, Studio page, SDK/native operations, i18n, accessibility and end-to-end
+   proof; full backend/frontend/docs checks, document reconciliation and the PR.
+
+Reviewers use fresh agents matched to ownership and security complexity, with runtime,
+corpus and operations lenses. The primary agent validates every finding against the
+surrounding contract before changing code. Do not create extra steps or repeated broad
+rounds because a suggestion exists.
+
+#### Acceptance and implementation carrier inventory
+
+- Dated Amendments: ADR-0004 (tenant-admin surface delivered), ADR-0064 (first runtime
+  Admin adapter), ADR-0070 (`federation_test` purpose, `idp` ID-token claim, account
+  linking note), ADR-0072 (federation-only adapter exception), ADR-0078 (sign-in
+  options and brokered bootstrap budgets), ADR-0079 (new operations and eleventh
+  capability) and ADR-0097 (new separate client). No Accepted body rewrite.
+- Canonical rules: Standards 04, 05, 07, 11, 18, 19, 20, 21; Architecture 13;
+  Identity README/permissions/audit/providers; Keycloak README; glossary; skills.
+- Implementation: Identity domain/application/infrastructure, a common Infrastructure
+  federation adapter and egress fetcher, API controllers and the public read, realm
+  export and `scripts/development-realm-*.mjs`, the native BFF and Studio.
+- Skills dispatched: `add-tenant-owned-entity`, `add-ef-migration`, `add-permission`,
+  `add-audit-coverage`, `add-mediatr-handler`, `add-provider-adapter` (for the
+  adapter, consulting its resilience pattern), `add-integration-test`, `add-i18n-key`,
+  `run-tests-locally`, `standards-check`, `code-review`, `commit-and-pr`. The
+  `add-background-job` workflow is inapplicable by decision.
+
+Before approval no runtime, realm, client, lockfile or standard changes land. Proposed
+documents are committed for review only; acceptance, implementation, executed reviews
+and final-source qualification stay distinct.
