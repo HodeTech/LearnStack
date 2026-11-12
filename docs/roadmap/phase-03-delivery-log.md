@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 529 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 546 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -464,7 +464,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 62 lines
   - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 48 lines
   - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 40 lines
-  - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 31 lines
+  - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 32 lines
+  - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21122,3 +21123,20 @@ completed C12/CI claim or merge authorization. After verified corrections and a
 second different fresh review round, commit current documentation and freeze the
 reviewed source for one PR and complete same-source A/B/original-archive checks.
 Earlier packet evidence gaps remain separately owned; no old receipt is borrowed.
+
+
+### P03-7 Step 3 independent review round one (2026-11-12)
+
+Fresh Terra security/protocol/ownership and Sol delivery/corpus/operator reviewers
+inspect the packet through `2a6e5ec7`, including implementation `ec69aed0`, against
+baseline `778161b6`. Both approve within the reviewed implementation scope with no
+actionable finding; no fix is manufactured for a clean review. They inspect the
+actual late-work/replay/crypto boundaries, normal trust reload/caller confinement,
+real provider populations, native lifecycle and current executed controls.
+
+The reviews independently preserve the distinction between actual provider
+HTTP/TLS proof, fake-grant stock browser regression, controlled scheduling tests,
+manual accessibility and full hosted qualification. They run no new heavy suite,
+provider mutation, build or installation. The long local Architecture run and
+complete PR A/B/original-archive checks remain open, without completed credit.
+A different fresh pair now performs the second Step 3 review before source freeze.
