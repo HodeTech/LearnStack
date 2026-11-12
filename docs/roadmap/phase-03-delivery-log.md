@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 546 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 579 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -465,7 +465,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 48 lines
   - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 40 lines
   - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 32 lines
-  - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 16 lines
+  - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 17 lines
+  - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21140,3 +21141,36 @@ manual accessibility and full hosted qualification. They run no new heavy suite,
 provider mutation, build or installation. The long local Architecture run and
 complete PR A/B/original-archive checks remain open, without completed credit.
 A different fresh pair now performs the second Step 3 review before source freeze.
+
+
+### P03-7 Step 3 second review and qualification handoff (2026-11-12)
+
+Different fresh Sol security/protocol and Terra delivery/corpus/operator reviewers
+inspect the completed packet through `11dacdd1`, executable implementation
+`ec69aed0`. Both approve within scope with no actionable finding. All three
+implementation steps have completed their two requested independent review/fix
+cycles; no clean review produces an invented source fix. Reviewer reports retain
+the distinction between implementation and still-open final hosted qualification.
+
+Current local evidence remains 4,406 guarded frontend cases, 35 focused native
+input/token/TLS cases, two actual provider/browser integration cases, 3,780 Unit
+and twelve Contract cases, the twelve-file 457-case realm census, Release/native
+build, TypeScript/lint and whole-tree documentation checks. The separately running
+unsharded local Architecture suite is not yet complete and receives no passing
+credit. The final PR's complete Architecture producers and both required aggregates
+remain mandatory; this handoff skips no check and authorizes no merge.
+
+The resulting documentation commit freezes the reviewed implementation for one
+normal development-to-main PR. Its PR proof records the exact source and complete
+same-source opposite-layout A/B, retaining original API artifact metadata and ZIP
+bytes before any whole-run rerun, with size/SHA-256/CRC and result/assignment/source
+reconciliation. Failed or incomplete attempts confer no qualification credit;
+failed-job-only/manual duplicate runs are not substitutes. A material source fix
+reopens focused review and final-source qualification. Update PR proof after the
+checks; do not change source merely to narrate passing job IDs.
+
+P03-7 enters review/qualification handoff, not merged completion. C12's final-source
+hosted evidence and maintainer merge remain open here. Existing manual evidence,
+prior packets' source/CI gaps and P03-8–11 ownership remain unchanged. Private
+source keys, provider identifiers/tokens, cookies and callback bodies stay out of
+committed/public proof. No agent merge is authorized.

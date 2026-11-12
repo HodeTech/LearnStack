@@ -6452,7 +6452,9 @@ Prior receipts do not qualify subsequent source changes.
 validation, sid continuity/exact targets, atomic bounded replay/late-publication
 fences, clocks/capacity/actual retirement, fixed machine route and owned TLS
 bridge startup/parent-loss, and real provider-to-native normal-setup proof. The
-extension is **Registered** pending its implementation and executed controls;
+extension is **Registered** for packet proof closeout; its local implementation
+and executed controls are recorded in the [Phase 03 handoff](../roadmap/phase-03-delivery-log.md#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12).
+Final-source hosted qualification and maintainer merge remain separately owned;
 existing baseline statuses and architecture rule counts do not change.
 
 The extension's implementation owners are the native `backchannel-*` controls,
