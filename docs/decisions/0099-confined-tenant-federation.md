@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — 2026-11-13, revised the same day after two independent reviews. Acceptance,
+Proposed — 2026-11-13, revised the same day after two review rounds. Acceptance,
 implementation and qualification are separate records; this proposal changes no runtime
 behavior, realm, client or standard.
 
@@ -44,6 +44,11 @@ owns the three implementation steps and their proof.
   which every realm user holds through the default role, and the account console lists
   and links every broker whose `showInAccountConsole` is its default `ALWAYS`;
   `hideOnLogin` does not affect either.
+- Linking gives a tenant IdP's controller a Keycloak session for the linked account. The
+  shared realm then lets that session run Keycloak's own credential, profile and
+  linking actions (`kc_action` needs re-authentication only after 300 seconds, and a
+  fresh brokered login is fresh), so no LearnStack-side check confines it. Stock Keycloak
+  cannot deny those actions per session: password reset and TOTP enrollment need them.
 - MUST audit commits with the state it describes
   ([ADR-0033](0033-audit-durability-model.md)); a provider write cannot join that
   transaction, and an unknown provider outcome must stay visible rather than guessed.
@@ -56,8 +61,9 @@ owns the three implementation steps and their proof.
   [ADR-0078](0078-native-session-scope-and-self-entry.md).
 - The maintainer decided on 2026-11-13: a real interactive test is required before
   activation, in the form this record gives it; an existing account links only through
-  that account's own re-authentication; a tenant has one connection; and the broker
-  creates no accounts.
+  that account's own re-authentication; a tenant has one connection; the broker creates
+  no accounts; and linking is accepted as delegating the linked account to the IdP's
+  controller, documented rather than enforced inside Keycloak.
 
 ## Considered Options
 
@@ -76,6 +82,10 @@ owns the three implementation steps and their proof.
    enforced inside the provider and its own decision; nothing here provides that.
 6. **Verification-mail or email-matching linking, `trustEmail=true`** (rejected). Each
    turns an asserted claim into account takeover or cross-tenant invitation acceptance.
+   **A Keycloak provider extension denying credential, profile and linking actions on
+   brokered sessions** (not provided: a new Java build, image and release line for
+   every deployment mode; it would close the delegation residual and needs its own
+   decision, owned with Keycloak hardening by Phase 11).
 7. **Provider call inside the business transaction** (rejected: holds a connection
    across I/O and leaves an unaudited effect after a failed COMMIT) **or the ADR-0047
    job runtime** (rejected: its capacity/quiescence machinery protects irreversible
@@ -92,11 +102,12 @@ can prove it owns. Tenants author only protocol, display name and OIDC endpoints
 client credentials or SAML identifiers/certificates; LearnStack fixes every flag,
 flow, mapper and trust setting. Tenant-supplied URLs are fetched during configuration
 only by a LearnStack egress guard. The broker creates no accounts: a person with an
-existing local account links it by re-authenticating that account, and a brokered
-session is admitted only on its own tenant's host. A connection is advertised only
-after a real brokered test sign-in on its current configuration. Every provider write
-is preceded by a committed MUST audit intent and followed by a committed outcome, so a
-crash or unknown result stays visible and retryable. Local sign-in is never affected.
+existing local account links it by re-authenticating that account, which delegates
+that account to the IdP's controller, and a brokered LearnStack session is admitted
+only on its own tenant's host. A connection is advertised only after a real brokered
+test sign-in on its current configuration. Every provider write is preceded by a
+committed MUST audit intent and followed by a committed outcome, so a crash or unknown
+result stays visible and retryable. Local sign-in is never affected.
 
 ## Context
 
@@ -122,7 +133,13 @@ crash or unknown result stays visible and retryable. Local sign-in is never affe
   LearnStack never reads back or retains a secret. A broker's alias is the user-session
   note `identity_provider`, which a stock user-session-note mapper can emit.
 - Keycloak refuses an authentication whose user differs from the browser's existing
-  SSO session (`DIFFERENT_USER_AUTHENTICATED`), including under `prompt=login`.
+  SSO session (`DIFFERENT_USER_AUTHENTICATED`), including under `prompt=login`. A
+  brokered login writes the `identity_provider` note onto the user session, the note is
+  never cleared, and refresh re-issues the ID token from it, so the note belongs to the
+  shared SSO session rather than to one application session.
+- The realm keeps the `account` and `account-console` clients, and the default role
+  grants `manage-account`. The deprecated `GET /account/linked-accounts/{alias}` builds a
+  link to any existing alias on `manage-account` alone, ignoring `showInAccountConsole`.
 
 ### Ownership and the confined adapter
 
@@ -165,7 +182,7 @@ or differing key is drift.
 | `hideOnLogin` | true | The shared login page never lists another tenant's IdP |
 | `showInAccountConsole` | `NEVER` | The account console neither lists nor links any tenant IdP |
 | `trustEmail` | false | An asserted address is never verified; ADR-0093 stays intact |
-| `linkOnly`, `storeToken`, `addReadTokenRoleOnCreate`, `authenticateByDefault`, `doNotStoreUsers`, `acceptsPromptNoneForwardFromClient` | false | No token retention, default redirect or silent forwarding |
+| `linkOnly`, `storeToken`, `addReadTokenRoleOnCreate`, `authenticateByDefault`, `doNotStoreUsers`, `acceptsPromptNoneForwardFromClient`, `passMaxAge` | false | No token retention, default redirect, silent forwarding, or IdP control of session freshness |
 | `firstBrokerLoginFlowAlias` | `learnstack-first-broker-login` | The only admitted linking behavior |
 | `postBrokerLoginFlowAlias`, mappers, `organizationId` | none | No claim-to-role/group/attribute/organization authority |
 | `syncMode` | `IMPORT` | The IdP never overwrites profile data |
@@ -174,10 +191,13 @@ or differing key is drift.
 | SAML trust | signature validation on, signed assertions required, a fixed non-transient NameID policy, no IdP-initiated SSO | Unsigned, unsolicited or per-login-identity assertions refuse |
 | SAML server-side URLs | artifact resolution, SLO, back-channel and `metadataDescriptorUrl` unset or off | Only guarded endpoints are fetched |
 
-`enabled` is true for Draft and Active and false for Disabled. Exact keys live in the
-Identity provider specification at acceptance. A client secret is refused when empty,
-over 1,024 bytes, equal to the mask literal, or beginning `${`, which Keycloak would
-resolve as a vault reference.
+`enabled` is true for Draft and Active and false for Disabled. The Identity provider
+specification enumerates the exhaustive key list per protocol (including
+`forwardParameters`, `loginHint`, `filteredByClaim`, `allowedClockSkew` and
+`principalType`); any key outside it is drift. The provider-side display name is the
+connection's display name, so it is a sixth provider operation when renamed. A client
+secret is refused when empty, over 1,024 bytes, equal to the mask literal, or beginning
+`${`, which Keycloak would resolve as a vault reference.
 
 ### Realm invariants
 
@@ -186,7 +206,12 @@ Realm reconciliation, not the adapter, owns and the Step 2 tests assert:
 - The realm-owned `learnstack-first-broker-login` flow and the `learnstack-federation-admin`
   client (`manage-identity-providers` only).
 - The `idp_link` required action is disabled, so no application-initiated action can
-  link a broker.
+  link a broker. The `account` and `account-console` clients are disabled and
+  `manage-account`/`manage-account-links` are removed from the default role and the
+  development personas, so neither the account console nor the deprecated
+  linked-account builder and broker link endpoint can link a session. This retires the
+  development account-console self-service capability recorded for the personas; the
+  email reset flow remains the credential recovery path.
 - An ID-token-only user-session-note mapper on `learnstack-web` emitting the `idp` claim.
 - Admin-event details stay disabled, because a Keycloak PUT logs the unstripped
   representation, which would record a rotated secret.
@@ -230,28 +255,48 @@ metadata. Keycloak is never handed a URL to fetch during configuration.
   then re-authenticate that account with its password and its conditional OTP. No
   create-user, email-verification or auto-link step exists. A hostile IdP asserting an
   address creates nothing and links only if the account's own credentials are entered.
-  Residual risks: an account owner deliberately entering their password after
-  following a hostile IdP's link, and Keycloak's "forgot password" on that form, which
-  can complete a pending link. Step 2 qualifies that the latter resumes only in the browser
+  The form's username is editable and detect-existing does not pre-fill it, so the link
+  attaches to whichever account's credentials are entered, and a hostile IdP can learn
+  whether an address exists in the realm; open registration already exposes that.
+  Residual risks: a person entering their password on the genuine provider page after
+  following a hostile IdP's link (any tenant can send any user such a link, with the
+  tenant's chosen display name), and Keycloak's "forgot password" on that form, which can
+  complete a pending link. Step 2 qualifies that the latter resumes only in the browser
   holding the pending authentication session, so an attacker-initiated reset mailed to
   the account owner links nothing; if it does link, the form's reset action is removed.
+- **Linking delegates the account.** A linked IdP's controller can start a Keycloak
+  session as that account and, because Keycloak's credential, profile and OTP actions
+  stay available to a fresh session, can add local credentials to it. The host binding
+  below confines the LearnStack sessions the IdP produces, not what Keycloak lets that
+  session do. A person with memberships in other tenants should link only an IdP whose
+  controller they trust with every one of them. Studio, the runbook and the
+  confirm-link copy say so. The enforcing control, a Keycloak extension or a realm per
+  tenant, is not provided here and is owned by Phase 11's Keycloak hardening.
 - SSO is therefore a sign-in convenience for an existing, email-verified local account,
   not an onboarding path. A new person first registers locally and verifies the address
   (the existing `kc_action=VERIFY_EMAIL` purpose), then signs in with SSO once to link.
-  Brokered sign-in also never reaches the shared 10/minute, 100/day and 10,000-lifetime
-  new-subject budgets of ADR-0078, because it creates no account.
+  Brokered sign-in creates no Keycloak account. A person with a verified Keycloak account
+  but no LearnStack binding still enters through ADR-0078's opt-in bootstrap and draws its
+  shared budgets exactly as on a first local entry.
 - A tenant-trusted-email or per-domain setting is not provided, for the cross-tenant
   reason above. Federation grants no Membership, Role or group and there is no
   just-in-time provisioning, SCIM or claim mapping; a federated person enters a tenant
   through the existing invitation journey.
-- **A brokered session belongs to its tenant's host.** The ID token carries the `idp`
-  claim only for brokered sessions. At every credential publication, code redemption
-  and refresh, the BFF refuses a token whose `idp` is present and not exactly the alias
-  of the host tenant's Active connection, or when that alias cannot be read, for brokered
-  sessions only. Context discovery and switching for a brokered session stay within the
-  host's tenant. A session via tenant A's IdP therefore never enters tenant B, a hostile
-  `kc_idp_hint` yields nothing, and Disable ends brokered sessions at their next refresh,
-  within the access-token lifetime. Already issued API tokens keep the documented bound.
+- **A brokered LearnStack session belongs to its tenant's host.** The ID token carries
+  the `idp` claim only for brokered authentications, and the BFF records it as session
+  provenance. At credential publication the BFF refuses a token whose `idp` is present
+  and not exactly the alias of the host tenant's Active connection, or when that alias
+  cannot be read, for brokered tokens only. On refresh the provenance must equal the one
+  recorded, so a mid-session change is refused, and a brokered session also ends when its
+  alias stops being the host's Active alias, so Disable and a new generation end it within
+  the access-token lifetime. The check sits in the session owner, which knows the host,
+  before every credential publication: code redemption and the invitation custody
+  handoff, the consent and active refreshes, selection, creation and context switching;
+  the test callback never reaches subject reservation or credential assignment. Because
+  the note lives on the shared SSO session, a refusal also ends that provider session
+  through the existing `id_token_hint` end-session, so local sign-in can proceed and other
+  sessions sharing it close as ADR-0098 already allows. Already issued API tokens keep
+  the documented bound.
 - A brokered sign-in carries no LearnStack MFA assurance. No mapper imports `acr` or
   `amr`, linking requires the account's own OTP, and the tenant IdP's MFA is neither
   verified nor attested. Architecture 13's statement that LearnStack reads `amr` is
@@ -269,25 +314,33 @@ metadata. Keycloak is never handed a URL to fetch during configuration.
 - **Configure** replaces identity-bearing fields (endpoints or certificates, client ID,
   protocol-specific values). It starts a new generation, clears the test and returns the
   connection to Draft, except that a Disabled connection stays Disabled until **Enable**.
-  **Rotate secret** keeps the alias and links but also clears the test and returns an
-  Active connection to Draft, preserving "Active means this configuration, secret
-  included, passed a test". A display-name edit keeps the state. A tenant changes
-  protocol by deleting and recreating its single connection.
+  **Rotate secret** keeps the alias, links and state, because it does not change the
+  identity source and a refresh never reaches the IdP; it marks the test stale, the page
+  asks for a new test, and a wrong secret surfaces as failing new SSO sign-ins until
+  corrected. A display-name edit keeps the state and test. A tenant changes protocol by
+  deleting and recreating its single connection.
 - **Test** means signing in through the IdP as yourself. The admin starts a single-use,
   ten-minute attempt bound to actor, revision and a random identifier. The BFF begins a
   `federation_test` purpose on `learnstack-web` with `kc_idp_hint=<alias>` and
   `prompt=login`, validates the ID token like any sign-in and requires the `idp`
   claim to equal the alias and the subject to equal the admin's own session subject.
-  Keycloak refuses a brokered identity that resolves to anyone else, so the IdP
-  account's email must match the admin's local account; a first test therefore also
-  links that account, a persistent and stated side effect. The BFF publishes nothing,
-  discards every token, reports a closed result under the admin's own session, and keeps
-  that session. The result attests an admin-run check, not a security control.
+  Keycloak refuses a brokered identity that resolves to anyone but that user. The IdP
+  account's email must therefore match an existing local account, and the credentials
+  entered at re-authentication must be the administrator's own; a first test links that
+  account to the IdP, a persistent and stated side effect. The BFF publishes nothing,
+  discards every token and reports a closed result to the API under the admin's own
+  session. That result, recorded only by the BFF's server-side call and never by a
+  browser-invocable operation, attests an admin-run check, not a security control. The
+  test then signs the administrator out through the standard sign-out, because the admin's
+  shared provider session now carries the brokered note and would otherwise fail the host
+  check; the page says so before the test starts and the result is waiting on return.
 - **Activate** is a registry-only transition: a passed test on the current
   configuration no older than 24 hours, a fresh readback equal to the fixed profile with
-  no mapper, a fresh egress check, no pending operation, and the protocol's entitlement.
-  **Disable** is the rollback: it disables the broker, clears the test and removes
-  advertisement. **Enable** returns to Draft and needs a new test.
+  no mapper, a fresh egress check, no pending operation and no retiring generation, and
+  the protocol's entitlement. It only reads the provider, so it is not intent-first; its
+  I/O runs outside the transaction and passes its evidence in. **Disable** is the
+  rollback: it disables the broker, clears the test and removes advertisement. **Enable**
+  returns to Draft and needs a new test.
 - Entitlement lapse or a Disabled state removes advertisement and refuses Configure,
   Rotate, Enable, Activate and test; Disable and Delete always remain. The broker may
   stay enabled but is useless, because no host accepts its sessions.
@@ -298,38 +351,53 @@ metadata. Keycloak is never handed a URL to fetch during configuration.
 
 ### Intent-first provider operations
 
-Configure, Rotate secret, Enable, Disable and Delete each run as two committed requests
-around one idempotent provider call, sequenced by one Identity application service that
-sends two top-level commands:
+Configure, Rotate secret, Rename, Enable, Disable and Delete each run as two committed
+requests around idempotent provider calls, sequenced by one Identity application service
+that sends top-level commands through `ISender`, each in its own frame:
 
-1. **Begin** validates, authorizes and records a pending operation (kind, identifier,
-   actor, start time, desired digest) with its MUST audit intent in one transaction.
+1. **Begin**, one request type per operation, validates, authorizes and records a
+   pending operation (kind, identifier, actor, start time, desired digest) with its MUST
+   audit intent in one transaction. Nothing has touched the provider.
 2. The provider call applies the desired state under its own timeout with no database
-   transaction open. A secret exists only in memory for this call and is never
-   persisted, logged, audited, idempotency-fingerprinted or returned.
-3. **Complete** records `applied`, `failed` with a closed reason, or `uncertain`, with
-   its own MUST audit row. It is an application-internal continuation, not an HTTP
-   route, bound to the pending operation's identifier and actor: it settles that
-   operation even if the actor's permission was revoked since Begin, and grants nothing
-   else. A superseded identifier's late Complete changes nothing. It runs on a token not
-   tied to the client request, so an abort after the provider call still settles.
+   transaction open. A secret exists only in memory for this call, in a redacting type,
+   and is never persisted, logged, audited or returned.
+3. **Complete**, one shared request type, records `applied`, `failed` with a closed reason
+   or `uncertain` as a successful result with its own MUST audit row, so a failed or
+   uncertain outcome is settled, not rolled back. Both rows carry the operation
+   identifier. Complete is an ordinary protected internal request under the same Tenant
+   key as Begin, dispatched without an HTTP route, and is not exempt from authorization:
+   if the actor's permission was revoked after Begin, the operation stays pending and any
+   current administrator's **Resume** settles it by re-reading the provider. A superseded
+   identifier's Complete changes nothing and records drift; Disable and Delete confirm by
+   readback.
 
-Budgets inside the 10-second native deadline: egress four seconds (fetches in parallel),
-provider call three seconds, each database step one second, Complete two seconds. A
-second mutation while an operation is pending is refused as a conflict until the first
-is older than 60 seconds; the new Begin then supersedes it, which is safe because each
-call applies a full desired state. A crash or lost response leaves the operation
-pending and visible; **Resume** re-reads the provider and completes Enable, Disable and
-Delete, and completes Configure only when the non-secret readback equals the stored
-desired digest. An interrupted Rotate, or any Configure whose readback differs, asks
-the admin to resubmit. Delete removes the row only after the provider confirms absence.
-A provider call that lands after its operation was superseded can leave an orphan broker
-whose owner marker names a missing connection; it is foreign to every tenant, is never
-adopted or touched by the adapter, and its removal is the operator sweep that P03-9 owns.
+An identity-bearing Configure runs as disable the retiring generation (recorded in the
+row), create the next generation's broker, then delete the retiring one, each step
+resumable; the adapter may touch the retiring generation by that record, every PUT keeps
+the path alias (Keycloak moves links when an alias changes), and Activate refuses while a
+retiring generation exists.
 
-Mutations carry `Idempotency-Key` with the durable-receipt contract of
-[ADR-0079](0079-bounded-identity-administration.md) and `If-Match` on the connection
-revision; a replay returns the original outcome and never repeats the provider call.
+Budgets, unmeasured judged limits inside the 10-second native deadline: egress three
+seconds in total, discovery then JWKS because the second URL comes from the first; each
+database step one second; provider calls two and a half seconds in total; Complete one and
+a half seconds on a token not tied to the client request, so a client abort still settles,
+with cancellation owned as Standard 19 expects. A second mutation while an operation is
+pending is refused as a conflict until the first is older than 60 seconds, after which
+the new Begin supersedes it; each call applies a full desired state. A crash or lost
+response leaves the operation pending and visible; Resume completes Enable, Disable,
+Rename and Delete and completes Configure only when the non-secret readback equals the
+stored desired digest. An interrupted Rotate, or a Configure whose readback differs, asks
+the administrator to resubmit. Delete removes the row only after the provider confirms
+absence. A call that lands after its operation was superseded can orphan a broker whose
+owner marker names a missing connection; it is foreign to every tenant, never adopted or
+touched, and its removal is the operator sweep P03-9 owns.
+
+The mutations accept no `Idempotency-Key`, like invitation acceptance and global-self
+bootstrap, because each converges: `If-Match` on the connection revision, the pending
+identifier and a unique-per-tenant row give a recoverable 409, and a fresh read reconciles
+a lost response. This keeps them out of the protected-receipt census. State-changing
+operations use PUT or POST, since the native transport admits no DELETE; the sign-in read
+and the refresh-time alias read use the credential-free public transport.
 
 ### Sign-in exposure
 
@@ -341,29 +409,42 @@ clearly labeled "Sign in with {displayName}" action beside the unchanged local o
 missing, slow or failed read hides it and nothing else changes. The display name is
 1 to 80 characters, normalized, free of control, format and bidirectional characters, and
 rendered escaped and isolated. The alias is the provider hint, not a secret. The BFF
-never accepts an alias or URL from the browser. The Studio page shows the redirect/ACS
-URL, SP entity ID and Keycloak's own descriptor URL derived from the alias and issuer
-base; no further adapter call is needed.
+never accepts an alias or URL from the browser. A non-Tenancy module may own a public
+read, as Education does, but the public census closes: Standard 04's public-surface table,
+an ADR-0052 Amendment, `OperationHttpClassification`, the public-surface marker and its
+registration test, and the OpenAPI/SDK snapshot all change, and each sign-in page view and
+brokered refresh adds an anonymous call to the ADR-0054 per-peer budget. The Studio page
+shows the redirect/ACS URL, SP entity ID and Keycloak's own descriptor URL derived from
+the alias and issuer base; no further adapter call is needed.
 
 ### Authority, audit and storage
 
 - One Tenant-scope key, `identity.federation.admin`, in registry release v4, adopted
   explicitly by existing Tenant Admin roles (seed admins adopt v1→v4 in order), with an
   eleventh advisory capability. Org Admin and every other role are unaffected; writes
-  need the orgless tenant-wide native context. Keycloak realm roles grant nothing.
+  need the orgless tenant-wide native context. Keycloak realm roles grant nothing. A
+  default `IFederationProvider` registration fails closed when the admin client is not
+  configured. The Hub-side plan row carrying `identity.sso.oidc` is Hub plan data, not a
+  contract change; until it exists OIDC is unentitled on a real Hub.
 - Eleven operations under `identity.federation.*`: ten MUST (`configure`,
   `rotate_secret`, `rename`, `enable`, `disable`, `delete`, `resume`, `activate`,
-  `test_record` and `apply`, the Complete outcome) and SHOULD `test_start`. This also covers Standard 18's
+  `test_record` and `apply`, the Complete outcome) and SHOULD `test_start`; the key is
+  registered Assignable with orgless writes, and each Begin and Resume is its own request
+  type. This also covers Standard 18's
   baseline "provider credential created / rotated / revoked". Configuration reads are
-  explicit Off. No row carries a secret, assertion or token; snapshots hold the non-secret
+  explicit Off, as for custom-field definitions, because they hold no personal data. No row
+  carries a secret, assertion or token; snapshots hold the non-secret
   fields and digests. ADR-0097's retained-event catalogue is unchanged: mirroring
   brokered-login or link events would need its own amendment.
 - `federation_connections` is Identity-owned, tenant-owned and tenant-wide, unique per
   tenant, with the [canonical template](../standards/05-database.md)'s RLS and EF filter,
   `learnstack_app` grants only and a forward-only migration. It holds protocol,
   generation, display name, state, revision, source kind and URL, client ID, configuration
-  digest, the pending operation, the test attempt and result, audit columns and row
-  version, with CHECKs for states and exclusivity. It stores no secret, token or
+  digest, the retiring generation, the pending operation, the test attempt and result,
+  audit columns and row version, with CHECKs for states and exclusivity, a mutation-guard
+  trigger for the state machine, and the Identity tenant fence and lock ordering. The
+  applied census, `SchemaTableClasses`, model snapshot and one personal-data declaration
+  per scalar change with it. It stores no secret, token or
   assertion. Actor references are classified as pseudonymous identifiers; every scalar
   has an explicit personal-data classification.
 
@@ -371,8 +452,9 @@ base; no further adapter call is needed.
 
 Studio gains one Federation page with a three-step layout (configure, test, activate),
 the values to paste into the IdP, a write-only secret control, pending, drift and uncertain
-banners with Resume, plain explanations that SSO links an existing account and that the
-test signs you in as yourself, and confirmed Disable and Delete. Configuration offers
+banners with Resume, plain explanations that SSO links an existing account and delegates
+it to the IdP, that the test signs you in as yourself and then signs you out, and
+confirmed Disable and Delete. Configuration offers
 a discovery or metadata URL, or manual endpoints/identifiers and at most two PEM
 certificates, all within the 16 KiB native input bound; there is no metadata paste.
 English and Turkish copy, keyboard and focus behavior, reflow and contrast follow the
@@ -392,15 +474,17 @@ existing C20 controls, and no identifier, provider message or secret enters prod
 ### Negative
 
 - A realm-wide provider role backs the adapter; confinement is LearnStack's alone, and
-  realm invariants (`idp_link`, the flow, admin-event details) depend on reconciliation
-  that production provisioning must replicate.
+  realm invariants (`idp_link`, the flow, the disabled account console, admin-event
+  details) depend on reconciliation that production provisioning must replicate.
+- A linked account is delegated to its IdP's controller, who can add local credentials to
+  it inside Keycloak; only a provider extension or a realm per tenant would stop that.
 - Keycloak's later fetches follow DNS; only deployment network policy can bound them.
-- SSO is not an onboarding path, and an administrator whose IdP email differs from
-  their LearnStack email cannot pass the required test.
+- SSO is not an onboarding path, an administrator whose IdP email matches no local
+  account cannot pass the required test, and the test ends in a sign-out.
 - Linking asks the owner for their password on a provider page; a successful test
   leaves a persistent link.
 - The test result is admin-reported; a late provider call can orphan a foreign broker
-  until P03-9's sweep.
+  until P03-9's sweep; the development account-console capability is retired.
 
 ### Neutral
 
@@ -412,22 +496,28 @@ existing C20 controls, and no identifier, provider message or secret enters prod
 ## Implementation Notes
 
 1. **At acceptance:** record G12; append dated Amendments to ADR-0004, 0021, 0052, 0064,
-   0068, 0070, 0072, 0078, 0079 and 0097, and analyse ADR-0098's refresh and
-   back-channel interplay in the ADR-0070 Amendment; reconcile Architecture 13,
-   Standards 01/04/05/07/11/18/19/20/21, the Identity README/permissions/audit/providers
-   specifications, the Keycloak README, Phase 03/11 documents, glossary and skills.
-2. **Step 1 — contract and storage.** Aggregate, migration/RLS/census, registry v4 and
-   capability, policy source and audit catalogue, entitlement gate, the Begin/Complete
-   runner and commands/queries over a fake provider port, HTTP/OpenAPI census, and
-   `learnstack_app` database, unit and architecture proof.
-3. **Step 2 — provider and realm.** Egress fetcher, Keycloak adapter, fresh/warm realm
-   reconciliation (admin client, link-only flow, `idp_link`, `idp` mapper, admin-event
-   details), and real two-tenant OIDC and SAML brokers with linking, confinement, egress,
-   secret, attribute-injection, account-console, reset-link and orphan negatives.
-4. **Step 3 — native and Studio.** Public sign-in read, BFF hint, `federation_test`
-   purpose and tenant-bound session checks at redemption and refresh, Studio page,
-   SDK/native operations, i18n, accessibility and real end-to-end proof; full
-   qualification and PR.
+   0068, 0070, 0072, 0078, 0079 and 0097, with ADR-0098's refresh and back-channel
+   interplay and the account-console retirement analysed in the ADR-0068/0070
+   Amendments; reconcile Architecture 13, Standards 01/04/05/07/11/18/19/20/21, the
+   Identity README/permissions/audit/providers specifications, the Keycloak README, the
+   Phase 03/11 documents (Phase 11 carries Keycloak hardening, network egress and the
+   enforcement extension), glossary and skills.
+2. **Step 1 — authority and storage.** Registry v4 with the eleventh capability across
+   domain, migration, SDK/OpenAPI and the BFF strict parsers, the explicit v2→v4 adoption
+   chain, and the `federation_connections` aggregate, migration, RLS, census and
+   `learnstack_app` proof.
+3. **Step 2 — application and API.** The Begin/Complete service, commands and queries over
+   a fake provider port, entitlement gate, audit catalogue and matrix, HTTP/OpenAPI and
+   public-surface census including the sign-in read, and unit, architecture and database
+   proof.
+4. **Step 3 — provider and realm.** Egress fetcher, Keycloak adapter, fresh/warm realm
+   reconciliation (admin client, link-only flow, `idp_link`, account console, `idp`
+   mapper, admin-event details), and real two-tenant OIDC and SAML brokers with linking,
+   confinement, egress, secret, attribute-injection, account-console, reset-link,
+   superseded-call and orphan negatives.
+5. **Step 4 — native and Studio.** BFF hint, `federation_test` owner, session
+   provenance and host checks, Studio page, SDK/native operations, i18n, accessibility and
+   real end-to-end proof; then full qualification, document reconciliation and the PR.
 
 ## Architecture Tests
 
@@ -443,7 +533,8 @@ existing C20 controls, and no identifier, provider message or secret enters prod
   owner's credentials; a hidden broker is absent from the account console and `idp_link`
   is refused; a session via tenant A's broker is refused on tenant B's host and after
   Disable; brokered tokens keep the closed profile; the private, metadata and loopback
-  endpoints refuse; a failed activation keeps local sign-in.
+  endpoints refuse; account-console, deprecated link-builder and broker link paths refuse
+  a brokered session; a failed activation keeps local sign-in.
 
 ## References
 

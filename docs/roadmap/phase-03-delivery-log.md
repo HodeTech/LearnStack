@@ -479,11 +479,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 151 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 180 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
     - [Maintainer decisions recorded after the first review (2026-11-13)](#maintainer-decisions-recorded-after-the-first-review-2026-11-13) — 12 lines
+  - [P03-8 proposal review round two and corrections (2026-11-13)](#p03-8-proposal-review-round-two-and-corrections-2026-11-13) — 29 lines
+    - [Maintainer decision recorded after round two (2026-11-13)](#maintainer-decision-recorded-after-round-two-2026-11-13) — 7 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21888,3 +21890,32 @@ session. Review is static; it is not provider, native or browser evidence.
 These two answers revise the 2026-11-13 package's first-broker and test descriptions;
 ADR-0099 carries the current contract. Acceptance of the revised ADR remains a separate
 maintainer act.
+
+### P03-8 proposal review round two and corrections (2026-11-13)
+
+Two further fresh reviewers inspected the revised ADR-0099: a security lens (Opus, high
+effort) and a feasibility/consistency lens (Sonnet, high effort). The primary agent
+verified the load-bearing claims in the Keycloak 26.6.2 source and the repository.
+
+| Verified finding | Correction |
+|---|---|
+| A linked IdP's controller gets a Keycloak session for the account; `kc_action` re-authenticates only after 300 s, so a fresh brokered login can add a password, OTP or passkey, then sign in locally on another tenant. Stock Keycloak cannot deny this per session without breaking reset and TOTP | Maintainer decision: **accept linking as delegating the account** and document it; the Keycloak-side enforcement extension or a realm per tenant is named to Phase 11. The tenant-bound host check is reframed as confining LearnStack sessions only |
+| The deprecated `linked-accounts/{alias}` builder links any alias on `manage-account` alone, ignoring `showInAccountConsole` | Realm invariant: `account` and `account-console` disabled and the `manage-account` roles removed; Step 3 negatives. The development personas' console capability is retired and amended |
+| The `identity_provider` note lives on the shared SSO session and is never cleared; the test taints the admin's session and other host sessions would fail the check | Provenance is recorded and compared on refresh; the check sits in the session owner at every publication path; a refusal ends the provider session; the test ends in the standard sign-out |
+| The old generation could not be deleted under the ownership rule; a superseded call can re-apply stale state | A recorded retiring generation, disable→create→delete order, path alias kept on every PUT, readback-confirmed Disable/Delete and drift recording |
+| The detect step does not pre-fill the re-authentication username, so a link attaches to whichever credentials are entered; unknown addresses are an existence oracle | The residual and the corrected test wording are stated (the IdP email must match some local account; the credentials entered must be the administrator's own) |
+| `passMaxAge` and further OIDC/SAML keys were unlisted | `passMaxAge=false` and an exhaustive per-protocol key list with out-of-list keys as drift |
+| A revoked actor's continuation has no authority mechanism; Begin and Complete are not single request types | Complete is an ordinary protected internal request; a revoked actor leaves it pending for any current administrator's Resume; one request type per Begin; Complete returns success with a closed outcome |
+| The protected-receipt census (closed operation enum, replay target kind, MUST read receipts, 1 KiB 2xx-only receipts) would absorb every mutation | Mutations accept no Idempotency-Key, like invitation acceptance and global-self bootstrap, and converge by If-Match, the pending identifier and a recoverable 409 |
+| The deadline budget summed to exactly 10 s, discovery and JWKS cannot run in parallel, the native transport has no DELETE and no credential-free calls | Budgets re-cut with slack; sequential discovery then JWKS; PUT/POST operations; the public transport for the sign-in and refresh reads |
+| The new-subject budget claim was wrong: a person with a Keycloak account but no LearnStack binding still bootstraps | Corrected; the existing opt-in bootstrap and budgets apply |
+| Missing carriers and Step 1 size: the public-surface census, registry v4 across SDK/BFF strict parsers, a v2→v4 adoption chain, fence and lock ordering, a Hub plan row for OIDC, a default unavailable provider, rename as a provider operation | Added to the ADR; the work is re-cut into four implementation steps (authority and storage; application and API; provider and realm; native and Studio) |
+
+Review is static; it is not provider, native or browser evidence.
+
+#### Maintainer decision recorded after round two (2026-11-13)
+
+- **Linked accounts are delegated to the IdP's controller and documented**, with the
+  account console disabled, rather than building a Keycloak provider extension in P03-8.
+
+The ADR now carries the current contract. Acceptance remains a separate maintainer act.
