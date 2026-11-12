@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 497 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 529 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -463,7 +463,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 17 lines
   - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 62 lines
   - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 48 lines
-  - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 39 lines
+  - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 40 lines
+  - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21089,3 +21090,35 @@ Step 3 now completes relevant final-source verification, native/browser/public
 regressions, its own two fresh review/fix rounds and current documentation. Freeze
 that reviewed source before PR CI A/B and original-archive reconciliation. C12 and
 hosted qualification remain open; no agent merge or earlier-packet receipt credit.
+
+
+### P03-7 Step 3 current implementation verification (2026-11-12)
+
+Verify implementation commit `ec69aed0` after both completed Step 1/2 review
+cycles. The guarded frontend executes all 130 discovered web files/4,178 reported
+cases and twelve SDK files/228 reported cases: 4,406 passing, zero skips/todos.
+Web wall time is 359.87 seconds and SDK 98.52 seconds. This is discovered-file
+and reported-case reconciliation, not independent scenario-ID discovery.
+
+The current real-provider and native-browser integration selection passes 2/2
+cases in 152 seconds. Actual Keycloak missing/loaded callback trust, owned
+same-port recovery and exact SSO closure remain separate from the stock Chromium
+fake-grant/API cookie/history regression and its live counterexamples. No natural
+BFCache or manual VoiceOver claim is inferred. No new page, interaction or copy
+is introduced; existing manual evidence is not relabelled as a new execution.
+Release build, 3,780 Unit and twelve Contract cases pass. The unsharded local
+Architecture run is still ongoing and receives no completed credit yet.
+
+The full twelve-file realm census passes 457/457; current native input/token/TLS
+controls pass 35/35. Native build, web TypeScript, changed lint and documentation
+checks pass. Retain all earlier failures separately. The working branch remains
+development; the five original stashes and editor settings digest are unchanged.
+No new runtime/test/CI setting, permission, database or provider-event audit
+contract is introduced during qualification.
+
+Start the step's fresh independent review while the remaining local Architecture
+run completes. This is an implementation/evidence review, not a source freeze,
+completed C12/CI claim or merge authorization. After verified corrections and a
+second different fresh review round, commit current documentation and freeze the
+reviewed source for one PR and complete same-source A/B/original-archive checks.
+Earlier packet evidence gaps remain separately owned; no old receipt is borrowed.
