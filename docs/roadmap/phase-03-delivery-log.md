@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 863 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 878 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -473,7 +473,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 49 lines
   - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 17 lines
   - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 28 lines
-  - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 94 lines
+  - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
+  - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 14 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21465,3 +21466,18 @@ five-second threshold. The corrected graph's 63 controls and the three optimized
 private-source controls pass; the latter finish in about one second. The complete
 guard rerun and both fresh reviews remain open. The prior source's successful A/B
 is retained but cannot qualify these new material corrections.
+
+
+### P03-7 follow-up correction first review (2026-11-12)
+
+Fresh Terra lifecycle/TLS and Sol operations/proof reviewers inspect
+`f3da11d6..ef60593c` independently. No runtime or security finding is verified.
+The operations reviewer identifies one Minor: the phase Status table still
+describes the earlier correction reviews as complete while the current Status
+paragraph reopens this correction. Point that row to the follow-up package and
+mark its reviews/qualification open. The reviewers run no tests or builds;
+their static approval is not new-source qualification.
+
+The full frontend guard rerun is still executing. Proceed to the second fresh
+review round on this correction and the Status fix; preserve the first failed
+guard separately rather than treating a later pass as erasing it.
