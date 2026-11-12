@@ -129,6 +129,27 @@ test('shared preflight rejects missing, malformed, inconsistent and ambiguous se
   await config(source, { webSource: 'LEARNSTACK_BFF_BACKCHANNEL_ENABLED=true\n' });
 });
 
+test('web source permissions follow combined enablement without requiring a private disabled projection', async () => {
+  const directory = join(root, 'frontend/apps/web');
+  const path = join(directory, '.env.local');
+  await mkdir(directory, { recursive: true });
+  try {
+    await writeFile(path, 'UNRELATED=synthetic\n');
+    await chmod(path, 0o644);
+    assert.deepEqual(await config(''), { enabled: false });
+    await rejected(config());
+    const withoutEnablement = source.replace('LEARNSTACK_BFF_BACKCHANNEL_ENABLED=true\n', '');
+    await rejected(config(withoutEnablement, { ambient: { LEARNSTACK_BFF_BACKCHANNEL_ENABLED: 'true' } }));
+    await writeFile(path, 'LEARNSTACK_BFF_BACKCHANNEL_ENABLED=true\n');
+    await rejected(config(withoutEnablement));
+    await chmod(path, 0o600);
+    assert.equal((await config(withoutEnablement)).enabled, true);
+    await writeFile(path, 'LEARNSTACK_BFF_BACKCHANNEL_ENABLED=false\n');
+    await rejected(config());
+    assert.deepEqual(await config(''), { enabled: false });
+  } finally { await rm(path); }
+});
+
 test('certificate trust, native trust, key pair and private permissions fail closed', async () => {
   for (const modify of [
     value => value.replace('BACKCHANNEL_CA=.data/tls/backchannel/ca.pem', 'BACKCHANNEL_CA=native.pem'),

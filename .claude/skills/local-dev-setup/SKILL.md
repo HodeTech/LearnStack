@@ -233,12 +233,13 @@ scripts do not re-run, `make dev` reports healthy, and `make migrate` fails with
 What `make dev` expands to:
 
 ```bash
-# One file holds the whole stack. --env-file is not optional: Compose resolves
-# its default env file from the project directory (infra/compose/), not the cwd,
-# so without the flag the repo-root .env is ignored and every ${VAR:-default}
-# silently falls back.
-docker compose --env-file .env -f infra/compose/dev.yml up -d
+node scripts/compose.mjs selected up -d
 ```
+
+The wrapper selects the explicit environment/project, prepares the public-only
+Keycloak trust directory and injects its computed trust digest for `up`.
+Running Docker Compose directly bypasses that preparation and cannot replace
+`make dev` when native back-channel logout is enabled.
 
 The canonical service inventory — image, local endpoint and default credentials
 for every service in the stack — lives in

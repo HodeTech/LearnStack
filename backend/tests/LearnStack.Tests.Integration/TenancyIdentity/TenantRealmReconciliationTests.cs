@@ -34,6 +34,38 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
     }
 
     [Fact]
+    public async Task Backchannel_refusals_preserve_the_structured_driver_outcome_without_writes()
+    {
+        using var admin = await fresh.CreateAdminClientAsync();
+        var before = await StateAsync(admin);
+        var invalid = await KeycloakReconciliationDriver.RunAsync(fresh,
+            backchannelUrl: "http://localhost:3443/api/auth/backchannel/keycloak");
+        AssertFailure(invalid, "preflight", "backchannel_configuration");
+        invalid.Mutations.Should().Be(0);
+        (await StateAsync(admin) == before).Should().BeTrue();
+
+        var web = await admin.ClientAsync("learnstack-web");
+        var attributes = Object(web.GetProperty("attributes"));
+        attributes["backchannel.logout.url"] = "https://foreign.invalid/api/auth/backchannel/keycloak";
+        var path = "clients/" + Id(web);
+        try
+        {
+            (await admin.PutAsync(path, new { attributes })).Should().Be(HttpStatusCode.NoContent);
+            var conflicted = await StateAsync(admin);
+            var conflict = await KeycloakReconciliationDriver.RunAsync(fresh,
+                backchannelUrl: "https://host.docker.internal:3443/api/auth/backchannel/keycloak");
+            AssertFailure(conflict, "plan", "backchannel_conflict");
+            conflict.Mutations.Should().Be(0);
+            (await StateAsync(admin) == conflicted).Should().BeTrue();
+        }
+        finally
+        {
+            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes") }))
+                .Should().Be(HttpStatusCode.NoContent);
+        }
+    }
+
+    [Fact]
     public async Task Legacy_upgrade_resumes_durable_partial_writes_and_preserves_accounts_and_unrelated_state()
     {
         await using var fixture = await KeycloakFixture.StartAsync(await LegacyRealmAsync());

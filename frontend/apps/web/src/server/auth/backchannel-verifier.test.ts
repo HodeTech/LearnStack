@@ -67,9 +67,9 @@ describe('native logout token verification', () => {
   it.each([
     [{ iss: `${issuer}/other` }, {}],
     [{ aud: ['learnstack-web', 'other'] }, {}],
-    [{ iat: now / 1000 - 301 }, {}],
+    [{ iat: now / 1000 - 301, exp: now / 1000 - 1 }, {}],
     [{ iat: now / 1000 + 31 }, {}],
-    [{ exp: now / 1000 - 31 }, {}],
+    [{ iat: now / 1000 - 151, exp: now / 1000 - 31 }, {}],
     [{ exp: now / 1000 + 301 }, {}],
     [{ iat: 1.5 }, {}],
     [{ sid: '' }, {}],
@@ -152,7 +152,26 @@ describe('native logout token verification', () => {
       return response;
     };
     const verifier = createLogoutTokenVerifier({ issuer }, transport, () => time);
-    await expect(verifier.verify(await f.token())).rejects.toMatchObject({ reason: 'response' });
+    await expect(verifier.verify(await f.token({ exp: now / 1000 + 300 }))).rejects.toMatchObject({
+      reason: 'response',
+    });
+  });
+  it.each([
+    ['zero lifetime', 0, 0, false],
+    ['negative lifetime', 1, 0, false],
+    ['maximum lifetime', 0, 300, true],
+    ['excess lifetime', 0, 301, false],
+    ['maximum age', -300, 0, true],
+    ['excess age', -301, -1, false],
+    ['future skew boundary', 30, 150, true],
+    ['excess future skew', 31, 151, false],
+    ['expiration skew boundary', -150, -30, true],
+    ['excess expiration skew', -151, -31, false],
+  ] as const)('enforces the logout time profile: %s', async (_name, iat, exp, accepted) => {
+    const f = await fixture();
+    const token = await f.token({ iat: now / 1000 + iat, exp: now / 1000 + exp });
+    if (accepted) await expect(f.verifier.verify(token)).resolves.toHaveProperty('issuedAt');
+    else await expect(f.verifier.verify(token)).rejects.toMatchObject({ reason: 'response' });
   });
   it('fails closed on clock rollback and invalid issuer before I/O', async () => {
     const f = await fixture();

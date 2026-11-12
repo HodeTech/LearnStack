@@ -100,7 +100,8 @@ internal static class KeycloakReconciliationDriver
         ["preflight", "discovery", "authentication", "version", "manifest", "lock", "plan", "prepare", "apply", "readback", "cleanup"];
     private static readonly string[] Reasons =
         ["configuration", "identity_conflict", "mapper_conflict", "secret_conflict", "unsupported", "response", "status",
-            "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret", "event_policy_conflict"];
+            "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret", "event_policy_conflict",
+            "backchannel_conflict", "backchannel_configuration"];
     private static readonly string[] RequestPhases =
         ["discovery", "authentication", "version", "initialPlan", "prepare", "freshPlan", "apply", "readback"];
 

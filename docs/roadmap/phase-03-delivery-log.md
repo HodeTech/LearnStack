@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 674 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 723 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -469,7 +469,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 33 lines
   - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 44 lines
   - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 17 lines
-  - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 33 lines
+  - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 34 lines
+  - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21272,3 +21273,52 @@ runs and original-archive audits finish; do not create another source revision
 merely to narrate passing run IDs. P03-7 remains in review handoff until maintainer
 merge. Prior packet evidence gaps and P03-8–11 remain separately owned; no agent
 merge or earlier receipt borrowing is authorized.
+
+
+### P03-7 PR review comment corrections (2026-11-12)
+
+Verify the supplied comments against `19eb7ec0` and Accepted ADR-0098 rather than
+assuming their diagnoses. Six comments require bounded corrections:
+
+- Local setup names the actual `scripts/compose.mjs selected up -d` wrapper and
+  explains public trust-directory preparation/computed digest injection.
+- The Keycloak runbook explains the native store's latched unsafe-clock state:
+  clock correction alone cannot restore admission or retirement; managed restart
+  remains required. No new recovery/eviction policy is introduced.
+- Development preparation reads web configuration once under its existing
+  owned-file checks, captures that descriptor's mode, reconciles all sources and
+  requires owner-only web permissions only when the combined feature is enabled.
+  Disabled readable projections remain usable; write/symlink/ownership checks and
+  source-conflict refusal remain.
+- The reconciliation driver preserves the two existing back-channel refusal
+  labels. A real provider test proves both structured results, zero writes and
+  independent unchanged-state snapshots; its planted attributes are restored.
+- Logout verifier controls isolate stale issuance and expiration from lifetime
+  errors, cover exact profile boundaries, and make delayed verification fail on
+  age alone. No token acceptance rule changes.
+- Shared refresh/self/account work uses one existing ten-second store-owned
+  signal; ordinary authority reads receive that bound too. Per-adapter limits
+  already existed. Individual waiters remain independent, late publication is
+  refused, and closing owners/fences remain retained until actual work settles.
+  Do not deadline-wrap cleanup receipts or claim ignored cancellation physically
+  terminates work. Existing revocation/stopped outcomes retain their priority.
+
+The admission comment does not justify a runtime change. ADR-0098 and Security 11
+limit actual physical requests, explicitly sharing NAT/bridge peer allowances;
+both HTTP hops consume that existing budget. The qualified local topology has
+one selected Keycloak service, with no multi-peer throughput promise. A shared
+logical lease admitting sixteen physical requests would alter the accepted
+process ceiling. Direct loopback clients retain their normal peer cap. Bridge
+capacity is already distinguishable as boundary `bridge`, category `unavailable`,
+stage `capacity`, covered by the real TLS control. Neither debit nor diagnostics
+is weakened, and no new architectural policy is selected.
+
+Before commit/review: five selected frontend files pass 219/219; the complete
+realm census passes 458 controls across twelve files, with the new permission
+control and exact per-file count reconciled. Release build has zero warnings or
+errors; the real two-reason refusal control passes. An initial full realm run
+failed without retained case diagnosis; its isolated CLI census and subsequent
+complete run pass. Keep that failure separate, without a root-cause claim.
+Full current frontend/provider regressions and focused independent reviews remain
+open. These material source changes invalidate the previous frozen-source PR
+qualification; fresh final-source CI evidence is required before merge.

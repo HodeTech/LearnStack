@@ -28,7 +28,7 @@ export function developmentBackchannelUrl(value) {
   } catch { refuse('preflight', 'backchannel_configuration'); }
 }
 
-async function ownedFile(path, privateKey = false) {
+async function readOwnedFile(path, privateKey = false) {
   let handle;
   try {
     handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -44,9 +44,13 @@ async function ownedFile(path, privateKey = false) {
       size += bytesRead;
     }
     if (size !== state.size) throw new Error();
-    return bytes.subarray(0, size);
+    return { bytes: bytes.subarray(0, size), mode: state.mode };
   } catch { refuse('preflight', 'backchannel_configuration'); }
   finally { await handle?.close(); }
+}
+
+async function ownedFile(path, privateKey = false) {
+  return (await readOwnedFile(path, privateKey)).bytes;
 }
 
 function publicCertificate(bytes) {
@@ -68,10 +72,15 @@ function verifies(leaf, root, hostname) {
 /** Read-only qualification shared by normal dev, seed, demo and realm setup. */
 export async function developmentBackchannelConfiguration({ source, webSource, ambient = process.env, root = defaultRoot }) {
   try {
+    let webMode;
     if (webSource === undefined) {
       const webPath = join(root, 'frontend/apps/web/.env.local');
       const state = await lstat(webPath).catch(error => { if (error.code !== 'ENOENT') throw error; });
-      if (state) webSource = (await ownedFile(webPath, true)).toString('utf8');
+      if (state) {
+        const web = await readOwnedFile(webPath);
+        webSource = web.bytes.toString('utf8');
+        webMode = web.mode;
+      }
     }
     const sources = [source, ...(webSource === undefined ? [] : [webSource])].map(text => {
       if (typeof text !== 'string' || Buffer.byteLength(text) > 256 * 1024 || text.includes('\0')) throw new Error();
@@ -82,15 +91,16 @@ export async function developmentBackchannelConfiguration({ source, webSource, a
       }
       return values;
     });
-    const values = sources[0];
+    const values = {};
     for (const key of sourceNames) {
       const present = [...sources.map(value => value[key]), ambient[key]].filter(value => value !== undefined);
       if (present.some(value => value !== present[0])) throw new Error();
+      if (present.length) values[key] = present[0];
     }
     const enabled = values[prefix + 'ENABLED'] ?? 'false';
-    if ([...sources, ambient].some(value => value[prefix + 'ENABLED'] !== undefined && value[prefix + 'ENABLED'] !== enabled)) throw new Error();
     if (!['true', 'false'].includes(enabled)) throw new Error();
     if (enabled === 'false') return Object.freeze({ enabled: false });
+    if (webMode !== undefined && (webMode & 0o077)) throw new Error();
     if (values.LEARNSTACK_BFF_ENABLED !== 'true') throw new Error();
     for (const key of names) if (!values[key] || /[\r\n\0]/.test(values[key])) throw new Error();
     const url = developmentBackchannelUrl(values[prefix + 'URL']);

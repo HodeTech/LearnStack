@@ -790,6 +790,82 @@ describe('effective deadlines and one refresh owner', () => {
     expect(f.provider.refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('shares one deadline across refresh, self and account while retaining ignored work through stop', async () => {
+    const f = fixture();
+    const { binding } = await f.login();
+    const refresh = f.blockRefresh();
+    const account = f.blockAccount();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const work = f.store.admit(binding, source, 'extend');
+      const refused = expect(work).rejects.toMatchObject({ reason: 'stopped' });
+      let settled = false;
+      void work.then(
+        () => (settled = true),
+        () => (settled = true),
+      );
+      await flush();
+      const signal = vi.mocked(f.provider.refresh).mock.calls[0]![2]!;
+      vi.advanceTimersByTime(6_000);
+      f.advance(6_000);
+      refresh.resolve();
+      await flush();
+      expect(f.native.self.mock.calls.at(-1)![2]).toBe(signal);
+      expect(f.account.mock.calls.at(-1)![2]).toBe(signal);
+      vi.advanceTimersByTime(3_999);
+      expect(signal.aborted).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(signal.aborted).toBe(true);
+      await flush();
+      expect(settled).toBe(false);
+      expect(f.store.counts()).toMatchObject({ owners: 1, operations: 1 });
+      const stopped = f.store.stop();
+      expect(f.store.counts()).toMatchObject({ owners: 1, operations: 1, credentialRecords: 0 });
+      account.resolve();
+      await refused;
+      await stopped;
+      expect(f.store.counts()).toMatchObject({ owners: 0, operations: 0 });
+    } finally {
+      refresh.resolve();
+      account.resolve();
+      vi.useRealTimers();
+    }
+  });
+
+  it('propagates the read deadline to cooperative account work without revoking the session', async () => {
+    const f = fixture();
+    const { binding } = await f.login();
+    f.account.mockImplementationOnce(
+      async (_token, _binding, signal) =>
+        new Promise<AccountWitness>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new BffProviderError('cancelled')), {
+            once: true,
+          });
+        }),
+    );
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const work = f.store.admit(binding, source, 'read');
+      const refused = expect(work).rejects.toMatchObject({ reason: 'deadline' });
+      await flush();
+      const signal = f.account.mock.calls.at(-1)![2];
+      vi.advanceTimersByTime(9_999);
+      expect(signal.aborted).toBe(false);
+      vi.advanceTimersByTime(1);
+      await refused;
+      expect(signal.aborted).toBe(true);
+      expect(f.store.counts().operations).toBe(0);
+      expect(f.store.peek(binding)).not.toBeNull();
+      expect(f.diagnostics).toEqual(['deadline']);
+      await expect(f.store.admit(binding, source, 'read')).resolves.toHaveProperty(
+        'state',
+        'authenticated',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   for (const reason of [
     'invalid_grant',
     'transport',

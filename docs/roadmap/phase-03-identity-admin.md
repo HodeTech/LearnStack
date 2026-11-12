@@ -24,7 +24,7 @@
 > (27/27 jobs) and 25 verified originals. Opposite-layout A and pair qualification
 > remain an explicit evidence follow-up before P03-11 exit; prior-source A/B and
 > the failed outage attempt do not close it. No new manual UI gate is introduced.
-> P03-7 is in progress under [Accepted ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md); its [acceptance and three-step implementation](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) close G11. All three implementation steps and the [CI correction](phase-03-delivery-log.md#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) have completed their two fresh review cycles and current local validation. [PR #44](https://github.com/HodeTech/LearnStack/pull/44) tracks final-source CI A/B/original-archive qualification and maintainer review; merge remains open. P03-8–11 stay unstarted.
+> P03-7 is in progress under [Accepted ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md); its [acceptance and three-step implementation](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) close G11. All three implementation steps and the [CI correction](phase-03-delivery-log.md#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) completed their review cycles. The [PR comment corrections](phase-03-delivery-log.md#p03-7-pr-review-comment-corrections-2026-11-12) reopen focused review and final-source qualification. [PR #44](https://github.com/HodeTech/LearnStack/pull/44) tracks the current proof and maintainer review; merge remains open. P03-8–11 stay unstarted.
 >
 > | Packet | Title | State |
 > |---|---|---|

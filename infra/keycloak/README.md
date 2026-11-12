@@ -439,6 +439,11 @@ delivery has no durable retry guarantee; a missed notification relies on refresh
 or expiry, and existing API JWT acceptance is unchanged. Phase 11 owns production
 edge, distributed delivery and operational hardening.
 
+An unsafe native session-store clock sample latches its unavailable state,
+preventing new logout notifications and replay/fence retirement. Correcting the clock
+alone does not restore targeted logout. Restart the managed native family using
+the procedure above; never clear retained entries to bypass the latch.
+
 ## Tenant client contract
 
 `learnstack-web` permits authorization code with S256 PKCE and a server-held

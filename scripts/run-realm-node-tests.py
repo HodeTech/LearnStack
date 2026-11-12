@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Per-file expectations also fix the total; an empty or deleted test file cannot be
 # replaced by a passing named suite or by extra tests in another file.
 EXPECTED = {
-    'development-backchannel.test.mjs': 5,
+    'development-backchannel.test.mjs': 6,
     'development-realm-backchannel.test.mjs': 5,
     'development-realm-events.test.mjs': 67,
     'development-event-reader.test.mjs': 16,

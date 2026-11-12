@@ -2124,24 +2124,27 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       (force || entry.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs)
     ) {
       const previous = entry.credentials!;
-      const work = this.#tracked(entry, async () => {
+      let failure: SessionFailure | undefined;
+      const work = this.#bounded(entry, undefined, async (current) => {
         try {
           this.#assert(entry, 'active');
           const next = this.#bundle(
             await this.#dependencies.provider.refresh(
               previous.refreshToken!,
               previous.identity,
-              entry.controller.signal,
+              current,
             ),
             previous,
           );
           this.#assert(entry, 'active');
+          this.#assertSignal(current);
           const self = await this.#dependencies.native.self(
             next.accessToken,
             this.#binding(binding, source),
-            entry.controller.signal,
+            current,
           );
           this.#assert(entry, 'active');
+          this.#assertSignal(current);
           if (self.state !== 'active') throw new BffSessionError('identity');
           this.#dependencies.native.verifyAssociation(next.identity, self.association);
           if (self.association.actorId !== entry.identity!.actorId)
@@ -2149,9 +2152,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           const witnessed = await this.#dependencies.account(
             next.accessToken,
             this.#scoped(binding, source, entry.identity!),
-            entry.controller.signal,
+            current,
           );
           this.#assert(entry, 'active');
+          this.#assertSignal(current);
           this.#account(entry, witnessed, entry.identity!);
           entry.credentials = next;
           entry.pageRevision = Object.freeze({});
@@ -2159,11 +2163,21 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           entry.activity = this.#now();
           this.#assert(entry, 'active');
         } catch (error) {
-          const reason = this.#reason(error);
-          if (entry.phase !== 'logout') this.#close(entry);
-          this.#diagnostic(reason);
-          throw new BffSessionError(reason);
+          failure = this.#reason(error);
+          throw error;
         }
+      }).catch((error) => {
+        // Classify before owner closure can turn a specific failure into cancellation.
+        const bounded = this.#reason(error);
+        const reason =
+          failure === 'revoked' || failure === 'stopped'
+            ? failure
+            : bounded === 'deadline'
+              ? bounded
+              : (failure ?? bounded);
+        if (entry.phase !== 'logout') this.#close(entry);
+        this.#diagnostic(reason);
+        throw new BffSessionError(reason);
       });
       entry.refresh = work;
       const settled = () => {
@@ -2198,26 +2212,36 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#assert(entry, 'active');
     // A normal authenticated read always uses the API's current authority too.
     const credentials = entry.credentials!;
-    const work = this.#tracked(entry, async () => {
+    let failure: SessionFailure | undefined;
+    const work = this.#bounded(entry, undefined, async (current) => {
       try {
         this.#assert(entry, 'active');
         const account = await this.#dependencies.account(
           credentials.accessToken,
           this.#scoped(binding, source, entry.identity!),
-          entry.controller.signal,
+          current,
         );
         this.#assert(entry, 'active');
+        this.#assertSignal(current);
         if (entry.credentials !== credentials) throw new BffSessionError('transaction');
         this.#account(entry, account, entry.identity!);
       } catch (error) {
-        const reason = this.#reason(error);
-        // An ordinary read consumes no provider grant. A failed authority check
-        // denies this response, but only a proven identity refusal revokes the
-        // live session. Refresh above retains its stricter uncertainty fence.
-        if (reason === 'identity' && entry.phase !== 'logout') this.#close(entry);
-        this.#diagnostic(reason);
-        throw new BffSessionError(reason);
+        failure = this.#reason(error);
+        throw error;
       }
+    }).catch((error) => {
+      const bounded = this.#reason(error);
+      const reason =
+        failure === 'revoked' || failure === 'stopped'
+          ? failure
+          : bounded === 'deadline'
+            ? bounded
+            : (failure ?? bounded);
+      // An ordinary read consumes no provider grant. Only proven identity refusal
+      // revokes it; waiter cancellation never cancels the independently owned work.
+      if (reason === 'identity' && entry.phase !== 'logout') this.#close(entry);
+      this.#diagnostic(reason);
+      throw new BffSessionError(reason);
     });
     await this.#wait(work, signal);
     this.#assert(entry, 'active');
