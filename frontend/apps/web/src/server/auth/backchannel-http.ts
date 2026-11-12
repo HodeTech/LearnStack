@@ -93,6 +93,7 @@ export function createBackchannelHttp(options: {
   let stopping = false;
   const tasks = new Set<Promise<void>>();
   const requests = new Set<IncomingMessage>();
+  const inputTimers = new Map<IncomingMessage, ReturnType<typeof setTimeout>>();
   function handle(request: IncomingMessage, response: ServerResponse) {
     if (stopping || !headers(request, options.authority)) {
       options.diagnostic?.(stopping ? 'unavailable' : 'refused', stopping ? 'stopped' : undefined);
@@ -106,20 +107,34 @@ export function createBackchannelHttp(options: {
       return;
     }
     requests.add(request);
+    let inputTimedOut = false;
+    inputTimers.set(
+      request,
+      setTimeout(() => {
+        inputTimers.delete(request);
+        inputTimedOut = true;
+        refuseRequest(request, response);
+      }, 10_000),
+    );
     const actual = (async () => {
       let outcome: Outcome = 'refused';
       try {
         const chunks: Buffer[] = [];
         let size = 0;
-        for await (const chunk of request) {
-          const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-          size += bytes.length;
-          if (size > 16384) {
-            request.pause();
-            refuseRequest(request, response);
-          } else chunks.push(bytes);
+        try {
+          for await (const chunk of request) {
+            const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            size += bytes.length;
+            if (size > 16384) {
+              request.pause();
+              refuseRequest(request, response);
+            } else chunks.push(bytes);
+          }
+        } finally {
+          clearTimeout(inputTimers.get(request));
+          inputTimers.delete(request);
         }
-        if (size > 16384) throw new Error();
+        if (size > 16384 || inputTimedOut || stopping) throw new Error();
         const body = Buffer.concat(chunks);
         const token = parse(body);
         outcome = await options.process(token, body);
@@ -147,7 +162,11 @@ export function createBackchannelHttp(options: {
     handle,
     async stop() {
       stopping = true;
-      for (const request of requests) request.destroy();
+      for (const request of requests) {
+        clearTimeout(inputTimers.get(request));
+        inputTimers.delete(request);
+        request.destroy();
+      }
       while (tasks.size) await Promise.allSettled([...tasks]);
     },
   };

@@ -24,7 +24,7 @@
 > (27/27 jobs) and 25 verified originals. Opposite-layout A and pair qualification
 > remain an explicit evidence follow-up before P03-11 exit; prior-source A/B and
 > the failed outage attempt do not close it. No new manual UI gate is introduced.
-> P03-7 is in progress under [Accepted ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md); its [acceptance and three-step implementation](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) close G11. Implementation/qualification remain open; P03-8–11 stay unstarted.
+> P03-7 is in progress under [Accepted ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md); its [acceptance and three-step implementation](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) close G11. [Steps 1–2 and both review cycles](phase-03-delivery-log.md#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) are complete; Step 3 final verification/PR/CI qualification remains open. P03-8–11 stay unstarted.
 >
 > | Packet | Title | State |
 > |---|---|---|

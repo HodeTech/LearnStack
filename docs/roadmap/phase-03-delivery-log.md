@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 457 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 497 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -462,7 +462,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 1 independent review round one (2026-11-12)](#p03-7-step-1-independent-review-round-one-2026-11-12) — 18 lines
   - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 17 lines
   - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 62 lines
-  - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 47 lines
+  - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 48 lines
+  - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21048,3 +21049,43 @@ checks pass. Private provider ID/URL comparisons expose Boolean/count assertions
 rather than raw values on failure. The fixes are committed before a different
 fresh second review pair.
 Final-source full suites, C12/CI A/B, original archives and PR remain open.
+
+
+### P03-7 Step 2 second review and input-deadline closeout (2026-11-12)
+
+A different fresh Sol protocol and Terra operator/corpus pair reviews
+`3d1ef12f..ad2eb013`. The operator review finds no actionable issue. The protocol
+review verifies both R1 corrections and identifies one remaining Major: callback
+body reading lacks ADR-0098's existing ten-second input signal. A real owned HTTP
+counterexample remains at two active owners/no verification after 10.2 seconds;
+a third request is refused by peer capacity. Node's default request timeout is
+not the selected input policy. No new forwarding deadline is inferred.
+
+Add an absolute ten-second timer after successful reservation and before reading
+input, shared by native and bridge paths. Its expiry sends empty no-store 400
+and requests stop, without releasing capacity. Clear the timer on actual read
+settlement before provider processing and synchronously on stop. A timeout race
+or stopped owner cannot proceed into verification. Actual request/response close
+and retained provider work still control release; the separate provider signal
+and every existing runtime/test/CI limit remain unchanged.
+
+Four selected files pass 35/35 reported cases, including controlled-clock real
+HTTP/TLS checks at 9,999 and 10,000 milliseconds. A fired timer retains occupancy
+through the actual close event; completed input cannot cancel held verification,
+and stop clears timers without inventing work completion. Malformed, oversize,
+quota, trust and signed-token controls remain. Tests fake only timer scheduling,
+not Date, sockets or physical close. Server TypeScript compilation passes.
+
+Before this correction, the full guarded frontend completes on `ad2eb013`:
+130 web files/4,174 cases and twelve SDK files/228 cases, 4,402 total with zero
+skips/todos. Web wall time is 352.02 seconds and SDK 111.08 seconds. That complete
+receipt is retained for its actual source, not relabelled as a full run of the
+later input correction. Release backend build, 3,780 Unit and twelve Contract
+cases pass; the local complete Architecture run remains ongoing. Earlier failures
+remain distinct from passing receipts.
+
+Both requested Step 2 review rounds and their verified corrections are complete.
+Step 3 now completes relevant final-source verification, native/browser/public
+regressions, its own two fresh review/fix rounds and current documentation. Freeze
+that reviewed source before PR CI A/B and original-archive reconciliation. C12 and
+hosted qualification remain open; no agent merge or earlier-packet receipt credit.

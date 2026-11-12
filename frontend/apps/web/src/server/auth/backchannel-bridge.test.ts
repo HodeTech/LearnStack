@@ -6,7 +6,7 @@ import { createServer, request } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { createBackchannelBridge } from './backchannel-bridge.js';
 import {
@@ -299,6 +299,115 @@ it('refuses an untrusted native TLS peer and joins a held forwarded socket', asy
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('times out held bridge TLS input before forwarding and joins actual closure', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'backchannel-deadline-'));
+  const cert = join(root, 'cert.pem'),
+    key = join(root, 'key.pem');
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-keyout',
+      key,
+      '-out',
+      cert,
+      '-days',
+      '1',
+      '-subj',
+      '/CN=localhost',
+      '-addext',
+      'subjectAltName=DNS:localhost',
+      '-addext',
+      'basicConstraints=critical,CA:TRUE',
+    ],
+    { stdio: 'ignore' },
+  );
+  chmodSync(key, 0o600);
+  const admission = createBackchannelAdmission();
+  const diagnostics: unknown[] = [];
+  const bridge = createBackchannelBridge(
+    {
+      enabled: true,
+      authority: 'localhost:4443',
+      port: 0,
+      bindAddress: '127.0.0.1',
+      certificate: cert,
+      privateKey: key,
+      ca: cert,
+      nativeCa: cert,
+    },
+    admission,
+    443,
+    (category, stage) => diagnostics.push({ category, ...(stage ? { stage } : {}) }),
+  );
+  await bridge.start();
+  const address = bridge.server.address();
+  if (!address || typeof address === 'string') throw new Error();
+  const arrived = once(bridge.server, 'request');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const req = request({
+    host: '127.0.0.1',
+    port: address.port,
+    servername: 'localhost',
+    ca: readFileSync(cert),
+    method: 'POST',
+    path: '/api/auth/backchannel/keycloak',
+    headers: {
+      host: 'localhost:4443',
+      'content-type': 'application/x-www-form-urlencoded',
+      'content-length': '100',
+    },
+  });
+  req.on('error', () => {});
+  let received = false;
+  const reply = new Promise<{
+    status: number | undefined;
+    cache: string | undefined;
+    body: string;
+  }>((resolve) => {
+    req.once('response', (res) => {
+      received = true;
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk: string) => {
+        body += chunk;
+      });
+      res.once('end', () =>
+        resolve({ status: res.statusCode, cache: res.headers['cache-control'], body }),
+      );
+    });
+  });
+  try {
+    req.write('logout_token=');
+    const [incoming] = await arrived;
+    let observedClose = false;
+    incoming.once('close', () => {
+      observedClose = true;
+      expect(admission.counts().active).toBe(1);
+    });
+    expect(admission.counts().active).toBe(1);
+    vi.advanceTimersByTime(9_999);
+    expect(received).toBe(false);
+    expect(admission.counts().active).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(admission.counts().active).toBe(1);
+    expect(await reply).toEqual({ status: 400, cache: 'no-store', body: '' });
+    await bridge.stop();
+    expect(observedClose).toBe(true);
+    expect(admission.counts().active).toBe(0);
+    expect(diagnostics).toEqual([{ category: 'refused' }]);
+  } finally {
+    req.destroy();
+    await bridge.stop();
+    vi.useRealTimers();
     rmSync(root, { recursive: true, force: true });
   }
 });

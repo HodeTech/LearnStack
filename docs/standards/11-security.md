@@ -320,7 +320,7 @@ and 400 on invalid or failed processing, including capacity/key unavailability.
 | Replay/fences | 4,096 each, atomic reserve+gate closure; duplicate token digest is idempotent; changed jti payload refuses |
 | Fence lifetime | At least max(accept+5 min,exp+skew) and all relevant actual unknown-identity/closing work |
 | Request admission | Eight actual requests/process, two/canonical socket peer, no queue; include body/provider cleanup |
-| Input | Structural media/declared-size checks first; reserve before streaming, 16 KiB UTF-8 form, one logout_token |
+| Input | Structural media/declared-size checks first; reserve before streaming, 16 KiB UTF-8 form, one logout_token; 10 s input stop signal |
 | Provider work | Existing fixed-endpoint/no-redirect 10 s signal and 256 KiB decoded response bound; physical join required |
 
 Require signed sid on code and refresh grants and preserve it; never request or
@@ -329,6 +329,9 @@ Index all credential/closing/invitation owners through actual retirement. Fence
 unknown-identity callbacks before custody/publication; retain capacity on abort.
 These process-local limits do not provide DDoS protection or distributed fairness.
 No unsafe clock change may re-admit a token whose replay record was retired.
+The input timer ends when body reading settles, before provider verification;
+its signal requests refusal/stop and never releases an owner before actual
+request/response retirement. Provider work retains its separate signal and join.
 
 The callback-only TLS bridge runs in the existing private runtime child, with
 fixed native TLS destination/name/trust and fixed callback Host. Register setup

@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { createServer, request } from 'node:http';
 import type { IncomingHttpHeaders } from 'node:http';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createBackchannelAdmission, createNativeBackchannel } from './backchannel-http.js';
 
@@ -254,4 +254,204 @@ it('rejects an oversized streaming body without waiting for the sender to end', 
   await handler.stop();
   expect(admission.counts().active).toBe(0);
   await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
+it('times out a held native input at ten seconds while retaining physical ownership', async () => {
+  const admission = createBackchannelAdmission();
+  const verify = vi.fn(async () => {
+    throw new Error();
+  });
+  const handler = createNativeBackchannel({
+    authority: 'callback.test',
+    admission,
+    verify,
+    apply: () => 'accepted',
+  });
+  let arrived!: () => void;
+  const started = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  let observedClose = false;
+  const server = createServer((req, res) => {
+    req.once('close', () => {
+      observedClose = true;
+      expect(admission.counts().active).toBe(1);
+    });
+    handler.handle(req, res);
+    arrived();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const req = request({
+    host: '127.0.0.1',
+    port: address.port,
+    method: 'POST',
+    path: '/api/auth/backchannel/keycloak',
+    headers: {
+      host: 'callback.test',
+      'content-type': 'application/x-www-form-urlencoded',
+      'content-length': '100',
+    },
+  });
+  req.on('error', () => {});
+  let received = false;
+  const reply = new Promise<{
+    status: number | undefined;
+    cache: string | undefined;
+    body: string;
+  }>((resolve) => {
+    req.once('response', (res) => {
+      received = true;
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk: string) => {
+        body += chunk;
+      });
+      res.once('end', () =>
+        resolve({ status: res.statusCode, cache: res.headers['cache-control'], body }),
+      );
+    });
+  });
+  try {
+    req.write('logout_token=');
+    await started;
+    expect(admission.counts().active).toBe(1);
+    vi.advanceTimersByTime(9_999);
+    expect(received).toBe(false);
+    expect(admission.counts().active).toBe(1);
+    expect(verify).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(admission.counts().active).toBe(1);
+    expect(await reply).toEqual({ status: 400, cache: 'no-store', body: '' });
+    await handler.stop();
+    expect(observedClose).toBe(true);
+    expect(admission.counts().active).toBe(0);
+    expect(verify).not.toHaveBeenCalled();
+  } finally {
+    req.destroy();
+    await handler.stop();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    vi.useRealTimers();
+  }
+});
+
+it('clears the input deadline before held verification and preserves its actual work', async () => {
+  const admission = createBackchannelAdmission();
+  let entered!: () => void, release!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const handler = createNativeBackchannel({
+    authority: 'callback.test',
+    admission,
+    verify: async () => {
+      entered();
+      await held;
+      return {
+        issuer: 'i',
+        sid: 's',
+        subject: null,
+        jti: 'j',
+        fingerprint: 'f',
+        issuedAt: 1,
+        expiresAt: 2,
+      };
+    },
+    apply: () => 'accepted',
+  });
+  const server = createServer(handler.handle);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const req = request({
+    host: '127.0.0.1',
+    port: address.port,
+    method: 'POST',
+    path: '/api/auth/backchannel/keycloak',
+    headers: { host: 'callback.test', 'content-type': 'application/x-www-form-urlencoded' },
+  });
+  req.on('error', () => {});
+  const reply = new Promise<number | undefined>((resolve) => {
+    req.once('response', (res) => {
+      res.resume();
+      res.once('end', () => resolve(res.statusCode));
+    });
+  });
+  try {
+    req.end('logout_token=signed');
+    await started;
+    vi.advanceTimersByTime(10_001);
+    expect(admission.counts().active).toBe(1);
+    expect(req.destroyed).toBe(false);
+    release();
+    expect(await reply).toBe(200);
+    await handler.stop();
+    expect(admission.counts().active).toBe(0);
+  } finally {
+    release();
+    req.destroy();
+    await handler.stop();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    vi.useRealTimers();
+  }
+});
+
+it('clears a held input timer on stop while waiting for request retirement', async () => {
+  const admission = createBackchannelAdmission();
+  const handler = createNativeBackchannel({
+    authority: 'callback.test',
+    admission,
+    verify: async () => {
+      throw new Error();
+    },
+    apply: () => 'accepted',
+  });
+  let arrived!: () => void;
+  const started = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  const server = createServer((req, res) => {
+    handler.handle(req, res);
+    arrived();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const req = request({
+    host: '127.0.0.1',
+    port: address.port,
+    method: 'POST',
+    path: '/api/auth/backchannel/keycloak',
+    headers: {
+      host: 'callback.test',
+      'content-type': 'application/x-www-form-urlencoded',
+      'content-length': '100',
+    },
+  });
+  req.on('error', () => {});
+  try {
+    req.write('logout_token=');
+    await started;
+    expect(vi.getTimerCount()).toBe(1);
+    const stopping = handler.stop();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(admission.counts().active).toBe(1);
+    await stopping;
+    expect(admission.counts().active).toBe(0);
+  } finally {
+    req.destroy();
+    await handler.stop();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    vi.useRealTimers();
+  }
 });
