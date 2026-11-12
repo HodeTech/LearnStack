@@ -24,7 +24,7 @@
 > (27/27 jobs) and 25 verified originals. Opposite-layout A and pair qualification
 > remain an explicit evidence follow-up before P03-11 exit; prior-source A/B and
 > the failed outage attempt do not close it. No new manual UI gate is introduced.
-> P03-7 is in progress under [Accepted ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md); its [acceptance and three-step implementation](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) close G11. All three implementation steps and their two review cycles are complete; the [review/qualification handoff](phase-03-delivery-log.md#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) owns final-source PR CI A/B/original-archive proof and maintainer merge. P03-8–11 stay unstarted.
+> P03-7 is in progress under [Accepted ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md); its [acceptance and three-step implementation](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) close G11. All three implementation steps completed their two review cycles. The [CI full-census correction](phase-03-delivery-log.md#p03-7-ci-full-census-correction-2026-11-12) reopens focused review and final-source PR CI A/B/original-archive proof; maintainer merge remains open. P03-8–11 stay unstarted.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -35,7 +35,7 @@
 > | P03-4 | Invitations and bounded delivery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-4-merge-and-delivery-closeout-2026-11-06); evidence follow-ups remain open |
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
-> | P03-7 | Back-channel session revocation | Review/qualification handoff — [three implemented/reviewed steps](phase-03-delivery-log.md#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12); final-source PR CI and merge remain |
+> | P03-7 | Back-channel session revocation | [CI full-census correction](phase-03-delivery-log.md#p03-7-ci-full-census-correction-2026-11-12) — focused reviews, final-source PR CI and merge remain |
 > | P03-8 | Tenant federation | Not started |
 > | P03-9 | Platform authority and operational recovery | Not started |
 > | P03-10 | DSAR and global account closure | Not started |

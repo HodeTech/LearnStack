@@ -2304,25 +2304,30 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   }
 
   #sweepBackchannel() {
-    // Snapshot once: a full fence census must not scan every retained owner per fence.
-    let earliestUnknown = Infinity;
-    const sessions = new Set<string>();
-    const identities = new Set<string>();
-    for (const entry of this.#owners.values()) {
-      const target = entry.providerTarget;
-      if (!target) earliestUnknown = Math.min(earliestUnknown, entry.admittedAt);
-      else {
-        sessions.add(JSON.stringify([target.issuer, target.sid]));
-        identities.add(JSON.stringify([target.issuer, target.sid, target.subject]));
+    // Only fences eligible for retirement need owner evidence; snapshot once per sweep.
+    let retained:
+      | { earliestUnknown: number; sessions: Set<string>; identities: Set<string> }
+      | undefined;
+    this.#backchannel.sweep((fence) => {
+      if (!retained) {
+        retained = { earliestUnknown: Infinity, sessions: new Set(), identities: new Set() };
+        for (const entry of this.#owners.values()) {
+          const target = entry.providerTarget;
+          if (!target)
+            retained.earliestUnknown = Math.min(retained.earliestUnknown, entry.admittedAt);
+          else {
+            retained.sessions.add(JSON.stringify([target.issuer, target.sid]));
+            retained.identities.add(JSON.stringify([target.issuer, target.sid, target.subject]));
+          }
+        }
       }
-    }
-    this.#backchannel.sweep(
-      (fence) =>
-        earliestUnknown <= fence.horizon ||
+      return (
+        retained.earliestUnknown <= fence.horizon ||
         (fence.subject === null
-          ? sessions.has(JSON.stringify([fence.issuer, fence.sid]))
-          : identities.has(JSON.stringify([fence.issuer, fence.sid, fence.subject]))),
-    );
+          ? retained.sessions.has(JSON.stringify([fence.issuer, fence.sid]))
+          : retained.identities.has(JSON.stringify([fence.issuer, fence.sid, fence.subject])))
+      );
+    });
   }
   /** Native installation capability; deliberately absent from BffSessionStore. */
   applyProviderLogout(token: VerifiedLogoutToken): 'accepted' | 'duplicate' {

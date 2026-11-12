@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 579 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 623 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -466,7 +466,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 40 lines
   - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 32 lines
   - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 17 lines
-  - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 32 lines
+  - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 33 lines
+  - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21174,3 +21175,47 @@ hosted evidence and maintainer merge remain open here. Existing manual evidence,
 prior packets' source/CI gaps and P03-8–11 ownership remain unchanged. Private
 source keys, provider identifiers/tokens, cookies and callback bodies stay out of
 committed/public proof. No agent merge is authorized.
+
+
+### P03-7 CI full-census correction (2026-11-12)
+
+PR #44 freezes `9aea4f40`, with executable inputs unchanged from `ec69aed0`.
+[Attempt 1/A](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/1)
+and [attempt 3/A](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/3)
+each pass all 27 jobs. Each retains 25 original API artifact ZIPs with byte count,
+SHA-256 and CRC verification. Independent archive audits reconcile all 8,611
+backend selected/completed/passed TRX cases, producer/aggregate/source/assignment
+and toolchain identities, 4,406 frontend cases and 27 public-demo audit pairs.
+These are two A layouts, not an A/B qualification pair. The earlier unsharded
+local Architecture run also completes: 630/630, zero skips, in 46m12s.
+
+[Attempt 2/B](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/2)
+fails pinned Keycloak image preparation at its existing 55-second command signal,
+before product tests. Preserve its available six originals and raw logs; cancel
+remaining work after the required producer fails. The root cause beyond that
+observed timeout is not established. No timer or image policy changes follow.
+[Attempt 4/B](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/4)
+reports 4,177/4,178 web cases passing: the new full-owner/full-fence control exceeds
+its unchanged five-second test setting. Preserve its available sixteen originals,
+full raw logs and the failed frontend job; cancel remaining work. Neither failed
+or cancelled attempt supplies qualification or physical-cleanup credit.
+
+The native store eagerly rebuilds retained-owner target sets before each fence
+sweep, even when no fence is eligible for retirement. With 1,024 owners and 4,096
+notifications, this repeats millions of unnecessary target encodings. Build that
+same finite owner snapshot lazily, only when the state actually requests retention
+evidence, and share it across that synchronous sweep. Eligible fences, unknown
+callbacks, closed owners and stop still use the complete current owner census;
+physical retirement and conservative retention rules remain unchanged.
+
+The two selected files pass all 38 controls. The identical targeted full-census
+command records 2,135.661 ms before and 229.974 ms after on this workstation;
+these local observations establish no hosted completion guarantee. Native build,
+web TypeScript, lint and formatting pass. No capacity, token profile, safety gate,
+test setting or CI deadline changes, so no new architectural policy is selected.
+
+This material correction reopens focused review and final-source qualification.
+Commit it, run two different fresh independent review/fix rounds, complete current
+frontend/provider regressions and freeze the reviewed source for the PR's complete
+A/B and original-archive reconciliation. Earlier-source successes stay separate;
+no agent merge or prior-packet proof promotion is authorized.
