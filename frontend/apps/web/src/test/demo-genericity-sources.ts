@@ -596,6 +596,10 @@ export function productionDemoSources(
     const config = JSON.parse(serverConfig);
     const expected = [
       'src/server/auth/account-client.ts',
+      'src/server/auth/backchannel-bridge.ts',
+      'src/server/auth/backchannel-configuration.ts',
+      'src/server/auth/backchannel-http.ts',
+      'src/server/auth/backchannel-verifier.ts',
       'src/server/auth/configuration.ts',
       'src/server/auth/http-protocol.ts',
       'src/server/auth/invitation-html.ts',
@@ -685,6 +689,18 @@ export function productionDemoSources(
       const filename = fileURLToPath(new URL(edge, `file:///learnstack/${path}`));
       if (!filename.startsWith('/learnstack/')) return refused(path);
       return local(filename.slice('/learnstack/'.length), path);
+    }
+    if (edge === '#tls-server-qualification' && path.startsWith('frontend/apps/web/')) {
+      const owner = packages.find((pkg) => pkg.root === 'frontend/apps/web');
+      const mapping = owner?.manifest.imports?.[edge];
+      if (
+        !mapping ||
+        JSON.stringify(Object.keys(mapping).sort()) !== JSON.stringify(['default', 'types']) ||
+        mapping.types !== './scripts/tls-server-qualification.d.mts' ||
+        mapping.default !== './scripts/tls-server-qualification.mjs'
+      )
+        return refused(path);
+      return mapped(mapping.default, owner!.root, path);
     }
     // Match actual supported tsconfig paths rather than treating alias spelling as external.
     let directory = posix.dirname(path);
@@ -823,7 +839,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            'f3105e24d38ccda62a5343bfe3163048bf480aca14aa3f0d90a30019f8f5311c',
+            '95e8df6e7d6e549d5d0daf018011f5e4d53b14a5e4b9ff7ab3f453b21214df3f',
           ],
           [
             'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',

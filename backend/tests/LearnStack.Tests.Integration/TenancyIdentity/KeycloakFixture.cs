@@ -32,6 +32,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     private KeycloakTls? _tls;
     private HttpMessageHandler? _readinessHandler;
     private int _disposed;
+    private bool _callbackTrust = true;
 
     public KeycloakFixture() { }
     private KeycloakFixture(string? tenantRealmJson) => _tenantRealmJson = tenantRealmJson;
@@ -45,10 +46,12 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         ? realm : throw new InvalidOperationException("Keycloak fixture realm is outside the closed provider boundary.");
     internal X509Certificate2 RootCertificate => _tls?.RootCertificate
         ?? throw new InvalidOperationException("Keycloak fixture certificate authority is not initialized.");
+    internal string CallbackCertificate => Encoding.ASCII.GetString(_tls!.CallbackCertificatePem);
+    internal string CallbackPrivateKey => Encoding.ASCII.GetString(_tls!.CallbackPrivateKeyPem);
 
-    internal static async Task<KeycloakFixture> StartAsync(string? tenantRealmJson = null)
+    internal static async Task<KeycloakFixture> StartAsync(string? tenantRealmJson = null, bool callbackTrust = true)
     {
-        var fixture = new KeycloakFixture(tenantRealmJson);
+        var fixture = new KeycloakFixture(tenantRealmJson) { _callbackTrust = callbackTrust };
         await fixture.InitializeAsync();
         return fixture;
     }
@@ -95,31 +98,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
             tenantImport = ConfigureInvitationMailRealm(tenantImport);
             var hubImport = await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token);
-            _keycloak = new ContainerBuilder(Image)
-                .WithLogger(NullLogger.Instance)
-                .WithNetwork(_network)
-                .WithPortBinding(8443, true)
-                .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "8443/tcp"))
-                .WithEnvironment("KC_DB", "postgres")
-                .WithEnvironment("KC_DB_URL", "jdbc:postgresql://identity-database:5432/keycloak")
-                .WithEnvironment("KC_DB_USERNAME", "keycloak")
-                .WithEnvironment("KC_DB_PASSWORD", _databasePassword)
-                .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", AdminUsername)
-                .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", _adminPassword)
-                .WithEnvironment("KEYCLOAK_WEB_CLIENT_SECRET", WebClientSecret)
-                // byte[] destinations are files. Testcontainers' string/string overload treats the target as a directory.
-                .WithResourceMapping(Encoding.UTF8.GetBytes(tenantImport), "/opt/keycloak/data/import/learnstack-realm.json")
-                .WithResourceMapping(hubImport, "/opt/keycloak/data/import/learnstack-hub-realm.json")
-                .WithResourceMapping(_tls.ServerCertificatePem, "/opt/keycloak/conf/fixture-cert.pem")
-                .WithResourceMapping(_tls.ServerPrivateKeyPem, "/opt/keycloak/conf/fixture-key.pem", 1000, 0,
-                    UnixFileModes.UserRead | UnixFileModes.UserWrite)
-                .WithCommand("start-dev", "--import-realm", "--log-level=ERROR", "--http-enabled=false", "--https-port=8443",
-                    "--https-certificate-file=/opt/keycloak/conf/fixture-cert.pem", "--https-certificate-key-file=/opt/keycloak/conf/fixture-key.pem")
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
-                    .ForPort(8443).UsingTls(true).UsingHttpMessageHandler(_readinessHandler)
-                    .ForPath("/realms/learnstack/.well-known/openid-configuration")
-                    .ForStatusCode(HttpStatusCode.OK)))
-                .Build();
+            _keycloak = BuildProvider(tenantImport, hubImport, _callbackTrust);
             _keycloak.Created += (_, _) => { stage = "provider_created"; diagnostics.Mark(stage); };
             _keycloak.Starting += (_, _) => { stage = "provider_starting"; diagnostics.Mark(stage); };
             _keycloak.Started += (_, _) => { stage = "provider_started"; diagnostics.Mark(stage); };
@@ -161,6 +140,83 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 + " " + observation.ToSentence());
             failure.Data[KeycloakStartupDiagnostics.DataKey] = observation;
             throw failure;
+        }
+    }
+
+    private IContainer BuildProvider(string tenantImport, byte[] hubImport, bool callbackTrust, int? publicPort = null)
+    {
+        if (_network is null || _tls is null || _readinessHandler is null)
+            throw new InvalidOperationException("Keycloak fixture provider dependencies are unavailable.");
+        var builder = new ContainerBuilder(Image)
+                .WithLogger(NullLogger.Instance)
+                .WithNetwork(_network!)
+                .WithPortBinding(8443, true)
+                .WithCreateParameterModifier(parameters =>
+                {
+                    ContainerLoopbackPorts.Configure(parameters, "8443/tcp");
+                    if (publicPort is not null)
+                        parameters.HostConfig!.PortBindings!["8443/tcp"][0].HostPort =
+                            publicPort.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    parameters.HostConfig!.ExtraHosts = ["host.docker.internal:host-gateway"];
+                })
+                .WithEnvironment("KC_DB", "postgres")
+                .WithEnvironment("KC_DB_URL", "jdbc:postgresql://identity-database:5432/keycloak")
+                .WithEnvironment("KC_DB_USERNAME", "keycloak")
+                .WithEnvironment("KC_DB_PASSWORD", _databasePassword)
+                .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", AdminUsername)
+                .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", _adminPassword)
+                .WithEnvironment("KEYCLOAK_WEB_CLIENT_SECRET", WebClientSecret)
+                // byte[] destinations are files. Testcontainers' string/string overload treats the target as a directory.
+                .WithResourceMapping(Encoding.UTF8.GetBytes(tenantImport), "/opt/keycloak/data/import/learnstack-realm.json")
+                .WithResourceMapping(hubImport, "/opt/keycloak/data/import/learnstack-hub-realm.json")
+                .WithResourceMapping(_tls!.ServerCertificatePem, "/opt/keycloak/conf/fixture-cert.pem")
+                .WithResourceMapping(_tls!.ServerPrivateKeyPem, "/opt/keycloak/conf/fixture-key.pem", 1000, 0,
+                    UnixFileModes.UserRead | UnixFileModes.UserWrite)
+                .WithCommand("start-dev", "--import-realm", "--log-level=ERROR", "--http-enabled=false", "--https-port=8443",
+                    "--https-certificate-file=/opt/keycloak/conf/fixture-cert.pem", "--https-certificate-key-file=/opt/keycloak/conf/fixture-key.pem")
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
+                    .ForPort(8443).UsingTls(true).UsingHttpMessageHandler(_readinessHandler!)
+                    .ForPath("/realms/learnstack/.well-known/openid-configuration")
+                    .ForStatusCode(HttpStatusCode.OK)));
+        if (callbackTrust)
+            builder = builder.WithResourceMapping(Encoding.ASCII.GetBytes(_tls!.RootCertificate.ExportCertificatePem()),
+                "/opt/keycloak/conf/truststores/callback-root.pem");
+        return builder.Build();
+    }
+
+    internal async Task RecreateWithCallbackTrustAsync()
+    {
+        if (_keycloak is null || _disposed != 0 || _callbackTrust)
+            throw new InvalidOperationException("Keycloak fixture provider recreation is unavailable.");
+        try
+        {
+            var previousAddress = BaseAddress;
+            var publicPort = _keycloak.GetMappedPublicPort(8443);
+            using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
+            tenantImport = ConfigureInvitationMailRealm(tenantImport);
+            var hubImport = await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token);
+            await _keycloak.DisposeAsync();
+            _keycloak = null;
+            _keycloak = BuildProvider(tenantImport, hubImport, callbackTrust: true, publicPort);
+            await _keycloak.StartAsync(startup.Token);
+            var address = new UriBuilder(Uri.UriSchemeHttps, _keycloak.Hostname, _keycloak.GetMappedPublicPort(8443)).Uri;
+            if (address != previousAddress || !address.IsLoopback)
+                throw new InvalidOperationException("Keycloak fixture provider endpoint changed.");
+            await AssertLoopbackBindingsAsync(startup.Token);
+            using var client = KeycloakHttp.Create(BaseAddress, RootCertificate);
+            using var discovery = await KeycloakHttp.JsonAsync(client, HttpMethod.Get,
+                "realms/learnstack/.well-known/openid-configuration", cancellationToken: startup.Token);
+            if (discovery.RootElement.GetProperty("issuer").GetString() != Issuer)
+                throw new InvalidOperationException("Keycloak fixture issuer changed.");
+            _callbackTrust = true;
+        }
+        catch (Exception error) when (error.GetType() != typeof(OutOfMemoryException)
+            && error.GetType() != typeof(StackOverflowException))
+        {
+            // The owning fixture still disposes any partially created replacement.
+            // Provider/SDK exceptions may carry configuration or credentials.
+            throw new InvalidOperationException("Keycloak fixture provider recreation failed.");
         }
     }
 
@@ -232,7 +288,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 
     // The child owns this pipe. Bootstrap credentials have no public projection or diagnostic record.
     internal async Task WriteReconciliationInputAsync(Stream destination, string scenario,
-        CancellationToken cancellationToken, bool includeEventReader = false)
+        CancellationToken cancellationToken, bool includeEventReader = false, string? backchannelUrl = null)
     {
         using var desired = JsonDocument.Parse(await File.ReadAllTextAsync(RealmPath("learnstack"), cancellationToken));
         var input = JsonSerializer.SerializeToNode(new
@@ -248,6 +304,8 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             scenario,
         }, JsonSerializerOptions.Web)!.AsObject();
         if (includeEventReader) input["eventReaderSecret"] = EventReaderSecret;
+        if (backchannelUrl is not null)
+            input["backchannel"] = JsonSerializer.SerializeToNode(new { enabled = true, url = backchannelUrl });
         await JsonSerializer.SerializeAsync(destination, input, JsonSerializerOptions.Web, cancellationToken);
     }
 

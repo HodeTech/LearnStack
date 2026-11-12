@@ -110,7 +110,7 @@ async function ownedEntryFixture(t, scenario) {
   for (const directory of ['scripts', 'bin', 'tmp', 'backend', 'infra/keycloak/realms', 'frontend/apps/web/scripts'])
     await mkdir(join(root, directory), { recursive: true });
   for (const name of ['compose', 'demo-process', 'demo-database', 'reconcile-development-realm',
-    'development-realm-owner', 'development-realm-errors', 'development-realm-core', 'development-realm-plan',
+    'development-realm-owner', 'development-realm-errors', 'development-backchannel', 'development-realm-core', 'development-realm-plan',
     'development-realm-events', 'development-event-reader', 'development-event-reader-test-fixture',
     'development-realm-account', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
     'development-realm-stock-console', 'development-realm-stock-console-test-fixture'])

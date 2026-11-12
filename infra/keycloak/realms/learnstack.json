@@ -20,6 +20,7 @@
   "maxDeltaTimeSeconds": 43200,
   "failureFactor": 30,
   "accessTokenLifespan": 900,
+  "defaultSignatureAlgorithm": "RS256",
   "eventsEnabled": true,
   "eventsExpiration": 604800,
   "enabledEventTypes": [

@@ -398,7 +398,10 @@ try {
   const { value: config } = await input.next();
   assert.ok(config && config.protocol === 1 && config.mode === 'real');
   assert.equal(
-    Object.keys(config).sort().join(','),
+    Object.keys(config)
+      .filter((key) => key !== 'backchannel')
+      .sort()
+      .join(','),
     'apiOrigin,authority,authorityId,clientSecret,issuer,mode,nativeSourceSecret,protocol,secret,sites',
   );
   const issuer = new URL(config.issuer);
@@ -463,6 +466,32 @@ try {
   assert.equal(new Set(config.sites.map((site) => site.host)).size, 4);
   stage = 'setup';
   const privateValues = [config.secret, config.clientSecret, config.nativeSourceSecret];
+  if (config.backchannel !== undefined) {
+    assert.equal(
+      Object.keys(config.backchannel).sort().join(','),
+      'authority,certificate,privateKey,url',
+    );
+    const callback = new URL(config.backchannel.url);
+    assert.ok(
+      callback.protocol === 'https:' &&
+        callback.hostname === 'host.docker.internal' &&
+        callback.pathname === '/api/auth/backchannel/keycloak' &&
+        callback.href === config.backchannel.url &&
+        !callback.search &&
+        !callback.hash &&
+        !callback.username &&
+        !callback.password,
+    );
+    for (const name of ['authority', 'certificate', 'privateKey']) {
+      assert.ok(
+        typeof config.backchannel[name] === 'string' && config.backchannel[name].length <= 8192,
+      );
+    }
+    assert.ok(config.backchannel.certificate.startsWith('-----BEGIN CERTIFICATE-----'));
+    assert.ok(config.backchannel.authority.startsWith('-----BEGIN CERTIFICATE-----'));
+    // The actual TLS constructor validates the bounded private key and certificate pair.
+    privateValues.push(config.backchannel.privateKey);
+  }
   const host = await startBffProof({
     owner,
     root,

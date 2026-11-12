@@ -687,3 +687,14 @@ preservation. Mirror outage is independent of public/sign-in request execution.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 10 — Provider-session logout extension (2026-11-12)
+
+Accepted [ADR-0098](0098-session-targeted-back-channel-logout.md) extends the native
+owner with required signed provider sid continuity, authenticated machine ingress
+and atomic replay/late-publication fences. Exact issuer/sid targets shared SSO
+across hosts while preserving distinct provider sessions. Retained work and
+closing/index ownership retire only with actual settlement. This is no new
+durable session ledger, API JWT revocation or guaranteed provider retry. Existing
+expiry/refresh and ADR-0071 ordinary-read outcomes remain. This bounded extension
+leaves the historical body/metadata intact; Phase 03 owns delivery qualification.

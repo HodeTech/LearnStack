@@ -58,5 +58,11 @@ export function installBffSessionRuntime(
     configurable: false,
     writable: false,
   });
-  return Object.freeze({ store, stop: store.stop, counts: owner.counts.bind(owner) });
+  return Object.freeze({
+    store,
+    stop: store.stop,
+    counts: owner.counts.bind(owner),
+    applyProviderLogout: owner.applyProviderLogout.bind(owner),
+    backchannelCounts: owner.backchannelCounts.bind(owner),
+  });
 }

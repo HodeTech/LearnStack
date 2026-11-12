@@ -429,7 +429,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-5 browser-custody analysis work reduction (2026-11-11)](#p03-5-browser-custody-analysis-work-reduction-2026-11-11) — 30 lines
   - [P03-5 browser-custody work reduction review closeout (2026-11-11)](#p03-5-browser-custody-work-reduction-review-closeout-2026-11-11) — 15 lines
   - [P03-5 merge and delivery closeout (2026-11-11)](#p03-5-merge-and-delivery-closeout-2026-11-11) — 80 lines
-- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 829 lines
+- [P03-6 — Provider event ingress and Audit mirror](#p03-6--provider-event-ingress-and-audit-mirror) — 935 lines
   - [P03-6 provider-event decision pass and proposed package (2026-11-11)](#p03-6-provider-event-decision-pass-and-proposed-package-2026-11-11) — 110 lines
   - [P03-6 proposal review round 1 and catalogue correction (2026-11-11)](#p03-6-proposal-review-round-1-and-catalogue-correction-2026-11-11) — 30 lines
   - [P03-6 proposal round 2 and approval readiness (2026-11-11)](#p03-6-proposal-round-2-and-approval-readiness-2026-11-11) — 27 lines
@@ -450,7 +450,34 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer review corrections (2026-11-11)](#p03-6-maintainer-review-corrections-2026-11-11) — 72 lines
   - [P03-6 maintainer corrections first implementation review (2026-11-11)](#p03-6-maintainer-corrections-first-implementation-review-2026-11-11) — 28 lines
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
-  - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 19 lines
+  - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
+  - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 1,035 lines
+  - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
+  - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
+  - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
+  - [P03-7 proposal approval readiness (2026-11-12)](#p03-7-proposal-approval-readiness-2026-11-12) — 32 lines
+  - [P03-7 maintainer review corrections and acceptance (2026-11-12)](#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12) — 36 lines
+  - [P03-7 Step 1 protocol and owner implementation (2026-11-12)](#p03-7-step-1-protocol-and-owner-implementation-2026-11-12) — 51 lines
+  - [P03-7 Step 1 independent review round one (2026-11-12)](#p03-7-step-1-independent-review-round-one-2026-11-12) — 18 lines
+  - [P03-7 Step 1 second review and closeout (2026-11-12)](#p03-7-step-1-second-review-and-closeout-2026-11-12) — 17 lines
+  - [P03-7 Step 2 native callback and actual provider delivery (2026-11-12)](#p03-7-step-2-native-callback-and-actual-provider-delivery-2026-11-12) — 62 lines
+  - [P03-7 Step 2 first review and verified corrections (2026-11-12)](#p03-7-step-2-first-review-and-verified-corrections-2026-11-12) — 48 lines
+  - [P03-7 Step 2 second review and input-deadline closeout (2026-11-12)](#p03-7-step-2-second-review-and-input-deadline-closeout-2026-11-12) — 40 lines
+  - [P03-7 Step 3 current implementation verification (2026-11-12)](#p03-7-step-3-current-implementation-verification-2026-11-12) — 32 lines
+  - [P03-7 Step 3 independent review round one (2026-11-12)](#p03-7-step-3-independent-review-round-one-2026-11-12) — 17 lines
+  - [P03-7 Step 3 second review and qualification handoff (2026-11-12)](#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12) — 33 lines
+  - [P03-7 CI full-census correction (2026-11-12)](#p03-7-ci-full-census-correction-2026-11-12) — 44 lines
+  - [P03-7 CI correction independent review round one (2026-11-12)](#p03-7-ci-correction-independent-review-round-one-2026-11-12) — 17 lines
+  - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 34 lines
+  - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 49 lines
+  - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 17 lines
+  - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 28 lines
+  - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
+  - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
+  - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
+  - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
+  - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 72 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -20473,3 +20500,1144 @@ The final live PR evidence records the resulting exact head/merge source and
 attempts; this committed observation does not claim future CI success. The
 maintainer owns review and merge. Development, five existing stashes and the
 settings digest remain protected.
+
+
+### P03-6 merge and delivery closeout (2026-11-12)
+
+The maintainer merges [PR #43](https://github.com/HodeTech/LearnStack/pull/43) at
+01:20:58 Europe/Istanbul on 2026-11-12 (2026-11-11 22:20:58 UTC). Reviewed head
+is `34c450ef`; merge commit `8435300e` has parents `bdd9d93c` and `34c450ef`.
+The reviewed head, actual PR merge source `112d34f8` and fetched merge commit
+share tree `773c73aa`. GitHub metadata and fetched Git objects independently
+confirm the merge and exact file identity. Development fast-forwards to that
+merge without changing files or switching branches.
+
+P03-6 implementation delivery is complete and merged: D09 and the provider-mirror
+part of C11/C19 are delivered under Accepted ADR-0097. The three implementation
+steps, requested two fresh review rounds per step, subsequent census corrections
+and maintainer-review corrections are recorded above. This closes implementation
+delivery; the final-source two-layout evidence follow-up below remains explicit.
+The phase Status block owns packet state. This closeout changes documentation
+only, with no new ADR, privilege, runtime/test/CI setting or implementation step.
+
+Delivered behavior:
+
+- A separate read-only Keycloak service account pulls the selected retained
+  account-history events. A confined machine database login accepts minimized
+  receipts/problems and freezes the eligible Active/Suspended tenant recipients.
+  A receipt commit acknowledges acceptance; provider data never chooses tenant
+  authority or directly publishes a business event.
+- Stable target/EventId identities cross the ordinary tenant outbox and required
+  Audit inbox. Central MUST `audit.provider_event.observe` preserves SystemActor,
+  affected User and distinct source/processing times and outcomes. This is account
+  history, which can predate membership; it is not proof of login to that tenant.
+- Duplicate/reordered facts, unknown/closed/no-recipient subjects, 257-recipient
+  refusal, poison positions, restart, uncertain commit and source expiry retain
+  their exact outcomes. Frozen targets are independent of expiring global receipts.
+  Positional gaps cannot be cleared by a different event moving into the offset.
+- Failed initial qualification retries only after actual cleanup, keeping source
+  identity pinned. Changed retained fingerprints classify before source-age
+  refusal. Bounded independent retirement commits drain backlog fairly; private
+  overdue counts/age expose pressure rather than promising unlimited capacity.
+- Seed/demo validate the separate reader credential before side effects. The
+  operator guide supplies bounded read-only diagnostics through the existing
+  provisioning administrator and fails closed for RLS-filtered sessions. Exact
+  257-recipient visibility and migration-role refusal are exercised. No repair
+  endpoint, new operator grant, forced ACK or raw provider export is added.
+
+Final-head evidence:
+
+- The post-incident whole rerun,
+  [run 43093319658, attempt 2](https://github.com/HodeTech/LearnStack/actions/runs/43093319658/attempts/2),
+  passes **27/27 jobs** at head `34c450ef`, PR source `112d34f8`, base `bdd9d93c`.
+  It is layout **B**. All **25 original ZIPs** are retained and match their API
+  identities, byte sizes and SHA-256 digests; every ZIP CRC passes. Canonical
+  validators reconcile all required producer receipts and exact case unions.
+- Backend completes **4,866** cases and Docker Integration **3,744**, for **8,610**
+  passed cases with no unsuccessful/skipped outcomes. Manifest SHA-256 is
+  `1b9c834fba82113955110860feed68fff453b4f0260b9789803cd620bf08c3d3`;
+  plan SHA-256 is
+  `4fc2fb8a67a82294e9e82a497229ac049f0379d0e877e76e3020e61249614bb8`.
+- Frontend completes **124 web files / 4,099 reported cases** and **12 SDK files /
+  228 cases**, total **4,327**, zero skips/todos, plus successful native ingress
+  and failed-fixture cleanup. File discovery is independent; scenario totals are
+  reconciled runner reports, not independent scenario-registration discovery.
+- The original demo verifies **27 exact JSON/HTML report pairs and nine PNGs**,
+  hard budgets, source/config identity and cleanup. Original OpenAPI evidence
+  verifies unchanged Git snapshot bytes, empty comparisons, the pinned comparator,
+  sixty fixtures and no approval consumption.
+- The earlier four no-listener failures all pass in this complete layout B,
+  independently of the local exact 304-case cohort's 304/304 pass. Neither result
+  identifies the earlier observer/assertion cause; a recurrence remains a failure.
+
+Evidence boundaries and operational handoff:
+
+- There is **no successful opposite-layout A on this final corrected head** and
+  no final-head A/B reconciliation. The earlier complete pair on `89a98998` is a
+  different executable source. Failed attempt 1 on the final head cannot supply
+  A credit: eighteen jobs fail only at upload, ordinary-4 also reports four case
+  failures, and only four original ZIPs exist. Those four are retained and verified;
+  recovered console rows are not replacement original producer packages.
+- GitHub's [service incident](https://www.githubstatus.com/incidents/dvy0t3mvh1lg)
+  is consistent with the upload/502 symptoms; it does not establish every upload's
+  cause or the four tests' cause. Incident resolution precedes the whole retry.
+  Failed candidates keep their actual outcomes and grant no qualification credit.
+- Final-head opposite-layout/pair qualification is an open P03-11 evidence
+  follow-up, not waived by the maintainer's merge. No post-merge rerun of this
+  closed PR is started: the current-attempt identity/original-evidence rules stay
+  in force, including the open-follow-up-PR requirement when GitHub omits merged
+  PR identity. The merge-triggered main run `43111012943` is separately queued at
+  this observation; its different source is not combined into the PR pair.
+- Earlier P03-3/P03-4 final-head B/original-archive follow-ups and P03-3–5 manual
+  evidence boundaries remain open. P03-6 adds no UI or manual accessibility gate.
+  Phase 03 is not complete and Phase 04 is not activated by this merge.
+- Deployment requires the independently configured reader credential, actual
+  immutable realm ID, installed authority/issuer and same-database ingress login.
+  Retained-data migrations require forward repair. Global records target 32-day
+  retirement; source history stays within the accepted 7–30 days. Tenant targets,
+  transport/inbox and Audit retain their coordinated P03-10 erasure / Phase 11
+  retention dependencies. This is not authorization to purge retained copies.
+
+Next by packet order is P03-7: authenticated OIDC back-channel logout (D10/C12).
+G11 remains Open. Its decision pass must name the logout-token purpose/profile,
+route, signature/issuer/audience/time/events/no-nonce rules, replay retention,
+sid/sub session targets, late refresh/callback fencing and actual provider-to-native
+reachability before activation. The retained Audit mirror neither implements nor
+gates that independent revocation contract. P03-8 federation, P03-9 Platform/
+recovery, P03-10 DSAR/global closure and P03-11 exit enforcement remain unstarted.
+This closeout starts no next packet.
+
+## P03-7 — Back-channel session revocation
+
+### P03-7 proposed back-channel logout package (2026-11-12)
+
+**Status: Proposed.** The maintainer requests P03-7 through `implement-task`, on
+`development`, with existing-document review before implementation and explicit
+approval before any new ADR's dependent code. Each implementation step requires
+a commit, fresh independent review round one, verified fixes/commit, then a
+different fresh review round two and verified fixes/commit. Continue between
+steps without an unnecessary permission stop. No Astra model is used.
+
+Baseline is clean `development` at `778161b6`. The five existing stashes and
+editor-settings digest are captured and preserved; no branch switch, stash,
+private environment access, listener change or provider mutation occurs in this
+pass. P03-6's merged delivery and explicit final-head A/B evidence gap remain
+historical and separately tracked. This proposal grants no old packet proof.
+
+#### Problem, document review and decision boundary
+
+P03-7 delivers D10/C12: authenticated provider-to-native logout must close the
+exact provider SSO's local owners without reviving them through held work or
+closing unrelated independent sessions. G11 is Open. The retained Audit mirror
+is neither the notification credential nor a prerequisite for this mechanism.
+
+The decision pass compares Phase 03's packet/G11/C12 with ADR-0054/0064/0070/
+0071/0078/0083/0084/0093/0097, Authentication/Frontend/Deployment/Audit architecture,
+Standards 06/07/10/11/18/20/21, native provider/session/ingress code and current
+Keycloak reconciliation/TLS/integration-test ownership. The existing roadmap
+entry and `implement-task`/`start-task`/`write-adr` workflows govern the pass.
+The load-bearing findings are:
+
+| Finding at HEAD | Proposed action |
+|---|---|
+| Provider identity lacks `sid`; issuer/sub capacity accounting is not a revocation index | Retain signed sid and continuity in the native adapter/store; no subject-wide fallback |
+| Redemption can be held before its identity is known | Retain a separate bounded target fence through relevant actual owner settlement, checking before any later publication |
+| Ordinary POST assumes browser Origin/CSRF and live tenant bootstrap | Add exactly one signed machine-purpose native route; preserve every browser guard |
+| Current OIDC errata requires exp and Keycloak 26.6.2 supplies it | Validate separate type/events/no-nonce plus signature/issuer/audience/finite time and replay |
+| Keycloak sends sid only with session-required; frontchannel clients skip backchannel | Explicit client attribute ownership, fresh/warm readback and negative configuration controls |
+| Native TLS is loopback-only; provider-side DNS/trust/reachability is not established | Ship an owned callback-only TLS bridge and runnable normal local setup, alongside real container-to-native proof |
+| Sender source establishes no durable retry guarantee | ACK only local gate closure; retain outage/capacity and refresh/expiry fallback limits |
+
+These are actual missing capabilities or unaccepted decisions, not claims that
+the historical ADR-0070 baseline was false. Accepted bodies remain intact. New
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) proposes
+G11's coupled contract; it closes nothing until explicit maintainer acceptance.
+Private source audits and current upstream inspection are decision inputs, not
+executed Keycloak/native/browser or A/B evidence.
+
+#### Choices presented together
+
+- One fixed machine POST, exact issuer/client and required sid. Shared SSO on two
+  hosts closes together; different provider sid and later independent login stay
+  usable. No subject-wide logout, new admin button or API JWT revocation.
+- Existing single-process credential owner, bounded replay and late-publication
+  fences. Initial selected notification limits are eight actual verifications,
+  4,096 replay records and 4,096 target fences; no live eviction. Accepted token
+  lifetime/age ceiling is five minutes with 30-second skew; actual pinned provider
+  tokens normally expire after two minutes. These are judged limits, not load
+  measurements or reserved completion/cleanup intervals.
+- Existing browser quotas, ten-second signal settings, application/readiness/
+  shutdown/CI limits and actual-work retirement stay fixed. A source ignoring
+  cancellation can retain capacity indefinitely within the entry cap.
+- A callback-only local TLS bridge, independently configured certificates and
+  provider public-CA trust, with no ordinary native listener widening or generic
+  proxy. Existing private configuration is not silently overwritten. Normal
+  supported setup must be runnable and tested, not represented by a fixture only.
+- Delivered authenticated notification closes local gates promptly. Native,
+  bridge/JWKS/network outage or capacity refusal can miss the notification; no
+  automatic eventual delivery, arbitrary account-disable propagation or immediate
+  already-issued API-token invalidation is promised. Existing fallback remains.
+
+#### Three implementation steps after approval
+
+1. **Protocol and native ownership.** Reconcile acceptance carriers; pin the
+   existing resolved jose version directly; implement separate Logout Token
+   verification and sid continuity, bounded indexes/replay/fences, atomic admission
+   and real retained-work cleanup. Extend actual provider/store tests with signed
+   dirty controls, capacities/clocks, held unknown-identity callback, refresh,
+   selection/replacement/invitation and independent sessions. Route activation
+   remains closed. Commit and complete both fresh review/fix rounds.
+2. **Reachable native/provider integration and UX.** Wire the machine route before
+   Next/business bootstrap, new actual request ownership, callback-only bridge and
+   normal Make/demo/seed configuration/trust lifecycle. Extend fresh/warm realm
+   reconciliation only for named client attributes, separate readback and zero-write
+   rerun. Prove actual Keycloak-to-native delivery and exact shared/distinct SSO
+   targeting through trusted TLS; disabled/untrusted bridge defeats that proof.
+   Verify localized reauthentication, public anonymity, late response/history
+   behavior and redaction. Commit and complete both fresh review/fix rounds.
+3. **Full proof and PR.** Complete applicable Release backend/architecture and
+   guarded frontend, native/browser/public and docs checks. Commit current docs
+   and complete both fresh review/fix rounds, then freeze source/config and open
+   the PR. Complete its workflow A/B and original-archive validation; retain any
+   failure without qualification credit and update PR evidence after success.
+   A material source fix receives review and fresh qualification. Never merge
+   the PR as agent.
+
+Reviewers use fresh Sol/Terra agents with effort matched to security/ownership
+complexity and separate runtime/corpus/operations lenses. The primary agent
+validates findings against actual surrounding contracts before changing code.
+Only material remaining findings receive focused follow-up; do not create more
+steps or repeated broad review merely because a suggestion exists.
+
+#### Acceptance and implementation carrier inventory
+
+- Dated bounded Amendments: ADR-0054 machine method/purpose, ADR-0070 remote
+  provider-session extension; ADR-0078 navigation keeps application scope/races.
+  No original metadata/body rewrite or full Superseded status.
+- Canonical rules: Testing 06; Frontend Architecture 07; Observability 10;
+  Security 11; Infrastructure 12 for bridge/network setup; Audit 18's explicit
+  native evidence boundary; Infrastructure Stack 20; Catalogue 21's four existing
+  BFF obligations, new controls named separately from baseline status.
+- Architecture 13 logout/delivery, Architecture 14 native BFF, Architecture 25
+  single-process reachability, Architecture 31 provider/local audit distinction;
+  glossary, Phase 03 G11/Status and append-only dated records.
+- Native implementation: `frontend/apps/web/src/server/auth/` provider transport,
+  contracts/store/holder and machine handler; `src/server/ingress.ts`, native
+  admission/request-owner integration and `scripts/public-server-runtime.mjs`.
+  No generic Next route/action or credential-bearing SDK surface.
+- Operator/runtime setup: `frontend/apps/web/README.md`, `infra/keycloak/README.md`,
+  `infra/keycloak/realms/learnstack.json`, `infra/compose/dev.yml`/README,
+  `.env.example`, frontend environment/configuration allowlists, `Makefile`,
+  `scripts/development-realm-*.mjs`, shared seed/demo ownership and the fixed local
+  bridge helper. Private files and machine hosts/trust remain operator-owned.
+- Skills dispatched: `add-integration-test` for provider/native negative proof,
+  `run-tests-locally`,
+  `standards-check`, `code-review`, `commit-and-pr`; `local-dev-setup` and
+  `seed-tenant` current guidance is reconciled where setup changes. Ordinary
+  `add-frontend-route` is inapplicable: it excludes new authentication actions.
+  The .NET `add-provider-adapter` workflow is consulted for applicability, not
+  copied into the native RP adapter: ADR-0070/0098 own its TypeScript port and
+  no-retry transport. It applies if a .NET provider adapter is actually needed.
+- Proof owners: existing provider/session/ingress tests and dedicated back-channel
+  tests under the same complete discovery; `TenantBffSessionTests` partials,
+  `KeycloakFixture`/TLS helper, owned BFF Node fixtures/browser history proof, realm
+  preparation tests, bridge actual-request/cleanup and default-path setup tests.
+  Fixture-only reachability never substitutes for the shipped normal setup.
+
+Before approval no dependent runtime, lockfile, client registration or security
+standard changes land. Proposed docs are committed for review only. Acceptance,
+implementation, executed reviews and final-source qualification stay distinct.
+
+### P03-7 proposal review round one and corrections (2026-11-12)
+
+Two fresh independent reviewers inspect the proposed record against the current
+runtime and corpus. The security/lifecycle reviewer reports no verified finding.
+The delivery/provider reviewer identifies a real carrier mismatch: Keycloak's
+`frontchannelLogout` is a top-level client field, not an attribute, while the
+initial carrier wording permits only named attributes. The revised proposal
+explicitly owns that one top-level field alongside the three back-channel
+attributes; fresh/warm readback and zero-write rerun must cover both locations.
+The original package remains historical; its "named client attributes" wording
+is read with this explicit top-level addition before implementation.
+
+The primary agent also specifies callback bridge Host versus TLS name/SNI,
+container-reachable bind/DNS/public-root trust, independent opt-in and conflicting
+configuration refusal. These are required normal setup, not fixture exemptions.
+The final step commits documentation/reviews before freezing/opening the PR and
+running its CI; CI is not claimed before a PR exists. The native adapter follows
+ADR-0070/0098 rather than copying a .NET/Polly skill into TypeScript.
+
+No runtime or provider experiment is run by these proposal reviews. The corrected
+proposal remains Proposed and G11 Open pending maintainer approval; a new fresh
+round reviews the revised surface before readiness is recorded.
+
+### P03-7 proposal review round two and lifecycle correction (2026-11-12)
+
+Two different fresh reviewers inspect `5d5823cc` against `778161b6` and the current
+native/provider contracts. The security reviewer finds no verified security
+defect. The delivery reviewer identifies one Major gap: a bridge started during
+asynchronous preparation needs the same irreversible startup-stop/parent-loss
+rule as the existing native listener, not merely a promise to join normal stop.
+
+The revised ADR makes the bridge a module/listener in the existing private native
+runtime child, with no new worker or credential owner. Setup ownership registers
+before creation/bind; early stop/parent-channel loss prevents all later binding,
+closes partial resources and joins actually started setup/request/listener work.
+The existing watchdog reports failure without supplying retirement credit.
+Step 2 adds early-stop/parent-loss/held-bind/forward-work and actual-retirement
+controls. ADR-0084 receives navigation at acceptance, not a new worker topology.
+The original package's bridge-helper wording is constrained by this record.
+
+The primary agent aligns the minimum fence horizon to the later of five minutes
+after acceptance and the accepted token's expiration plus skew, while retaining
+all relevant unknown-identity and closing owners through physical settlement.
+This removes a 300-versus-up-to-360-second ambiguity without changing browser or
+test limits. The reviewer treats it as a useful clarification, not a demonstrated
+resurrection finding. Glossary entries define terms without duplicating lifecycle
+status; that remains in the ADR/phase register.
+
+These are proposal corrections only. Runtime, lockfile, client registration,
+listeners, certificates, trust and CI remain untouched. Focused reinspection of
+the corrections is required before approval readiness; no third broad round is
+inferred solely from these bounded fixes.
+
+### P03-7 proposal approval readiness (2026-11-12)
+
+**Status: Proposed; maintainer decision pending.** The complete approval surface
+is [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md), the
+[three-step package](#p03-7-proposed-back-channel-logout-package-2026-11-12) and
+the two correction records above. G11 remains Open. No standard, Accepted ADR,
+runtime, lockfile, provider field, trust or listener has changed.
+
+Two independent source audits precede drafting. Round one then uses fresh Terra
+security/lifecycle and Sol delivery/provider reviewers; round two uses different
+fresh Sol security and Terra delivery reviewers. Verified findings are closed:
+top-level `frontchannelLogout` ownership/readback (R1) and bridge startup-stop/
+parent-loss ownership (R2). Both round-two reviewers reinspect the bounded fixes
+and confirm no remaining actionable finding. These are document/source reviews,
+not executed provider, browser, startup-race or hosted qualification.
+
+The selected bridge is one callback-only TLS listener/module in the existing
+private native runtime child; it introduces no new worker. Its externally
+reachable bind, certificate/public-root setup and actual stop ownership are
+part of Step 2, including normal demo usage. It never widens ordinary listener
+admission or forwards a caller-selected destination. Replay/fence/verification
+budgets and residual delivery/outage costs remain explicitly proposed choices.
+
+Documentation validation checks the full-tree Markdown fragments, phase/log
+shape, generated indexes, unique Proposed lifecycle, append-only historical
+delivery body and absence of forbidden local-only references in the new diff.
+Only Markdown changes are committed on development; existing stashes/settings
+remain unchanged. Application suites and CI are not run for this proposal.
+Implementation begins only after explicit maintainer approval, using the three
+steps and requested commit/two-fresh-review/fix cycle without another routine
+permission stop. Any genuinely new authority decision returns for approval.
+
+### P03-7 maintainer review corrections and acceptance (2026-11-12)
+
+**Status: Accepted.** The maintainer authorizes analysis/correction of the supplied
+reviews, acceptance of ADR-0098 and implementation without another routine stop.
+They confirm the application remains in development with no active consumers;
+no backward-compatibility shim is required. This accepts the three-step package
+with the bounded corrections below, not executed runtime/provider/CI proof.
+G11 is Accepted; C12 implementation/qualification remains open.
+
+| Review finding | Verified disposition |
+|---|---|
+| 503 diverges from OIDC §2.8 | Confirmed; select empty no-store 400 for invalid/failed processing, including saturation or key unavailability. Closed local diagnostics distinguish unavailable without a retry promise. |
+| Fences can stay saturated indefinitely | Real availability tradeoff, now explicit: private closed saturated state, occupancy/oldest-held age; recover dependency or retire/restart the managed runtime through existing actual-family recovery. No TTL eviction, forced credit release or cached-PGID signal. |
+| Unauthenticated traffic can occupy verifier slots | Confirmed residual risk; structural headers/size before reserve, eight actual requests/process and two per real socket peer, reserve before streaming to avoid unbounded readers, syntax before crypto/JWKS. This is no DDoS or provider-reservation guarantee. |
+| Optional offline_access already exists | Confirmed, but native requests only openid/profile/email. Preserve optional provider inventory; refuse offline access in grant responses and qualify absence from defaults. No new offline support or broad client mutation. |
+| Peer/provenance meaning | Peer supplies admission accounting only; signed fixed-purpose token is authority. Loopback access cannot substitute. The bridge accounts its actual peer and forwards no trusted asserted-peer shortcut. |
+| Bridge/sidecar and frontchannel options | Compare explicitly; use existing runtime child for one owned callback-only listener, not new process/iframe ownership. |
+| Dated Amendment wording | Explicit dated bounded Amendments to ADR-0054/0070, dated navigation Amendments to ADR-0078/0084; original bodies/statuses/metadata retained. |
+| jose is currently devDependency | Corrected: move the already pinned version into runtime dependencies, preserve one resolved copy. |
+| Exact event URI, exp/typ/time profile and references | Name exact event URI, cite §§2.4/2.6, explicitly choose stricter pinned-provider typ and bounded receipt headroom while preserving two-minute issuance; add ADR-0054/0083/0084/0093 references. |
+| Repeated limits and glossary lifecycle wording | ADR owns selected decision/rationale; canonical ongoing Security 11 owns runtime rule table. Historical approval records are not another mutable authority. Glossary defines terms and links the decision rather than duplicating status. No broad cosmetic rewrite. |
+
+Acceptance reconciles Standards 06/07/10/11/12/18/20/21, Architecture 13/14/25/31,
+ADR index and phase Status/register. Four existing BFF catalogue rules receive
+an explicitly Registered extension; their baseline status and counts do not
+promote. Native notification diagnostics remain inside the named BFF exception,
+not new durable audit operations. Existing DB grants/definers/setters are unchanged.
+
+Implementation keeps the approved three steps. Step 1 adds protocol/session
+ownership with route inactive; Step 2 delivers native/provider/bridge and normal
+setup plus real integration; Step 3 completes full proof, requested reviews,
+source freeze and PR/CI A/B with original archives. Every step commits, receives
+fresh round one/fixes/commit and different fresh round two/fixes/commit. Existing
+runtime/test/CI clocks are not enlarged. Any genuinely new architectural decision
+returns to the maintainer before code; routine implementation continues.
+
+### P03-7 Step 1 protocol and owner implementation (2026-11-12)
+
+Step 1 implements the Accepted ADR-0098 protocol/session slice; no machine route,
+bridge listener or provider field is activated. `jose` moves from devDependencies
+into runtime dependencies at the same pinned version; the lockfile changes only
+that importer category. Qualified frozen installation verifies the current patch.
+
+Delivered in the native-only adapter/store:
+
+- Real library-owned RS256 verification, strict duplicate-name JSON parsing,
+  exact type/events/no-nonce/issuer/audience/sid/time profile, bounded fixed-issuer
+  discovery/JWKS cache and joined single-flight work. Errors carry closed reasons.
+- Required signed sid continuity on code/refresh credentials; the store preserves
+  it through reconstructed bundles. Grants reporting offline_access refuse.
+- Atomic replay/fence reservation and exact issuer/sid/optional-sub closure,
+  retained targets through actual retirement, unknown-identity callback and held
+  refresh/selection/switch/invitation controls. No browser facade gains revoke
+  capability. Unsafe clock movement seals notification admission; stopped state
+  can clear evidence only when actual retained work permits it.
+- Fence sweeps snapshot owners once and use finite target sets/minimum unknown
+  admission, avoiding owner-by-fence nested scans. A full 1,024-owner/4,096-fence
+  control retains ignored-abort work and preserves 1,023 unrelated sessions.
+  Private state counts include saturated/unavailable and oldest held age.
+
+Verification before the first implementation review:
+
+- Qualified native build, TypeScript and changed-source lint pass. Release backend
+  build passes with zero warnings/errors; five CorpusConsistency cases pass.
+- Twelve selected frontend files complete 1,100/1,100 reported cases, zero
+  failures/skips/todos. This includes real pinned Next protocol positives and
+  missing-activity/nonzero-stop negatives, the existing 559 admission controls,
+  provider/store/invitation/capacity/clock and exact source/dependency fences.
+  It is a selected cohort, not the complete frontend package or hosted C12 proof.
+- Initial cohort failures identify missing new modules in the minimal copied BFF
+  harness and the intentional source-hash drift from its sid fixture. Add only
+  the three actual dependencies to its explicit inventory, review the changed
+  producer source and update its exact pin. Dirty controls remain unchanged; the
+  same actual protocol positives and negatives then pass. Earlier failed receipts
+  remain separate and grant no qualification credit.
+- Installer first refuses an old development reader reservation. Its exact record
+  predates the later host restart, proving all original host processes ended;
+  preserve record bytes and host-lifetime evidence, recheck unchanged identity and
+  no competing records, then retire only that reservation. Outputs/cache metadata,
+  the five stashes and editor settings remain untouched. This uses existing owner
+  recovery, not PID-age stealing or a new automatic reconciler.
+
+The implementation is committed before fresh independent review round one and
+then round two, with verified fixes committed between them. Step 2 starts only
+after that cycle. Real Keycloak notification, normal bridge setup, network/TLS,
+browser revocation and complete final-source CI A/B remain open.
+
+### P03-7 Step 1 independent review round one (2026-11-12)
+
+Fresh Sol protocol/security and Terra ownership/corpus reviewers inspect
+`af401bae` against `9497c930`, Accepted ADR-0098, the existing session contracts
+and retained selected-cohort evidence. Both approve within Step 1 scope with no
+verified actionable finding; no source fix is manufactured for a clean review.
+They run no additional heavy suite, build, provider mutation or installation.
+
+The protocol review records one explicit Step 2 pre-activation integration
+obligation: preserve provider/clock/capacity versus token-refusal stages for the
+closed unavailable/refused diagnostic categories. The shared 400 HTTP failure
+response must not be mistaken for equal underlying causes, and raw errors remain
+forbidden. No notification route or diagnostic classification is activated in
+Step 1; this handoff remains part of Step 2, not a shipped runtime claim.
+
+Step 1 now receives a different fresh review pair before its closeout. Real
+provider/TLS/normal-setup/browser and complete A/B obligations remain open.
+
+### P03-7 Step 1 second review and closeout (2026-11-12)
+
+A different fresh Terra protocol/security and Sol ownership/corpus pair reviews
+`af401bae` and the first-round handoff at `59a6f2c9` against `9497c930`. Both
+approve within Step 1 scope with no verified actionable finding. They inspect
+the actual code/caller boundaries and retained 1,100-case cohort independently;
+no additional heavy tests, builds, installation or provider mutation is run.
+There is no manufactured fix commit for a clean second round.
+
+Step 1 is closed as an inactive protocol/session foundation, not C12 fulfillment.
+Step 2 now implements native/bridge admission and setup, exact fresh/warm provider
+fields, stage-specific closed diagnostic classification and actual provider/TLS/
+browser evidence. Successful real-provider key rotation remains a separate
+integration claim from the existing unknown-key cooldown control. The approved
+three-step plan and existing runtime/test/CI limits remain unchanged.
+
+
+### P03-7 Step 2 native callback and actual provider delivery (2026-11-12)
+
+Implement Accepted ADR-0098's closed machine route, native TLS bridge and normal
+operator setup on development. The callback remains opt-in. The ordinary native
+listener stays loopback; the bridge lives in the same managed private child and
+forwards only the fixed callback over verified TLS with explicit native CA and
+localhost SNI. Private installer closures apply logout; the global session facade
+receives neither revocation nor diagnostic authority.
+
+The native boundary reserves actual process/peer capacity before streaming,
+checks the bounded form before crypto and returns empty no-store 200/400 without
+cookies. Token refusal and closed provider/clock/capacity/stopped unavailability
+remain distinct private evidence. Admitted reads, responses, verification,
+forwarding and pending listener binds retain ownership through actual retirement.
+An irreversible bridge start/stop latch prevents later listening after stop;
+readiness is published only after all required listeners bind.
+
+Normal dev/seed/demo paths qualify agreeing private settings, certificate/key
+and both public roots before startup. Explicit `make backchannel-tls` creates
+only absent owned callback material. Keycloak receives only the public callback
+root in a read-only trust directory and the Docker host-gateway mapping. The
+reconciler owns only the three selected web callback attributes and top-level
+frontchannel setting, refuses foreign callbacks and unsupported signing/encryption
+or default offline access, independently reads back and performs a zero-write
+rerun. Existing account, secret, API/Hub and unrelated configuration owners remain.
+
+Local verification before the first fresh implementation review:
+
+- The complete source-censused realm controls pass 457/457 cases in twelve files,
+  with zero cancellations/skips/todos. New setup and callback-plan controls cover
+  public-only trust, source conflicts, wrong roots, exact fresh/warm fields,
+  foreign state, readback failure and disabled preservation.
+- Six native/source files pass 113/113 reported cases: exact source/owner census,
+  signed token checks, HTTP capacity/body retirement and two actual TLS hops.
+  Bridge controls include wrong native trust, stop before/during bind and held
+  forwarding. This selected cohort is not the complete web package.
+- The new real Keycloak/application-role/native test passes both enabled and
+  disabled-bridge populations. Actual admin session logout closes the same SSO
+  across two admitted hosts, preserves a distinct device and later SSO, and makes
+  no API/bootstrap read itself. Passive browser session reads retain their normal
+  anonymous bootstrap; they do not grant a business read. Independent provider
+  callback readback and a zero-write rerun pass. No raw provider token, identifier,
+  private key or callback body enters the retained result.
+- The existing real pinned Next protocol positive passes after the copied proof
+  observes the listener's current address at the new readiness point. The earlier
+  failed startup was a stale fixture-local address binding, not provider delivery.
+  Earlier failed attempts remain separate and grant no qualification credit.
+
+The existing native process-family/startup controls pass: two wrapper cases,
+including 25 actual process-family controls, and inert dependency startup cases
+with actual sockets. Added bridge setup controls cover synchronous stop, held bind,
+partial failure and readiness ordering; they do not qualify production TLS. The
+existing BFF route/boundary cohort passes 71/71 cases, including actual Next
+production UI/protocol and missing-activity/nonzero-stop negative controls.
+Native build, full web TypeScript, changed-source lint and Release solution build
+pass with zero backend warnings/errors. Complete-source validation continues in
+Step 3. The implementation receives a committed first review round and
+then a different fresh second round before Step 2 closes. C12/final-source hosted
+A/B, original archive reconciliation and PR remain open; no new timer or previous
+packet's qualification credit is inferred.
+
+
+### P03-7 Step 2 first review and verified corrections (2026-11-12)
+
+Fresh Terra protocol/lifetime and Sol operator/corpus reviewers inspect committed
+`285f3ba1` against `3d1ef12f`, Accepted ADR-0098 and retained local evidence. They
+identify two independently verified Major findings; both require implementation
+correction before the next fresh round. No approved process-local capacity,
+retention, delivery or API-token limitation is relabelled as a defect.
+
+- Bridge-local transport/capacity and early structural refusal lacked the native
+  handler's closed diagnostic sink. Wire distinct fixed bridge/native boundary
+  labels, closed native-forwarding unavailability and structural refusal without
+  raw errors or request values. Real TLS trust-failure, held forwarding,
+  saturation, malformed form and structural controls inspect bounded diagnostic
+  shapes and privacy. Transport success is not a second native acceptance.
+- A Keycloak started with empty callback trust could retain its startup-loaded
+  truststore after the public root was first copied into the mount. Bind the
+  derived public-root SHA-256 to only that Compose service's configuration, so
+  normal owned dev/demo startup recreates the selected provider when needed.
+  Reject stale running startup labels despite matching current mounted bytes.
+  The private source and caller cannot select the derived identity. Normal CLI
+  disabled/enabled controls observe the exact empty-to-root identity transition
+  and retain caller/environment confinement. Operator guidance names the restart
+  and preserved database/accounts.
+
+The actual Keycloak test now exercises three populations: no bridge, an enabled
+bridge without provider CA trust, and a trusted provider recreated on the same
+loopback endpoint. Only the last closes the exact shared SSO target. User/client
+IDs, existing database/network and issuer remain; a separately observed
+reconciliation is zero-write. Distinct/later SSO and passive/notification API
+boundaries remain. This real 86-second passing test establishes trust recovery;
+it does not turn provider delivery into durable retry or qualify a full actual
+make/demo run. A later failure-only SDK exception-redaction catch receives the
+next Release compile; the completed test's successful path is unchanged.
+
+The focused native diagnostic/startup cohort passes 32/32 reported cases; full
+web TypeScript passes. All twelve source-censused realm files pass 457/457 cases.
+Earlier failed diagnostic/lifecycle receipts remain separate. Dependent current
+normal-launcher confinement controls are reconciled for the derived public
+Docker metadata only; no general environment exemption is introduced. The full dependent lifecycle
+file passes 103/103 cases after exact Docker-only digest checks and forged-value/
+non-Docker leakage counterexamples; the other three dependent fixture files pass
+181/181 cases. Release solution compile, changed native lint and documentation
+checks pass. Private provider ID/URL comparisons expose Boolean/count assertions
+rather than raw values on failure. The fixes are committed before a different
+fresh second review pair.
+Final-source full suites, C12/CI A/B, original archives and PR remain open.
+
+
+### P03-7 Step 2 second review and input-deadline closeout (2026-11-12)
+
+A different fresh Sol protocol and Terra operator/corpus pair reviews
+`3d1ef12f..ad2eb013`. The operator review finds no actionable issue. The protocol
+review verifies both R1 corrections and identifies one remaining Major: callback
+body reading lacks ADR-0098's existing ten-second input signal. A real owned HTTP
+counterexample remains at two active owners/no verification after 10.2 seconds;
+a third request is refused by peer capacity. Node's default request timeout is
+not the selected input policy. No new forwarding deadline is inferred.
+
+Add an absolute ten-second timer after successful reservation and before reading
+input, shared by native and bridge paths. Its expiry sends empty no-store 400
+and requests stop, without releasing capacity. Clear the timer on actual read
+settlement before provider processing and synchronously on stop. A timeout race
+or stopped owner cannot proceed into verification. Actual request/response close
+and retained provider work still control release; the separate provider signal
+and every existing runtime/test/CI limit remain unchanged.
+
+Four selected files pass 35/35 reported cases, including controlled-clock real
+HTTP/TLS checks at 9,999 and 10,000 milliseconds. A fired timer retains occupancy
+through the actual close event; completed input cannot cancel held verification,
+and stop clears timers without inventing work completion. Malformed, oversize,
+quota, trust and signed-token controls remain. Tests fake only timer scheduling,
+not Date, sockets or physical close. Server TypeScript compilation passes.
+
+Before this correction, the full guarded frontend completes on `ad2eb013`:
+130 web files/4,174 cases and twelve SDK files/228 cases, 4,402 total with zero
+skips/todos. Web wall time is 352.02 seconds and SDK 111.08 seconds. That complete
+receipt is retained for its actual source, not relabelled as a full run of the
+later input correction. Release backend build, 3,780 Unit and twelve Contract
+cases pass; the local complete Architecture run remains ongoing. Earlier failures
+remain distinct from passing receipts.
+
+Both requested Step 2 review rounds and their verified corrections are complete.
+Step 3 now completes relevant final-source verification, native/browser/public
+regressions, its own two fresh review/fix rounds and current documentation. Freeze
+that reviewed source before PR CI A/B and original-archive reconciliation. C12 and
+hosted qualification remain open; no agent merge or earlier-packet receipt credit.
+
+
+### P03-7 Step 3 current implementation verification (2026-11-12)
+
+Verify implementation commit `ec69aed0` after both completed Step 1/2 review
+cycles. The guarded frontend executes all 130 discovered web files/4,178 reported
+cases and twelve SDK files/228 reported cases: 4,406 passing, zero skips/todos.
+Web wall time is 359.87 seconds and SDK 98.52 seconds. This is discovered-file
+and reported-case reconciliation, not independent scenario-ID discovery.
+
+The current real-provider and native-browser integration selection passes 2/2
+cases in 152 seconds. Actual Keycloak missing/loaded callback trust, owned
+same-port recovery and exact SSO closure remain separate from the stock Chromium
+fake-grant/API cookie/history regression and its live counterexamples. No natural
+BFCache or manual VoiceOver claim is inferred. No new page, interaction or copy
+is introduced; existing manual evidence is not relabelled as a new execution.
+Release build, 3,780 Unit and twelve Contract cases pass. The unsharded local
+Architecture run is still ongoing and receives no completed credit yet.
+
+The full twelve-file realm census passes 457/457; current native input/token/TLS
+controls pass 35/35. Native build, web TypeScript, changed lint and documentation
+checks pass. Retain all earlier failures separately. The working branch remains
+development; the five original stashes and editor settings digest are unchanged.
+No new runtime/test/CI setting, permission, database or provider-event audit
+contract is introduced during qualification.
+
+Start the step's fresh independent review while the remaining local Architecture
+run completes. This is an implementation/evidence review, not a source freeze,
+completed C12/CI claim or merge authorization. After verified corrections and a
+second different fresh review round, commit current documentation and freeze the
+reviewed source for one PR and complete same-source A/B/original-archive checks.
+Earlier packet evidence gaps remain separately owned; no old receipt is borrowed.
+
+
+### P03-7 Step 3 independent review round one (2026-11-12)
+
+Fresh Terra security/protocol/ownership and Sol delivery/corpus/operator reviewers
+inspect the packet through `2a6e5ec7`, including implementation `ec69aed0`, against
+baseline `778161b6`. Both approve within the reviewed implementation scope with no
+actionable finding; no fix is manufactured for a clean review. They inspect the
+actual late-work/replay/crypto boundaries, normal trust reload/caller confinement,
+real provider populations, native lifecycle and current executed controls.
+
+The reviews independently preserve the distinction between actual provider
+HTTP/TLS proof, fake-grant stock browser regression, controlled scheduling tests,
+manual accessibility and full hosted qualification. They run no new heavy suite,
+provider mutation, build or installation. The long local Architecture run and
+complete PR A/B/original-archive checks remain open, without completed credit.
+A different fresh pair now performs the second Step 3 review before source freeze.
+
+
+### P03-7 Step 3 second review and qualification handoff (2026-11-12)
+
+Different fresh Sol security/protocol and Terra delivery/corpus/operator reviewers
+inspect the completed packet through `11dacdd1`, executable implementation
+`ec69aed0`. Both approve within scope with no actionable finding. All three
+implementation steps have completed their two requested independent review/fix
+cycles; no clean review produces an invented source fix. Reviewer reports retain
+the distinction between implementation and still-open final hosted qualification.
+
+Current local evidence remains 4,406 guarded frontend cases, 35 focused native
+input/token/TLS cases, two actual provider/browser integration cases, 3,780 Unit
+and twelve Contract cases, the twelve-file 457-case realm census, Release/native
+build, TypeScript/lint and whole-tree documentation checks. The separately running
+unsharded local Architecture suite is not yet complete and receives no passing
+credit. The final PR's complete Architecture producers and both required aggregates
+remain mandatory; this handoff skips no check and authorizes no merge.
+
+The resulting documentation commit freezes the reviewed implementation for one
+normal development-to-main PR. Its PR proof records the exact source and complete
+same-source opposite-layout A/B, retaining original API artifact metadata and ZIP
+bytes before any whole-run rerun, with size/SHA-256/CRC and result/assignment/source
+reconciliation. Failed or incomplete attempts confer no qualification credit;
+failed-job-only/manual duplicate runs are not substitutes. A material source fix
+reopens focused review and final-source qualification. Update PR proof after the
+checks; do not change source merely to narrate passing job IDs.
+
+P03-7 enters review/qualification handoff, not merged completion. C12's final-source
+hosted evidence and maintainer merge remain open here. Existing manual evidence,
+prior packets' source/CI gaps and P03-8–11 ownership remain unchanged. Private
+source keys, provider identifiers/tokens, cookies and callback bodies stay out of
+committed/public proof. No agent merge is authorized.
+
+
+### P03-7 CI full-census correction (2026-11-12)
+
+PR #44 freezes `9aea4f40`, with executable inputs unchanged from `ec69aed0`.
+[Attempt 1/A](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/1)
+and [attempt 3/A](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/3)
+each pass all 27 jobs. Each retains 25 original API artifact ZIPs with byte count,
+SHA-256 and CRC verification. Independent archive audits reconcile all 8,611
+backend selected/completed/passed TRX cases, producer/aggregate/source/assignment
+and toolchain identities, 4,406 frontend cases and 27 public-demo audit pairs.
+These are two A layouts, not an A/B qualification pair. The earlier unsharded
+local Architecture run also completes: 630/630, zero skips, in 46m12s.
+
+[Attempt 2/B](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/2)
+fails pinned Keycloak image preparation at its existing 55-second command signal,
+before product tests. Preserve its available six originals and raw logs; cancel
+remaining work after the required producer fails. The root cause beyond that
+observed timeout is not established. No timer or image policy changes follow.
+[Attempt 4/B](https://github.com/HodeTech/LearnStack/actions/runs/43130582129/attempts/4)
+reports 4,177/4,178 web cases passing: the new full-owner/full-fence control exceeds
+its unchanged five-second test setting. Preserve its available sixteen originals,
+full raw logs and the failed frontend job; cancel remaining work. Neither failed
+or cancelled attempt supplies qualification or physical-cleanup credit.
+
+The native store eagerly rebuilds retained-owner target sets before each fence
+sweep, even when no fence is eligible for retirement. With 1,024 owners and 4,096
+notifications, this repeats millions of unnecessary target encodings. Build that
+same finite owner snapshot lazily, only when the state actually requests retention
+evidence, and share it across that synchronous sweep. Eligible fences, unknown
+callbacks, closed owners and stop still use the complete current owner census;
+physical retirement and conservative retention rules remain unchanged.
+
+The two selected files pass all 38 controls. The identical targeted full-census
+command records 2,135.661 ms before and 229.974 ms after on this workstation;
+these local observations establish no hosted completion guarantee. Native build,
+web TypeScript, lint and formatting pass. No capacity, token profile, safety gate,
+test setting or CI deadline changes, so no new architectural policy is selected.
+
+This material correction reopens focused review and final-source qualification.
+Commit it, run two different fresh independent review/fix rounds, complete current
+frontend/provider regressions and freeze the reviewed source for the PR's complete
+A/B and original-archive reconciliation. Earlier-source successes stay separate;
+no agent merge or prior-packet proof promotion is authorized.
+
+
+### P03-7 CI correction independent review round one (2026-11-12)
+
+Fresh Sol security/ownership and Terra performance/evidence reviewers inspect
+`9aea4f40..a251c2a5` and the immediate state/store contracts. Both approve with no
+actionable finding. They verify the lazy snapshot remains synchronous and uses
+all current owners, including unknown and closing work, at the same retirement
+predicate boundary. Clock sealing, exact target matching, atomic reservations,
+stop and actual cleanup remain unchanged. No fix is manufactured for a clean
+review, and no capacity/test/CI setting changes.
+
+The reviews distinguish the selected 38 passing controls and local comparative
+timing from the ongoing complete frontend guard and still-open final-source
+provider/hosted proof. Different fresh reviewers perform round two before the
+final source freeze and single PR synchronization. Earlier-source A-only successes
+and failed/cancelled attempts remain separate and unqualified as a final pair.
+
+
+### P03-7 CI correction second review and new source freeze (2026-11-12)
+
+Different fresh Terra security/correctness and Sol performance/delivery reviewers
+inspect the correction through `ea0315bd`, runtime `a251c2a5`. Both approve with no
+actionable finding. The lazy snapshot includes every retained owner, remains
+synchronous and per-sweep, and preserves unknown/closing work, clock, stop,
+matching, capacity and actual-retirement contracts. Both requested fresh review
+rounds of the material correction are complete; no artificial fix is introduced.
+
+Current executable inputs pass the complete guarded frontend: 130 discovered web
+files/4,178 reported cases and twelve SDK files/228 reported cases, 4,406 total,
+zero skips/todos. Web wall time is 310.00 seconds and SDK 101.90 seconds. The
+unchanged full-capacity control passes within that complete run. The actual
+Keycloak callback-trust/SSO targeting and separate stock Chromium cookie/history
+regression pass 2/2 in 126 seconds with the corrected native store. No natural
+BFCache or fresh manual-accessibility evidence is inferred. The selected 38-case
+receipt, native build, TypeScript, lint and formatting also pass.
+
+Freeze this reviewed implementation after the final documentation checks and
+synchronize PR #44 once. The material runtime change requires a new complete
+same-source A followed by a whole-run opposite-layout B. Retain original API
+artifact ZIP bytes, metadata and raw logs before rerunning; verify byte count,
+SHA-256/CRC, source/plan/toolchain/assignment and complete result unions. Earlier
+`9aea4f40` A-only successes and failed/cancelled attempts stay separate and provide
+no final-source qualification. No test, application or CI clock is enlarged.
+
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) tracks the frozen-source
+qualification evidence and maintainer review. Update that proof when the complete
+runs and original-archive audits finish; do not create another source revision
+merely to narrate passing run IDs. P03-7 remains in review handoff until maintainer
+merge. Prior packet evidence gaps and P03-8–11 remain separately owned; no agent
+merge or earlier receipt borrowing is authorized.
+
+
+### P03-7 PR review comment corrections (2026-11-12)
+
+Verify the supplied comments against `19eb7ec0` and Accepted ADR-0098 rather than
+assuming their diagnoses. Six comments require bounded corrections:
+
+- Local setup names the actual `scripts/compose.mjs selected up -d` wrapper and
+  explains public trust-directory preparation/computed digest injection.
+- The Keycloak runbook explains the native store's latched unsafe-clock state:
+  clock correction alone cannot restore admission or retirement; managed restart
+  remains required. No new recovery/eviction policy is introduced.
+- Development preparation reads web configuration once under its existing
+  owned-file checks, captures that descriptor's mode, reconciles all sources and
+  requires owner-only web permissions only when the combined feature is enabled.
+  Disabled readable projections remain usable; write/symlink/ownership checks and
+  source-conflict refusal remain.
+- The reconciliation driver preserves the two existing back-channel refusal
+  labels. A real provider test proves both structured results, zero writes and
+  independent unchanged-state snapshots; its planted attributes are restored.
+- Logout verifier controls isolate stale issuance and expiration from lifetime
+  errors, cover exact profile boundaries, and make delayed verification fail on
+  age alone. No token acceptance rule changes.
+- Shared refresh/self/account work uses one existing ten-second store-owned
+  signal; ordinary authority reads receive that bound too. Per-adapter limits
+  already existed. Individual waiters remain independent, late publication is
+  refused, and closing owners/fences remain retained until actual work settles.
+  Do not deadline-wrap cleanup receipts or claim ignored cancellation physically
+  terminates work. Existing revocation/stopped outcomes retain their priority.
+
+The admission comment does not justify a runtime change. ADR-0098 and Security 11
+limit actual physical requests, explicitly sharing NAT/bridge peer allowances;
+both HTTP hops consume that existing budget. The qualified local topology has
+one selected Keycloak service, with no multi-peer throughput promise. A shared
+logical lease admitting sixteen physical requests would alter the accepted
+process ceiling. Direct loopback clients retain their normal peer cap. Bridge
+capacity is already distinguishable as boundary `bridge`, category `unavailable`,
+stage `capacity`, covered by the real TLS control. Neither debit nor diagnostics
+is weakened, and no new architectural policy is selected.
+
+Before commit/review: five selected frontend files pass 219/219; the complete
+realm census passes 458 controls across twelve files, with the new permission
+control and exact per-file count reconciled. Release build has zero warnings or
+errors; the real two-reason refusal control passes. An initial full realm run
+failed without retained case diagnosis; its isolated CLI census and subsequent
+complete run pass. Keep that failure separate, without a root-cause claim.
+Full current frontend/provider regressions and focused independent reviews remain
+open. These material source changes invalidate the previous frozen-source PR
+qualification; fresh final-source CI evidence is required before merge.
+
+
+### P03-7 PR corrections first review (2026-11-12)
+
+Sol lifecycle/security and Terra configuration/evidence reviewers independently
+inspect `19eb7ec0..409c64d2` and the immediate contracts. Both approve without
+verified actionable findings. They confirm the shared child deadline and
+independent waiters, signal/liveness publication checks, original lifecycle
+failure classification and actual-work retention; and the single-read web mode
+qualification, source agreement, unchanged physical admission and real refusal
+proof. No generic forced-settlement or new capacity policy is inferred.
+
+Current targeted evidence remains 219 frontend controls, 458 realm controls,
+Release build, typecheck/lint/docs and the actual two-reason refusal case. The
+complete frontend and current provider/browser regressions remain separate work.
+A different fresh reviewer pair performs round two before final-source freeze;
+old frozen-source CI is retained only for its original source.
+
+
+### P03-7 PR corrections second review and source freeze (2026-11-12)
+
+Different fresh Terra lifecycle and Sol configuration/evidence reviewers inspect
+`19eb7ec0..98f33514`, implementation `409c64d2`. Both approve without verified
+actionable findings. Both requested review rounds of the bounded correction are
+complete. Physical-hop admission and distinct bridge capacity diagnostics remain
+unchanged under ADR-0098; no new multi-peer throughput promise is introduced.
+
+The current complete frontend guard passes 130 discovered web files/4,190
+reported cases and twelve SDK files/228 reported cases: 4,418 total, zero
+skips/todos. Web wall time is 323.00 seconds and SDK 86.95 seconds. The actual
+Keycloak TLS/SSO targeting regression and independent stock Chromium
+cookie/history control pass 2/2, with 66.393 and 54.010 seconds of case execution.
+The real structured refusal proof passes for both labels without writes. The
+219 focused controls, complete 458-case realm census, Release build,
+TypeScript/lint and native build also pass. No fresh manual accessibility or
+natural BFCache evidence is inferred.
+
+After final documentation/corpus checks, freeze this reviewed source and update
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) once. It owns the new
+complete same-source A, subsequent whole-run opposite-layout B and original ZIP
+integrity/result/assignment reconciliation. Keep previous-source qualification
+separate; it cannot qualify these material corrections. Record the passing pair
+in PR proof without creating another source revision just to narrate CI IDs.
+P03-7 remains in maintainer review handoff until merge. No runtime/test/CI clock,
+capacity, permission, token profile or independent packet boundary changes.
+
+
+### P03-7 follow-up source review and correction package (2026-11-12)
+
+Reconcile the supplied overlapping review reports against `f3da11d6` and the
+actual PR base `8435300e`. The older `570c4cca` comparison includes already merged
+P03-5/6 work and is not the current PR surface. Severity labels, mutation claims
+and requests for new policies are review data, not accepted decisions. Use one
+bounded correction package, then both fresh review rounds and new-source
+qualification; do not split it into speculative feature work.
+
+Verified corrections:
+
+- A valid provider notification must not erase a credential-free user-initiated
+  logout return. Preserve its one-use host/browser/state/proof and existing
+  capacity until consumption or expiry; other matching active owners close
+  immediately. The real provider regression adds RP logout, an active same-SSO
+  peer as callback evidence, root redirect/cookie clearing, replay refusal and
+  independent-session preservation. This is actual provider/native HTTP browser
+  navigation, separate from the stock Chromium fake-grant proof.
+- Own bridge TCP sockets before TLS/HTTP, cap them at eight separately from the
+  unchanged request/peer admission, destroy on stop and join actual close.
+  Incomplete handshake and partial HTTP controls use real sockets.
+- Qualify exact owned certificate/key/root bytes with a real in-memory TLS
+  handshake, enforcing server purpose, path and hostname for callback/native
+  preflight and bridge startup. The shared Node helper uses no external process,
+  listener, runtime dependency or trust-store mutation. Stop joins qualification
+  before any late bind. Reject literal empty query/fragment delimiters too.
+- Disabled optional web projections accept empty/readable owner files without
+  enabled-mode permissions. Enabled input remains owner-only and all sources
+  must agree. Preserve the ordinary token profile's unconditional default
+  offline-scope refusal; clarify its notice rather than loosening the policy.
+- TLS setup stages outside its final destination, joins interrupted signing
+  children before cleanup and publishes complete output without adopting an
+  existing directory. Public trust is staged and exclusively linked only after
+  complete writes. Explicit renewal/expired/interrupted recovery names exact
+  owned paths and selected provider recreation, without wildcard repair.
+- Normal/e2e Compose examples use the digest-aware launcher. Catalogue extension
+  prose points to phase Status instead of narrating packet state. ADR-0098's
+  additive Amendment clarifies manual operator correction; no adoption flag or
+  automatic retargeting is introduced.
+- Strengthen media, exact 8/2 admission, absent-sub/different-sid, JWKS expiry/
+  removed-key and immediate linked-custody controls. Native runtime controls
+  exercise disabled 404 and enabled dispatch before ordinary admission/Next;
+  their inert dependency boundary is retained.
+- Keep the copied BFF source pin and closed native TLS import in the genericity
+  graph. The three private-source controls share one immutable qualified copy,
+  retaining isolated-root, copied-guard and no-merge assertions while avoiding
+  repeated installation discovery. No test or subprocess threshold changes.
+
+Rejected or narrowed claims:
+
+- Deleting the current Map/Set member does not skip its successor. The actual
+  synchronous sweep/close paths and existing full-expiry controls do not support
+  the claimed H5/H6 race. A later error cannot alter an already resolved bridge
+  promise or undo native revocation (H7).
+- Current idempotency operations announce the tenant under FORCE RLS; witness
+  revalidation, consent replay admission and empty-config outbox registration
+  already have their named controls. No current cross-tenant bypass, missing
+  feature path, exposed stack trace or registration crash was demonstrated.
+  Do not weaken invariants to skip records or replace captured replay witnesses.
+- Keep physical-hop 8/2 admission, actual-work/fence retention, fixed-purpose
+  native TLS/SNI, canonical callback spelling, current JWKS cache/throttle and
+  restart-only unsafe-clock recovery. Synthetic settlement, hard counter reset,
+  automatic re-anchoring or new multi-peer availability promises are not repairs.
+- Five CorpusConsistency cases are real discovered tests; a sixth grep match is
+  assertion text. Original source-qualified receipts are historical evidence,
+  not independent observation of past processes or later-source qualification.
+- Ordinary provider discovery caches only validated successful metadata, not a
+  failed promise; retry remains possible. Fixed issuer endpoint pins need no new
+  metadata TTL. The retained-event provider guide points to the separate signed
+  revocation path instead of implying that retained facts gain logout authority.
+
+For the previous source, all fifty unmodified original API ZIPs were independently
+rechecked against captured API byte counts/SHA-256 and ZIP CRC. Their maintainer-
+local retention locator is `artifacts/p037-review-comments/ci/ReviewA/originals/`
+and the corresponding `ReviewB/originals/`, each with `integrity.json`, original
+API metadata and unchanged ZIPs. A was downloaded before whole-run B. A later
+GitHub run-level artifact inventory is not an inventory of this local retention;
+no claim is made that the earlier originals remain remotely listed/served.
+The correction's final-source originals and availability boundary belong in
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) proof. Earlier packet gaps
+remain separately owned.
+
+Targeted validation passes 226 frontend controls, the complete twelve-file realm
+census/463 controls, the actual pinned-provider RP/admin logout regression and
+five corpus cases. Release build reports zero warnings/errors. Native build,
+lint and typecheck pass after correcting the new socket collection's TypeScript
+type. Failed intermediate provider fixtures retain separate logs and receive no
+credit. The first full frontend guard reports three failures: two outdated copied
+source graph checks and the repeated private-source wrapper exceeding its existing
+five-second threshold. The corrected graph's 63 controls and the three optimized
+private-source controls pass; the latter finish in about one second. The complete
+guard rerun and both fresh reviews remain open. The prior source's successful A/B
+is retained but cannot qualify these new material corrections.
+
+
+### P03-7 follow-up correction first review (2026-11-12)
+
+Fresh Terra lifecycle/TLS and Sol operations/proof reviewers inspect
+`f3da11d6..ef60593c` independently. No runtime or security finding is verified.
+The operations reviewer identifies one Minor: the phase Status table still
+describes the earlier correction reviews as complete while the current Status
+paragraph reopens this correction. Point that row to the follow-up package and
+mark its reviews/qualification open. The reviewers run no tests or builds;
+their static approval is not new-source qualification.
+
+The full frontend guard rerun is still executing. Proceed to the second fresh
+review round on this correction and the Status fix; preserve the first failed
+guard separately rather than treating a later pass as erasing it.
+
+
+### P03-7 follow-up second review and final-source handoff (2026-11-12)
+
+Different fresh Sol runtime/security and Terra operations/source-graph reviewers
+inspect `f3da11d6..871fafb5`, including correction `ef60593c` and the first-round
+Status fix. Both approve without actionable findings. Both requested review
+rounds are complete. The shared immutable source fixture preserves all original
+assertions and the closed import model follows current helper bytes; neither
+change removes a control or enlarges a timing threshold.
+
+The complete guarded frontend rerun passes 130 discovered web files/4,197
+reported cases and twelve SDK files/228 reported cases: 4,425 total, zero
+skips/todos. Web wall time is 327.29 seconds and SDK 91.70 seconds. Its actual
+private-source wrapper finishes in 1.089 seconds within the unchanged setting.
+The real pinned Keycloak RP/admin logout regression passes, including active
+same-SSO peer closure, root return/cookie clearing, replay refusal and preservation
+of an independent provider session. The complete realm census passes 463 cases;
+Release build, native build, lint, typecheck, five corpus cases and documentation
+checks pass. Earlier failed fixture/guard runs remain separately retained.
+
+Freeze this reviewed runtime plus the documentation closeout for one PR update.
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) owns the fresh complete A,
+subsequent whole-run opposite-layout B and original ZIP integrity/result/layout
+reconciliation. Previous-source A/B receives no credit for this correction.
+Record the passing source-bound pair in PR proof without another source commit
+merely to narrate CI IDs. The packet remains in maintainer review handoff until
+merge; no new runtime/test/CI clock, permission or deployment policy is selected.
+
+
+### P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)
+
+The reviewed `7fe0fb9f` source passes complete hosted A attempts 1 and 3, each
+27/27 jobs, but neither opposite-layout B qualifies. Attempt 2 finishes 23/27:
+five cases fail during shared Keycloak startup, four no-listener producer rows
+fail and one uncertain self-creation COMMIT row fails; the integration aggregate
+refuses. Attempt 4 finishes 25/27: the same four producer rows fail and the
+integration aggregate refuses. No failed-job rerun or partial-result combination
+receives qualification credit.
+
+All 25 originals from each passing A and all 24 published originals from each
+failed B are retained with original API metadata, byte counts, SHA-256 and CRC
+checks at `artifacts/p037-deep-review/ci/{ReviewA,ReviewB,RecoveryA,RecoveryB}/originals/`.
+Each failed B lacks the integration success archive; its absence is recorded,
+not repaired by fabrication. Complete workflow/frontend logs are retained before
+another attempt. The final B frontend report still reconciles 4,425 passing cases.
+
+Local Release replay passes all 275 exact case IDs from the failed producer
+shard, a narrow six-case API/producer sequence and both creation-durability rows.
+These results neither identify the hosted causes nor qualify the failed B.
+The existing finite `failureLocations` projection omits both failing source
+files, so their sanitized results cannot identify the assertion line. Extend
+that closed source-code map for `ProducerExecutionTests.cs` and
+`GlobalIdentityBootstrapTests.CreationDurability.cs`; keep raw assertion text,
+stack traces, paths and provider material excluded. Existing privacy controls
+cover both path separators, duplicate/lookalike names and invalid line bounds.
+The eight-location limit, all test outcomes, cleanup and timing remain intact.
+
+This is a diagnostic correction, not a claim to repair the hosted cause. Commit
+it, complete both fresh review rounds and freeze one new source for the normal
+complete A followed by whole-run B. Do not repeat the unchanged failed source
+without the missing observation or relax its no-listener assertion.
+
+Local correction checks pass: 111 native-owner controls, 88 shard/aggregate
+controls (including their 42 result controls), five corpus cases, ADR status,
+roadmap structure, all three delivery indexes and 3,662 fragment links. The
+standalone result-control run also passes. These offline checks establish the
+finite diagnostic projection and existing refusals, not hosted failure repair.
+
+The first fresh Sol privacy and Luna evidence reviews approve this correction
+without findings. A newly posted PR comment identifies a valid documentation
+edge: hard kill before exclusive trust publication can leave staging material
+without a retained target. Add the absent-target inspection/retry branch to the
+existing operator recipe; keep stopped-owner, exact-path and no-wildcard limits.
+No trust publication code or recovery authority changes.
+
+Both first-round reviewers also approve the operator-recipe addition. Different
+Sol code/privacy and Terra operations/evidence reviewers complete the second
+round on the entire correction without actionable findings. These are static
+reviews, not new runtime qualification. The correction and documentation checks
+are complete; freeze this source for one automatic PR workflow and, only after
+its complete successful audit, one whole-run opposite-layout attempt. PR proof
+owns the final source/run IDs and archived results. Qualification remains open;
+no timer, test premise or cleanup assertion is weakened to obtain a green run.
+
+
+### P03-7 faulted test-owner lifetime correction (2026-11-12)
+
+New-source A `43239722329` / `2691076e` fails an existing recurrence application
+ownership case at the shared thirty-second polling helper. Its six callers
+cannot be distinguished by the retained helper line alone. The exact local
+case passes once; this does not identify the hosted predicate or repair its
+cause. Add the exact `BackgroundJobRecurrenceStoreTests.ApplicationOwnership.cs`
+caller and the changed admission-test source to the finite source-location
+census, preserving all privacy and numeric bounds.
+
+The same source's producer no-listener B remains unexecuted. A separate concrete
+local witness finds a test-lifetime defect: the selected blocked-admission test
+passes, but its API telemetry listener survives both client disposal and reported
+fixture cleanup. The control has no listener before the test and creates real
+activities afterward. The test constructs and explicitly joins a deliberately
+faulting limiter, yet its factory registration gives DI a second disposal claim.
+That fault interrupts host cleanup. Register the externally created instance
+instead; retain the scenario's explicit fault/child-resource assertions. Add
+false-before, live-host-positive and false-after-disposal controls to the actual
+existing test. Do not rename the producer's source, disable telemetry or weaken
+its no-listener assertion. This demonstrates a real fixture leak, not independent
+attribution of the historical hosted stack frames.
+
+After that witness, stop the two remaining jobs of the already failed A to
+proceed with correction. It ends cancelled: 22 successful jobs, two cancelled
+producer jobs and three failures including both required aggregates. Retain all
+23 published original ZIPs with API byte/digest/CRC checks and complete workflow
+and frontend logs at `artifacts/p037-diagnostic-location/ci/ReviewA/`; both missing
+aggregate archives are recorded. Its frontend reconciles 4,425 passing cases.
+No complete-A/B or cleanup qualification is inferred from this cancelled run.
+The failed ordinary-1 original and the controlled lifecycle witness also remain
+separately retained. The first two witness invocations fail content-root setup
+before the actual test and receive no behavioral credit; the third invokes the
+real test successfully and observes the surviving listener.
+
+Validate the new regression against the original registration, then the fixed
+registration. Complete both fresh review rounds and freeze one corrected source
+for a new complete A followed by whole-run B; the unrelated recurrence timeout
+remains unlocalized unless a later receipt identifies its caller. No product,
+runtime/test/CI timing, authority or cleanup policy changes.
+
+The immediate process-wide post-disposal assertion is too broad: a healthy
+factory control also observes entry-point cleanup still finishing after client
+disposal. Observe an additional source registered only with the real admission
+test host instead, and join its actual unsubscription under the existing
+fifteen-second `AdmissionDeadline`. No elapsed deadline counts as retirement.
+The original producer source/assertions are unchanged. With the original
+factory-owned limiter restored, this final control times out without claiming
+cleanup; earlier immediate-assertion attempts remain failed intermediate checks.
+
+The final fixed Release run passes the two sticky-fault origins, blocked cleanup
+and all four unchanged producer no-listener exits: seven cases, zero skips. The
+final original-registration counterfactual fails its actual-retirement wait;
+restoring the externally owned instance makes the same controls pass again.
+Release build reports zero warnings/errors. All 111 native-owner controls,
+including the exact two added source mappings and privacy/boundary negatives,
+and five corpus cases pass. Documentation checks resolve 3,664 fragments and
+all three current delivery indexes. Fresh correction reviews remain required.
+
+Two fresh review rounds complete on `2691076e..e0472e45`: Sol code/privacy and
+Terra operations/evidence first, then different Sol code and Terra lifecycle
+reviewers. All approve without actionable findings; their source inspection
+does not independently rerun the tests or qualify hosted execution. The fixed
+actual-host witness also reports no global producer listener after the test and
+after fixture cleanup, with a successful real test and normal process completion.
+Keep the failed intermediate controls and old counterfactuals separately.
+
+Freeze the correction plus this documentation closeout for one PR update and
+new-source complete A/B. PR proof owns exact final source/run IDs and unchanged
+original archive reconciliation. No further source commit is needed merely to
+narrate successful CI IDs. Maintainer review/merge and qualification remain open.

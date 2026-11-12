@@ -48,6 +48,11 @@ The minimized tenant copy authorized by
 [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
 uses the central Audit path, not a diagnostic export.
 
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) adds only closed notification accepted/duplicate/refused/
+unavailable reasons and private scalar occupancy/oldest-held age. No token, sid,
+sub, jti, raw body/exception or callback URL is retained, including bridge sinks.
+These local observations are not provider-delivery or physical-retirement proof.
+
 The separate machine check `identity-provider-mirror` exposes closed source/stage
 faults, last attempted/completed sweep and problem counts/oldest ages. It changes
 no anonymous liveness response. Meter `learnstack.identity` emits

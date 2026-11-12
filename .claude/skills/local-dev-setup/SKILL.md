@@ -101,6 +101,16 @@ contents out of tool output, command arguments and committed files.
 
 ### Step 3: Bring up the stack
 
+Optional native back-channel logout follows the
+[realm setup recipe](../../../infra/keycloak/README.md#native-back-channel-logout).
+It is explicitly disabled by default. Before enabling it, the operator runs
+`make backchannel-tls`, supplies the existing native certificate's public root
+through `LEARNSTACK_BFF_BACKCHANNEL_NATIVE_CA`, and adds every agreed callback
+setting without replacing private values. `make dev` prepares the public-only
+Keycloak trust directory before Compose; seed/demo share the same read-only
+preflight. Follow that recipe for TLS/conflict failures, saturation and actual
+managed-family restart; never evict fences or reclaim by PID/lock age.
+
 ```bash
 make dev        # the daily loop: 7 services, the ones the backend can call
 make dev-gated  # all 14, including Valkey, Kafka, kafka-ui, Vault, APISIX and Dapr
@@ -223,12 +233,13 @@ scripts do not re-run, `make dev` reports healthy, and `make migrate` fails with
 What `make dev` expands to:
 
 ```bash
-# One file holds the whole stack. --env-file is not optional: Compose resolves
-# its default env file from the project directory (infra/compose/), not the cwd,
-# so without the flag the repo-root .env is ignored and every ${VAR:-default}
-# silently falls back.
-docker compose --env-file .env -f infra/compose/dev.yml up -d
+node scripts/compose.mjs selected up -d
 ```
+
+The wrapper selects the explicit environment/project, prepares the public-only
+Keycloak trust directory and injects its computed trust digest for `up`.
+Running Docker Compose directly bypasses that preparation and cannot replace
+`make dev` when native back-channel logout is enabled.
 
 The canonical service inventory — image, local endpoint and default credentials
 for every service in the stack — lives in

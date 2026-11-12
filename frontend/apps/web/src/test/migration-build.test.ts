@@ -59,7 +59,13 @@ function fixture(additional = false) {
     join(root, 'scripts/connection-string.awk'),
     readFileSync(join(repository, 'scripts/connection-string.awk')),
   );
-  for (const name of ['migrate', 'compose', 'demo-database', 'development-realm-errors'])
+  for (const name of [
+    'migrate',
+    'compose',
+    'demo-database',
+    'development-realm-errors',
+    'development-backchannel',
+  ])
     writeFileSync(
       join(root, `scripts/${name}.mjs`),
       readFileSync(join(repository, `scripts/${name}.mjs`)),

@@ -52,6 +52,13 @@ BFF success also requires unforced group settlement and native exit 0 without a
 terminating signal. Parent failure closes the private lifetime pipe first and
 verifies its own temporary directory is empty; forced/incomplete cleanup fails.
 
+Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) extends the four existing BFF rules with signed-token
+negatives, retained unknown-identity/refresh races, full replay/fence saturation
+and clock controls, real provider-to-native TLS delivery and bridge-disabled
+counterproof. Normal demo setup must also work. Add startup stop/parent-loss
+before/during callback bind and held forwarding/cleanup; no cancellation credit.
+Complete discovered files/reported cases and final-source CI A/B remain required.
+
 ## Test Pyramid
 
 ```mermaid

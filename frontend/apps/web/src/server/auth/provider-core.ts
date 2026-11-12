@@ -6,6 +6,7 @@ import { providerOperation } from './provider-transport.js';
 export type ProviderIdentity = Readonly<{
   issuer: string;
   subject: string;
+  sid: string;
   actorId: string | null;
   tenantId: string | null;
   organizationId: string | null;
@@ -60,6 +61,11 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
   if (
     !claims ||
     claims.iss !== issuer ||
+    typeof claims.sid !== 'string' ||
+    !claims.sid ||
+    Buffer.byteLength(claims.sid, 'utf8') > 255 ||
+    // eslint-disable-next-line no-control-regex -- Reject control bytes in opaque provider identifiers.
+    /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(claims.sid) ||
     typeof claims.sub !== 'string' ||
     !claims.sub ||
     claims.sub.length > 255 ||
@@ -76,6 +82,7 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
   return Object.freeze({
     issuer,
     subject: claims.sub,
+    sid: claims.sid as string,
     actorId,
     tenantId,
     organizationId,
@@ -195,7 +202,7 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
     const current = identity(result.claims(), expectedIssuer);
     if (
       previous &&
-      (['issuer', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
+      (['issuer', 'subject', 'sid', 'actorId', 'tenantId', 'organizationId'] as const).some(
         (key) => current[key] !== previous[key],
       )
     )
@@ -210,6 +217,8 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
         throw new BffProviderError('response');
       return value;
     };
+    if (typeof result.scope === 'string' && result.scope.split(/\s+/u).includes('offline_access'))
+      throw new BffProviderError('response');
     if (
       typeof result.id_token !== 'string' ||
       !result.id_token ||

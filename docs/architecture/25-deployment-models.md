@@ -278,6 +278,12 @@ signed contract cannot be the deciding factor in a technical choice.** It may br
 between otherwise-equal options. It may not, on its own, reject a dependency or justify
 an abstraction.
 
+Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) keeps single-process BFF custody. Optional callback
+reachability uses a fixed-purpose TLS bridge inside that native runtime child;
+local container DNS/trust and actual normal setup require proof. Notification
+limits are process-local, and failed delivery retains refresh/expiry fallback.
+Phase 11 still owns distributed/production edge qualification.
+
 ### Other config settings switched by mode
 
 - **BFF session store** — [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)

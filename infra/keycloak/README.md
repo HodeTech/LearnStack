@@ -338,6 +338,199 @@ and single-link status. Never remove the whole directory, glob locks or delete
 a lock based only on elapsed time. Explicitly rerun convergence afterwards;
 partial Admin REST writes remain durable and are re-read.
 
+## Native back-channel logout
+
+[Security 11](../../docs/standards/11-security.md#native-back-channel-logout)
+owns protocol, capacity, replay/fence and failure policy. This local setup enables
+the callback-only TLS listener inside the existing managed native child. It adds
+no worker or application authority and does not widen the ordinary web listener.
+The default `LEARNSTACK_BFF_BACKCHANNEL_ENABLED=false` keeps the listener and
+provider reconciliation inactive; ordinary native/browser guards still apply.
+
+Prepare the ordinary native TLS leaf and BFF settings first, following
+[web sign-in](../../frontend/apps/web/README.md#optional-tenant-sign-in).
+Supply the **public** root that verifies that existing leaf at `localhost`, for
+example the `rootCA.pem` under `mkcert -CAROOT`. Never copy its private root key.
+Then explicitly create the missing callback material:
+
+```bash
+make backchannel-tls
+```
+
+This one-shot command exclusively creates `.data/tls/backchannel/` with a
+`host.docker.internal` leaf, private leaf key and public callback root. Its
+temporary signing key is deleted after generation. It refuses existing or
+partial output; inspect it privately instead of overwriting or rotating it.
+It edits no environment file, hosts entry or machine trust store.
+OpenSSL must be available on `PATH`. Failed generation and handled SIGINT/SIGTERM
+join the signing child and remove that invocation's staging material before
+returning; complete leaf/key/root output is published together. A hard kill or
+machine loss can still leave private `.data/tls/.backchannel-setup-*` staging.
+Follow the interruption recovery below before disposing of such material.
+
+Add these explicit settings to the selected private root source. Preserve its
+existing BFF secret, authority and ordinary certificate values. Any values also
+present in web `.env.local` or the process environment must agree.
+
+```dotenv
+LEARNSTACK_BFF_ENABLED=true
+LEARNSTACK_BFF_BACKCHANNEL_ENABLED=true
+LEARNSTACK_BFF_BACKCHANNEL_URL=https://host.docker.internal:3443/api/auth/backchannel/keycloak
+LEARNSTACK_BFF_BACKCHANNEL_BIND_ADDRESS=0.0.0.0
+LEARNSTACK_BFF_BACKCHANNEL_TLS_CERT=.data/tls/backchannel/leaf.pem
+LEARNSTACK_BFF_BACKCHANNEL_TLS_KEY=.data/tls/backchannel/leaf-key.pem
+LEARNSTACK_BFF_BACKCHANNEL_CA=.data/tls/backchannel/ca.pem
+LEARNSTACK_BFF_BACKCHANNEL_NATIVE_CA=/absolute/path/to/mkcert/rootCA.pem
+```
+
+Use an available callback port; the HTTPS URL must retain the exact path and
+fixed authority. Only IPv4 `0.0.0.0` or `127.0.0.1` binding is supported. Docker
+provider delivery uses `0.0.0.0` and `host.docker.internal`; loopback binding is
+for a provider running on the workstation. The callback leaf must cover its URL
+hostname, and its key must have owner-only permissions. Public certificates must
+be current-user-owned regular, nonsymlink, single-link files without group/other
+write permissions. The shared preflight validates callback and native trust,
+including both key pairs and a real in-memory TLS server-purpose/chain/hostname
+handshake, before stack start or any realm mutation; missing material and source
+conflicts refuse. The native key uses the existing `LEARNSTACK_PUBLIC_TLS_KEY`
+setting (default `.data/tls/public-key.pem`) and must also be owner-only.
+Do not use `NODE_TLS_REJECT_UNAUTHORIZED=0` or copy any root private key.
+
+Run `make seed`, then `make demo` for the managed production demo, or
+`make public-api` and `make public-web` for separate development terminals.
+`make dev`, seed and demo prepare the fixed `.data/keycloak-trust` directory
+before Compose. When enabled they exclusively copy only the qualified public
+callback root to `callback-root.pem`; an existing different root refuses. Compose
+mounts that directory read-only at `/opt/keycloak/conf/truststores`, sets
+`KC_TRUSTSTORE_PATHS` and maps `host.docker.internal:host-gateway`. Disabled first
+start uses an empty directory, avoiding nonexistent file mounts. Existing trust
+is preserved when disabled. The launcher binds the public-root SHA-256 to the
+Keycloak service configuration; enabling after an empty-trust startup changes
+that configuration and normal `make dev` / `make seed` / `make demo` recreates
+the selected Keycloak container. Its database and accounts are retained. This
+restart is required because Keycloak loads trust at startup. The digest is
+computed from the qualified public file, never an operator override. Realm setup
+refuses a running container whose startup label still identifies empty or
+different trust, even when its current mount already contains the new file.
+
+Fresh and warm convergence qualify effective RS256 with no ID-token encryption.
+Only the web client's `backchannel.logout.url`,
+`backchannel.logout.session.required=true`,
+`backchannel.logout.revoke.offline.tokens=false` and top-level
+`frontchannelLogout=false` are newly owned. A nonempty existing foreign callback
+URL refuses before any write. API/Hub clients, secrets, IDs, accounts, admin/event
+policy and unrelated fields remain under their existing owners. Default
+`offline_access` on the web client refuses even with callback delivery disabled:
+the ordinary BFF token profile rejects offline grants. Optional inventory is retained and
+does not authorize the native client to request or accept it. Independent exact
+readback and a zero-write converged pass are required for either setup population.
+
+For `preflight/backchannel_configuration`, inspect private source agreement,
+file ownership/permissions, certificate validity/SAN/pair, both public roots and
+the selected container's actual mount/environment/host route. For
+`plan/backchannel_conflict`, inspect the retained callback, default scopes and
+signing/encryption profile; make an explicit operator correction after confirming
+ownership. No automatic retargeting or private-file repair occurs. For an intentional
+callback change, identify the selected realm's `learnstack-web` client and its
+current callback owner in the Keycloak administration console. Stop if that
+callback still belongs to another live consumer. After that owner approves the
+handover, an operator may clear only `backchannel.logout.url` on that exact
+client, preserving its ID, secret, scopes and unrelated attributes. Update the
+agreeing private callback sources, then run `make seed`: it fills the now-empty
+URL and its narrowly owned fields. Read the exact URL/flags back and run seed
+again for a zero-write result. This manual correction is the explicit adoption
+mentioned by ADR-0098; there is no adoption flag or silent overwrite. A token URL
+alone does not prove provider-to-native reachability; exercise a real provider
+logout against the running native family before claiming it.
+
+For callback failures or saturation, use private diagnostics described by
+[Security 11](../../docs/standards/11-security.md#native-back-channel-logout): closed
+state, scalar occupancy and oldest held age distinguish pinned work from bad
+trust, unavailable signing keys or an unreachable callback. Restore the failing
+dependency first. If restart is required, stop the actual owning `make demo` or
+`make public-web` process, join its whole managed native family and follow
+[owner-loss recovery](../../docs/standards/07-frontend-architecture.md#frontend-runtime-owner-loss-recovery)
+before clearing an ownership reservation. Then restart that same normal command.
+Never evict replay/fence state, steal an old PID/lock by age, or kill an unrelated
+process. Restart loses process-local sessions and signs users out. Provider
+delivery has no durable retry guarantee; a missed notification relies on refresh
+or expiry, and existing API JWT acceptance is unchanged. Phase 11 owns production
+edge, distributed delivery and operational hardening.
+
+An unsafe native session-store clock sample latches its unavailable state,
+preventing new logout notifications and replay/fence retirement. Correcting the clock
+alone does not restore targeted logout. Restart the managed native family using
+the procedure above; never clear retained entries to bypass the latch.
+
+### Callback TLS renewal and interrupted setup
+
+This procedure uses the generated `.data/tls/backchannel/` paths above. The
+generated root and leaf last 365 days; the signing key is not retained for
+leaf renewal. Renew by explicitly replacing this owned development root and leaf
+together before expiry, or use the same procedure after expiry. Keep the callback
+URL unchanged; changing an existing provider URL requires the explicit ownership
+correction above.
+
+1. Stop and join the actual managed native family using the owner-loss procedure
+   above. Stop the selected provider with
+   `node scripts/compose.mjs selected stop keycloak`. Verify that the selected
+   source and `.data/tls/backchannel/` belong to this setup. Inspect certificate
+   dates with `openssl x509 -in .data/tls/backchannel/leaf.pem -noout -dates`.
+2. Check that the mounted public root is the one being retired:
+   `cmp .data/tls/backchannel/ca.pem .data/keycloak-trust/callback-root.pem`.
+   A mismatch or partial file requires inspection using the recovery below.
+   Choose a new, unused private backup directory, then move only the identified
+   callback material and mounted public copy out of their active paths. For
+   example, with an operator-chosen unused name:
+
+   ```bash
+   (
+     set -eu
+     callback_backup=.data/backchannel-retired-20261112T120000
+     mkdir -m 700 "$callback_backup"
+     mv .data/tls/backchannel "$callback_backup/tls"
+     mv .data/keycloak-trust/callback-root.pem "$callback_backup/callback-root.pem"
+     make backchannel-tls
+     make seed
+     make demo
+   )
+   ```
+
+3. `make seed` publishes the new public root and its digest through the owned
+   launcher and recreates the selected Keycloak service with that startup trust
+   identity. The database and provider client URL remain under their existing
+   owners. The native family starts with the new leaf/key; its independent native
+   certificate/root settings still need to be valid. Renew an expired native
+   certificate through the [local HTTPS recipe](../../README.md#3-prepare-local-https-and-start-the-applications)
+   before these commands.
+4. Sign in through the running native family, end that exact session in
+   Keycloak's session administration, and verify the next protected navigation
+   requires sign-in while an independent provider session remains usable. Inspect
+   the closed callback diagnostics for accepted delivery. Successful generation,
+   container startup or a matching digest alone does not prove delivery. Retire
+   the private backup only after this check.
+
+For an interrupted older setup, first establish that its owning process and
+signing child have stopped. Inspect only the exact owned staging/destination
+paths. A leftover signing key in an identified `.backchannel-setup-*` directory
+(or the earlier `backchannel/.setup-*` layout) must be removed explicitly by the
+operator; never copy it into the trust mount or a renewal backup. There is no
+wildcard cleanup or automatic adoption. Move an inspected partial `backchannel/`
+destination aside into an unused private backup before rerunning setup.
+
+Trust publication never replaces an existing `callback-root.pem`. If a hard kill
+leaves a public staging link under `.data/.keycloak-trust-*`, compare that exact
+file to the retained target and configured public root before explicitly removing
+the staging link and its empty directory. If the retained target is absent,
+inspect the exact staging file against the configured public root instead.
+After confirming it belongs to the stopped publication attempt, remove only that
+identified staging file and its empty directory, then retry the owned launcher.
+A zero-length or different retained
+target requires stopping the selected provider and moving only that inspected
+public file aside, then rerunning the owned launcher to publish the configured
+root and recreate the provider. Keep `.data/keycloak-trust/` itself in place;
+never remove unrelated files or repair unknown ownership by age.
+
 ## Tenant client contract
 
 `learnstack-web` permits authorization code with S256 PKCE and a server-held

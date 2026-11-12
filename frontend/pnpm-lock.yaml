@@ -46,6 +46,9 @@ importers:
       '@learnstack/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      jose:
+        specifier: 6.2.13
+        version: 6.2.13
       next:
         specifier: 15.5.28
         version: 15.5.28(patch_hash=wwmqwwxkk5ianj7dk35rus6nja)(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -98,9 +101,6 @@ importers:
       eslint-config-next:
         specifier: 15.5.28
         version: 15.5.28(eslint@9.39.4(jiti@1.21.7))(typescript@5.6.3)
-      jose:
-        specifier: 6.2.13
-        version: 6.2.13
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0

@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#tls-server-qualification": {
+      "types": "./scripts/tls-server-qualification.d.mts",
+      "default": "./scripts/tls-server-qualification.mjs"
+    }
+  },
   "scripts": {
     "postinstall": "node scripts/ensure-routes-stub.mjs",
     "dev": "node scripts/public-server.mjs --dev",
@@ -17,6 +23,7 @@
   "dependencies": {
     "@learnstack/sdk": "workspace:*",
     "@learnstack/ui": "workspace:*",
+    "jose": "6.2.13",
     "next": "15.5.28",
     "next-intl": "4.14.9",
     "openid-client": "6.8.8",
@@ -36,7 +43,6 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.16.0",
     "eslint-config-next": "15.5.28",
-    "jose": "6.2.13",
     "jsdom": "^26.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",

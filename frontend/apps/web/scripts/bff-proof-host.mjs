@@ -236,7 +236,7 @@ export function instrumentCopiedBffRuntime(
       await (await import('next/dist/trace/index.js')).flushAllTraces();
       control.proof.emit({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} });
     } });
-    const credentials = () => ({ accessToken: ${token}, refreshToken: ${token}, idToken: ${token}, identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const credentials = () => ({ accessToken: ${token}, refreshToken: ${token}, idToken: ${token}, identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', sid: 'owned-provider-session', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
     const member = {membershipId: '019a154b-0000-7000-8000-000000000012', userId: '019a154b-0000-7000-8000-000000000011', organizationId: null, status: 'Active', displayName: 'Fixture member', preferredLocale: null, roleIds: ['019a154b-0000-7000-8000-000000000013'], version: '0'};
     const role = {roleId: '019a154b-0000-7000-8000-000000000013', builtInKey: 'TenantAdmin', capabilityScope: 'Tenant', version: '0', grants: [{scope: 'Tenant', key: 'identity.membership.admin'}], adoptedReleaseVersion: 1, adoptedReleaseFingerprint: 'a'.repeat(64)};
     const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
@@ -372,7 +372,7 @@ export function instrumentCopiedBffRuntime(
     launcher = replace(
       launcher,
       "if (!ready) throw new Error('Public HTTPS listener failed');",
-      "if (!ready) throw new Error('Public HTTPS listener failed');\n              control.proof.emit({ kind: 'proof-listener', port: address.port });",
+      "if (!ready) throw new Error('Public HTTPS listener failed');\n    control.proof.emit({ kind: 'proof-listener', port: server.address().port });",
     );
   }
   return launcher;
@@ -564,6 +564,12 @@ export async function prepareBffProof({
     'http-protocol',
     'logout-response',
     'provider',
+    'backchannel-contract',
+    'backchannel-state',
+    'backchannel-verifier',
+    'backchannel-configuration',
+    'backchannel-http',
+    'backchannel-bridge',
     'provider-core',
     'provider-error',
     'provider-transport',
@@ -625,7 +631,12 @@ export async function prepareBffProof({
   symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
   for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
     cpSync(join(source, name), join(app, name));
-  cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
+  for (const name of [
+    'development-hmr.mjs',
+    'tls-server-qualification.mjs',
+    'tls-server-qualification.d.mts',
+  ])
+    cpSync(join(source, 'scripts', name), join(app, 'scripts', name));
   prepareFrameworkProof({
     sourceApp: source,
     app,
@@ -637,6 +648,7 @@ export async function prepareBffProof({
       name: 'learnstack-owned-bff-proof',
       private: true,
       type: 'module',
+      imports: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).imports,
       dependencies: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).dependencies,
       devDependencies: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))
         .devDependencies,
@@ -973,6 +985,24 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       randomListener,
     });
     env.NODE_EXTRA_CA_CERTS = trust.caPath;
+  }
+  if (external?.backchannel) {
+    const callback = external.backchannel;
+    for (const [name, value] of Object.entries({
+      'callback-cert.pem': callback.certificate,
+      'callback-key.pem': callback.privateKey,
+      'callback-ca.pem': callback.authority,
+    }))
+      writeFileSync(join(root, name), value, { mode: 0o600, flag: 'wx' });
+    Object.assign(env, {
+      LEARNSTACK_BFF_BACKCHANNEL_ENABLED: 'true',
+      LEARNSTACK_BFF_BACKCHANNEL_URL: callback.url,
+      LEARNSTACK_BFF_BACKCHANNEL_BIND_ADDRESS: '0.0.0.0',
+      LEARNSTACK_BFF_BACKCHANNEL_TLS_CERT: join(root, 'callback-cert.pem'),
+      LEARNSTACK_BFF_BACKCHANNEL_TLS_KEY: join(root, 'callback-key.pem'),
+      LEARNSTACK_BFF_BACKCHANNEL_CA: join(root, 'callback-ca.pem'),
+      LEARNSTACK_BFF_BACKCHANNEL_NATIVE_CA: join(root, 'cert.pem'),
+    });
   }
   // Compile the copied current sources: never let stale workstation output
   // qualify the native side while Next compiles different bundled sources.

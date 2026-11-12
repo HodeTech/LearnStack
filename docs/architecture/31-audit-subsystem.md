@@ -1925,3 +1925,10 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
   rides the outbox; MUST-class audit does not.
 - [29-dapr-integration.md](29-dapr-integration.md) — `UserGdprDeletedIntegrationEvent`
   transport.
+
+### Native logout notification evidence
+
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) keeps accepted/duplicate/refused/unavailable notification categories
+inside the existing local BFF diagnostic exception. Provider mirror facts remain
+separate: no invented tenant, durable native session ledger or atomic provider/
+BFF commit follows from a successful ACK.

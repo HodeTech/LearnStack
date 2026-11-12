@@ -18,6 +18,20 @@ mismatch. Existing file permissions require explicit operator correction.
 The end-to-end overlay
 adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
+### Native callback trust
+
+Before starting Keycloak, the owned Compose launcher prepares
+`.data/keycloak-trust` (empty when callback delivery is disabled). The directory
+is mounted read-only into Keycloak's configured truststore path. An explicitly
+enabled native callback copies only its qualified public root there and uses
+`host.docker.internal:host-gateway` to reach the callback-only TLS listener in the
+existing native child. Follow the
+[single setup and recovery recipe](../keycloak/README.md#native-back-channel-logout)
+before opt-in; do not mount private CA keys, widen the ordinary native listener,
+or bypass TLS verification. Use the normal owned launchers: they compute the
+public-root service identity needed to reload Keycloak trust. Raw `docker compose
+up` does not qualify callback activation.
+
 ### Data plane (Phase 01 packet 3)
 
 | Service | Image | Local endpoint | Default credentials |
@@ -173,12 +187,12 @@ make ps                                             # confirm healthchecks pass
 make down                                           # stop, keep volumes
 make clean                                          # stop, wipe local data
 
-# Raw compose (equivalent — useful when `make` is unavailable):
-docker compose --env-file .env -f infra/compose/dev.yml up -d
-COMPOSE_PROFILES=gated docker compose --env-file .env -f infra/compose/dev.yml up -d
-docker compose --env-file .env --profile '*' -f infra/compose/dev.yml ps
-docker compose --env-file .env --profile '*' -f infra/compose/dev.yml down
-docker compose --env-file .env --profile '*' -f infra/compose/dev.yml down -v
+# Owned launcher equivalents when `make` is unavailable:
+node scripts/compose.mjs selected up -d
+node scripts/compose.mjs selected --profile gated up -d
+node scripts/compose.mjs selected --profile '*' ps
+node scripts/compose.mjs selected --profile '*' down
+node scripts/compose.mjs selected --profile '*' down -v
 ```
 
 > **`--profile '*'` on every teardown is not tidiness.** Measured: `docker
@@ -208,9 +222,9 @@ make e2e-up                                         # tmpfs-backed stack up
 node scripts/compose.mjs e2e --profile gated up -d  # explicit gated selection
 make e2e-down                                       # stop; tmpfs evaporates
 
-# Raw equivalent:
-docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
-COMPOSE_PROFILES=gated docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
+# Owned launcher equivalents when `make` is unavailable:
+node scripts/compose.mjs e2e up -d
+node scripts/compose.mjs e2e --profile gated up -d
 ```
 
 P02d-7's isolated demo lifecycle uses this overlay with a unique project and

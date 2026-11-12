@@ -56,6 +56,16 @@ to a BYPASSRLS/superuser role on every physical connection.
 
 ### 1. Check the environment and migrations
 
+If native back-channel logout is explicitly enabled, complete the
+[operator setup](../../../infra/keycloak/README.md#native-back-channel-logout)
+first. Shared preflight qualifies private-source agreement, owned callback
+leaf/key/public CA and the separate public root for the existing native leaf
+before stack or realm mutations. Normal seed convergence verifies the actual
+running Keycloak trust route and exact web callback fields, then performs an
+independent readback and zero-write rerun. A foreign retained callback requires
+explicit operator correction. Default-disabled seed remains usable without
+callback certificates; never read private settings into a transcript.
+
 Prepare the selected private source before `make dev` or `make seed`: it must
 include `KEYCLOAK_WEB_CLIENT_SECRET`, retain an existing confidential secret,
 and be a current-user-owned regular, nonsymlink, single-link file without

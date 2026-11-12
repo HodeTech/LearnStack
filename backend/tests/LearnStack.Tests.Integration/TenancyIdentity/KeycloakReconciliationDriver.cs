@@ -7,7 +7,8 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Owns a real Node child and a private pipe; no credential enters argv, inherited environment or disk.</summary>
 internal static class KeycloakReconciliationDriver
 {
-    internal static async Task<ReconciliationOutcome> RunAsync(KeycloakFixture fixture, string scenario = "normal", bool includeEventReader = false)
+    internal static async Task<ReconciliationOutcome> RunAsync(KeycloakFixture fixture, string scenario = "normal", bool includeEventReader = false,
+        string? backchannelUrl = null)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(140));
         var start = new ProcessStartInfo("node")
@@ -36,7 +37,7 @@ internal static class KeycloakReconciliationDriver
             if (!started) throw new InvalidOperationException();
             output = ReadBoundedAsync(child.StandardOutput, deadline.Token);
             errors = ReadBoundedAsync(child.StandardError, deadline.Token);
-            await fixture.WriteReconciliationInputAsync(child.StandardInput.BaseStream, scenario, deadline.Token, includeEventReader);
+            await fixture.WriteReconciliationInputAsync(child.StandardInput.BaseStream, scenario, deadline.Token, includeEventReader, backchannelUrl);
             child.StandardInput.Close();
             await Task.WhenAll(child.WaitForExitAsync(deadline.Token), output, errors);
             if ((await errors).Length != 0) throw new InvalidOperationException();
@@ -99,7 +100,8 @@ internal static class KeycloakReconciliationDriver
         ["preflight", "discovery", "authentication", "version", "manifest", "lock", "plan", "prepare", "apply", "readback", "cleanup"];
     private static readonly string[] Reasons =
         ["configuration", "identity_conflict", "mapper_conflict", "secret_conflict", "unsupported", "response", "status",
-            "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret", "event_policy_conflict"];
+            "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret", "event_policy_conflict",
+            "backchannel_conflict", "backchannel_configuration"];
     private static readonly string[] RequestPhases =
         ["discovery", "authentication", "version", "initialPlan", "prepare", "freshPlan", "apply", "readback"];
 

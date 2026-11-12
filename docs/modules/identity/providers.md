@@ -42,7 +42,10 @@ The machine source never lends its connector to an application handler. The
 [database contract](../../standards/05-database.md#provider-event-intake-storage)
 owns receipts, claims, problem recovery and grants; the
 [realm runbook](../../../infra/keycloak/README.md) owns exact configuration,
-credential rotation and operational recovery. Session revocation remains P03-7.
+credential rotation and operational recovery. Session revocation uses the
+separate signed native path in
+[ADR-0098](../../decisions/0098-session-targeted-back-channel-logout.md);
+retained provider facts confer no revocation authority.
 
 ## Invitation SMTP
 

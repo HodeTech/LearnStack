@@ -550,3 +550,12 @@ three global-self descriptors and four physical context writers remain unchanged
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 4 — Provider-session revocation navigation (2026-11-12)
+
+Accepted [ADR-0098](0098-session-targeted-back-channel-logout.md) fences matching
+provider-session credential owners and unknown-identity callbacks before later
+entry or application-scope publication. Shared SSO can close several independent
+application scopes; a different/new provider sid is not a subject-wide target.
+This navigation preserves this record's Decision, historical body and metadata.
+It grants no tenant source, permission or exception to actual-work retirement.

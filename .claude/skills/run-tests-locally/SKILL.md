@@ -189,6 +189,20 @@ Common failure shapes:
 
 ### Step 6: Run frontend tests
 
+For native back-channel setup/provider changes, run the focused Docker-free
+controls before full qualification:
+
+```bash
+node --test scripts/development-backchannel.test.mjs scripts/development-realm-backchannel.test.mjs
+```
+
+These cover owned TLS setup, source/trust refusals and separate fresh/warm exact
+readback/zero-write reconciliation. They do not establish actual Docker provider
+delivery. Use the [normal setup recipe](../../../infra/keycloak/README.md#native-back-channel-logout)
+for real TLS reachability and managed-family recovery; follow
+[Security 11](../../../docs/standards/11-security.md#native-back-channel-logout)
+for admission, saturation and retained ownership policy.
+
 ```bash
 cd frontend
 pnpm test                # all discovered test packages; nonempty, zero skips/todos

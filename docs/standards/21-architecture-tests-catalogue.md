@@ -6448,6 +6448,26 @@ administration and prepared-page controls; its
 [Status block](../roadmap/phase-03-identity-admin.md) owns their qualification.
 Prior receipts do not qualify subsequent source changes.
 
+[ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) extends these same four canonical rules with separate Logout Token
+validation, sid continuity/exact targets, atomic bounded replay/late-publication
+fences, clocks/capacity/actual retirement, fixed machine route and owned TLS
+bridge startup/parent-loss, and real provider-to-native normal-setup proof. The
+extension's qualification is owned by the
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+Existing baseline statuses and architecture rule counts do not change.
+
+The extension's implementation owners are the native `backchannel-*` controls,
+`session-store-backchannel.test.ts`, the native startup owner controls and
+`TenantBffSessionTests.Backchannel.cs`. The actual provider test uses Keycloak's
+admin session logout and user-initiated provider return through the callback TLS
+bridge, with exact shared SSO targets, distinct/later SSO preservation and a
+single-use credential-free return. Disabled/untrusted configurations are sampled
+as counterfactuals; an immediate sample alone is not delivery evidence.
+`scripts/development-backchannel.test.mjs` and
+`scripts/development-realm-backchannel.test.mjs` own normal setup/trust and closed
+fresh/warm field reconciliation. These controls specify implementation coverage;
+the phase Status block owns packet state and qualification.
+
 #### `Bff_Credentials_And_Projections_Are_Confined`
 
 - **Asserts:** only the native owner/RP adapter holds credentials; public wrappers,

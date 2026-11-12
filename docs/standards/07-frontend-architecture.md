@@ -840,6 +840,13 @@ listener/request/framework/family retirement. End-to-end controls retain normal
 wire status, context/immutability, late completion, HEAD, abort, active shutdown,
 browser and HMR witnesses; they are not replaced by synthetic responses.
 
+Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md) places its callback-only TLS bridge in the existing private
+runtime child. Setup registers before async bind under the same irreversible
+stop/parent-loss latch, and actual setup/request/listener work joins shutdown.
+No new worker or independent credential authority is introduced. A saturated
+logout fence cannot be evicted; diagnose private scalar occupancy/oldest-held
+age and follow the evidence-based recovery below if managed stop cannot finish.
+
 #### Frontend runtime owner-loss recovery
 
 @cemil owns this procedure until Phase 11 names the operational owner. Parent

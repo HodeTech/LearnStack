@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Serilog.Core;
 using Xunit;
 
@@ -21,6 +23,7 @@ namespace LearnStack.Tests.Integration;
 public sealed partial class AuthenticatedRateLimitTests
 {
     private static readonly TimeSpan AdmissionDeadline = TimeSpan.FromSeconds(15);
+    private const string AdmissionTraceSource = "test.admission.host-lifetime";
     private const string UnknownAdmissionPath = "/api/v1/admission-unknown";
 
     [Theory]
@@ -134,10 +137,10 @@ public sealed partial class AuthenticatedRateLimitTests
                          TenantAuthenticationIssuer.Actor.ToString("D"), SeedData.English.TenantId.Value.ToString("D") })
                 collector.Metrics.Should().NotContain(canary);
             await AssertFaultedShutdown(scenario);
-            DisposeFaultedClient(client, scenario);
+            await DisposeAdmissionClientAsync(client);
             client = null;
         }
-        finally { DisposeFaultedClient(client, scenario); }
+        finally { await DisposeAdmissionClientAsync(client); }
     }
 
     [Fact]
@@ -149,12 +152,17 @@ public sealed partial class AuthenticatedRateLimitTests
         AssertNoStoreHeaderControls();
         var observed = new SubjectQuotaObservation();
         var memberships = new AdmissionMembershipObservation();
+        using var traceProbe = new ActivitySource(AdmissionTraceSource);
+        traceProbe.HasListeners().Should().BeFalse(
+            "no previous admission-test host may retain this explicitly observed source");
         HttpClient? client = AdmissionClient(issuer, scenario, observed, memberships);
         using var release = new ManualResetEventSlim();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Task<HttpResponseMessage>? pending = null;
         try
         {
+            traceProbe.HasListeners().Should().BeTrue(
+                "the actual API host must make the cleanup control observable");
             using (var first = await AdmissionSend(client, issuer, "blocked-retiring-subject"))
                 first.StatusCode.Should().Be(HttpStatusCode.OK);
             using (var existing = await AdmissionSend(client, issuer, "blocked-retained-subject"))
@@ -190,8 +198,10 @@ public sealed partial class AuthenticatedRateLimitTests
             (await fixture.AuditCountAsync(SeedData.English)).Should().Be(audits);
             scenario.Budgets.Should().HaveCount(3, "the failed owner cannot allocate after its disposal returns");
             await AssertFaultedShutdown(scenario);
-            DisposeFaultedClient(client, scenario);
+            await DisposeAdmissionClientAsync(client);
             client = null;
+            traceProbe.HasListeners().Should().BeFalse(
+                "host disposal must reach telemetry after the scenario joins its deliberately faulted owner");
         }
         finally
         {
@@ -200,7 +210,7 @@ public sealed partial class AuthenticatedRateLimitTests
             {
                 if (pending is not null) (await pending.WaitAsync(AdmissionDeadline)).Dispose();
             }
-            finally { DisposeFaultedClient(client, scenario); }
+            finally { await DisposeAdmissionClientAsync(client); }
         }
     }
 
@@ -210,7 +220,10 @@ public sealed partial class AuthenticatedRateLimitTests
         {
             AddQuotaBindings(services, issuer);
             services.RemoveAll<TenantSubjectRateLimiter>();
-            services.AddSingleton(_ => scenario.Owner);
+            // The scenario creates and joins this deliberately faulting owner.
+            // Giving DI a second disposal claim would interrupt host cleanup.
+            services.AddSingleton(scenario.Owner);
+            services.AddOpenTelemetry().WithTracing(tracing => tracing.AddSource(AdmissionTraceSource));
             services.AddScoped<AuditingTenantAssertionRecorder>();
             services.AddScoped<ITenantAssertionRecorder>(provider => new ObservedQuotaRecorder(
                 provider.GetRequiredService<AuditingTenantAssertionRecorder>(), observed));
@@ -281,15 +294,16 @@ public sealed partial class AuthenticatedRateLimitTests
             "shutdown drains the retained partitions without retrying the failed retirement");
     }
 
-    private static void DisposeFaultedClient(HttpClient? client, AdmissionScenario scenario)
+    private static async Task DisposeAdmissionClientAsync(HttpClient? client)
     {
         if (client is null) return;
-        try { client.Dispose(); }
-        catch (Exception error) when (IsKnownFailureTree(error, scenario.Failure))
-        {
-            // Preserve a primary assertion failure while joining the known
-            // faulted owner. Successful paths assert the failure above.
-        }
+        client.Dispose();
+        // The entry point can still be finishing asynchronous host disposal.
+        // Observe this host's real subscription retirement; time alone is no credit.
+        using var source = new ActivitySource(AdmissionTraceSource);
+        using var deadline = new CancellationTokenSource(AdmissionDeadline);
+        while (source.HasListeners())
+            await Task.Delay(TimeSpan.FromMilliseconds(10), deadline.Token);
     }
 
     private static bool IsKnownFailureTree(Exception error, Exception expected) => ReferenceEquals(error, expected)

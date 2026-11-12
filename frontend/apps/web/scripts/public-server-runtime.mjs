@@ -8,6 +8,9 @@ export async function startPublicRuntime(control) {
   let admission;
   let bffRequests;
   let bffSessions;
+  let backchannel;
+  let backchannelDiagnostic;
+  let bridge;
   let invitationHandler;
   let nativeInvitationTarget;
   let consentHandler;
@@ -54,7 +57,17 @@ export async function startPublicRuntime(control) {
   let admissionStopped = false;
   let requestsStopStarted = false;
   let sessionsStopStarted = false;
+  let bridgeStopStarted = false;
+  let backchannelStopStarted = false;
   const requestNativeStops = () => {
+    if (bridge && !bridgeStopStarted) {
+      bridgeStopStarted = true;
+      ownShutdown(() => bridge.stop());
+    }
+    if (backchannel && !backchannelStopStarted) {
+      backchannelStopStarted = true;
+      ownShutdown(() => backchannel.stop());
+    }
     if (admission && !admissionStopped) {
       admissionStopped = true;
       ownShutdown(() => admission.shutdown());
@@ -146,6 +159,10 @@ export async function startPublicRuntime(control) {
       { delegateDevelopmentHmr },
       { createFrameworkDevelopmentAdmission, protectFrameworkDevelopmentResponse },
       configurationModule,
+      { backchannelConfiguration },
+      { createBackchannelAdmission, createNativeBackchannel, BACKCHANNEL_PATH },
+      { createBackchannelBridge },
+      { createLogoutTokenVerifier },
       { protectBffLogoutResponse },
       {
         admitIncomingRequest,
@@ -163,6 +180,10 @@ export async function startPublicRuntime(control) {
       ownSetup(import('./development-hmr.mjs')),
       ownSetup(import('../../../scripts/framework-development.mjs')),
       ownSetup(import('../.server/auth/configuration.js')),
+      ownSetup(import('../.server/auth/backchannel-configuration.js')),
+      ownSetup(import('../.server/auth/backchannel-http.js')),
+      ownSetup(import('../.server/auth/backchannel-bridge.js')),
+      ownSetup(import('../.server/auth/backchannel-verifier.js')),
       ownSetup(import('../.server/auth/logout-response.js')),
       ownSetup(import('../.server/ingress.js')),
       ownSetup(import('../.server/public-admission-runtime.js')),
@@ -181,6 +202,8 @@ export async function startPublicRuntime(control) {
       NODE_ENV: dev ? 'development' : 'production',
     });
     assertStarting();
+    const backchannelConfig = backchannelConfiguration(root, process.env, bff.enabled);
+    const backchannelAdmission = createBackchannelAdmission();
     admission = installPublicAdmissionRuntime(bff.enabled);
     assertStarting();
     if (bff.enabled) {
@@ -246,6 +269,24 @@ export async function startPublicRuntime(control) {
       bffRequests = installBffRequestRuntime(admission.holder);
       assertStarting();
       bffSessions = installBffSessionRuntime(dependencies, bffRequests.preparation);
+      if (backchannelConfig.enabled) {
+        const verifier = createLogoutTokenVerifier(bff, globalThis.fetch);
+        backchannelDiagnostic = (boundary, category, stage) =>
+          console.warn('BFF backchannel', {
+            boundary,
+            category,
+            ...(stage ? { stage } : {}),
+            ...backchannelAdmission.counts(),
+            ...bffSessions.backchannelCounts(),
+          });
+        backchannel = createNativeBackchannel({
+          authority: backchannelConfig.authority,
+          admission: backchannelAdmission,
+          verify: verifier.verify,
+          apply: bffSessions.applyProviderLogout,
+          diagnostic: (category, stage) => backchannelDiagnostic('native', category, stage),
+        });
+      }
       nativeInvitationTarget = invitationTarget;
       nativeConsentTarget = consentTarget;
       consentHandler = createNativeConsentHandler({
@@ -290,6 +331,13 @@ export async function startPublicRuntime(control) {
       },
       (request, response) => {
         if (stopping || control.stopRequested()) return refuseIngress(response);
+        if (request.url?.split('?')[0] === BACKCHANNEL_PATH) {
+          if (backchannel) return backchannel.handle(request, response);
+          response.writeHead(404, { 'cache-control': 'no-store', 'content-length': '0' });
+          response.end();
+          request.resume();
+          return;
+        }
         if (!admitIncomingRequest(request, configuration.secret, bff.enabled))
           return refuseIngress(response);
         if (developmentAdmission)
@@ -367,10 +415,6 @@ export async function startPublicRuntime(control) {
                 address.port !== PUBLIC_HTTPS_PORT
               )
                 throw new Error('Public HTTPS listener failed');
-              const ready = control.listenerReady(server);
-              assertStarting();
-              if (!ready) throw new Error('Public HTTPS listener failed');
-              console.warn(`Public HTTPS listener ready on 127.0.0.1:${PUBLIC_HTTPS_PORT}`);
               resolve();
             } catch (error) {
               if (error === startupStopped) resolve();
@@ -388,6 +432,24 @@ export async function startPublicRuntime(control) {
       }),
     );
     assertStarting();
+    if (backchannelConfig.enabled) {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Public HTTPS listener failed');
+      bridge = createBackchannelBridge(
+        backchannelConfig,
+        backchannelAdmission,
+        address.port,
+        (category, stage) => backchannelDiagnostic('bridge', category, stage),
+      );
+      assertStarting();
+      bridge.server.on('error', listenerFault);
+      await ownSetup(bridge.start());
+      assertStarting();
+    }
+    const ready = control.listenerReady(server);
+    assertStarting();
+    if (!ready) throw new Error('Public HTTPS listener failed');
+    console.warn(`Public HTTPS listener ready on 127.0.0.1:${PUBLIC_HTTPS_PORT}`);
   } catch (error) {
     if (error === startupStopped) return;
     failed = true;

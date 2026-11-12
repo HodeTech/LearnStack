@@ -2,6 +2,9 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OwnMembershipProfile } from '@learnstack/sdk/administration-server';
 
+import type { VerifiedLogoutToken } from './backchannel-contract.js';
+import { BackchannelState, matchesProviderLogout } from './backchannel-state.js';
+import type { ProviderLogoutTarget } from './backchannel-state.js';
 import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
@@ -91,6 +94,8 @@ type Group = {
 };
 type Owner = {
   id: string;
+  admittedAt: number;
+  providerTarget?: ProviderLogoutTarget;
   invitation?: Owner;
   custody?: {
     revision: object;
@@ -150,6 +155,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   readonly #states = new Map<string, Owner>();
   readonly #logoutStates = new Map<string, Owner>();
   readonly #groups = new Map<string, Group>();
+  readonly #backchannel: BackchannelState;
   readonly #dependencies: SessionDependencies;
   readonly #preparation: NativePagePreparation | undefined;
   readonly #timer: ReturnType<typeof setInterval>;
@@ -158,6 +164,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
 
   constructor(dependencies: SessionDependencies, preparation?: NativePagePreparation) {
     this.#dependencies = dependencies;
+    this.#backchannel = new BackchannelState({
+      monotonic: () => this.#now(),
+      utc: () => this.#utc(),
+    });
     this.#preparation = preparation;
     this.#timer = setInterval(() => this.sweep(), BFF_LIMITS.sweepMs);
     this.#timer.unref();
@@ -233,6 +243,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     if (entry.logoutState) this.#logoutStates.delete(entry.logoutState);
     entry.source = '';
     entry.subject = undefined;
+    entry.providerTarget = undefined;
     entry.transaction = undefined;
     entry.verification = undefined;
     entry.logoutState = undefined;
@@ -249,6 +260,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#groups.delete(this.#groupKey(entry.group.host, entry.group.browser));
   }
   #close(entry: Owner) {
+    if (entry.phase === 'closing') {
+      this.#release(entry);
+      return;
+    }
     this.#abortPages(entry);
     this.#clearCursorKey(entry);
     this.#clearPageCursorKey(entry);
@@ -726,7 +741,17 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       displayName: account.displayName,
     });
   }
+  #bindProviderTarget(entry: Owner, credentials: ProviderCredentials) {
+    const target = Object.freeze({
+      issuer: credentials.identity.issuer,
+      sid: credentials.identity.sid,
+      subject: credentials.identity.subject,
+    });
+    if (!this.#backchannel.accepts(target)) throw new BffSessionError('revoked');
+    entry.providerTarget = target;
+  }
   #reserveSubject(entry: Owner, credentials: ProviderCredentials) {
+    this.#bindProviderTarget(entry, credentials);
     const key = JSON.stringify([credentials.identity.issuer, credentials.identity.subject]);
     if (
       [...this.#owners.values()].filter((owner) => owner.subject?.key === key).length >=
@@ -753,13 +778,18 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   #bundle(next: ProviderCredentials, previous?: ProviderCredentials) {
     if (
       !next ||
+      typeof next.identity?.sid !== 'string' ||
+      !next.identity.sid ||
+      Buffer.byteLength(next.identity.sid) > 255 ||
+      // eslint-disable-next-line no-control-regex -- Provider-session identifiers reject controls at the custody boundary.
+      /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(next.identity.sid) ||
       (!next.refreshToken && !previous?.refreshToken) ||
       !Number.isFinite(next.accessExpiresAt) ||
       !Number.isFinite(next.refreshExpiresAt) ||
       next.accessExpiresAt <= this.#now() ||
       next.refreshExpiresAt <= this.#now() ||
       (previous &&
-        (['issuer', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
+        (['issuer', 'sid', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
           (key) =>
             previous.identity[key as keyof typeof previous.identity] !==
             next.identity[key as keyof typeof next.identity],
@@ -771,6 +801,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       idToken: next.idToken,
       identity: Object.freeze({
         issuer: next.identity.issuer,
+        sid: next.identity.sid,
         subject: next.identity.subject,
         actorId: next.identity.actorId,
         tenantId: next.identity.tenantId,
@@ -860,6 +891,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const now = this.#now();
     const owner: Owner = {
       id: opaque(),
+      admittedAt: now,
       group,
       epoch: group.epoch,
       source: input.source,
@@ -959,6 +991,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     ) {
       // A fresh own-result/acceptance already confirmed this exact actor and active Membership.
       // Reuse the established session without resetting its account, CSRF or lifetime.
+      this.#bindProviderTarget(owner, old.credentials!);
       custody.credentialsOwner = old;
       custody.code = undefined;
       if (credentialOwner !== old && credentialOwner.phase === 'entry')
@@ -970,6 +1003,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const phase = old ? 'switching' : 'selecting';
     const entry: Owner = {
       id: opaque(),
+      admittedAt: now,
       group: owner.group,
       epoch: owner.epoch,
       source,
@@ -1221,6 +1255,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       }
       this.#release(entry);
     }
+    this.#sweepBackchannel();
   }
 
   async start(input: Parameters<BffSessionStore['start']>[0]): Promise<LoginStart> {
@@ -1279,6 +1314,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const now = this.#now();
     const entry: Owner = {
       id: opaque(),
+      admittedAt: now,
       group,
       epoch: group.epoch,
       source: input.source,
@@ -1385,6 +1421,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             throw new BffSessionError('account_change');
           }
           if (!offer.subject) this.#reserveSubject(offer, credentials);
+          else this.#bindProviderTarget(offer, credentials);
           const previousCredentials = offer.custody!.credentialsOwner;
           offer.custody!.credentialsOwner = entry;
           if (previousCredentials?.phase === 'entry') this.#close(previousCredentials);
@@ -1817,6 +1854,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const now = this.#now();
     const entry: Owner = {
       id: opaque(),
+      admittedAt: now,
       group: old.group,
       epoch: old.epoch,
       source,
@@ -2086,24 +2124,27 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       (force || entry.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs)
     ) {
       const previous = entry.credentials!;
-      const work = this.#tracked(entry, async () => {
+      let failure: SessionFailure | undefined;
+      const work = this.#bounded(entry, undefined, async (current) => {
         try {
           this.#assert(entry, 'active');
           const next = this.#bundle(
             await this.#dependencies.provider.refresh(
               previous.refreshToken!,
               previous.identity,
-              entry.controller.signal,
+              current,
             ),
             previous,
           );
           this.#assert(entry, 'active');
+          this.#assertSignal(current);
           const self = await this.#dependencies.native.self(
             next.accessToken,
             this.#binding(binding, source),
-            entry.controller.signal,
+            current,
           );
           this.#assert(entry, 'active');
+          this.#assertSignal(current);
           if (self.state !== 'active') throw new BffSessionError('identity');
           this.#dependencies.native.verifyAssociation(next.identity, self.association);
           if (self.association.actorId !== entry.identity!.actorId)
@@ -2111,9 +2152,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           const witnessed = await this.#dependencies.account(
             next.accessToken,
             this.#scoped(binding, source, entry.identity!),
-            entry.controller.signal,
+            current,
           );
           this.#assert(entry, 'active');
+          this.#assertSignal(current);
           this.#account(entry, witnessed, entry.identity!);
           entry.credentials = next;
           entry.pageRevision = Object.freeze({});
@@ -2121,11 +2163,21 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           entry.activity = this.#now();
           this.#assert(entry, 'active');
         } catch (error) {
-          const reason = this.#reason(error);
-          if (entry.phase !== 'logout') this.#close(entry);
-          this.#diagnostic(reason);
-          throw new BffSessionError(reason);
+          failure = this.#reason(error);
+          throw error;
         }
+      }).catch((error) => {
+        // Classify before owner closure can turn a specific failure into cancellation.
+        const bounded = this.#reason(error);
+        const reason =
+          failure === 'revoked' || failure === 'stopped'
+            ? failure
+            : bounded === 'deadline'
+              ? bounded
+              : (failure ?? bounded);
+        if (entry.phase !== 'logout') this.#close(entry);
+        this.#diagnostic(reason);
+        throw new BffSessionError(reason);
       });
       entry.refresh = work;
       const settled = () => {
@@ -2160,26 +2212,36 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#assert(entry, 'active');
     // A normal authenticated read always uses the API's current authority too.
     const credentials = entry.credentials!;
-    const work = this.#tracked(entry, async () => {
+    let failure: SessionFailure | undefined;
+    const work = this.#bounded(entry, undefined, async (current) => {
       try {
         this.#assert(entry, 'active');
         const account = await this.#dependencies.account(
           credentials.accessToken,
           this.#scoped(binding, source, entry.identity!),
-          entry.controller.signal,
+          current,
         );
         this.#assert(entry, 'active');
+        this.#assertSignal(current);
         if (entry.credentials !== credentials) throw new BffSessionError('transaction');
         this.#account(entry, account, entry.identity!);
       } catch (error) {
-        const reason = this.#reason(error);
-        // An ordinary read consumes no provider grant. A failed authority check
-        // denies this response, but only a proven identity refusal revokes the
-        // live session. Refresh above retains its stricter uncertainty fence.
-        if (reason === 'identity' && entry.phase !== 'logout') this.#close(entry);
-        this.#diagnostic(reason);
-        throw new BffSessionError(reason);
+        failure = this.#reason(error);
+        throw error;
       }
+    }).catch((error) => {
+      const bounded = this.#reason(error);
+      const reason =
+        failure === 'revoked' || failure === 'stopped'
+          ? failure
+          : bounded === 'deadline'
+            ? bounded
+            : (failure ?? bounded);
+      // An ordinary read consumes no provider grant. Only proven identity refusal
+      // revokes it; waiter cancellation never cancels the independently owned work.
+      if (reason === 'identity' && entry.phase !== 'logout') this.#close(entry);
+      this.#diagnostic(reason);
+      throw new BffSessionError(reason);
     });
     await this.#wait(work, signal);
     this.#assert(entry, 'active');
@@ -2249,6 +2311,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       completed = resolve;
     });
     this.#stopped = true;
+    this.#backchannel.stop();
     clearInterval(this.#timer);
     const entries = [...this.#owners.values()];
     const work = entries.flatMap((entry) => [...entry.work]);
@@ -2258,9 +2321,54 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     }
     void Promise.allSettled(work).then(() => {
       for (const entry of entries) this.#release(entry);
+      this.#sweepBackchannel();
       completed();
     });
     return this.#stopping;
+  }
+
+  #sweepBackchannel() {
+    // Only fences eligible for retirement need owner evidence; snapshot once per sweep.
+    let retained:
+      | { earliestUnknown: number; sessions: Set<string>; identities: Set<string> }
+      | undefined;
+    this.#backchannel.sweep((fence) => {
+      if (!retained) {
+        retained = { earliestUnknown: Infinity, sessions: new Set(), identities: new Set() };
+        for (const entry of this.#owners.values()) {
+          const target = entry.providerTarget;
+          if (!target)
+            retained.earliestUnknown = Math.min(retained.earliestUnknown, entry.admittedAt);
+          else {
+            retained.sessions.add(JSON.stringify([target.issuer, target.sid]));
+            retained.identities.add(JSON.stringify([target.issuer, target.sid, target.subject]));
+          }
+        }
+      }
+      return (
+        retained.earliestUnknown <= fence.horizon ||
+        (fence.subject === null
+          ? retained.sessions.has(JSON.stringify([fence.issuer, fence.sid]))
+          : retained.identities.has(JSON.stringify([fence.issuer, fence.sid, fence.subject])))
+      );
+    });
+  }
+  /** Native installation capability; deliberately absent from BffSessionStore. */
+  applyProviderLogout(token: VerifiedLogoutToken): 'accepted' | 'duplicate' {
+    this.#sweepBackchannel();
+    return this.#backchannel.apply(token, () => {
+      for (const owner of [...this.#owners.values()])
+        if (owner.providerTarget && matchesProviderLogout(owner.providerTarget, token)) {
+          for (const linked of [...this.#owners.values()])
+            if (linked !== owner && linked.custody?.credentialsOwner === owner) this.#close(linked);
+          // Signout already revoked this owner. Its independent return proof and
+          // capacity remain owned until the provider return is consumed or expires.
+          if (owner.phase !== 'logout') this.#close(owner);
+        }
+    });
+  }
+  backchannelCounts() {
+    return this.#backchannel.counts();
   }
 
   /** Scalar observation only: tests/health never acquire tokens or indexes. */

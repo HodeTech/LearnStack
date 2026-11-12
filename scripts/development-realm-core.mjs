@@ -8,7 +8,7 @@ export const realmPassMilliseconds = 120000;
 
 /** Internal core for the owned launcher and isolated provider tests; no CLI overrides. */
 export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, adminPassword,
-  webSecret, eventReaderSecret, manifest, desired, signal, ca, transport = realmRequest, afterVerified }) {
+  webSecret, eventReaderSecret, manifest, desired, backchannel, signal, ca, transport = realmRequest, afterVerified }) {
   let base;
   try { base = new URL(baseUrl); }
   catch { refuse('preflight', 'configuration'); }
@@ -113,7 +113,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
       },
     };
     const reader = eventReaderSecret === undefined ? null : await planEventReader(admin, eventReaderSecret);
-    const preparation = await buildRealmPreparation({ admin, desired, manifest, webSecret });
+    const preparation = await buildRealmPreparation({ admin, desired, manifest, webSecret, backchannel });
     if (preparation) {
       stage = 'prepare';
       const response = await authenticatedRequest(adminPath('users/profile'), {
@@ -125,7 +125,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
       stage = 'plan';
     }
     // Preparation's projections and actions never cross this full fresh read.
-    const plan = await buildRealmPlan({ admin, desired, manifest, webSecret });
+    const plan = await buildRealmPlan({ admin, desired, manifest, webSecret, backchannel });
     stage = 'apply';
     for (const action of plan.actions) {
       if (active.aborted) refuse(stage, signal?.aborted ? 'cancelled' : 'deadline');
@@ -139,7 +139,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
       stage = 'readback';
       await reader.verify();
     }
-    const remaining = await buildRealmPlan({ admin, desired, manifest, webSecret });
+    const remaining = await buildRealmPlan({ admin, desired, manifest, webSecret, backchannel });
     if (remaining.actions.length !== 0) refuse(stage, 'readback_conflict');
     if (afterVerified) {
       stage = 'identity';

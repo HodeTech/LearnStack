@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Per-file expectations also fix the total; an empty or deleted test file cannot be
 # replaced by a passing named suite or by extra tests in another file.
 EXPECTED = {
+    'development-backchannel.test.mjs': 10,
+    'development-realm-backchannel.test.mjs': 6,
     'development-realm-events.test.mjs': 67,
     'development-event-reader.test.mjs': 16,
     'development-realm-core.test.mjs': 66,
@@ -29,6 +31,7 @@ def run():
     scripts = ROOT / 'scripts'
     actual = {path.name for path in scripts.glob('development-realm-*.test.mjs')}
     actual.update(path.name for path in scripts.glob('development-event-reader*.test.mjs'))
+    actual.update(path.name for path in scripts.glob('development-backchannel*.test.mjs'))
     actual.update(path.name for path in scripts.glob('reconcile-development-realm*.test.mjs'))
     if actual != set(EXPECTED):
         raise ValueError('Development realm test-file census does not match its reviewed plan.')
