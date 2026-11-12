@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 1,035 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 1,125 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -477,7 +477,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
   - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 28 lines
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
-  - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 72 lines
+  - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
+  - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21641,3 +21642,93 @@ Freeze the correction plus this documentation closeout for one PR update and
 new-source complete A/B. PR proof owns exact final source/run IDs and unchanged
 original archive reconciliation. No further source commit is needed merely to
 narrate successful CI IDs. Maintainer review/merge and qualification remain open.
+
+
+### P03-7 merge and delivery closeout (2026-11-12)
+
+The maintainer merges [PR #44](https://github.com/HodeTech/LearnStack/pull/44) at
+20:58:28 Europe/Istanbul on 2026-11-12 (17:58:28 UTC). Reviewed head `dd9721f0`,
+actual PR test merge `765d631a` and fetched merge commit `0c7394c7` share tree
+`c1d70bcb`. The merge parents are `8435300e` and `dd9721f0`. GitHub metadata and
+fetched Git objects confirm the merge and exact file identity. Development
+fast-forwards to that merge without switching branches or changing files.
+
+P03-7 implementation delivery is complete and merged under Accepted ADR-0098:
+D10 and the implemented C12 session-revocation controls are delivered. All three
+steps, both requested fresh review rounds per step, subsequent PR/CI corrections
+and their reviews are recorded above. All six inline review threads are resolved.
+The phase Status block owns packet state; the evidence boundary below remains
+open. This closeout changes documentation only and selects no new policy or ADR.
+
+Delivered behavior:
+
+- Strict-purpose signed provider notifications target exact issuer/session
+  identities. Distinct and later independent SSO sessions remain usable. Replay
+  and unknown-identity fences prevent held callback/refresh work from reopening
+  a closed target; actual unsettled work retains its ownership.
+- The default-disabled callback-only TLS bridge stays inside the existing native
+  runtime family. Accepted pre-TLS sockets are bounded and joined through real
+  close; exact key/certificate/root bytes receive real TLS-purpose qualification.
+  Compose trust preparation, exclusive publication and explicit renewal/recovery
+  remain under their existing owners and operator recipe.
+- User-initiated logout preserves its separate one-use browser return while
+  closing active same-SSO peers and linked invitation custody. Real pinned
+  Keycloak HTTP navigation proves root return, cookie clearing, replay refusal
+  and independent-session preservation; stock-browser proof remains distinct.
+- The deliberately faulted admission fixture keeps its own limiter ownership
+  and observes actual host telemetry unsubscription. The original producer
+  no-listener proof is unchanged. Finite diagnostics retain only named sources,
+  bounded lines and closed facts; raw provider messages and paths remain excluded.
+
+Final-head evidence:
+
+- [Run 43250711064, attempt 2](https://github.com/HodeTech/LearnStack/actions/runs/43250711064/attempts/2)
+  passes **27/27 jobs**, layout **B**, at reviewed head `dd9721f0` and PR source
+  `765d631a`. All **25 original ZIPs**, original API metadata and complete
+  workflow/frontend logs are retained at
+  `artifacts/p037-fixture-lifetime/ci/ReviewB/`. API byte sizes/SHA-256 and every
+  ZIP CRC match; canonical source-bound validators reconcile twenty producers,
+  both aggregates and all **8,612 passed backend cases**.
+- Frontend reconciles **130 web files / 4,197 reported cases** and **12 SDK files /
+  228 cases**, total **4,425**, zero skips/todos. File discovery is independent;
+  scenario totals describe reported results, not independent registration proof.
+- Demo originals verify **27 JSON/HTML pairs**, **nine PNGs**, budgets, source/
+  configuration identity and cleanup. OpenAPI originals verify Git snapshot
+  bytes, a nonbreaking comparison, sixty fixtures and no approval consumption.
+  Secret scan and all required architecture/native gates pass.
+
+Evidence boundaries and handoff:
+
+- No successful opposite-layout A exists on this final head; final-head A/B
+  reconciliation remains an open P03-11 evidence follow-up. The maintainer merge
+  does not waive Testing 06's complete-pair requirement. Earlier-source pairs,
+  the passing B alone and a different-source main run cannot be combined into it.
+- Failed final-head A finishes 24/27: the invitation fixture cannot connect to
+  Chromium DevTools, Keycloak image preparation times out before ordinary-9
+  tests start, and the integration aggregate refuses. All 23 published originals
+  and complete logs were retained before the whole retry; missing ordinary-9
+  and integration archives are recorded. The later pass does not establish the
+  underlying registry/daemon/browser cause or erase previous failed candidates.
+- Original retention is maintainer-local, with captured API metadata and
+  integrity records; later GitHub listings do not guarantee older availability.
+  Archive audits reconstruct recorded ownership/results and do not independently
+  observe historical host processes. The final B audit completes after merge.
+- No further closed-PR rerun is started. Merged-PR identity and original-evidence
+  checks remain enforced; use an open follow-up PR where the canonical rules
+  require it. Merge-triggered main run `43274994712` is separately queued at this
+  observation and has a different source identity.
+- P03-3/P03-4/P03-6 proof follow-ups and P03-3–5 manual-evidence boundaries stay
+  separately recorded. P03-7 adds no new manual UI gate. Provider delivery is
+  not durable retry, volatile state is process-local, API JWT validity is
+  unchanged and ignored-abort work cannot obtain synthetic cleanup credit.
+
+Next by packet order is P03-8, tenant federation (D11/C13/C20). G12 remains Open:
+its decision pass must settle confined SAML/OIDC provider ownership, write-only
+secrets, bounded egress, safe linking/verified-email and MFA trust, test/activate/
+rollback and last-login recovery before the first writer. P03-9 Platform and
+operational recovery, P03-10 DSAR/global closure and P03-11 exit enforcement
+remain unstarted. Phase 03 stays in progress; this closeout starts no next packet.
+
+Closeout documentation passes fragment/roadmap/index checks, ADR-status controls
+and five corpus-consistency cases. These checks validate the documentation
+handoff and add no new runtime or hosted qualification claim.
