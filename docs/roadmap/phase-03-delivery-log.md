@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 768 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 863 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -472,7 +472,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 CI correction second review and new source freeze (2026-11-12)](#p03-7-ci-correction-second-review-and-new-source-freeze-2026-11-12) — 34 lines
   - [P03-7 PR review comment corrections (2026-11-12)](#p03-7-pr-review-comment-corrections-2026-11-12) — 49 lines
   - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 17 lines
-  - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 27 lines
+  - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 28 lines
+  - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 94 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21369,3 +21370,98 @@ separate; it cannot qualify these material corrections. Record the passing pair
 in PR proof without creating another source revision just to narrate CI IDs.
 P03-7 remains in maintainer review handoff until merge. No runtime/test/CI clock,
 capacity, permission, token profile or independent packet boundary changes.
+
+
+### P03-7 follow-up source review and correction package (2026-11-12)
+
+Reconcile the supplied overlapping review reports against `f3da11d6` and the
+actual PR base `8435300e`. The older `570c4cca` comparison includes already merged
+P03-5/6 work and is not the current PR surface. Severity labels, mutation claims
+and requests for new policies are review data, not accepted decisions. Use one
+bounded correction package, then both fresh review rounds and new-source
+qualification; do not split it into speculative feature work.
+
+Verified corrections:
+
+- A valid provider notification must not erase a credential-free user-initiated
+  logout return. Preserve its one-use host/browser/state/proof and existing
+  capacity until consumption or expiry; other matching active owners close
+  immediately. The real provider regression adds RP logout, an active same-SSO
+  peer as callback evidence, root redirect/cookie clearing, replay refusal and
+  independent-session preservation. This is actual provider/native HTTP browser
+  navigation, separate from the stock Chromium fake-grant proof.
+- Own bridge TCP sockets before TLS/HTTP, cap them at eight separately from the
+  unchanged request/peer admission, destroy on stop and join actual close.
+  Incomplete handshake and partial HTTP controls use real sockets.
+- Qualify exact owned certificate/key/root bytes with a real in-memory TLS
+  handshake, enforcing server purpose, path and hostname for callback/native
+  preflight and bridge startup. The shared Node helper uses no external process,
+  listener, runtime dependency or trust-store mutation. Stop joins qualification
+  before any late bind. Reject literal empty query/fragment delimiters too.
+- Disabled optional web projections accept empty/readable owner files without
+  enabled-mode permissions. Enabled input remains owner-only and all sources
+  must agree. Preserve the ordinary token profile's unconditional default
+  offline-scope refusal; clarify its notice rather than loosening the policy.
+- TLS setup stages outside its final destination, joins interrupted signing
+  children before cleanup and publishes complete output without adopting an
+  existing directory. Public trust is staged and exclusively linked only after
+  complete writes. Explicit renewal/expired/interrupted recovery names exact
+  owned paths and selected provider recreation, without wildcard repair.
+- Normal/e2e Compose examples use the digest-aware launcher. Catalogue extension
+  prose points to phase Status instead of narrating packet state. ADR-0098's
+  additive Amendment clarifies manual operator correction; no adoption flag or
+  automatic retargeting is introduced.
+- Strengthen media, exact 8/2 admission, absent-sub/different-sid, JWKS expiry/
+  removed-key and immediate linked-custody controls. Native runtime controls
+  exercise disabled 404 and enabled dispatch before ordinary admission/Next;
+  their inert dependency boundary is retained.
+- Keep the copied BFF source pin and closed native TLS import in the genericity
+  graph. The three private-source controls share one immutable qualified copy,
+  retaining isolated-root, copied-guard and no-merge assertions while avoiding
+  repeated installation discovery. No test or subprocess threshold changes.
+
+Rejected or narrowed claims:
+
+- Deleting the current Map/Set member does not skip its successor. The actual
+  synchronous sweep/close paths and existing full-expiry controls do not support
+  the claimed H5/H6 race. A later error cannot alter an already resolved bridge
+  promise or undo native revocation (H7).
+- Current idempotency operations announce the tenant under FORCE RLS; witness
+  revalidation, consent replay admission and empty-config outbox registration
+  already have their named controls. No current cross-tenant bypass, missing
+  feature path, exposed stack trace or registration crash was demonstrated.
+  Do not weaken invariants to skip records or replace captured replay witnesses.
+- Keep physical-hop 8/2 admission, actual-work/fence retention, fixed-purpose
+  native TLS/SNI, canonical callback spelling, current JWKS cache/throttle and
+  restart-only unsafe-clock recovery. Synthetic settlement, hard counter reset,
+  automatic re-anchoring or new multi-peer availability promises are not repairs.
+- Five CorpusConsistency cases are real discovered tests; a sixth grep match is
+  assertion text. Original source-qualified receipts are historical evidence,
+  not independent observation of past processes or later-source qualification.
+- Ordinary provider discovery caches only validated successful metadata, not a
+  failed promise; retry remains possible. Fixed issuer endpoint pins need no new
+  metadata TTL. The retained-event provider guide points to the separate signed
+  revocation path instead of implying that retained facts gain logout authority.
+
+For the previous source, all fifty unmodified original API ZIPs were independently
+rechecked against captured API byte counts/SHA-256 and ZIP CRC. Their maintainer-
+local retention locator is `artifacts/p037-review-comments/ci/ReviewA/originals/`
+and the corresponding `ReviewB/originals/`, each with `integrity.json`, original
+API metadata and unchanged ZIPs. A was downloaded before whole-run B. A later
+GitHub run-level artifact inventory is not an inventory of this local retention;
+no claim is made that the earlier originals remain remotely listed/served.
+The correction's final-source originals and availability boundary belong in
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) proof. Earlier packet gaps
+remain separately owned.
+
+Targeted validation passes 226 frontend controls, the complete twelve-file realm
+census/463 controls, the actual pinned-provider RP/admin logout regression and
+five corpus cases. Release build reports zero warnings/errors. Native build,
+lint and typecheck pass after correcting the new socket collection's TypeScript
+type. Failed intermediate provider fixtures retain separate logs and receive no
+credit. The first full frontend guard reports three failures: two outdated copied
+source graph checks and the repeated private-source wrapper exceeding its existing
+five-second threshold. The corrected graph's 63 controls and the three optimized
+private-source controls pass; the latter finish in about one second. The complete
+guard rerun and both fresh reviews remain open. The prior source's successful A/B
+is retained but cannot qualify these new material corrections.

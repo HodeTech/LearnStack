@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#tls-server-qualification": {
+      "types": "./scripts/tls-server-qualification.d.mts",
+      "default": "./scripts/tls-server-qualification.mjs"
+    }
+  },
   "scripts": {
     "postinstall": "node scripts/ensure-routes-stub.mjs",
     "dev": "node scripts/public-server.mjs --dev",

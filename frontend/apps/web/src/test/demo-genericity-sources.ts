@@ -690,6 +690,18 @@ export function productionDemoSources(
       if (!filename.startsWith('/learnstack/')) return refused(path);
       return local(filename.slice('/learnstack/'.length), path);
     }
+    if (edge === '#tls-server-qualification' && path.startsWith('frontend/apps/web/')) {
+      const owner = packages.find((pkg) => pkg.root === 'frontend/apps/web');
+      const mapping = owner?.manifest.imports?.[edge];
+      if (
+        !mapping ||
+        JSON.stringify(Object.keys(mapping).sort()) !== JSON.stringify(['default', 'types']) ||
+        mapping.types !== './scripts/tls-server-qualification.d.mts' ||
+        mapping.default !== './scripts/tls-server-qualification.mjs'
+      )
+        return refused(path);
+      return mapped(mapping.default, owner!.root, path);
+    }
     // Match actual supported tsconfig paths rather than treating alias spelling as external.
     let directory = posix.dirname(path);
     while (directory !== '.') {
@@ -827,7 +839,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '2be56f3cf5ed9effd46715ebf292bd830731a66f11c68a412cb8b745dc35eaf9',
+            '95e8df6e7d6e549d5d0daf018011f5e4d53b14a5e4b9ff7ab3f453b21214df3f',
           ],
           [
             'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',

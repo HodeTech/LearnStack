@@ -631,7 +631,12 @@ export async function prepareBffProof({
   symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
   for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
     cpSync(join(source, name), join(app, name));
-  cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
+  for (const name of [
+    'development-hmr.mjs',
+    'tls-server-qualification.mjs',
+    'tls-server-qualification.d.mts',
+  ])
+    cpSync(join(source, 'scripts', name), join(app, 'scripts', name));
   prepareFrameworkProof({
     sourceApp: source,
     app,
@@ -643,6 +648,7 @@ export async function prepareBffProof({
       name: 'learnstack-owned-bff-proof',
       private: true,
       type: 'module',
+      imports: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).imports,
       dependencies: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).dependencies,
       devDependencies: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))
         .devDependencies,

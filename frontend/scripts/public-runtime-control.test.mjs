@@ -71,6 +71,29 @@ async function unusedPort() {
   return port;
 }
 
+async function callbackRequest(port, method) {
+  return new Promise((resolve, reject) => {
+    const outgoing = request(
+      {
+        host: '127.0.0.1',
+        port,
+        method,
+        path: '/api/auth/backchannel/keycloak',
+        rejectUnauthorized: false,
+        agent: false,
+      },
+      (response) => {
+        response.resume();
+        response.once('end', () =>
+          resolve({ status: response.statusCode, cache: response.headers['cache-control'] }),
+        );
+      },
+    );
+    outgoing.once('error', reject);
+    outgoing.end();
+  });
+}
+
 async function fixture(options = {}) {
   const directory = join(root, `fixture-${++fixtureNumber}`);
   await mkdir(directory);
@@ -131,7 +154,7 @@ async function fixture(options = {}) {
       export function createNativeBackchannel({verify, apply}) {
         if (typeof verify !== 'function' || typeof apply !== 'function') throw new Error('Fixture callback wiring failed');
         state.event('backchannel-created');
-        return { handle(_request, response) { response.writeHead(400); response.end(); }, async stop() { state.event('backchannel-stop'); } };
+        return { handle(_request, response) { state.event('backchannel-request'); response.writeHead(400); response.end(); }, async stop() { state.event('backchannel-stop'); } };
       }
     `,
     'backchannel-verifier.mjs': `export const createLogoutTokenVerifier = () => ({ verify: async () => ({}) });`,
@@ -181,8 +204,8 @@ async function fixture(options = {}) {
       export const INGRESS_HEADER = 'fixture';
       export const loadLocalEnvironment = () => ({});
       export const publicServerConfiguration = () => ({certificate: ${JSON.stringify(join(credentials, 'certificate.pem'))}, privateKey: ${JSON.stringify(join(credentials, 'key.pem'))}});
-      export const admitIncomingRequest = () => true;
-      export const verifyProvenance = () => ({method: 'GET', target: '/', host: 'fixture.invalid'});
+      export const admitIncomingRequest = () => { state.event('incoming-admission'); return true; };
+      export const verifyProvenance = () => { state.event('provenance'); return {method: 'GET', target: '/', host: 'fixture.invalid'}; };
       export const refuseIngress = (response) => { response.writeHead(503); response.end(); };
     `,
     'admission.mjs': `
@@ -241,7 +264,7 @@ async function fixture(options = {}) {
         state.event('app-created');
         return {
           async prepare() { state.event('prepare-start'); state.prepareStarted.resolve(); if (state.options.holdPrepare) await state.prepareGate.promise; state.event('prepare-settled'); },
-          getRequestHandler() { state.event('handler-created'); return (_request, response) => { response.end('native-control'); }; },
+          getRequestHandler() { state.event('handler-created'); return (_request, response) => { state.event('next-request'); response.end('native-control'); }; },
           async close() { state.event('app-close'); state.closeStarted.resolve(); if (state.options.holdClose) await state.closeGate.promise; if (state.options.rejectClose) throw new Error('credential-redaction-marker'); state.event('app-joined'); },
         };
       }
@@ -547,13 +570,51 @@ try {
       bridgeHealthy.state.events.indexOf('ready'),
     true,
   );
+  for (const method of ['GET', 'POST'])
+    assert.equal((await callbackRequest(bridgeHealthy.port, method)).status, 400);
+  assert.equal(
+    bridgeHealthy.state.events.filter((event) => event === 'backchannel-request').length,
+    2,
+  );
+  assert.equal(
+    bridgeHealthy.state.events.some((event) =>
+      ['incoming-admission', 'provenance', 'next-request'].includes(event),
+    ),
+    false,
+  );
   await bridgeHealthy.stop();
   assert.equal(bridgeHealthy.state.bridgeServer.listening, false);
+
+  const bffOnly = await fixture({ bff: true });
+  await bffOnly.start();
+  for (const method of ['GET', 'POST']) {
+    const disabled = await callbackRequest(bffOnly.port, method);
+    assert.equal(disabled.status, 404);
+    assert.equal(disabled.cache, 'no-store');
+  }
+  assert.equal(
+    bffOnly.state.events.some((event) =>
+      ['backchannel-request', 'incoming-admission', 'provenance', 'next-request'].includes(event),
+    ),
+    false,
+  );
+  await bffOnly.stop();
 
   const healthy = await fixture();
   await healthy.start();
   assert.equal(healthy.ready.length, 1);
   assert.deepEqual(healthy.state.privacy, ['1', '-*', '9007199254740991']);
+  for (const method of ['GET', 'POST']) {
+    const disabled = await callbackRequest(healthy.port, method);
+    assert.equal(disabled.status, 404);
+    assert.equal(disabled.cache, 'no-store');
+  }
+  assert.equal(
+    healthy.state.events.some((event) =>
+      ['backchannel-request', 'incoming-admission', 'provenance', 'next-request'].includes(event),
+    ),
+    false,
+  );
   const body = await new Promise((resolve, reject) => {
     const outgoing = request(
       { host: '127.0.0.1', port: healthy.port, rejectUnauthorized: false, agent: false },
@@ -570,6 +631,8 @@ try {
     outgoing.end();
   });
   assert.equal(body, 'native-control');
+  for (const event of ['incoming-admission', 'provenance', 'next-request'])
+    assert.equal(healthy.state.events.filter((value) => value === event).length, 1);
   await healthy.stop();
   assert.equal(healthy.state.server.listening, false);
   assert.equal(healthy.state.events.filter((event) => event === 'server-close').length, 1);

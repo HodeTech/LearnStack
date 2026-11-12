@@ -1035,6 +1035,37 @@ describe('P02d-7 exact demo identity boundary', () => {
     ])
       expect(demoSourceClassification(path)).toBe('other');
   });
+  it('follows the closed native TLS import into its current runtime source', () => {
+    const owner = 'frontend/apps/web/src/server/auth/backchannel-bridge.ts';
+    const manifest = 'frontend/apps/web/package.json';
+    const helper = 'frontend/apps/web/scripts/tls-server-qualification.mjs';
+    const nested = 'frontend/apps/web/scripts/qualification-fixture.test.mjs';
+    const mapping = {
+      types: './scripts/tls-server-qualification.d.mts',
+      default: './scripts/tls-server-qualification.mjs',
+    };
+    const files = new Map([
+      [owner, "import '#tls-server-qualification';"],
+      [manifest, JSON.stringify({ imports: { '#tls-server-qualification': mapping } })],
+      [helper, "export * from './qualification-fixture.test.mjs';"],
+      [nested, `export const value = ${JSON.stringify(identity)};`],
+    ]);
+    const selected = productionDemoSources(files);
+    expect(selected.has(helper)).toBe(true);
+    expect(selected.has(nested)).toBe(true);
+    expect(demoIdentityFindings(nested, selected.get(nested)!, vocabulary)).toEqual([identity]);
+    for (const imports of [
+      {},
+      { '#tls-server-qualification': { ...mapping, default: './other.mjs' } },
+      { '#tls-server-qualification': { ...mapping, node: './other.mjs' } },
+    ])
+      expect(() =>
+        productionDemoSources(new Map(files).set(manifest, JSON.stringify({ imports }))),
+      ).toThrow('Unmodeled runtime import');
+    expect(() => productionDemoSources(new Map(files).set(owner, "import '#unmodeled';"))).toThrow(
+      'Unmodeled runtime import',
+    );
+  });
   it('follows aliases, workspace exports, import-equals and transitive re-exports into exemptions', () => {
     const entry = 'frontend/apps/web/src/server/probe.ts';
     const helper = 'frontend/apps/web/src/test/helper.ts';

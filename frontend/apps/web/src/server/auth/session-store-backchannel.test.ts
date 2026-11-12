@@ -300,9 +300,12 @@ describe('native session-targeted notification ownership', () => {
     const first = await f.login();
     f.setIdentity({ subject: 'other-subject' });
     const second = await f.login();
+    f.setIdentity({ sid: 'independent-session' });
+    const independent = await f.login();
     f.store.applyProviderLogout(f.token({ subject: null }));
     expect(f.store.peek(first.binding)).toBeNull();
     expect(f.store.peek(second.binding)).toBeNull();
+    expect(f.store.peek(independent.binding)).not.toBeNull();
   });
 
   it('acknowledges exact duplicates once and refuses a changed fingerprint', async () => {
@@ -441,6 +444,7 @@ describe('native session-targeted notification ownership', () => {
     await waitFor(() => vi.mocked(f.dependencies.invitations!.inspect).mock.calls.length);
     f.store.applyProviderLogout(f.token());
     expect(f.store.peek(active.binding)).toBeNull();
+    await expect(f.store.invitation(binding, source)).rejects.toMatchObject({ reason: 'revoked' });
     f.advance(310_000);
     f.store.sweep();
     expect(f.store.backchannelCounts().fences).toBe(1);
@@ -450,12 +454,68 @@ describe('native session-targeted notification ownership', () => {
     expect(f.store.backchannelCounts().fences).toBe(0);
   });
 
-  it('retains logout-return targets after credentials have already been erased', async () => {
+  it('keeps the one-use provider logout return after a matching back-channel notification', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const peer = await f.login('other.example.test:3000');
+    const logout = f.store.signout(active.binding, active.selected.session.csrfToken);
+    expect(f.store.counts()).toMatchObject({ owners: 2, credentialRecords: 1, logoutStates: 1 });
+    const token = f.token();
+    expect(f.store.applyProviderLogout(token)).toBe('accepted');
+    expect(f.store.applyProviderLogout(token)).toBe('duplicate');
+    expect(f.store.peek(active.binding)).toBeNull();
+    expect(f.store.peek(peer.binding)).toBeNull();
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      credentialRecords: 0,
+      identityRecords: 0,
+      logoutStates: 1,
+    });
+    const input = {
+      host,
+      browser: active.binding.browser,
+      state: logout.state,
+      proof: logout.proof,
+    };
+    for (const changed of [
+      { host: 'other.example.test' },
+      { browser: secret() },
+      { proof: secret() },
+    ])
+      expect(f.store.consumeLogout({ ...input, ...changed })).toBe(false);
+    expect(f.store.consumeLogout(input)).toBe(true);
+    expect(f.store.counts()).toMatchObject({ owners: 0, logoutStates: 0 });
+    expect(f.store.consumeLogout(input)).toBe(false);
+  });
+
+  it('keeps an entry-only provider logout return after a matching notification', async () => {
+    const f = fixture();
+    const entry = await f.enter(await f.start());
+    const binding = { host, browser: entry.browser, handle: entry.handle };
+    const logout = f.store.discardEntry(binding, entry.entry.csrfToken);
+    f.store.applyProviderLogout(f.token());
+    expect(f.store.counts()).toMatchObject({ owners: 1, logoutStates: 1, credentialRecords: 0 });
+    expect(
+      f.store.consumeLogout({
+        host,
+        browser: entry.browser,
+        state: logout.state,
+        proof: logout.proof,
+      }),
+    ).toBe(true);
+    expect(f.store.counts()).toMatchObject({ owners: 0, logoutStates: 0 });
+  });
+
+  it('expires an unconsumed provider return without restoring authority or releasing it early', async () => {
     const f = fixture();
     const active = await f.login();
     const logout = f.store.signout(active.binding, active.selected.session.csrfToken);
-    expect(f.store.counts()).toMatchObject({ owners: 1, credentialRecords: 0, logoutStates: 1 });
     f.store.applyProviderLogout(f.token());
+    f.advance(299_999);
+    f.store.sweep();
+    expect(f.store.counts()).toMatchObject({ owners: 1, logoutStates: 1, credentialRecords: 0 });
+    f.advance(1);
+    f.store.sweep();
     expect(f.store.counts()).toMatchObject({ owners: 0, logoutStates: 0 });
     expect(
       f.store.consumeLogout({

@@ -26,13 +26,15 @@ it('requires explicit activation, private agreeing sources and a fixed HTTPS cal
       authority: 'localhost:4443',
       port: 4443,
     });
-    expect(() =>
-      backchannelConfiguration(
-        root,
-        { ...env, LEARNSTACK_BFF_BACKCHANNEL_URL: `${env.LEARNSTACK_BFF_BACKCHANNEL_URL}?bad=1` },
-        true,
-      ),
-    ).toThrow();
+    for (const invalid of [
+      'http://localhost:4443/api/auth/backchannel/keycloak',
+      'https://localhost:4443/other',
+      'https://user:password@localhost:4443/api/auth/backchannel/keycloak',
+      ...['?', '?bad=1', '#', '#bad'].map((suffix) => env.LEARNSTACK_BFF_BACKCHANNEL_URL + suffix),
+    ])
+      expect(() =>
+        backchannelConfiguration(root, { ...env, LEARNSTACK_BFF_BACKCHANNEL_URL: invalid }, true),
+      ).toThrow();
     mkdirSync(join(root, 'frontend/apps/web'), { recursive: true });
     writeFileSync(join(root, '.env'), 'LEARNSTACK_BFF_BACKCHANNEL_ENABLED=false\n', {
       mode: 0o600,

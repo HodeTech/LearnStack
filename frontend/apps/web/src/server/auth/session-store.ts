@@ -2361,7 +2361,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         if (owner.providerTarget && matchesProviderLogout(owner.providerTarget, token)) {
           for (const linked of [...this.#owners.values()])
             if (linked !== owner && linked.custody?.credentialsOwner === owner) this.#close(linked);
-          this.#close(owner);
+          // Signout already revoked this owner. Its independent return proof and
+          // capacity remain owned until the provider return is consumed or expires.
+          if (owner.phase !== 'logout') this.#close(owner);
         }
     });
   }

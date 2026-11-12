@@ -82,6 +82,7 @@ export function backchannelConfiguration(
   if (
     url.protocol !== 'https:' ||
     url.href !== raw ||
+    url.href !== url.origin + '/api/auth/backchannel/keycloak' ||
     url.pathname !== '/api/auth/backchannel/keycloak' ||
     url.search ||
     url.hash ||

@@ -397,3 +397,31 @@ or status promotion follows from approval alone.
   [Keycloak 26.6.2 ResourceAdminManager](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/ResourceAdminManager.java),
   [Keycloak AuthenticationManager](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/managers/AuthenticationManager.java),
   [jose 6.2.13](https://github.com/panva/jose/tree/v6.2.13).
+
+
+## Amendment 1 — Operator correction and transport qualification (2026-11-12)
+
+The Decision is unchanged. “Explicitly adopted through the operator setup” in
+Context names a deliberate operator correction, not an automatic adoption flag.
+Inspection of `scripts/development-realm-plan.mjs` shows that a nonempty foreign
+callback URL refuses before any write; the normal launcher cannot retarget it.
+The operator must establish ownership and correct that retained provider setting
+before rerunning setup. [The Keycloak runbook](../../infra/keycloak/README.md#native-back-channel-logout)
+owns the procedure and still requires exact readback and a zero-write rerun.
+Disabled setup preserves retained callback configuration and trust.
+
+The implementation correction also qualifies the already selected TLS server
+purpose/path using a real in-memory client/server handshake over owned bytes;
+it introduces no network probe, subprocess or runtime dependency. The existing
+bridge owns pre-handshake TCP sockets through actual close, with a separate
+eight-connection transport ceiling. The eight-request/two-peer HTTP admission
+policy, no-eviction rule, target/replay profile and application/test/CI clocks
+remain unchanged. A provider notification cannot consume an already revoked
+owner's independent one-use logout-return proof; its existing deadline or actual
+return ends that ownership.
+
+Carriers: this Amendment; `infra/keycloak/README.md` (operator correction,
+renewal and interruption recovery); `infra/compose/README.md` (owned launchers);
+Security 11's native back-channel section; Catalogue 21's BFF obligations; and
+the current Phase 03 Status and additive delivery record. Existing Accepted
+bodies and implementation-baseline descriptions remain historical.

@@ -6452,20 +6452,21 @@ Prior receipts do not qualify subsequent source changes.
 validation, sid continuity/exact targets, atomic bounded replay/late-publication
 fences, clocks/capacity/actual retirement, fixed machine route and owned TLS
 bridge startup/parent-loss, and real provider-to-native normal-setup proof. The
-extension is **Registered** for packet proof closeout; its local implementation
-and executed controls are recorded in the [Phase 03 handoff](../roadmap/phase-03-delivery-log.md#p03-7-step-3-second-review-and-qualification-handoff-2026-11-12).
-Final-source hosted qualification and maintainer merge remain separately owned;
-existing baseline statuses and architecture rule counts do not change.
+extension's qualification is owned by the
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+Existing baseline statuses and architecture rule counts do not change.
 
 The extension's implementation owners are the native `backchannel-*` controls,
 `session-store-backchannel.test.ts`, the native startup owner controls and
 `TenantBffSessionTests.Backchannel.cs`. The actual provider test uses Keycloak's
-admin session logout through the callback TLS bridge, with a disabled-bridge
-counterexample, exact shared SSO targets and distinct/later SSO preservation.
+admin session logout and user-initiated provider return through the callback TLS
+bridge, with exact shared SSO targets, distinct/later SSO preservation and a
+single-use credential-free return. Disabled/untrusted configurations are sampled
+as counterfactuals; an immediate sample alone is not delivery evidence.
 `scripts/development-backchannel.test.mjs` and
 `scripts/development-realm-backchannel.test.mjs` own normal setup/trust and closed
-fresh/warm field reconciliation. These local controls do not promote the
-extension's proof status or replace final-source hosted qualification.
+fresh/warm field reconciliation. These controls specify implementation coverage;
+the phase Status block owns packet state and qualification.
 
 #### `Bff_Credentials_And_Projections_Are_Confined`
 

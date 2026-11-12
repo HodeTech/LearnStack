@@ -66,7 +66,7 @@ public sealed partial class TenantBffSessionTests
             await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(), configuration);
             using var originalBrowser = provider.Browser();
             var first = new BffWireCookies();
-            await LoginAsync(native, originalBrowser, identity, KeycloakFixture.DemoPassword, first, api.Observed);
+            var firstSession = await LoginAsync(native, originalBrowser, identity, KeycloakFixture.DemoPassword, first, api.Observed);
             var originalSession = (await admin.GetAsync(userPath + "/sessions")).EnumerateArray()
                 .Select(value => value.GetProperty("id").GetString()!).ToArray();
             originalSession.Length.Should().Be(1, "the preceding case retires its actual provider session");
@@ -83,9 +83,30 @@ public sealed partial class TenantBffSessionTests
             var readsBefore = api.Observed.Reads.Count;
             var actorReadsBefore = api.Observed.Reads.Count(row => row.Actor is not null);
 
-            // Actual Keycloak admin logout emits the signed notification. No test-created JWT or direct native apply call.
-            (await admin.DeleteAsync("sessions/" + originalSession[0])).Should().Be(HttpStatusCode.NoContent);
-            api.Observed.Reads.Count.Should().Be(readsBefore, "the machine callback does not perform API or tenant bootstrap reads");
+            Uri? providerReturn = null;
+            string? returnCookies = null;
+            if (mode == "trusted")
+            {
+                // Use the already active two-host SSO rather than creating a
+                // second journey that consumes the same visitor admission budget.
+                var signout = await native.RequestAsync(Host(identity.Tenant), "/api/auth/signout", first.Header, "POST",
+                    Form("csrfToken", firstSession.GetProperty("csrfToken").GetString()!));
+                signout.Status.Should().Be(303);
+                RequireCookiePresent(signout.Cookies, value => value.StartsWith("__Host-ls-logout-", StringComparison.Ordinal)
+                    && !value.Contains("=;", StringComparison.Ordinal));
+                first.Apply(signout);
+                returnCookies = first.Header;
+                var callbackReads = api.Observed.Reads.Count;
+                providerReturn = await originalBrowser.CompleteBffLogoutAsync(PrivateLocation(signout));
+                api.Observed.Reads.Count.Should().Be(callbackReads, "the actual RP back-channel callback performs no API bootstrap or business read");
+            }
+            else
+            {
+                // These configurations are counterfactual samples, not proof
+                // that a callback was delivered to the native listener.
+                (await admin.DeleteAsync("sessions/" + originalSession[0])).Should().Be(HttpStatusCode.NoContent);
+                api.Observed.Reads.Count.Should().Be(readsBefore, "the machine callback does not perform API or tenant bootstrap reads");
+            }
             foreach (var (host, cookies) in new[] { (Host(identity.Tenant), first), (alternateHost, second) })
             {
                 var response = await native.RequestAsync(host, "/api/auth/session", cookies.Header);
@@ -93,22 +114,49 @@ public sealed partial class TenantBffSessionTests
                 response.Cache.Should().Be("no-store");
                 response.PrivateFree.Should().BeTrue();
                 response.Data.GetProperty("state").GetString().Should().Be(mode == "trusted" ? "anonymous" : "authenticated",
-                    "disabled or untrusted delivery cannot qualify provider-to-native retirement");
+                    "this immediate observation records the configured counterfactual; it does not establish callback delivery timing");
             }
             var other = await native.RequestAsync(Host(identity.Tenant), "/api/auth/session", independent.Header);
             other.Data.GetProperty("state").GetString().Should().Be("authenticated", "another device's SSO target is preserved");
             api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(actorReadsBefore,
                 "passive session observation preserves its ordinary anonymous bootstrap but performs no authenticated business read");
+            if (providerReturn is not null)
+            {
+                var completion = await native.RequestAsync(Host(identity.Tenant), providerReturn.PathAndQuery, returnCookies!);
+                completion.Status.Should().Be(303);
+                completion.Location.Should().Be("https://" + Host(identity.Tenant) + "/");
+                RequireCookiePresent(completion.Cookies, value => value.StartsWith("__Host-ls-logout-", StringComparison.Ordinal)
+                    && value.Contains("=;", StringComparison.Ordinal) && value.Contains("Max-Age=0", StringComparison.Ordinal));
+                first.Apply(completion);
+                var replay = await native.RequestAsync(Host(identity.Tenant), providerReturn.PathAndQuery, returnCookies!);
+                replay.Status.Should().Be(400, "the original return proof is single-use even if its cookie is replayed");
+                var remaining = (await admin.GetAsync(userPath + "/sessions")).EnumerateArray()
+                    .Select(value => value.GetProperty("id").GetString()!).ToArray();
+                remaining.Should().NotContain(originalSession[0], "real RP logout ends its exact provider SSO session");
+                remaining.Should().HaveCount(1, "the independent provider session remains live");
+            }
             using var laterBrowser = provider.Browser();
             var later = new BffWireCookies();
+            var beforeLater = (await admin.GetAsync(userPath + "/sessions")).EnumerateArray()
+                .Select(value => value.GetProperty("id").GetString()!).ToArray();
             await LoginAsync(native, laterBrowser, identity, KeycloakFixture.DemoPassword, later, api.Observed);
             var laterResponse = await native.RequestAsync(Host(identity.Tenant), "/api/auth/session", later.Header);
             laterResponse.Data.GetProperty("state").GetString().Should().Be("authenticated", "a new provider SSO session is not fenced by an older session's logout");
+            if (mode == "trusted")
+            {
+                var withLater = (await admin.GetAsync(userPath + "/sessions")).EnumerateArray()
+                    .Select(value => value.GetProperty("id").GetString()!).ToArray();
+                var laterProviderSession = withLater.Except(beforeLater).Should().ContainSingle().Subject;
+                (await admin.DeleteAsync("sessions/" + laterProviderSession)).Should().Be(HttpStatusCode.NoContent);
+                var afterAdminLogout = await native.RequestAsync(Host(identity.Tenant), "/api/auth/session", later.Header);
+                afterAdminLogout.Data.GetProperty("state").GetString().Should().Be("anonymous",
+                    "the same trusted bridge also applies actual administrator-initiated logout");
+            }
             await native.CompleteAsync();
             (await admin.PostAsync(userPath + "/logout", new { })).Should().Be(HttpStatusCode.NoContent);
             (await admin.GetAsync(userPath + "/sessions")).GetArrayLength().Should().Be(0);
         }
-        output.WriteLine("Actual Keycloak logout: same-SSO hosts closed; distinct/later SSO preserved; disabled bridge and untrusted CA counterexamples observed; same-port provider trust recovery and zero-write readback confirmed.");
+        output.WriteLine("Actual Keycloak logout: trusted callbacks close same-SSO hosts; distinct/later SSO remain independent; RP browser return is single-use; disabled and untrusted configurations are sampled immediately; same-port provider trust recovery and zero-write readback confirmed.");
     }
 
     private static int UnusedCallbackPort()

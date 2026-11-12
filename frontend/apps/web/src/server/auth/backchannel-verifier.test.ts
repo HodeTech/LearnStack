@@ -96,6 +96,44 @@ describe('native logout token verification', () => {
     await expect(f.verifier.verify(unknown)).rejects.toMatchObject({ reason: 'response' });
     expect(f.transport).toHaveBeenCalledTimes(4);
   });
+  it('expires the five-minute JWKS cache and refuses a key removed by the provider', async () => {
+    const f = await fixture();
+    const original = { ...(await exportJWK(key.publicKey)), kid: 'key', alg: 'RS256', use: 'sig' };
+    const replacement = {
+      ...(await exportJWK(other.publicKey)),
+      kid: 'replacement',
+      alg: 'RS256',
+      use: 'sig',
+    };
+    let time = now;
+    let rotated = false;
+    const transport: typeof fetch = vi.fn(async (input) =>
+      String(input).endsWith('/certs')
+        ? Response.json({ keys: [rotated ? replacement : original] })
+        : Response.json({ issuer, jwks_uri: `${issuer}/protocol/openid-connect/certs` }),
+    );
+    const verifier = createLogoutTokenVerifier({ issuer }, transport, () => time);
+    const claims = () => ({ iat: Math.floor(time / 1000), exp: Math.floor(time / 1000) + 120 });
+    await expect(verifier.verify(await f.token(claims()))).resolves.toHaveProperty(
+      'sid',
+      'session',
+    );
+    rotated = true;
+    time += 299_999;
+    await expect(verifier.verify(await f.token(claims()))).resolves.toHaveProperty(
+      'sid',
+      'session',
+    );
+    expect(transport).toHaveBeenCalledTimes(2);
+    time++;
+    await expect(verifier.verify(await f.token(claims()))).rejects.toMatchObject({
+      reason: 'response',
+    });
+    expect(vi.mocked(transport).mock.calls.length).toBeGreaterThan(2);
+    await expect(
+      verifier.verify(await f.token(claims(), { kid: 'replacement' }, other.privateKey)),
+    ).resolves.toHaveProperty('sid', 'session');
+  });
   it('rejects duplicate escaped JSON names even when the signature is valid', async () => {
     const f = await fixture();
     const payload = `{"iss":"${issuer}","aud":"learnstack-web","iat":${now / 1000},"exp":${now / 1000 + 120},"sid":"session","s\\u0069d":"session","jti":"event-id","events":{"${event}":{}}}`;

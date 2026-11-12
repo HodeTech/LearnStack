@@ -1,6 +1,6 @@
 import { X509Certificate, createPrivateKey, createHash } from 'node:crypto';
-import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, readdir } from 'node:fs/promises';
+import { constants, linkSync, unlinkSync } from 'node:fs';
+import { chmod, lstat, mkdir, mkdtemp, open, readdir, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
@@ -22,19 +22,21 @@ export function developmentBackchannelUrl(value) {
     const url = new URL(value);
     if (typeof value !== 'string' || url.href !== value || url.protocol !== 'https:'
       || url.username || url.password || url.search || url.hash || url.pathname !== backchannelPath
+      || url.href !== url.origin + backchannelPath
       || !url.hostname || !Number.isInteger(Number(url.port || '443'))
       || Number(url.port || '443') < 1 || Number(url.port || '443') > 65535) throw new Error();
     return url;
   } catch { refuse('preflight', 'backchannel_configuration'); }
 }
 
-async function readOwnedFile(path, privateKey = false) {
+async function readOwnedFile(path, privateKey = false, projection = false) {
   let handle;
   try {
     handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const state = await handle.stat();
     if (!state.isFile() || state.uid !== process.getuid() || state.nlink !== 1
-      || state.size < 1 || state.size > 256 * 1024 || (state.mode & (privateKey ? 0o077 : 0o022)))
+      || state.size < (projection ? 0 : 1) || state.size > 256 * 1024
+      || (!projection && (state.mode & (privateKey ? 0o077 : 0o022))))
       throw new Error();
     const bytes = Buffer.alloc(256 * 1024 + 1);
     let size = 0;
@@ -77,7 +79,9 @@ export async function developmentBackchannelConfiguration({ source, webSource, a
       const webPath = join(root, 'frontend/apps/web/.env.local');
       const state = await lstat(webPath).catch(error => { if (error.code !== 'ENOENT') throw error; });
       if (state) {
-        const web = await readOwnedFile(webPath);
+        // Read combined enablement before applying the optional projection's
+        // private-mode requirement. Disabled setup also accepts an empty file.
+        const web = await readOwnedFile(webPath, false, true);
         webSource = web.bytes.toString('utf8');
         webMode = web.mode;
       }
@@ -111,14 +115,22 @@ export async function developmentBackchannelConfiguration({ source, webSource, a
     const key = path('TLS_KEY');
     const ca = path('CA');
     const nativeCa = path('NATIVE_CA');
-    const [leafBytes, keyBytes, rootBytes, nativeRootBytes, nativeLeafBytes] = await Promise.all([
+    const [leafBytes, keyBytes, rootBytes, nativeRootBytes, nativeLeafBytes, nativeKeyBytes] = await Promise.all([
       ownedFile(certificate), ownedFile(key, true), ownedFile(ca), ownedFile(nativeCa),
       ownedFile(resolve(root, values.LEARNSTACK_PUBLIC_TLS_CERT ?? '.data/tls/public.pem')),
+      ownedFile(resolve(root, values.LEARNSTACK_PUBLIC_TLS_KEY ?? '.data/tls/public-key.pem'), true),
     ]);
     const leaf = publicCertificate(leafBytes);
     if (!leaf.checkPrivateKey(createPrivateKey(keyBytes))
       || !verifies(leaf, publicCertificate(rootBytes), url.hostname)
       || !verifies(publicCertificate(nativeLeafBytes), publicCertificate(nativeRootBytes), 'localhost')) throw new Error();
+    const { qualifyTlsServer } = await import('../frontend/apps/web/scripts/tls-server-qualification.mjs');
+    const signal = AbortSignal.timeout(10000);
+    const qualifications = await Promise.allSettled([
+      qualifyTlsServer({ certificate: leafBytes, privateKey: keyBytes, ca: rootBytes, hostname: url.hostname, signal }),
+      qualifyTlsServer({ certificate: nativeLeafBytes, privateKey: nativeKeyBytes, ca: nativeRootBytes, hostname: 'localhost', signal }),
+    ]);
+    if (qualifications.some(result => result.status === 'rejected')) throw new Error();
     return Object.freeze({ enabled: true, url: url.href, bindAddress, certificate, key, ca, nativeCa });
   } catch { refuse('preflight', 'backchannel_configuration'); }
 }
@@ -132,6 +144,7 @@ async function ownedDirectory(path, mode) {
 
 /** Mount only a qualified public root, never a certificate key or native CA key. */
 export async function initializeKeycloakTrust({ root = defaultRoot, configuration }) {
+  let temporary;
   try {
     await ownedDirectory(join(root, '.data'), 0o755);
     const directory = join(root, '.data/keycloak-trust');
@@ -155,11 +168,20 @@ export async function initializeKeycloakTrust({ root = defaultRoot, configuratio
       if (!(await ownedFile(target)).equals(bytes) || ((await lstat(target)).mode & 0o777) !== 0o644) throw new Error();
       return digest(bytes);
     }
-    const handle = await open(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o644);
-    try { await handle.chmod(0o644); await handle.writeFile(bytes); }
+    // A target is visible only after a complete write. link is exclusive and
+    // never replaces retained operator trust, including a concurrent install.
+    temporary = await mkdtemp(join(root, '.data/.keycloak-trust-'));
+    const staged = join(temporary, 'callback-root.pem');
+    const handle = await open(staged, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o644);
+    try { await handle.chmod(0o644); await handle.writeFile(bytes); await handle.sync(); }
     finally { await handle.close(); }
+    // Keep the no-replacement publication and removal of its temporary hard
+    // link in one JS turn, including during SIGINT/SIGTERM delivery.
+    linkSync(staged, target);
+    unlinkSync(staged);
     return digest(bytes);
   } catch { refuse('preflight', 'backchannel_configuration'); }
+  finally { if (temporary) await rm(temporary, { recursive: true, force: true }); }
 }
 
 /** Prove the running selected provider uses the qualified host public-root route. */

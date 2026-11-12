@@ -7,6 +7,27 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createBackchannelAdmission, createNativeBackchannel } from './backchannel-http.js';
 
+it('preserves the exact shared eight-request and two-per-peer admission bounds', () => {
+  const admission = createBackchannelAdmission();
+  const releases = Array.from({ length: 8 }, (_, index) => {
+    const release = admission.reserve('192.0.2.' + (1 + Math.floor(index / 2)));
+    expect(release).not.toBeNull();
+    return release!;
+  });
+  expect(admission.counts()).toEqual({ active: 8, peers: 4 });
+  expect(admission.reserve('192.0.2.5')).toBeNull();
+  releases[7]!();
+  expect(admission.reserve('192.0.2.1')).toBeNull();
+  const restored = admission.reserve('192.0.2.5');
+  expect(restored).not.toBeNull();
+  for (const release of releases) {
+    release();
+    release();
+  }
+  restored!();
+  expect(admission.counts()).toEqual({ active: 0, peers: 0 });
+});
+
 describe('native backchannel HTTP admission', () => {
   it('accepts only the exact machine request and retires actual work', async () => {
     let applied = 0;
@@ -41,6 +62,7 @@ describe('native backchannel HTTP admission', () => {
       method = 'POST',
       host = 'callback.test:4443',
       path = '/api/auth/backchannel/keycloak',
+      type: string | null = 'application/x-www-form-urlencoded',
     ) {
       return new Promise<{
         status: number | undefined;
@@ -55,7 +77,7 @@ describe('native backchannel HTTP admission', () => {
             path,
             headers: {
               host,
-              'content-type': 'application/x-www-form-urlencoded',
+              ...(type === null ? {} : { 'content-type': type }),
               'content-length': Buffer.byteLength(body),
               cookie: 'ignored=1',
               'x-forwarded-for': '1.2.3.4',
@@ -87,6 +109,26 @@ describe('native backchannel HTTP admission', () => {
         expect((await send(body)).status).toBe(400);
       expect((await send('logout_token=x', 'GET')).status).toBe(400);
       expect((await send('logout_token=x', 'POST', 'other.test')).status).toBe(400);
+      for (const type of [
+        null,
+        'application/json',
+        'text/plain',
+        'application/x-www-form-urlencoded; charset=iso-8859-1',
+      ])
+        expect(
+          (await send('logout_token=x', 'POST', 'callback.test:4443', undefined, type)).status,
+        ).toBe(400);
+      expect(
+        (
+          await send(
+            'logout_token=signed',
+            'POST',
+            'callback.test:4443',
+            undefined,
+            'application/x-www-form-urlencoded; charset=UTF-8',
+          )
+        ).status,
+      ).toBe(200);
       expect(diagnostics).toContainEqual({ category: 'refused' });
       expect(JSON.stringify(diagnostics)).not.toMatch(/signed|logout_token|other\.test/);
       expect(
@@ -99,7 +141,7 @@ describe('native backchannel HTTP admission', () => {
           )
         ).status,
       ).toBe(400);
-      expect(applied).toBe(2);
+      expect(applied).toBe(3);
     } finally {
       await handler.stop();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -158,12 +200,19 @@ it('keeps verification work owned after stop until it actually settles', async (
 
 it('keeps per-peer reservations for held bodies until their actual sockets retire', async () => {
   const admission = createBackchannelAdmission();
+  const verify = vi.fn(async () => ({
+    issuer: 'issuer',
+    sid: 'sid',
+    subject: null,
+    jti: 'jti',
+    fingerprint: 'digest',
+    issuedAt: 1,
+    expiresAt: 2,
+  }));
   const handler = createNativeBackchannel({
     authority: 'callback.test',
     admission,
-    verify: async () => {
-      throw new Error();
-    },
+    verify,
     apply: () => 'accepted',
   });
   let arrivals = 0;
@@ -196,26 +245,30 @@ it('keeps per-peer reservations for held bodies until their actual sockets retir
   second.on('error', () => {});
   first.write('logout_token=');
   second.write('logout_token=');
-  await both;
-  expect(admission.counts().active).toBe(2);
-  const refusal = await new Promise<number | undefined>((resolve, reject) => {
-    const third = request(
-      { ...options, headers: { ...options.headers, 'content-length': '14' } },
-      (res) => {
-        res.resume();
-        res.on('end', () => resolve(res.statusCode));
-      },
-    );
-    third.on('error', reject);
-    third.end('logout_token=x');
-  });
-  expect(refusal).toBe(400);
-  expect(admission.counts().active).toBe(2);
-  first.destroy();
-  second.destroy();
-  await handler.stop();
-  expect(admission.counts().active).toBe(0);
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  try {
+    await both;
+    expect(admission.counts().active).toBe(2);
+    const refusal = await new Promise<number | undefined>((resolve, reject) => {
+      const third = request(
+        { ...options, headers: { ...options.headers, 'content-length': '14' } },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode));
+        },
+      );
+      third.on('error', reject);
+      third.end('logout_token=x');
+    });
+    expect(refusal).toBe(400);
+    expect(verify).not.toHaveBeenCalled();
+    expect(admission.counts().active).toBe(2);
+  } finally {
+    first.destroy();
+    second.destroy();
+    await handler.stop();
+    expect(admission.counts().active).toBe(0);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 it('rejects an oversized streaming body without waiting for the sender to end', async () => {

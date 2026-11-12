@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildRealmPlan, buildRealmPreparation } from './development-realm-plan.mjs';
 import { reconcileRealm } from './development-realm-core.mjs';
+import { realmFailureNotice, RealmError } from './development-realm-errors.mjs';
 import { desired, manifest, secret, provider, providerTransport } from './development-realm-test-fixture.mjs';
 
 const backchannel = Object.freeze({ enabled: true, url: 'https://host.docker.internal:3443/api/auth/backchannel/keycloak' });
@@ -93,6 +94,14 @@ test('profile preparation cannot escape callback conflicts', async () => {
   await assert.rejects(buildRealmPreparation({ admin: fixture.admin, desired: clone(desired), manifest: clone(manifest),
     webSecret: secret, backchannel }), error => error.reason === 'backchannel_conflict');
   assert.deepEqual(fixture.writes, []);
+});
+
+test('offline default scope is unsupported by the ordinary token profile even with callback delivery disabled', async () => {
+  const fixture = provider();
+  web(fixture).defaultClientScopes.push('offline_access');
+  await assert.rejects(plan(fixture, { enabled: false }), error => error.reason === 'backchannel_conflict');
+  assert.deepEqual(fixture.writes, []);
+  assert.match(realmFailureNotice(new RealmError('plan', 'backchannel_conflict')), /offline_access is unsupported even when callbacks are disabled/);
 });
 
 test('independent callback readback rejects lost fields, unrelated damage and denied writes', async () => {

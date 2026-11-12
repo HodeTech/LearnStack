@@ -325,7 +325,9 @@ and 400 on invalid or failed processing, including capacity/key unavailability.
 
 Require signed sid on code and refresh grants and preserve it; never request or
 accept offline_access. Optional provider scope inventory is not native support.
-Index all credential/closing/invitation owners through actual retirement. Fence
+Index all credential/closing/invitation owners through actual retirement. A
+matching provider notification preserves a credential-free logout-return owner
+and its independent one-use proof until consumption or its existing expiry. Fence
 unknown-identity callbacks before custody/publication; retain capacity on abort.
 These process-local limits do not provide DDoS protection or distributed fairness.
 No unsafe clock change may re-admit a token whose replay record was retired.
@@ -334,7 +336,12 @@ its signal requests refusal/stop and never releases an owner before actual
 request/response retirement. Provider work retains its separate signal and join.
 
 The callback-only TLS bridge runs in the existing private runtime child, with
-fixed native TLS destination/name/trust and fixed callback Host. Register setup
+fixed native TLS destination/name/trust and fixed callback Host. Qualify server
+purpose, chain and hostname against the exact owned certificate/key/root bytes
+using an in-memory TLS handshake before binding or provider mutation. Own raw TCP
+sockets before TLS/HTTP through actual close; cap them at eight per bridge,
+separately from the unchanged HTTP request/peer reservations. Stop destroys and
+joins pre-handshake and partial HTTP sockets too. Register setup
 before async bind under irreversible startup-stop/parent-loss; join partial and
 actual request/listener work. No new worker, generic proxy or ordinary listener
 widening. Keycloak owns three named back-channel attributes and top-level
