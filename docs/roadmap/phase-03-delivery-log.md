@@ -452,7 +452,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-6 maintainer corrections second review and fixture reconciliation (2026-11-11)](#p03-6-maintainer-corrections-second-review-and-fixture-reconciliation-2026-11-11) — 19 lines
   - [P03-6 maintainer corrections qualification freeze (2026-11-11)](#p03-6-maintainer-corrections-qualification-freeze-2026-11-11) — 20 lines
   - [P03-6 merge and delivery closeout (2026-11-12)](#p03-6-merge-and-delivery-closeout-2026-11-12) — 105 lines
-- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 878 lines
+- [P03-7 — Back-channel session revocation](#p03-7--back-channel-session-revocation) — 906 lines
   - [P03-7 proposed back-channel logout package (2026-11-12)](#p03-7-proposed-back-channel-logout-package-2026-11-12) — 139 lines
   - [P03-7 proposal review round one and corrections (2026-11-12)](#p03-7-proposal-review-round-one-and-corrections-2026-11-12) — 23 lines
   - [P03-7 proposal review round two and lifecycle correction (2026-11-12)](#p03-7-proposal-review-round-two-and-lifecycle-correction-2026-11-12) — 30 lines
@@ -474,7 +474,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 PR corrections first review (2026-11-12)](#p03-7-pr-corrections-first-review-2026-11-12) — 17 lines
   - [P03-7 PR corrections second review and source freeze (2026-11-12)](#p03-7-pr-corrections-second-review-and-source-freeze-2026-11-12) — 28 lines
   - [P03-7 follow-up source review and correction package (2026-11-12)](#p03-7-follow-up-source-review-and-correction-package-2026-11-12) — 95 lines
-  - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 14 lines
+  - [P03-7 follow-up correction first review (2026-11-12)](#p03-7-follow-up-correction-first-review-2026-11-12) — 15 lines
+  - [P03-7 follow-up second review and final-source handoff (2026-11-12)](#p03-7-follow-up-second-review-and-final-source-handoff-2026-11-12) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21481,3 +21482,31 @@ their static approval is not new-source qualification.
 The full frontend guard rerun is still executing. Proceed to the second fresh
 review round on this correction and the Status fix; preserve the first failed
 guard separately rather than treating a later pass as erasing it.
+
+
+### P03-7 follow-up second review and final-source handoff (2026-11-12)
+
+Different fresh Sol runtime/security and Terra operations/source-graph reviewers
+inspect `f3da11d6..871fafb5`, including correction `ef60593c` and the first-round
+Status fix. Both approve without actionable findings. Both requested review
+rounds are complete. The shared immutable source fixture preserves all original
+assertions and the closed import model follows current helper bytes; neither
+change removes a control or enlarges a timing threshold.
+
+The complete guarded frontend rerun passes 130 discovered web files/4,197
+reported cases and twelve SDK files/228 reported cases: 4,425 total, zero
+skips/todos. Web wall time is 327.29 seconds and SDK 91.70 seconds. Its actual
+private-source wrapper finishes in 1.089 seconds within the unchanged setting.
+The real pinned Keycloak RP/admin logout regression passes, including active
+same-SSO peer closure, root return/cookie clearing, replay refusal and preservation
+of an independent provider session. The complete realm census passes 463 cases;
+Release build, native build, lint, typecheck, five corpus cases and documentation
+checks pass. Earlier failed fixture/guard runs remain separately retained.
+
+Freeze this reviewed runtime plus the documentation closeout for one PR update.
+[PR #44](https://github.com/HodeTech/LearnStack/pull/44) owns the fresh complete A,
+subsequent whole-run opposite-layout B and original ZIP integrity/result/layout
+reconciliation. Previous-source A/B receives no credit for this correction.
+Record the passing source-bound pair in PR proof without another source commit
+merely to narrate CI IDs. The packet remains in maintainer review handoff until
+merge; no new runtime/test/CI clock, permission or deployment policy is selected.
