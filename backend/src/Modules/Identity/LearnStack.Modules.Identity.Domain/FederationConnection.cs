@@ -385,5 +385,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     private static bool ValidActor(UserId actor) => StronglyTypedId.IsAssigned(actor) && actor.Value.Version == 7 && actor != UserId.SystemActor;
     private static bool ValidInstant(DateTimeOffset at) => at != default && at.Offset == TimeSpan.Zero
         && at <= DateTimeOffset.MaxValue - TestWindow - QuietWindow;
+    /// <summary>A lowercase hexadecimal SHA-256 digest, the only digest shape the registry stores.</summary>
+    public static bool IsDigest(string? value) => ValidDigest(value);
     internal static bool ValidDigest(string? value) => value is { Length: DigestLength } && value.All(char.IsAsciiHexDigitLower);
 }

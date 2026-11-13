@@ -39,6 +39,7 @@
   <ItemGroup>
     <Compile Include="../AuthorizationEvidenceProof/AuthorizationBarrierHarness.cs" Link="Database/AuthorizationBarrierHarness.cs" />
     <Compile Include="../Fixtures/InvitationEmailFixtureConfiguration.cs" Link="Fixtures/InvitationEmailFixtureConfiguration.cs" />
+    <Compile Include="../Fixtures/InMemoryFederationProvider.cs" Link="Fixtures/InMemoryFederationProvider.cs" />
   </ItemGroup>
 
   <ItemGroup>

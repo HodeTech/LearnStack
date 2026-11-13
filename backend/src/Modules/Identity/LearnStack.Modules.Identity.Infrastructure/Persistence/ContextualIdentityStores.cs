@@ -200,7 +200,9 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         || failure.SqlState is "23505" or "23514" or "23503"
             && failure.ConstraintName is { } name
             && (name.Contains("membership", StringComparison.Ordinal) || name.Contains("invitation", StringComparison.Ordinal) || name.Contains("roles", StringComparison.Ordinal)
-                || name.Contains("role_permission_grants", StringComparison.Ordinal));
+                || name.Contains("role_permission_grants", StringComparison.Ordinal) || name.Contains("federation_connections", StringComparison.Ordinal))
+        // ADR-0099's lifecycle guard raises check_violation without a constraint name.
+        || failure.SqlState == "23514" && failure.Where?.Contains("fn_identity_federation_connection_guard", StringComparison.Ordinal) == true;
 
     private IdentityFoundationStorageException Translate(PostgresException failure)
     {

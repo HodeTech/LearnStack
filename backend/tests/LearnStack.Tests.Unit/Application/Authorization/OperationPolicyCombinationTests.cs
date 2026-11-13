@@ -120,7 +120,7 @@ public sealed class OperationPolicyCombinationTests
         Assert.True(customization.Assignable);
         Assert.Equal(BoundedCustomFieldPermissions.Definition, customization.Definition);
         Assert.Equal(PermissionScope.Tenant, customization.Definition.Scope);
-        Assert.Equal(3, catalog.Definitions.Count(registration => !registration.Assignable));
+        Assert.Equal(4, catalog.Definitions.Count(registration => !registration.Assignable));
         Assert.All(BoundedTenancyAdministrationPermissions.Definitions, pair => Assert.Equal(PermissionScope.Tenant, pair.Scope));
         Assert.Equal(["tenancy.locale.write", "tenancy.organization.admin", "tenancy.setting.write"],
             BoundedTenancyAdministrationPermissions.Definitions.Select(pair => pair.Key).Order());
