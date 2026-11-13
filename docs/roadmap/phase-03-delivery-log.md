@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 817 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,033 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -494,6 +494,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 0 — Keycloak pin move (2026-11-13)](#p03-8-step-0--keycloak-pin-move-2026-11-13) — 129 lines
   - [P03-8 Step 0 review round 1 corrections (2026-11-13)](#p03-8-step-0-review-round-1-corrections-2026-11-13) — 48 lines
   - [P03-8 Step 2 — application and API (2026-11-13)](#p03-8-step-2--application-and-api-2026-11-13) — 162 lines
+  - [P03-8 Step 2 review round 1 corrections (2026-11-14)](#p03-8-step-2-review-round-1-corrections-2026-11-14) — 216 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22564,3 +22565,219 @@ companion list is empty. No transition record or policy was created or edited.
   build of the architecture assembly; the Release run is the recorded result.
 - The provider adapter, egress fetcher, realm reconciliation (Step 3) and the BFF,
   Studio and host binding (Step 4) remain; until Step 3 both ports report unavailable.
+
+### P03-8 Step 2 review round 1 corrections (2026-11-14)
+
+The first independent review of Step 2 (`8e435ed6`, `efbdb7f6`, `ba87f0bd`) raised five
+security findings (S-A–S-E) and thirteen corpus and test findings (C-1–C-13). Each was
+first checked against the code at `ba87f0bd`. This record covers the corrections and their
+local verification only. The second review round, hosted CI and qualification have not run.
+
+**Commits.** `4ec335bd` (`fix(identity): correct federation secrets, faults and disable
+writes`: product, tests, ADR-0099 Amendment 3, the Standard 04 and 21 counts and the
+catalogue rule) and this documentation commit.
+
+**Verdicts.**
+
+- **S-A — fixed.** Confirmed: a Configure of an existing OIDC connection admitted a null
+  secret for any configuration, and `FederationBrokerWrite` keeps the stored secret, so a
+  changed token endpoint would receive it. `BeginConfigureFederationCommand` now carries
+  `FreshSecret` (a flag, never the secret). Under the row lock, the Configure Begin handler
+  refuses `validation_failed` before any provider call unless a fresh secret is supplied or
+  the configuration is unchanged and the last readback confirmed that the provider holds it
+  (`KeepsStoredSecret`). The second condition also closes a gap the finding did not name:
+  after a refused or uncertain changed write, the row stores the new digest while the
+  provider still holds the old endpoint and its secret. The controller's shape check stays as
+  it was: a null secret is well-formed for an existing connection, and the handler decides.
+  The rule is
+  [ADR-0099 Amendment 3](../decisions/0099-confined-tenant-federation.md#amendment-3--a-changed-oidc-configuration-needs-a-fresh-secret-2026-11-14).
+  Proof: unit negative (changed token endpoint with a null secret is refused, the log holds
+  only the Begin, and no provider call is made), positive controls (an unchanged
+  configuration with a null secret applies and keeps the stored secret; a changed one with a
+  fresh secret applies), the unconfirmed-change case, and an HTTP negative.
+- **S-B — open (Step 4).** Confirmed: `POST identity/federation/test-results` uses the
+  tenant bearer scheme and the Studio policy, and `test-starts` returns `testAttemptId` to any
+  caller. ADR-0099 records the result only through the BFF's server-side callback. The
+  endpoint is unchanged. Requirement before Step 4: the test record must be invocable only
+  through a carrier that neither the browser nor a Studio bearer can present (for example a
+  BFF-only audience or client credential, decided by the maintainer), and the attempt
+  identifier must reach only that BFF owner. Until then, any holder of
+  `identity.federation.admin` can record a result for an attempt it started. The result
+  attests an admin-run check, not a security control (ADR-0099 § Lifecycle and test).
+- **S-C — fixed.** Confirmed: only `OperationCanceledException` was caught around provider
+  and egress I/O, so a provider fault after Begin skipped Complete. Every non-fatal exception
+  is now `IsProviderFault`: around the provider write and readback it is `uncertain`, and
+  Complete runs and records `apply`. A readback fault is `unavailable`, and an egress fault is
+  unavailable or `dependency_unavailable`. A client abort still propagates on reads and still
+  settles on the detached Complete for writes. Budgets are unchanged. Proof: the unit theory
+  (`HttpRequestException` and `ProviderException`) shows Begin, apply and
+  `complete:Uncertain` with the operation left pending; a readback fault yields
+  `Unavailable`; and the HTTP test shows a 200 `uncertain` with `configure` and `apply` MUST
+  rows.
+- **S-D — fixed.** Both raw reads were correct. They now interpolate
+  `FederationConnectionReads.LiveSql` (`state <> 'Deleted' AND deleted_at IS NULL`); the
+  public reader adds `AND state='Active'`. The architecture rule
+  `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate` pins the text, closes the census
+  of raw readers at these two and refuses a reader that spells its own predicate (planted
+  controls). HTTP: Draft, TestOpen, TestPassed, Disabled, entitlement off while Active, and
+  Active then deleted each read `federation: null`.
+- **S-E — recorded (residual).** The detail GET performs the provider readback, the reconcile
+  MUST write and, after C-1, a corrective disabling write. That conforms to ADR-0099 § Provider
+  writes, which reads back at each Studio detail load. Checked: the BFF session cookie
+  `__Host-ls-session` is `HttpOnly; Secure; SameSite=Lax`
+  (`frontend/apps/web/src/server/auth/cookies.ts`). Lax still sends it on a top-level
+  cross-site GET navigation. The backend accepts only a bearer the browser never holds, and no
+  BFF route calls this GET yet. Residual for Step 4: a Studio federation page that loads the
+  detail on a cross-site navigation would let another site trigger a readback and an
+  ADR-sanctioned disabling write. Step 4 decides whether the page refuses
+  `Sec-Fetch-Site: cross-site` before loading.
+- **C-1 — fixed.** Confirmed: a failed or expired test only moved the row to Draft and left
+  the broker enabled; its desired digest even stayed the enabled one, so no readback saw
+  drift. A failed test result, an expiry detected by Activate, the test record or the detail
+  reconcile, and a reconcile that finds drift or an enabled broker the state does not admit,
+  now begin a disabling full-state write in the same transaction. The receipt carries it as
+  `Corrective`, and the runner applies it and runs Complete (`apply`). The write is stored as
+  the Rename kind (current display name, `enabled=false`), the only state-preserving
+  full-state write the Step 1 storage guard admits from Draft. That guard admits Disable only
+  from Active to Disabled, so no migration was needed. Rename Begin already wrote the expired
+  state disabled. A detail load reconciles when the window has expired, when drift is new, or
+  when a rewritable broker (owned, mapper-free, conforming, same configuration) is enabled
+  while the connection is Draft or Disabled. A readback that holds the connection's state
+  writes nothing. Proof: unit runs over the real handlers show that a failed test leaves the
+  fake provider with `enabled=false` and no pending operation, that an expired TestOpen read
+  and an expired TestPassed Activate leave it disabled, that a readback within the window
+  writes nothing, and that drift is corrected once.
+- **C-2 — fixed.** Confirmed: the runner tests' harness re-implemented every handler.
+  `FederationHarness` now sends each request to the production `FederationCommandHandlers` or
+  `GetFederationConnectionQueryHandler`, with the real `FederationAuthorization`, catalogue
+  policy, `FederationConnection` and a stub store. The authorizer stub only answers whether
+  the actor is still an administrator. All 25 runner tests run on it, and the new
+  `FederationCommandHandlerTests` (17) cover Rotate (including the SAML refusal, the
+  entitlement check and a stale version), Delete, Enable, Rename (including expiry),
+  Activate (entitlement, expiry with its corrective write, drift), the test record
+  (a missing readback is 503 `dependency_unavailable` for a passed and a failed result, and
+  a failure begins the corrective write), Reconcile, and a refused, forbidden and superseded
+  Complete. HTTP: Rotate, Enable and Delete with their MUST rows. For all ten mutations, a
+  stale `If-Match` is 409 `concurrency_conflict`. A missing `If-Match` is 400
+  `validation_failed`, except Configure: on an existing connection that is a create, so it is
+  409 `concurrency_conflict`. Wrong states: Draft refuses Activate, Disable, Enable, Resume
+  and the test record; TestOpen refuses a second test start; a pending write refuses
+  Configure, Rotate, Rename and Delete. An unentitled protocol refuses the four gated
+  operations (Configure, Rotate secret, test start, Activate) with 403 `feature_disabled`.
+  Rename, Disable, Enable, Delete, Resume and the test record are deliberately not gated: a
+  lapse must not block stopping or removing a broker.
+- **C-3 — fixed.** An Active connection whose entitlement is off reads `federation: null`.
+  The row stays Active, and the option returns when the entitlement does (HTTP, through a
+  feature-flag gate on the real `IFeatureFlags`).
+- **C-4 — fixed (fixture defect).** Root cause: the Yoga seed host maps to Studio One
+  (`SeedData.Yoga.MapHostToDefaultOrganization = true`), so every request on it announces an
+  organization context. Role-release adoption (`OwnCapabilityProjection`: `roleWrite`
+  requires `facts.OrganizationId is null`) and every federation operation (orgless Tenant
+  write) are correctly refused there. Observed: on that host the Yoga administrator's
+  capabilities read `canAdoptRoleRelease=false` and `canReadOrganizationMembers=true`. This
+  is not a product defect. The test now adds an active orgless Yoga host
+  (`platform_host_to_tenant`, written as `learnstack_app`), and the Yoga administrator adopts
+  v1→v4 there through the real chain. The control shows both administrators configuring and
+  reading their own connections first. Then each administrator's credential on the other
+  tenant's host is refused 403/404 for the read, the test start and the rename. Both rows are
+  unchanged and no provider call is made. The organization-mapped refusal is asserted
+  separately as evidence of the cause.
+- **C-5 — fixed.** All ten mutation routes refuse a supplied `Idempotency-Key` with 400
+  `validation_failed`, and the provider and egress call counts are asserted zero after the
+  requests. The eleventh action, the detail GET, takes no body and is not a mutation.
+- **C-6 — fixed.** `PublicSignInHttpTests` asserts that `Cache-Control` is present before
+  `no-store`; so do the federation HTTP helper and its HEAD check.
+- **C-7 — fixed.** Standard 04: "All five rows". Standard 21: "exactly ten public operations
+  and five public GET wrappers" and "twelve-operation (ten public, two authenticated)". Both
+  were checked against `OpenApiContractTests` (`Operations`: five public paths with GET and
+  HEAD plus two authenticated GETs; `count != 12`) and the SDK census (`PUBLIC_GET_WRAPPERS`,
+  five). The catalogue's published totals move to 364 test methods and 274/158 Implemented
+  rules for this round's three tests and one rule.
+- **C-8 — recorded; Step 2 deviations corrected.** Behaviours the Step 2 record omitted:
+  - The test record returns 503 `dependency_unavailable` when its readback is unavailable,
+    for a failed result too. Nothing is recorded and the window stays open for a retry.
+  - When a failure's disabling write cannot start (its starting readback is unavailable), the
+    write settles `failed` with `provider_unavailable`, the row stays Draft, and the next
+    detail readback disables the broker. When the write itself is unavailable, it stays
+    pending until Resume after the quiet window. A window nobody returns to expires, and the
+    next readback or operation disables it.
+  - `ExpireIfDueAsync` runs a saved expiry inside Rename Begin, Activate, the test record and
+    Reconcile. Its MUST row carries that operation's name, and Activate and the test record
+    then answer 200 `expired`.
+  - A detail load does not read the provider while an operation is pending (`not_read`).
+  - Activate is entitlement-gated, in the runner and in the handler.
+  - Reconcile's policy is `identity.federation.reconcile`, and its audit operation is
+    `identity.federation.apply`.
+
+  Corrections to the Step 2 deviation list:
+  - "A failed or expired test does not disable the broker immediately" is withdrawn by C-1.
+  - "The HTTP two-tenant proof uses one federation administrator … (not investigated)" is
+    replaced by C-4.
+  - The 503 residual ("the cause was not traced") is replaced by C-11.
+  - The public reader's predicate is now the shared constant (S-D).
+  - The detail GET also performs the corrective write (C-1, S-E).
+  - The Step 2 runner tests did not run the handlers; they now do (C-2).
+- **C-9 — fixed.** `The_federation_handoff_guard_refuses_a_second_runner_call_a_sender_or_no_runner_call`
+  plants actions that call the runner once (sync and async: admitted) and that call it twice,
+  beside `ISender`, through `ISender` only, or not at all (each refused), and runs the actual
+  `FederationHandoff`.
+- **C-10 — fixed.** `IdentityMutationLockTests.A_later_transaction_of_the_same_scope_acquires_a_fresh_plan_and_one_transaction_admits_one_plan`:
+  after the first transaction commits, the same helper acquires a fresh plan in the second,
+  the first plan is no longer current, and a second acquisition in one transaction is refused,
+  even for an identical plan. A refusal marks the unit rollback-only for its life (ADR-0040),
+  so the refusals are proven in the last transaction.
+- **C-11 — fixed (fixture defect).** Traced: the production `PostgresAuditStore.WritePendingAsync`
+  returns at once when no MUST intent is pending. The fixture's `GatedAuditStore` threw on
+  every commit, including the audit-Off detail read that Activate and the test record send
+  first, so those paths answered 503 before their own refusal. Under ADR-0033 Amendment 1 the
+  refusal keeps its own status, so the production behaviour was already correct. The gate now
+  fails only when the request has a MUST intent pending. HTTP: under the failing store the
+  detail read answers 200, Activate and the test record keep 409 `business_rule_violation`,
+  and a test start that would succeed still fails closed with 503 and changes nothing.
+- **C-12 — open (maintainer).** The Step 2 commit trailers read `Claude Opus 5.5`, and the
+  brief named Haiku 5.5. History is not rewritten.
+- **C-13 — recorded (history defect).** The three Step 2 commits are not each green on the
+  architecture or integration suites (`efbdb7f6` alone lacks the catalogue rows `ba87f0bd`
+  added; see N-1). History is not rewritten.
+- **N-1 — open (found by this round, not fixed).** `AuthenticatedHttpSurfaceRuntimeTests`
+  fails 7 of 7 at this round's head. Its census approves 59 controller actions; the
+  application has 72, the 59 plus Step 2's eleven federation actions and the sign-in GET and
+  HEAD. Neither Step 2 nor this round touched the file, and the Step 2 record did not run the
+  class, so the failure dates from `efbdb7f6`. That is inferred from the count; `efbdb7f6` was
+  not rerun alone. The fix needs runner-aware dispatch observation (the federation controller
+  never calls `ISender` directly, and Configure reaches egress before its first Send). That is
+  beyond this round's findings and is left for the maintainer.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the working tree that
+became `4ec335bd`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
+| Unit (`LearnStack.Tests.Unit`, Release) | 3,956 passed, 0 failed, 0 skipped (Step 2: 3,935); `FederationOperationRunnerTests` 25, `FederationCommandHandlerTests` 17 |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 651 run: 649 passed, 2 failed (45 min). The two were `CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules` and `Every_Implemented_Rule_Names_A_Test_That_Exists`, for the catalogue's published totals (361→364 methods, 157→158 rules). Corrected before the commit; then `CorpusConsistencyTests`, `FederationApplicationConventionTests` and the hand-off guard reran 13 passed, 0 failed. The full suite was not rerun after that docs-only count fix |
+| Contract (`LearnStack.Tests.Contract`, Release) | 13 passed, 0 failed; the OpenAPI snapshot is unchanged (no HTTP contract change), so no regeneration, SDK or web check was needed |
+| Integration, Release: `FederationHttpTests` | 9 passed, 0 failed |
+| Integration, Release: `PublicSignInHttpTests` | 4 passed, 0 failed |
+| Integration, Release: `FederationConnectionStorageTests` | 133 passed, 0 failed |
+| Integration, Release: `IdentityMutationLockTests` | 15 passed, 0 failed |
+| Integration, Release: `OperationHttpClassificationTests` | 14 passed, 0 failed |
+| Integration, Release: `AuthenticatedHttpSurfaceRuntimeTests` | 0 passed, 7 failed (N-1; already failing since `efbdb7f6`) |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,716 fragment links resolve, roadmap structure conforms, 3 delivery-log indexes current |
+
+Not run: the full integration suite, hosted CI and the A/B layout qualification; the SDK and
+web checks (no generated or parsed contract changed).
+
+**Open items.**
+
+- S-B: the BFF-only carrier for the test record and the attempt identifier (Step 4).
+- H: the `federationAlias` self field stays open for a maintainer carrier decision before
+  Step 4, as the Step 2 record states.
+- C-12: the commit trailer model name.
+- C-13: Step 2's non-green intermediate commits.
+- N-1: `AuthenticatedHttpSurfaceRuntimeTests`.
+- Residual: an entitlement lapse leaves an Active connection's broker enabled. ADR-0099
+  disables it "by the next federation operation or readback", and this round adds no
+  lapse-driven disable (C-1 covers failure, expiry, drift and an enabled broker in Draft or
+  Disabled).
+- The second independent review round of Step 2.
