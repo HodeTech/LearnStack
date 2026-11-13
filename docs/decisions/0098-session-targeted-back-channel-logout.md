@@ -425,3 +425,7 @@ renewal and interruption recovery); `infra/compose/README.md` (owned launchers);
 Security 11's native back-channel section; Catalogue 21's BFF obligations; and
 the current Phase 03 Status and additive delivery record. Existing Accepted
 bodies and implementation-baseline descriptions remain historical.
+
+## Amendment 2 — Refused federation sessions end through OIDC end-session (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md)'s brokered-session host binding ends a refused provider session through OIDC end-session ([ADR-0070](0070-owned-tenant-bff-sessions.md)), not through this record's signed back-channel notification. The notification's semantics, replay and fence rules are unchanged. Sessions that share the provider session end together, as this record already states for shared SSO.

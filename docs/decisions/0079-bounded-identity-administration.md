@@ -695,3 +695,7 @@ owns metadata/key custody. No generic proxy or settings permission is added.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 6 — Federation administration (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md) accepts federation administration as a bounded P03-8 contract. It adds eleven operations under `identity.federation.*`, all MUST: `configure`, `rotate_secret`, `rename`, `enable`, `disable`, `delete`, `resume`, `activate`, `test_start`, `test_record` and `apply`. It adds one Tenant key, `identity.federation.admin`, in registry release v4 with the eleventh advisory capability `canManageFederation`, and an explicit v2→v4 adoption chain. The earlier statement that federation is deferred to P03-8 is resolved by this Amendment. The native dispatcher's bounds (16 KiB input, 256 KiB response, 10-second deadline) are unchanged.

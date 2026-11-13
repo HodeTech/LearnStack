@@ -440,3 +440,7 @@ This is a changed decision, not a factual erratum. The P02b-6 accepted package a
 current reconciliation guide/standards carry this bounded extension; historical
 bodies, metadata and receipts remain. P03-3 owns final-source genuine warm-provider,
 code/refresh, partial failure, unrelated-state and repeated no-write proofs.
+
+### Amendment 2 — Account clients disabled (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md) disables the `account` and `account-console` clients in the `learnstack` realm, and removes `manage-account` and `manage-account-links` from the default role and the development personas. That supersedes the three qualified stock-console detachments recorded in this record for the account client: the console is no longer offered, so the detachments no longer serve their purpose. Development credential recovery uses the reset flow. The change is realm configuration owned by P03-8 Step 3 and is qualified there; this record's history stays as written.

@@ -698,3 +698,7 @@ closing/index ownership retire only with actual settlement. This is no new
 durable session ledger, API JWT revocation or guaranteed provider retry. Existing
 expiry/refresh and ADR-0071 ordinary-read outcomes remain. This bounded extension
 leaves the historical body/metadata intact; Phase 03 owns delivery qualification.
+
+### Amendment 11 — Federation test purpose and host binding (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md) adds the `federation_test` callback purpose. It publishes no session, discards its tokens, and never reaches subject reservation or credential assignment. The admitted `purpose` set becomes `verify_email` and `federation_test`, with mutually exclusive callbacks. Brokered sessions are bound to their tenant's host at every credential publication: a brokered ID token's `idp` claim must equal the host tenant's Active connection alias, and on refresh its provenance must equal the value recorded at login. A definitive mismatch refuses the publication, ends the BFF session and ends the provider session through OIDC end-session. An indeterminate self-read outcome follows Amendment 1: it refuses the publication, keeps the existing session without advancing its idle deadline, and ends no provider session. Local sign-in follows the existing rules.

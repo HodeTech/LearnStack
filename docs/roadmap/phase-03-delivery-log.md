@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 224 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 248 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -487,6 +487,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 proposal review round two and corrections (2026-11-13)](#p03-8-proposal-review-round-two-and-corrections-2026-11-13) — 29 lines
     - [Maintainer decision recorded after round two (2026-11-13)](#maintainer-decision-recorded-after-round-two-2026-11-13) — 7 lines
   - [P03-8 proposal review round three verification and corrections (2026-11-13)](#p03-8-proposal-review-round-three-verification-and-corrections-2026-11-13) — 44 lines
+  - [P03-8 maintainer decisions, acceptance and carriers (2026-11-13)](#p03-8-maintainer-decisions-acceptance-and-carriers-2026-11-13) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21964,3 +21965,27 @@ Review remains static. Nothing here is provider, native, browser or hosted evide
 - Q1 self-unlink and recovery; Q2 Standard 11 egress exception or strict allow-list; Q3 Keycloak pin to 26.6.5 or later;
   Q4 non-goal wording. ADR-0099 stays Proposed until these are answered and the maintainer approves acceptance and
   implementation separately.
+
+### P03-8 maintainer decisions, acceptance and carriers (2026-11-13)
+
+The maintainer answered the four open decisions of ADR-0099 and asked for the documents to be brought to an approved state before implementation. The record
+is now Accepted. No implementation has started.
+
+- **Q1 — No self-unlink.** Stock Keycloak 26.6.2 requires `manage-account` for the linked-account `DELETE`. Recovery is Disable or Delete followed by account
+  review, owned by Phase 11's production runbook and P03-9's operator recovery.
+- **Q2 — Address-class exception to Standard 11 A10.** Accepted. Standard 11 receives a dated Amendment; private hosts stay on the operator allow-list.
+- **Q3 — Keycloak pin.** Moves from 26.6.2 to 26.6.5 as P03-8 Step 0, a separate infrastructure commit that needs approval.
+- **Q4 — Non-goals.** Trusted-email or per-domain trust, JIT provisioning, SCIM, claim mapping and SSO-only enforcement are explicit rejections of this record.
+
+Carriers that landed with acceptance: ADR-0099 status and body; dated Amendments to ADR-0004, 0021 (with an inline erratum for the SSO key names), 0052, 0064,
+0068, 0070, 0072, 0078, 0079, 0097 (new Amendments section) and 0098; the Standard 11 A10 Amendment; the Architecture 13 corrections for the admin-API statement
+and the `amr` statement; the Phase 03 G12 row and Status block; Phase 11 entries for the pin cadence, Keycloak egress policy and the delegation residual; the
+decisions index and the glossary.
+
+Carriers deliberately deferred to the implementation steps that introduce each rule, so that current standards keep describing behavior in force: Standards
+01, 04, 05, 07, 09, 10, 18, 19, 20 and 21; the Identity README, permissions, audit and providers specifications; the Keycloak README sections for the new
+client, flow, account clients, mapper and pin. Each commit that lands them cites ADR-0099.
+
+Approval is required, step by step, before any of: Step 0 (Keycloak pin), Step 1 (authority and storage), Step 2 (application and API), Step 3 (provider and
+realm), Step 4 (native and Studio). Each step, once approved, commits, passes two independent review rounds with verified fixes committed after each round, and
+then the next step waits for its own approval.

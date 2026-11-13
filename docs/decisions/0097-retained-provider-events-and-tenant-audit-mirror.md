@@ -444,3 +444,9 @@ controls rather than inventing duplicate names for those rules.
 - [Pinned pagination](https://github.com/keycloak/keycloak/blob/26.6.2/model/jpa/src/main/java/org/keycloak/events/jpa/JpaEventQuery.java#L144-L157)
 - [Pinned event catalogue](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventType.java)
 - [Pinned listener contract](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventListenerProvider.java)
+
+## Amendments
+
+### Amendment 1 — Federation client separation (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md) adds a separate confidential client, `learnstack-federation-admin`, for tenant-brokered identity-provider configuration. It does not reuse `learnstack-event-reader`, its secret or its role. The retained provider-event reader, its selected event kinds and the tenant-audit mirror are unchanged. ADR-0099 adds no event kind.

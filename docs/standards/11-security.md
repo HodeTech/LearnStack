@@ -99,6 +99,8 @@ Every security review walks this lens before signing off.
 | A09 Logging & Monitoring Failures | OpenTelemetry traces/metrics/logs; correlation id end-to-end; Sentry on errors; audit log on privileged ops ([18-audit-coverage.md](18-audit-coverage.md)). |
 | A10 SSRF | Outbound calls allow-listed; rendered outbound URLs validated against an allow-list before emit. |
 
+**Amendment (2026-11-13, [ADR-0099](../decisions/0099-confined-tenant-federation.md)).** The A10 row's allow-list rule has one bounded exception. Tenant-supplied identity-provider discovery, JWKS and SAML metadata URLs are fetched only by LearnStack's egress guard, which admits public, globally routable HTTPS hosts on port 443 with TLS verification, no redirects and no ambient credentials. Private, loopback, link-local and other reserved ranges, and non-443 ports, are admitted only through the operator allow-list `Federation:Egress:AllowedHosts`, which is composition configuration and never tenant input. Every other outbound call remains allow-listed as written above.
+
 ## Multi-Tenant + Organization Isolation Review Checklist
 
 A PR that touches tenant- or organization-owned data, queries, or background jobs must

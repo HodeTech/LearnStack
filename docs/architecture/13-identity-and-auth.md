@@ -422,7 +422,7 @@ Membership result and required audit; native session admission is a separate act
 
 Tenant-specific SSO is enabled per tenant. Implementation:
 
-- A tenant can configure a SAML or OIDC identity provider in Keycloak (admin API).
+- A tenant configures a SAML or OIDC identity provider through a LearnStack-owned, confined adapter; the tenant never edits the shared realm broker directly ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
 - The tenant's public site shows "Sign in with {tenant}" on the login page.
 - Users authenticating through a broker land in the LearnStack realm. Broker
   authentication or email equality alone grants no LearnStack membership, role or
@@ -433,8 +433,7 @@ This does not require LearnStack code changes per tenant; it is a configuration 
 
 The UI needs a confined runtime adapter: tenant ownership of broker resources,
 write-only secrets, bounded metadata/discovery egress, trusted verification/MFA,
-test/activate/rollback and last-login recovery. G12 owns those decisions and their
-real two-tenant provider proof; a realm-level Admin API credential is not tenant
+test/activate/rollback and last-login recovery. [ADR-0099](../decisions/0099-confined-tenant-federation.md) owns those decisions and their real two-tenant provider proof; a realm-level Admin API credential is not tenant
 authority.
 
 ## MFA
@@ -445,7 +444,7 @@ MFA is a Keycloak responsibility. Enforced for:
 - Tenant admin accounts (configurable, defaults to mandatory).
 - Other roles (tenant choice).
 
-LearnStack reads the `amr` claim to know whether MFA was used; sensitive operations can require a recent-MFA assertion.
+LearnStack does not read the `amr` claim today, and the access-token profile admits no assurance claim. A future MFA-gated operation needs an accepted decision that names its claim and source. Brokered sign-ins carry no LearnStack MFA assurance ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
 
 ## Logout
 

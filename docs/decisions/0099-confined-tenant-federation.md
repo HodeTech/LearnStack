@@ -2,9 +2,11 @@
 
 ## Status
 
-Proposed — 2026-11-13, revised after three review rounds. Acceptance, implementation
-and qualification are separate records. This proposal changes no runtime behavior,
-realm, client, Keycloak pin, Standard or Accepted ADR.
+Accepted — 2026-11-13, after three review rounds and the maintainer's answers to the
+four open decisions (Q1–Q4 under [Implementation Notes](#implementation-notes)).
+Acceptance fixes the contract, its decisions and the carriers that land with it. It does
+not start implementation. Each of the four steps, including the Keycloak pin move, needs
+its own maintainer approval, and implementation and qualification are separate records.
 
 **Date:** 2026-11-13
 **Deciders:** @cemil
@@ -33,7 +35,7 @@ owns the four implementation steps and their proof.
   CVE-2026-15573 (authorization bypass through unnormalized URI matching), CVE-2026-15572
   and CVE-2026-16102 (dynamic client registration), CVE-2026-16100 (metric cardinality) and
   CVE-2026-16071 (LDAP user search). This record's contract is written for 26.6.5 or later;
-  the pin decision is open ([Implementation Notes](#implementation-notes)).
+  the pin move is P03-8 Step 0 ([Implementation Notes](#implementation-notes)).
 - Keycloak 26.6.2's JSON `import-config` fetches any supplied `fromUrl` through its HTTP
   client with no address check
   ([source](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/IdentityProvidersResource.java)).
@@ -268,8 +270,7 @@ Realm reconciliation owns these, and the Step 3 tests assert them:
   `manage-account-links` are removed from the default role and from the development personas.
   Password change, profile editing and the linked-accounts API then leave the console, and
   credential recovery uses the reset flow. This retires the development account-console
-  self-service capability. [Decision Q1](#implementation-notes) decides whether a narrow
-  self-unlink path comes back.
+  self-service capability. No self-unlink path exists in this contract (Decision Q1).
 - On `learnstack-web`, a user-session-note mapper maps the `identity_provider` note to the
   `idp` ID-token claim. Enablement of any broker requires a readback of this mapper.
 
@@ -297,12 +298,11 @@ Keycloak is never handed a URL to fetch during configuration.
 - The guard runs at Configure, test start and Activate. It applies to every authorization,
   token, JWKS, UserInfo and SAML SSO endpoint, because real IdPs span hosts. The adapter writes
   explicit endpoints, not a discovery URL.
-- **Standard 11 exception (open, Q2).** The OWASP A10 row requires allow-listed outbound calls.
+- **Standard 11 exception (accepted, Q2).** The OWASP A10 row requires allow-listed outbound calls.
   Tenant-supplied public IdP hosts cannot be enumerated by operators without contradicting
   self-service. This record therefore proposes a bounded exception: address-class checks for
   tenant-supplied public hosts, TLS and no redirects; private hosts only through the operator
-  allow-list. The exception is recorded as a dated Amendment to Standard 11 at acceptance if
-  the maintainer approves it.
+  allow-list. The exception is recorded as a dated Amendment to Standard 11 at acceptance.
 - Keycloak itself still contacts the validated token, JWKS and UserInfo endpoints at sign-in,
   and the mandatory test sends the client secret to the configured token endpoint. A later DNS
   change is a residual risk that LearnStack cannot close from outside the provider. Network
@@ -335,8 +335,8 @@ Keycloak is never handed a URL to fetch during configuration.
   credential and OTP required actions remain available to a fresh session, so the controller can
   add local credentials. The host binding below confines LearnStack sessions, not Keycloak's
   actions. A person with memberships in several tenants should link only an IdP whose controller
-  they trust with all of them. Studio, the runbook and the confirm-link copy say so. Recovery is
-  Decision Q1.
+  they trust with all of them. Studio, the runbook and the confirm-link copy say so. A linked
+  person cannot unlink their own account; recovery is account review (Decision Q1).
 - **Onboarding.** SSO is a sign-in convenience for an account that already exists. A new person
   registers locally, verifies the address when the invitation requires it, and then links SSO.
   Brokered sign-in creates no Keycloak account. A person with a verified Keycloak account but no
@@ -344,8 +344,8 @@ Keycloak is never handed a URL to fetch during configuration.
   exactly as on a first local entry.
 - **Not provided.** A trusted-email or per-domain setting, just-in-time provisioning, SCIM,
   claim-to-role mapping and SSO-only enforcement. Each would need its own decision for
-  cross-tenant or authority reasons. [Decision Q4](#implementation-notes) decides how the corpus
-  records them.
+  cross-tenant or authority reasons. They are recorded as explicit rejections of this record; a
+  future request needs its own ADR and an owning phase (Decision Q4).
 - **MFA.** A brokered sign-in carries no LearnStack MFA assurance. No mapper imports `acr` or
   `amr`, linking requires the account's own OTP, and the tenant IdP's MFA is neither verified nor
   attested. [Architecture 13](../architecture/13-identity-and-auth.md)'s statement that LearnStack
@@ -426,14 +426,15 @@ outside this contract.
 - **Entitlement lapse** refuses sessions at once, through the host binding, and hides the public
   option. The provider broker is disabled by the next federation operation or readback. Until then it
   is inert for sessions. A linked account's owner can still sign in through it and link or act within
-  Keycloak's rules; this residual is accepted and tied to Q1.
+  Keycloak's rules. This residual is accepted, and it follows from the absence of self-unlink
+  (Decision Q1).
 - **Expired windows.** A TestOpen or TestPassed broker left enabled past its window is inert for
   sessions and is disabled at the next operation or readback.
 - **Last-login recovery.** Local credentials are untouched, and no SSO-only enforcement exists. Disable
   and Delete stop brokering and end brokered sessions. They do not revert credentials or OTP added
   through a brokered session. Account review (credentials, sessions, owner notice) is a Phase 11 runbook
-  item and a P03-9 operator recovery step, not an automatic rollback. Q1 decides whether a user can
-  unlink their own account.
+  item and a P03-9 operator recovery step, not an automatic rollback. A user cannot unlink their own
+  account (Decision Q1).
 
 ### Provider writes: serialization, readback and the bounded residual
 
@@ -575,53 +576,78 @@ product copy.
 ### Neutral
 
 - No Hub crossing, no new cross-module mechanism and no new Keycloak SDK.
-- Production IdP provisioning, network egress policy, MFA enforcement and the Keycloak pin qualification stay in Phase 11, with the
-  pin decision recorded below.
+- Production IdP provisioning, network egress policy and MFA enforcement stay in Phase 11. The move to 26.6.5
+  is P03-8 Step 0 (Decision Q3).
 - Tenant offboarding removes the connection and broker inside P03-10's tenant-erasure inventory. Until then, Disable, Delete and
   P03-9's sweep apply.
 
 ## Implementation Notes
 
-**Open decisions for the maintainer (not yet decided).**
+**Decisions recorded at acceptance.**
 
-- **Q1 — Self-unlink and recovery.** Stock Keycloak 26.6.2 offers no narrow self-unlink: the account `DELETE` needs `manage-account`.
-  Options: (A) no self-unlink; recovery through the tenant's Disable or Delete and the account-review runbook (recommended for P03-8);
-  (B) a LearnStack-mediated unlink on the owner's own re-authentication, which needs `manage-users` on the federation client, so the
-  adapter gains realm-wide user authority; (C) defer to a Keycloak extension decision owned by Phase 11.
-- **Q2 — Egress and Standard 11.** Option (A): record the address-class exception to A10 for tenant-supplied public hosts, with a
-  dated Standard 11 Amendment (recommended). Option (B): strict operator allow-list per tenant host, which removes self-service.
-- **Q3 — Keycloak pin.** Move 26.6.2 to 26.6.5 (recommended, before Step 3) as a separate infrastructure change with dev-realm import and
-  warm-upgrade verification, or accept the advisories listed above until P03-8 ships.
-- **Q4 — Non-goals.** Record trusted-email, per-domain, just-in-time provisioning, SCIM, claim mapping and SSO-only enforcement as explicit
-  rejections in this record (recommended), or assign each to a named phase.
+- **Q1 — No self-unlink.** Stock Keycloak 26.6.2 requires `manage-account` for the linked-account
+  `DELETE`, and no narrow role exists. A linked person cannot remove their own link. Recovery is the
+  tenant's Disable or Delete, which stops brokering and ends brokered sessions, followed by an account
+  review: credentials, OTP, sessions and owner notice. That review is a Phase 11 production runbook item
+  and a P03-9 operator recovery step. LearnStack-mediated unlink (which would need `manage-users` on the
+  federation client, giving the adapter realm-wide user authority) is not chosen. A Keycloak extension
+  remains a Phase 11 decision.
+- **Q2 — Address-class exception to Standard 11 A10.** Tenant-supplied public IdP hosts are admitted by
+  the address-class guard, with TLS and no redirects. Private hosts are admitted only through the operator
+  allow-list. Standard 11 receives a dated Amendment at acceptance.
+- **Q3 — Keycloak pin.** The pin moves from 26.6.2 to 26.6.5 as P03-8 Step 0: a separate infrastructure
+  commit with dev-realm fresh import and warm-upgrade verification. It needs implementation approval like
+  every step.
+- **Q4 — Non-goals.** Trusted-email or per-domain trust, just-in-time provisioning, SCIM, claim-to-role
+  mapping and SSO-only enforcement are explicit rejections of this record. A future request needs its own
+  ADR and an owning phase.
 
-**At acceptance:** record G12 and its decisions; append dated Amendments to ADR-0004, 0021, 0052, 0064, 0068, 0070, 0072, 0078, 0079, 0093,
-0097 and 0098 where their Accepted text changes. ADR-0068 must record the account-client disablement, which supersedes its three detachments
-for that client. ADR-0098's host-check and end-session interplay is analysed in the ADR-0070 Amendment. Reconcile Architecture 13 (direct
-admin API statement, MFA, the `amr` correction, the public read), Standards 01, 04, 05, 07, 09, 10, 11, 18, 19, 20 and 21, the Identity README,
-permissions, audit and providers specifications, the Keycloak README, the Phase 03 and Phase 11 documents, the glossary and the skills.
-Phase 11 gains explicit entries for Keycloak network egress policy, the Keycloak pin and advisory qualification, and the Q1 decision if (B) or
-(C) is chosen.
+**Carriers that land at acceptance.**
 
-**Steps.**
+- Dated Amendments to ADR-0004, ADR-0021 (with an inline erratum beside the `sso.saml.enabled` snippet),
+  ADR-0052, ADR-0064, ADR-0068, ADR-0070, ADR-0072, ADR-0078, ADR-0079, ADR-0097 and ADR-0098. Each names the
+  statement it changes. Accepted bodies are not rewritten. ADR-0093 is unchanged.
+- Standard 11: a dated Amendment for the A10 exception (Q2).
+- Architecture 13: the statement that LearnStack reads `amr` is corrected to current behavior, and the
+  admin-API statement points to this record.
+- Phase 03: G12 is Accepted and the Status block records it. Phase 11 gains entries for Keycloak egress
+  policy, advisory review and the delegation residual.
+- The decisions index and the glossary.
 
-1. **Step 1 — authority and storage.** Registry v4 with `canManageFederation`, across the domain, migration, SDK and OpenAPI contracts and the BFF
-   strict parsers, with the explicit v2→v4 adoption chain. The `federation_connections` aggregate, migration, RLS, census and `learnstack_app`
-   proof.
-2. **Step 2 — application and API.** The Begin, apply and Complete service, the commands and queries over a fake provider port, the entitlement
-   gate, the audit catalogue and matrix, the HTTP and OpenAPI census, the public sign-in read, and the `federationAlias` field on the self contract.
-   Unit, architecture and database proof.
-3. **Step 3 — provider and realm.** The egress fetcher, the Keycloak adapter, realm reconciliation (client, flow, `idp_link`, account clients, mapper)
-   with its zero-write rerun, and real two-tenant OIDC and SAML brokers. Negatives: linking with and without the owner's credentials, confinement, egress
-   refusals, secret refusal, attribute injection, account console and deprecated builder refusal, reset-link resumption, delayed-request serialization
-   and drift detection with a controlled proxy, orphan handling, and mapper readback. Requires the Keycloak pin decided by Q3.
-4. **Step 4 — native and Studio.** The BFF hint, the `federation_test` owner with mutually exclusive callback purposes, the host binding at every publication path,
-   the Studio page, SDK and native operations, i18n, accessibility, and end-to-end proof. Then full qualification, document reconciliation and the PR.
+**Carriers that land with their implementation steps.** Each commit cites ADR-0099.
+
+- Standards 01, 04, 05, 07, 09, 10, 18, 19, 20 and 21, including the canonical names of new architecture tests.
+- The Identity README, permissions, audit and providers specifications, the Keycloak README (client, flow,
+  account-client, mapper and pin sections), and the workflow skills each step uses.
+
+These documents describe rules in force. Writing them before the code that introduces the surface would make
+current documents describe behavior that does not exist yet.
+
+**Steps.** Each step needs its own approval. Each commits, passes two independent review rounds with verified
+fixes committed after each round, and then the next step starts.
+
+0. **Step 0 — Keycloak pin.** 26.6.2 to 26.6.5. Dev-realm fresh import and warm upgrade verified, existing
+   tests green, and the advisory note recorded.
+1. **Step 1 — authority and storage.** Registry v4 with `canManageFederation` across the domain, the migration,
+   the SDK and OpenAPI contracts and the BFF strict parsers, with the explicit v2→v4 adoption chain. The
+   `federation_connections` aggregate, migration, RLS, census and `learnstack_app` proof.
+2. **Step 2 — application and API.** The Begin, apply and Complete service; commands and queries over a fake
+   provider port; the entitlement gate; the audit catalogue and matrix; the HTTP and OpenAPI census, including
+   the public sign-in read and the `federationAlias` self field. Unit, architecture and database proof.
+3. **Step 3 — provider and realm.** The egress fetcher, the Keycloak adapter, and realm reconciliation (client,
+   flow, `idp_link`, account clients, mapper) with a zero-write rerun. Real two-tenant OIDC and SAML brokers with
+   negatives for: linking with and without the owner's credentials; confinement; egress refusals; secret refusal;
+   attribute injection; account-console and deprecated-builder refusal; reset-link resumption; delayed-request
+   serialization and drift detection through a controlled proxy; orphan handling; and mapper readback. Requires
+   Step 0.
+4. **Step 4 — native and Studio.** The BFF hint; the `federation_test` owner with mutually exclusive callback
+   purposes; the host binding at every publication path; the Studio page; SDK and native operations; i18n;
+   accessibility; end-to-end proof; full qualification; the carriers listed above; and the PR.
 
 ## Architecture Tests
 
 - Existing Identity, permission, audit, RLS, endpoint-census, public-surface, SDK, native and BFF obligations extend to the new subjects with dirty controls.
-  None is relaxed. Canonical names for the new obligations are assigned in Standard 21 at acceptance.
+  None is relaxed. Canonical names for the new obligations are assigned in Standard 21 with the step that introduces them.
 - New obligations: the adapter admits only the enumerated calls and aliases; no other code holds a federation client; the egress fetcher is the only
   tenant-URL fetcher; no `fromUrl`; fixed-profile key-set equality; no secret in any audit, log, DTO, persisted column or idempotency fingerprint
   (no fingerprint is taken for these mutations); the issuer or entity identifier cannot change in place.

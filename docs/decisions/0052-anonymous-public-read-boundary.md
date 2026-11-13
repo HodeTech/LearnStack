@@ -443,3 +443,7 @@ The original body, metadata and all earlier amendments remain verbatim. Updated
 acceptance carriers are this amendment, ADR-0040's own amendment and Standards 11;
 ADR-0064 and the package own the full register. P02b-5 owns implementation and
 real authenticated-path proofs; this disclosure claims no runtime delivery.
+
+## Amendment 16 — Anonymous federation sign-in read (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md) adds one anonymous, host-bound, read-only, `no-store` operation, `GET` and `HEAD /api/v1/public/sign-in`, owned by the Identity module. It returns the host's Active federation alias and display name, or null. It is audit Off, because it is anonymous and carries no personal data. The operation enters the public-surface census when it is implemented, in Standard 04's table, the public-surface marker tests and the OpenAPI/SDK snapshot. No other public operation changes.

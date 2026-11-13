@@ -284,10 +284,9 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   platform-admin / Hub-operator roles, refresh-token rotation. See
   [11-security.md](../standards/11-security.md). LearnStack does not implement any of
   these; configuration is reviewed in Keycloak.
-- Keycloak security baseline and pin, owned with ADR-0099's advisory baseline: move the
-  pinned line to 26.6.5 or later (advisories fixed there include the SAML federation
-  advisories CVE-2026-16443 and CVE-2026-16442), qualify dev-realm import and warm
-  upgrade on the new pin, and record the advisory review for each future pin.
+- Keycloak advisory review and pin cadence for both realms. The move from 26.6.2 to
+  26.6.5 is P03-8 Step 0 under [ADR-0099](../decisions/0099-confined-tenant-federation.md#advisory-baseline-of-the-pin);
+  this phase owns the recurring review of each later pin.
 - Keycloak network egress policy for the identity provider process, covering the
   outbound endpoints a tenant's brokered IdP can cause Keycloak to fetch (token, JWKS,
   UserInfo, SAML SSO). Required deployment control under
