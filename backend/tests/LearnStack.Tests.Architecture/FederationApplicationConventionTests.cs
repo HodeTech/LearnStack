@@ -95,6 +95,57 @@ public sealed class FederationApplicationConventionTests
         }
     }
 
+    /// <summary>The two raw SQL readers of the registry; neither can use the EF <c>Live</c> helper (Step 2 review S-D).</summary>
+    private static readonly string[] RawLiveReaders =
+    [
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/FederationConnectionStore.cs",
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/PublicSignInReader.cs",
+    ];
+
+    [Fact]
+    public void Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate()
+    {
+        // Pinned text: a change here is a deliberate tombstone-semantics change, made once for both raw readers.
+        FederationConnectionReads.LiveSql.Should().Be("state <> 'Deleted' AND deleted_at IS NULL");
+        var sources = Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToDictionary(path => Path.GetRelativePath(SourceScan.SourceRoot, path).Replace(Path.DirectorySeparatorChar, '/'), File.ReadAllText);
+        RawLiveOffenders(sources).Should().BeEmpty(
+            "Fix: every raw SELECT from federation_connections interpolates FederationConnectionReads.LiveSql and spells no tombstone predicate of its own");
+        sources.Keys.Where(path => sources[path].Contains("FROM public.federation_connections", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal).Should().Equal(RawLiveReaders, "the census of raw registry readers is closed");
+    }
+
+    [Fact]
+    public void The_raw_live_predicate_detector_refuses_a_reader_with_its_own_predicate()
+    {
+        const string Shared = "WHERE tenant_id=@tenant AND {FederationConnectionReads.LiveSql}";
+        var clean = new Dictionary<string, string>
+        {
+            [RawLiveReaders[0]] = "SELECT id FROM public.federation_connections " + Shared + " FOR NO KEY UPDATE",
+            [RawLiveReaders[1]] = "SELECT alias FROM public.federation_connections " + Shared + " AND state='Active'",
+        };
+        RawLiveOffenders(clean).Should().BeEmpty();
+        var own = new Dictionary<string, string>(clean)
+        {
+            [RawLiveReaders[1]] = "SELECT alias FROM public.federation_connections WHERE tenant_id=@tenant AND state='Active' AND deleted_at IS NULL",
+        };
+        RawLiveOffenders(own).Should().Equal(RawLiveReaders[1]);
+        var both = new Dictionary<string, string>(clean)
+        {
+            [RawLiveReaders[0]] = clean[RawLiveReaders[0]] + " AND deleted_at IS NULL",
+        };
+        RawLiveOffenders(both).Should().Equal(RawLiveReaders[0]);
+    }
+
+    private static List<string> RawLiveOffenders(IReadOnlyDictionary<string, string> sources) =>
+        [.. sources.Where(pair => pair.Value.Contains("FROM public.federation_connections", StringComparison.Ordinal)
+                && (!pair.Value.Contains("{FederationConnectionReads.LiveSql}", StringComparison.Ordinal)
+                    || pair.Value.Contains("deleted_at", StringComparison.Ordinal)
+                    || pair.Value.Contains("'Deleted'", StringComparison.Ordinal)))
+            .Select(pair => pair.Key).Order(StringComparer.Ordinal)];
+
     private static List<string> PortOffenders(IReadOnlyDictionary<string, string> sources) =>
         [.. sources.Where(pair => PortTokens.Any(token => pair.Value.Contains(token, StringComparison.Ordinal))
                 && !AllowedPortSources.Contains(pair.Key, StringComparer.Ordinal))

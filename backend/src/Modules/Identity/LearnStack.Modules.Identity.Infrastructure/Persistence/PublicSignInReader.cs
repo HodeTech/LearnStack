@@ -14,9 +14,9 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// </summary>
 public sealed class PublicSignInReader(ITenantContext context, IUnitOfWork unit) : IPublicSignInReader
 {
-    private const string Sql = """
+    private const string Sql = $"""
         SELECT alias,display_name,protocol FROM public.federation_connections
-        WHERE tenant_id=@tenant AND state='Active' AND deleted_at IS NULL
+        WHERE tenant_id=@tenant AND {FederationConnectionReads.LiveSql} AND state='Active'
         """;
 
     public async Task<PublicSignInOption?> ReadActiveAsync(CancellationToken cancellationToken)

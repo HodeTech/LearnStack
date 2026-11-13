@@ -104,6 +104,44 @@ public sealed partial class IdentityMutationLockTests(SchemaFixture schema)
         (await HeldAsync(unit, IdentityAdvisoryLockKey.ForUser(User))).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// ADR-0099's runner sends Begin and Complete as two transactions in one request scope (Step 2 review C-10): the
+    /// later transaction acquires a fresh plan on the same helper, the earlier plan is no longer current, and a second
+    /// acquisition inside one transaction is refused even for an identical plan.
+    /// </summary>
+    [Fact]
+    public async Task A_later_transaction_of_the_same_scope_acquires_a_fresh_plan_and_one_transaction_admits_one_plan()
+    {
+        await using var source = ApplicationDataSource.Build(_schema.Postgres.AppConnectionString);
+        await using var unit = Unit(source);
+        var locks = new IdentityMutationLocks(unit);
+        var begin = new IdentityMutationLockPlan([], Tenant, IdentityTenantLockMode.Shared);
+        await using (var first = await unit.BeginTransactionAsync())
+        {
+            await unit.SetProvisioningTenantContextAsync(Tenant);
+            await locks.AcquireAsync(begin);
+            locks.RequireCurrent(begin);
+            await first.CompleteAsync();
+        }
+        (await HeldAsync(unit, IdentityAdvisoryLockKey.ForTenant(Tenant))).Should().BeEmpty();
+
+        // A refusal marks the unit rollback-only for its life (ADR-0040), so every refusal is proven in the last transaction.
+        await using var second = await unit.BeginTransactionAsync();
+        await unit.SetProvisioningTenantContextAsync(Tenant);
+        var complete = new IdentityMutationLockPlan([User], Tenant, IdentityTenantLockMode.Shared);
+        await locks.AcquireAsync(complete);
+        locks.RequireCurrent(complete);
+        (await HeldAsync(unit, IdentityAdvisoryLockKey.ForTenant(Tenant))).Should().Equal("ShareLock");
+        (await HeldAsync(unit, IdentityAdvisoryLockKey.ForUser(User))).Should().Equal("ExclusiveLock");
+        var stale = () => locks.RequireCurrent(begin);
+        stale.Should().Throw<IdentityMutationLockException>("the earlier transaction's plan ended with its COMMIT");
+        await FluentActions.Awaiting(() => locks.AcquireAsync(new([User], Tenant, IdentityTenantLockMode.Shared)))
+            .Should().ThrowAsync<IdentityMutationLockException>("one transaction admits one plan, even an identical one");
+        unit.IsRollbackOnly.Should().BeTrue();
+        await second.FailAsync();
+        (await HeldAsync(unit, IdentityAdvisoryLockKey.ForTenant(Tenant))).Should().BeEmpty();
+    }
+
     private static NpgsqlUnitOfWork Unit(NpgsqlDataSource source) => new(source, NullLogger<NpgsqlUnitOfWork>.Instance);
 
     private static async Task SqlAsync(NpgsqlUnitOfWork unit, string sql)

@@ -26,7 +26,8 @@ public sealed class PublicSignInHttpTests(PublicReadFixture fixture)
         using var request = new HttpRequestMessage(new HttpMethod(method), Path);
         using var response = await client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        response.Headers.CacheControl?.NoStore.Should().BeTrue();
+        response.Headers.CacheControl.Should().NotBeNull("an absent header must not pass the no-store check");
+        response.Headers.CacheControl!.NoStore.Should().BeTrue();
         var body = await response.Content.ReadAsStringAsync();
         if (method == "HEAD") body.Should().BeEmpty();
         else JsonDocument.Parse(body).RootElement.GetProperty("code").GetString().Should().Be(code);
@@ -40,7 +41,8 @@ public sealed class PublicSignInHttpTests(PublicReadFixture fixture)
             using var client = fixture.ClientFor(tenant.Host);
             using var response = await client.GetAsync(Path);
             response.StatusCode.Should().Be(HttpStatusCode.OK);
-            response.Headers.CacheControl?.NoStore.Should().BeTrue();
+            response.Headers.CacheControl.Should().NotBeNull("an absent header must not pass the no-store check");
+            response.Headers.CacheControl!.NoStore.Should().BeTrue();
             response.Headers.ETag.Should().BeNull();
             var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
             body.EnumerateObject().Select(property => property.Name).Should().Equal("federation");

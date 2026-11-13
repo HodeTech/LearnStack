@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**361 test methods run in
+**364 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**273 rules in this catalogue are Implemented, and 157 of them are in that assembly.**
+**274 rules in this catalogue are Implemented, and 158 of them are in that assembly.**
 The other 116 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -6003,8 +6003,8 @@ of structural detection.
 #### `PublicSurface_Contract_Matches_Served_OpenApi`
 
 - **Asserts:** production composition and committed snapshot have the same document
-  after object-key normalization, preserving array order; exactly eight public
-  operations and four public GET wrappers exist, alongside exact delivered
+  after object-key normalization, preserving array order; exactly ten public
+  operations and five public GET wrappers exist, alongside exact delivered
   authenticated/administration/retained-consent operation and SDK method censuses.
   Public, AccountSite and administration callers remain separate and closed.
   Drift and policy-breaking fixtures fail the pinned diff/generation checks.
@@ -6016,7 +6016,7 @@ of structural detection.
   [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md).
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); ten-operation, disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); twelve-operation (ten public, two authenticated), disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Extension boundary:** ADR-0096 acceptance does not establish delivery of its
   admission extension. The original Implemented status above describes its
   recorded baseline; [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns
@@ -7542,7 +7542,9 @@ controller and the public census with the Identity-owned sign-in read). The
   `FederationOperationRunner` (never `ISender` or a port); the runner is not a MediatR
   handler and sends its steps through `ISender`. The authenticated HTTP census
   additionally requires each federation action to call exactly one runner operation
-  and no `ISender`.
+  and no `ISender`; planted actions that call the runner twice, beside `ISender` or not
+  at all fail that hand-off guard
+  (`AuthenticatedHttpSurfaceTests.The_federation_handoff_guard_refuses_a_second_runner_call_a_sender_or_no_runner_call`).
 - **Source:** [ADR-0099 § Intent-first operations](../decisions/0099-confined-tenant-federation.md#intent-first-operations).
 - **Type:** reflection with planted sender- and port-holding controllers. **Kind:** structural.
 - **Status:** **Implemented** (`FederationApplicationConventionTests`).
@@ -7560,3 +7562,18 @@ controller and the public census with the Identity-owned sign-in read). The
 - **Status:** **Implemented** (`FederationApplicationConventionTests`).
 - **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
 - **Phase:** 03 (P03-8 Step 2).
+
+#### `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate`
+
+- **Asserts:** `FederationConnectionReads.LiveSql` is exactly
+  `state <> 'Deleted' AND deleted_at IS NULL`; the census of production sources that
+  select from `federation_connections` is exactly `FederationConnectionStore` and
+  `PublicSignInReader`; and each interpolates that constant and spells no tombstone
+  predicate of its own, so the two raw reads cannot drift from each other or from the EF
+  `Live` filter silently.
+- **Source:** [ADR-0099 Amendment 1](../decisions/0099-confined-tenant-federation.md#amendment-1--step-1-storage-deviations-2026-11-13)
+  (the tombstone) and the P03-8 Step 2 review round 1 (S-D).
+- **Type:** source scan with planted own-predicate controls. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2, review round 1).

@@ -286,7 +286,7 @@ The set is this table and nothing else:
 | `GetPublicLessonQuery` | GET, HEAD | Eligible public-parent content, audit Off and READ ONLY | P02d-4 Step 3 |
 | `GetPublicSignInQuery` | GET, HEAD | Host tenant's Active, entitled federation alias and display name or null, owned by Identity; LearnStack database only, `no-store`, audit Off and READ ONLY ([ADR-0099](../decisions/0099-confined-tenant-federation.md#sign-in-exposure), [ADR-0052 Amendment 16](../decisions/0052-anonymous-public-read-boundary.md)) | P03-8 Step 2 |
 
-All four rows are production requests with explicit GET/HEAD endpoints.
+All five rows are production requests with explicit GET/HEAD endpoints.
 `PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
 ([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) now guard

@@ -145,7 +145,7 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
             if (Current(connection, request.ExpectedVersion) is { } refused) return Result<FederationOperationReceipt>.Fail(refused);
             if (!await EntitledAsync(FederationMapping.Map(connection!.Protocol), cancellationToken)) return Refuse<FederationOperationReceipt>("lockey_feature_disabled");
             if (await ExpireIfDueAsync(connection, now, actor, cancellationToken))
-                return Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, FederationResultKind.Expired));
+                return await DisableBrokerAsync(connection, FederationResultKind.Expired, now, actor, cancellationToken);
             if (connection.State == FederationConnectionState.TestPassed && !connection.HasPendingOperation
                 && IsNewDrift(connection, request.ProviderDigest))
                 return await DriftAsync(connection, request.ProviderDigest, now, actor, cancellationToken);
@@ -162,14 +162,15 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
             // An indeterminate readback records nothing; the window stays open for a retry inside it.
             if (request.ProviderDigest is not { } observed) return Refuse<FederationOperationReceipt>("lockey_dependency_unavailable");
             if (await ExpireIfDueAsync(connection!, now, actor, cancellationToken))
-                return Result.Ok(new FederationOperationReceipt(connection!.Id.Value, connection.Version, FederationResultKind.Expired));
+                return await DisableBrokerAsync(connection!, FederationResultKind.Expired, now, actor, cancellationToken);
             if (connection!.State == FederationConnectionState.TestOpen && !connection.HasPendingOperation && IsNewDrift(connection, observed))
                 return await DriftAsync(connection, observed, now, actor, cancellationToken);
             var recorded = connection.RecordTestResult(FederationTestAttemptId.From(request.TestAttemptId), request.Passed, now, actor);
             if (recorded.IsFailure) return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
             await store.UpdateAsync(connection, cancellationToken);
-            return Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version,
-                request.Passed ? FederationResultKind.Recorded : FederationResultKind.Failed));
+            // ADR-0099 § Lifecycle and test: a failure disables the broker and returns the connection to Draft.
+            return request.Passed ? Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, FederationResultKind.Recorded))
+                : await DisableBrokerAsync(connection, FederationResultKind.Failed, now, actor, cancellationToken);
         }, cancellationToken);
 
     public Task<Result<FederationOperationReceipt>> Handle(ReconcileFederationConnectionCommand request, CancellationToken cancellationToken) =>
@@ -177,11 +178,18 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
         {
             if (Current(connection, request.ExpectedVersion) is { } refused) return Result<FederationOperationReceipt>.Fail(refused);
             if (connection!.HasPendingOperation) return Refuse<FederationOperationReceipt>("lockey_concurrency_conflict");
-            if (await ExpireIfDueAsync(connection, now, actor, cancellationToken))
-                return Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, FederationResultKind.Expired));
-            if (request.ProviderDigest is { } observed && IsNewDrift(connection, observed))
-                return await DriftAsync(connection, observed, now, actor, cancellationToken);
-            return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
+            var expired = await ExpireIfDueAsync(connection, now, actor, cancellationToken);
+            var drift = request.ProviderDigest is { } observed && IsNewDrift(connection, observed);
+            if (drift && connection.RecordDrift(request.ProviderDigest!, now, actor).IsFailure)
+                return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
+            if (drift) await store.UpdateAsync(connection, cancellationToken);
+            // ADR-0099 § Provider writes: a readback that does not hold the connection's state (an expired window, drift,
+            // a broker left enabled) makes the corrective full-state write with the broker disabled the next operation.
+            var corrective = !string.Equals(request.ProviderDigest, StateDigest(connection), StringComparison.Ordinal);
+            if (!expired && !drift && !corrective) return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
+            var outcome = expired ? FederationResultKind.Expired : drift ? FederationResultKind.Drift : FederationResultKind.Recorded;
+            return corrective ? await DisableBrokerAsync(connection, outcome, now, actor, cancellationToken)
+                : Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, outcome, drift ? FederationFailureReason.Drift : null));
         }, cancellationToken);
 
     /// <summary>The provider holds a definitive state other than the desired one, not already recorded.</summary>
@@ -220,6 +228,10 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
         if (connection.Protocol != protocol || request.DisplayName is { } supplied
             && (!FederationDisplayName.TryNormalize(supplied, out var same) || same != connection.DisplayName))
             return Refuse<FederationPendingOperation>("lockey_business_rule_violation");
+        // ADR-0099 Amendment 3: a write without a secret keeps the provider's stored one, so it is admitted only for the
+        // configuration the provider was last confirmed to hold. Anything else could send that secret to a changed endpoint.
+        if (protocol == FederationProtocol.Oidc && !request.FreshSecret && !KeepsStoredSecret(connection, request.ConfigurationDigest))
+            return Refuse<FederationPendingOperation>("lockey_validation_failed");
         var configured = FederationDigest.Desired(connection.Alias, request.Protocol, request.ConfigurationDigest, connection.DisplayName, false);
         var begun = connection.BeginConfigure(FederationOperationKind.Configure, new FederationConfiguration(source, request.IssuerOrEntityId,
             request.ClientId, request.ConfigurationDigest, configured), NewOperation(), now, actor);
@@ -267,6 +279,38 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
         await store.UpdateAsync(connection, cancellationToken);
         return Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, FederationResultKind.Drift, FederationFailureReason.Drift));
     }
+
+    /// <summary>
+    /// The disabling write after a failed or expired test, or a readback that does not hold the connection's state:
+    /// a full-state rewrite of the current display name with the enabled value the state admits, begun here as its own
+    /// saved step and applied by the runner. It is stored as the Rename kind, the state-preserving full-state write the
+    /// storage guard admits from Draft (ADR-0099 § Lifecycle and test, § Provider writes).
+    /// </summary>
+    private async Task<Result<FederationOperationReceipt>> DisableBrokerAsync(FederationConnection connection, FederationResultKind outcome,
+        DateTimeOffset now, UserId actor, CancellationToken cancellationToken)
+    {
+        if (connection.BeginRename(connection.DisplayName, StateDigest(connection), NewOperation(), now, actor).IsFailure)
+            return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
+        await store.UpdateAsync(connection, cancellationToken);
+        return Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, outcome,
+            outcome == FederationResultKind.Drift ? FederationFailureReason.Drift : null, Pending(connection)));
+    }
+
+    /// <summary>The desired digest of the connection as its state stands: the broker is enabled only where the state admits it.</summary>
+    private static string StateDigest(FederationConnection connection) =>
+        Desired(connection, connection.DisplayName, FederationMapping.ProviderEnabled(connection.State));
+
+    /// <summary>
+    /// The stored secret is kept only for an unchanged configuration whose last readback confirmed the provider holds it;
+    /// after a refused, uncertain or drifted write the stored secret may belong to another endpoint (ADR-0099 Amendment 3).
+    /// </summary>
+    private static bool KeepsStoredSecret(FederationConnection connection, string configurationDigest) =>
+        string.Equals(configurationDigest, connection.ConfigurationDigest, StringComparison.Ordinal)
+        && connection.LastProviderDigest is { } confirmed
+        && (string.Equals(confirmed, FederationDigest.Desired(connection.Alias, FederationMapping.Map(connection.Protocol), configurationDigest,
+                connection.DisplayName, false), StringComparison.Ordinal)
+            || string.Equals(confirmed, FederationDigest.Desired(connection.Alias, FederationMapping.Map(connection.Protocol), configurationDigest,
+                connection.DisplayName, true), StringComparison.Ordinal));
 
     /// <summary>An expired TestOpen or TestPassed window returns to Draft as its own saved step.</summary>
     private async Task<bool> ExpireIfDueAsync(FederationConnection connection, DateTimeOffset now, UserId actor, CancellationToken cancellationToken)

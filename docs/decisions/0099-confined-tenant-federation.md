@@ -742,3 +742,25 @@ amendment retargets Q3 and Step 0 to 26.7.5 and records why.
   [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-step-0--keycloak-pin-move-2026-11-13).
 - Source citations elsewhere in this record stay on the 26.6.2 tag: they are the evidence
   examined at acceptance. Later steps cite 26.7.5 sources for the behaviour they rely on.
+
+### Amendment 3 — A changed OIDC configuration needs a fresh secret (2026-11-14)
+
+The Step 2 review (S-A) found a gap this record does not address. The Decision is unchanged.
+
+- **Rule.** A protocol-relevant change to an existing OIDC connection requires a fresh client
+  secret, because the stored secret must not be sent to a changed token endpoint. A full-state
+  write without a secret keeps the provider's stored one, and Keycloak sends that secret to the
+  token endpoint during the test login.
+- **What counts as changed.** The stored secret is kept only when the new configuration digest
+  equals the stored one and the last readback confirmed that the provider holds that
+  configuration. Otherwise a fresh secret is required. That covers a changed issuer endpoint,
+  client identifier or client-authentication method, and an earlier changed write that was
+  refused, uncertain or drifted. In those cases the stored secret may belong to the previous
+  endpoint.
+- **Where it is enforced.** The Configure Begin handler enforces it under the connection's row
+  lock and refuses with the closed `validation_failed`, so no provider call is made. The Begin
+  request carries only whether the write has a fresh secret, never the secret itself. An
+  unchanged configuration without a secret is still a Configure that keeps the stored secret.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record and
+its proof.

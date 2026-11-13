@@ -20,6 +20,12 @@ public interface IFederationConnectionStore : IAggregateWriteStore<FederationCon
 /// <summary>The single tombstone filter every federation read uses (Step 1 review S7).</summary>
 public static class FederationConnectionReads
 {
+    /// <summary>
+    /// The same predicate for the two raw SQL reads (the store's row lock and the public sign-in reader), which cannot
+    /// use <see cref="Live"/>. An architecture convention pins this text and requires both readers to interpolate it.
+    /// </summary>
+    public const string LiveSql = "state <> 'Deleted' AND deleted_at IS NULL";
+
     public static IQueryable<FederationConnection> Live(this IQueryable<FederationConnection> source)
     {
         ArgumentNullException.ThrowIfNull(source);

@@ -18,18 +18,18 @@ namespace LearnStack.Tests.Unit.Identity;
 /// <summary>
 /// ADR-0099 § Intent-first operations over the in-memory provider: Begin, provider I/O with no transaction open,
 /// then Complete, each as its own top-level request; budgets; and every domain path the runner drives. The sender
-/// is a domain-backed harness: each request runs the aggregate's own method inside a simulated transaction.
+/// dispatches to the real handlers through <see cref="FederationHarness"/>, inside a simulated transaction.
 /// </summary>
 public sealed class FederationOperationRunnerTests
 {
-    private static readonly UserId AdminA = UserId.From(Guid.CreateVersion7());
-    private static readonly UserId AdminB = UserId.From(Guid.CreateVersion7());
-    private static readonly TenantId Tenant = TenantId.From(Guid.CreateVersion7());
+    private static readonly UserId AdminA = FederationHarness.AdminA;
+    private static readonly UserId AdminB = FederationHarness.AdminB;
+    private static readonly TenantId Tenant = FederationHarness.Tenant;
 
     [Fact]
     public async Task Configure_runs_Begin_then_the_provider_with_no_transaction_open_then_Complete()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         harness.Provider.BeforeCall = _ => Assert.False(harness.TransactionOpen, "no database transaction is open across provider I/O");
         var run = await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         Assert.True(run.IsSuccess);
@@ -46,7 +46,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task An_over_budget_provider_call_is_uncertain_and_stays_pending()
     {
-        var harness = new Harness(provider: TimeSpan.FromMilliseconds(50));
+        using var harness = new FederationHarness(provider: TimeSpan.FromMilliseconds(50));
         harness.Provider.OnApply = async (_, token) => { await Task.Delay(Timeout.Infinite, token); return null; };
         var run = await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         Assert.Equal(FederationResultKind.Uncertain, run.Value!.Receipt.Outcome);
@@ -57,7 +57,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task A_client_abort_during_the_provider_call_still_settles_on_the_detached_Complete()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         using var request = new CancellationTokenSource();
         harness.Provider.OnApply = async (_, token) => { await request.CancelAsync(); await Task.Delay(Timeout.Infinite, token); return null; };
         var run = await harness.Runner().ConfigureAsync(OidcInput(), null, request.Token);
@@ -68,7 +68,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task A_provider_refusal_settles_as_failed_and_clears_the_pending_operation()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Refused);
         var run = await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         Assert.Equal(FederationResultKind.Failed, run.Value!.Receipt.Outcome);
@@ -79,7 +79,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task A_readback_with_a_mapper_is_drift_and_returns_the_connection_to_Draft()
     {
-        var harness = await ActiveAsync();
+        using var harness = await ActiveAsync();
         harness.Provider.OnRead = (owner, _) =>
         {
             var broker = harness.Provider.Find(owner.Alias)!;
@@ -94,7 +94,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task Configure_test_activate_and_disable_walk_the_lifecycle_with_the_provider_enabled_only_while_admitted()
     {
-        var harness = await ActiveAsync();
+        using var harness = await ActiveAsync();
         Assert.Equal(FederationConnectionState.Active, harness.Connection!.State);
         Assert.True(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled);
         var disabled = await harness.Runner().DisableAsync(harness.Connection.Version, CancellationToken.None);
@@ -113,7 +113,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task A_test_start_returns_a_server_side_attempt_and_its_test_result_is_recorded_once()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         var started = await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
         Assert.Equal(FederationResultKind.Applied, started.Value!.Receipt.Outcome);
@@ -124,12 +124,86 @@ public sealed class FederationOperationRunnerTests
         var failed = await harness.Runner().RecordTestResultAsync(harness.Connection.Version, attempt, false, CancellationToken.None);
         Assert.Equal(FederationResultKind.Failed, failed.Value!.Receipt.Outcome);
         Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        // ADR-0099 § Lifecycle and test: a failure disables the broker, through its own provider write and Complete.
+        Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled);
+        Assert.False(harness.Connection.HasPendingOperation);
+        Assert.Equal(harness.Connection.DesiredDigest, harness.Connection.LastProviderDigest);
+        Assert.Equal(harness.Connection.Version, failed.Value.Receipt.Version);
+        Assert.Equal(["begin:RecordFederationTestResultCommand", "provider:read", "provider:apply", "provider:read", "complete:Applied"],
+            harness.Log.Skip(harness.Log.LastIndexOf("begin:RecordFederationTestResultCommand")));
+    }
+
+    [Fact]
+    public async Task An_expired_test_window_is_disabled_by_the_next_detail_readback()
+    {
+        using var harness = new FederationHarness();
+        await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
+        await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
+        Assert.True(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled);
+        harness.Clock.Advance(FederationConnection.TestWindow);
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
+        Assert.Null(detail.Value.Connection.Pending);
+        Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled);
+        Assert.Contains("complete:Applied", harness.Log);
+    }
+
+    [Fact]
+    public async Task An_expired_activation_window_is_disabled_by_Activate()
+    {
+        using var harness = new FederationHarness();
+        await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
+        var started = await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
+        await harness.Runner().RecordTestResultAsync(harness.Connection.Version, started.Value!.TestAttemptId!.Value, true, CancellationToken.None);
+        Assert.Equal(FederationConnectionState.TestPassed, harness.Connection.State);
+        harness.Clock.Advance(FederationConnection.ActivationWindow);
+        var activated = await harness.Runner().ActivateAsync(harness.Connection.Version, CancellationToken.None);
+        Assert.Equal(FederationResultKind.Expired, activated.Value!.Receipt.Outcome);
+        Assert.Equal(harness.Connection.Version, activated.Value.Receipt.Version);
+        Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled);
+    }
+
+    [Fact]
+    public async Task A_detail_readback_that_holds_the_connection_state_writes_nothing()
+    {
+        using var harness = new FederationHarness();
+        await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
+        await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
+        var version = harness.Connection.Version;
+        harness.Log.Clear();
+        // Inside the window the enabled broker is the connection's state: no reconcile, no provider write.
+        var open = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationProviderObservation.Matches, open.Value!.Provider);
+        Assert.Equal(["begin:GetFederationConnectionQuery", "provider:read"], harness.Log);
+        Assert.Equal(version, harness.Connection.Version);
+    }
+
+    [Fact]
+    public async Task A_failed_test_whose_disable_write_finds_the_provider_unavailable_is_disabled_at_the_next_readback()
+    {
+        using var harness = new FederationHarness();
+        await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
+        var started = await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
+        var reads = 0;
+        // The test result's own readback succeeds; the disable write's starting readback is unavailable.
+        harness.Provider.OnRead = (_, _) => Task.FromResult(++reads == 2 ? FederationBrokerReadback.Unavailable : null);
+        var failed = await harness.Runner().RecordTestResultAsync(harness.Connection.Version, started.Value!.TestAttemptId!.Value, false,
+            CancellationToken.None);
+        Assert.Equal(FederationResultKind.Failed, failed.Value!.Receipt.Outcome);
+        Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        Assert.False(harness.Connection.HasPendingOperation);
+        Assert.True(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled, "the disable write did not land");
+        harness.Provider.OnRead = null;
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
+        Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled, "a broker left enabled is disabled at the next readback");
     }
 
     [Fact]
     public async Task A_second_mutation_is_refused_while_an_operation_is_pending_and_Resume_waits_for_the_quiet_window()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Unavailable);
         await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         Assert.True(harness.Connection!.HasPendingOperation);
@@ -151,7 +225,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task An_interrupted_rotation_asks_for_a_resubmit_even_when_the_nonsecret_readback_matches()
     {
-        var harness = await ActiveAsync();
+        using var harness = await ActiveAsync();
         harness.Provider.OnApply = (write, _) =>
         {
             harness.Provider.Put(write.State.Owner.Alias, new(write.State, true));
@@ -170,7 +244,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task A_revoked_actor_Complete_leaves_the_operation_pending_and_another_administrator_settles_it()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         harness.Provider.OnApply = (write, _) =>
         {
             harness.Admins.Remove(AdminA);
@@ -189,7 +263,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task A_superseded_operation_identifier_changes_nothing()
     {
-        var harness = new Harness();
+        using var harness = new FederationHarness();
         await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         var version = harness.Connection!.Version;
         var stale = await harness.Sender.Send(new CompleteFederationOperationCommand(harness.Connection.Id.Value, Guid.CreateVersion7(),
@@ -201,7 +275,7 @@ public sealed class FederationOperationRunnerTests
     [Fact]
     public async Task An_unentitled_protocol_is_refused_before_egress_or_any_Begin()
     {
-        var harness = new Harness { Entitled = false };
+        using var harness = new FederationHarness { Entitled = false };
         var run = await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         Assert.Equal("feature_disabled", run.Error!.Code);
         Assert.Equal(0, harness.Egress.Calls);
@@ -209,9 +283,9 @@ public sealed class FederationOperationRunnerTests
     }
 
     [Fact]
-    public async Task A_definitive_detail_readback_drift_is_reconciled_once()
+    public async Task A_definitive_detail_readback_drift_is_reconciled_once_and_corrected_with_the_broker_disabled()
     {
-        var harness = await ActiveAsync();
+        using var harness = await ActiveAsync();
         var alias = harness.Connection!.Alias;
         var broker = harness.Provider.Find(alias)!;
         harness.Provider.Put(alias, broker with { State = broker.State with { DisplayName = "Tampered" } });
@@ -219,10 +293,15 @@ public sealed class FederationOperationRunnerTests
         Assert.Equal(FederationProviderObservation.Drift, detail.Value!.Provider);
         Assert.Equal(FederationConnectionStatus.Draft, detail.Value.Connection!.Status);
         Assert.Contains("begin:ReconcileFederationConnectionCommand", harness.Log);
+        // ADR-0099 § Provider writes: the corrective full-state write with the broker disabled follows the drift.
+        Assert.Equal(["provider:read", "provider:apply", "provider:read", "complete:Applied"],
+            harness.Log.SkipWhile(entry => entry != "begin:ReconcileFederationConnectionCommand").Skip(1).Take(4));
+        Assert.False(harness.Provider.Find(alias)!.State.Enabled);
+        Assert.Equal("Acme", harness.Provider.Find(alias)!.State.DisplayName);
         harness.Log.Clear();
         var again = await harness.Runner().ReadAsync(CancellationToken.None);
-        Assert.Equal(FederationProviderObservation.Drift, again.Value!.Provider);
-        Assert.DoesNotContain("begin:ReconcileFederationConnectionCommand", harness.Log);
+        Assert.Equal(FederationProviderObservation.Matches, again.Value!.Provider);
+        Assert.Equal(["begin:GetFederationConnectionQuery", "provider:read"], harness.Log);
     }
 
     [Fact]
@@ -236,8 +315,8 @@ public sealed class FederationOperationRunnerTests
         var egress = new UnconfiguredFederationEgressFetcher();
         Assert.Equal(FederationEgressStatus.Unavailable, (await egress.FetchOidcDiscoveryAsync(InMemoryFederationEgressFetcher.Discovery)).Status);
         Assert.Equal(FederationEgressStatus.Unavailable, (await egress.CheckEndpointAsync(InMemoryFederationEgressFetcher.Discovery)).Status);
-        var harness = new Harness();
-        var runner = new FederationOperationRunner(harness.Sender, provider, egress, harness.Features, harness.Context, new Ids(), harness.Clock,
+        using var harness = new FederationHarness();
+        var runner = new FederationOperationRunner(harness.Sender, provider, egress, harness.Features, harness.RunnerContext, new FederationHarness.Ids(), harness.Clock,
             FederationOperationBudgets.Default);
         var run = await runner.ConfigureAsync(OidcInput(), null, CancellationToken.None);
         Assert.Equal("dependency_unavailable", run.Error!.Code);
@@ -302,9 +381,9 @@ public sealed class FederationOperationRunnerTests
         Assert.DoesNotContain("s3cret", OidcInput().ToString(), StringComparison.Ordinal);
     }
 
-    private static async Task<Harness> ActiveAsync()
+    internal static async Task<FederationHarness> ActiveAsync(FederationHarness? existing = null)
     {
-        var harness = new Harness();
+        var harness = existing ?? new FederationHarness();
         await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
         var started = await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
         var passed = await harness.Runner().RecordTestResultAsync(harness.Connection.Version, started.Value!.TestAttemptId!.Value, true, CancellationToken.None);
@@ -324,222 +403,16 @@ public sealed class FederationOperationRunnerTests
             FederationOperationId.From(Guid.CreateVersion7()), at, AdminA).Value!;
     }
 
-    private static FederationOidcConfiguration OidcConfiguration() => new(InMemoryFederationEgressFetcher.Issuer, "client",
+    internal static FederationOidcConfiguration OidcConfiguration() => new(InMemoryFederationEgressFetcher.Issuer, "client",
         FederationClientAuthentication.ClientSecretBasic, new Uri(InMemoryFederationEgressFetcher.Issuer + "/protocol/openid-connect/auth"),
         new Uri(InMemoryFederationEgressFetcher.Issuer + "/protocol/openid-connect/token"),
         new Uri(InMemoryFederationEgressFetcher.Issuer + "/protocol/openid-connect/certs"),
         new Uri(InMemoryFederationEgressFetcher.Issuer + "/protocol/openid-connect/userinfo"));
 
-    private static FederationConfigureInput OidcInput()
+    internal static FederationConfigureInput OidcInput()
     {
         Assert.True(FederationClientSecret.TryCreate("s3cret-value", out var secret));
         return new(FederationBrokerProtocol.Oidc, "Acme", FederationSource.DiscoveryUrl, InMemoryFederationEgressFetcher.Discovery, null, null,
             null, null, null, null, [], "client", FederationClientAuthentication.ClientSecretBasic, secret);
-    }
-
-    private sealed class Ids : IGuidFactory
-    {
-        public Guid NewUuidV7() => Guid.CreateVersion7();
-        public Guid NewUuidV4() => Guid.NewGuid();
-    }
-
-    private sealed class MovableClock : IClock
-    {
-        private DateTimeOffset _now = new(2026, 11, 13, 9, 0, 0, TimeSpan.Zero);
-        public DateTimeOffset UtcNow => _now;
-        public void Advance(TimeSpan by) => _now += by;
-    }
-
-    private sealed class Context(Harness harness) : ITenantContext
-    {
-        public bool IsResolved => true;
-        public TenantId TenantId => Tenant;
-        public OrganizationId? OrganizationId => null;
-        public UserId? UserId => harness.Actor;
-        public string? CorrelationId => "federation-unit";
-        public string? ModuleName => "identity";
-    }
-
-    /// <summary>
-    /// A domain-backed sender: each request opens a simulated transaction, authorizes the current actor, runs the
-    /// aggregate's own method and "saves" each step. It mirrors the handlers' refusals, not their storage.
-    /// </summary>
-    private sealed class Harness
-    {
-        internal Harness(TimeSpan? provider = null)
-        {
-            Clock = new MovableClock();
-            Context = new Context(this);
-            Admins = [AdminA, AdminB];
-            Features = Substitute.For<IFeatureFlags>();
-            Features.IsEnabledAsync(Arg.Any<FeatureKey>(), Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(Entitled));
-            Sender = Substitute.For<ISender>();
-            Sender.Send(Arg.Any<IRequest<Result<FederationPendingOperation>>>(), Arg.Any<CancellationToken>())
-                .Returns(call => Task.FromResult(Run<FederationPendingOperation>(call.ArgAt<object>(0))));
-            Sender.Send(Arg.Any<IRequest<Result<FederationOperationReceipt>>>(), Arg.Any<CancellationToken>())
-                .Returns(call => Task.FromResult(Run<FederationOperationReceipt>(call.ArgAt<object>(0))));
-            Sender.Send(Arg.Any<IRequest<Result<FederationConnectionRead>>>(), Arg.Any<CancellationToken>())
-                .Returns(call => Task.FromResult(Run<FederationConnectionRead>(call.ArgAt<object>(0))));
-            ProviderBudget = provider ?? TimeSpan.FromSeconds(5);
-        }
-
-        internal InMemoryFederationProvider Provider { get; } = new();
-        internal InMemoryFederationEgressFetcher Egress { get; } = new();
-        internal IFeatureFlags Features { get; }
-        internal ISender Sender { get; }
-        internal MovableClock Clock { get; }
-        internal ITenantContext Context { get; }
-        internal HashSet<UserId> Admins { get; }
-        internal UserId Actor { get; set; } = AdminA;
-        internal bool Entitled { get; set; } = true;
-        internal bool TransactionOpen { get; private set; }
-        internal FederationConnection? Connection { get; private set; }
-        internal List<string> Log { get; } = [];
-        internal int SavesInLastRequest { get; private set; }
-        internal FederationBrokerWrite? LastWrite { get; set; }
-        private TimeSpan ProviderBudget { get; }
-
-        internal FederationOperationRunner Runner()
-        {
-            return new FederationOperationRunner(Sender, new Unwrapping(this), Egress, Features, Context, new Ids(), Clock,
-                FederationOperationBudgets.Default with { Provider = ProviderBudget, Complete = TimeSpan.FromSeconds(5), DatabaseStep = TimeSpan.FromSeconds(5) });
-        }
-
-        private Result<T> Run<T>(object request)
-        {
-            TransactionOpen = true;
-            SavesInLastRequest = 0;
-            try
-            {
-                Log.Add(request is CompleteFederationOperationCommand completing ? "complete:" + completing.Outcome : "begin:" + request.GetType().Name);
-                if (!Admins.Contains(Actor)) return Fail<T>("lockey_forbidden");
-                var now = Clock.UtcNow;
-                object? result = request switch
-                {
-                    BeginConfigureFederationCommand configure => Configure(configure, now),
-                    BeginRotateFederationSecretCommand rotate => Begin(rotate.ExpectedVersion, c => c.BeginConfigure(FederationOperationKind.RotateSecret,
-                        new FederationConfiguration(c.SourceKind, c.IssuerOrEntityId, c.ClientId, c.ConfigurationDigest, Desired(c, c.DisplayName, false)),
-                        NewOperation(), now, Actor)),
-                    BeginRenameFederationCommand rename => Begin(rename.ExpectedVersion, c => c.BeginRename(rename.DisplayName,
-                        Desired(c, rename.DisplayName, c.State is FederationConnectionState.TestOpen or FederationConnectionState.TestPassed or FederationConnectionState.Active),
-                        NewOperation(), now, Actor)),
-                    BeginFederationTestStartCommand start => Begin(start.ExpectedVersion, c => c.BeginTestStart(Desired(c, c.DisplayName, true), NewOperation(), now, Actor)),
-                    BeginDisableFederationCommand disable => Begin(disable.ExpectedVersion, c => c.BeginDisable(Desired(c, c.DisplayName, false), NewOperation(), now, Actor)),
-                    BeginDeleteFederationCommand delete => Begin(delete.ExpectedVersion, c => c.BeginDelete(FederationDigest.Absent, NewOperation(), now, Actor)),
-                    ResumeFederationOperationCommand resume => Connection is null || Connection.Version != resume.ExpectedVersion ? Fail<T>("lockey_concurrency_conflict")
-                        : !Connection.CanResume(now) ? Fail<T>("lockey_concurrency_conflict") : Result.Ok(Pending(Connection)),
-                    CompleteFederationOperationCommand complete => Complete(complete, now),
-                    EnableFederationCommand enable => Record(enable.ExpectedVersion, c => c.Enable(now, Actor)),
-                    ActivateFederationCommand activate => Activate(activate, now),
-                    RecordFederationTestResultCommand record => Record(record.ExpectedVersion, c =>
-                        c.RecordTestResult(FederationTestAttemptId.From(record.TestAttemptId), record.Passed, now, Actor), record.Passed ? FederationResultKind.Recorded : FederationResultKind.Failed),
-                    ReconcileFederationConnectionCommand reconcile => Record(reconcile.ExpectedVersion, c => c.RecordDrift(reconcile.ProviderDigest!, now, Actor), FederationResultKind.Drift),
-                    GetFederationConnectionQuery => Result.Ok(new FederationConnectionRead(Connection is null || Connection.State == FederationConnectionState.Deleted ? null : View(Connection))),
-                    _ => throw new InvalidOperationException(request.GetType().Name),
-                };
-                return (Result<T>)result!;
-            }
-            finally { TransactionOpen = false; }
-        }
-
-        private Result<FederationPendingOperation> Configure(BeginConfigureFederationCommand request, DateTimeOffset now)
-        {
-            if (Connection is null)
-            {
-                var id = FederationConnectionId.From(Guid.CreateVersion7());
-                var desired = FederationDigest.Desired(FederationConnection.DeriveAlias(id), request.Protocol, request.ConfigurationDigest, request.DisplayName!, false);
-                var created = FederationConnection.Create(id, Tenant, FederationProtocol.Oidc, request.DisplayName!, new FederationConfiguration(
-                    (FederationSourceKind)(int)request.Source, request.IssuerOrEntityId, request.ClientId, request.ConfigurationDigest, desired), NewOperation(), now, Actor);
-                if (created.IsFailure) return Fail<FederationPendingOperation>("lockey_business_rule_violation");
-                Connection = created.Value;
-                SavesInLastRequest++;
-                return Result.Ok(Pending(Connection!));
-            }
-            return Begin(request.ExpectedVersion ?? -1, c => c.BeginConfigure(FederationOperationKind.Configure, new FederationConfiguration(
-                (FederationSourceKind)(int)request.Source, request.IssuerOrEntityId, request.ClientId, request.ConfigurationDigest,
-                FederationDigest.Desired(c.Alias, request.Protocol, request.ConfigurationDigest, c.DisplayName, false)), NewOperation(), now, Actor));
-        }
-
-        private Result<FederationPendingOperation> Begin(long expected, Func<FederationConnection, Result<None>> act)
-        {
-            if (Connection is null) return Fail<FederationPendingOperation>("lockey_not_found");
-            if (Connection.Version != expected) return Fail<FederationPendingOperation>("lockey_concurrency_conflict");
-            var begun = act(Connection);
-            if (begun.IsFailure) return Fail<FederationPendingOperation>(Connection.HasPendingOperation ? "lockey_concurrency_conflict" : "lockey_business_rule_violation");
-            SavesInLastRequest++;
-            return Result.Ok(Pending(Connection));
-        }
-
-        private Result<FederationOperationReceipt> Complete(CompleteFederationOperationCommand request, DateTimeOffset now)
-        {
-            if (Connection is null || Connection.PendingOperationId?.Value != request.OperationId)
-                return Result.Ok(new FederationOperationReceipt(request.ConnectionId, Connection?.Version ?? 0, FederationResultKind.Superseded));
-            var outcome = (FederationOperationOutcome)(int)request.Outcome;
-            var attempt = request.TestAttemptId is { } value ? FederationTestAttemptId.From(value) : (FederationTestAttemptId?)null;
-            var completed = Connection.Complete(FederationOperationId.From(request.OperationId), outcome, request.ProviderDigest, attempt, now, Actor);
-            if (completed.IsFailure) return Fail<FederationOperationReceipt>("lockey_business_rule_violation");
-            SavesInLastRequest++;
-            if (outcome == FederationOperationOutcome.Failed && request.ProviderDigest is { } observed && Connection.State != FederationConnectionState.Deleted
-                && observed != Connection.DesiredDigest)
-            {
-                Assert.True(Connection.RecordDrift(observed, now, Actor).IsSuccess);
-                SavesInLastRequest++;
-                return Result.Ok(new FederationOperationReceipt(Connection.Id.Value, Connection.Version, FederationResultKind.Drift, FederationFailureReason.Drift));
-            }
-            return Result.Ok(new FederationOperationReceipt(Connection.Id.Value, Connection.Version, (FederationResultKind)(int)request.Outcome,
-                outcome == FederationOperationOutcome.Failed ? request.Reason : null));
-        }
-
-        private Result<FederationOperationReceipt> Activate(ActivateFederationCommand request, DateTimeOffset now)
-        {
-            if (Connection is null || Connection.Version != request.ExpectedVersion) return Fail<FederationOperationReceipt>("lockey_concurrency_conflict");
-            if (request.ProviderDigest != Connection.DesiredDigest)
-                return Record(request.ExpectedVersion, c => c.RecordDrift(request.ProviderDigest, now, Actor), FederationResultKind.Drift);
-            return Record(request.ExpectedVersion, c => c.Activate(request.ProviderDigest, now, Actor));
-        }
-
-        private Result<FederationOperationReceipt> Record(long expected, Func<FederationConnection, Result<None>> act,
-            FederationResultKind kind = FederationResultKind.Recorded)
-        {
-            if (Connection is null) return Fail<FederationOperationReceipt>("lockey_not_found");
-            if (Connection.Version != expected) return Fail<FederationOperationReceipt>("lockey_concurrency_conflict");
-            if (act(Connection).IsFailure) return Fail<FederationOperationReceipt>("lockey_business_rule_violation");
-            SavesInLastRequest++;
-            return Result.Ok(new FederationOperationReceipt(Connection.Id.Value, Connection.Version, kind));
-        }
-
-        private static FederationConnectionView View(FederationConnection c) => new(c.Id.Value, FederationBrokerProtocol.Oidc, c.Alias, c.DisplayName,
-            c.IssuerOrEntityId, (FederationConnectionStatus)(int)c.State, (FederationSource)(int)c.SourceKind, c.ClientId, c.ConfigurationRevision,
-            c.ConfigurationDigest, c.DesiredDigest, c.LastProviderDigest, c.PendingOperationKind is { } kind
-                ? new FederationPendingView((FederationPendingKind)(int)kind, c.PendingStartedAt!.Value, c.PendingQuietUntil!.Value) : null,
-            c.TestExpiresAt, c.Version);
-
-        private static FederationPendingOperation Pending(FederationConnection c) => new(c.Id.Value, c.PendingOperationId!.Value.Value,
-            (FederationPendingKind)(int)c.PendingOperationKind!.Value, FederationBrokerProtocol.Oidc, c.Alias, c.DisplayName,
-            c.State is FederationConnectionState.TestOpen or FederationConnectionState.TestPassed or FederationConnectionState.Active,
-            c.ConfigurationDigest, c.PendingDesiredDigest!, c.Version);
-
-        private static string Desired(FederationConnection c, string name, bool enabled) =>
-            FederationDigest.Desired(c.Alias, FederationBrokerProtocol.Oidc, c.ConfigurationDigest, name, enabled);
-
-        private static FederationOperationId NewOperation() => FederationOperationId.From(Guid.CreateVersion7());
-
-        private static Result<T> Fail<T>(string key) => Result<T>.Fail(new Error(LocalizedMessage.Of(key)));
-
-        /// <summary>Records the provider calls in the harness log and proves no transaction is open across them.</summary>
-        private sealed class Unwrapping(Harness harness) : IFederationProvider
-        {
-            public Task<FederationProviderResult> ApplyAsync(FederationBrokerWrite write, CancellationToken cancellationToken = default)
-            { Observe("apply"); harness.LastWrite = write; return harness.Provider.ApplyAsync(write, cancellationToken); }
-            public Task<FederationBrokerReadback> ReadAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default)
-            { Observe("read"); return harness.Provider.ReadAsync(owner, cancellationToken); }
-            public Task<FederationProviderResult> DeleteAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default)
-            { Observe("delete"); return harness.Provider.DeleteAsync(owner, cancellationToken); }
-            private void Observe(string call)
-            {
-                Assert.False(harness.TransactionOpen, "no database transaction is open across provider I/O");
-                harness.Log.Add("provider:" + call);
-            }
-        }
     }
 }

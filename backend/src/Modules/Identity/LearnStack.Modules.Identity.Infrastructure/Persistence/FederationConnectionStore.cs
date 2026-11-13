@@ -27,10 +27,10 @@ public sealed class FederationConnectionStore(IdentityDbContext db, IUnitOfWork 
         try
         {
             // Retained exclusion only; the tracked aggregate is materialized afterward by its own statement.
-            await using var command = new NpgsqlCommand("""
+            await using var command = new NpgsqlCommand($"""
                 SELECT public.fn_identity_assert_tenant_fence(@tenant,false);
                 SELECT id FROM public.federation_connections
-                WHERE tenant_id=@tenant AND state <> 'Deleted' AND deleted_at IS NULL FOR NO KEY UPDATE;
+                WHERE tenant_id=@tenant AND {FederationConnectionReads.LiveSql} FOR NO KEY UPDATE;
                 """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
             command.Parameters.AddWithValue("tenant", context.TenantId.Value);
             await command.ExecuteNonQueryAsync(cancellationToken);

@@ -55,8 +55,12 @@ public sealed record FederationPendingOperation(Guid ConnectionId, Guid Operatio
     public override string ToString() => nameof(FederationPendingOperation);
 }
 
+/// <summary>
+/// <paramref name="Corrective"/> is the disabling full-state write a failed or expired test, or a detail-load
+/// readback, began in the same transaction (ADR-0099 § Lifecycle and test); the runner applies and completes it.
+/// </summary>
 public sealed record FederationOperationReceipt(Guid ConnectionId, long Version, FederationResultKind Outcome,
-    FederationFailureReason? Reason = null)
+    FederationFailureReason? Reason = null, FederationPendingOperation? Corrective = null)
 {
     public override string ToString() => nameof(FederationOperationReceipt);
 }
@@ -64,9 +68,10 @@ public sealed record FederationOperationReceipt(Guid ConnectionId, long Version,
 /// <summary>
 /// First or later Configure Begin. The configuration is the egress-resolved, nonsecret digest and identifiers
 /// only; the secret and the full endpoint set stay in the runner's memory for the one provider write.
+/// <paramref name="FreshSecret"/> says only whether the write carries a new secret (ADR-0099 Amendment 3).
 /// </summary>
 public sealed record BeginConfigureFederationCommand(long? ExpectedVersion, FederationBrokerProtocol Protocol, string? DisplayName,
-    FederationSource Source, string IssuerOrEntityId, string? ClientId, string ConfigurationDigest)
+    FederationSource Source, string IssuerOrEntityId, string? ClientId, string ConfigurationDigest, bool FreshSecret)
     : IRequest<Result<FederationPendingOperation>>;
 
 public sealed record BeginRotateFederationSecretCommand(long ExpectedVersion) : IRequest<Result<FederationPendingOperation>>;
@@ -98,7 +103,10 @@ public sealed record RecordFederationTestResultCommand(long ExpectedVersion, Gui
     public override string ToString() => nameof(RecordFederationTestResultCommand);
 }
 
-/// <summary>A detail load's readback: records drift or an expired test window. No provider write.</summary>
+/// <summary>
+/// A detail load's readback: records drift or an expired test window and, when the provider does not hold the
+/// connection's state, begins the corrective disabling write the runner then applies (ADR-0099 § Provider writes).
+/// </summary>
 public sealed record ReconcileFederationConnectionCommand(long ExpectedVersion, string? ProviderDigest)
     : IRequest<Result<FederationOperationReceipt>>;
 

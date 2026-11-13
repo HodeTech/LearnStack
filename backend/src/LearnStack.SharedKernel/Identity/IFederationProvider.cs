@@ -111,7 +111,10 @@ internal sealed class FederationClientSecretRefusingConverter : JsonConverter<Fe
         throw new JsonException("A federation client secret is never serialized.");
 }
 
-/// <summary>One full desired-state write; a null secret keeps the provider's stored value.</summary>
+/// <summary>
+/// One full desired-state write; a null secret keeps the provider's stored value, which ADR-0099 Amendment 3 admits only
+/// for the configuration the provider was last confirmed to hold.
+/// </summary>
 public sealed record FederationBrokerWrite(FederationBrokerState State, FederationClientSecret? Secret)
 {
     public override string ToString() => nameof(FederationBrokerWrite);

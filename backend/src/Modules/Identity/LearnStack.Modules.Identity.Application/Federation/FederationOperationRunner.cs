@@ -65,7 +65,8 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         var configuration = resolved.Value!;
         var begun = await StepAsync(new BeginConfigureFederationCommand(expectedVersion, input.Protocol, input.DisplayName, input.Source,
             configuration is FederationOidcConfiguration oidc ? oidc.Issuer : ((FederationSamlConfiguration)configuration).EntityId,
-            (configuration as FederationOidcConfiguration)?.ClientId, FederationDigest.Configuration(configuration)), cancellationToken);
+            (configuration as FederationOidcConfiguration)?.ClientId, FederationDigest.Configuration(configuration), input.Secret is not null),
+            cancellationToken);
         return begun.IsFailure ? Result<FederationRun>.Fail(begun.Error!)
             : await ProviderThenCompleteAsync(begun.Value!, configuration, input.Secret, cancellationToken);
     }
@@ -110,7 +111,7 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         using (var budget = Budget(budgets.Provider, cancellationToken))
         {
             try { observed = FederationDigest.Readback(owner, await provider.ReadAsync(owner, budget.Token)); }
-            catch (OperationCanceledException) { observed = null; }
+            catch (Exception failure) when (IsProviderFault(failure)) { observed = null; }
         }
         if (observed is null) return await CompleteAsync(pending, FederationApplyOutcome.Uncertain, null, null, null);
         var matches = string.Equals(observed, pending.DesiredDigest, StringComparison.Ordinal);
@@ -140,8 +141,8 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             if (admitted is not null) return Fail<FederationRun>(admitted == FederationEgressStatus.Refused
                 ? "lockey_business_rule_violation" : "lockey_dependency_unavailable");
         }
-        var activated = await StepAsync(new ActivateFederationCommand(expectedVersion, observed), cancellationToken);
-        return activated.IsFailure ? Result<FederationRun>.Fail(activated.Error!) : Result.Ok(new FederationRun(activated.Value!));
+        return await SettleCorrectiveAsync(await StepAsync(new ActivateFederationCommand(expectedVersion, observed), cancellationToken),
+            cancellationToken);
     }
 
     /// <summary>Server-only test result: the BFF's callback reports the attempt it holds; the readback precedes the record.</summary>
@@ -149,13 +150,16 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
     {
         var observation = await ObserveAsync(expectedVersion, cancellationToken);
         if (observation.IsFailure) return Result<FederationRun>.Fail(observation.Error!);
-        var recorded = await StepAsync(new RecordFederationTestResultCommand(expectedVersion, attempt, passed, observation.Value.Observed), cancellationToken);
-        return recorded.IsFailure ? Result<FederationRun>.Fail(recorded.Error!) : Result.Ok(new FederationRun(recorded.Value!));
+        return await SettleCorrectiveAsync(await StepAsync(new RecordFederationTestResultCommand(expectedVersion, attempt, passed,
+            observation.Value.Observed), cancellationToken), cancellationToken);
     }
 
     /// <summary>
-    /// The Studio detail load: one database read, at most one provider readback under the request deadline, and a
-    /// recorded drift or expired window when the readback shows one. A pending operation is not read through.
+    /// The Studio detail load: one database read, at most one provider readback under the request deadline, and, when the
+    /// readback shows an expired window, new drift or a writable broker left enabled while the connection admits none,
+    /// a recorded reconcile whose corrective disabling write is applied before the reread (ADR-0099 § Provider writes:
+    /// "disabled at the next operation or readback"). A pending operation is not read through; a readback that holds the
+    /// connection's state writes nothing.
     /// </summary>
     public async Task<Result<FederationConnectionDetail>> ReadAsync(CancellationToken cancellationToken)
     {
@@ -164,21 +168,21 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         if (read.Value!.Connection is not { Pending: null } view)
             return Result.Ok(new FederationConnectionDetail(read.Value.Connection, FederationProviderObservation.NotRead));
         var owner = new FederationBrokerOwner(context.TenantId, view.ConnectionId, view.Alias);
-        string? observed;
-        using (var budget = Budget(budgets.Provider, cancellationToken))
-        {
-            try { observed = FederationDigest.Readback(owner, await provider.ReadAsync(owner, budget.Token)); }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { observed = null; }
-        }
+        var readback = await ReadProviderAsync(owner, cancellationToken);
+        var observed = FederationDigest.Readback(owner, readback);
         var status = observed is null ? FederationProviderObservation.Unavailable
             : string.Equals(observed, view.DesiredDigest, StringComparison.Ordinal) ? FederationProviderObservation.Matches
             : FederationProviderObservation.Drift;
         var expired = view.Status is FederationConnectionStatus.TestOpen or FederationConnectionStatus.TestPassed
             && view.TestExpiresAt is { } expires && clock.UtcNow >= expires;
         var newDrift = status == FederationProviderObservation.Drift && !string.Equals(observed, view.LastProviderDigest, StringComparison.Ordinal);
-        if (!expired && !newDrift) return Result.Ok(new FederationConnectionDetail(view, status));
+        // Only a broker the corrective write can rewrite counts, so a drifted one is recorded once, never rewritten per load.
+        var strayEnabled = view.Status is FederationConnectionStatus.Draft or FederationConnectionStatus.Disabled
+            && readback.State is { Enabled: true } && Rewritable(owner, readback, view);
+        if (!expired && !newDrift && !strayEnabled) return Result.Ok(new FederationConnectionDetail(view, status));
         var reconciled = await StepAsync(new ReconcileFederationConnectionCommand(view.Version, observed), cancellationToken);
         if (reconciled.IsFailure) return Result.Ok(new FederationConnectionDetail(view, status));
+        if (reconciled.Value!.Corrective is { } corrective) await ProviderThenCompleteAsync(corrective, null, null, cancellationToken);
         var reread = await StepAsync(new GetFederationConnectionQuery(), cancellationToken);
         return reread.IsFailure ? Result<FederationConnectionDetail>.Fail(reread.Error!)
             : Result.Ok(new FederationConnectionDetail(reread.Value!.Connection, status));
@@ -207,8 +211,10 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             {
                 (outcome, observed, reason) = await ProviderAsync(pending, owner, configuration, secret, budget.Token, cancellationToken);
             }
-            catch (OperationCanceledException)
+            catch (Exception failure) when (IsProviderFault(failure))
             {
+                // A budget overrun, a client abort or any provider or egress fault after Begin: the outcome is unknown,
+                // and Complete still records it so the operation settles as uncertain with its own MUST row.
                 (outcome, observed, reason) = (FederationApplyOutcome.Uncertain, null, null);
             }
         }
@@ -294,14 +300,46 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         if (read.Value!.Connection is not { } view) return Fail<(FederationConnectionView, FederationBrokerReadback, string?)>("lockey_not_found");
         if (view.Version != expectedVersion) return Fail<(FederationConnectionView, FederationBrokerReadback, string?)>("lockey_concurrency_conflict");
         var owner = new FederationBrokerOwner(context.TenantId, view.ConnectionId, view.Alias);
-        FederationBrokerReadback readback;
-        using (var budget = Budget(budgets.Provider, cancellationToken))
-        {
-            try { readback = await provider.ReadAsync(owner, budget.Token); }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { readback = FederationBrokerReadback.Unavailable; }
-        }
+        var readback = await ReadProviderAsync(owner, cancellationToken);
         return Result.Ok((view, readback, FederationDigest.Readback(owner, readback)));
     }
+
+    /// <summary>One readback under the provider budget; an overrun or a provider fault is unavailable, a client abort propagates.</summary>
+    private async Task<FederationBrokerReadback> ReadProviderAsync(FederationBrokerOwner owner, CancellationToken cancellationToken)
+    {
+        using var budget = Budget(budgets.Provider, cancellationToken);
+        try { return await provider.ReadAsync(owner, budget.Token); }
+        catch (Exception failure) when (IsProviderFault(failure) && !cancellationToken.IsCancellationRequested)
+        {
+            return FederationBrokerReadback.Unavailable;
+        }
+    }
+
+    /// <summary>
+    /// A failed or expired test, or a detail-load readback, began a corrective disabling write in its own transaction:
+    /// apply and complete it, and report the step's outcome with the settled version.
+    /// </summary>
+    private async Task<Result<FederationRun>> SettleCorrectiveAsync(Result<FederationOperationReceipt> step, CancellationToken cancellationToken)
+    {
+        if (step.IsFailure) return Result<FederationRun>.Fail(step.Error!);
+        var receipt = step.Value!;
+        if (receipt.Corrective is not { } corrective) return Result.Ok(new FederationRun(receipt));
+        var written = await ProviderThenCompleteAsync(corrective, null, null, cancellationToken);
+        return Result.Ok(new FederationRun(receipt with { Version = written.Value!.Receipt.Version, Corrective = null }));
+    }
+
+    /// <summary>The owned, mapper-free, conforming broker of this connection's configuration: what a full-state rewrite starts from.</summary>
+    private static bool Rewritable(FederationBrokerOwner owner, FederationBrokerReadback readback, FederationConnectionView view) =>
+        readback.Status == FederationReadbackStatus.Present && readback.State is { } state && state.Owner == owner
+        && readback.MapperCount == 0 && readback.ProfileConforms && state.Protocol == view.Protocol
+        && string.Equals(FederationDigest.Configuration(state.Configuration), view.ConfigurationDigest, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Every fault a provider or egress call can raise, cancellation included, except the runtime's fatal ones; the caller
+    /// treats it as an unknown outcome (ADR-0099 § Intent-first operations: "an operation that exceeds a budget is uncertain").
+    /// </summary>
+    private static bool IsProviderFault(Exception failure) =>
+        failure is not (OutOfMemoryException or StackOverflowException or AccessViolationException or InsufficientExecutionStackException);
 
     /// <summary>The address-class guard over every endpoint the provider will contact; null when all are admitted.</summary>
     private async Task<FederationEgressStatus?> AdmitEndpointsAsync(FederationBrokerConfiguration configuration, CancellationToken cancellationToken)
@@ -316,7 +354,10 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             }
             return null;
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return FederationEgressStatus.Unavailable; }
+        catch (Exception failure) when (IsProviderFault(failure) && !cancellationToken.IsCancellationRequested)
+        {
+            return FederationEgressStatus.Unavailable;
+        }
     }
 
     /// <summary>Configure's egress: discovery then JWKS, or metadata, or manual endpoints, all inside one 3-second budget.</summary>
@@ -371,7 +412,7 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             }
             return Result.Ok(configuration);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception failure) when (IsProviderFault(failure) && !cancellationToken.IsCancellationRequested)
         {
             return Fail<FederationBrokerConfiguration>("lockey_dependency_unavailable");
         }
