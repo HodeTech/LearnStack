@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 248 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 334 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -488,6 +488,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
     - [Maintainer decision recorded after round two (2026-11-13)](#maintainer-decision-recorded-after-round-two-2026-11-13) — 7 lines
   - [P03-8 proposal review round three verification and corrections (2026-11-13)](#p03-8-proposal-review-round-three-verification-and-corrections-2026-11-13) — 44 lines
   - [P03-8 maintainer decisions, acceptance and carriers (2026-11-13)](#p03-8-maintainer-decisions-acceptance-and-carriers-2026-11-13) — 24 lines
+  - [P03-8 Step 1 — authority and storage (2026-11-13)](#p03-8-step-1--authority-and-storage-2026-11-13) — 86 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21989,3 +21990,89 @@ client, flow, account clients, mapper and pin. Each commit that lands them cites
 Approval is required, step by step, before any of: Step 0 (Keycloak pin), Step 1 (authority and storage), Step 2 (application and API), Step 3 (provider and
 realm), Step 4 (native and Studio). Each step, once approved, commits, passes two independent review rounds with verified fixes committed after each round, and
 then the next step waits for its own approval.
+
+### P03-8 Step 1 — authority and storage (2026-11-13)
+
+The maintainer approved Step 1 alone. Step 0 (Keycloak 26.6.5 pin) remains blocked
+and independent; no Keycloak pin changed. This record covers the implementation and
+its local verification only. The two independent review rounds that ADR-0099 requires
+before Step 2 have not run, and nothing here is hosted CI or qualification evidence.
+
+**Commits.** `7928fc8b` (registry v4, capability, OpenAPI/SDK/BFF parsers), `465477e9` (aggregate and storage) and this documentation commit.
+
+**Authority (registry v4).** SharedKernel `FederationPermissions` defines Tenant
+`identity.federation.admin`; `IdentityOperationPolicySource` registers it Assignable
+and grants it to no Role. `IdentityRoleRelease.Version4` is v3 plus that one pair,
+fingerprint `b66e96e3f4692c530d99c1ee3e083a58f9872696f2aeb3082195ac8fd2360909`
+(recomputed independently with the same length-framed SHA-256 scheme), `Current`,
+`Find(4)` and `NextFor` (exact v3 → v4). The forward-only migration
+`20261113114919_role_registry_release_v4` (`RoleReleaseV4Ddl`) replaces the release
+guard and the registry and adoption CHECKs; the v3 migration is untouched. The
+permission registry read accepts source release 1–3, so v3→v4 is discoverable. Seed
+administrators adopt v1→v2→v3→v4 in order through `AdoptRoleGrantManifestCommand`;
+warm seed and startup grant nothing. The eleventh advisory capability
+`canManageFederation` reaches the DTO, the OpenAPI snapshot (refreshed through the
+Contract suite's `LEARNSTACK_UPDATE_OPENAPI=1` path), the generated SDK (`make sdk`),
+the SDK strict parsers and the BFF page contract, form allowlist and labels (English
+and Turkish) in the same commit. The BFF proof host's reviewed SHA-256 pin in
+`demo-genericity-sources.ts` moved with its capability fixture.
+
+**Storage.** `FederationConnection` (Identity Domain, `[TenantOwned]`) carries the
+ADR-0099 state machine, the derived `lsf-` alias, the display-name validator
+`FederationDisplayName`, the issuer/entity identifier fixed at creation, one pending
+provider write with a 90-second quiet window, the test attempt with the 10-minute test
+and activation windows, and `Result` refusals for every expected business violation.
+`federation_connections` is created by the forward-only migration
+`20261113120259_add_federation_connections` with the canonical tenant-only RLS policy,
+`SELECT`/`INSERT`/`UPDATE` to `learnstack_app`, fourteen CHECKs, the partial unique
+`(tenant_id) WHERE deleted_at IS NULL` and the `fn_identity_federation_connection_guard`
+mutation guard under the shared Identity tenant fence. `SchemaTableClasses` adds it to
+the Identity contextual class; the schema seed holds a tombstone and a live row for
+tenant A and a live row for tenant B.
+
+**Verification.** All commands ran on a workstation (18 cores, Docker 29.8.2,
+Testcontainers `postgres:18.4-alpine`).
+
+| Command | Subject | Result |
+|---|---|---|
+| `dotnet build LearnStack.slnx -c Release` | `7928fc8b` (separate worktree) and `465477e9` | 0 warnings, 0 errors each |
+| `dotnet test LearnStack.Tests.Unit -c Release` | `7928fc8b` / `465477e9` | 3,795 / 3,872 passed, 0 failed, 0 skipped |
+| `dotnet test LearnStack.Tests.Contract -c Release` | both | 12 passed each, after the snapshot refresh |
+| `dotnet test LearnStack.Tests.Architecture -c Release` | `7928fc8b` | 630 passed, 0 failed, 0 skipped (51 min) |
+| same | storage state | 638 passed, 5 failed: the catalogue's published method and rule counts and the Architecture 23 async-store inventory had not been updated; corrected in `465477e9`, then `CorpusConsistencyTests` and `AsyncStoreInventoryTests` 81 passed |
+| same, complete suite | `465477e9` (Release, 0 build warnings) | 643 passed, 0 failed, 0 skipped (44 min) |
+| `dotnet test LearnStack.Tests.Integration -c Release` (Docker), ten affected classes | `7928fc8b` | 343 run, 341 passed; the two failures (OpenAPI pair count, v3 capability count) were fixed in the commit and the two classes rerun 84 passed; `AuthorizationPoolProgressTests` 17 passed |
+| same, complete suite | storage state | 4,228 run, 4,215 passed, 13 failed: 10 `AuthorizationPoolProgressTests` cases (Identity definition count, fixed in `7928fc8b`; rerun 38 of 39 passed), two Keycloak realm reconciliation cases (fixture readiness timeout under a concurrent architecture run; the convergence case passes when run alone) and one native browser case (local Chromium 157.0.8103.79 differs from the pinned 157.0.8103.50) |
+| `FederationConnectionStorageTests` after the final refactor | `465477e9` | 34 passed |
+| `pnpm --filter @learnstack/sdk typecheck`, `lint`, `test` | `7928fc8b` | clean, clean, 228 passed |
+| `pnpm --filter @learnstack/web typecheck`, `lint` | `7928fc8b` | clean, no ESLint warnings |
+| `pnpm test` (guarded workspace Vitest) | `7928fc8b` | 130 files, 4,197 passed; the first run failed two demo-genericity cases until the proof host's reviewed pin moved |
+| `make docs-index`, `make lint-docs` | this commit | index current; fragment audit, roadmap structure and delivery-log index pass |
+
+**Deviations.**
+
+- ADR-0099 Amendment 1 records the three storage deviations: the Deleted tombstone
+  instead of a physical row removal (partial unique on `deleted_at IS NULL`, which
+  Standard 05 § Soft Delete and `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`
+  require, rather than `state <> 'deleted'`); the issuer or entity identifier stored
+  at creation rather than at the first applied configuration; and admission stopping
+  at Begin for Disable and Delete.
+- Enumerated columns store the CLR names (`Oidc`, `Deleted`, `MetadataUrl`) through
+  `HasEnumAsText`, the repository convention, not the lowercase spellings used in the
+  step brief.
+- The `requiresOrglessWrite` flag belongs to operation policies; Step 1 registers the
+  definition only, and Step 2's operations declare the flag.
+- The Identity permission matrix's capability table now also lists
+  `canManageCustomFields`, which it had omitted.
+
+**Residuals.**
+
+- Two independent review rounds, hosted CI, the A/B layout qualification and the
+  OpenAPI `oasdiff` comparison have not run.
+- The three environment-dependent integration failures above are not reproduced as
+  regressions here, but they are not proven unrelated on a clean host either.
+- No application operation writes `federation_connections` yet; the guard,
+  constraints and aggregate are proven directly. Step 2 owns the Begin/apply/Complete
+  service, audit catalogue, entitlement gate and HTTP surface.
+- The Phase 03 Status note above the packet table still says implementation has not
+  started; only the P03-8 row was updated by this step's brief.

@@ -40,6 +40,7 @@ adoption supplies identity facts; it does not independently grant seed authority
 | `Role` | – | – | – | Tenant | Tenant Admin alone; authoring stays tenant-wide |
 | `MembershipProfile` | – | Tenant + Organization | – | – | Exact v1 manifest, bounded contextual fields |
 | `Invitation` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0093's exact invitation operations; no new assignable key |
+| `FederationConnection` | – | – | – | Tenant `identity.federation.admin` | Registry v4; granted to no Role by registration; explicit Tenant Admin adoption only |
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is
@@ -227,6 +228,8 @@ False previews create no denial event, and true previews authorize no mutation.
 | `canAdoptRoleRelease` | Same prerequisites; selected built-in key/release marker independently controls the action |
 | `canWriteOwnProfile` | Applicable profile-write and exact actor-owned current Membership |
 | `canManageOrganizations` | Tenant `tenancy.organization.admin` and orgless context |
+| `canManageCustomFields` | Tenant `customization.custom_field.admin` and orgless context |
+| `canManageFederation` | Tenant `identity.federation.admin` and orgless context |
 
 Per-pair `canGrant` previews describe additions within the current ceiling and
 explicit same-key Tenant-to-Organization bridge. False does not prevent removing
@@ -244,3 +247,20 @@ predicates govern writes; own-Membership read alone grants no mutation. Current
 consent and exact definition eligibility are independently checked. No global
 profile or cross-organization authority follows. The own/admin API/native
 consumers are implemented; Phase 03 owns source-bound qualification.
+
+## Tenant federation key (registry v4)
+
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) adds exactly one
+Tenant-scope assignable key, `identity.federation.admin`, as registry release v4.
+[Standard 19](../../standards/19-permissions.md#federation-and-version-4-adoption)
+owns the release, fingerprint and adoption rules; this matrix adds no second copy.
+
+| Key | Scope | Registered by | Delta | Adoption |
+|---|---|---|---|---|
+| `identity.federation.admin` | Tenant only | `IdentityOperationPolicySource`, Assignable, from SharedKernel `FederationPermissions` | v3 → v4: this one pair | Built-in orgless Tenant Admin at exact v3, explicitly; seed admins walk v1→v2→v3→v4 in order |
+
+No Organization counterpart, template change or automatic grant exists, and warm
+seed and startup never restore or expand it. The federation operations that
+consume the key, each declared with orgless writes, arrive with P03-8 Step 2; the
+[phase Status](../../roadmap/phase-03-identity-admin.md) owns that state.
+

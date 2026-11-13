@@ -635,3 +635,48 @@ policies remain authoritative after a stale/revoked flag. Exact current-target
 protected receipt disclosure and the existing denial/audit mechanisms apply;
 [Standard 05](05-database.md#custom-field-replay-key-custody) owns only the new
 P03-5 HMAC fingerprint/key-metadata extension, preserving historical hashes.
+
+## Federation and version-4 adoption
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
+**P03-8 Step 1 (2026-11-13): registry, capability and adoption implemented; the
+federation operations that consume the pair are Step 2's, and qualification is
+owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).** v4 is
+exactly v3 plus Tenant `identity.federation.admin`: ten assignable pairs total, with
+no Organization counterpart, wildcard, new template or automatic grant. The pair is
+defined once in SharedKernel (`FederationPermissions`); Identity's module policy
+source registers it as Assignable. Registration, startup, migration and warm seed
+grant it to no Role, and Keycloak realm roles grant nothing.
+
+| Release | Assignable registry | Grant adoption |
+|---|---|---|
+| v4 | Exactly Tenant `identity.federation.admin` in addition to v3; ten pairs total | Only the exact one-key Tenant Admin delta, by explicit adoption from exact v3 |
+
+### Explicit v3 to v4 adoption
+
+The v3 rules above apply unchanged to the next exact transition. Only the built-in
+orgless Tenant Admin role at exact v3 may adopt v4. A seed or existing
+administrator adopts v1→v2→v3→v4 in order, each step through the existing
+`AdoptRoleGrantManifestCommand`; direct v1→v4 or v2→v4, a wrong fingerprint, a
+custom or Organization role, a stale source and a downgrade refuse. The one-pair
+delta preserves every earlier nonkernel removal. The permission registry read
+accepts source release 1, 2 or 3 and returns the next release, so v3→v4 is
+discoverable in the registry DTO and the role page.
+
+The v4 fingerprint uses the same length-framed SHA-256 algorithm over domain
+`learnstack.identity.role.release.v4`, the exact v3 fingerprint,
+`TenantAdmin:Tenant`, then `Tenant:identity.federation.admin:True`. Historical
+v1–v3 bytes, fingerprints and shipped guards are unchanged; a forward migration
+replaces the release guard and the registry/adoption CHECKs.
+
+### Federation operation authority
+
+Every federation operation that Step 2 adds is a Protected policy on Tenant
+`identity.federation.admin` that declares `requiresOrglessWrite`, so a branch
+context contributes nothing. Org Admin and every other role are unaffected.
+
+`canManageFederation` is the eleventh advisory administration capability: current
+Tenant federation-admin authority in an orgless context. It is computed by the same
+projection as the other ten, is no grant, ETag or reusable admission, and the API
+and application policies remain authoritative after a stale or revoked flag. The
+DTO, OpenAPI snapshot, SDK and native strict parsers carry it together.
