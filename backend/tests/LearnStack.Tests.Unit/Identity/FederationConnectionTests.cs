@@ -57,6 +57,10 @@ public sealed class FederationConnectionTests
     [InlineData("\u65e5\u672c\u8a9e\u30ed\u30b0\u30a4\u30f3", "\u65e5\u672c\u8a9e\u30ed\u30b0\u30a4\u30f3")]
     [InlineData("A", "A")]
     [InlineData("Emoji \U0001F393 school", "Emoji \U0001F393 school")]
+    [InlineData("I\u015f\u0131k \u0130\u015fletme", "I\u015f\u0131k \u0130\u015fletme")]
+    [InlineData("\u0131\u0130\u015f\u015e\u011f\u011e\u00fc\u00dc\u00f6\u00d6\u00e7\u00c7", "\u0131\u0130\u015f\u015e\u011f\u011e\u00fc\u00dc\u00f6\u00d6\u00e7\u00c7")]
+    [InlineData("\u00c7a\u011flayan \u00d6\u011fretim \u00dcniversitesi", "\u00c7a\u011flayan \u00d6\u011fretim \u00dcniversitesi")]
+    [InlineData("Acme \u2764\ufe0f", "Acme \u2764\ufe0f")]
     public void Display_name_accepts_and_normalizes_visible_text(string input, string expected)
     {
         Assert.True(FederationDisplayName.TryNormalize(input, out var normalized));
@@ -94,6 +98,27 @@ public sealed class FederationConnectionTests
     [InlineData("Acme\u00a0SSO")]
     [InlineData("Acme\u3000SSO")]
     [InlineData("Acme\ue000SSO")]
+    // Letters and a symbol by category that render blank, alone or inside a name.
+    [InlineData("\u115f")]
+    [InlineData("Acme\u115fSSO")]
+    [InlineData("\u1160")]
+    [InlineData("Acme\u1160SSO")]
+    [InlineData("\u3164")]
+    [InlineData("Acme\u3164SSO")]
+    [InlineData("\uffa0")]
+    [InlineData("Acme\uffa0SSO")]
+    [InlineData("\u2800")]
+    [InlineData("Acme\u2800SSO")]
+    // A combining mark or variation selector as the first character, including after trimming.
+    [InlineData("\u0301Acme")]
+    [InlineData(" \u0301Acme")]
+    [InlineData("\u0903Acme")]
+    [InlineData("\u20ddAcme")]
+    [InlineData("\u064eAcme")]
+    [InlineData("\ufe00Acme")]
+    [InlineData("\ufe0fAcme")]
+    [InlineData("\U000E0100Acme")]
+    [InlineData("\U000E01EFAcme")]
     public void Display_name_refuses_control_format_bidirectional_separator_and_invalid_characters(string? input)
     {
         Assert.False(FederationDisplayName.TryNormalize(input, out var normalized));
@@ -143,6 +168,24 @@ public sealed class FederationConnectionTests
         Assert.True(Create(id, Tenant, FederationProtocol.Oidc, Config() with { IssuerOrEntityId = new string('a', 2049) }).IsFailure);
         Assert.True(FederationConnection.Create(id, Tenant, FederationProtocol.Oidc, "Acme", Config(), Operation(), At, UserId.SystemActor).IsFailure);
         Assert.True(FederationConnection.Create(id, Tenant, FederationProtocol.Oidc, "Acme\u202e", Config(), Operation(), At, Actor).IsFailure);
+    }
+
+    [Theory]
+    [InlineData(FederationProtocol.Oidc, "https://user:pass@idp.example.test/realms/school", false)]
+    [InlineData(FederationProtocol.Oidc, "https://user@idp.example.test", false)]
+    [InlineData(FederationProtocol.Oidc, "https://idp.example.test/realms/school?x", false)]
+    [InlineData(FederationProtocol.Oidc, "https://idp.example.test/realms/school#y", false)]
+    [InlineData(FederationProtocol.Oidc, "https://idp.example.test?x", false)]
+    [InlineData(FederationProtocol.Oidc, "https://idp.example.test/realms/school", true)]
+    [InlineData(FederationProtocol.Oidc, "https://idp.example.test:8443/tenants/a@b", true)]
+    [InlineData(FederationProtocol.Oidc, "https://idp.example.test", true)]
+    [InlineData(FederationProtocol.Saml, "urn:example:idp?x#y@z", true)]
+    [InlineData(FederationProtocol.Saml, "https://user@idp.example.test/saml?entity=1#frag", true)]
+    public void OIDC_issuer_refuses_userinfo_query_and_fragment_and_SAML_entity_identifier_stays_free_form(
+        FederationProtocol protocol, string issuer, bool admitted)
+    {
+        var configuration = Config(clientId: protocol == FederationProtocol.Oidc ? "learnstack-client" : null) with { IssuerOrEntityId = issuer };
+        Assert.Equal(admitted, Create(FederationConnectionId.From(Guid.CreateVersion7()), Tenant, protocol, configuration).IsSuccess);
     }
 
     [Fact]

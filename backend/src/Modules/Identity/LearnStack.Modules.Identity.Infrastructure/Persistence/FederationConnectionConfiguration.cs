@@ -20,6 +20,10 @@ internal sealed class FederationConnectionConfiguration : IEntityTypeConfigurati
     {
         builder.ToTable(Table, table =>
         {
+            // Actors are UUIDv7 user identifiers and never the system actor, as ck_users_actor requires of users.id;
+            // the nil UUID has no RFC 9562 version, so uuid_extract_version is NULL and IS TRUE refuses it.
+            table.HasCheckConstraint("ck_federation_connections_actors",
+                "(uuid_extract_version(created_by)=7 AND created_by <> '00000000-0000-7000-8000-000000000001'::uuid AND (updated_by IS NULL OR (uuid_extract_version(updated_by)=7 AND updated_by <> '00000000-0000-7000-8000-000000000001'::uuid)) AND (pending_actor IS NULL OR (uuid_extract_version(pending_actor)=7 AND pending_actor <> '00000000-0000-7000-8000-000000000001'::uuid)) AND (test_actor IS NULL OR (uuid_extract_version(test_actor)=7 AND test_actor <> '00000000-0000-7000-8000-000000000001'::uuid)) AND (deleted_by IS NULL OR (uuid_extract_version(deleted_by)=7 AND deleted_by <> '00000000-0000-7000-8000-000000000001'::uuid))) IS TRUE");
             table.HasCheckConstraint("ck_federation_connections_identifiers",
                 "(uuid_extract_version(id)=7 AND (pending_operation_id IS NULL OR uuid_extract_version(pending_operation_id)=7) AND (test_attempt_id IS NULL OR uuid_extract_version(test_attempt_id)=7)) IS TRUE");
             table.HasCheckConstraint("ck_federation_connections_tenant",
@@ -31,12 +35,16 @@ internal sealed class FederationConnectionConfiguration : IEntityTypeConfigurati
             table.HasCheckConstraint("ck_federation_connections_source_kind", "source_kind IN ('MetadataUrl','DiscoveryUrl','Manual')");
             // Mirrors FederationDisplayName: NFC, trimmed, and no C0/C1 control, format (bidirectional marks,
             // embeddings, overrides and isolates included), line or paragraph separator, non-U+0020 space or
-            // private-use code point. Unassigned code points stay a domain-only refusal: a CHECK cannot track
-            // the Unicode version the runtime ships.
+            // private-use code point, no blank-rendering letter (Hangul fillers, blank Braille pattern), and no
+            // leading variation selector or generic combining mark. Unassigned code points and a leading
+            // script-specific mark stay domain-only refusals: a CHECK cannot track Unicode general categories
+            // or the Unicode version the runtime ships.
             table.HasCheckConstraint("ck_federation_connections_display_name",
-                "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name IS NFC NORMALIZED AND display_name !~ '[\\u0001-\\u001f\\u007f-\\u00a0\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890\\u0891\\u08e2\\u1680\\u180e\\u2000-\\u200f\\u2028-\\u202f\\u205f-\\u206f\\u3000\\ufeff\\ue000-\\uf8ff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0001\\U000e0020-\\U000e007f\\U000f0000-\\U0010ffff]'");
+                "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name IS NFC NORMALIZED AND display_name !~ '[\\u0001-\\u001f\\u007f-\\u00a0\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890\\u0891\\u08e2\\u1680\\u180e\\u2000-\\u200f\\u2028-\\u202f\\u205f-\\u206f\\u3000\\ufeff\\ue000-\\uf8ff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0001\\U000e0020-\\U000e007f\\U000f0000-\\U0010ffff\\u115f\\u1160\\u2800\\u3164\\uffa0]' AND display_name !~ '^[\\u0300-\\u036f\\u0483-\\u0489\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\u302a-\\u302f\\u3099\\u309a\\ufe00-\\ufe0f\\ufe20-\\ufe2f\\U000e0100-\\U000e01ef]'");
+            // An OIDC issuer has no query or fragment (OpenID Connect Discovery 1.0 § 3) and no userinfo in its
+            // authority, so it cannot carry credentials; a SAML entity identifier stays free-form visible ASCII.
             table.HasCheckConstraint("ck_federation_connections_issuer",
-                "octet_length(issuer_or_entity_id) BETWEEN 1 AND 2048 AND issuer_or_entity_id ~ '^[!-~]+$'");
+                "octet_length(issuer_or_entity_id) BETWEEN 1 AND 2048 AND issuer_or_entity_id ~ '^[!-~]+$' AND (protocol <> 'Oidc' OR (issuer_or_entity_id !~ '[?#]' AND issuer_or_entity_id !~ '^[^/]*//[^/]*@'))");
             table.HasCheckConstraint("ck_federation_connections_client",
                 "((protocol <> 'Oidc' OR (client_id IS NOT NULL AND octet_length(client_id) BETWEEN 1 AND 255 AND client_id ~ '^[!-~]+$')) AND (protocol <> 'Saml' OR client_id IS NULL)) IS TRUE");
             table.HasCheckConstraint("ck_federation_connections_revision", "configuration_revision >= 1");

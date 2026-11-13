@@ -612,9 +612,10 @@ define `FederationConnection`, one per tenant. Its lifecycle is `Draft`,
 `Disabled` and the terminal `Deleted` tombstone, which keeps the row and its alias
 reserved instead of removing it. The alias is `lsf-` plus the identifier's 32
 lowercase hex characters, derived once. The display name is 1–80 normalized code
-points with no control, format or bidirectional character. The issuer or SAML
-entity identifier is fixed from the first configuration; a change is a domain and
-storage refusal and needs a new connection. At most one provider write is pending; an
+points with no control, format, bidirectional or blank-rendering character and no
+leading combining mark. The issuer or SAML entity identifier is fixed from the first
+configuration; a change is a domain and storage refusal and needs a new connection.
+An OIDC issuer carries no userinfo, query or fragment. At most one provider write is pending; an
 uncertain one is resumable after a 90-second quiet window. A drifted readback returns
 every live state, `Disabled` included, to `Draft`. Expected refusals are
 `Result` failures. The row stores no secret, token, assertion or certificate.

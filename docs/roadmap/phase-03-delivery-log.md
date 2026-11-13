@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 425 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 478 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -490,6 +490,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 maintainer decisions, acceptance and carriers (2026-11-13)](#p03-8-maintainer-decisions-acceptance-and-carriers-2026-11-13) — 24 lines
   - [P03-8 Step 1 — authority and storage (2026-11-13)](#p03-8-step-1--authority-and-storage-2026-11-13) — 86 lines
   - [P03-8 Step 1 review round 1 corrections (2026-11-13)](#p03-8-step-1-review-round-1-corrections-2026-11-13) — 91 lines
+  - [P03-8 Step 1 review round 2 corrections (2026-11-13)](#p03-8-step-1-review-round-2-corrections-2026-11-13) — 53 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22168,3 +22169,56 @@ transition record and changed no policy.
   `State != Deleted`, and its tests prove a tombstone is never returned as the live
   connection.
 - The review round 2 that ADR-0099 requires before Step 2 has not run.
+
+### P03-8 Step 1 review round 2 corrections (2026-11-13)
+
+The second independent review round of Step 1 returned six storage and domain
+findings (R2-1–R2-6) and five corpus items (Q1–Q5). Each finding was verified against
+the code before any change; this record covers verification and local evidence only,
+not hosted CI or qualification.
+
+`20261113120259_add_federation_connections` and its `FederationConnectionStorageDdl`
+are edited in place again, as in round 1: the step's commits are unpushed, untagged
+and in no release. A workstation database migrated from an earlier Step 1 commit must
+be recreated.
+
+| ID | Verdict | Evidence and change |
+|---|---|---|
+| R2-1 | Fixed | Confirmed: the guard pinned no configuration column, so a `TestPassed` row could take a new `client_id` and digests and then move to `Active` with its test cleared, and the round 1 test asserted an 80-character rename of a live row with no Rename. Checked against every aggregate path first: `BeginConfigure` alone changes source kind, client identifier and configuration digest (with the revision step); `BeginRename` alone changes the display name; every Begin, and only a Begin, changes the desired digest; `Complete` (applied test start) sets `LastProviderDigest` to the pending desired digest and `Activate` to the desired digest. The guard now refuses ("Federation configuration change refused.") a source kind, client identifier or configuration digest change without the revision step, a display-name change without a newly begun Rename, and a desired-digest change without a newly begun operation; `Draft`→`TestOpen` requires `last_provider_digest` = the old pending desired digest and `TestPassed`→`Active` requires it to equal `desired_digest`. `Failed` completion and drift still record any readback, as the aggregate does. The round 1 rename test now expects refusal, with a positive Rename case; 16 refusal rows, 5 positive rows and one applied-test-start-to-Active walk were added. |
+| R2-2 | Fixed | Confirmed. `created_at` on INSERT (also finite) and `updated_at` on UPDATE are refused when later than `transaction_timestamp() + interval '5 minutes'`; cases at +6 minutes, +100 years and `'100000-01-01'` refuse, +2 minutes is admitted. No lower bound against the transaction clock was added, because the aggregate supplies its own instants and the domain tests use fixed past instants. The `One_live_connection…` test's tombstone base moved to ten minutes in the past so its +3-minute stamp stays clear of the bound. |
+| R2-3 | Fixed | Confirmed. The transition to `Deleted` requires `isfinite(deleted_at)`, `deleted_at = updated_at` and `deleted_by = updated_by`; `SoftDelete` stamps both from the same instant and actor, so the aggregate path is unchanged. Three refusal rows (earlier stamp, other actor, `infinity`). |
+| R2-4 | Fixed | Verified first: `ValidActor` requires a version-7 `UserId` that is not `UserId.SystemActor` (`00000000-0000-7000-8000-000000000001`, itself version 7); `users.id` already carries `ck_users_actor` (version 7, not the system actor); every federation fixture actor (`AdminA`, `AdminB`, `uuidv7()`) is version 7. Version 7 is therefore enforced: the new `ck_federation_connections_actors` requires each of `created_by`, `updated_by`, `pending_actor`, `test_actor` and `deleted_by` to be version 7 and not the system actor, wrapped in `IS TRUE`, so the nil UUID (no RFC 9562 version, `uuid_extract_version` NULL) refuses. Nil, system and version-4 actors refuse on INSERT and on UPDATE. |
+| R2-5 | Fixed | Confirmed in both layers. `FederationDisplayName` refuses U+115F, U+1160, U+3164, U+FFA0 and U+2800 anywhere and a first character of category Mn, Mc or Me (variation selectors are Mn). The CHECK adds the same five code points and refuses a leading generic combining mark or variation selector (U+0300–U+036F, U+0483–U+0489, U+1AB0–U+1AFF, U+1DC0–U+1DFF, U+20D0–U+20FF, U+302A–U+302F, U+3099–U+309A, U+FE00–U+FE0F, U+FE20–U+FE2F, U+E0100–U+E01EF); PostgreSQL regular expressions have no general-category class, so a leading script-specific mark is a domain-only refusal, like unassigned code points. 19 domain and 16 database negative cases; Turkish positive controls in both. |
+| R2-6 | Fixed | Confirmed. An OIDC issuer with `?`, `#` or `@` in the authority (the text after the first `//` up to the next `/`) is refused by the aggregate and by `ck_federation_connections_issuer` (`protocol <> 'Oidc' OR …`); a SAML entity identifier stays free-form visible ASCII. Positive controls: an OIDC path holding `@`, a port, and SAML identifiers with `?`, `#` and `@`. |
+| Q1 | Fixed | `State_test_revision_and_tombstone_constraints_refuse_inconsistent_rows` carries the expected constraint per row and asserts equality (`test`, `test`, `tombstone`). |
+| Q2 | Fixed by R2-5 | Turkish positive controls (ı İ ş Ş ğ Ğ ü Ü ö Ö ç Ç) in the domain and database tests. |
+| Q3 | Recorded — pre-existing | Confirmed and unchanged. The BFF `roleIds` bound is 9 (`frontend/apps/web/src/server/auth/http-forms.ts:98`), while the OpenAPI `MembershipRolesInput.roleIds` maximum is 8 (`backend/src/LearnStack.Api/Identity/AdministrationDocumentTransformer.cs:239`) and the SDK membership read admits 8 (`frontend/packages/sdk/src/administration-policy.ts:235`). The bound was 9 before Step 1 (`7b91b085`). The BFF is looser than the contract. |
+| Q4 | Open — maintainer | U+200C and U+200D are format characters that both layers refuse; Persian names and some emoji sequences need them. Admitting them is an ADR-0099 decision. |
+| Q5 | Open — maintainer | No action; see the open items. |
+
+**Verification.** All commands ran on a workstation (Docker, Testcontainers).
+
+| Command | Result |
+|---|---|
+| `dotnet build LearnStack.slnx -c Release` | 0 warnings, 0 errors |
+| Unit tests (`LearnStack.Tests.Unit`) | 3,914 passed, 0 failed, 0 skipped |
+| Architecture tests (`LearnStack.Tests.Architecture`) | 643 passed, 0 failed, 0 skipped (44 min) |
+| Integration, `FederationConnectionStorageTests` | 133 passed, 0 failed |
+| Integration, `FederationConnectionStorageTests`, `MigrationRollbackTests`, `IdentityMembershipTests` (isolation and `HasPendingModelChanges` included), `TenancySchemaTests`, `IdentitySeederTests`, `RoleGrantCommandIntegrationTests` | 313 passed, 0 failed, 0 skipped |
+| `make lint-docs` | Clean: 3,687 fragment links resolve; roadmap structure conforms; 3 delivery log indexes current |
+| `make docs-index` | Regenerated `phase-03-delivery-log.md` |
+| Full integration suite, contract, SDK and web suites, OpenAPI gate | NOT RUN: no contract, SDK or web file changed |
+
+**Open items for the maintainer.**
+
+- OpenAPI gate admission (round 1 C1): the gate refuses the Step 1 head; the
+  admission path for the v4 incompatibility is undecided.
+- Trailer convention (round 1 C9): the commit names the model that produced it.
+- Q3: the BFF `roleIds` bound (9) is looser than the contract (8); pre-existing debt.
+- Q4: whether display names admit U+200C and U+200D is an open ADR-0099 decision.
+- S7 for Step 2: EF reads see tombstones; Step 2 reads connections only through a
+  helper that filters `State != Deleted`, and its tests prove a tombstone is never
+  returned as the live connection.
+- Residual from R2-2: a stamp back-dated within the monotonic order (at or after the
+  row's last stamp, before the transaction clock) is admitted; only the aggregate's
+  clock bounds it.

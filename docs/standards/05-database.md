@@ -6168,7 +6168,8 @@ migration refuses reversal.
 | Lifecycle | `Draft`, `TestOpen`, `TestPassed`, `Active`, `Disabled`, terminal `Deleted` tombstone with `deleted_at`/`deleted_by` set; CHECKs bind state, protocol, source kind and client identifier (OIDC only) |
 | Pending write | Kind, operation identifier, actor, start, quiet-window end (start + 90 seconds) and desired digest are all null or all set; none on a tombstone |
 | Test attempt | Identifier, actor, revision (= configuration revision), expiry and result exist exactly in `TestOpen` (Pending) and `TestPassed` (Passed, expiry = pass + 10 minutes) |
-| Values | Display name 1–80 code points, trimmed, `IS NFC NORMALIZED`, with no C0/C1 control, format (bidirectional marks, embeddings, overrides and isolates included), line or paragraph separator, non-U+0020 space or private-use code point; unassigned code points are refused by the domain only. Issuer and client identifier visible ASCII; digests 64 lowercase hex; configuration revision ≥ 1 |
+| Values | Display name 1–80 code points, trimmed, `IS NFC NORMALIZED`, with no C0/C1 control, format (bidirectional marks, embeddings, overrides and isolates included), line or paragraph separator, non-U+0020 space, private-use or blank-rendering code point (U+115F, U+1160, U+3164, U+FFA0, U+2800), and no leading variation selector or generic combining mark; unassigned code points and a leading script-specific mark are refused by the domain only. Issuer and client identifier visible ASCII; an OIDC issuer has no userinfo, query or fragment, a SAML entity identifier stays free-form; digests 64 lowercase hex; configuration revision ≥ 1 |
+| Actors | `created_by`, `updated_by`, `pending_actor`, `test_actor` and `deleted_by` are UUIDv7 and never the system actor, as `ck_users_actor` requires of `users.id`; the nil UUID has no version and is refused |
 | Personal data | Configuration columns `None`; `pending_actor` and `test_actor` are pseudonymous `Identity` identifiers; audit columns as § Audit Columns |
 | Secrets | No secret, token, assertion, certificate or key column; `Federation_Connection_Persists_No_Secret_Column` closes the column set |
 
@@ -6176,7 +6177,8 @@ migration refuses reversal.
 UPDATE` trigger, admits only `learnstack_app`, requires the Identity tenant fence
 (`fn_identity_assert_tenant_fence`, shared), starts every row as a `Draft` with its
 pending Configure, pins the immutable columns, advances `row_version` and a monotonic
-`updated_at`, admits a revision step only for a newly begun Configure or Rotate secret,
+`updated_at`, bounds `created_at` and `updated_at` above by `transaction_timestamp()` plus
+five minutes, admits a revision step only for a newly begun Configure or Rotate secret,
 refuses a second unsettled operation and admits only ADR-0099's transitions:
 `Draft`→`TestOpen` (applied test start), `TestOpen`→`TestPassed` and
 `TestPassed`→`Active` (no pending write), any of `TestOpen`/`TestPassed`/`Active`/
@@ -6195,6 +6197,15 @@ columns:
   stays in `TestOpen` or `TestPassed`; expiry, result and pass time move only with the
   pass, stamped at that update before expiry, and Activate lands before the activation
   expiry.
+- Configuration moves only with its own operation: source kind, client identifier
+  and configuration digest with the revision step, the display name with a newly
+  begun Rename, and the desired digest with any newly begun operation. The applied
+  test start records the readback of its pending digest as `last_provider_digest`,
+  and Activate records the desired digest.
+- The tombstone's `deleted_at` and `deleted_by` equal the confirming update's
+  `updated_at` and `updated_by`.
+- No lower bound against the transaction clock applies, because the aggregate
+  supplies its own instants; a stamp back-dated within the monotonic order is admitted.
 - Every refusal condition is evaluated as `(condition) IS NOT FALSE`, so a condition
   that is NULL because a nullable pending or test column is NULL refuses: the guard
   fails closed.

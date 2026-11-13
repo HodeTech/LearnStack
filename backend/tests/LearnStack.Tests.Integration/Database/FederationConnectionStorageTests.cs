@@ -88,7 +88,7 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
             """)).Should().Be(1, "a tenant-only table carries exactly one permissive isolation policy");
         (await ReadStringsAsync(app, """
             SELECT conname FROM pg_constraint WHERE conrelid='public.federation_connections'::regclass AND contype='c' ORDER BY conname
-            """)).Should().Equal("ck_federation_connections_alias", "ck_federation_connections_client", "ck_federation_connections_digests",
+            """)).Should().Equal("ck_federation_connections_actors", "ck_federation_connections_alias", "ck_federation_connections_client", "ck_federation_connections_digests",
             "ck_federation_connections_display_name", "ck_federation_connections_identifiers", "ck_federation_connections_issuer",
             "ck_federation_connections_pending", "ck_federation_connections_protocol", "ck_federation_connections_revision",
             "ck_federation_connections_source_kind", "ck_federation_connections_state", "ck_federation_connections_tenant",
@@ -127,7 +127,9 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         await using (var transaction = await app.BeginTransactionAsync())
         {
             await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
-            await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow);
+            // The tombstone walk stamps its base plus one to three minutes; a past base keeps every stamp clear of the
+            // guard's five-minute bound on the transaction clock.
+            await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow.AddMinutes(-10));
             var successor = Guid.CreateVersion7();
             await FederationConnectionSchemaSeed.InsertAsync(app, transaction, successor, SchemaFixture.TenantB, AdminB, DateTimeOffset.UtcNow);
             var rows = await ReadStringsAsync(app, """
@@ -219,21 +221,33 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         }
     }
 
+    /// <summary>
+    /// The column bounds the name at 80 characters, and the guard admits a new name only with a newly begun
+    /// Rename (ADR-0099 § Lifecycle and test): a settled row cannot be renamed in place.
+    /// </summary>
     [Fact]
-    public async Task Display_name_over_eighty_characters_is_refused_by_the_column_bound()
+    public async Task Display_name_is_bounded_to_eighty_characters_and_changes_only_with_a_newly_begun_Rename()
     {
         await using var app = await OpenAppAsync();
-        foreach (var (length, refused) in new[] { (81, true), (80, false) })
+        foreach (var (length, rename, sqlState, message) in new (int, bool, string?, string?)[]
+                 {
+                     (81, true, "22001", null),
+                     (80, false, "23514", ConfigurationRefused),
+                     (80, true, null, null),
+                 })
         {
             await using var transaction = await app.BeginTransactionAsync();
             await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
-            var sql = $"UPDATE public.federation_connections SET display_name=repeat('n',{length}),row_version=row_version+1,updated_at=clock_timestamp(),updated_by=created_by WHERE id=@id";
-            if (refused)
+            var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+            await walk.ToAsync("Draft");
+            var set = $"display_name=repeat('n',{length})" + (rename ? "," + Walk.Begin("Rename") : string.Empty);
+            if (sqlState is null) (await walk.StepAsync(set)).Should().Be(1, "an 80-character name rides a newly begun Rename");
+            else
             {
-                var act = async () => await ExecuteAsync(app, transaction, sql, ("id", FederationConnectionSchemaSeed.LiveB));
-                (await act.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("22001");
+                var refused = (await walk.Awaiting(step => step.StepAsync(set)).Should().ThrowAsync<PostgresException>()).Which;
+                refused.SqlState.Should().Be(sqlState, set);
+                if (message is not null) refused.MessageText.Should().Be(message, set);
             }
-            else (await ExecuteCountAsync(app, transaction, sql, ("id", FederationConnectionSchemaSeed.LiveB))).Should().Be(1);
             await transaction.RollbackAsync();
         }
     }
@@ -254,10 +268,10 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
     }
 
     [Theory]
-    [InlineData("test_attempt_id=uuidv7(),test_actor=created_by,test_revision=1,test_expires_at=clock_timestamp()+interval '10 minutes',test_result='Pending'")]
-    [InlineData("test_result='Pending'")]
-    [InlineData("deleted_at=clock_timestamp(),deleted_by=created_by")]
-    public async Task State_test_revision_and_tombstone_constraints_refuse_inconsistent_rows(string update)
+    [InlineData("test_attempt_id=uuidv7(),test_actor=created_by,test_revision=1,test_expires_at=clock_timestamp()+interval '10 minutes',test_result='Pending'", "ck_federation_connections_test")]
+    [InlineData("test_result='Pending'", "ck_federation_connections_test")]
+    [InlineData("deleted_at=clock_timestamp(),deleted_by=created_by", "ck_federation_connections_tombstone")]
+    public async Task State_test_revision_and_tombstone_constraints_refuse_inconsistent_rows(string update, string constraint)
     {
         await using var app = await OpenAppAsync();
         await using var transaction = await app.BeginTransactionAsync();
@@ -267,8 +281,7 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
             ("id", FederationConnectionSchemaSeed.LiveB));
         var refused = (await act.Should().ThrowAsync<PostgresException>()).Which;
         refused.SqlState.Should().Be("23514");
-        refused.ConstraintName.Should().BeOneOf("ck_federation_connections_test", "ck_federation_connections_revision",
-            "ck_federation_connections_tombstone");
+        refused.ConstraintName.Should().Be(constraint, update);
     }
 
     [Theory]
@@ -354,6 +367,9 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
     private const string RevisionRefused = "Federation configuration revision refused.";
     private const string PendingRefused = "Federation pending operation refused.";
     private const string TestRefused = "Federation test attempt refused.";
+    private const string ConfigurationRefused = "Federation configuration change refused.";
+    private const string ImmutableRefused = "Federation connection immutable state refused.";
+    private const string InitialRefused = "Federation connection initial state refused.";
 
     /// <summary>
     /// Fail-closed refusals: each starts from a row whose nullable pending or test columns are NULL where that
@@ -398,7 +414,222 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         { "TestOpen", "state='TestPassed',test_result='Passed',test_passed_at=@at-interval '1 second',test_expires_at=@at+interval '599 seconds'", TestRefused },
         { "TestPassed", "test_actor=uuidv7()", TestRefused },
         { "TestPassed", "test_passed_at=test_passed_at+interval '1 second',test_expires_at=test_expires_at+interval '1 second'", TestRefused },
+        // Configuration is pinned outside its own operation: source kind, client identifier and configuration digest
+        // move only with the revision step, the display name only with a newly begun Rename, and the desired digest
+        // only with a newly begun operation. The third row is the rewrite-then-activate path.
+        { "TestPassed", "client_id='other-client'", ConfigurationRefused },
+        { "TestPassed", "configuration_digest=repeat('e',64)", ConfigurationRefused },
+        { "TestPassed", "client_id='other-client',configuration_digest=repeat('e',64),state='Active'," + Walk.ClearTest, ConfigurationRefused },
+        { "Active", "source_kind='Manual'", ConfigurationRefused },
+        { "Pending", "client_id='other-client'", ConfigurationRefused },
+        { "Draft", "client_id='other-client'," + Walk.Begin("Rename"), ConfigurationRefused },
+        { "Draft", "display_name='Renamed'", ConfigurationRefused },
+        { "Pending", "display_name='Renamed'", ConfigurationRefused },
+        { "TestPassedPending", "display_name='Renamed'", ConfigurationRefused },
+        { "Draft", "display_name='Renamed'," + Walk.Begin("TestStart"), ConfigurationRefused },
+        { "TestPassed", "desired_digest=repeat('e',64)", ConfigurationRefused },
+        { "Active", "desired_digest=repeat('e',64)", ConfigurationRefused },
+        { "Pending", "desired_digest=repeat('e',64)", ConfigurationRefused },
+        // The applied test start records the readback of its pending digest; Activate the desired digest.
+        { "TestStart", Walk.OpenTest + ",last_provider_digest=repeat('e',64)", TransitionRefused },
+        { "TestStart", Walk.OpenTest + ",last_provider_digest=NULL", TransitionRefused },
+        { "TestPassed", "state='Active',last_provider_digest=repeat('e',64)," + Walk.ClearTest, TransitionRefused },
+        // The tombstone carries the confirming update's own stamp and actor.
+        { "DeletePending", "state='Deleted'," + Walk.Settle + ",deleted_at=@at-interval '1 second',deleted_by=created_by", TransitionRefused },
+        { "DeletePending", "state='Deleted'," + Walk.Settle + ",deleted_at=@at,deleted_by=uuidv7()", TransitionRefused },
+        { "DeletePending", "state='Deleted'," + Walk.Settle + ",deleted_at='infinity',deleted_by=created_by", TransitionRefused },
     };
+
+    /// <summary>Positive controls for the configuration pins: each column moves with the operation that owns it.</summary>
+    public static TheoryData<string, string> ConfigurationMovesWithItsOperation => new()
+    {
+        { "Draft", "display_name='Renamed'," + Walk.Begin("Rename") },
+        { "Active", "display_name='Renamed',desired_digest=repeat('e',64)," + Walk.BeginFor("Rename", 'e') },
+        { "Draft", "desired_digest=repeat('e',64)," + Walk.BeginFor("TestStart", 'e') },
+        { "TestPassed", "state='Draft',configuration_revision=configuration_revision+1,source_kind='Manual',client_id='other-client',"
+            + "configuration_digest=repeat('e',64),desired_digest=repeat('e',64)," + Walk.ClearTest + "," + Walk.BeginFor("Configure", 'e') },
+        { "Active", "state='Draft',configuration_revision=configuration_revision+1,client_id='other-client',"
+            + "configuration_digest=repeat('e',64),desired_digest=repeat('e',64)," + Walk.BeginFor("RotateSecret", 'e') },
+    };
+
+    [Theory]
+    [MemberData(nameof(ConfigurationMovesWithItsOperation))]
+    public async Task Configuration_moves_only_with_the_operation_that_owns_it(string from, string update)
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+        await walk.ToAsync(from);
+        (await walk.StepAsync(update)).Should().Be(1, update);
+    }
+
+    [Fact]
+    public async Task An_applied_test_start_that_records_its_readback_opens_the_window_after_a_new_desired_digest()
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+        await walk.ToAsync("Draft");
+        (await walk.StepAsync("desired_digest=repeat('e',64)," + Walk.BeginFor("TestStart", 'e'))).Should().Be(1);
+        // SET reads the old row, so last_provider_digest takes the pending digest the settle clears.
+        (await walk.StepAsync(Walk.OpenTest + ",last_provider_digest=pending_desired_digest")).Should().Be(1);
+        (await walk.StepAsync(Walk.Pass)).Should().Be(1);
+        (await walk.StepAsync("state='Active'," + Walk.ClearTest)).Should().Be(1, "the readback equals the desired digest");
+    }
+
+    /// <summary>
+    /// A stamp is bounded above by the transaction clock plus five minutes, so a frozen future stamp cannot make every
+    /// later monotonic update refuse. No lower bound applies: back-dating within the monotonic order is a residual.
+    /// </summary>
+    [Fact]
+    public async Task Stamps_more_than_five_minutes_past_the_transaction_clock_are_refused()
+    {
+        await using var app = await OpenAppAsync();
+        foreach (var (offset, admitted) in new[] { (TimeSpan.FromMinutes(6), false), (TimeSpan.FromDays(36500), false), (TimeSpan.FromMinutes(2), true) })
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+            var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+            await walk.ToAsync("Draft");
+            var at = DateTimeOffset.UtcNow + offset;
+            if (admitted) (await walk.StepAsync(Walk.Begin("Rename"), at)).Should().Be(1, "two minutes ahead is inside the bound");
+            else
+            {
+                var refused = (await walk.Awaiting(step => step.StepAsync(Walk.Begin("Rename"), at)).Should().ThrowAsync<PostgresException>()).Which;
+                refused.SqlState.Should().Be("23514");
+                refused.MessageText.Should().Be(ImmutableRefused, offset.ToString());
+            }
+            await transaction.RollbackAsync();
+        }
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+            var frozen = async () => await ExecuteAsync(app, transaction, """
+                UPDATE public.federation_connections SET pending_operation_kind=NULL,pending_operation_id=NULL,pending_actor=NULL,
+                    pending_started_at=NULL,pending_quiet_until=NULL,pending_desired_digest=NULL,last_provider_digest=desired_digest,
+                    row_version=row_version+1,updated_at='100000-01-01T00:00:00Z'::timestamptz,updated_by=created_by WHERE id=@id
+                """, ("id", FederationConnectionSchemaSeed.LiveB));
+            var refused = (await frozen.Should().ThrowAsync<PostgresException>()).Which;
+            refused.SqlState.Should().Be("23514");
+            refused.MessageText.Should().Be(ImmutableRefused);
+        }
+        foreach (var (offset, admitted) in new[] { (TimeSpan.FromMinutes(6), false), (TimeSpan.FromDays(36500), false), (TimeSpan.FromMinutes(2), true) })
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+            await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow.AddMinutes(-20));
+            var insert = async () => await FederationConnectionSchemaSeed.InsertAsync(app, transaction, Guid.CreateVersion7(),
+                SchemaFixture.TenantB, AdminB, DateTimeOffset.UtcNow + offset);
+            if (admitted) await insert.Should().NotThrowAsync("two minutes ahead is inside the bound");
+            else
+            {
+                var refused = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+                refused.SqlState.Should().Be("23514");
+                refused.MessageText.Should().Be(InitialRefused, offset.ToString());
+            }
+            await transaction.RollbackAsync();
+        }
+    }
+
+    /// <summary>
+    /// Actor columns hold UUIDv7 user identifiers and never the system actor, as <c>ck_users_actor</c> requires of
+    /// <c>users.id</c>; the nil UUID has no RFC 9562 version and is refused with them.
+    /// </summary>
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("00000000-0000-7000-8000-000000000001")]
+    [InlineData("4a1f2c3e-5b6d-4e7f-8a9b-0c1d2e3f4a5b")]
+    public async Task Actor_columns_refuse_the_nil_system_and_non_v7_identifiers(string actor)
+    {
+        var value = Guid.Parse(actor);
+        await using var app = await OpenAppAsync();
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+            await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow.AddMinutes(-20));
+            var insert = async () => await FederationConnectionSchemaSeed.InsertAsync(app, transaction, Guid.CreateVersion7(),
+                SchemaFixture.TenantB, value, At);
+            var refused = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+            refused.SqlState.Should().Be("23514");
+            refused.ConstraintName.Should().Be("ck_federation_connections_actors", "created_by and pending_actor");
+        }
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+            var update = async () => await ExecuteAsync(app, transaction, """
+                UPDATE public.federation_connections SET pending_operation_kind=NULL,pending_operation_id=NULL,pending_actor=NULL,
+                    pending_started_at=NULL,pending_quiet_until=NULL,pending_desired_digest=NULL,last_provider_digest=desired_digest,
+                    row_version=row_version+1,updated_at=@at,updated_by=@actor WHERE id=@id
+                """, ("id", FederationConnectionSchemaSeed.LiveB), ("at", At.AddMinutes(1)), ("actor", value));
+            var refused = (await update.Should().ThrowAsync<PostgresException>()).Which;
+            refused.SqlState.Should().Be("23514");
+            refused.ConstraintName.Should().Be("ck_federation_connections_actors", "updated_by");
+        }
+    }
+
+    /// <summary>Mirrors <c>FederationDisplayName</c>: the blank-rendering letters, and a leading mark or variation selector.</summary>
+    [Theory]
+    [InlineData("\u115f")]
+    [InlineData("Bad\u115fName")]
+    [InlineData("\u1160")]
+    [InlineData("Bad\u1160Name")]
+    [InlineData("\u3164")]
+    [InlineData("Bad\u3164Name")]
+    [InlineData("\uffa0")]
+    [InlineData("Bad\uffa0Name")]
+    [InlineData("\u2800")]
+    [InlineData("Bad\u2800Name")]
+    [InlineData("\u0301Name")]
+    [InlineData("\u20ddName")]
+    [InlineData("\ufe00Name")]
+    [InlineData("\ufe0fName")]
+    [InlineData("\U000E0100Name")]
+    [InlineData("\U000E01EFName")]
+    public async Task Display_name_CHECK_refuses_blank_letters_and_a_leading_mark_or_variation_selector(string name) =>
+        await RefusedInsertAsync(constraint: "ck_federation_connections_display_name", displayName: name);
+
+    [Theory]
+    [InlineData("https://user:pass@idp.example.invalid/issuer")]
+    [InlineData("https://user@idp.example.invalid")]
+    [InlineData("https://idp.example.invalid/issuer?x")]
+    [InlineData("https://idp.example.invalid/issuer#y")]
+    public async Task Oidc_issuer_CHECK_refuses_userinfo_query_and_fragment(string issuer) =>
+        await RefusedInsertAsync(constraint: "ck_federation_connections_issuer", issuer: issuer);
+
+    /// <summary>Positive controls: Turkish letters, an emoji presentation selector after its base, an OIDC path
+    /// holding <c>@</c> and free-form SAML entity identifiers are admitted.</summary>
+    [Theory]
+    [InlineData("Oidc", "https://idp.example.invalid:8443/tenants/a@b", "I\u015f\u0131k \u0130\u015fletme")]
+    [InlineData("Oidc", "https://idp.example.invalid/issuer", "\u0131\u0130\u015f\u015e\u011f\u011e\u00fc\u00dc\u00f6\u00d6\u00e7\u00c7")]
+    [InlineData("Saml", "urn:example:idp?x#y@z", "\u00c7a\u011flayan \u00d6\u011fretim")]
+    [InlineData("Saml", "https://user@idp.example.invalid/saml?entity=1#frag", "Acme \u2764\ufe0f")]
+    public async Task Values_the_domain_admits_are_admitted_by_the_CHECKs(string protocol, string issuer, string name)
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow.AddMinutes(-20));
+        var id = Guid.CreateVersion7();
+        await FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, protocol: protocol,
+            clientId: protocol == "Saml" ? null : "learnstack", displayName: name, issuer: issuer);
+        (await ScalarAsync<string>(app, transaction, "SELECT display_name||'|'||issuer_or_entity_id FROM public.federation_connections WHERE id=@id",
+            ("id", id))).Should().Be(name + "|" + issuer);
+    }
+
+    private async Task RefusedInsertAsync(string constraint, string displayName = "Seed SSO", string issuer = "https://idp.example.invalid/issuer")
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow.AddMinutes(-20));
+        var insert = async () => await FederationConnectionSchemaSeed.InsertAsync(app, transaction, Guid.CreateVersion7(),
+            SchemaFixture.TenantB, AdminB, At, displayName: displayName, issuer: issuer);
+        var refused = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be("23514");
+        refused.ConstraintName.Should().Be(constraint);
+    }
 
     [Theory]
     [MemberData(nameof(FailClosedRefusals))]
@@ -589,6 +820,11 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
             $"pending_operation_kind='{kind}',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=@at,"
             + "pending_quiet_until=@at+interval '90 seconds',pending_desired_digest=desired_digest";
 
+        /// <summary>A Begin whose desired digest is the new 64-character value of <paramref name="digest"/>: SET reads the
+        /// old row, so the pending digest is spelled out rather than copied from the column it changes with.</summary>
+        internal static string BeginFor(string kind, char digest) =>
+            Begin(kind).Replace("pending_desired_digest=desired_digest", $"pending_desired_digest=repeat('{digest}',64)", StringComparison.Ordinal);
+
         internal Task<int> StepAsync(string set) => StepAsync(set, Current.AddSeconds(1));
 
         internal async Task<int> StepAsync(string set, DateTimeOffset at)
@@ -612,6 +848,7 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
                 "Pending" => [],
                 "Draft" => [Settled],
                 "TestStart" => [Settled, Begin("TestStart")],
+                "DeletePending" => [Settled, Begin("Delete")],
                 "TestOpen" => [Settled, Begin("TestStart"), OpenTest],
                 "TestPassed" => [Settled, Begin("TestStart"), OpenTest, Pass],
                 "TestPassedPending" => [Settled, Begin("TestStart"), OpenTest, Pass, Begin("Rename")],

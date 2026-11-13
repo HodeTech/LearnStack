@@ -45,17 +45,17 @@ internal static class FederationConnectionSchemaSeed
     /// <summary>The Configure Begin row: Draft, revision one, its pending write and no test.</summary>
     internal static Task InsertAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid id, Guid tenant,
         Guid actor, DateTimeOffset at, string protocol = "Oidc", string? clientId = "learnstack", string? alias = null,
-        string displayName = "Seed SSO") =>
+        string displayName = "Seed SSO", string issuer = "https://idp.example.invalid/issuer") =>
         ExecuteAsync(connection, transaction, """
             INSERT INTO public.federation_connections(id,tenant_id,protocol,alias,display_name,issuer_or_entity_id,state,
                 source_kind,client_id,configuration_revision,configuration_digest,desired_digest,
                 pending_operation_kind,pending_operation_id,pending_actor,pending_started_at,pending_quiet_until,
                 pending_desired_digest,created_at,created_by,row_version)
-            VALUES(@id,@tenant,@protocol,@alias,@name,'https://idp.example.invalid/issuer','Draft',
+            VALUES(@id,@tenant,@protocol,@alias,@name,@issuer,'Draft',
                 'DiscoveryUrl',@client,1,@digest,@digest,'Configure',@operation,@actor,@at,@at+interval '90 seconds',
                 @digest,@at,@actor,0)
             """, ("id", id), ("tenant", tenant), ("protocol", protocol), ("alias", alias ?? Alias(id)),
-            ("name", displayName), ("client", clientId), ("digest", Digest('a')), ("operation", Guid.CreateVersion7()),
+            ("name", displayName), ("issuer", issuer), ("client", clientId), ("digest", Digest('a')), ("operation", Guid.CreateVersion7()),
             ("actor", actor), ("at", at));
 
     /// <summary>Settle Configure, begin Delete, then record the confirmed absence as the tombstone.</summary>

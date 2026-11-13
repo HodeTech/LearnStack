@@ -356,8 +356,24 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
         Enum.IsDefined(configuration.SourceKind) && ValidDigest(configuration.ConfigurationDigest) && ValidDigest(configuration.DesiredDigest)
         && ValidVisibleAscii(configuration.IssuerOrEntityId, MaximumIssuerLength)
         && (protocol == FederationProtocol.Oidc
-            ? ValidVisibleAscii(configuration.ClientId, MaximumClientIdLength)
+            ? ValidVisibleAscii(configuration.ClientId, MaximumClientIdLength) && ValidOidcIssuer(configuration.IssuerOrEntityId)
             : configuration.ClientId is null);
+
+    /// <summary>
+    /// An OIDC issuer has no query or fragment (OpenID Connect Discovery 1.0 § 3) and no userinfo in its authority,
+    /// so it cannot carry credentials. Mirrors <c>ck_federation_connections_issuer</c>: the authority is the text
+    /// between a leading <c>//</c> (the first slash followed by a second) and the next slash. A SAML entity
+    /// identifier stays free-form.
+    /// </summary>
+    private static bool ValidOidcIssuer(string issuer)
+    {
+        if (issuer.AsSpan().IndexOfAny('?', '#') >= 0) return false;
+        var slash = issuer.IndexOf('/', StringComparison.Ordinal);
+        if (slash < 0 || slash + 1 >= issuer.Length || issuer[slash + 1] != '/') return true;
+        var authority = issuer.AsSpan(slash + 2);
+        var end = authority.IndexOf('/');
+        return (end < 0 ? authority : authority[..end]).IndexOf('@') < 0;
+    }
 
     private static bool ValidVisibleAscii(string? value, int maximum) => value is { Length: > 0 } text && text.Length <= maximum
         && text.All(character => character is >= '!' and <= '~');
