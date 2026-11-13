@@ -624,6 +624,35 @@ exact columns, CHECKs, grants and guard; the application operations, provider ad
 and Studio page belong to Steps 2–4 and the
 [phase Status](../../roadmap/phase-03-identity-admin.md) owns their state.
 
+### Tenant federation operations (P03-8 Step 2)
+
+`FederationOperationRunner` is the one Identity application service around provider
+I/O ([ADR-0099 § Intent-first operations](../../decisions/0099-confined-tenant-federation.md#intent-first-operations)).
+It is not a MediatR handler: it sends a Begin (one request type per operation), calls
+`IFederationProvider` and the guarded `IFederationEgressFetcher` with no database
+transaction open, then sends the shared `CompleteFederationOperationCommand` on a
+token detached from the request. Each request is its own transaction and saves each
+domain step before the next, because the storage guard admits one row version per
+UPDATE. Budgets are 3 s egress, 1 s per database step, 2.5 s for all provider calls and
+1.5 s for Complete; an overrun is `uncertain` and stays pending for Resume after the
+90-second quiet window. Configure completes on Resume only when the nonsecret readback
+equals the stored desired digest; an interrupted rotation asks for a resubmit. Every
+readback compares a digest computed by `FederationDigest`; any mapper, nonconforming
+profile key or other state is drift and returns the connection to Draft. Activate and
+the test result read the provider before their state transaction and perform no
+write. Every read selects the live connection through `FederationConnectionReads.Live`,
+so a `Deleted` tombstone is never returned. Configure and test start require the
+protocol's entitlement (`identity.sso.oidc` or `identity.sso.saml`) through
+`IFeatureFlags`.
+
+Until the federation admin client and the guarded fetcher exist (Step 3), both ports
+are registered with fail-closed defaults that report every call unavailable, so
+Configure refuses `dependency_unavailable` and nothing reaches a provider. The
+anonymous `GetPublicSignInQuery` exposes the host tenant's Active, entitled alias and
+display name, from LearnStack's database only. The HTTP census is in
+[Standard 04](../../standards/04-api-design.md#tenant-federation-operations); the
+audit matrix in [audit.md](audit.md#tenant-federation).
+
 ## Entity-relationship diagram
 
 ```mermaid

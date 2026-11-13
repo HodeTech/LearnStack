@@ -1114,3 +1114,19 @@ The module matrices own planned request bindings; each new type and slug joins i
 catalogue before dispatch. Whole custom values and authored schema/labels/notices
 are redacted, while subject and linkage remain classified personal data. Phase 03
 owns delivery and proof.
+
+## Tenant federation
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
+P03-8 Step 2 binds the eleven MUST `identity.federation.*` operations to their exact
+request types in the [Identity matrix](../modules/identity/audit.md#tenant-federation).
+The Integrations baseline row above ("External provider credential … rotated") covers
+`identity.federation.rotate_secret`. Each Begin, Resume and Complete is its own request
+type; a Complete's failed or uncertain outcome is a settled, successful request with
+its own MUST row, not a rollback. No federation row carries a client secret, an
+assertion or a token; snapshots hold nonsecret fields and digests.
+
+| Read | Classification | Reason |
+|---|---|---|
+| `GetFederationConnectionQuery` | Off | The connection detail holds no personal data: protocol, alias, display name, issuer or entity identifier, client identifier, state and digests only. |
+| `GetPublicSignInQuery` | Off | Anonymous public read under ADR-0052; it returns the host tenant's Active alias and display name and no personal data. |

@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 655 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 817 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -493,6 +493,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 1 review round 2 corrections (2026-11-13)](#p03-8-step-1-review-round-2-corrections-2026-11-13) — 53 lines
   - [P03-8 Step 0 — Keycloak pin move (2026-11-13)](#p03-8-step-0--keycloak-pin-move-2026-11-13) — 129 lines
   - [P03-8 Step 0 review round 1 corrections (2026-11-13)](#p03-8-step-0-review-round-1-corrections-2026-11-13) — 48 lines
+  - [P03-8 Step 2 — application and API (2026-11-13)](#p03-8-step-2--application-and-api-2026-11-13) — 162 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22401,3 +22402,165 @@ only, not hosted CI. All corrections are in one commit, the one that adds this r
 - Trailer convention (Step 1 round 1 C9): the commit names the model that produced it.
 - OpenAPI gate admission (Step 1 round 1 C1): still undecided; this commit changes no
   contract.
+
+### P03-8 Step 2 — application and API (2026-11-13)
+
+The maintainer approved Step 2. This record covers the implementation and its local
+verification only. The two independent review rounds that ADR-0099 requires before
+Step 3 have not run, and nothing here is hosted CI or qualification evidence.
+
+**Commits.** `8e435ed6` (ports, runner, handlers, store and unit proof), `efbdb7f6` (HTTP, OpenAPI, SDK and census, contract, HTTP and PostgreSQL proof) and this documentation commit.
+
+**Ports (SharedKernel).** `IFederationProvider` beside `IIdentityEventProvider`
+admits exactly a full desired-state create-or-update, an owned readback (state,
+mapper count, fixed-profile conformance) and a delete; it takes no URL and performs no
+discovery. `IFederationEgressFetcher` fetches OIDC discovery, JWKS and SAML metadata
+and applies the address-class guard to an endpoint. `FederationClientSecret` renders
+and serializes as nothing and refuses an empty value, more than 1,024 bytes, the mask
+literal and a `${` reference. The registered defaults `UnconfiguredFederationProvider`
+and `UnconfiguredFederationEgressFetcher` fail closed: every call is unavailable, so
+Configure refuses `dependency_unavailable` and no row is written. In-memory fakes exist
+only under `backend/tests/Fixtures`.
+
+**Application (Identity).** `FederationOperationRunner` is the one service around
+provider I/O and is not a MediatR handler. It sends each step through `ISender` in its
+own frame: a Begin (six request types), the provider write and readback with no
+transaction open, then the shared `CompleteFederationOperationCommand` on a detached
+token. `ResumeFederationOperationCommand`, `EnableFederationCommand`,
+`ActivateFederationCommand`, `RecordFederationTestResultCommand` (server-only) and
+`ReconcileFederationConnectionCommand` (a detail load's drift or expired window)
+complete the fourteen request types with `GetFederationConnectionQuery` and
+`GetPublicSignInQuery`. Budgets are `FederationOperationBudgets.Default` (3 s egress,
+1 s per database step, 2.5 s for all provider calls, 1.5 s detached Complete); any
+overrun or unknown result is `uncertain`. `FederationDigest` computes every
+configuration, desired and readback digest; a mapper, a nonconforming profile key, a
+foreign owner or another state is drift. Handlers authorize through
+`FederationAuthorization` (fresh recheck under the Identity tenant fence), call only
+the aggregate's Step 1 methods and save each step before the next. Expected refusals
+are `Result.Fail` with the closed codes (`feature_disabled`, `concurrency_conflict`,
+`business_rule_violation`, `not_found`, `validation_failed`, `dependency_unavailable`).
+`FederationConnectionReads.Live` is the one tombstone filter for the store; the public
+reader selects `state='Active' AND deleted_at IS NULL` in SQL. Configure, Rotate secret
+and test start check `identity.sso.oidc`/`identity.sso.saml` through `IFeatureFlags`;
+the runner also checks before egress.
+
+**HTTP.** `FederationController` (`/api/v1/identity/federation`, eleven actions) is
+thin and calls only the runner. Mutations are PUT or POST with `If-Match` on the
+connection revision (absent only for the first configuration); a supplied
+`Idempotency-Key` is refused. Every settled outcome is a 200 receipt. The anonymous
+`PublicSignInController` serves `GET`/`HEAD /api/v1/public/sign-in` with `no-store`.
+`OperationHttpClassification`, `AdministrationHttpSurface`, `FederationDocumentTransformer`,
+the OpenAPI snapshot (Contract suite update path), `make sdk`, the SDK ownership
+contracts and a public `getSignIn` wrapper changed together.
+
+**Audit and authority.** Eleven MUST `identity.federation.*` operations, one catalogue
+entry per request type (`apply` covers Complete and Reconcile); the two reads are Off.
+Thirteen Protected policies on Tenant `identity.federation.admin` declare
+`requiresOrglessWrite`; the public read is `PublicRead` on the virtual
+`identity.public_sign_in.read`.
+
+**Common infrastructure change.** `IdentityMutationLocks` admitted one plan per scope.
+The runner's Begin and Complete are two transactions in one scope, so a later
+transaction (a new announcement generation; Npgsql reuses its transaction object, so
+the reference cannot name it) now starts a new plan. The same transaction still
+refuses a second acquisition.
+
+**Tests.** Unit: `FederationOperationRunnerTests` (21 cases) drives the runner over the in-memory
+provider with a domain-backed sender: Begin, provider and Complete order with an
+assertion that no transaction is open during provider I/O, a provider overrun and a
+client abort that settle `uncertain` on the detached Complete, refusal, mapper drift
+saved as two steps, the full lifecycle, test start and result, the quiet window, a
+late write settled by Resume, an interrupted rotation, a revoked actor's pending
+Complete settled by another administrator, a superseded identifier, the entitlement
+refusal before egress, detail-load drift reconciled once, the fail-closed defaults, the
+ADR budgets, the tombstone filter, digest equality and secret redaction. Integration
+(Docker, `learnstack_app`): `FederationHttpTests` (6) through the actual Program,
+authorization and PostgreSQL with Begin/Complete MUST rows, the uncertain and revoked
+paths, forced audit failure, cross-tenant refusal, underprivileged, branch-context and
+`Idempotency-Key` refusals before any provider or egress call, and save ordering
+(`row_version` +3 for Begin, Complete and drift); `PublicSignInHttpTests` (4).
+Architecture: `FederationApplicationConventionTests` (5) and the extended HTTP,
+public-surface, permission, policy-ownership, persistence, evidence and job-manifest
+censuses. Contract: the federation wire census with its dirty controls.
+
+**Verification.** All commands ran on a workstation (Docker, Testcontainers).
+
+| Command | Result |
+|---|---|
+| `dotnet build LearnStack.slnx -c Release` (`efbdb7f6`) | 0 warnings, 0 errors |
+| Unit tests (`LearnStack.Tests.Unit`, Release) | 3,935 passed, 0 failed, 0 skipped |
+| Contract tests (`LearnStack.Tests.Contract`, Release, after the snapshot refresh) | 13 passed |
+| Architecture tests (`LearnStack.Tests.Architecture`, Release) | 648 passed, 0 failed, 0 skipped (44 min), on `efbdb7f6` plus this commit's catalogue and matrix rows, which the corpus and audit-coverage rules read; `efbdb7f6` alone lacks those rows |
+| Integration, Release: federation storage and HTTP, public sign-in, bounded administration HTTP, OpenAPI administration, operation classification, public site and education, Identity membership and tenancy schema, role grants, Identity authorization HTTP, migration rollback, authorization pool progress | 516 run: 503 passed, 13 failed (11 `AuthorizationPoolProgressTests` and 2 `OperationHttpClassificationTests` census counts). Corrected, then those two classes rerun (Debug) 31 passed, 0 failed |
+| Integration, Release on `efbdb7f6`: `OperationHttpClassificationTests`, `AuthorizationPoolProgressTests`, `FederationHttpTests`, `PublicSignInHttpTests`, `FederationConnectionStorageTests` | 174 passed, 0 failed |
+| Integration, `FederationHttpTests` and `PublicSignInHttpTests` | 10 passed, 0 failed |
+| SDK `typecheck`, `lint`, `test` | clean, clean, 230 passed |
+| Web `typecheck`, `lint` | clean, no ESLint warnings or errors |
+| Workspace Vitest (`pnpm test`) | 130 files, 4,202 passed |
+| `make sdk` after the commit | generated types unchanged |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,712 fragment links resolve, roadmap structure conforms, 3 delivery-log indexes current |
+
+**OpenAPI gate.** `python3 scripts/openapi-ci.py --base 112796d2 --head efbdb7f6 --tool <oasdiff> --output <dir>`
+ran in a `linux/amd64` `python:3.12-slim` container after `scripts/install-oasdiff.py`
+verified `oasdiff version 1.33.0` (archive SHA-256 `43a4e328…5247`). Exit 0;
+`result.json` is `{"policyRefused": false, "rawToolRefused": false}`; the policy and raw
+outputs both read "No breaking changes to report, but the specs are different."; the
+companion list is empty. No transition record or policy was created or edited.
+
+**Deviations.**
+
+- **`federationAlias` on the native self response is not implemented.** The self
+  response (`GET /api/v1/identity/self`) is served by `GlobalSelfEntryMiddleware`, which
+  terminates before tenant resolution and MediatR. Reading the host tenant's Active,
+  entitled alias there needs either a new tenant-announcing READ ONLY owner (Standard 05's
+  logical-setter census and the setter scans) or a fifth `ITenantContextAccessor` writer,
+  and the host's entitlement is readable only through `IFeatureFlags`, which requires a
+  resolved tenant context; reading `IEntitlementProvider` from the API layer would bypass
+  ADR-0045's composition. Each is a decision beyond Step 2's carriers. The BFF parser is
+  therefore unchanged. The maintainer decides the carrier before Step 4, which consumes
+  the field.
+- **Detail-load drift is recorded by a twelfth request type.** ADR-0099 makes every
+  readback, the Studio detail load included, move a drifted connection to Draft. The read
+  is audit Off, so `GET /identity/federation` sends `ReconcileFederationConnectionCommand`
+  (MUST, classified `identity.federation.apply`) when a definitive readback differs from
+  the desired digest and was not already recorded, or a test window has expired. The GET
+  therefore writes in that case.
+- **A failed or expired test does not disable the broker immediately.** ADR-0099 says a
+  failed test "disables the broker"; the five write kinds have no state-preserving
+  disable from Draft, so the connection returns to Draft (no host admits it) and the next
+  full-state write, which writes `enabled=false` for Draft, corrects the provider. Expired
+  windows already work this way in the ADR.
+- **Rotate secret checks the entitlement**, as a Configure with a new secret.
+- **The public read uses its own SQL reader** (`state='Active' AND deleted_at IS NULL`)
+  rather than the EF `Live` helper, so no DbContext graph is reachable from a public
+  handler (the public JSON-schema census follows the whole graph).
+- **`IdentityMutationLocks` changed** (common infrastructure), as recorded above.
+- **The integration host widens the budgets to 10 s.** The ADR values are asserted in the
+  unit suite; a cold container must not flake on a 1-second database step.
+- **The HTTP two-tenant proof uses one federation administrator.** The Yoga seed
+  administrator's v1→v2 adoption returned 403 in the HTTP fixture (not investigated; the
+  English adoption chain succeeds). The test proves that the English connection is
+  invisible and unwritable from the Yoga host with either tenant's administrator, that
+  the Yoga host's sign-in read is null, and that the Yoga tenant holds no row; RLS
+  isolation of both tenants' rows stays proven by `FederationConnectionStorageTests`.
+- **SDK scope.** The generated-GET ownership census requires every GET to be owned, so the
+  SDK registers `GetFederationConnection` as authenticated and adds the public
+  `getSignIn` wrapper; no native or administration operation was added.
+- **Commit trailers** name the model that produced the commits, not the model the step
+  brief named, as in the Step 1 rounds.
+- **Skills.** `add-mediatr-handler` Steps 6–7 (idempotency, controller → `ISender`) are
+  replaced for these operations by ADR-0099: no `Idempotency-Key`, and the controller
+  calls the runner.
+
+**Residuals and open items.**
+
+- The two independent review rounds, hosted CI, the A/B layout qualification and the full
+  integration suite have not run.
+- The `federationAlias` carrier decision (above).
+- Under a failing in-transaction audit store, runner paths that begin with the Off
+  detail read (Activate, test result) return 503 rather than their own refusal; the
+  forced-audit proof therefore uses a Begin refusal. The cause was not traced.
+- One HTTP-census dirty control (`DescriptorRelationOffenders`) fails only on a Debug
+  build of the architecture assembly; the Release run is the recorded result.
+- The provider adapter, egress fetcher, realm reconciliation (Step 3) and the BFF,
+  Studio and host binding (Step 4) remain; until Step 3 both ports report unavailable.

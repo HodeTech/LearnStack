@@ -421,8 +421,9 @@ Registration remains distinct from grants. Implementation and qualification stat
 | `tenancy.public_site.read` | `GetPublicSiteQuery` |
 | `education.public_course.read` | `GetPublicCoursesQuery`, `GetPublicCourseQuery` |
 | `education.public_lesson.read` | `GetPublicLessonQuery` |
+| `identity.public_sign_in.read` | `GetPublicSignInQuery` ([ADR-0099](../decisions/0099-confined-tenant-federation.md#sign-in-exposure); Identity-owned) |
 
-These three Portal Public definitions are unavailable as stored Role grants.
+These four Portal Public definitions are unavailable as stored Role grants.
 They create no Membership/template and widen neither publication, HostScope,
 tenant/org scope nor physical READ ONLY bounds. Credential-free public requests
 perform no identity/grant lookup; these definitions do not expand the assignable
@@ -681,6 +682,31 @@ strict parsers admit the same ten; a Role still holds only pairs of its own scop
 Every federation operation that Step 2 adds is a Protected policy on Tenant
 `identity.federation.admin` that declares `requiresOrglessWrite`, so a branch
 context contributes nothing. Org Admin and every other role are unaffected.
+
+P03-8 Step 2 (2026-11-13) registers these exact policies in
+`IdentityOperationPolicySource`; each is Protected on Tenant `identity.federation.admin`
+with `requiresOrglessWrite`, and none is a receipt or Idempotency-Key operation:
+
+| Policy id | Request type |
+|---|---|
+| `identity.federation.read` | `GetFederationConnectionQuery` |
+| `identity.federation.configure` | `BeginConfigureFederationCommand` |
+| `identity.federation.rotate_secret` | `BeginRotateFederationSecretCommand` |
+| `identity.federation.rename` | `BeginRenameFederationCommand` |
+| `identity.federation.test_start` | `BeginFederationTestStartCommand` |
+| `identity.federation.disable` | `BeginDisableFederationCommand` |
+| `identity.federation.delete` | `BeginDeleteFederationCommand` |
+| `identity.federation.resume` | `ResumeFederationOperationCommand` |
+| `identity.federation.apply` | `CompleteFederationOperationCommand` (no route) |
+| `identity.federation.reconcile` | `ReconcileFederationConnectionCommand` (no route) |
+| `identity.federation.enable` | `EnableFederationCommand` |
+| `identity.federation.activate` | `ActivateFederationCommand` |
+| `identity.federation.test_record` | `RecordFederationTestResultCommand` |
+
+Complete authorizes like any protected request: an actor whose authority was revoked
+since Begin is refused, the operation stays pending and any current administrator's
+Resume settles it. The handlers recheck the decision under the Identity tenant fence.
+The public sign-in read is `PublicRead` on the virtual definition above.
 
 `canManageFederation` is the eleventh advisory administration capability: current
 Tenant federation-admin authority in an orgless context. It is computed by the same

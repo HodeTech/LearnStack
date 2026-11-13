@@ -284,6 +284,7 @@ The set is this table and nothing else:
 | `GetPublicCoursesQuery` | GET, HEAD | Exact-locale host-scoped marketing catalog, audit Off and READ ONLY | P02d-4 Step 3 |
 | `GetPublicCourseQuery` | GET, HEAD | Eligible marketing and public-only outline, audit Off and READ ONLY | P02d-4 Step 3 |
 | `GetPublicLessonQuery` | GET, HEAD | Eligible public-parent content, audit Off and READ ONLY | P02d-4 Step 3 |
+| `GetPublicSignInQuery` | GET, HEAD | Host tenant's Active, entitled federation alias and display name or null, owned by Identity; LearnStack database only, `no-store`, audit Off and READ ONLY ([ADR-0099](../decisions/0099-confined-tenant-federation.md#sign-in-exposure), [ADR-0052 Amendment 16](../decisions/0052-anonymous-public-read-boundary.md)) | P03-8 Step 2 |
 
 All four rows are production requests with explicit GET/HEAD endpoints.
 `PublicSurface_Marker_Set_Is_Enumerated` and
@@ -648,6 +649,36 @@ an unscoped key space. Acknowledged creation is 201; a matching existing or raci
 winner is 200. Unknown COMMIT is 503: deliberate retry can find the committed
 binding or make a newly admitted creation, without assuming rollback.
 
+
+### Tenant federation operations
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md#intent-first-operations).
+The protected federation operations accept **no `Idempotency-Key`**; a supplied key is
+refused with `validation_failed`. They stay outside the protected-receipt census and
+converge instead through `If-Match` on the connection revision, the pending operation,
+the unique live connection per tenant (a racing first configuration is a recoverable
+409) and a fresh read. The native transport admits no DELETE, so deletion is a POST
+to an action resource. Every settled outcome (applied, failed, uncertain, pending,
+drift, recorded, expired, superseded) is a 200 receipt; an uncertain or pending write
+is settled by Resume after its quiet window.
+
+| Method and path under `/api/v1/identity/federation` | Request type | Precondition |
+|---|---|---|
+| `GET` | `GetFederationConnectionQuery` | none; `ETag` when a live connection exists |
+| `PUT /configuration` | `BeginConfigureFederationCommand` | absent only for the first live connection, otherwise `If-Match` |
+| `POST /secret-rotations` | `BeginRotateFederationSecretCommand` | `If-Match` |
+| `PUT /display-name` | `BeginRenameFederationCommand` | `If-Match` |
+| `POST /test-starts` | `BeginFederationTestStartCommand` | `If-Match` |
+| `POST /test-results` | `RecordFederationTestResultCommand` (BFF server-side test owner only) | `If-Match` |
+| `POST /activation` | `ActivateFederationCommand` | `If-Match` |
+| `POST /disablement` | `BeginDisableFederationCommand` | `If-Match` |
+| `POST /enablement` | `EnableFederationCommand` | `If-Match` |
+| `POST /deletion` | `BeginDeleteFederationCommand` | `If-Match` |
+| `POST /resumption` | `ResumeFederationOperationCommand` | `If-Match` |
+
+`CompleteFederationOperationCommand` and `ReconcileFederationConnectionCommand` have no
+route: the Identity federation runner dispatches them inside the request that owns the
+operation.
 
 ## Optimistic Concurrency
 

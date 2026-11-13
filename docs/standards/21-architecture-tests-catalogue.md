@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**356 test methods run in
+**361 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**270 rules in this catalogue are Implemented, and 154 of them are in that assembly.**
+**273 rules in this catalogue are Implemented, and 157 of them are in that assembly.**
 The other 116 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -7481,8 +7481,10 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
 Canonical names for ADR-0099's new obligations are assigned with the step that
-introduces them. Step 1 introduces two; the existing Identity, permission, RLS,
-census and OpenAPI/SDK rules extend to the new subjects unchanged. The
+introduces them. Step 1 introduces two and Step 2 three; the existing Identity,
+permission, RLS, census and OpenAPI/SDK rules extend to the new subjects unchanged
+(Step 2 extends the authenticated HTTP census with a runner handoff for the federation
+controller and the public census with the Identity-owned sign-in read). The
 [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
 
 #### `Federation_Connection_Persists_No_Secret_Column`
@@ -7518,3 +7520,43 @@ census and OpenAPI/SDK rules extend to the new subjects unchanged. The
 - **Test owner:** [FederationConnectionStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationConnectionStorageTests.cs);
   the domain refusal also in [FederationConnectionTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/FederationConnectionTests.cs).
 - **Phase:** 03 (P03-8 Step 1, review round 1).
+
+#### `Federation_Provider_Port_Is_Held_Only_By_The_Runner`
+
+- **Asserts:** only the port declarations, `FederationOperationRunner` and the
+  fail-closed Identity registration name `IFederationProvider` or
+  `IFederationEgressFetcher` in production source, and no production type other than
+  the runner takes either port by constructor injection. The Step 3 adapter is admitted
+  by its own entry when it lands.
+- **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
+  and § Architecture Tests.
+- **Type:** source scan plus reflection over production assemblies, with a planted
+  holder control. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2).
+
+#### `Federation_Controller_Dispatches_Only_Through_The_Runner`
+
+- **Asserts:** the federation controller's only dependency is
+  `FederationOperationRunner` (never `ISender` or a port); the runner is not a MediatR
+  handler and sends its steps through `ISender`. The authenticated HTTP census
+  additionally requires each federation action to call exactly one runner operation
+  and no `ISender`.
+- **Source:** [ADR-0099 § Intent-first operations](../decisions/0099-confined-tenant-federation.md#intent-first-operations).
+- **Type:** reflection with planted sender- and port-holding controllers. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2).
+
+#### `Every_Federation_Request_Has_An_Audit_Catalogue_Entry`
+
+- **Asserts:** each of the fourteen federation request types is classified: the two
+  reads are explicit Off, and every other request has exactly one MUST
+  `identity.federation.*` entry.
+- **Source:** [ADR-0099 § Authority, audit and storage](../decisions/0099-confined-tenant-federation.md#authority-audit-and-storage),
+  [Audit 18](18-audit-coverage.md#tenant-federation).
+- **Type:** catalogue reflection. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2).

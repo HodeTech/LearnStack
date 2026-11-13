@@ -260,7 +260,20 @@ owns the release, fingerprint and adoption rules; this matrix adds no second cop
 | `identity.federation.admin` | Tenant only | `IdentityOperationPolicySource`, Assignable, from SharedKernel `FederationPermissions` | v3 → v4: this one pair | Built-in orgless Tenant Admin at exact v3, explicitly; seed admins walk v1→v2→v3→v4 in order |
 
 No Organization counterpart, template change or automatic grant exists, and warm
-seed and startup never restore or expand it. The federation operations that
-consume the key, each declared with orgless writes, arrive with P03-8 Step 2; the
-[phase Status](../../roadmap/phase-03-identity-admin.md) owns that state.
+seed and startup never restore or expand it.
+
+### Federation operation bindings (P03-8 Step 2)
+
+Every federation operation is Protected on Tenant `identity.federation.admin` with
+orgless writes, so a branch context contributes nothing and an Organization Admin is
+refused. The exact policy ids and request types are listed once in
+[Standard 19](../../standards/19-permissions.md#federation-operation-authority).
+
+| Resource | Operations | Permission | HTTP |
+|---|---|---|---|
+| `FederationConnection` | read; configure, rotate secret, rename, test start, disable, delete (Begin); resume; apply (Complete, no route); reconcile (no route); enable; activate; test record | Tenant `identity.federation.admin`, orgless | `/api/v1/identity/federation` and its action resources; `If-Match`, no `Idempotency-Key` |
+| Public sign-in option | read | virtual Tenant `identity.public_sign_in.read` (not assignable) | anonymous `GET`/`HEAD /api/v1/public/sign-in` |
+
+The [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery and
+qualification state.
 
