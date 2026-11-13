@@ -23,6 +23,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<RolePermissionGrant> RolePermissionGrants => Set<RolePermissionGrant>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<ProviderEventTarget> ProviderEventTargets => Set<ProviderEventTarget>();
+    public DbSet<FederationConnection> FederationConnections => Set<FederationConnection>();
 
     public IdentityAuthorityId CurrentIdentityAuthorityId => identityScope.Current is { } current
         && current.Generation > 0

@@ -601,7 +601,7 @@ under the existing tenant-wide and organization-scoped classes.
 | Class | Rule | Tables |
 |---|---|---|
 | **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), `background_jobs`, `background_job_attempts`, `background_job_recipients` (P02b-4 Step 2), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables; P03-1 Step 4 adds `memberships`, `membership_profiles` and `membership_role_assignments` |
-| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); P03-1 Step 4 adds `roles` and `role_permission_grants` |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); P03-1 Step 4 adds `roles` and `role_permission_grants`; P03-8 Step 1 adds `federation_connections` ([ADR-0099](../decisions/0099-confined-tenant-federation.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes have exact declared owners | `platform_host_to_tenant`, `platform_killswitches`, `identity_authority` (P03-1 Step 3) |
 | **Infrastructure control** | `ENABLE` + `FORCE`, no app policy or privilege; enumerated confined bypass control access under ADR-0047 | `background_job_recurrences`, `background_job_occurrences` |
@@ -6144,3 +6144,42 @@ history and never resets its activation boundary; receipt retirement is not a
 replay permission. Target, outbox, delivery/inbox and Audit copies retain their
 coordinated Phase 11 retention dependency. P03-10 owns subject erasure across all
 these stores and immutable linkage; no global erasure writer is added here.
+
+## Federation connection storage
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) and its
+Amendment 1. P03-8 Step 1 implements the storage; the federation operations that
+write it are Step 2's, and the [phase Status](../roadmap/phase-03-identity-admin.md)
+owns qualification.
+
+`federation_connections` is Identity-owned, tenant-owned and tenant-wide (§ Table
+classes): `[TenantOwned]` only, no organization column, the tenant-wide EF filter,
+`ENABLE` and `FORCE` RLS with the one tenant-only isolation policy of
+[the canonical template](#tenant-owned-and-organization-scoped-tables), and
+`SELECT`, `INSERT`, `UPDATE` to `learnstack_app` only — no `DELETE` grant. It is the
+seventh member of the `SchemaTableClasses` Identity contextual class. The forward-only
+migration refuses reversal.
+
+| Facts | Storage contract |
+|---|---|
+| Identity | UUIDv7 `FederationConnectionId`; `(tenant_id,id)` reference key; tenant, protocol, alias, issuer or entity identifier and creation stamps immutable |
+| Alias | `lsf-` plus the identifier's 32 lowercase hex characters, checked against `id`; never input, so a tombstone keeps its alias reserved without an index |
+| One per tenant | Partial unique `(tenant_id) WHERE deleted_at IS NULL` (§ Soft Delete); a tombstone frees the slot |
+| Lifecycle | `Draft`, `TestOpen`, `TestPassed`, `Active`, `Disabled`, terminal `Deleted` tombstone with `deleted_at`/`deleted_by` set; CHECKs bind state, protocol, source kind and client identifier (OIDC only) |
+| Pending write | Kind, operation identifier, actor, start, quiet-window end (start + 90 seconds) and desired digest are all null or all set; none on a tombstone |
+| Test attempt | Identifier, actor, revision (= configuration revision), expiry and result exist exactly in `TestOpen` (Pending) and `TestPassed` (Passed, expiry = pass + 10 minutes) |
+| Values | Display name 1–80 code points, trimmed, no control character; issuer and client identifier visible ASCII; digests 64 lowercase hex; configuration revision ≥ 1 |
+| Personal data | Configuration columns `None`; `pending_actor` and `test_actor` are pseudonymous `Identity` identifiers; audit columns as § Audit Columns |
+| Secrets | No secret, token, assertion, certificate or key column; `Federation_Connection_Persists_No_Secret_Column` closes the column set |
+
+`fn_identity_federation_connection_guard`, a `SECURITY INVOKER` `BEFORE INSERT OR
+UPDATE` trigger, admits only `learnstack_app`, requires the Identity tenant fence
+(`fn_identity_assert_tenant_fence`, shared), starts every row as a `Draft` with its
+pending Configure, pins the immutable columns, advances `row_version` and
+`updated_at`, admits a revision step only for a Configure or Rotate secret Begin,
+refuses a second unsettled operation and admits only ADR-0099's transitions:
+`Draft`→`TestOpen` (applied test start), `TestOpen`→`TestPassed`,
+`TestPassed`→`Active` (no pending write), any of `TestOpen`/`TestPassed`/`Active`/
+`Disabled`→`Draft`, `Active`→`Disabled`, and a confirmed Delete to the terminal
+tombstone, which no later UPDATE may change.
+

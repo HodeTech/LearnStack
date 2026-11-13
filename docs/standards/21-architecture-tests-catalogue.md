@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**353 test methods run in
+**356 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**268 rules in this catalogue are Implemented, and 153 of them are in that assembly.**
+**269 rules in this catalogue are Implemented, and 154 of them are in that assembly.**
 The other 115 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -7476,3 +7476,25 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [real provider mirror](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/ProviderEventAdapterTests.Mirror.cs),
   [typed central evidence](../../backend/tests/LearnStack.Tests.Unit/SharedKernel/Audit/ProviderEventAuditEvidenceTests.cs).
 - **Phase:** 03 (P03-6).
+
+## P03-8 tenant federation controls
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
+Canonical names for ADR-0099's new obligations are assigned with the step that
+introduces them. Step 1 introduces one; the existing Identity, permission, RLS,
+census and OpenAPI/SDK rules extend to the new subjects unchanged. The
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
+
+#### `Federation_Connection_Persists_No_Secret_Column`
+
+- **Asserts:** the mapped `federation_connections` column set is closed and contains
+  no secret, token, assertion, certificate, key, password or credential column; the
+  aggregate is `[TenantOwned]`, not organization-scoped, and carries the tenant EF
+  filter. A client secret exists only in memory for one provider call.
+- **Source:** [ADR-0099 § Authority, audit and storage](../decisions/0099-confined-tenant-federation.md#authority-audit-and-storage),
+  [Database](05-database.md#federation-connection-storage).
+- **Type:** EF model scan with planted secret-shaped column controls. **Kind:** structural.
+- **Status:** **Implemented** (`FederationConnectionConventionTests`).
+- **Test owner:** [FederationConnectionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationConnectionConventionTests.cs);
+  storage behaviour in [FederationConnectionStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationConnectionStorageTests.cs).
+- **Phase:** 03 (P03-8 Step 1).

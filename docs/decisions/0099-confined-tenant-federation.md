@@ -677,3 +677,42 @@ fixes committed after each round, and then the next step starts.
   [LinkedAccountsResource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/account/LinkedAccountsResource.java),
   [IdentityProviderModel](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi/src/main/java/org/keycloak/models/IdentityProviderModel.java).
 - Keycloak security advisories for the CVEs listed in the advisory baseline (fixed in 26.6.4 or 26.6.5).
+
+## Amendments
+
+### Amendment 1 — Step 1 storage deviations (2026-11-13)
+
+P03-8 Step 1 implements the authority and storage above. The Decision is unchanged.
+Three storage details differ from, or make concrete, this record's text; each is
+listed with its reason. The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md)
+holds the step record.
+
+1. **Delete keeps a tombstone.** § Lifecycle and test says Delete "removes the row"
+   after the provider confirms absence. Identity tables grant `learnstack_app` no
+   `DELETE`, and Identity roots end by soft state (Membership revocation, invitation
+   terminal states). A confirmed Delete therefore moves the connection to a terminal
+   `Deleted` state and sets `deleted_at` and `deleted_by`; a CHECK binds the two. No
+   later update may change the row, and its alias stays reserved because the alias is
+   derived from the primary key. "One connection per tenant" is a partial unique
+   index on `tenant_id` `WHERE deleted_at IS NULL`, the form
+   [Database Standards § Soft Delete](../standards/05-database.md#soft-delete)
+   requires, so a tombstone frees the slot for a recreated connection with a new
+   identifier and a new alias. Every later reference to "removes the row" in this
+   record reads as "records the tombstone".
+2. **The issuer or entity identifier is stored at creation.** § Ownership says the
+   connection stores it "at first successful configuration". A connection is created
+   by its first Configure Begin, after the egress-validated configuration has
+   produced the issuer, so the row stores it then and the column is never null. A
+   Configure whose issuer differs is a domain refusal and is also refused by the
+   storage guard. If that first provider write fails, the issuer stays recorded; a
+   different issuer still needs a new connection, as this record already requires.
+3. **Admission stops before a downgrading provider write.** Disable moves Active to
+   Disabled at Begin, and Delete Begin moves TestOpen, TestPassed or Active to Draft,
+   so no host admits a brokered session while the write is in flight. A test window
+   opens only when the enabling test-start write is applied; the attempt identifier is
+   recorded then. The storage guard admits exactly these transitions under the
+   Identity tenant fence in shared mode.
+
+Carriers: Standard 05 § Federation connection storage, Standard 19 § Federation and
+version-4 adoption, Standard 21's `Federation_Connection_Persists_No_Secret_Column`,
+the Identity module specification and permission matrix.

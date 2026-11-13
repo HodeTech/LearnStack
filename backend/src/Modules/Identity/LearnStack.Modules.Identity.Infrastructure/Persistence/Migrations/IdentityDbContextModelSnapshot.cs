@@ -24,6 +24,268 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.FederationConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("Alias")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)")
+                        .HasColumnName("alias")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("client_id")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("ConfigurationDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("configuration_digest")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<long>("ConfigurationRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("configuration_revision")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was created.");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate creation to its actor.");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was soft-deleted.");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate soft deletion to its actor.");
+
+                    b.Property<string>("DesiredDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("desired_digest")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("display_name")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("IssuerOrEntityId")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("issuer_or_entity_id")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("LastProviderDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_provider_digest")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<Guid?>("PendingActor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pending_actor")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Pseudonymous actor identifiers attributing a pending provider write or a test attempt.");
+
+                    b.Property<string>("PendingDesiredDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("pending_desired_digest")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<Guid?>("PendingOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pending_operation_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("PendingOperationKind")
+                        .HasColumnType("text")
+                        .HasColumnName("pending_operation_kind")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<DateTimeOffset?>("PendingQuietUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pending_quiet_until")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<DateTimeOffset?>("PendingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pending_started_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("Protocol")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("protocol")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("SourceKind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_kind")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<Guid?>("TestActor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("test_actor")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Pseudonymous actor identifiers attributing a pending provider write or a test attempt.");
+
+                    b.Property<Guid?>("TestAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("test_attempt_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<DateTimeOffset?>("TestExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("test_expires_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<DateTimeOffset?>("TestPassedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("test_passed_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<string>("TestResult")
+                        .HasColumnType("text")
+                        .HasColumnName("test_result")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<long?>("TestRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("test_revision")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned federation configuration: protocol, derived alias, public IdP identifiers, nonsecret digests and lifecycle.");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was last updated.");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute the latest aggregate update to its actor.");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("row_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Detect concurrent writes to this aggregate revision.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_federation_connections");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ux_federation_connections_tenant_id_id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_federation_connections_tenant_live")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.ToTable("federation_connections", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_federation_connections_alias", "alias = 'lsf-' || replace(id::text, '-', '')");
+
+                            t.HasCheckConstraint("ck_federation_connections_client", "((protocol <> 'Oidc' OR (client_id IS NOT NULL AND octet_length(client_id) BETWEEN 1 AND 255 AND client_id ~ '^[!-~]+$')) AND (protocol <> 'Saml' OR client_id IS NULL)) IS TRUE");
+
+                            t.HasCheckConstraint("ck_federation_connections_digests", "(configuration_digest ~ '^[0-9a-f]{64}$' AND desired_digest ~ '^[0-9a-f]{64}$' AND (last_provider_digest IS NULL OR last_provider_digest ~ '^[0-9a-f]{64}$') AND (pending_desired_digest IS NULL OR pending_desired_digest ~ '^[0-9a-f]{64}$')) IS TRUE");
+
+                            t.HasCheckConstraint("ck_federation_connections_display_name", "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name !~ '[[:cntrl:]]'");
+
+                            t.HasCheckConstraint("ck_federation_connections_identifiers", "(uuid_extract_version(id)=7 AND (pending_operation_id IS NULL OR uuid_extract_version(pending_operation_id)=7) AND (test_attempt_id IS NULL OR uuid_extract_version(test_attempt_id)=7)) IS TRUE");
+
+                            t.HasCheckConstraint("ck_federation_connections_issuer", "octet_length(issuer_or_entity_id) BETWEEN 1 AND 2048 AND issuer_or_entity_id ~ '^[!-~]+$'");
+
+                            t.HasCheckConstraint("ck_federation_connections_pending", "((pending_operation_kind IS NULL AND pending_operation_id IS NULL AND pending_actor IS NULL AND pending_started_at IS NULL\n    AND pending_quiet_until IS NULL AND pending_desired_digest IS NULL)\nOR (pending_operation_kind IN ('Configure','RotateSecret','Rename','TestStart','Disable','Delete')\n    AND pending_operation_id IS NOT NULL AND pending_actor IS NOT NULL AND pending_started_at IS NOT NULL\n    AND pending_quiet_until IS NOT NULL AND pending_desired_digest IS NOT NULL\n    AND isfinite(pending_started_at) AND pending_quiet_until = pending_started_at + interval '90 seconds'\n    AND state <> 'Deleted')) IS TRUE");
+
+                            t.HasCheckConstraint("ck_federation_connections_protocol", "protocol IN ('Oidc','Saml')");
+
+                            t.HasCheckConstraint("ck_federation_connections_revision", "configuration_revision >= 1");
+
+                            t.HasCheckConstraint("ck_federation_connections_source_kind", "source_kind IN ('MetadataUrl','DiscoveryUrl','Manual')");
+
+                            t.HasCheckConstraint("ck_federation_connections_state", "state IN ('Draft','TestOpen','TestPassed','Active','Disabled','Deleted')");
+
+                            t.HasCheckConstraint("ck_federation_connections_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
+
+                            t.HasCheckConstraint("ck_federation_connections_test", "((state IN ('TestOpen','TestPassed') AND test_attempt_id IS NOT NULL AND test_actor IS NOT NULL AND test_revision IS NOT NULL\n    AND test_revision = configuration_revision AND test_expires_at IS NOT NULL AND isfinite(test_expires_at)\n    AND ((state='TestOpen' AND test_result='Pending' AND test_passed_at IS NULL)\n        OR (state='TestPassed' AND test_result='Passed' AND test_passed_at IS NOT NULL\n            AND test_expires_at = test_passed_at + interval '10 minutes')))\nOR (state NOT IN ('TestOpen','TestPassed') AND test_attempt_id IS NULL AND test_actor IS NULL AND test_revision IS NULL\n    AND test_expires_at IS NULL AND test_result IS NULL AND test_passed_at IS NULL)) IS TRUE");
+
+                            t.HasCheckConstraint("ck_federation_connections_tombstone", "((state='Deleted' AND deleted_at IS NOT NULL AND deleted_by IS NOT NULL) OR (state<>'Deleted' AND deleted_at IS NULL AND deleted_by IS NULL)) IS TRUE");
+                        });
+                });
+
             modelBuilder.Entity("LearnStack.Modules.Identity.Domain.IdentityAuthority", b =>
                 {
                     b.Property<int>("Id")

@@ -1347,6 +1347,7 @@ public sealed partial class TenancySchemaTests
             .Concat(["learnstack_app identity_authority SELECT", "learnstack_app users SELECT",
                 "learnstack_app memberships INSERT,SELECT,UPDATE",
                 "learnstack_app invitations INSERT,SELECT,UPDATE",
+                "learnstack_app federation_connections INSERT,SELECT,UPDATE",
                 "learnstack_app tenant_custom_field_defs INSERT,SELECT,UPDATE",
                 "learnstack_app membership_field_consents INSERT,SELECT",
                 "learnstack_app membership_profiles INSERT,SELECT,UPDATE",

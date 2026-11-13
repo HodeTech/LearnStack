@@ -18,3 +18,12 @@ public readonly partial record struct InvitationGenerationId : IStronglyTypedId<
 
 [ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
 public readonly partial record struct InvitationEmailReceiptId : IStronglyTypedId<Guid>;
+
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct FederationConnectionId : IStronglyTypedId<Guid>;
+
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct FederationOperationId : IStronglyTypedId<Guid>;
+
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct FederationTestAttemptId : IStronglyTypedId<Guid>;

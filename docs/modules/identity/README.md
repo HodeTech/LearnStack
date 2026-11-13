@@ -112,6 +112,7 @@ owns its exact global SQL, grants and guards.
 | `membership_role_assignments` | Tenant-owned, org-scoped; contained Membership child | PK `(tenant_id,membership_id,role_id)`; exact Membership organization mirror; Role capability compatibility guard |
 | `roles` | Tenant-owned, tenant-wide; Role root | UUIDv7 `RoleId`; referenceable `(tenant_id,id)`; current unique `(tenant_id,permission_scope,built_in_key) WHERE deleted_at IS NULL`; no `organization_id` |
 | `role_permission_grants` | Tenant-owned, tenant-wide; contained Role child | PK `(tenant_id,role_id,permission_scope,permission_key)`; exact Role capability-scope mirror; no `organization_id` |
+| `federation_connections` | Tenant-owned, tenant-wide; FederationConnection root ([ADR-0099](../../decisions/0099-confined-tenant-federation.md)) | UUIDv7 `FederationConnectionId`; referenceable `(tenant_id,id)`; one live per tenant `(tenant_id) WHERE deleted_at IS NULL`; terminal `Deleted` tombstone; no `organization_id` |
 
 Use each [Standard 05 table class](../../standards/05-database.md#table-classes),
 its EF filter and ENABLE/FORCE RLS. Org-scoped tables receive canonical
@@ -602,6 +603,24 @@ Membership lock protect final admission through commit. Historical values keep t
 classification; withdrawal withholds sensitive values from ordinary DTOs without
 erasing them. `None` does not automatically exclude subject-linked values from
 P03-10 fulfillment. The phase Status owns implementation and qualification.
+
+### Tenant federation storage (P03-8 Step 1)
+
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) and its Amendment 1
+define `FederationConnection`, one per tenant. Its lifecycle is `Draft`,
+`TestOpen` (10-minute test window), `TestPassed` (10 minutes to Activate), `Active`,
+`Disabled` and the terminal `Deleted` tombstone, which keeps the row and its alias
+reserved instead of removing it. The alias is `lsf-` plus the identifier's 32
+lowercase hex characters, derived once. The display name is 1–80 normalized code
+points with no control, format or bidirectional character. The issuer or SAML
+entity identifier is fixed from the first configuration; a change is a domain
+refusal and needs a new connection. At most one provider write is pending; an
+uncertain one is resumable after a 90-second quiet window. Expected refusals are
+`Result` failures. The row stores no secret, token, assertion or certificate.
+[Standard 05](../../standards/05-database.md#federation-connection-storage) owns the
+exact columns, CHECKs, grants and guard; the application operations, provider adapter
+and Studio page belong to Steps 2–4 and the
+[phase Status](../../roadmap/phase-03-identity-admin.md) owns their state.
 
 ## Entity-relationship diagram
 
