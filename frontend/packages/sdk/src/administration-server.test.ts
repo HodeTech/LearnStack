@@ -94,6 +94,7 @@ describe('closed administration server SDK', () => {
     expect(Object.keys(createAuthenticatedServerSdk(transport))).toEqual(['getAccountSite']);
     expect(Object.keys(createServerSdk(transport))).toEqual([
       'getSite',
+      'getSignIn',
       'getCourses',
       'getCourse',
       'getLesson',

@@ -27,6 +27,7 @@ type Query<T extends PublicGetOperation> = operations[T]['parameters']['query'];
 type Path<T extends PublicGetOperation> = operations[T]['parameters']['path'];
 export type ServerSdk = {
   getSite(options?: RequestOptions): Promise<ApiResult<PublicSuccess<'GetPublicSite'>>>;
+  getSignIn(options?: RequestOptions): Promise<ApiResult<PublicSuccess<'GetPublicSignIn'>>>;
   getCourses(
     query: Query<'GetPublicCourses'>,
     options?: RequestOptions,
@@ -49,6 +50,7 @@ export const PUBLIC_GET_CONTRACTS = Object.freeze({
   '/api/v1/public/courses': 'GetPublicCourses',
   '/api/v1/public/courses/{slug}': 'GetPublicCourse',
   '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'GetPublicLesson',
+  '/api/v1/public/sign-in': 'GetPublicSignIn',
 } as const satisfies Record<string, PublicGetOperation>);
 
 export type PublicGetPath = keyof typeof PUBLIC_GET_CONTRACTS;
@@ -73,6 +75,7 @@ export const PUBLIC_GET_WRAPPERS = Object.freeze({
   '/api/v1/public/courses': 'getCourses',
   '/api/v1/public/courses/{slug}': 'getCourse',
   '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'getLesson',
+  '/api/v1/public/sign-in': 'getSignIn',
 } as const satisfies PublicWrappers);
 
 function queryString(query: Record<string, string | undefined>): string {
@@ -87,7 +90,7 @@ function isDotSegment(value: string): boolean {
   return value === '.' || value === '..';
 }
 
-/** Four public GET contracts, with no default fetch, tenant selector, header options or implicit host lookup. */
+/** Five public GET contracts, with no default fetch, tenant selector, header options or implicit host lookup. */
 export function createServerSdk(transport: PublicFetch): ServerSdk {
   async function request<T extends PublicGetOperation>(
     operation: T,
@@ -145,6 +148,7 @@ export function createServerSdk(transport: PublicFetch): ServerSdk {
   }
   return {
     getSite: (options) => request('GetPublicSite', () => '/api/v1/public/site', options),
+    getSignIn: (options) => request('GetPublicSignIn', () => '/api/v1/public/sign-in', options),
     getCourses: (query, options) =>
       request(
         'GetPublicCourses',

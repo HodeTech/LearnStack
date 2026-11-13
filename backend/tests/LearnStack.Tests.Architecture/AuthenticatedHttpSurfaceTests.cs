@@ -31,6 +31,31 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private const string Admission = "LearnStack.Api.Identity.NativeSessionAdmissionController";
     private const string Versioning = "LearnStack.Api.Versioning.ApiVersioningExtensions";
     private const string Route = "Microsoft.AspNetCore.Mvc.RouteAttribute";
+    private const string FederationController = "LearnStack.Api.Identity.FederationController";
+    private const string FederationRunner = "LearnStack.Modules.Identity.Application.Federation.FederationOperationRunner";
+
+    /// <summary>
+    /// ADR-0099's sanctioned surface: the federation controller and its wire models hold only the runner and its
+    /// nonpersistent input/output records. The runner's own boundary is FederationApplicationConventionTests.
+    /// </summary>
+    private static readonly string[] FederationSurface =
+    [
+        FederationRunner, "LearnStack.Modules.Identity.Application.Federation.FederationConfigureInput",
+        "LearnStack.Modules.Identity.Application.Federation.FederationRun", "LearnStack.Modules.Identity.Application.Federation.FederationConnectionDetail",
+        "LearnStack.Modules.Identity.Application.Federation.FederationProviderObservation",
+        "LearnStack.Modules.Identity.Application.Federation.FederationCertificates",
+    ];
+
+    /// <summary>Each federation action calls exactly one runner operation and never ISender.</summary>
+    private static bool FederationHandoff(TypeDefinition type, MethodDefinition action)
+    {
+        var body = Il.Methods(type).Where(method => (method.DeclaredAs == action.Name
+                || method.Definition.Name.StartsWith("<" + action.Name + ">", StringComparison.Ordinal)) && method.Definition.HasBody)
+            .SelectMany(method => method.Definition.Body.Instructions).ToArray();
+        var runs = body.Count(instruction => instruction.Operand is MethodReference call && call.DeclaringType.FullName == FederationRunner);
+        return runs == 1 && !body.Any(instruction => instruction.Operand is MethodReference call
+            && call.DeclaringType.FullName == typeof(ISender).FullName);
+    }
 
     private sealed record AuditDeclaration(OperationClass? Class = null, OperationType? Type = null,
         string? Operation = null, System.Type? Entity = null);
@@ -108,6 +133,12 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.PublicLessonDetail), 200, null, new()),
         new("LearnStack.Api.PublicReads.PublicEducationController", "HeadLesson", "HEAD", "public/courses", "{slug}/lessons/{lessonSlug}",
             "HeadPublicLesson", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicLessonQuery), null,
+            null, 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicSignInController", "Get", "GET", "public/sign-in", null,
+            "GetPublicSignIn", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetPublicSignInQuery), null,
+            typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.PublicSignIn), 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicSignInController", "Head", "HEAD", "public/sign-in", null,
+            "HeadPublicSignIn", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetPublicSignInQuery), null,
             null, 200, null, new()),
         new("LearnStack.Api.Account.AccountController", "GetSite", "GET", "account", "site",
             "GetAccountSite", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery), "LearnStackOperation:tenancy.account_site.read",
@@ -220,6 +251,40 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Tenancy.InvitationPolicyController", "Set", "PUT", "tenancy/settings/invitation-policy", null,
             "SetTenantInvitationLifetime", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.SetTenantInvitationLifetimeCommand), "LearnStackOperation:tenancy.setting.write_invitation_lifetime",
             typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 14, new(OperationClass.Must, OperationType.Update, "tenancy.setting.write", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting))),
+        // ADR-0099: the protected federation operations hand off to the one runner, without Idempotency-Key.
+        new("LearnStack.Api.Identity.FederationController", "Get", "GET", "identity/federation", null,
+            "GetFederationConnection", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetFederationConnectionQuery), "LearnStackOperation:identity.federation.read",
+            typeof(LearnStack.Api.Identity.FederationConnectionResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.FederationController", "Configure", "PUT", "identity/federation", "configuration",
+            "ConfigureFederation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.BeginConfigureFederationCommand), "LearnStackOperation:identity.federation.configure",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.configure", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "RotateSecret", "POST", "identity/federation", "secret-rotations",
+            "RotateFederationSecret", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.BeginRotateFederationSecretCommand), "LearnStackOperation:identity.federation.rotate_secret",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.rotate_secret", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "Rename", "PUT", "identity/federation", "display-name",
+            "RenameFederation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.BeginRenameFederationCommand), "LearnStackOperation:identity.federation.rename",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.rename", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "StartTest", "POST", "identity/federation", "test-starts",
+            "StartFederationTest", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.BeginFederationTestStartCommand), "LearnStackOperation:identity.federation.test_start",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.test_start", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "RecordTestResult", "POST", "identity/federation", "test-results",
+            "RecordFederationTestResult", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.RecordFederationTestResultCommand), "LearnStackOperation:identity.federation.test_record",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.test_record", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "Activate", "POST", "identity/federation", "activation",
+            "ActivateFederation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.ActivateFederationCommand), "LearnStackOperation:identity.federation.activate",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.activate", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "Disable", "POST", "identity/federation", "disablement",
+            "DisableFederation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.BeginDisableFederationCommand), "LearnStackOperation:identity.federation.disable",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.disable", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "Enable", "POST", "identity/federation", "enablement",
+            "EnableFederation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.EnableFederationCommand), "LearnStackOperation:identity.federation.enable",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.enable", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "Delete", "POST", "identity/federation", "deletion",
+            "DeleteFederation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.BeginDeleteFederationCommand), "LearnStackOperation:identity.federation.delete",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.delete", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
+        new("LearnStack.Api.Identity.FederationController", "Resume", "POST", "identity/federation", "resumption",
+            "ResumeFederationOperation", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.ResumeFederationOperationCommand), "LearnStackOperation:identity.federation.resume",
+            typeof(LearnStack.Api.Identity.FederationOperationResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.federation.resume", typeof(LearnStack.Modules.Identity.Domain.FederationConnection))),
     ];
 
     // These are mapping call sites, not a path-wide exception. A second health
@@ -390,7 +455,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(43, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
+        handlers.Should().HaveCount(46, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, and the federation commands share one handler class beside its two query handlers");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -608,6 +673,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     ? ConsentSubjectHandoff(type, action, entry)
                     : type.FullName == "LearnStack.Api.Identity.InvitationEntryController"
                     ? InvitationEntryHandoff(type, action, entry)
+                    : type.FullName == FederationController
+                    ? FederationHandoff(type, action)
                     : entry.ProtectedOperation is null ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
                     : ProtectedHandoff(type, action, entry)))
                     errors.Add("Construct exactly " + entry.Request.FullName + " at its single validated pipeline dispatch: " + type.FullName + "." + action.Name);
@@ -634,7 +701,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 errors.Add("HTTP request must retain its exact audit declaration: " + request.FullName);
             if (request.IsDefined(typeof(PublicSurfaceAttribute), false)
                 != Endpoints.Any(endpoint => endpoint.Request == request && endpoint.Policy is null))
-                errors.Add("Only the existing four public queries carry PublicSurface: " + request.FullName);
+                errors.Add("Only the existing five public queries carry PublicSurface: " + request.FullName);
         }
         foreach (var offender in ProtectedAdministrationOffenders(modules, map)) errors.Add(offender);
         foreach (var offender in NativeScopeAdmissionTests.HttpEntryOffenders(modules)) errors.Add(offender);

@@ -10,6 +10,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
@@ -30,13 +31,13 @@ public sealed partial class OperationPermissionConventionTests
     public void Permission_Definitions_DeclareScope()
     {
         var catalog = Catalog();
-        catalog.Definitions.Should().HaveCount(13);
+        catalog.Definitions.Should().HaveCount(14);
         catalog.Definitions.Should().OnlyContain(registration => Enum.IsDefined(registration.Definition.Scope)
             && registration.Definition.Scope != PermissionScope.Platform);
         catalog.Definitions.Where(registration => registration.Assignable).Select(registration => registration.Definition)
             .Should().BeEquivalentTo(IdentityRoleRelease.Version4.Definitions);
         catalog.Definitions.Where(registration => !registration.Assignable).Select(registration => registration.Definition.Key)
-            .Should().BeEquivalentTo(["tenancy.public_site.read", "education.public_course.read", "education.public_lesson.read"]);
+            .Should().BeEquivalentTo(["tenancy.public_site.read", "education.public_course.read", "education.public_lesson.read", "identity.public_sign_in.read"]);
         WithProduction(modules =>
         {
             RequestOffenders(modules, catalog).Should().BeEmpty("Fix: every actual production request needs one exact policy (ADR-0076)");
@@ -141,6 +142,14 @@ public sealed partial class OperationPermissionConventionTests
             (typeof(SetOwnMembershipCustomFieldsCommand), false, [new([profileWrite]), new([organizationProfileWrite])]),
             (typeof(ChangeMembershipStatusCommand), false, [new([membershipAdmin]), new([organizationAdmin])]),
             (typeof(ReplaceMembershipRoleAssignmentsCommand), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            .. new[]
+            {
+                typeof(BeginConfigureFederationCommand), typeof(BeginRotateFederationSecretCommand), typeof(BeginRenameFederationCommand),
+                typeof(BeginFederationTestStartCommand), typeof(BeginDisableFederationCommand), typeof(BeginDeleteFederationCommand),
+                typeof(ResumeFederationOperationCommand), typeof(CompleteFederationOperationCommand), typeof(EnableFederationCommand),
+                typeof(ActivateFederationCommand), typeof(RecordFederationTestResultCommand), typeof(ReconcileFederationConnectionCommand),
+                typeof(GetFederationConnectionQuery),
+            }.Select(request => (request, true, new OperationPolicyClause[] { new([FederationPermissions.Definition]) })),
         ];
         catalog.All.Where(policy => policy.Kind == OperationPolicyKind.Protected).Select(policy => policy.RequestType)
             .Should().BeEquivalentTo(expected.Select(item => item.Request));

@@ -67,12 +67,13 @@ const calls: [string, (sdk: ServerSdk, options?: RequestOptions) => Promise<unkn
 ];
 
 describe('public GET transport', () => {
-  it('covers the four generated GET operations with generated request and result types', () => {
+  it('covers the five generated GET operations with generated request and result types', () => {
     expect(PUBLIC_GET_WRAPPERS).toEqual({
       '/api/v1/public/site': 'getSite',
       '/api/v1/public/courses': 'getCourses',
       '/api/v1/public/courses/{slug}': 'getCourse',
       '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'getLesson',
+      '/api/v1/public/sign-in': 'getSignIn',
     });
     expectTypeOf<keyof typeof PUBLIC_GET_WRAPPERS>().toEqualTypeOf<
       keyof typeof PUBLIC_GET_CONTRACTS
@@ -91,7 +92,7 @@ describe('public GET transport', () => {
     >();
     expectTypeOf<keyof RequestOptions>().toEqualTypeOf<'signal'>();
     expectTypeOf<keyof ServerSdk>().toEqualTypeOf<
-      'getSite' | 'getCourses' | 'getCourse' | 'getLesson'
+      'getSite' | 'getSignIn' | 'getCourses' | 'getCourse' | 'getLesson'
     >();
   });
   it('encodes each path component and query value and omits undefined parameters', async () => {
@@ -397,5 +398,30 @@ describe('public GET transport', () => {
     expect(
       await createServerSdk(async () => response).getSite({ signal: duringBody.signal }),
     ).toEqual({ kind: 'cancelled' });
+  });
+  it('reads the anonymous sign-in option and refuses a malformed alias', async () => {
+    const option = { federation: { alias: 'lsf-' + '0'.repeat(32), displayName: 'Acme SSO' } };
+    const transport = vi.fn<PublicFetch>().mockResolvedValue(json(option));
+    expect(await createServerSdk(transport).getSignIn()).toEqual({
+      kind: 'success',
+      status: 200,
+      data: option,
+    });
+    expect(transport.mock.calls.map(([url]) => url)).toEqual(['/api/v1/public/sign-in']);
+    expect(
+      await createServerSdk(
+        vi.fn<PublicFetch>().mockResolvedValue(json({ federation: null })),
+      ).getSignIn(),
+    ).toEqual({ kind: 'success', status: 200, data: { federation: null } });
+    for (const federation of [
+      { alias: 'https://idp.example', displayName: 'x' },
+      { alias: 'lsf-0' },
+      'lsf',
+    ])
+      expect(
+        await createServerSdk(
+          vi.fn<PublicFetch>().mockResolvedValue(json({ federation })),
+        ).getSignIn(),
+      ).toEqual({ kind: 'invalid-response', reason: 'invalid-success' });
   });
 });

@@ -41,6 +41,9 @@ public sealed partial class PersistenceConventionTests
         (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", typeof(GetOwnMembershipFieldConsentQuery).FullName!, "LearnStack.Modules.Tenancy.Application.Contracts"),
         (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", typeof(ListOwnFieldConsentScopesQuery).FullName!, "LearnStack.Modules.Tenancy.Application.Contracts"),
         (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", typeof(ListOwnMembershipFieldConsentsQuery).FullName!, "LearnStack.Modules.Tenancy.Application.Contracts"),
+        // ADR-0099: the administrator's federation detail is audit Off and physically ReadOnly.
+        (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation",
+            typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetFederationConnectionQuery).FullName!, "LearnStack.Modules.Identity.Application.Contracts"),
     ];
 
     // The shared persistence seam stays module-independent. Each of the eleven exact

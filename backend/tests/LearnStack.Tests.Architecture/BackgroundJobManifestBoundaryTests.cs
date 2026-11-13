@@ -35,6 +35,9 @@ public sealed partial class OutboxDispatchConventionTests
         ("LearnStack.Api.Identity.MembershipCustomFieldsController", ["Get", "GetOwn", "Set", "SetOwn"]),
         ("LearnStack.Api.Tenancy.ConsentSubjectController", ["Scopes", "History", "Withdraw"]),
         ("LearnStack.Api.Tenancy.OwnFieldConsentController", ["Current", "Grant"]),
+        ("LearnStack.Api.PublicReads.PublicSignInController", ["Get", "Head"]),
+        ("LearnStack.Api.Identity.FederationController", ["Get", "Configure", "RotateSecret", "Rename", "StartTest", "RecordTestResult",
+            "Activate", "Disable", "Enable", "Delete", "Resume"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>

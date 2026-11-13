@@ -112,6 +112,8 @@ public sealed partial class OperationPermissionConventionTests
             "Course_draft_branch_foreign_and_unknown_are_uniformly_hidden", "fixture.ClientFor", "client.GetAsync", "HttpStatusCode.NotFound"),
         new("education.public_lesson.read", "LearnStack.Tests.Integration/Database/PublicEducationHttpTests.cs",
             "Lesson_masks_draft_parent_draft_restricted_scope_wrong_parent_and_foreign_rows", "fixture.ClientFor", "client.GetAsync", "HttpStatusCode.NotFound"),
+        new("identity.public_sign_in.read", "LearnStack.Tests.Integration/Database/PublicSignInHttpTests.cs",
+            "Unknown_and_platform_hosts_never_reach_the_sign_in_read", "fixture.ClientFor", "client.SendAsync", "HttpStatusCode.NotFound"),
     ];
     private static readonly DeniedProof[] OtherDeniedProofs =
     [
@@ -142,7 +144,7 @@ public sealed partial class OperationPermissionConventionTests
         catalog.TryGet(typeof(ChangeRoleGrantsCommand), out var consumer).Should().BeTrue();
         consumer.Kind.Should().Be(OperationPolicyKind.Protected);
         var registrations = catalog.Definitions.ToArray();
-        registrations.Should().HaveCount(13);
+        registrations.Should().HaveCount(14);
         var files = PublicDeniedProofs.Concat(OtherDeniedProofs).Select(proof => proof.File)
             .Append(PairFile).Append(HarnessFile).Distinct(StringComparer.Ordinal).ToDictionary(file => file,
                 file => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(RepositoryPaths.RepoRoot(), "backend/tests", file))).GetCompilationUnitRoot(),
@@ -278,7 +280,7 @@ public sealed partial class OperationPermissionConventionTests
         if (declared.Length != 10 || declared.Distinct().Count() != declared.Length
             || !declared.ToHashSet().SetEquals(actual) || actual.Length != declared.Length) errors.Add("assignable pairs");
         var virtualPairs = registrations.Where(item => !item.Assignable).Select(item => item.Definition).ToArray();
-        if (virtualPairs.Length != 3 || !virtualPairs.Select(item => item.Key).ToHashSet(StringComparer.Ordinal)
+        if (virtualPairs.Length != 4 || !virtualPairs.Select(item => item.Key).ToHashSet(StringComparer.Ordinal)
                 .SetEquals(PublicDeniedProofs.Select(proof => proof.Kind))
             || virtualPairs.Any(item => item.Scope != PermissionScope.Tenant || !item.IsActive)) errors.Add("virtual public pairs");
         if (pair is null || !Has(pair,

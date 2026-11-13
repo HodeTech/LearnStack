@@ -41,12 +41,13 @@ public sealed class PublicSurfaceTests
     public void PublicSurface_Endpoints_Dispatch_Through_The_Pipeline()
     {
         var controllers = ProductionAssemblies.All().SelectMany(assembly => assembly.GetTypes()).Where(IsPublicController).ToArray();
-        controllers.Should().BeEquivalentTo([typeof(PublicSiteController), typeof(PublicEducationController)], "add each approved public controller to the census");
+        controllers.Should().BeEquivalentTo([typeof(PublicSiteController), typeof(PublicEducationController), typeof(PublicSignInController)],
+            "add each approved public controller to the census; ADR-0099 adds the Identity-owned sign-in read");
         using var module = ModuleDefinition.ReadModule(typeof(PublicSiteController).Assembly.Location);
         foreach (var controller in controllers)
         {
             var actions = controller.GetMethods().Where(method => method.IsDefined(typeof(HttpMethodAttribute), true)).ToArray();
-            actions.Should().HaveCount(controller == typeof(PublicSiteController) ? 2 : 6);
+            actions.Should().HaveCount(controller == typeof(PublicEducationController) ? 6 : 2);
             foreach (var route in actions.SelectMany(method => method.GetCustomAttributes<HttpMethodAttribute>()).GroupBy(attribute => attribute.Template ?? ""))
                 route.SelectMany(attribute => attribute.HttpMethods).Should().BeEquivalentTo(["GET", "HEAD"]);
             var type = module.GetType(controller.FullName!);
@@ -145,7 +146,7 @@ public sealed class PublicSurfaceTests
         {
             var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
             var roots = PublicReadHandlers(map);
-            roots.Should().HaveCount(4, "all four approved public queries must have an inspected handler");
+            roots.Should().HaveCount(5, "all five approved public queries must have an inspected handler");
             ValidationOffenders(roots, map).Should().BeEmpty("public display may parse admitted metadata, but never evaluate a JSON schema");
         }
         finally { foreach (var module in modules) module.Dispose(); }

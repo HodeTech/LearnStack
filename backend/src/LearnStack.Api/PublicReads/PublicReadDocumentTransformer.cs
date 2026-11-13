@@ -26,7 +26,8 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
                     parameter.Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 160 };
                     parameter.Description = "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.";
                 }
-                if (!path.EndsWith("/site", StringComparison.Ordinal))
+                var bootstrap = path.EndsWith("/site", StringComparison.Ordinal) || path.EndsWith("/sign-in", StringComparison.Ordinal);
+                if (!bootstrap)
                 {
                     operation.Parameters.Add(Query("locale", true, new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 2, MaxLength = LocaleTag.MaxLength },
                         "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale."));
@@ -43,8 +44,10 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
                 }
                 operation.Description = "Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.";
                 DocumentResponses(document, operation, method, Errors.Select(error =>
-                    error.Status == "400" && path.EndsWith("/site", StringComparison.Ordinal)
-                        ? (error.Status, "validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused.") : error));
+                    error.Status == "400" && bootstrap
+                        ? (error.Status, path.EndsWith("/site", StringComparison.Ordinal)
+                            ? "validation_failed; the site bootstrap accepts no query parameters, and malformed or repeated assertion headers are refused."
+                            : "validation_failed; the sign-in read accepts no query parameters, and malformed or repeated assertion headers are refused.") : error));
             }
         }
         foreach (var (name, value) in document.Components.Schemas)

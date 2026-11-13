@@ -218,7 +218,7 @@ public sealed partial class AuthorizationPoolProgressTests(AuthorizationPoolProg
         IUnitOfWork unit, LearnStack.SharedKernel.Audit.IAuthorizationEvidenceSessionFactory? evidence = null)
     {
         var catalog = new OperationPolicyCatalog([new IdentityOperationPolicySource()]);
-        catalog.Definitions.Should().HaveCount(6, "the five v1 Identity pairs plus the registry-v4 federation pair");
+        catalog.Definitions.Should().HaveCount(7, "the five v1 Identity pairs, the registry-v4 federation pair and the virtual public sign-in read");
         catalog.TryGet(typeof(ListMembershipsQuery), out var policy).Should().BeTrue();
         policy.Kind.Should().Be(OperationPolicyKind.Protected);
         policy.ReadScope.Should().Be(OperationReadScope.Tenant);

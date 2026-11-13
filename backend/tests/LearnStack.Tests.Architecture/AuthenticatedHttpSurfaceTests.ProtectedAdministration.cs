@@ -217,8 +217,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var context = ReadOnlyContextBoundary(type, map);
             var metadata = type.FullName == ProtectedResult && CarrierMetadataReadOnly(type)
                 || type.FullName == HttpClassifier && ClassifierMetadataReadOnly(type);
+            var federation = type.FullName is FederationController or "LearnStack.Api.Identity.FederationHttpModels";
             return Il.ReferencedTypeReferences(type).Where(reference => !(context && Key(reference) == "LearnStack.SharedKernel:" + TenantContext)
-                && !(metadata && Key(reference) == "LearnStack.Api:" + IdempotentMetadata)).ToArray();
+                && !(metadata && Key(reference) == "LearnStack.Api:" + IdempotentMetadata)
+                && !(federation && FederationSurface.Contains(reference.GetElementType().FullName, StringComparer.Ordinal))).ToArray();
         }
         finally
         {
