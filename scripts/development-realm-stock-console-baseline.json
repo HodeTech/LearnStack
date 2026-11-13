@@ -1,19 +1,19 @@
 {
   "provenance": {
-    "status": "Qualified historical 26.6.2 bootstrap expectation; automatic warm-upgrade qualification remains separate.",
+    "status": "Qualified historical 26.7.5 bootstrap expectation (re-derived from 26.6.2 at P03-8 Step 0; only providerVersion changed); automatic warm-upgrade qualification remains separate.",
     "historicalCommit": "24705a7a",
     "historicalExportSha256": "39659a4e505c8ad3c1b2963e69e58dadb725e4fb37b408dcf87214a2bb0d2d07",
-    "providerImage": "quay.io/keycloak/keycloak:26.6.2",
-    "authenticatedProviderVersion": "26.6.2",
-    "providerImageId": "sha256:f9ba7b2af90db8dc749a57ca9aedca51e840cb9224441ab546a968da941da900",
-    "providerRepoDigest": "quay.io/keycloak/keycloak@sha256:f9ba7b2af90db8dc749a57ca9aedca51e840cb9224441ab546a968da941da900",
-    "sourceCaptureSha256": "7a1ab028d61eb6c59ed6f7ba2f8740aec17e38b065a9ddaea06301ec4152c138",
-    "canonicalSha256": "fe38c56fdd99f2073a901e4b7261ca9f0f4d9f24c45e1effea1e69261781a476",
+    "providerImage": "quay.io/keycloak/keycloak:26.7.5",
+    "authenticatedProviderVersion": "26.7.5",
+    "providerImageId": "sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85",
+    "providerRepoDigest": "quay.io/keycloak/keycloak@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85",
+    "sourceCaptureSha256": "5a770be1bd1b54978e64597425ba4c2c16f703628cc94c99aca758239211f3ab",
+    "canonicalSha256": "2a947fa586a39bae1260644495112d4664724eb713abe94d27f93c73cda42241",
     "extractionSha256": "8c696a918b3ec457718256abc498ca39b7099024671b10e120a1a277c68b5208",
     "normalization": "Replace bound generated IDs only; preserve stored and effective mapper DTOs separately. Sort only set-like endpoint collections and object keys.",
     "credentialTransformation": "Users, credentials, profile payload and the full realm representation are excluded from the canonical expectation; committed historical credentials are redacted, and the provider fixture supplies private test-only credentials in memory.",
     "initialExpectedCaptureSha256": "183f1790db8e500a04f8fd16bde0f105455d63bc143b99d7dc8d04106b5d0881",
-    "normalizationModuleSha256": "14112aa561f3082b62b4ebaed8e646d8e5b3e32a916ef42e601067f80bc122b0",
+    "normalizationModuleSha256": "79cdd39ca4a79fc2f5493c6741ee434480b1351c998427ad66160c85e991049a",
     "independentBindingEvidence": "Passing fresh redacted-fixture bootstrap proof captured both account assignment endpoints and all four scoped role-name, role-by-ID and composite reads; fixed canonical expectation matched unchanged.",
     "historicalFixtureSha256": "ba9a6d6783d8849387e1a194f650a853f9596ade032a5b48eb3d19695ade7b1d",
     "historicalFixtureTransformation": {
@@ -239,7 +239,7 @@
         }
       }
     },
-    "providerVersion": "26.6.2",
+    "providerVersion": "26.7.5",
     "roles": {
       "@role/client/account/manage-account": {
         "composites": [

@@ -9,7 +9,7 @@ public sealed partial class TenantRealmExportTests
     // Independent observation of pinned EventType.saveByDefault, not derived from our export.
     internal static readonly string[] DefaultSavedEvents = Strings(JsonNode.Parse(File.ReadAllText(RepositoryFile(
         Path.Combine("backend", "tests", "LearnStack.Tests.Integration", "TenancyIdentity", "Fixtures",
-            "keycloak-26.6.2-default-events.json"))))!["defaultSaved"]);
+            "keycloak-26.7.5-default-events.json"))))!["defaultSaved"]);
 
     [Fact]
     public void Every_pinned_default_saved_event_is_preserved_and_its_omission_is_detected()

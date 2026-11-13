@@ -138,7 +138,7 @@ belongs to is decided by what it needs, not by what it is about:
   These live under `Database/` with the rest of the Docker-bound suite and carry
   the same trait.
 - **Identity-provider tests** — P02b-6's `TenancyIdentity/KeycloakFixture` imports
-  the committed realms into Keycloak 26.6.2 with its own PostgreSQL database.
+  the committed realms into Keycloak 26.7.5 with its own PostgreSQL database.
   `SharedKeycloakRealm` shares a baseline provider, not an immutable or read-only
   store: real login changes provider sessions, and the actual reconciler runs
   against it with independently checked zero-write expectations. Cases in that

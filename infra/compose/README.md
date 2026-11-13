@@ -46,7 +46,7 @@ up` does not qualify callback activation.
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| Keycloak | `quay.io/keycloak/keycloak:26.6.2` | `localhost:8080` | master admin `admin` / `admin-dev-secret` |
+| Keycloak | `quay.io/keycloak/keycloak:26.7.5` | `localhost:8080` | master admin `admin` / `admin-dev-secret` |
 
 Two realms imported on first boot from `infra/keycloak/realms/`:
 

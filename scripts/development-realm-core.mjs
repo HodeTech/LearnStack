@@ -75,7 +75,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     };
     stage = 'version';
     const version = await authenticatedRequest('admin/serverinfo', { stage: 'version' });
-    if (version.status !== 200 || document(version, 'version').systemInfo?.version !== '26.6.2')
+    if (version.status !== 200 || document(version, 'version').systemInfo?.version !== '26.7.5')
       refuse('version', 'unsupported');
     stage = 'plan';
     const admin = {

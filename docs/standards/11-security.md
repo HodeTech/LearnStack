@@ -214,8 +214,9 @@ tokens, including shorter session-clamped issuance. ID tokens remain identity
 credentials rejected by the tenant API; this shared expiration does not select
 a BFF session lifetime.
 
-Keycloak 26.6.2 reads issuance and expiration clocks separately. The configured
-lifespan is not an exact `exp - iat` guarantee or a fixed 901-second ceiling.
+The pinned Keycloak 26.7.5 reads issuance and expiration clocks separately. The
+configured lifespan is not an exact `exp - iat` guarantee or a fixed 901-second
+ceiling.
 Qualify exact realm configuration and absence of client overrides independently;
 fresh signed expiration must fit the observed UTC/monotonic code-exchange window
 plus that lifespan. Any explicit fixture/provider clock tolerance is at most the

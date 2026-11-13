@@ -40,7 +40,7 @@ public sealed class TenantRealmSelfServiceTests(KeycloakFixture fresh)
         var newMappers = newState["account-console"]!["protocolMappers"]!.AsArray();
         newMappers.Remove(newMappers.Single(mapper => Text(mapper?["name"]) == MapperName));
         (Normalize(oldState).ToJsonString() == Normalize(newState).ToJsonString()).Should().BeTrue(
-            "both clients, all eight roles/composites, stock defaults and scope allowances match automatic 26.6.2 bootstrap exactly");
+            "both clients, all eight roles/composites, stock defaults and scope allowances match automatic 26.7.5 bootstrap exactly");
         foreach (var identity in SeedData.IdentityUsers)
         {
             await AssertCapabilityAsync(newAdmin, identity.Username, true);

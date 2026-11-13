@@ -1,5 +1,5 @@
 {
-  "source": "https://raw.githubusercontent.com/keycloak/keycloak/26.6.2/server-spi-private/src/main/java/org/keycloak/events/EventType.java",
+  "source": "https://raw.githubusercontent.com/keycloak/keycloak/26.7.5/server-spi-private/src/main/java/org/keycloak/events/EventType.java",
   "sourceSha256": "e96d8c99c67ff697d6798d2919bfcbeda238ff58dc923daaf59250672ab9b0b6",
   "defaultSaved": [
     "AUTHREQID_TO_TOKEN",

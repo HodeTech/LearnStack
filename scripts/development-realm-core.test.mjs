@@ -474,10 +474,10 @@ for (const [name, authentication, reason] of [
 for (const [name, version, reason] of [
   ['wrong server version', undefined, 'unsupported'],
   ['missing version document', { body: '{}' }, 'unsupported'],
-  ['malformed full version document', { body: '{"systemInfo":{"version":"26.6.2"},' }, 'response'],
+  ['malformed full version document', { body: '{"systemInfo":{"version":"26.7.5"},' }, 'response'],
   ['rejected version read', { status: 403, body: privateCanary }, 'unsupported'],
   ['version response above accepted cap', { body: ' '.repeat(512 * 1024 + 1) }, 'body_limit'],
-  ['large malformed version document', { body: '{"systemInfo":{"version":"26.6.2"},' + ' '.repeat(300 * 1024) }, 'response'],
+  ['large malformed version document', { body: '{"systemInfo":{"version":"26.7.5"},' + ' '.repeat(300 * 1024) }, 'response'],
   ['large wrong version document', { body: JSON.stringify({ systemInfo: { version: 'wrong' }, padding: ' '.repeat(300 * 1024) }) }, 'unsupported'],
 ]) {
   test(`${name} refuses before any realm-state read or mutation`, async t => {
@@ -492,8 +492,8 @@ for (const [name, version, reason] of [
 }
 
 test('an exact 512 KiB version document reaches planning only after the complete valid read', async t => {
-  const base = JSON.stringify({ systemInfo: { version: '26.6.2' }, padding: '' });
-  const body = JSON.stringify({ systemInfo: { version: '26.6.2' }, padding: ' '.repeat(512 * 1024 - Buffer.byteLength(base)) });
+  const base = JSON.stringify({ systemInfo: { version: '26.7.5' }, padding: '' });
+  const body = JSON.stringify({ systemInfo: { version: '26.7.5' }, padding: ' '.repeat(512 * 1024 - Buffer.byteLength(base)) });
   assert.equal(Buffer.byteLength(body), 512 * 1024);
   const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
   const manifest = { users: desired.users.map(user => ({ username: user.username, email: user.email,

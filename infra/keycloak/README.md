@@ -1,6 +1,6 @@
 # Keycloak — Two-Realm Identity (Dev)
 
-The pinned development provider is Keycloak 26.6.2. Two realms remain isolated
+The pinned development provider is Keycloak 26.7.5. Two realms remain isolated
 under [ADR-0004](../../docs/decisions/0004-authentication-strategy.md) and
 [ADR-0019](../../docs/decisions/0019-learnstack-hub.md).
 [ADR-0067](../../docs/decisions/0067-development-tenant-access-token-issuance.md)
@@ -604,7 +604,7 @@ Phase 11 work; Phase 03 owns tenant identity policy. Tenant MFA stays optional i
 this development export; the operator realm keeps its declared TOTP action.
 
 The ordinary Account REST profile update does not establish an email/login rename:
-Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L156-L187)
+Keycloak's [email condition](https://github.com/keycloak/keycloak/blob/26.7.5/services/src/main/java/org/keycloak/userprofile/DeclarativeUserProfileProviderFactory.java#L159-L190)
 makes email read-only in that context under the current realm settings. A 204 can
 therefore leave email unchanged. Separate required-action or administrator
 changes use different paths. If a reserved login is changed,

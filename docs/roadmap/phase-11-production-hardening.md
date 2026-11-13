@@ -285,7 +285,7 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   [11-security.md](../standards/11-security.md). LearnStack does not implement any of
   these; configuration is reviewed in Keycloak.
 - Keycloak advisory review and pin cadence for both realms. The move from 26.6.2 to
-  26.6.5 is P03-8 Step 0 under [ADR-0099](../decisions/0099-confined-tenant-federation.md#advisory-baseline-of-the-pin);
+  26.7.5 is P03-8 Step 0 under [ADR-0099](../decisions/0099-confined-tenant-federation.md#advisory-baseline-of-the-pin);
   this phase owns the recurring review of each later pin.
 - Keycloak network egress policy for the identity provider process, covering the
   outbound endpoints a tenant's brokered IdP can cause Keycloak to fetch (token, JWKS,

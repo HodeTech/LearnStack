@@ -159,7 +159,7 @@ export async function realmRequest(url, options) {
   let body;
   if (url.pathname.includes('/.well-known/')) body = { issuer: 'http://localhost:8080/realms/learnstack' };
   else if (url.pathname.endsWith('/token')) body = { access_token: 'synthetic-admin-token', expires_in: 300, refresh_token: 'synthetic-refresh' };
-  else if (url.pathname === '/admin/serverinfo') body = { systemInfo: { version: '26.6.2' } };
+  else if (url.pathname === '/admin/serverinfo') body = { systemInfo: { version: '26.7.5' } };
   else {
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
     if (options.method === 'PUT') {
@@ -223,10 +223,10 @@ if (${JSON.stringify(command)} === 'dotnet') {
   if (args.length !== 2 || args[1] !== '--identity-manifest') process.exit(19);
   result = manifest;
 } else if (args[0] === 'context') result = [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }];
-else if (args.includes('config')) result = { name: 'learnstack-dev', services: { keycloak: { image: 'quay.io/keycloak/keycloak:26.6.2', environment: values } } };
+else if (args.includes('config')) result = { name: 'learnstack-dev', services: { keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5', environment: values } } };
 else if (args.includes('ps')) { process.stdout.write(${JSON.stringify(id)}); process.exit(0); }
 else if (args[0] === 'inspect') result = [{ Id: ${JSON.stringify(id)}, State: { Running: true },
- Config: { Image: 'quay.io/keycloak/keycloak:26.6.2', Labels: { 'com.docker.compose.project': 'learnstack-dev', 'com.docker.compose.service': 'keycloak' }, Env: Object.entries(values).map(([key, value]) => key + '=' + value) },
+ Config: { Image: 'quay.io/keycloak/keycloak:26.7.5', Labels: { 'com.docker.compose.project': 'learnstack-dev', 'com.docker.compose.service': 'keycloak' }, Env: Object.entries(values).map(([key, value]) => key + '=' + value) },
  NetworkSettings: { Ports: { '8080/tcp': [{ HostIp: '127.0.0.1', HostPort: '8080' }] } } }];
 else process.exit(19);
 process.stdout.write(JSON.stringify(result));

@@ -213,7 +213,7 @@ services:
   # one realm are never accepted on the other realm's endpoints. See
   # ../keycloak/README.md.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6.2
+    image: quay.io/keycloak/keycloak:26.7.5
     # Public-root identity changes only this service configuration. Keycloak
     # loads trust at startup, so normal up must recreate it on first activation.
     labels:

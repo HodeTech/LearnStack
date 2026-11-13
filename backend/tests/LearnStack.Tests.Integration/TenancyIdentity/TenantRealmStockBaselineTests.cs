@@ -16,13 +16,13 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
 {
     private const string ExportSha256 = "39659a4e505c8ad3c1b2963e69e58dadb725e4fb37b408dcf87214a2bb0d2d07";
     private const string RedactedExportSha256 = "ba9a6d6783d8849387e1a194f650a853f9596ade032a5b48eb3d19695ade7b1d";
-    private const string CanonicalSha256 = "fe38c56fdd99f2073a901e4b7261ca9f0f4d9f24c45e1effea1e69261781a476";
+    private const string CanonicalSha256 = "2a947fa586a39bae1260644495112d4664724eb713abe94d27f93c73cda42241";
     private static readonly string[] DefaultScopes = ["acr", "basic", "email", "profile", "roles", "web-origins"];
     private static readonly string[] OptionalScopes = ["address", "microprofile-jwt", "offline_access", "organization", "phone"];
     private static readonly JsonSerializerOptions ReceiptOptions = new() { WriteIndented = true };
 
     [Fact]
-    public async Task Historical_24705a7a_bootstrap_matches_the_fixed_26_6_2_scope_role_and_mapper_baseline()
+    public async Task Historical_24705a7a_bootstrap_matches_the_fixed_pinned_scope_role_and_mapper_baseline()
     {
         var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(KeycloakFixture.RealmPath("learnstack"))!, "..", "..", ".."));
         var historical = await HistoricalImportAsync(root);
@@ -35,7 +35,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
         {
             fixture = await KeycloakFixture.StartAsync(historical);
             resources = await fixture.StockProviderResourcesAsync();
-            (await fixture.StockProviderVersionAsync()).Should().Be("26.6.2");
+            (await fixture.StockProviderVersionAsync()).Should().Be("26.7.5");
             using var admin = await fixture.CreateAdminClientAsync();
             var graph = await CaptureAsync(admin);
             var capture = JsonSerializer.SerializeToUtf8Bytes(graph);
@@ -50,7 +50,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
                 privateImportSha256 = Hash(System.Text.Encoding.UTF8.GetBytes(historical)),
                 credentialTransformation = "Only the two historical user password values and learnstack-api secret are redacted in the committed fixture; private test values replace those placeholders in memory before import.",
                 providerImage = KeycloakFixture.Image,
-                authenticatedProviderVersion = "26.6.2",
+                authenticatedProviderVersion = "26.7.5",
                 resources.ImageId,
                 resources.RepoDigests,
                 resources.ProviderContainerId,
@@ -123,7 +123,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
         var watch = Stopwatch.StartNew();
         try
         {
-            (await fixture.StockProviderVersionAsync()).Should().Be("26.6.2");
+            (await fixture.StockProviderVersionAsync()).Should().Be("26.7.5");
             using var admin = await fixture.CreateAdminClientAsync();
             var before = await CaptureAsync(admin);
             var assignmentsBefore = await AssignmentsAsync(admin, before["clients"]);

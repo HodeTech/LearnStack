@@ -52,7 +52,7 @@ public sealed partial class TenantRealmApiTests
         var journey = Stopwatch.StartNew();
         try
         {
-            (await warm.StockProviderVersionAsync()).Should().Be("26.6.2");
+            (await warm.StockProviderVersionAsync()).Should().Be("26.7.5");
             using var admin = await warm.CreateAdminClientAsync();
             using var hub = await warm.CreateAdminClientAsync("learnstack-hub");
             var profile = await admin.GetAsync("users/profile");

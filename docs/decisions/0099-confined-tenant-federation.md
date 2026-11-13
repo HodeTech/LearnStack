@@ -716,3 +716,27 @@ holds the step record.
 Carriers: Standard 05 § Federation connection storage, Standard 19 § Federation and
 version-4 adoption, Standard 21's `Federation_Connection_Persists_No_Secret_Column`,
 the Identity module specification and permission matrix.
+
+### Amendment 2 — Keycloak pin decision (2026-11-13)
+
+P03-8 Step 0 moves the pin. The Decision and the
+[advisory baseline](#advisory-baseline-of-the-pin) are unchanged; this amendment records
+which release satisfies them. Decision Q3, Step 0 and the Consequences name 26.6.5
+because that was the 26.6 fix line; "26.6.5 or later" is the requirement.
+
+- **26.6.5 is not published as an image.** On 2026-11-13 the `quay.io/keycloak/keycloak`
+  tag list returned no `26.6.5` tag, so the pin cannot move to it.
+- **The pin is 26.7.5**, the newest published 26.7.x release. Every advisory in the
+  baseline is fixed on the 26.7 line at 26.7.1 (26.6.4 or 26.6.5 on the 26.6 line), so
+  26.7.5 clears all eight.
+- **The move is a minor-version upgrade.** Version-bound artifacts were re-derived on
+  the 26.7.5 image instead of renamed: the stock account-console baseline (only
+  `providerVersion` changed), the pinned default-saved event fixture (now
+  `keycloak-26.7.5-default-events.json`; `EventType.java` is byte-identical at both
+  tags). The reconciler's version guard and image checks move with the pin. The realm
+  exports carry no version field.
+  The source review, the Keycloak 26.7 migration's effect on a warm database and every
+  verification result are in the
+  [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-step-0--keycloak-pin-move-2026-11-13).
+- Source citations elsewhere in this record stay on the 26.6.2 tag: they are the evidence
+  examined at acceptance. Later steps cite 26.7.5 sources for the behaviour they rely on.

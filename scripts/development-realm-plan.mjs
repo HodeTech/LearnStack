@@ -697,7 +697,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
       expectedUsers.set(declaration.username, { ...existing.user, attributes });
       if (!equal(attributes, existing.user.attributes ?? {})) {
         validateAttributePreservation(before.profile);
-        // A supplied attribute map replaces profile values in 26.6.2. Include
+        // A supplied attribute map replaces profile values in 26.7.5. Include
         // unchanged ordinary profile fields, but no credentials/actions/enabled.
         const body = { attributes, ...Object.fromEntries(['username', 'email', 'firstName', 'lastName']
           .filter(key => key in existing.user).map(key => [key, existing.user[key]])) };

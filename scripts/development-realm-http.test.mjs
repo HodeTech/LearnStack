@@ -264,12 +264,12 @@ test('chunked wire bytes cannot evade the response bound without Content-Length'
 });
 
 test('only the fixed authenticated successful server-information read accepts exactly 512 KiB', async (t) => {
-  const exact = Buffer.from(JSON.stringify({ systemInfo: { version: '26.6.2' }, padding: '' }));
+  const exact = Buffer.from(JSON.stringify({ systemInfo: { version: '26.7.5' }, padding: '' }));
   const body = Buffer.concat([exact, Buffer.alloc(512 * 1024 - exact.length, 32)]);
   const f = await endpoint(t, (_request, response) => response.end(body));
   const result = await realmRequest(new URL('admin/serverinfo', f.url), { bearer: canary, stage: 'version' });
   assert.equal(result.bytes.length, 512 * 1024);
-  assert.equal(realmJson(result, 'version').systemInfo.version, '26.6.2');
+  assert.equal(realmJson(result, 'version').systemInfo.version, '26.7.5');
   assert.equal(f.requests.length, 1);
   assert.equal(f.requests[0].headers.authorization, `Bearer ${canary}`);
 });

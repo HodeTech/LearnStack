@@ -197,7 +197,7 @@ public sealed partial class TenantRealmReconciliationTests
         try
         {
             resources = await fixture.StockProviderResourcesAsync();
-            (await fixture.StockProviderVersionAsync()).Should().Be("26.6.2");
+            (await fixture.StockProviderVersionAsync()).Should().Be("26.7.5");
             using var admin = await fixture.CreateAdminClientAsync();
             await proof(fixture, admin);
         }

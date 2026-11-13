@@ -12561,7 +12561,7 @@
     },
     {
       "assembly": "learnstack.tests.integration",
-      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_24705a7a_bootstrap_matches_the_fixed_26_6_2_scope_role_and_mapper_baseline",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_24705a7a_bootstrap_matches_the_fixed_pinned_scope_role_and_mapper_baseline",
       "milliseconds": 90800,
       "source": "p033-e0-a1-ordinary-4"
     },

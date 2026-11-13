@@ -365,7 +365,7 @@ export function providerTransport(fixture) {
       return response(200, { access_token: bearer, refresh_token: refresh, expires_in: 60 });
     }
     assert.equal(options.bearer, bearer, 'every Admin exchange uses the current authentication');
-    if (url.pathname === '/admin/serverinfo') return response(200, { systemInfo: { version: '26.6.2' } });
+    if (url.pathname === '/admin/serverinfo') return response(200, { systemInfo: { version: '26.7.5' } });
     assert.ok(url.pathname.startsWith('/admin/realms/learnstack/'));
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
     if (options.method === 'DELETE') return response(await fixture.admin.delete(path));

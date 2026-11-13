@@ -50,7 +50,10 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         var path = "clients/" + Id(web);
         try
         {
-            (await admin.PutAsync(path, new { attributes })).Should().Be(HttpStatusCode.NoContent);
+            // A client PUT that omits webOrigins makes Keycloak derive them from the
+            // redirect URIs, so the original (empty) set travels with each attribute PUT.
+            (await admin.PutAsync(path, new { attributes, webOrigins = web.GetProperty("webOrigins") }))
+                .Should().Be(HttpStatusCode.NoContent);
             var conflicted = await StateAsync(admin);
             var conflict = await KeycloakReconciliationDriver.RunAsync(fresh,
                 backchannelUrl: "https://host.docker.internal:3443/api/auth/backchannel/keycloak");
@@ -60,7 +63,7 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         }
         finally
         {
-            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes") }))
+            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes"), webOrigins = web.GetProperty("webOrigins") }))
                 .Should().Be(HttpStatusCode.NoContent);
         }
     }

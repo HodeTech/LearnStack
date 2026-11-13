@@ -60,14 +60,14 @@ function target() {
     model: {
       name: 'selected-development',
       services: {
-        keycloak: { image: 'quay.io/keycloak/keycloak:26.6.2', environment: { ...values } },
+        keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5', environment: { ...values } },
       },
     },
     containers: [id],
     inspected: {
       Id: id,
       Config: {
-        Image: 'quay.io/keycloak/keycloak:26.6.2',
+        Image: 'quay.io/keycloak/keycloak:26.7.5',
         Labels: {
           'com.docker.compose.project': 'selected-development',
           'com.docker.compose.service': 'keycloak',

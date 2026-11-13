@@ -430,7 +430,7 @@ public sealed partial class TenantRealmExportTests
         Scope(realm, "phone")["protocolMappers"]!.AsArray().Add(mapper);
     }
 
-    // Keycloak 26.6.2 JsonUtils.splitClaimPath: backslash escapes any character,
+    // Keycloak 26.7.5 JsonUtils.splitClaimPath: backslash escapes any character,
     // and an unescaped dot terminates a nonempty component. Leading dots stay literal.
     private static string ClaimRoot(string claim)
     {
