@@ -413,7 +413,7 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
         options,
       ),
     getPermissions: (
-      options?: AdministrationReadOptions & Readonly<{ sourceReleaseVersion?: 1 | 2 }>,
+      options?: AdministrationReadOptions & Readonly<{ sourceReleaseVersion?: 1 | 2 | 3 }>,
     ) =>
       request<PermissionRegistry>(
         'permissions',

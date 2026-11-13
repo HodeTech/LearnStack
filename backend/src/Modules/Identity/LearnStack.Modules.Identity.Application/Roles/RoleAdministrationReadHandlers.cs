@@ -62,7 +62,7 @@ public sealed class GetPermissionRegistryQueryHandler(IdentityAdministrationRead
     {
         var admission = await authorization.AdmitAsync(request, cancellationToken);
         if (admission.IsFailure) return Result<PermissionRegistryDto>.Fail(admission.Error);
-        if (request.SourceReleaseVersion is not (1 or 2))
+        if (request.SourceReleaseVersion is not (1 or 2 or 3))
             return IdentityAdministrationReadAuthorization.Fail<PermissionRegistryDto>("lockey_validation_failed");
         var facts = await authorization.ReadFactsAsync(request, admission.Value, cancellationToken);
         if (facts.IsFailure) return Result<PermissionRegistryDto>.Fail(facts.Error);
@@ -86,5 +86,5 @@ internal sealed class GetRoleDetailQueryValidator : AbstractValidator<GetRoleDet
 internal sealed class GetPermissionRegistryQueryValidator : AbstractValidator<GetPermissionRegistryQuery>
 {
     public GetPermissionRegistryQueryValidator() => RuleFor(query => query.SourceReleaseVersion)
-        .Must(version => version is 1 or 2).WithErrorCode("lockey_invalid_value");
+        .Must(version => version is 1 or 2 or 3).WithErrorCode("lockey_invalid_value");
 }

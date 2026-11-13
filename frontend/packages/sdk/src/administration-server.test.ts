@@ -66,6 +66,27 @@ describe('closed administration server SDK', () => {
     expect(transport.mock.calls[1]![0]).toBe('/api/v1/identity/permissions?sourceReleaseVersion=2');
     body = { ...registry(false), release: { ...registry(false).release, version: 3 } };
     expect((await sdk.getPermissions()).kind).toBe('invalid-response');
+    const federation = { scope: 'Tenant', key: 'identity.federation.admin' };
+    const v4 = {
+      items: [...pairs, custom, federation].map((pair) => ({
+        ...pair,
+        labelKey: 'label',
+        canGrant: false,
+      })),
+      release: { version: 4, fingerprint: 'b'.repeat(64), tenantAdminDelta: [federation] },
+    };
+    body = v4;
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('success');
+    expect(transport.mock.calls.at(-1)![0]).toBe(
+      '/api/v1/identity/permissions?sourceReleaseVersion=3',
+    );
+    // A v4 release must carry exactly the federation delta and all ten pairs.
+    body = { ...v4, release: { ...v4.release, tenantAdminDelta: [custom] } };
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('invalid-response');
+    body = { ...v4, items: v4.items.slice(0, 9) };
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('invalid-response');
+    body = { ...v4, release: { ...v4.release, version: 5 } };
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('invalid-response');
   });
 
   it('keeps public and AccountSite callers separate and exposes no generic request method', () => {
@@ -500,6 +521,7 @@ describe('closed administration server SDK', () => {
       canWriteOwnProfile: true,
       canManageOrganizations: true,
       canManageCustomFields: false,
+      canManageFederation: false,
     };
     const transport = vi.fn<AdministrationFetch>(async () => json(flags));
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
@@ -509,7 +531,12 @@ describe('closed administration server SDK', () => {
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
       'invalid-response',
     );
-    const { canManageCustomFields: _custom, ...nine } = flags;
+    const { canManageFederation: _federation, ...ten } = flags;
+    transport.mockImplementation(async () => json(ten));
+    expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
+      'invalid-response',
+    );
+    const { canManageCustomFields: _custom, ...nine } = ten;
     transport.mockImplementation(async () => json(nine));
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
       'invalid-response',

@@ -69,7 +69,7 @@ public sealed class OperationPolicyCatalogTests
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);
         Assert.Equal(OperationReadScope.Scoped, admission.ReadScope);
-        Assert.Equal(9, catalog.Definitions.Count(definition => definition.Assignable));
+        Assert.Equal(10, catalog.Definitions.Count(definition => definition.Assignable));
         Assert.Equal(3, catalog.Definitions.Count(definition => !definition.Assignable));
         Assert.DoesNotContain(catalog.Definitions, definition => definition.Definition.Scope == PermissionScope.Platform);
         foreach (var policy in catalog.All)

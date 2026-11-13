@@ -83,7 +83,8 @@
     "locales": "Manage institution languages",
     "settings": "Manage institution appearance and invitation lifetime",
     "unavailable": "Permission label unavailable",
-    "custom_fields": "Manage membership custom fields"
+    "custom_fields": "Manage membership custom fields",
+    "federation": "Manage institution single sign-on"
   },
   "failure": {
     "title": "This view is unavailable",

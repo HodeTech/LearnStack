@@ -248,7 +248,7 @@ export function instrumentCopiedBffRuntime(
       const custom = customFieldBrowser.call(operation, binding);
       if (custom !== undefined) return custom;
       switch (operation.kind) {
-        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: !customFieldBrowser.profileReadOnly, canManageOrganizations: true, canManageCustomFields: true});
+        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: !customFieldBrowser.profileReadOnly, canManageOrganizations: true, canManageCustomFields: true, canManageFederation: false});
         case 'getOwnProfile': return success(ownProfile, true);
         case 'listMemberships':
         case 'listOrganizationMemberships': { if (${mutation === 'unavailable-pages'}) return {kind: 'transport-error'}; const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }

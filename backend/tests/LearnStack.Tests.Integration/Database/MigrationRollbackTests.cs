@@ -216,7 +216,7 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
             (platform, "20261105020229_lock_invitation_envelope_parent", PlatformReversibleHead,
                 "20261110013140_add_custom_field_protected_receipts", "Retained custom field receipts require a reviewed forward migration."),
             (identity, "20261109230238_role_registry_release_v3", IdentityReversibleHead,
-                "20261111180000_classify_retained_provider_collision", "Provider receipt collision classification requires a forward repair."),
+                "20261113114919_role_registry_release_v4", "Role release adoption requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

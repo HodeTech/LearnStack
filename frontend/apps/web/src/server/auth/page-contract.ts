@@ -35,6 +35,7 @@ export type PageCapabilities = Readonly<{
   canWriteOwnProfile: boolean;
   canManageOrganizations: boolean;
   canManageCustomFields: boolean;
+  canManageFederation: boolean;
 }>;
 export type PageProfile = Readonly<{
   displayName: string | null;

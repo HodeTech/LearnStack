@@ -85,9 +85,9 @@ internal sealed class CustomFieldDocumentTransformer : IOpenApiDocumentTransform
             if (c.Body is not null) operation.Responses["409"] = new OpenApiResponse { Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Literal("no-store") } }, Description = "concurrency_conflict, business_rule_violation, limit_exceeded, request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable; no automatic retry.", Content = new Dictionary<string, OpenApiMediaType> { ["application/problem+json"] = new() { Schema = Ref("ProblemDetails") } } };
             void Add(string name, IOpenApiSchema schema, bool required = false, ParameterLocation location = ParameterLocation.Query) => operation.Parameters.Add(new OpenApiParameter { Name = name, In = location, Required = required, Schema = schema });
         }
-        // Absence preserves source-release one; adopting v3 always explicitly requests source two.
+        // Absence preserves source-release one; adopting v3 or v4 explicitly requests source two or three.
         if (document.Paths.TryGetValue("/api/v1/identity/permissions", out var permissions) && permissions.Operations?.TryGetValue(HttpMethod.Get, out var registry) == true)
-            registry.Parameters!.Add(new OpenApiParameter { Name = "sourceReleaseVersion", In = ParameterLocation.Query, Required = false, Schema = Integer("1", "2"), Description = "Current source release, default1. Source1 returns v2; source2 returns v3; no automatic adoption/grant." });
+            registry.Parameters!.Add(new OpenApiParameter { Name = "sourceReleaseVersion", In = ParameterLocation.Query, Required = false, Schema = Integer("1", "3"), Description = "Current source release, default1. Source1 returns v2; source2 returns v3; source3 returns v4; no automatic adoption/grant." });
         return Task.CompletedTask;
         OpenApiSchemaReference Ref(string name) => new(name, document);
     }

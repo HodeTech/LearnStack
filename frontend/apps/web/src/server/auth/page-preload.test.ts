@@ -27,6 +27,7 @@ const capabilities: PageCapabilities = {
   canWriteOwnProfile: true,
   canManageOrganizations: true,
   canManageCustomFields: true,
+  canManageFederation: false,
 };
 const member: MembershipDetail = {
   membershipId: memberId,

@@ -869,6 +869,11 @@ export interface components {
             /** @enum {string} */
             scope: "Tenant";
             /** @enum {string} */
+            key: "identity.federation.admin";
+        } | {
+            /** @enum {string} */
+            scope: "Tenant";
+            /** @enum {string} */
             key: "identity.membership.admin";
         } | {
             /** @enum {string} */
@@ -1395,6 +1400,7 @@ export interface components {
             canWriteOwnProfile: boolean;
             canManageOrganizations: boolean;
             canManageCustomFields: boolean;
+            canManageFederation: boolean;
         };
         OwnFieldConsentCurrentResponse: {
             consent: components["schemas"]["ConsentDetailsResponse"] | null;
@@ -7177,7 +7183,7 @@ export interface operations {
     GetPermissionRegistry: {
         parameters: {
             query?: {
-                /** @description Current source release, default1. Source1 returns v2; source2 returns v3; no automatic adoption/grant. */
+                /** @description Current source release, default1. Source1 returns v2; source2 returns v3; source3 returns v4; no automatic adoption/grant. */
                 sourceReleaseVersion?: number;
             };
             header?: never;

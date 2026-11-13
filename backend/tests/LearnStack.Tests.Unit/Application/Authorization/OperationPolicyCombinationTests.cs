@@ -109,12 +109,13 @@ public sealed class OperationPolicyCombinationTests
         var tenancy = new TenancyOperationPolicySource();
         var catalog = new OperationPolicyCatalog([tenancy, new IdentityOperationPolicySource(),
             new CustomizationOperationPolicySource(), new EducationOperationPolicySource()]);
-        Assert.Equal(IdentityFoundationManifest.Version1.Definitions.OrderBy(pair => pair.Scope).ThenBy(pair => pair.Key, StringComparer.Ordinal),
+        Assert.Equal(IdentityFoundationManifest.Version1.Definitions.Append(FederationPermissions.Definition)
+                .OrderBy(pair => pair.Scope).ThenBy(pair => pair.Key, StringComparer.Ordinal),
             catalog.Definitions.Where(registration => registration.Assignable && registration.Definition.Key.StartsWith("identity.", StringComparison.Ordinal))
                 .Select(registration => registration.Definition));
         Assert.Equal(BoundedTenancyAdministrationPermissions.Definitions.OrderBy(pair => pair.Key, StringComparer.Ordinal),
             tenancy.Definitions.Where(registration => registration.Assignable).Select(registration => registration.Definition).OrderBy(pair => pair.Key, StringComparer.Ordinal));
-        Assert.Equal(9, catalog.Definitions.Count(registration => registration.Assignable));
+        Assert.Equal(10, catalog.Definitions.Count(registration => registration.Assignable));
         var customization = Assert.Single(new CustomizationOperationPolicySource().Definitions);
         Assert.True(customization.Assignable);
         Assert.Equal(BoundedCustomFieldPermissions.Definition, customization.Definition);

@@ -83,7 +83,8 @@
     "locales": "Kurum dillerini yönetme",
     "settings": "Kurum görünümünü ve davet süresini yönetme",
     "unavailable": "Yetki adı kullanılamıyor",
-    "custom_fields": "Üyelik özel alanlarını yönet"
+    "custom_fields": "Üyelik özel alanlarını yönet",
+    "federation": "Kurum çoklu oturum açmasını yönetme"
   },
   "failure": {
     "title": "Bu görünüm kullanılamıyor",

@@ -51,7 +51,7 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
     private static readonly string[] NullableVersionTypes = ["null", "string"];
 
     private static readonly string[] ProfileFields = ["displayName", "preferredLocale"];
-    private static readonly string[] CapabilityFlags = ["canAdoptRoleRelease", "canChangeRoleGrants", "canManageCustomFields", "canManageMemberships", "canManageOrganizations", "canReadOrganizationMembers", "canReadRoles", "canReadTenantMembers", "canWriteMemberProfiles", "canWriteOwnProfile"];
+    private static readonly string[] CapabilityFlags = ["canAdoptRoleRelease", "canChangeRoleGrants", "canManageCustomFields", "canManageFederation", "canManageMemberships", "canManageOrganizations", "canReadOrganizationMembers", "canReadRoles", "canReadTenantMembers", "canWriteMemberProfiles", "canWriteOwnProfile"];
 
     private static readonly (string Path, string Method, string Operation, string? Input)[] Operations =
     [
@@ -192,10 +192,12 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
             .Select(item => item.GetProperty("properties")).Select(properties =>
                 Assert.Single(properties.GetProperty("scope").GetProperty("enum").EnumerateArray()).GetString() + ":" +
                 Assert.Single(properties.GetProperty("key").GetProperty("enum").EnumerateArray()).GetString()).ToArray();
-        Assert.Equal(9, pairs.Length);
-        Assert.Equal(9, pairs.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(10, pairs.Length);
+        Assert.Equal(10, pairs.Distinct(StringComparer.Ordinal).Count());
         Assert.Contains("Tenant:customization.custom_field.admin", pairs);
         Assert.DoesNotContain("Organization:customization.custom_field.admin", pairs);
+        Assert.Contains("Tenant:identity.federation.admin", pairs);
+        Assert.DoesNotContain("Organization:identity.federation.admin", pairs);
         Assert.Contains("Tenant:identity.role.admin", pairs);
         Assert.Contains("Organization:identity.membership.admin", pairs);
         Assert.DoesNotContain("Organization:identity.role.admin", pairs);

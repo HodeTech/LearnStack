@@ -30,11 +30,11 @@ public sealed partial class OperationPermissionConventionTests
     public void Permission_Definitions_DeclareScope()
     {
         var catalog = Catalog();
-        catalog.Definitions.Should().HaveCount(12);
+        catalog.Definitions.Should().HaveCount(13);
         catalog.Definitions.Should().OnlyContain(registration => Enum.IsDefined(registration.Definition.Scope)
             && registration.Definition.Scope != PermissionScope.Platform);
         catalog.Definitions.Where(registration => registration.Assignable).Select(registration => registration.Definition)
-            .Should().BeEquivalentTo(IdentityRoleRelease.Version3.Definitions);
+            .Should().BeEquivalentTo(IdentityRoleRelease.Version4.Definitions);
         catalog.Definitions.Where(registration => !registration.Assignable).Select(registration => registration.Definition.Key)
             .Should().BeEquivalentTo(["tenancy.public_site.read", "education.public_course.read", "education.public_lesson.read"]);
         WithProduction(modules =>

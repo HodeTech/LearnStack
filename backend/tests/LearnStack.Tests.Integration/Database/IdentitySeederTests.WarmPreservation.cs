@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
+using Microsoft.Extensions.DependencyInjection;
 using LearnStack.Tools.Seeder;
 using Npgsql;
 using Xunit;
@@ -128,6 +131,58 @@ public sealed partial class IdentitySeederTests
         var before = await AuditCountAsync();
         await RunAsync(source);
         (await AuditCountAsync()).Should().Be(before);
+    }
+
+    [Fact]
+    public async Task Completed_seed_preserves_an_explicit_v2_v3_v4_chain_and_never_restores_the_removed_federation_grant()
+    {
+        await using var source = ApplicationDataSource.Build(_database.AppConnectionString);
+        await SeedContentAsync(source);
+        await RunAsync(source);
+        var member = SeedData.IdentityMemberships[0];
+        var version = 0L;
+        // ADR-0099: seed administrators adopt v2, v3 and v4 in order through the explicit command.
+        foreach (var release in new[] { IdentityRoleRelease.Version2, IdentityRoleRelease.Version3, IdentityRoleRelease.Version4 })
+        {
+            await using var grants = await RoleGrantPipelineHarness.CreateAsync(_database.AppConnectionString, Registration,
+                member.Identity.Tenant.TenantId, member.Identity.UserId, "warm-v" + release.Version + "-adoption",
+                configure: services => services.AddSingleton<IOperationPolicySource, CustomizationOperationPolicySource>());
+            var adopted = await grants.Sender.Send(new AdoptRoleGrantManifestCommand(member.Role.RoleId, version, release.Version, release.Fingerprint));
+            adopted.IsSuccess.Should().BeTrue();
+            version = adopted.Value;
+        }
+        await using (var grants = await RoleGrantPipelineHarness.CreateAsync(_database.AppConnectionString, Registration,
+            member.Identity.Tenant.TenantId, member.Identity.UserId, "warm-v4-removal",
+            configure: services => services.AddSingleton<IOperationPolicySource, CustomizationOperationPolicySource>()))
+        {
+            var changed = await grants.Sender.Send(new ChangeRoleGrantsCommand(member.Role.RoleId, version,
+                [.. IdentityRoleRelease.Version3.Definitions.Where(pair => pair.Scope == PermissionScope.Tenant)]));
+            changed.IsSuccess.Should().BeTrue();
+        }
+        var stateBefore = await AdoptedRoleStateAsync(member.Identity.Tenant.TenantId.Value, member.Role.RoleId);
+        stateBefore.Should().StartWith("4:" + IdentityRoleRelease.Version4.Fingerprint + ":");
+        stateBefore.Should().NotContain(FederationPermissions.Definition.Key);
+        var before = await AuditCountAsync();
+        await RunAsync(source);
+        (await AuditCountAsync()).Should().Be(before);
+        (await AdoptedRoleStateAsync(member.Identity.Tenant.TenantId.Value, member.Role.RoleId)).Should().Be(stateBefore,
+            "warm seed neither restores the removed v4 grant nor rewrites the adopted marker");
+    }
+
+    private async Task<string> AdoptedRoleStateAsync(Guid tenant, Guid role)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await IdentityMembershipFixture.ScopeAsync(app, transaction, tenant);
+        var state = await IdentityMembershipFixture.ScalarAsync<string>(app, transaction, """
+            SELECT r.adopted_release_version||':'||r.adopted_release_fingerprint||':'||r.row_version||':'
+                ||coalesce((SELECT string_agg(g.permission_scope||'/'||g.permission_key, ',' ORDER BY g.permission_scope, g.permission_key)
+                    FROM public.role_permission_grants g WHERE g.role_id=r.id),'')
+            FROM public.roles r WHERE r.id=@role
+            """, ("role", role));
+        await transaction.RollbackAsync();
+        return state;
     }
 
     [Theory]

@@ -409,7 +409,8 @@ export async function preloadPage(
         const role = await data<RoleDetail>({ kind: 'getRole', id: plan.id! });
         const registry = await data<PermissionRegistry>({
           kind: 'getPermissions',
-          sourceReleaseVersion: role.adoptedReleaseVersion === 1 ? 1 : 2,
+          sourceReleaseVersion:
+            role.adoptedReleaseVersion === 1 ? 1 : role.adoptedReleaseVersion === 2 ? 2 : 3,
         });
         view = {
           kind: 'role',

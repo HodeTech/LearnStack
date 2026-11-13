@@ -38,7 +38,10 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public static PermissionDefinition MembershipAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.MembershipAdmin);
     public static PermissionDefinition RoleAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
 
+    // Registry v4's federation pair is Identity-owned and assignable; registration grants it
+    // to no Role. Its Step 2 operations declare requiresOrglessWrite (ADR-0099).
     public IEnumerable<PermissionRegistration> Definitions => IdentityFoundationManifest.Version1.Definitions
+        .Append(FederationPermissions.Definition)
         .Select(definition => new PermissionRegistration(definition, Assignable: true));
 
     public IEnumerable<OperationPolicy> Policies =>

@@ -12876,9 +12876,9 @@
           {
             "name": "sourceReleaseVersion",
             "in": "query",
-            "description": "Current source release, default1. Source1 returns v2; source2 returns v3; no automatic adoption/grant.",
+            "description": "Current source release, default1. Source1 returns v2; source2 returns v3; source3 returns v4; no automatic adoption/grant.",
             "schema": {
-              "maximum": 2,
+              "maximum": 3,
               "minimum": 1,
               "type": "integer"
             }
@@ -17870,6 +17870,28 @@
               },
               "key": {
                 "enum": [
+                  "identity.federation.admin"
+                ],
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "required": [
+              "scope",
+              "key"
+            ],
+            "type": "object",
+            "properties": {
+              "scope": {
+                "enum": [
+                  "Tenant"
+                ],
+                "type": "string"
+              },
+              "key": {
+                "enum": [
                   "identity.membership.admin"
                 ],
                 "type": "string"
@@ -20402,7 +20424,8 @@
           "canAdoptRoleRelease",
           "canWriteOwnProfile",
           "canManageOrganizations",
-          "canManageCustomFields"
+          "canManageCustomFields",
+          "canManageFederation"
         ],
         "type": "object",
         "properties": {
@@ -20434,6 +20457,9 @@
             "type": "boolean"
           },
           "canManageCustomFields": {
+            "type": "boolean"
+          },
+          "canManageFederation": {
             "type": "boolean"
           }
         },
@@ -20638,7 +20664,7 @@
         "type": "object",
         "properties": {
           "items": {
-            "maxItems": 9,
+            "maxItems": 10,
             "uniqueItems": false,
             "type": "array",
             "items": {

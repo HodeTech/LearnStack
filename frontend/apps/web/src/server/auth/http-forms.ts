@@ -23,6 +23,7 @@ const pairs = new Set([
   'Tenant:tenancy.locale.write',
   'Tenant:tenancy.setting.write',
   'Tenant:customization.custom_field.admin',
+  'Tenant:identity.federation.admin',
 ]);
 function required(fields: URLSearchParams, key: string): string {
   const value = fields.get(key);

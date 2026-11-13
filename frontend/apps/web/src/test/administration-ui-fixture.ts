@@ -83,6 +83,7 @@ export function administrationSnapshot(
       canWriteOwnProfile: true,
       canManageOrganizations: true,
       canManageCustomFields: true,
+      canManageFederation: false,
     },
     ownProfile: {
       displayName: 'My contextual name',

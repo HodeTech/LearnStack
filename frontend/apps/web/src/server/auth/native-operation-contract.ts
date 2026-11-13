@@ -38,7 +38,7 @@ export type NativeOperation =
         | 'listInvitableRoles'
         | 'getInvitationPolicy';
     }>
-  | Readonly<{ kind: 'getPermissions'; sourceReleaseVersion?: 1 | 2 }>
+  | Readonly<{ kind: 'getPermissions'; sourceReleaseVersion?: 1 | 2 | 3 }>
   | Readonly<{ kind: 'createInvitation'; invitation: InvitationInput; idempotencyKey: string }>
   | (Readonly<{ kind: 'revokeInvitation' | 'reissueInvitation'; id: string }> & Write)
   | Readonly<{

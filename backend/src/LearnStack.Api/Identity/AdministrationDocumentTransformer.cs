@@ -14,7 +14,7 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
 {
     private static readonly string[] CapabilityFlagNames =
     ["canReadTenantMembers", "canReadOrganizationMembers", "canWriteMemberProfiles", "canManageMemberships",
-        "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations", "canManageCustomFields"];
+        "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations", "canManageCustomFields", "canManageFederation"];
 
     private sealed record Contract(string Path, HttpMethod Method, string Operation, string? Response,
         string? Body = null, bool Versioned = false, bool Paged = false, bool Creates = false,
@@ -224,7 +224,7 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         schemas["PermissionRegistryItemResponse"] = Object(("scope", Scope()), ("key", Text(false, 128)), ("labelKey", Text()), ("canGrant", Boolean()));
         schemas["RoleReleaseResponse"] = Object(("version", Integer()), ("fingerprint", Digest()),
             ("tenantAdminDelta", Array(Ref("AdministrationGrantResponse"), 9, true)));
-        schemas["PermissionRegistryResponse"] = Object(("items", Array(Ref("PermissionRegistryItemResponse"), 9)), ("release", Ref("RoleReleaseResponse")));
+        schemas["PermissionRegistryResponse"] = Object(("items", Array(Ref("PermissionRegistryItemResponse"), 10)), ("release", Ref("RoleReleaseResponse")));
         schemas["OwnCapabilitiesDto"] = Object(CapabilityFlagNames
             .Select(name => (name, (IOpenApiSchema)Boolean())).ToArray());
         schemas["OwnMembershipContextResponse"] = Object(("tenantId", Uuid()), ("organizationId", Uuid(true)),

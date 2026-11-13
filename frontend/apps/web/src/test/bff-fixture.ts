@@ -112,6 +112,7 @@ export function bffFixture(
           canWriteOwnProfile: true,
           canManageOrganizations: true,
           canManageCustomFields: true,
+          canManageFederation: false,
         },
       };
     if (operation.kind === 'getOwnProfile')

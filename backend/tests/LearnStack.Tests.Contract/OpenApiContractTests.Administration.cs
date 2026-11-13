@@ -50,11 +50,11 @@ public sealed partial class OpenApiContractTests
         "Tenant:identity.membership.admin", "Tenant:identity.role.admin", "Tenant:identity.membership_profile.write",
         "Tenant:tenancy.organization.admin", "Tenant:tenancy.locale.write", "Tenant:tenancy.setting.write",
         "Organization:identity.membership.admin", "Organization:identity.membership_profile.write",
-        "Tenant:customization.custom_field.admin",
+        "Tenant:customization.custom_field.admin", "Tenant:identity.federation.admin",
     ];
     private static readonly string[] AdministrationFlags =
     ["canReadTenantMembers", "canReadOrganizationMembers", "canWriteMemberProfiles", "canManageMemberships",
-        "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations", "canManageCustomFields"];
+        "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations", "canManageCustomFields", "canManageFederation"];
     private const string AdministrationUuidPattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
     private const string AdministrationLocationPattern = "^/api/v1/tenancy/organizations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
     private const string InvitationLocationPattern = "^/api/v1/identity/invitations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
@@ -78,7 +78,7 @@ public sealed partial class OpenApiContractTests
             ("key", AdminText(false, 128)), ("labelKey", AdminText()), ("canGrant", AdminBoolean())),
         ["RoleReleaseResponse"] = AdminObject(("version", AdminInteger()), ("fingerprint", AdminDigest()),
             ("tenantAdminDelta", AdminArray(AdminRef("AdministrationGrantResponse"), 9, true))),
-        ["PermissionRegistryResponse"] = AdminObject(("items", AdminArray(AdminRef("PermissionRegistryItemResponse"), 9)),
+        ["PermissionRegistryResponse"] = AdminObject(("items", AdminArray(AdminRef("PermissionRegistryItemResponse"), 10)),
             ("release", AdminRef("RoleReleaseResponse"))),
         ["OwnCapabilitiesDto"] = AdminObject(AdministrationFlags.Select(name => (name, (JsonNode)AdminBoolean())).ToArray()),
         ["OwnMembershipContextResponse"] = AdminObject(("tenantId", AdminUuid()), ("organizationId", AdminUuid(true)),
@@ -311,7 +311,7 @@ public sealed partial class OpenApiContractTests
                     var limit = AdminInteger(); limit["default"] = 20;
                     expectedParameters["limit"] = ("query", false, limit);
                 }
-                if (contract.Id == "GetPermissionRegistry") expectedParameters["sourceReleaseVersion"] = ("query", false, new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 2 });
+                if (contract.Id == "GetPermissionRegistry") expectedParameters["sourceReleaseVersion"] = ("query", false, new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = 3 });
                 if (contract.Input is not null)
                 {
                     expectedParameters["Idempotency-Key"] = ("header", true, new JsonObject
@@ -402,7 +402,7 @@ public sealed partial class OpenApiContractTests
         foreach (var (name, expected) in AdministrationSchemas)
             if (!AdminSchemaMatches(schemas?[name], expected)) errors.Add("administration-schema:" + name);
         var grants = schemas?["AdministrationGrantResponse"];
-        if (grants is not JsonObject { Count: 1 } || grants["oneOf"] is not JsonArray { Count: 9 } pairs)
+        if (grants is not JsonObject { Count: 1 } || grants["oneOf"] is not JsonArray { Count: 10 } pairs)
             errors.Add("administration-grants");
         else
         {
