@@ -479,13 +479,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 180 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 224 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
     - [Maintainer decisions recorded after the first review (2026-11-13)](#maintainer-decisions-recorded-after-the-first-review-2026-11-13) — 12 lines
   - [P03-8 proposal review round two and corrections (2026-11-13)](#p03-8-proposal-review-round-two-and-corrections-2026-11-13) — 29 lines
     - [Maintainer decision recorded after round two (2026-11-13)](#maintainer-decision-recorded-after-round-two-2026-11-13) — 7 lines
+  - [P03-8 proposal review round three verification and corrections (2026-11-13)](#p03-8-proposal-review-round-three-verification-and-corrections-2026-11-13) — 44 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -21919,3 +21920,47 @@ Review is static; it is not provider, native or browser evidence.
   account console disabled, rather than building a Keycloak provider extension in P03-8.
 
 The ADR now carries the current contract. Acceptance remains a separate maintainer act.
+
+### P03-8 proposal review round three verification and corrections (2026-11-13)
+
+Round-two reviewers and an external review pass raised findings against the revised ADR-0099. The primary agent verified each
+claim against the pinned Keycloak 26.6.2 sources, the GitHub Keycloak security advisory list and the repository before changing
+the record. Reviewers do not know the process, so their proposed fixes were evaluated, not copied.
+
+| Finding | Primary-agent verdict and correction |
+|---|---|
+| A stale provider call can land after a newer write and undo a tested state | **Accepted.** No provider fence exists (`IdentityProviderResource` update takes a representation with no version or ETag check). Writes are serialized per connection, verified by readback, detected as drift and downgraded. Alias-per-write was rejected because it changes the registered callback and drops links. The residual is stated and tested with a delayed proxy in Step 3 |
+| A linked account cannot be unlinked by its owner; recovery depends on a tenant admin | **Accepted, and deeper.** Stock Keycloak's linked-account `DELETE` and the deprecated builder both require `manage-account`; no narrow self-unlink role exists. Decision Q1 |
+| Disable and Delete are said to restore pre-federation state | **Accepted.** Disable/Delete stop brokering and end brokered sessions; they do not revert credentials or OTP added through a brokered session. The recovery claim is removed; account review is a Phase 11 and P03-9 item |
+| Rotate keeps Active although the tested configuration changed | **Accepted.** Rotate now returns the connection to Draft until a new test passes |
+| A disabled or hidden broker can be started by `kc_idp_hint`; Draft is enabled | **Accepted.** `hideOnLogin` does not block hints, and the BFF check runs only after linking. The provider broker is now enabled only in a 10-minute test window and when Active |
+| A transient alias-read failure can end the shared provider session | **Accepted.** Outcomes split into definitive mismatch (end) and indeterminate (keep the session, no idle extension, fail new brokered sign-ins closed), following ADR-0070 Amendment 1. The alias moves into the authenticated self call; refresh no longer uses the anonymous quota |
+| Brokered sessions lack a mapper-absence control | **Accepted as a residual.** Mapper readback is a precondition of enablement; startup reconciliation detects drift; operator edits are out of scope |
+| `storeToken=false` prevents token retention | **Accepted, corrected.** `storeToken` controls the persisted federated identity record only. `storeTokenInSession` defaults to true and is honored only under the preview `IDENTITY_BROKERING_API_V2` feature, which the compose configuration does not enable. The profile no longer claims non-retention |
+| Admin-event logs record unstripped secrets | **Rejected.** `AdminEventBuilder` strips secrets through `StripSecretsUtils`. The invariant and its rationale are removed |
+| Account console and link paths; `idp_link` checks only `manage-account` | **Partly accepted.** `idp_link` accepts `manage-account` or `manage-account-links`; the text now says so. The deprecated builder and the account `DELETE` need `manage-account`; the account clients are disabled |
+| A linked account's controller can add local credentials | **Accepted as the delegation residual.** Documented, with Phase 11 owning the enforcement decision (Q1, Phase 11 entries) |
+| Verified-email precondition for linking is claimed but not implemented | **Accepted.** The claim is removed. The stock flow requires no verified local email; the squatting residual is stated as pre-existing under open registration |
+| The detect step does not pre-fill the username | **Corrected, in both directions.** `IdpUsernamePasswordForm` pre-fills the detected username, but the field is editable and the linked account is the one whose submitted username and password validate |
+| A10 citation; "three steps" versus four; public read audit class; ADR-0098 and ADR-0093 references; "runtime Admin adapter" wording; `amr` correction tense; Phase 11 ownership | **Accepted.** A10 is named as the OWASP coverage row; the record says four steps; the public read is audit Off with its reason; ADR-0098 joins the Amendment list; UserInfo is attributed to ADR-0093; the adapter wording names the GET-only reader; the `amr` correction is future-tense until acceptance; Phase 11 gains explicit bullets |
+| Standard 19 cancellation claim | **Rejected as stated, corrected.** The Complete detached-token exception is documented as a deliberate exception to request-cancellation propagation |
+| Keycloak pin and CVEs (reviewer list: CVE-2026-9087, 11800, 4874, with 26.6.3/26.6.4) | **Accepted, corrected.** Verified against the advisory list: 26.6.2 is affected by CVE-2026-16443, -16442, -11800 (fixed 26.6.4), -15573, -15572, -16102, -16100 and -16071, all fixed in 26.6.5 (the 26.7 line for 26.7 users). CVE-2026-9087 and -4874 do not appear in the advisory list and are excluded. Pin upgrade is Decision Q3 |
+| Egress allow-list contradicts Standard 11 A10 | **Accepted as a decision.** The address-class exception is proposed explicitly (Q2); strict allow-list is the alternative |
+| "Verified email" and "email exists" details, reset resumption | **Accepted** as residuals with Step 3 qualification |
+| Sahipsiz ertelemeler (no owning phase) | **Accepted.** Trusted-email, per-domain, JIT, SCIM, claim mapping and SSO-only enforcement are restated as non-goals and presented as Q4 |
+
+Review remains static. Nothing here is provider, native, browser or hosted evidence.
+
+#### Decisions taken by the primary agent in this round (reversible by the maintainer)
+
+- Brokers are disabled at the provider except during a test window and when Active.
+- Rotate returns an Active connection to Draft until a new test passes.
+- The alias is fixed for a connection's life; an issuer or entity identifier change requires a new connection.
+- The host binding reads the alias from the authenticated self call; refresh uses no anonymous read.
+- Lapse, expired windows and drift are enforced at sessions immediately and at provider state at the next operation or readback; this is an explicit bounded residual.
+
+#### Open maintainer decisions (Q1–Q4 in ADR-0099)
+
+- Q1 self-unlink and recovery; Q2 Standard 11 egress exception or strict allow-list; Q3 Keycloak pin to 26.6.5 or later;
+  Q4 non-goal wording. ADR-0099 stays Proposed until these are answered and the maintainer approves acceptance and
+  implementation separately.

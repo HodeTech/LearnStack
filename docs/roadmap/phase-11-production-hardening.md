@@ -284,6 +284,20 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   platform-admin / Hub-operator roles, refresh-token rotation. See
   [11-security.md](../standards/11-security.md). LearnStack does not implement any of
   these; configuration is reviewed in Keycloak.
+- Keycloak security baseline and pin, owned with ADR-0099's advisory baseline: move the
+  pinned line to 26.6.5 or later (advisories fixed there include the SAML federation
+  advisories CVE-2026-16443 and CVE-2026-16442), qualify dev-realm import and warm
+  upgrade on the new pin, and record the advisory review for each future pin.
+- Keycloak network egress policy for the identity provider process, covering the
+  outbound endpoints a tenant's brokered IdP can cause Keycloak to fetch (token, JWKS,
+  UserInfo, SAML SSO). Required deployment control under
+  [ADR-0099](../decisions/0099-confined-tenant-federation.md#bounded-egress); this phase
+  owns its production qualification.
+- Tenant brokered-account delegation: the controller of a linked tenant IdP can add local
+  credentials to the linked account inside Keycloak
+  ([ADR-0099 § Linking](../decisions/0099-confined-tenant-federation.md#linking-email-trust-and-mfa)).
+  This phase decides whether a Keycloak extension or another enforcement control is
+  built; if none is, the residual stays accepted and documented.
 - Secret management: Vault rotation cadence (90 days for provider keys, yearly for
   Hub HMAC shared secret + mTLS client certs), no secrets in repo, no secrets in
   env files committed. The Vault adapter itself lands in this phase — see
