@@ -287,6 +287,16 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 - Keycloak advisory review and pin cadence for both realms. The move from 26.6.2 to
   26.7.5 is P03-8 Step 0 under [ADR-0099](../decisions/0099-confined-tenant-federation.md#advisory-baseline-of-the-pin);
   this phase owns the recurring review of each later pin.
+- Keycloak production provisioning accounts under the 26.7 permission model. Assigning
+  a client scope needs manage permission on that scope, and `serverinfo` returns
+  `systemInfo` only to realm management. The 26.7.0 migrator adds `view-organizations`,
+  `manage-organizations` and `query-organizations` to `realm-management` and to the
+  master realm's admin client (`view-organizations` includes `query-organizations`);
+  production provisioning accounts must not inherit organization rights.
+- Operator realm email verification (Hub hardening). `learnstack-hub.json` sets
+  `verifyEmail: true` but declares only `CONFIGURE_TOTP` in `requiredActions`, so
+  `VERIFY_EMAIL` may be inert for that realm. Unverified; this phase verifies the
+  behaviour and decides the declaration.
 - Keycloak network egress policy for the identity provider process, covering the
   outbound endpoints a tenant's brokered IdP can cause Keycloak to fetch (token, JWKS,
   UserInfo, SAML SSO). Required deployment control under

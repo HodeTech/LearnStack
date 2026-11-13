@@ -48,11 +48,14 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         var attributes = Object(web.GetProperty("attributes"));
         attributes["backchannel.logout.url"] = "https://foreign.invalid/api/auth/backchannel/keycloak";
         var path = "clients/" + Id(web);
+        // A client PUT that omits webOrigins makes Keycloak derive them from the
+        // redirect URIs, so the original (empty) set travels with each attribute PUT.
+        // Resolve it before the try so a missing property fails here, not in finally.
+        (web.TryGetProperty("webOrigins", out var webOrigins) && webOrigins.ValueKind == JsonValueKind.Array)
+            .Should().BeTrue("the learnstack-web client representation must carry its webOrigins array");
         try
         {
-            // A client PUT that omits webOrigins makes Keycloak derive them from the
-            // redirect URIs, so the original (empty) set travels with each attribute PUT.
-            (await admin.PutAsync(path, new { attributes, webOrigins = web.GetProperty("webOrigins") }))
+            (await admin.PutAsync(path, new { attributes, webOrigins }))
                 .Should().Be(HttpStatusCode.NoContent);
             var conflicted = await StateAsync(admin);
             var conflict = await KeycloakReconciliationDriver.RunAsync(fresh,
@@ -63,7 +66,7 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         }
         finally
         {
-            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes"), webOrigins = web.GetProperty("webOrigins") }))
+            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes"), webOrigins }))
                 .Should().Be(HttpStatusCode.NoContent);
         }
     }

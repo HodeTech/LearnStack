@@ -18,7 +18,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>A separate provider database; never a substitute for application-role isolation tests.</summary>
 public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 {
-    internal const string Image = "quay.io/keycloak/keycloak:26.7.5";
+    internal const string Image = "quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85";
     internal const string WebClientSecret = "keycloak-fixture-web-secret";
     internal const string EventReaderSecret = "keycloak-fixture-event-reader-secret";
     internal const string DemoPassword = "demo-dev-secret";

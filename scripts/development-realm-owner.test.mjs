@@ -60,14 +60,14 @@ function target() {
     model: {
       name: 'selected-development',
       services: {
-        keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5', environment: { ...values } },
+        keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', environment: { ...values } },
       },
     },
     containers: [id],
     inspected: {
       Id: id,
       Config: {
-        Image: 'quay.io/keycloak/keycloak:26.7.5',
+        Image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85',
         Labels: {
           'com.docker.compose.project': 'selected-development',
           'com.docker.compose.service': 'keycloak',
@@ -224,7 +224,10 @@ const mismatches = [
   ['model project', (f) => { f.model.name = 'foreign'; }],
   ['service missing', (f) => { delete f.model.services.keycloak; }],
   ['service image', (f) => { f.model.services.keycloak.image = 'quay.io/keycloak/keycloak:latest'; }],
-  ['container image', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.6.1'; }],
+  ['container image', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.6.2'; }],
+  ['tag-only service image', (f) => { f.model.services.keycloak.image = 'quay.io/keycloak/keycloak:26.7.5'; }],
+  ['tag-only container image', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.7.5'; }],
+  ['foreign digest', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.7.5@sha256:' + 'f'.repeat(64); }],
   ['container missing', (f) => { f.containers = []; }],
   ['multiple containers', (f) => { f.containers.push('b'.repeat(64)); }],
   ['short container identifier', (f) => { f.containers = ['a'.repeat(12)]; }],

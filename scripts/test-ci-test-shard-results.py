@@ -464,7 +464,7 @@ class AggregateControls(unittest.TestCase):
     def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
         with self.fixture_preparation() as (command, output):
             self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
-        self.assertEqual(('quay.io/keycloak/keycloak:26.7.5', 'postgres:18.4-alpine',
+        self.assertEqual(('quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', 'postgres:18.4-alpine',
                           'edoburu/pgbouncer:v1.26.0-p0', 'axllent/mailpit:v1.29.7'), RESULTS.FIXTURE_IMAGES)
         pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,

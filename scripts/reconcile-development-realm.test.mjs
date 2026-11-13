@@ -223,10 +223,10 @@ if (${JSON.stringify(command)} === 'dotnet') {
   if (args.length !== 2 || args[1] !== '--identity-manifest') process.exit(19);
   result = manifest;
 } else if (args[0] === 'context') result = [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }];
-else if (args.includes('config')) result = { name: 'learnstack-dev', services: { keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5', environment: values } } };
+else if (args.includes('config')) result = { name: 'learnstack-dev', services: { keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', environment: values } } };
 else if (args.includes('ps')) { process.stdout.write(${JSON.stringify(id)}); process.exit(0); }
 else if (args[0] === 'inspect') result = [{ Id: ${JSON.stringify(id)}, State: { Running: true },
- Config: { Image: 'quay.io/keycloak/keycloak:26.7.5', Labels: { 'com.docker.compose.project': 'learnstack-dev', 'com.docker.compose.service': 'keycloak' }, Env: Object.entries(values).map(([key, value]) => key + '=' + value) },
+ Config: { Image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', Labels: { 'com.docker.compose.project': 'learnstack-dev', 'com.docker.compose.service': 'keycloak' }, Env: Object.entries(values).map(([key, value]) => key + '=' + value) },
  NetworkSettings: { Ports: { '8080/tcp': [{ HostIp: '127.0.0.1', HostPort: '8080' }] } } }];
 else process.exit(19);
 process.stdout.write(JSON.stringify(result));

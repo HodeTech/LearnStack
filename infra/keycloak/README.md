@@ -619,6 +619,12 @@ only when their realms do not already exist. Restarting a populated database
 does not apply export changes. Dropping the database or replaying a whole import
 is not an upgrade procedure.
 
+A pin change takes effect before any version guard runs: the next `make dev`,
+`make seed` or `make demo` recreates the Keycloak container on the new image, and
+its first start migrates the `keycloak` database irreversibly. If you may need to
+return to the previous pin (26.6.2), take a `pg_dump` of the `keycloak` database
+first.
+
 P02b-6 Step 1 supplies the executable fresh import; Step 2 supplies the bounded
 shared Admin REST reconciler. Both completed their local review rounds. Step 3
 connects `make seed` and `make demo` to the same awaited operation after

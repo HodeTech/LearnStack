@@ -48,7 +48,7 @@ UPLOAD_STEP = 'Upload immutable attempt evidence'
 BUILD_STEP = 'Build Release with warnings as errors'
 UPLOAD_ACTION = 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'
 _FIXTURE_IMAGE_COMPONENTS = (
-    ('keycloak', 'quay.io/keycloak/keycloak:26.7.5'),
+    ('keycloak', 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85'),
     ('postgres', 'postgres:18.4-alpine'),
     ('pgbouncer', 'edoburu/pgbouncer:v1.26.0-p0'),
     # ADR-0093's nonseed verification fixture uses real SMTP before its journey.

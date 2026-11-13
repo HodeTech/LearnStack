@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 600 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 655 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -491,7 +491,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 1 — authority and storage (2026-11-13)](#p03-8-step-1--authority-and-storage-2026-11-13) — 86 lines
   - [P03-8 Step 1 review round 1 corrections (2026-11-13)](#p03-8-step-1-review-round-1-corrections-2026-11-13) — 91 lines
   - [P03-8 Step 1 review round 2 corrections (2026-11-13)](#p03-8-step-1-review-round-2-corrections-2026-11-13) — 53 lines
-  - [P03-8 Step 0 — Keycloak pin move (2026-11-13)](#p03-8-step-0--keycloak-pin-move-2026-11-13) — 122 lines
+  - [P03-8 Step 0 — Keycloak pin move (2026-11-13)](#p03-8-step-0--keycloak-pin-move-2026-11-13) — 129 lines
+  - [P03-8 Step 0 review round 1 corrections (2026-11-13)](#p03-8-step-0-review-round-1-corrections-2026-11-13) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22275,6 +22276,7 @@ path exists at neither tag. The 26.7.0 migrator, its changelog and the
 | Realm GET adds `webAuthnPolicyResidentKey` and `webAuthnPolicyPasswordlessResidentKey`. | Representation-only. | None. |
 | `serverinfo` returns `systemInfo` only to callers with realm management, and full detail only for the master realm. `view-system` is removed. | The reconciler and the fixtures authenticate as the master administrator. Version reads passed on both paths. | None. |
 | Assigning a client scope now requires manage permission on that scope. `defaultClientScopes` is blanked for callers without view permission. | The reconciler runs as the master administrator. Warm reconciliation's console-edge detachments and scope additions succeeded. | None for development. Production provisioning must grant both permissions (Phase 11). |
+| The 26.7.0 migrator adds the organization admin roles `view-organizations`, `manage-organizations` and `query-organizations` to `realm-management` and to the master realm's admin client; `view-organizations` includes `query-organizations`. | No user in `learnstack.json` or `learnstack-hub.json` holds a `realm-management` role; the event reader's `view-events` is not composite. | None today. Production provisioning accounts must not inherit organization rights (Phase 11). |
 | An identity-provider `PUT` that changes the alias returns 400. | No current caller. ADR-0099's aliases are fixed. | Step 3's adapter always sends the stored alias. |
 | `OIDCAttributeMapperHelper` omits a claim on a type mismatch instead of throwing. | The committed mappers are unchanged, and the issuance tests assert the claims. | The silent omission is noted for Step 3's mapper readback. |
 | No change: `JsonUtils.splitClaimPath`, `EventType`, `JpaEventQuery`, the linked-account `DELETE` permission (`manage-account`), the `editEmailCondition` body, the default OIDC scope set for a new realm, the account and console client roles, and the separate `iat` and `exp` clock reads. | — | The comments and docs that cite these behaviours move to 26.7.5. The `editEmailCondition` link moves to lines 159–190. |
@@ -22290,8 +22292,10 @@ Keycloak derives `webOrigins` from the redirect URIs when a client `PUT` omits t
 and the next reconciliation restored it with one write. A disposable probe showed the
 same derivation and the same one-write repair on 26.6.2 (`30d94bb5` scripts), so the
 upgrade did not cause it. Hosted CI shards methods across processes, which is why it
-did not surface there. Both `PUT`s now carry the original `webOrigins`.
-With the fix, the pair passes on 26.7.5, and so does the whole `TenantRealmReconciliationTests` class (22 of 22). Before the fix, the same pair failed identically on a 26.6.2 control build at `30d94bb5`.
+did not surface there. Both `PUT`s now carry the original `webOrigins`. With the
+fix, the pair passes on 26.7.5, and so does the whole `TenantRealmReconciliationTests`
+class (22 of 22). Before the fix, the same pair failed identically on a 26.6.2 control
+build at `30d94bb5`.
 
 **Verification.** All runs were on one workstation (macOS, Docker, linux/arm64 images).
 
@@ -22335,13 +22339,65 @@ migration is one-way, and that database belongs to the workstation owner.
 
 **Residual risk.**
 
-- A developer stack still on 26.6.2 is refused by `make seed`. The reconciler's version
-  and image guards now require 26.7.5, so `make dev` must recreate the Keycloak
-  container first. That start migrates the local Keycloak database one-way.
-
+- A developer stack still on 26.6.2 is not refused by `make seed` before it changes.
+  `make seed` runs `make dev` (`compose up -d`) before any version check, so Compose
+  recreates the Keycloak container on the 26.7.5 image and its first start runs the
+  26.7.0 migration on the developer's `keycloak` database, irreversibly. Only then do
+  the reconciler's version and image guards run, and they pass. Local `make demo`
+  does the same. A developer who may need 26.6.2 again takes a `pg_dump` of the
+  `keycloak` database first
+  ([Keycloak README](../../infra/keycloak/README.md#fresh-import-and-warm-upgrade)).
 - Release notes and the source diff were reviewed for the surfaces this repository
   uses. Behaviour that no test or warm run exercises, such as SAML brokering for Step 3,
   is unqualified on 26.7.5 until Step 3 proves it.
 - Production provisioning must replicate the 26.7 permission split for client-scope
   assignment and server info (Phase 11).
 - The pin stays a floating tag (`26.7.5` over `26.7.5-N` rebuilds), as it was for 26.6.2.
+
+### P03-8 Step 0 review round 1 corrections (2026-11-13)
+
+The first review round of Step 0 (`ed168594`) returned eleven findings (F1–F11): seven
+from the corpus and tests review and four from the security review. Each was verified
+before any change. The pin stays Keycloak 26.7.5. This record covers local evidence
+only, not hosted CI. All corrections are in one commit, the one that adds this record.
+
+| ID | Verdict | Evidence and change |
+|---|---|---|
+| F1 | Fixed — pre-existing from Step 1 | Confirmed: `test_shared_fixture_witness_matches_actual_source_classes` failed with 195 census classes against 194 listed; `FederationConnectionStorageTests` (`[Collection(SharedSchema.Name)]`) was missing. Inserted into `sharedFixtureClasses` between `FeatureFlagsTests` and `FixedSeedPrerequisiteReadTests`, the census order. No weight or count changed. |
+| F2 | Fixed | Confirmed: only `canonicalSha256` was enforced. Both recorded hashes equal the files today (`normalizationModuleSha256` `79cdd39c…991049a`, `extractionSha256` `8c696a91…c5b208`), so neither the baseline nor the field changed. A new stock-console Node test hashes the exact bytes of both modules and compares them with the provenance. `sourceCaptureSha256` stays unchecked by design: recomputing it needs the private capture from the pinned image, which is never committed. |
+| F3 | Fixed | Confirmed. ADR-0099 Amendment 2 now says that Implementation Notes Q3 and Step 0 are retargeted to 26.7.5 by the amendment, that the § Decision section and the advisory facts are unchanged, and that on the 26.6 line the fix line clearing all eight advisories is 26.6.5 or later, 26.6.4 clearing only CVE-2026-11800. No Decision text or advisory row changed. |
+| F4 | Fixed | Confirmed. The ADR index row for 0099 now states Step 0 committed in `ed168594`, Step 1 committed in `7928fc8b`–`37af223c` with fixes through `30d94bb5`, and Steps 2–4 still to be implemented. No review result is claimed. |
+| F5 | Fixed | Confirmed. The Step 0 record's 203-character line is reflowed to 88 columns and the blank line inside § Residual risk is removed; no code span or link is split. |
+| F6 | Fixed | Confirmed. The owner test's wrong-container-image case uses `26.6.2`, the previous pin. No other test or document claimed that `make seed` refuses a 26.6.2 stack except the Step 0 residual line corrected under F8. |
+| F7 | Fixed | Confirmed. `Backchannel_refusals_preserve_the_structured_driver_outcome_without_writes` resolves `webOrigins` with `TryGetProperty` before the `try`, asserts an array with a clear message, and sends that same value in both `PUT`s, so a missing property fails at the read, not inside `finally`. |
+| F8 | Fixed | Confirmed against `scripts/seed.mjs` (`make dev` runs before migration, the Seeder and `reconcileDevelopmentRealm`), the `Makefile` (`dev` is `compose up -d`) and `scripts/demo.mjs` (local mode runs `compose up -d` before reconciliation). The Step 0 residual line said a 26.6.2 stack is refused by `make seed`; that was false and is corrected: Compose recreates the container, 26.7.5 migrates the `keycloak` database irreversibly, and only then do the guards run and pass. The Keycloak README § Fresh import and warm upgrade now says to take a `pg_dump` of the `keycloak` database before the next `make dev`, `make seed` or `make demo` if 26.6.2 may be needed again. |
+| F9 | Fixed | Confirmed against the realm exports: no user in `learnstack.json` or `learnstack-hub.json` holds a `realm-management` role, and the event reader requires `view-events` to be non-composite. A row in the Step 0 change table records the 26.7.0 organization admin roles; Phase 11 now carries "production provisioning accounts must not inherit organization rights" with the 26.7 permission split. |
+| F10 | Fixed — digest pin | `docker pull` and `docker image inspect` gave `quay.io/keycloak/keycloak@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85`, the recorded prefix; `docker buildx imagetools inspect` shows it is the OCI index (linux/amd64, linux/arm64, linux/ppc64le), so one digest serves hosted and local runners. `quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f…a475a85` is now the Compose image, `KeycloakFixture.Image` and the CI pre-pull entry. A throw-away Compose project showed that `compose config` and the created container's `Config.Image` both carry the full string unchanged, so the owner guard keeps its exact comparison against the new constant. Three new owner cases prove it refuses a tag-only service image, a tag-only container image and a foreign digest under the same tag. The Step 0 residual "the pin stays a floating tag" is superseded by this change. The stock-console provenance keeps `providerImage` as the tag the capture used; its digest fields are unchanged. |
+| F11 | Recorded — open | Confirmed in the export: `learnstack-hub.json` sets `verifyEmail: true` and declares only `CONFIGURE_TOTP` in `requiredActions`. Whether `VERIFY_EMAIL` is inert there is unverified. The operator realm is unchanged; the item is carried in Phase 11's Keycloak bullets for Hub hardening. |
+
+**Verification.** All commands ran on one workstation (macOS, Docker, linux/arm64).
+
+| Command | Result |
+|---|---|
+| `python3 scripts/test-ci-test-shards.py` | 88 passed, 0 failed (before F1: 87 passed, 1 failed) |
+| `python3 scripts/run-realm-node-tests.py` | 12 files, 467 passed, zero cancellations, skips or todos (463 plus one stock-console provenance case and three owner image cases) |
+| `python3 scripts/test-realm-node-gate.py` | 6 passed |
+| `python3 scripts/test-ci-test-shard-results.py` | 42 passed |
+| `docker compose -f infra/compose/dev.yml config` (dummy secret), and with `e2e.yml` | Keycloak image resolves to the full tag-and-digest string; the overlay config is valid |
+| `dotnet build backend/LearnStack.slnx -c Release` | 0 warnings, 0 errors |
+| Integration, `TenantRealmReconciliationTests`, 26.7.5 by digest through Testcontainers | 22 passed, 0 failed, 0 skipped (6.5 min), on the Release build that carries the digest constant and the `TryGetProperty` change |
+| `make docs-index`, `make lint-docs` | `make docs-index` regenerated the index. `make lint-docs` was clean: 3,698 fragment links resolve, roadmap structure conforms, 3 delivery log indexes current |
+| Full integration suite, unit, architecture, frontend, SDK, contract and OpenAPI suites; hosted CI; the Compose `make dev` / `make seed` path | NOT RUN: no production code, contract or frontend file changed, nothing is pushed, and the developer's stack belongs to the workstation owner |
+
+**Open items for the maintainer.**
+
+- F11: operator realm `verifyEmail` with no `VERIFY_EMAIL` required action; Phase 11
+  (Hub hardening) verifies and decides.
+- F10 policy: the Keycloak pin is now tag plus index digest. Other Compose and fixture
+  images (PostgreSQL, PgBouncer, Mailpit and the rest) stay tag-pinned; whether to
+  digest-pin them is a separate decision. A new Keycloak pin now changes the full
+  reference in Compose, `KeycloakFixture.Image`, the CI pre-pull list and the owner
+  guard, and in the tests that mirror them.
+- Trailer convention (Step 1 round 1 C9): the commit names the model that produced it.
+- OpenAPI gate admission (Step 1 round 1 C1): still undecided; this commit changes no
+  contract.

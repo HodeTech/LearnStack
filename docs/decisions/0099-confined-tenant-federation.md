@@ -719,15 +719,17 @@ the Identity module specification and permission matrix.
 
 ### Amendment 2 — Keycloak pin decision (2026-11-13)
 
-P03-8 Step 0 moves the pin. The Decision and the
-[advisory baseline](#advisory-baseline-of-the-pin) are unchanged; this amendment records
-which release satisfies them. Decision Q3, Step 0 and the Consequences name 26.6.5
-because that was the 26.6 fix line; "26.6.5 or later" is the requirement.
+P03-8 Step 0 moves the pin. The § Decision section and the facts of the
+[advisory baseline](#advisory-baseline-of-the-pin) are unchanged. Implementation Notes
+Q3 and Step 0 literally say the pin moves to 26.6.5, and the Consequences name 26.6.5,
+because that was the 26.6 fix line; the requirement is "26.6.5 or later". This
+amendment retargets Q3 and Step 0 to 26.7.5 and records why.
 
 - **26.6.5 is not published as an image.** On 2026-11-13 the `quay.io/keycloak/keycloak`
   tag list returned no `26.6.5` tag, so the pin cannot move to it.
-- **The pin is 26.7.5**, the newest published 26.7.x release. Every advisory in the
-  baseline is fixed on the 26.7 line at 26.7.1 (26.6.4 or 26.6.5 on the 26.6 line), so
+- **The pin is 26.7.5**, the newest published 26.7.x release. On the 26.6 line the fix
+  line that clears all eight advisories is 26.6.5 or later; 26.6.4 clears only
+  CVE-2026-11800. On the 26.7 line every advisory in the baseline is fixed at 26.7.1, so
   26.7.5 clears all eight.
 - **The move is a minor-version upgrade.** Version-bound artifacts were re-derived on
   the 26.7.5 image instead of renamed: the stock account-console baseline (only

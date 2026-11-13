@@ -123,7 +123,8 @@ export async function acquireRealmLock(identity, directory = join(tmpdir(), `lea
 export function validateRealmTarget(selected, model, containers, inspected, context, values) {
   validateLocalDockerContext(selected.env ?? {}, context);
   const service = model?.services?.keycloak;
-  const image = 'quay.io/keycloak/keycloak:26.7.5';
+  // Exact tag-and-digest reference: a tag-only or foreign-digest container is refused.
+  const image = 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85';
   if (model?.name !== selected.project || service?.image !== image
       || !Array.isArray(containers) || containers.length !== 1 || typeof containers[0] !== 'string'
       || !/^[a-f0-9]{64}$/.test(containers[0]) || inspected?.Id !== containers[0]
