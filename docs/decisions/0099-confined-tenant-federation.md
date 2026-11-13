@@ -728,8 +728,8 @@ amendment retargets Q3 and Step 0 to 26.7.5 and records why.
 - **26.6.5 is not published as an image.** On 2026-11-13 the `quay.io/keycloak/keycloak`
   tag list returned no `26.6.5` tag, so the pin cannot move to it.
 - **The pin is 26.7.5**, the newest published 26.7.x release. On the 26.6 line the fix
-  line that clears all eight advisories is 26.6.5 or later; 26.6.4 clears only
-  CVE-2026-11800. On the 26.7 line every advisory in the baseline is fixed at 26.7.1, so
+  line that clears all eight advisories is 26.6.5 or later; 26.6.4 does not clear
+  CVE-2026-16443 or CVE-2026-16442 (the other entries it does not name are fixed at 26.6.5). On the 26.7 line every advisory in the baseline is fixed at 26.7.1, so
   26.7.5 clears all eight.
 - **The move is a minor-version upgrade.** Version-bound artifacts were re-derived on
   the 26.7.5 image instead of renamed: the stock account-console baseline (only

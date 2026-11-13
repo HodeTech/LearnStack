@@ -22255,7 +22255,7 @@ pin and move with it. Accepted ADRs and earlier delivery records keep 26.6.2 as 
 
 | Artifact | Method | Result |
 |---|---|---|
-| Stock account-console baseline (`development-realm-stock-console-baseline.json`) | `TenantRealmStockBaselineTests` imports the historical `24705a7a` fixture into 26.7.5, captures 92 endpoint reads and runs `extract-development-realm-stock-console.mjs --check` on them | Canonical graph identical to the 26.6.2 expectation except `providerVersion`. New canonical SHA-256 `2a947fa5…cda42241`. Provenance records image `sha256:37dbaf6f…a475a85` (linux/arm64), capture `5a770be1…11f3ab` and the edited module hash |
+| Stock account-console baseline (`development-realm-stock-console-baseline.json`) | `TenantRealmStockBaselineTests` imports the historical `24705a7a` fixture into 26.7.5, captures 92 endpoint reads and runs `extract-development-realm-stock-console.mjs --check` on them | Canonical graph identical to the 26.6.2 expectation except `providerVersion`. New canonical SHA-256 `2a947fa5…cda42241`. Provenance records the image ID `sha256:37dbaf6f…a475a85`, which is the OCI index digest, capture `5a770be1…11f3ab` and the edited module hash |
 | Default-saved event fixture | Same source as the 26.6.2 file: `EventType.java` at the tag | SHA-256 `e96d8c99…ab9b0b6` at both tags, so the 103 events are unchanged. File renamed to `keycloak-26.7.5-default-events.json`, with its source URL on the new tag |
 | Realm exports (`learnstack.json`, `learnstack-hub.json`) | Inspected | No version field; no change |
 
@@ -22281,7 +22281,7 @@ path exists at neither tag. The 26.7.0 migrator, its changelog and the
 | `OIDCAttributeMapperHelper` omits a claim on a type mismatch instead of throwing. | The committed mappers are unchanged, and the issuance tests assert the claims. | The silent omission is noted for Step 3's mapper readback. |
 | No change: `JsonUtils.splitClaimPath`, `EventType`, `JpaEventQuery`, the linked-account `DELETE` permission (`manage-account`), the `editEmailCondition` body, the default OIDC scope set for a new realm, the account and console client roles, and the separate `iat` and `exp` clock reads. | — | The comments and docs that cite these behaviours move to 26.7.5. The `editEmailCondition` link moves to lines 159–190. |
 | Other 26.7 items: redirect URIs carrying `state`, `code` or `session_state` are refused, disabled clients drop out of `aud`, and the legacy account-link endpoint is off. | Covered by the integration run below. | None found. |
-| The `26.6.2` and `26.7.5` tags float over rebuilds (`26.7.5-0`). | The pin is a tag, not a digest, as before. | Unchanged policy; the observed digest is recorded in the baseline provenance. |
+| The `26.6.2` and `26.7.5` tags float over rebuilds (`26.7.5-0`). | The pin is a tag, not a digest, as before. | Unchanged policy; the observed digest is recorded in the baseline provenance. Superseded by the digest pin (round 1 F10). |
 
 **Pre-existing test interference found and fixed.** The unsharded local run failed
 `Committed_fresh_import_is_already_converged_and_repeated_runs_have_zero_writes` with
@@ -22352,7 +22352,7 @@ migration is one-way, and that database belongs to the workstation owner.
   is unqualified on 26.7.5 until Step 3 proves it.
 - Production provisioning must replicate the 26.7 permission split for client-scope
   assignment and server info (Phase 11).
-- The pin stays a floating tag (`26.7.5` over `26.7.5-N` rebuilds), as it was for 26.6.2.
+- The pin stays a floating tag (`26.7.5` over `26.7.5-N` rebuilds), as it was for 26.6.2. Superseded by the digest pin (round 1 F10).
 
 ### P03-8 Step 0 review round 1 corrections (2026-11-13)
 
