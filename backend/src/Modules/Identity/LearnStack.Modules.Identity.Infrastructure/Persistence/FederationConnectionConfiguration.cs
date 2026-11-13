@@ -29,8 +29,12 @@ internal sealed class FederationConnectionConfiguration : IEntityTypeConfigurati
             table.HasCheckConstraint("ck_federation_connections_state",
                 "state IN ('Draft','TestOpen','TestPassed','Active','Disabled','Deleted')");
             table.HasCheckConstraint("ck_federation_connections_source_kind", "source_kind IN ('MetadataUrl','DiscoveryUrl','Manual')");
+            // Mirrors FederationDisplayName: NFC, trimmed, and no C0/C1 control, format (bidirectional marks,
+            // embeddings, overrides and isolates included), line or paragraph separator, non-U+0020 space or
+            // private-use code point. Unassigned code points stay a domain-only refusal: a CHECK cannot track
+            // the Unicode version the runtime ships.
             table.HasCheckConstraint("ck_federation_connections_display_name",
-                "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name !~ '[[:cntrl:]]'");
+                "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name IS NFC NORMALIZED AND display_name !~ '[\\u0001-\\u001f\\u007f-\\u00a0\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890\\u0891\\u08e2\\u1680\\u180e\\u2000-\\u200f\\u2028-\\u202f\\u205f-\\u206f\\u3000\\ufeff\\ue000-\\uf8ff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0001\\U000e0020-\\U000e007f\\U000f0000-\\U0010ffff]'");
             table.HasCheckConstraint("ck_federation_connections_issuer",
                 "octet_length(issuer_or_entity_id) BETWEEN 1 AND 2048 AND issuer_or_entity_id ~ '^[!-~]+$'");
             table.HasCheckConstraint("ck_federation_connections_client",

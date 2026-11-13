@@ -398,6 +398,90 @@ public sealed class FederationConnectionTests
     }
 
     [Fact]
+    public void Drift_on_a_Disabled_connection_returns_it_to_Draft()
+    {
+        var connection = InState(FederationConnectionState.Disabled);
+        Assert.True(connection.RecordDrift(Digest('f'), At.AddMinutes(9), Actor).IsSuccess);
+        Assert.Equal(FederationConnectionState.Draft, connection.State);
+        Assert.Equal(Digest('f'), connection.LastProviderDigest);
+        AssertNoTest(connection);
+        Assert.True(connection.Enable(At.AddMinutes(10), Actor).IsFailure, "a drifted connection is Draft, so Enable has nothing to move");
+    }
+
+    public static TheoryData<string> BackdatedMutators => new()
+    {
+        "complete_applied", "complete_failed", "complete_uncertain", "record_test", "expire", "activate", "enable", "drift",
+    };
+
+    [Theory]
+    [MemberData(nameof(BackdatedMutators))]
+    public void A_stamp_before_the_last_update_is_a_refusal_without_mutation_and_the_last_stamp_itself_is_admitted(string action)
+    {
+        foreach (var backdated in new[] { true, false })
+        {
+            var (connection, last) = Prepared(action);
+            var at = backdated ? last.AddTicks(-1) : last;
+            var state = connection.State;
+            var version = connection.Version;
+            var result = Act(connection, action, at);
+            if (backdated)
+            {
+                Assert.True(result.IsFailure, action);
+                Assert.Equal(state, connection.State);
+                Assert.Equal(version, connection.Version);
+                Assert.Equal(last, connection.UpdatedAt);
+            }
+            else Assert.True(result.IsSuccess, action + " at exactly the last stamp is monotonic");
+        }
+
+        static (FederationConnection Connection, DateTimeOffset Last) Prepared(string action)
+        {
+            switch (action)
+            {
+                case "complete_applied" or "complete_failed" or "complete_uncertain":
+                    {
+                        // Uncertain advances the stamp past the pending start, so a later Complete can be backdated
+                        // while still being after the start the existing check compares with.
+                        var connection = New();
+                        Assert.True(connection.Complete(connection.PendingOperationId!.Value, FederationOperationOutcome.Uncertain, null, null,
+                            At.AddSeconds(30), Actor).Value);
+                        return (connection, At.AddSeconds(30));
+                    }
+                case "record_test":
+                    return (InState(FederationConnectionState.TestOpen), At.AddMinutes(2));
+                case "expire":
+                    {
+                        // A rename after the window has elapsed moves the stamp beyond the expiry.
+                        var connection = InState(FederationConnectionState.TestOpen);
+                        var last = connection.TestExpiresAt!.Value.AddMinutes(1);
+                        Assert.True(connection.BeginRename("Renamed", Digest('c'), Operation(), last, Actor).IsSuccess);
+                        return (connection, last);
+                    }
+                case "activate":
+                    return (InState(FederationConnectionState.TestPassed), At.AddMinutes(3));
+                case "enable":
+                    return (InState(FederationConnectionState.Disabled), At.AddMinutes(6));
+                default:
+                    return (InState(FederationConnectionState.Active), At.AddMinutes(4));
+            }
+        }
+
+        static LearnStack.SharedKernel.Results.IResultBase Act(FederationConnection connection, string action, DateTimeOffset at) => action switch
+        {
+            "complete_applied" => connection.Complete(connection.PendingOperationId!.Value, FederationOperationOutcome.Applied,
+                connection.PendingDesiredDigest, null, at, Actor),
+            "complete_failed" => connection.Complete(connection.PendingOperationId!.Value, FederationOperationOutcome.Failed, null, null, at, Actor),
+            "complete_uncertain" => connection.Complete(connection.PendingOperationId!.Value, FederationOperationOutcome.Uncertain, null, null, at, Actor),
+            "record_test" => connection.RecordTestResult(connection.TestAttemptId!.Value, true, at, Actor),
+            "expire" => connection.ExpireTest(at, Actor),
+            "activate" => connection.Activate(connection.DesiredDigest, at, Actor),
+            "enable" => connection.Enable(at, Actor),
+            "drift" => connection.RecordDrift(Digest('f'), at, Actor),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+    }
+
+    [Fact]
     public void Rename_keeps_the_state_and_validates_the_name()
     {
         var connection = InState(FederationConnectionState.Active);

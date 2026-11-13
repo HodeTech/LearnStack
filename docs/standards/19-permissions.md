@@ -669,6 +669,13 @@ The v4 fingerprint uses the same length-framed SHA-256 algorithm over domain
 v1–v3 bytes, fingerprints and shipped guards are unchanged; a forward migration
 replaces the release guard and the registry/adoption CHECKs.
 
+Every grant-array bound tracks the registry size, as the v3 transition did under
+[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md): the
+registry `items`, `release.tenantAdminDelta`, Role detail `grants` and the
+`RoleGrantsInput` body are each bounded at ten. The server's grant-change validator
+bounds the request at the current release's definition count, and the SDK and BFF
+strict parsers admit the same ten; a Role still holds only pairs of its own scope.
+
 ### Federation operation authority
 
 Every federation operation that Step 2 adds is a Protected policy on Tenant

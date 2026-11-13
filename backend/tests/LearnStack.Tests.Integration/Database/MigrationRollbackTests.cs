@@ -209,13 +209,17 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         retainedFields.Should().Throw<NotSupportedException>().WithMessage("Retained membership custom fields require a reviewed forward migration.");
         Action recoveryAnchor = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.preserve_provider_recovery_anchor().DownOperations;
         recoveryAnchor.Should().Throw<NotSupportedException>().WithMessage("Provider recovery continuity requires a forward repair.");
+        Action collision = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.classify_retained_provider_collision().DownOperations;
+        collision.Should().Throw<NotSupportedException>().WithMessage("Provider receipt collision classification requires a forward repair.");
+        Action releaseV4 = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.role_registry_release_v4().DownOperations;
+        releaseV4.Should().Throw<NotSupportedException>().WithMessage("Role release adoption requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
             (platform, "20261105020229_lock_invitation_envelope_parent", PlatformReversibleHead,
                 "20261110013140_add_custom_field_protected_receipts", "Retained custom field receipts require a reviewed forward migration."),
-            (identity, "20261109230238_role_registry_release_v3", IdentityReversibleHead,
+            (identity, "20261113114919_role_registry_release_v4", IdentityReversibleHead,
                 "20261113120259_add_federation_connections", "Federation connection storage requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),

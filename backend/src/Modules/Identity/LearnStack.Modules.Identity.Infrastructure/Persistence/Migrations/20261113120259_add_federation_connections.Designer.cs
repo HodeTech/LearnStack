@@ -265,7 +265,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_federation_connections_digests", "(configuration_digest ~ '^[0-9a-f]{64}$' AND desired_digest ~ '^[0-9a-f]{64}$' AND (last_provider_digest IS NULL OR last_provider_digest ~ '^[0-9a-f]{64}$') AND (pending_desired_digest IS NULL OR pending_desired_digest ~ '^[0-9a-f]{64}$')) IS TRUE");
 
-                            t.HasCheckConstraint("ck_federation_connections_display_name", "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name !~ '[[:cntrl:]]'");
+                            t.HasCheckConstraint("ck_federation_connections_display_name", "char_length(display_name) BETWEEN 1 AND 80 AND display_name = btrim(display_name, ' ') AND display_name IS NFC NORMALIZED AND display_name !~ '[\\u0001-\\u001f\\u007f-\\u00a0\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890\\u0891\\u08e2\\u1680\\u180e\\u2000-\\u200f\\u2028-\\u202f\\u205f-\\u206f\\u3000\\ufeff\\ue000-\\uf8ff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0001\\U000e0020-\\U000e007f\\U000f0000-\\U0010ffff]'");
 
                             t.HasCheckConstraint("ck_federation_connections_identifiers", "(uuid_extract_version(id)=7 AND (pending_operation_id IS NULL OR uuid_extract_version(pending_operation_id)=7) AND (test_attempt_id IS NULL OR uuid_extract_version(test_attempt_id)=7)) IS TRUE");
 

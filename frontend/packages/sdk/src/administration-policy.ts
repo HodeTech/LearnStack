@@ -100,7 +100,7 @@ export function grant(value: unknown): value is { scope: 'Tenant' | 'Organizatio
 export function grants(value: unknown): boolean {
   return (
     Array.isArray(value) &&
-    value.length <= 9 &&
+    value.length <= 10 &&
     value.every(grant) &&
     new Set(value.map((item) => item.scope + ':' + item.key)).size === value.length
   );

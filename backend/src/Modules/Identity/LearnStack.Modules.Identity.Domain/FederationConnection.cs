@@ -190,7 +190,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
             || !Enum.IsDefined(outcome))
             return Result<bool>.Fail(IdentityFailures.Refused());
         if (PendingOperationId is not { } pending || pending != operation) return Result<bool>.Ok(false);
-        if (at < PendingStartedAt || Version == long.MaxValue) return Result<bool>.Fail(IdentityFailures.Refused());
+        if (at < PendingStartedAt || !IsMonotonic(at) || Version == long.MaxValue) return Result<bool>.Fail(IdentityFailures.Refused());
         var kind = PendingOperationKind!.Value;
         if (outcome == FederationOperationOutcome.Uncertain)
         {
@@ -242,7 +242,8 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     public Result<None> RecordTestResult(FederationTestAttemptId attempt, bool passed, DateTimeOffset at, UserId actor)
     {
         if (State != FederationConnectionState.TestOpen || TestAttemptId != attempt || HasPendingOperation
-            || TestRevision != ConfigurationRevision || !ValidActor(actor) || !ValidInstant(at) || at >= TestExpiresAt)
+            || TestRevision != ConfigurationRevision || !ValidActor(actor) || !ValidInstant(at) || !IsMonotonic(at)
+            || at >= TestExpiresAt)
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         if (!passed)
@@ -262,7 +263,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     public Result<None> ExpireTest(DateTimeOffset at, UserId actor)
     {
         if (State is not (FederationConnectionState.TestOpen or FederationConnectionState.TestPassed)
-            || TestExpiresAt is not { } expires || at < expires || !ValidActor(actor) || !ValidInstant(at))
+            || TestExpiresAt is not { } expires || at < expires || !ValidActor(actor) || !ValidInstant(at) || !IsMonotonic(at))
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         State = FederationConnectionState.Draft;
@@ -275,7 +276,8 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     {
         if (State != FederationConnectionState.TestPassed || HasPendingOperation || TestResult != FederationTestResult.Passed
             || TestRevision != ConfigurationRevision || TestExpiresAt is not { } expires || at >= expires
-            || !string.Equals(providerDigest, DesiredDigest, StringComparison.Ordinal) || !ValidActor(actor) || !ValidInstant(at))
+            || !string.Equals(providerDigest, DesiredDigest, StringComparison.Ordinal) || !ValidActor(actor) || !ValidInstant(at)
+            || !IsMonotonic(at))
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         LastProviderDigest = providerDigest;
@@ -287,22 +289,27 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     /// <summary>Enable moves Disabled to Draft without a provider write; a new test is required.</summary>
     public Result<None> Enable(DateTimeOffset at, UserId actor)
     {
-        if (State != FederationConnectionState.Disabled || HasPendingOperation || !ValidActor(actor) || !ValidInstant(at))
+        if (State != FederationConnectionState.Disabled || HasPendingOperation || !ValidActor(actor) || !ValidInstant(at)
+            || !IsMonotonic(at))
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         State = FederationConnectionState.Draft;
         return Result<None>.Ok(None.Value);
     }
 
-    /// <summary>A readback that differs from the desired digest is drift: the connection returns to Draft.</summary>
+    /// <summary>
+    /// A readback that differs from the desired digest is drift: the connection returns to Draft from every live
+    /// state, Disabled included (ADR-0099 § Provider writes), so a new test is required before it is advertised.
+    /// </summary>
     public Result<None> RecordDrift(string providerDigest, DateTimeOffset at, UserId actor)
     {
         if (IsDeleted || State == FederationConnectionState.Deleted || !ValidDigest(providerDigest)
-            || string.Equals(providerDigest, DesiredDigest, StringComparison.Ordinal) || !ValidActor(actor) || !ValidInstant(at))
+            || string.Equals(providerDigest, DesiredDigest, StringComparison.Ordinal) || !ValidActor(actor) || !ValidInstant(at)
+            || !IsMonotonic(at))
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         LastProviderDigest = providerDigest;
-        if (State != FederationConnectionState.Disabled) State = FederationConnectionState.Draft;
+        State = FederationConnectionState.Draft;
         ClearTest();
         return Result<None>.Ok(None.Value);
     }
@@ -310,7 +317,10 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     private bool CanBegin(FederationOperationId operation, DateTimeOffset at, UserId actor) =>
         !IsDeleted && State != FederationConnectionState.Deleted && !HasPendingOperation && Version < long.MaxValue
         && ValidId(operation)
-        && ValidActor(actor) && ValidInstant(at) && at >= (UpdatedAt ?? CreatedAt);
+        && ValidActor(actor) && ValidInstant(at) && IsMonotonic(at);
+
+    /// <summary>The storage guard refuses an update stamped before the row's last stamp; refuse it here first.</summary>
+    private bool IsMonotonic(DateTimeOffset at) => at >= (UpdatedAt ?? CreatedAt);
 
     private void SetPending(FederationOperationKind kind, FederationOperationId operation, string desiredDigest, DateTimeOffset at, UserId actor)
     {

@@ -218,8 +218,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**269 rules in this catalogue are Implemented, and 154 of them are in that assembly.**
-The other 115 are no less binding, and most could not live there. The table says where
+**270 rules in this catalogue are Implemented, and 154 of them are in that assembly.**
+The other 116 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -7481,7 +7481,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
 Canonical names for ADR-0099's new obligations are assigned with the step that
-introduces them. Step 1 introduces one; the existing Identity, permission, RLS,
+introduces them. Step 1 introduces two; the existing Identity, permission, RLS,
 census and OpenAPI/SDK rules extend to the new subjects unchanged. The
 [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
 
@@ -7498,3 +7498,23 @@ census and OpenAPI/SDK rules extend to the new subjects unchanged. The
 - **Test owner:** [FederationConnectionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationConnectionConventionTests.cs);
   storage behaviour in [FederationConnectionStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationConnectionStorageTests.cs).
 - **Phase:** 03 (P03-8 Step 1).
+
+#### `Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place`
+
+- **Asserts:** a connection's issuer or SAML entity identifier never changes in place.
+  The aggregate refuses a Configure or Rotate secret Begin with a different
+  identifier as a business rule, with no mutation; the storage guard refuses the
+  change for every writer, alone or riding an otherwise legal Configure Begin, from a
+  settled Draft and from Active, as the application role under the Identity tenant
+  fence. A same-identifier Configure Begin from both states is the positive control.
+- **Source:** [ADR-0099 § Lifecycle and test](../decisions/0099-confined-tenant-federation.md#lifecycle-and-test)
+  and § Architecture Tests, Amendment 1 item 2,
+  [Database](05-database.md#federation-connection-storage).
+- **Type:** **integration** test (Testcontainers + PostgreSQL), as `learnstack_app`,
+  plus the EF aggregate on the same transaction. **Kind:** behavioural.
+- **Status:** **Implemented** (`FederationConnectionStorageTests.Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place`).
+  It is not an architecture-assembly rule because the property is what a write does
+  against the applied guard, which a model or source scan cannot observe.
+- **Test owner:** [FederationConnectionStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationConnectionStorageTests.cs);
+  the domain refusal also in [FederationConnectionTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/FederationConnectionTests.cs).
+- **Phase:** 03 (P03-8 Step 1, review round 1).

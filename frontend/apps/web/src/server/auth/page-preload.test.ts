@@ -220,6 +220,27 @@ describe('finite native page preparation reads and safe projections', () => {
     expect(JSON.stringify(result)).not.toContain('userId');
   });
 
+  // The registry read's source release N returns release N+1 and the backend accepts only 1–3, so a
+  // v3 Role discovers v4 through source 3, and a v4 Role (current, no v5) keeps the newest view, source 3.
+  it.each([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 3],
+  ] as const)(
+    'reads the permission registry for an adopted v%i Role with source release %i',
+    async (adopted, source) => {
+      const test = fixture({
+        getRole: success<RoleDetail>({ ...role, adoptedReleaseVersion: adopted }),
+      });
+      const result = await test.load('/studio/roles/' + roleId);
+      expect(result.outcome).toMatchObject({ kind: 'ready', view: { kind: 'role' } });
+      expect(test.read.mock.calls.map(([operation]) => operation)).toContainEqual({
+        kind: 'getPermissions',
+        sourceReleaseVersion: source,
+      });
+    },
+  );
   it('keeps custom definition pages at twenty without reducing existing directory pages', () => {
     expect(nativeDocumentPlan('/studio/custom-fields?limit=100', false).limit).toBe(20);
     expect(nativeDocumentPlan('/studio/members?limit=100', false).limit).toBe(100);

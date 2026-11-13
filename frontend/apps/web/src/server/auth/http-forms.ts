@@ -47,13 +47,17 @@ export function bffScope(fields: URLSearchParams): NativeScope {
 }
 
 /** A finite JSON grammar preserves duplicate keys, including escaped aliases, before projection. */
-function arrayField<T>(raw: string, item: (reader: JsonArrayReader) => T): readonly T[] {
+function arrayField<T>(
+  raw: string,
+  maximum: number,
+  item: (reader: JsonArrayReader) => T,
+): readonly T[] {
   const reader = new JsonArrayReader(raw);
   reader.take('[');
   const values: T[] = [];
   if (!reader.maybe(']')) {
     do {
-      if (values.length === 9) throw new BffInputError();
+      if (values.length === maximum) throw new BffInputError();
       values.push(item(reader));
     } while (reader.maybe(','));
     reader.take(']');
@@ -91,12 +95,13 @@ class JsonArrayReader {
   }
 }
 function roleIds(raw: string): readonly string[] {
-  const values = arrayField(raw, (reader) => id(reader.string()));
+  const values = arrayField(raw, 9, (reader) => id(reader.string()));
   if (new Set(values).size !== values.length) throw new BffInputError();
   return values;
 }
 function grants(raw: string): readonly GrantInput[] {
-  const values = arrayField(raw, (reader): GrantInput => {
+  // Role grants track the registry size, ten pairs at release v4 (Standard 19).
+  const values = arrayField(raw, 10, (reader): GrantInput => {
     reader.take('{');
     const fields = new Map<string, string>();
     do {

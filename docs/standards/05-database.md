@@ -6157,7 +6157,7 @@ classes): `[TenantOwned]` only, no organization column, the tenant-wide EF filte
 `ENABLE` and `FORCE` RLS with the one tenant-only isolation policy of
 [the canonical template](#tenant-owned-and-organization-scoped-tables), and
 `SELECT`, `INSERT`, `UPDATE` to `learnstack_app` only — no `DELETE` grant. It is the
-seventh member of the `SchemaTableClasses` Identity contextual class. The forward-only
+eighth member of the `SchemaTableClasses` Identity contextual class. The forward-only
 migration refuses reversal.
 
 | Facts | Storage contract |
@@ -6168,18 +6168,34 @@ migration refuses reversal.
 | Lifecycle | `Draft`, `TestOpen`, `TestPassed`, `Active`, `Disabled`, terminal `Deleted` tombstone with `deleted_at`/`deleted_by` set; CHECKs bind state, protocol, source kind and client identifier (OIDC only) |
 | Pending write | Kind, operation identifier, actor, start, quiet-window end (start + 90 seconds) and desired digest are all null or all set; none on a tombstone |
 | Test attempt | Identifier, actor, revision (= configuration revision), expiry and result exist exactly in `TestOpen` (Pending) and `TestPassed` (Passed, expiry = pass + 10 minutes) |
-| Values | Display name 1–80 code points, trimmed, no control character; issuer and client identifier visible ASCII; digests 64 lowercase hex; configuration revision ≥ 1 |
+| Values | Display name 1–80 code points, trimmed, `IS NFC NORMALIZED`, with no C0/C1 control, format (bidirectional marks, embeddings, overrides and isolates included), line or paragraph separator, non-U+0020 space or private-use code point; unassigned code points are refused by the domain only. Issuer and client identifier visible ASCII; digests 64 lowercase hex; configuration revision ≥ 1 |
 | Personal data | Configuration columns `None`; `pending_actor` and `test_actor` are pseudonymous `Identity` identifiers; audit columns as § Audit Columns |
 | Secrets | No secret, token, assertion, certificate or key column; `Federation_Connection_Persists_No_Secret_Column` closes the column set |
 
 `fn_identity_federation_connection_guard`, a `SECURITY INVOKER` `BEFORE INSERT OR
 UPDATE` trigger, admits only `learnstack_app`, requires the Identity tenant fence
 (`fn_identity_assert_tenant_fence`, shared), starts every row as a `Draft` with its
-pending Configure, pins the immutable columns, advances `row_version` and
-`updated_at`, admits a revision step only for a Configure or Rotate secret Begin,
+pending Configure, pins the immutable columns, advances `row_version` and a monotonic
+`updated_at`, admits a revision step only for a newly begun Configure or Rotate secret,
 refuses a second unsettled operation and admits only ADR-0099's transitions:
-`Draft`→`TestOpen` (applied test start), `TestOpen`→`TestPassed`,
+`Draft`→`TestOpen` (applied test start), `TestOpen`→`TestPassed` and
 `TestPassed`→`Active` (no pending write), any of `TestOpen`/`TestPassed`/`Active`/
-`Disabled`→`Draft`, `Active`→`Disabled`, and a confirmed Delete to the terminal
-tombstone, which no later UPDATE may change.
+`Disabled`→`Draft`, `Active`→`Disabled` (Disable Begin), and a confirmed Delete to the
+terminal tombstone, which no later UPDATE may change. It also pins the pending and test
+columns:
+
+- While the pending identifier is unchanged, its kind, actor, start, quiet-window end
+  and desired digest are unchanged. A new operation starts at the update's
+  `updated_at`, by its `updated_by`, for the row's desired digest, and only from a
+  state its kind admits: Configure or Rotate secret into `Draft` with the revision
+  step, Rename in place, test start from `Draft`, Disable from `Active` into
+  `Disabled`, Delete in place or from `TestOpen`/`TestPassed`/`Active` into `Draft`.
+- A test window opens with the applied test start, for its starter, expiring 10 minutes
+  after that update. The attempt identifier, actor and revision are fixed while the row
+  stays in `TestOpen` or `TestPassed`; expiry, result and pass time move only with the
+  pass, stamped at that update before expiry, and Activate lands before the activation
+  expiry.
+- Every refusal condition is evaluated as `(condition) IS NOT FALSE`, so a condition
+  that is NULL because a nullable pending or test column is NULL refuses: the guard
+  fails closed.
 

@@ -21186,7 +21186,7 @@
             "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
           },
           "grants": {
-            "maxItems": 9,
+            "maxItems": 10,
             "uniqueItems": true,
             "type": "array",
             "items": {
@@ -21232,7 +21232,7 @@
         "type": "object",
         "properties": {
           "grants": {
-            "maxItems": 9,
+            "maxItems": 10,
             "uniqueItems": true,
             "type": "array",
             "items": {
@@ -21285,7 +21285,7 @@
             "type": "string"
           },
           "tenantAdminDelta": {
-            "maxItems": 9,
+            "maxItems": 10,
             "uniqueItems": true,
             "type": "array",
             "items": {

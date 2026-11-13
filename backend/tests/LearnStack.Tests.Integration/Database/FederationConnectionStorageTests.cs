@@ -57,8 +57,12 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         await FederationConnectionSchemaSeed.FenceAsync(app, transaction, own);
         await LockAsync(app, transaction, foreign, null, false);
         var insert = async () => await FederationConnectionSchemaSeed.InsertAsync(app, transaction, Guid.CreateVersion7(), foreign, AdminA, At);
-        // The guard's tenant fence binds NEW.tenant_id to app.tenant_id before RLS WITH CHECK is reached.
-        (await insert.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().BeOneOf("P0301", "42501");
+        // The BEFORE guard's tenant fence binds NEW.tenant_id to app.tenant_id, so it refuses before RLS is
+        // reached. WITH CHECK itself is proven with the guard isolated, by
+        // IdentityMembershipTests.Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them.
+        var fenced = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+        fenced.SqlState.Should().Be("P0301");
+        fenced.ConstraintName.Should().Be("identity_tenant_fence");
         await transaction.RollbackAsync();
 
         await using var second = await app.BeginTransactionAsync();
@@ -144,6 +148,15 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         { "alias", "ck_federation_connections_alias" },
         { "display_name_untrimmed", "ck_federation_connections_display_name" },
         { "display_name_control", "ck_federation_connections_display_name" },
+        { "display_name_c1_control", "ck_federation_connections_display_name" },
+        { "display_name_zero_width", "ck_federation_connections_display_name" },
+        { "display_name_bidi_override", "ck_federation_connections_display_name" },
+        { "display_name_bidi_isolate", "ck_federation_connections_display_name" },
+        { "display_name_byte_order_mark", "ck_federation_connections_display_name" },
+        { "display_name_line_separator", "ck_federation_connections_display_name" },
+        { "display_name_no_break_space", "ck_federation_connections_display_name" },
+        { "display_name_private_use", "ck_federation_connections_display_name" },
+        { "display_name_not_nfc", "ck_federation_connections_display_name" },
         { "saml_client", "ck_federation_connections_client" },
         { "oidc_without_client", "ck_federation_connections_client" },
         { "digest", "ck_federation_connections_digests" },
@@ -168,6 +181,15 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
             "alias" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, alias: "lsf-" + new string('0', 32)),
             "display_name_untrimmed" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: " Seed "),
             "display_name_control" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\nName"),
+            "display_name_c1_control" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\u0085Name"),
+            "display_name_zero_width" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\u200bName"),
+            "display_name_bidi_override" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "\u202eemaN daB"),
+            "display_name_bidi_isolate" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\u2066Name\u2069"),
+            "display_name_byte_order_mark" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\ufeffName"),
+            "display_name_line_separator" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\u2028Name"),
+            "display_name_no_break_space" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\u00a0Name"),
+            "display_name_private_use" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Bad\ue000Name"),
+            "display_name_not_nfc" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, displayName: "Cafe\u0301"),
             "saml_client" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, protocol: "Saml"),
             "oidc_without_client" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At, clientId: null),
             "identifier_version" => () => FederationConnectionSchemaSeed.InsertAsync(app, transaction, id, SchemaFixture.TenantB, AdminB, At),
@@ -216,27 +238,19 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         }
     }
 
-    [Fact]
-    public async Task Pending_operation_fields_are_all_null_or_all_set_and_the_quiet_window_is_ninety_seconds()
+    [Theory]
+    [InlineData("Pending", "pending_operation_id=NULL")]
+    [InlineData("Draft", "pending_operation_kind='Rename',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=@at,pending_quiet_until=@at+interval '30 seconds',pending_desired_digest=desired_digest")]
+    public async Task Pending_operation_fields_are_all_null_or_all_set_and_the_quiet_window_is_ninety_seconds(string from, string update)
     {
-        foreach (var update in new[]
-                 {
-                     "pending_operation_id=NULL",
-                     "pending_actor=NULL",
-                     "pending_quiet_until=pending_started_at+interval '30 seconds'",
-                     "pending_operation_kind='Resume'",
-                 })
-        {
-            await using var app = await OpenAppAsync();
-            await using var transaction = await app.BeginTransactionAsync();
-            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
-            var act = async () => await ExecuteAsync(app, transaction,
-                $"UPDATE public.federation_connections SET {update},row_version=row_version+1,updated_at=clock_timestamp(),updated_by=created_by WHERE id=@id",
-                ("id", FederationConnectionSchemaSeed.LiveB));
-            var refused = (await act.Should().ThrowAsync<PostgresException>()).Which;
-            refused.SqlState.Should().Be("23514", update);
-            refused.ConstraintName.Should().Be("ck_federation_connections_pending", update);
-        }
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+        await walk.ToAsync(from);
+        var refused = (await walk.Awaiting(step => step.StepAsync(update)).Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be("23514", update);
+        refused.ConstraintName.Should().Be("ck_federation_connections_pending", update);
     }
 
     [Theory]
@@ -318,28 +332,192 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         await using var app = await OpenAppAsync();
         await using var transaction = await app.BeginTransactionAsync();
         await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
-        var id = FederationConnectionSchemaSeed.LiveB;
-        var attempt = Guid.CreateVersion7();
-        string[] steps =
-        [
-            // Settle Configure, begin and apply the test start.
-            "pending_operation_kind=NULL,pending_operation_id=NULL,pending_actor=NULL,pending_started_at=NULL,pending_quiet_until=NULL,pending_desired_digest=NULL,last_provider_digest=desired_digest",
-            "pending_operation_kind='TestStart',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=now(),pending_quiet_until=now()+interval '90 seconds',pending_desired_digest=desired_digest",
-            "state='TestOpen',pending_operation_kind=NULL,pending_operation_id=NULL,pending_actor=NULL,pending_started_at=NULL,pending_quiet_until=NULL,pending_desired_digest=NULL,test_attempt_id=@attempt,test_actor=created_by,test_revision=configuration_revision,test_expires_at=now()+interval '10 minutes',test_result='Pending'",
-            "state='TestPassed',test_result='Passed',test_passed_at=now(),test_expires_at=now()+interval '10 minutes'",
-            "state='Active',test_attempt_id=NULL,test_actor=NULL,test_revision=NULL,test_expires_at=NULL,test_result=NULL,test_passed_at=NULL",
-            "state='Disabled',pending_operation_kind='Disable',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=now(),pending_quiet_until=now()+interval '90 seconds',pending_desired_digest=desired_digest",
-            "pending_operation_kind=NULL,pending_operation_id=NULL,pending_actor=NULL,pending_started_at=NULL,pending_quiet_until=NULL,pending_desired_digest=NULL",
-            "state='Draft'",
-            "configuration_revision=configuration_revision+1,pending_operation_kind='RotateSecret',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=now(),pending_quiet_until=now()+interval '90 seconds',pending_desired_digest=desired_digest",
-        ];
-        foreach (var step in steps)
-            (await ExecuteCountAsync(app, transaction,
-                $"UPDATE public.federation_connections SET {step},row_version=row_version+1,updated_at=clock_timestamp(),updated_by=created_by WHERE id=@id",
-                ("id", id), ("attempt", attempt))).Should().Be(1, step);
+        var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+        await walk.ToAsync("Disabled");
+        foreach (var step in new[]
+                 {
+                     "state='Draft'",
+                     "configuration_revision=configuration_revision+1," + Walk.Begin("RotateSecret"),
+                     Walk.Settle,
+                     Walk.Begin("Rename"),
+                     Walk.Settle,
+                     Walk.Begin("Delete"),
+                     "state='Deleted'," + Walk.Settle + ",deleted_at=@at,deleted_by=created_by",
+                 })
+            (await walk.StepAsync(step)).Should().Be(1, step);
         (await ScalarAsync<string>(app, transaction,
-            "SELECT state||':'||configuration_revision||':'||pending_operation_kind FROM public.federation_connections WHERE id=@id", ("id", id)))
-            .Should().Be("Draft:2:RotateSecret");
+            "SELECT state||':'||configuration_revision||':'||(deleted_at IS NOT NULL)::text FROM public.federation_connections WHERE id=@id",
+            ("id", FederationConnectionSchemaSeed.LiveB))).Should().Be("Deleted:2:true");
+    }
+
+    private const string TransitionRefused = "Federation connection transition refused.";
+    private const string RevisionRefused = "Federation configuration revision refused.";
+    private const string PendingRefused = "Federation pending operation refused.";
+    private const string TestRefused = "Federation test attempt refused.";
+
+    /// <summary>
+    /// Fail-closed refusals: each starts from a row whose nullable pending or test columns are NULL where that
+    /// matters, the path on which a NULL comparison used to let the guard admit the write.
+    /// </summary>
+    public static TheoryData<string, string, string> FailClosedRefusals => new()
+    {
+        // Lifecycle (no provider write behind the transition).
+        { "Draft", "state='TestOpen',test_attempt_id=@attempt,test_actor=created_by,test_revision=configuration_revision,test_expires_at=@at+interval '10 minutes',test_result='Pending'", TransitionRefused },
+        { "Draft", "state='Deleted',deleted_at=@at,deleted_by=created_by", TransitionRefused },
+        { "Active", "state='Deleted',deleted_at=@at,deleted_by=created_by", TransitionRefused },
+        { "Active", "state='Disabled'", TransitionRefused },
+        { "TestOpen", "state='Active'," + Walk.ClearTest, TransitionRefused },
+        { "Disabled", "state='Active'", TransitionRefused },
+        { "TestPassedPending", "state='Active'," + Walk.ClearTest, TransitionRefused },
+        // Revision.
+        { "Draft", "configuration_revision=configuration_revision+1", RevisionRefused },
+        { "Active", "configuration_revision=configuration_revision+1,state='Draft'", RevisionRefused },
+        { "Draft", "configuration_revision=configuration_revision+1," + Walk.Begin("Rename"), RevisionRefused },
+        // The same pending operation is pinned.
+        { "Pending", "pending_operation_kind='Rename'", PendingRefused },
+        { "Pending", "pending_operation_kind='Resume'", PendingRefused },
+        { "Pending", "pending_actor=NULL", PendingRefused },
+        { "Pending", "pending_actor=uuidv7()", PendingRefused },
+        { "Pending", "pending_started_at=pending_started_at+interval '1 second',pending_quiet_until=pending_quiet_until+interval '1 second'", PendingRefused },
+        { "Pending", "pending_desired_digest=repeat('e',64)", PendingRefused },
+        // A new pending operation starts now, by its actor, for the desired digest, from a state its kind admits.
+        { "Draft", "pending_operation_kind='Rename',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=@at-interval '1 second',pending_quiet_until=@at+interval '89 seconds',pending_desired_digest=desired_digest", PendingRefused },
+        { "Draft", Walk.Begin("Rename").Replace("pending_actor=created_by", "pending_actor=uuidv7()", StringComparison.Ordinal), PendingRefused },
+        { "Draft", Walk.Begin("Rename").Replace("pending_desired_digest=desired_digest", "pending_desired_digest=repeat('e',64)", StringComparison.Ordinal), PendingRefused },
+        { "Active", Walk.Begin("TestStart"), PendingRefused },
+        { "Draft", Walk.Begin("Disable"), PendingRefused },
+        { "Draft", "state='Disabled'," + Walk.Begin("Disable"), PendingRefused },
+        { "Active", Walk.Begin("Delete"), PendingRefused },
+        { "Active", Walk.Begin("Configure"), PendingRefused },
+        // The test attempt is pinned, and its window is opened and closed only by its own transitions.
+        { "TestStart", Walk.OpenTest.Replace("test_actor=created_by", "test_actor=uuidv7()", StringComparison.Ordinal), TestRefused },
+        { "TestStart", Walk.OpenTest.Replace("@at+interval '10 minutes'", "@at+interval '1 hour'", StringComparison.Ordinal), TestRefused },
+        { "TestOpen", "test_attempt_id=uuidv7()", TestRefused },
+        { "TestOpen", "test_expires_at=test_expires_at+interval '1 hour'", TestRefused },
+        { "TestOpen", Walk.Pass + ",test_attempt_id=uuidv7()", TestRefused },
+        { "TestOpen", "state='TestPassed',test_result='Passed',test_passed_at=@at-interval '1 second',test_expires_at=@at+interval '599 seconds'", TestRefused },
+        { "TestPassed", "test_actor=uuidv7()", TestRefused },
+        { "TestPassed", "test_passed_at=test_passed_at+interval '1 second',test_expires_at=test_expires_at+interval '1 second'", TestRefused },
+    };
+
+    [Theory]
+    [MemberData(nameof(FailClosedRefusals))]
+    public async Task Mutation_guard_fails_closed_from_settled_and_pending_rows(string from, string update, string message)
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+        await walk.ToAsync(from);
+        var refused = (await walk.Awaiting(step => step.StepAsync(update)).Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be("23514", update);
+        refused.MessageText.Should().Be(message, update);
+    }
+
+    [Theory]
+    [InlineData("TestOpen", Walk.Pass)]
+    [InlineData("TestPassed", "state='Active'," + Walk.ClearTest)]
+    public async Task A_pass_or_activation_lands_strictly_inside_its_window(string from, string transition)
+    {
+        foreach (var (offset, admitted) in new[] { (TimeSpan.FromMinutes(10), false), (TimeSpan.FromMinutes(10) - TimeSpan.FromSeconds(1), true) })
+        {
+            await using var app = await OpenAppAsync();
+            await using var transaction = await app.BeginTransactionAsync();
+            await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+            var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+            await walk.ToAsync(from);
+            var at = walk.Current + offset;
+            if (admitted) (await walk.StepAsync(transition, at)).Should().Be(1, "one second before expiry is inside the window");
+            else
+            {
+                var refused = (await walk.Awaiting(step => step.StepAsync(transition, at)).Should().ThrowAsync<PostgresException>()).Which;
+                refused.SqlState.Should().Be("23514");
+                refused.MessageText.Should().Be(TestRefused, "the window is half-open: at expiry it has closed");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Insert_directly_as_a_tombstone_is_refused()
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+        await FederationConnectionSchemaSeed.TombstoneAsync(app, transaction, FederationConnectionSchemaSeed.LiveB, AdminB, DateTimeOffset.UtcNow.AddMinutes(-20));
+        var id = Guid.CreateVersion7();
+        var act = async () => await ExecuteAsync(app, transaction, """
+            INSERT INTO public.federation_connections(id,tenant_id,protocol,alias,display_name,issuer_or_entity_id,state,
+                source_kind,client_id,configuration_revision,configuration_digest,desired_digest,created_at,created_by,
+                deleted_at,deleted_by,row_version)
+            VALUES(@id,@tenant,'Oidc','lsf-'||replace(@id::text,'-',''),'Direct','https://idp.example.invalid/','Deleted',
+                'Manual','client',1,@digest,@digest,@at,@actor,@at,@actor,0)
+            """, ("id", id), ("tenant", SchemaFixture.TenantB), ("digest", FederationConnectionSchemaSeed.Digest('a')),
+            ("actor", AdminB), ("at", At));
+        var refused = (await act.Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be("23514");
+        refused.MessageText.Should().Be("Federation connection initial state refused.");
+    }
+
+    /// <summary>
+    /// Canonical rule <c>Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place</c> (Standard 21, ADR-0099
+    /// § Architecture Tests): the aggregate refuses a changed issuer as a business rule, and the storage guard
+    /// refuses it for every writer, alone or riding a legal Configure Begin, from a settled Draft and from Active.
+    /// The same-issuer Begin is the positive control that keeps the refusals from being vacuous.
+    /// </summary>
+    [Fact]
+    public async Task Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place()
+    {
+        foreach (var from in new[] { "Draft", "Active" })
+        {
+            foreach (var (update, admitted) in new[]
+                     {
+                         ("issuer_or_entity_id='https://other.example.invalid/'", false),
+                         ("issuer_or_entity_id='https://other.example.invalid/',state='Draft',configuration_revision=configuration_revision+1," + Walk.Begin("Configure"), false),
+                         ("state='Draft',configuration_revision=configuration_revision+1," + Walk.Begin("Configure"), true),
+                     })
+            {
+                await using var app = await OpenAppAsync();
+                await using var transaction = await app.BeginTransactionAsync();
+                await FederationConnectionSchemaSeed.FenceAsync(app, transaction, SchemaFixture.TenantB);
+                var walk = new Walk(app, transaction, FederationConnectionSchemaSeed.LiveB);
+                await walk.ToAsync(from);
+                if (admitted)
+                {
+                    (await walk.StepAsync(update)).Should().Be(1, "a same-issuer Configure Begin is legal from " + from);
+                    continue;
+                }
+                var refused = (await walk.Awaiting(step => step.StepAsync(update)).Should().ThrowAsync<PostgresException>()).Which;
+                refused.SqlState.Should().Be("23514", update);
+                refused.MessageText.Should().Be("Federation connection immutable state refused.", update);
+            }
+        }
+
+        await using var source = ApplicationDataSource.Build(schema.Postgres.AppConnectionString);
+        await using var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
+        await using var frame = await unit.BeginTransactionAsync();
+        var tenant = TenantId.From(SchemaFixture.TenantB);
+        await unit.SetProvisioningTenantContextAsync(tenant);
+        await new IdentityMutationLocks(unit).AcquireAsync(new([], tenant, IdentityTenantLockMode.Shared));
+        await using var db = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(unit.Connection).Options,
+            new StaticTenantContextAccessor(new SeedTenantContext(tenant, null)), EmptyIdentityScope.Instance);
+        await db.Database.UseTransactionAsync(unit.Transaction);
+        var actor = UserId.From(AdminB);
+        var now = DateTimeOffset.UtcNow;
+        var live = await db.FederationConnections.SingleAsync();
+        live.Complete(live.PendingOperationId!.Value, FederationOperationOutcome.Applied, live.PendingDesiredDigest, null, now, actor).Value.Should().BeTrue();
+        await db.SaveChangesAsync();
+        var version = live.Version;
+        var changed = live.BeginConfigure(FederationOperationKind.Configure,
+            new FederationConfiguration(FederationSourceKind.Manual, "https://other.example.invalid/", "learnstack",
+                FederationConnectionSchemaSeed.Digest('b'), FederationConnectionSchemaSeed.Digest('b')),
+            FederationOperationId.From(Guid.CreateVersion7()), now.AddSeconds(1), actor);
+        changed.IsFailure.Should().BeTrue("the aggregate refuses a changed issuer before storage is reached");
+        changed.Error!.Message.Key.Should().Be("lockey_business_rule_violation");
+        live.Version.Should().Be(version);
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+        (await db.FederationConnections.AsNoTracking().Select(row => row.IssuerOrEntityId).SingleAsync())
+            .Should().Be("https://idp.example.invalid/issuer");
+        await frame.FailAsync();
     }
 
     [Fact]
@@ -388,6 +566,64 @@ public sealed class FederationConnectionStorageTests(SchemaFixture schema)
         fresh.PendingQuietUntil.Should().Be(fresh.PendingStartedAt + FederationConnection.QuietWindow);
         fresh.ClientId.Should().BeNull();
         await frame.FailAsync();
+    }
+
+    /// <summary>
+    /// Drives the seeded tenant-B row through legal guarded updates, one second apart, as the application role.
+    /// </summary>
+    private sealed class Walk(NpgsqlConnection app, NpgsqlTransaction transaction, Guid id)
+    {
+        internal const string Settle =
+            "pending_operation_kind=NULL,pending_operation_id=NULL,pending_actor=NULL,pending_started_at=NULL,pending_quiet_until=NULL,pending_desired_digest=NULL";
+        internal const string ClearTest =
+            "test_attempt_id=NULL,test_actor=NULL,test_revision=NULL,test_expires_at=NULL,test_result=NULL,test_passed_at=NULL";
+        internal const string OpenTest = "state='TestOpen'," + Settle
+            + ",test_attempt_id=@attempt,test_actor=created_by,test_revision=configuration_revision,test_expires_at=@at+interval '10 minutes',test_result='Pending'";
+        internal const string Pass = "state='TestPassed',test_result='Passed',test_passed_at=@at,test_expires_at=@at+interval '10 minutes'";
+
+        private readonly Guid _attempt = Guid.CreateVersion7();
+
+        internal DateTimeOffset Current { get; private set; } = At;
+
+        internal static string Begin(string kind) =>
+            $"pending_operation_kind='{kind}',pending_operation_id=uuidv7(),pending_actor=created_by,pending_started_at=@at,"
+            + "pending_quiet_until=@at+interval '90 seconds',pending_desired_digest=desired_digest";
+
+        internal Task<int> StepAsync(string set) => StepAsync(set, Current.AddSeconds(1));
+
+        internal async Task<int> StepAsync(string set, DateTimeOffset at)
+        {
+            await using var command = new NpgsqlCommand(
+                $"UPDATE public.federation_connections SET {set},row_version=row_version+1,updated_at=@at,updated_by=created_by WHERE id=@id",
+                app, transaction);
+            command.Parameters.AddWithValue("id", id);
+            command.Parameters.AddWithValue("at", at);
+            command.Parameters.AddWithValue("attempt", _attempt);
+            var count = await command.ExecuteNonQueryAsync();
+            Current = at;
+            return count;
+        }
+
+        /// <summary>"Pending" is the seeded row with its unsettled Configure; every other name settles it first.</summary>
+        internal async Task ToAsync(string state)
+        {
+            string[] path = state switch
+            {
+                "Pending" => [],
+                "Draft" => [Settled],
+                "TestStart" => [Settled, Begin("TestStart")],
+                "TestOpen" => [Settled, Begin("TestStart"), OpenTest],
+                "TestPassed" => [Settled, Begin("TestStart"), OpenTest, Pass],
+                "TestPassedPending" => [Settled, Begin("TestStart"), OpenTest, Pass, Begin("Rename")],
+                "Active" => [Settled, Begin("TestStart"), OpenTest, Pass, "state='Active'," + ClearTest],
+                "Disabled" => [Settled, Begin("TestStart"), OpenTest, Pass, "state='Active'," + ClearTest,
+                    "state='Disabled'," + Begin("Disable"), Settle],
+                _ => throw new ArgumentOutOfRangeException(nameof(state)),
+            };
+            foreach (var step in path) (await StepAsync(step)).Should().Be(1, step);
+        }
+
+        private const string Settled = Settle + ",last_provider_digest=desired_digest";
     }
 
     private async Task<NpgsqlConnection> OpenAppAsync()

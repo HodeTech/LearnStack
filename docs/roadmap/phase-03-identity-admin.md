@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-12).** P03-0 through P03-7 implementation delivery is complete;
+> **Status (2026-11-13).** P03-0 through P03-7 implementation delivery is complete;
 > Phase 03 remains in progress. Packet closeouts below own the delivered scope.
 > P03-7 is merged in [PR #44](https://github.com/HodeTech/LearnStack/pull/44) under
 > Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md).
@@ -18,7 +18,7 @@
 > acceptance covers earlier UI, with later fixes also lacking fresh human evidence.
 > P03-6/P03-7 add no new manual UI gate. Earlier intermittent CI causes remain
 > unlocalized except where the dated records establish a specific correction.
-> P03-8's design is [accepted in ADR-0099](../decisions/0099-confined-tenant-federation.md) and G12 is closed as Accepted; implementation has not started. Its four steps, including the Keycloak 26.6.5 pin move as Step 0, each await separate maintainer approval. P03-9–11 remain unstarted.
+> P03-8's design is [accepted in ADR-0099](../decisions/0099-confined-tenant-federation.md) and G12 is closed as Accepted. Step 1 (authority and storage) is committed with its first review round's corrections; its second review round and Steps 2–4 await separate maintainer approval, and Step 0 (the Keycloak 26.6.5 pin move) remains blocked. P03-9–11 remain unstarted.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -30,7 +30,7 @@
 > | P03-5 | Custom fields and privacy classification | Complete and merged — [closeout](phase-03-delivery-log.md#p03-5-merge-and-delivery-closeout-2026-11-11); final-head A/B and all original archives verified; manual-evidence boundary retained |
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
-> | P03-8 | Tenant federation | In progress — Step 1 (authority and storage) implemented, [record](phase-03-delivery-log.md#p03-8-step-1--authority-and-storage-2026-11-13); two review rounds pending; Step 0 blocked; Steps 2–4 not started. Design: [ADR-0099](../decisions/0099-confined-tenant-federation.md) |
+> | P03-8 | Tenant federation | In progress — Step 1 (authority and storage) implemented, [record](phase-03-delivery-log.md#p03-8-step-1--authority-and-storage-2026-11-13); review round 1 corrected, [record](phase-03-delivery-log.md#p03-8-step-1-review-round-1-corrections-2026-11-13); review round 2 pending; Step 0 blocked; Steps 2–4 not started. Design: [ADR-0099](../decisions/0099-confined-tenant-federation.md) |
 > | P03-9 | Platform authority and operational recovery | Not started |
 > | P03-10 | DSAR and global account closure | Not started |
 > | P03-11 | Exit enforcement | Not started |

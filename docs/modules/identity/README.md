@@ -613,9 +613,10 @@ define `FederationConnection`, one per tenant. Its lifecycle is `Draft`,
 reserved instead of removing it. The alias is `lsf-` plus the identifier's 32
 lowercase hex characters, derived once. The display name is 1–80 normalized code
 points with no control, format or bidirectional character. The issuer or SAML
-entity identifier is fixed from the first configuration; a change is a domain
-refusal and needs a new connection. At most one provider write is pending; an
-uncertain one is resumable after a 90-second quiet window. Expected refusals are
+entity identifier is fixed from the first configuration; a change is a domain and
+storage refusal and needs a new connection. At most one provider write is pending; an
+uncertain one is resumable after a 90-second quiet window. A drifted readback returns
+every live state, `Disabled` included, to `Draft`. Expected refusals are
 `Result` failures. The row stores no secret, token, assertion or certificate.
 [Standard 05](../../standards/05-database.md#federation-connection-storage) owns the
 exact columns, CHECKs, grants and guard; the application operations, provider adapter

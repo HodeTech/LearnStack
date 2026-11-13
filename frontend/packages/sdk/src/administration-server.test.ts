@@ -157,6 +157,33 @@ describe('closed administration server SDK', () => {
     >().toEqualTypeOf<200>();
   });
 
+  it('admits a full replacement with all ten registry v4 pairs, the role-grants bound', async () => {
+    const transport = vi.fn<AdministrationFetch>(async () => version());
+    const all = [
+      { scope: 'Tenant', key: 'identity.membership.admin' },
+      { scope: 'Tenant', key: 'identity.role.admin' },
+      { scope: 'Tenant', key: 'identity.membership_profile.write' },
+      { scope: 'Organization', key: 'identity.membership.admin' },
+      { scope: 'Organization', key: 'identity.membership_profile.write' },
+      { scope: 'Tenant', key: 'tenancy.organization.admin' },
+      { scope: 'Tenant', key: 'tenancy.locale.write' },
+      { scope: 'Tenant', key: 'tenancy.setting.write' },
+      { scope: 'Tenant', key: 'customization.custom_field.admin' },
+      { scope: 'Tenant', key: 'identity.federation.admin' },
+    ] as const;
+    const sdk = createAdministrationServerSdk(transport);
+    expect((await sdk.changeRoleGrants(member, all, options)).kind).toBe('success');
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(
+      await sdk.changeRoleGrants(
+        member,
+        [...all, { scope: 'Tenant', key: 'identity.role.admin' }],
+        options,
+      ),
+    ).toEqual({ kind: 'invalid-request' });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves unsafe-integer aggregate versions as strings in preconditions, JSON and metadata', async () => {
     const transport = vi.fn<AdministrationFetch>(async () =>
       version(200, { 'Idempotency-Replayed': 'true' }),

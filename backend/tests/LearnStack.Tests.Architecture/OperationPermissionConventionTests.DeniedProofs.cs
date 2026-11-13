@@ -15,6 +15,12 @@ public sealed partial class OperationPermissionConventionTests
     private const string ReleasedPairMethod = "AssertReleasedAssignablePairAsync";
     private const string Version3PairMethod = "AssertVersion3AssignablePairAsync";
     private const string Version4PairMethod = "AssertVersion4AssignablePairAsync";
+    private static readonly string[] ReleasedPairConditions =
+    [
+        "IdentityRoleRelease.Version2.TenantAdminDelta.Contains(pair)",
+        "IdentityRoleRelease.Version3.TenantAdminDelta.Contains(pair)",
+        "IdentityRoleRelease.Version4.TenantAdminDelta.Contains(pair)",
+    ];
     private static readonly string[] Version4ProofStatements =
     [
         "await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Membership.Postgres)",
@@ -217,7 +223,11 @@ public sealed partial class OperationPermissionConventionTests
             DeniedProofOffenders(registrations, dirty).Should().Contain("actual released pair evidence",
                 "v3 needs consecutive adoption, preserved removals and committed positive/denied outcomes");
         }
-        var version3Branch = pair.Body!.Statements.OfType<IfStatementSyntax>().Skip(1).First();
+        var dispatch = pair.Body!.Statements.OfType<IfStatementSyntax>().ToArray();
+        dispatch.Should().HaveCount(3, "one dispatch branch per release delta: v2, v3 and v4");
+        dispatch.Count(branch => Tokens(branch.Condition) == Tokens(ReleasedPairConditions[1])).Should().Be(1, "exactly one v3 branch");
+        dispatch.Count(branch => Tokens(branch.Condition) == Tokens(ReleasedPairConditions[2])).Should().Be(1, "exactly one v4 branch");
+        var version3Branch = dispatch[1];
         var disabledVersion3 = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
         { [PairFile] = files[PairFile].ReplaceNode(version3Branch.Condition, SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)) };
         DeniedProofOffenders(registrations, disabledVersion3).Should().Contain("released pair dispatch");
@@ -230,10 +240,17 @@ public sealed partial class OperationPermissionConventionTests
             DeniedProofOffenders(registrations, dirty).Should().Contain("actual released pair evidence",
                 "v4 needs v3-before-v4 ordering, a refused forged fingerprint, preserved removals and committed outcomes");
         }
-        var version4Branch = pair.Body!.Statements.OfType<IfStatementSyntax>().Skip(2).Single();
+        var version4Branch = dispatch[2];
         var disabledVersion4 = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
         { [PairFile] = files[PairFile].ReplaceNode(version4Branch.Condition, SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)) };
         DeniedProofOffenders(registrations, disabledVersion4).Should().Contain("released pair dispatch");
+        foreach (var duplicated in new[] { version3Branch, version4Branch })
+        {
+            var twice = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
+            { [PairFile] = files[PairFile].InsertNodesAfter(duplicated, [duplicated]) };
+            DeniedProofOffenders(registrations, twice).Should().Contain("released pair dispatch",
+                "a duplicated release branch is refused rather than silently shadowed");
+        }
         var adoptionStatement = released.Body!.Statements.Single(statement => Has(statement, "var adoption = await SendReleasedAsync"));
         var positiveStatement = released.Body.Statements.Single(statement => Has(statement, "var positive = await SendReleasedAsync"));
         var reorderedBody = released.Body.WithStatements(SyntaxFactory.List(released.Body.Statements.Select(statement =>
@@ -279,15 +296,21 @@ public sealed partial class OperationPermissionConventionTests
                 "await using var harness = await CreateAsync(correlation)", "return await harness.Sender.Send(request)",
                 "new NpgsqlCommand", "ScopeAsync(app, transaction, SchemaFixture.TenantA)",
                 "Assert.False(await rows.ReadAsync())")) errors.Add("actual pair dispatch and committed evidence");
-        var releaseBranch = pair?.Body?.Statements.OfType<IfStatementSyntax>().FirstOrDefault();
+        // Exactly three dispatch branches, one per release delta, each condition exactly once: a duplicated
+        // branch would let a second copy of a release's dispatch hide behind the first.
+        var branches = pair?.Body?.Statements.OfType<IfStatementSyntax>().ToArray() ?? [];
+        if (branches.Length != 3 || ReleasedPairConditions.Any(condition =>
+                branches.Count(branch => Tokens(branch.Condition) == Tokens(condition)) != 1))
+            errors.Add("released pair dispatch");
+        var releaseBranch = branches.ElementAtOrDefault(0);
         if (releaseBranch is null || Tokens(releaseBranch.Condition) != Tokens("IdentityRoleRelease.Version2.TenantAdminDelta.Contains(pair)")
             || Tokens(releaseBranch.Statement) != Tokens("{ await AssertReleasedAssignablePairAsync(pair); return; }"))
             errors.Add("released pair dispatch");
-        var version3Branch = pair?.Body?.Statements.OfType<IfStatementSyntax>().Skip(1).FirstOrDefault();
+        var version3Branch = branches.ElementAtOrDefault(1);
         if (version3Branch is null || Tokens(version3Branch.Condition) != Tokens("IdentityRoleRelease.Version3.TenantAdminDelta.Contains(pair)")
             || Tokens(version3Branch.Statement) != Tokens("{ await AssertVersion3AssignablePairAsync(pair); return; }"))
             errors.Add("released pair dispatch");
-        var version4Branch = pair?.Body?.Statements.OfType<IfStatementSyntax>().Skip(2).SingleOrDefault();
+        var version4Branch = branches.ElementAtOrDefault(2);
         if (version4Branch is null || Tokens(version4Branch.Condition) != Tokens("IdentityRoleRelease.Version4.TenantAdminDelta.Contains(pair)")
             || Tokens(version4Branch.Statement) != Tokens("{ await AssertVersion4AssignablePairAsync(pair); return; }"))
             errors.Add("released pair dispatch");

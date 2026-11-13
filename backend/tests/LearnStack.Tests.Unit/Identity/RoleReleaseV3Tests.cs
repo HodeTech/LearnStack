@@ -91,12 +91,16 @@ public sealed class RoleReleaseV3Tests
     [Fact]
     public void Invalid_or_unknown_markers_are_not_valid_installed_state()
     {
-        var release = IdentityRoleRelease.Current;
+        // Pinned to v3 so each row fails on the rule it names: with v4 current, the Editor and OrgAdmin rows
+        // would also fail on the v3 marker carrying a v4 fingerprint, and would prove nothing about the role.
+        var release = IdentityRoleRelease.Version3;
+        Assert.True(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 3, release.Fingerprint),
+            "positive control: the exact v3 Tenant Admin marker is valid installed state");
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 2, release.Fingerprint));
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 3, IdentityRoleRelease.Version2.Fingerprint));
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.Editor, PermissionScope.Tenant, 3, release.Fingerprint));
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.OrgAdmin, PermissionScope.Organization, 3, release.Fingerprint));
-        Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 5, release.Fingerprint));
+        Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 4, release.Fingerprint));
     }
 
     [Fact]

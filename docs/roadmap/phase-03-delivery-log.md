@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 334 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 425 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -489,6 +489,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 proposal review round three verification and corrections (2026-11-13)](#p03-8-proposal-review-round-three-verification-and-corrections-2026-11-13) — 44 lines
   - [P03-8 maintainer decisions, acceptance and carriers (2026-11-13)](#p03-8-maintainer-decisions-acceptance-and-carriers-2026-11-13) — 24 lines
   - [P03-8 Step 1 — authority and storage (2026-11-13)](#p03-8-step-1--authority-and-storage-2026-11-13) — 86 lines
+  - [P03-8 Step 1 review round 1 corrections (2026-11-13)](#p03-8-step-1-review-round-1-corrections-2026-11-13) — 91 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22076,3 +22077,94 @@ Testcontainers `postgres:18.4-alpine`).
   service, audit catalogue, entitlement gate and HTTP surface.
 - The Phase 03 Status note above the packet table still says implementation has not
   started; only the P03-8 row was updated by this step's brief.
+
+### P03-8 Step 1 review round 1 corrections (2026-11-13)
+
+The first independent review round of Step 1 returned a security review (S1–S7) and a
+corpus and test review (C1–C9). Each finding was verified against the code before any
+change; this record covers verification and local evidence only, not hosted CI or
+qualification. Corrections land in one commit (storage guard, domain, tests, role-grant bound and
+documentation together), because a hook-stashed partial commit conflicted during the
+attempt.
+
+`20261113120259_add_federation_connections` and its `FederationConnectionStorageDdl`
+are edited in place rather than followed by a new migration: the step's commits are
+unpushed, untagged and in no release, so no database outside a workstation holds the
+old guard or CHECK. A workstation database migrated from the earlier Step 1 commits
+must be recreated.
+
+| ID | Verdict | Evidence and change | Commit |
+|---|---|---|---|
+| S1 | Fixed | Confirmed: a NULL `pending_operation_kind` made the transition and revision conditions NULL, so `IF` did not raise. Every refusal is now `(condition) IS NOT FALSE`, nullable comparisons use `IS [NOT] DISTINCT FROM`, and `Active`→`Disabled` additionally requires the Disable Begin. Settled-row tests: `Draft`→`TestOpen` without test start, `Draft`/`Active`→`Deleted` without Delete, a revision step with no pending kind. Run against the previous guard, 30 of the 80 storage cases fail. | this commit |
+| S2 | Fixed | Confirmed. While the pending identifier is unchanged its kind, actor, start, quiet-window end and desired digest are pinned; a new operation starts at `updated_at`, by `updated_by`, for `desired_digest`, from a state its kind admits (test start from `Draft`, Disable from `Active` into `Disabled`, Delete into `Draft` from an enabled state, Configure/Rotate secret with the revision step). | this commit |
+| S3 | Fixed | Confirmed. The attempt identifier, actor and revision are pinned in `TestOpen`/`TestPassed`; expiry, result and pass time move only with the pass, which is stamped at its update before expiry; Activate lands before the activation expiry; the window opens for the test-start actor and expires 10 minutes after that update. Boundary cases prove one second before expiry is admitted and expiry itself refused. | this commit |
+| S4 | Fixed | Confirmed. `ck_federation_connections_display_name` now requires `IS NFC NORMALIZED` and refuses C0/C1 controls, format characters (bidirectional marks, embeddings, overrides, isolates, U+200B–U+200F, U+2060–U+206F, U+FEFF), U+2028/U+2029, non-U+0020 spaces and private-use code points. Unassigned code points stay domain-only. Migration, designer, snapshot and configuration carry the same text; nine new CHECK cases. | this commit |
+| S5 | Fixed | Confirmed: only `CanBegin` compared the stamp. `Complete`, `RecordTestResult`, `ExpireTest`, `Activate`, `Enable` and `RecordDrift` now refuse a stamp before `UpdatedAt ?? CreatedAt` with a `Result`, without mutation; the last stamp itself is admitted. | this commit |
+| S6 | Fixed | Confirmed. The Identity immediate reversal target is `20261113114919_role_registry_release_v4`; `classify_retained_provider_collision` and `role_registry_release_v4` refusals are asserted directly through `DownOperations`, as `preserve_provider_recovery_anchor` is. | this commit |
+| S7 | Deferred to Step 2 | Recorded below; no code change. | — |
+| C1 | Open — maintainer | Run with the pinned tool; results below. No transition record, policy or ADR was created or edited. | — |
+| C2 | Fixed | The Status block is dated 2026-11-13 and states Step 1 committed, this round corrected, round 2 pending, Step 0 blocked. | this commit |
+| C3 | Fixed | `SchemaTableClasses.IdentityContextual` holds eight tables; Standard 05 now says eighth. No other document repeated the count. | this commit |
+| C4 | Fixed | Catalogued as `Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place`, an integration rule owned by `FederationConnectionStorageTests`: the aggregate's refusal on the EF path and the guard's refusal alone and riding a legal Configure Begin, from settled `Draft` and `Active`, with a same-issuer positive control. Standard 21 counts move to 270 Implemented rules, 116 outside the architecture assembly. | this commit |
+| C5 | Fixed | Confirmed. `RecordDrift` moves `Disabled` to `Draft`, as ADR-0099 § Provider writes says for every mismatch; unit test added. | this commit |
+| C6 | Rejected | `HasEnumAsText` is declared for `PropertyBuilder<TEnum>` with `TEnum : struct, Enum`, so it does not bind to the nullable `PendingOperationKind` and `TestResult`. The cited precedent, `InvitationConfiguration.cs:48`, is itself the nullable `AcceptanceDisposition` mapped with `HasConversion<string>()`; the non-nullable federation enums already use `HasEnumAsText`. The stored text is the same CLR name, and the CHECKs admit only those spellings. The Step 1 record's sentence that every enumerated column goes "through `HasEnumAsText`" is inaccurate for these two columns; this row corrects it. | — |
+| C7 | Fixed | Decided by server behaviour and the ADR-0096 precedent, which raised every grant-array bound with the registry: the validator already admits `Current.Definitions.Length` (ten). Role detail `grants`, `RoleGrantsInput.grants` and `release.tenantAdminDelta` rise from 9 to 10 in the transformer, snapshot and contract expectations; the SDK `grants` parser and the BFF grant form admit ten (the BFF Role-ID bound is unchanged). Standard 19 records the rule. This adds a third `maxItems` raise to the OpenAPI comparison. | this commit |
+| C8a | Fixed | `Invalid_or_unknown_markers…` is pinned to `IdentityRoleRelease.Version3` with a positive control, so the Editor and OrgAdmin rows fail on the role rule and the unknown row uses marker 4. | this commit |
+| C8b | Fixed | New refusals: `Draft`→`TestOpen` without test start, `TestOpen`→`Active`, `Disabled`→`Active`, `Deleted` without a pending Delete, an INSERT as `Deleted`, `TestPassed`→`Active` while a Rename is pending, and the S2/S3 cases. | this commit |
+| C8c | Fixed | The cross-tenant INSERT now expects exactly `P0301` with constraint `identity_tenant_fence`, because the BEFORE guard's fence fires before RLS; the WITH CHECK proof stays in `IdentityMembershipTests.Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them`. | this commit |
+| C8d | Fixed | The dispatch check requires exactly three branches and each release condition exactly once; dirty controls duplicate the v3 and the v4 branch. | this commit |
+| C8e | Correct; pinned | The registry read's source N returns release N+1 and accepts 1–3, so an adopted v4 Role (current; no v5) correctly reads source 3. A web test pins v1→1, v2→2, v3→3, v4→3. | this commit |
+| C9 | Rejected | The three Step 1 commits name the model that produced them, and this round's commits do the same; the requested different model name was not used because it would misattribute. The maintainer decides whether any trailer convention needs changing. | — |
+
+**OpenAPI comparison (C1).** `scripts/openapi-ci.py --base 7b91b085 --tool <oasdiff>`
+ran in a `linux/amd64` container after `scripts/install-oasdiff.py` verified archive
+SHA-256 `43a4e328…5247` and `oasdiff version 1.33.0`.
+
+Result on the head before C7 (`37af223c` plus the corrections as staged):
+`policyRefused: true`, `rawToolRefused: true`, exit 1. Policy and raw output:
+
+```
+3 changes: 3 error, 0 warning, 0 info
+error [response-property-max-items-increased] ... GET /api/v1/identity/permissions
+      `items` maxItems increased from 9 to 10 (200)
+error [response-property-one-of-added] ... GET /api/v1/identity/permissions
+      added subschema #2 to release/tenantAdminDelta/items oneOf (200)
+error [response-property-one-of-added] ... GET /api/v1/identity/roles/{id}
+      added subschema #2 to grants/items oneOf (200)
+```
+The companion list has 54 enum add/remove findings. C7 adds `maxItems` findings for Role
+detail `grants` and `release.tenantAdminDelta`. The gate was NOT RUN on the final head
+of this commit; rerun it before any PR.
+
+The gate admits only ADR-0096's pinned P03-5 comparison, so each head is refused. How
+the v4 incompatibility is admitted is the maintainer's decision; this round created no
+transition record and changed no policy.
+
+**Verification.** All commands ran on a workstation (Docker, Testcontainers).
+
+| Command | Result |
+|---|---|
+| `dotnet build LearnStack.slnx -c Release` | 0 warnings, 0 errors |
+| Unit tests (`LearnStack.Tests.Unit`) | 3,881 passed, 0 failed, 0 skipped |
+| Architecture tests (`LearnStack.Tests.Architecture`) | 643 passed, 0 failed, 0 skipped (43 min; run before the commit attempt) |
+| Contract tests (`LearnStack.Tests.Contract`) | 12 passed (after the snapshot refresh) |
+| Integration, `FederationConnectionStorageTests` | 80 passed |
+| Integration, the related groups: storage, rollback, identity membership and isolation, bounded administration HTTP, role-grant registry, OpenAPI administration, identity seeder, global identity and tenancy schema, authorization pool, identity administration read | 436 passed, 0 failed |
+| SDK `typecheck`, `lint`, `test` | clean, clean, 229 passed |
+| Web `lint` | clean |
+| Web `page-preload` and `bff-administration-routes` tests | 146 passed in 3 files |
+| Web `typecheck` | Failed once with TS2322 in the `page-preload.test.ts` fixture (lines 127–161, not the new lines). It passed on two reruns with the new test in place. The cause is unconfirmed; a stale SDK build is the likeliest explanation. Record it as a flake until proven otherwise |
+| `make lint-docs` | Failed before this section was appended (the Status block links to it). Rerun after the append |
+| `make docs-index` | Run after the append |
+| Full integration suite and LS0001/LS0002 separately | NOT RUN. The Release build reported zero warnings |
+
+**Open items for the maintainer.**
+
+- C1: the OpenAPI gate refuses the Step 1 head; the admission path for the v4
+  incompatibility is undecided.
+- C9: trailer convention, as above.
+- S7 for Step 2: EF reads see tombstones, because the tenant filter does not exclude
+  `Deleted`. Step 2 reads connections only through a helper that filters
+  `State != Deleted`, and its tests prove a tombstone is never returned as the live
+  connection.
+- The review round 2 that ADR-0099 requires before Step 2 has not run.
