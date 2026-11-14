@@ -93,8 +93,8 @@ public sealed partial class TenantRealmApiTests
             var first = await KeycloakReconciliationDriver.RunAsync(warm);
             first.Success.Should().BeTrue("closed historical reconciliation outcome: {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(37, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; "
-                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant)");
+            first.Mutations.Should().Be(39, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             output.WriteLine("Historical journey stage: automatic reconciliation completed.");
             var accountsAfter = await WarmAccountsAsync(admin, usernames);
             WarmSame(expectedProfile, WarmNode(await admin.GetAsync("users/profile"))).Should().BeTrue(

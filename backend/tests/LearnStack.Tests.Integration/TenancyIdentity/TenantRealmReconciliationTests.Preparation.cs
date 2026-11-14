@@ -38,7 +38,7 @@ public sealed partial class TenantRealmReconciliationTests
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("the automatic historical path reports {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(37, "one preparation, sixteen prior stock-upgrade writes, one event-policy PUT and the additional native scope; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant)");
+            first.Mutations.Should().Be(39, "one preparation, sixteen prior stock-upgrade writes, one event-policy PUT and the additional native scope; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             AssertPreparationProfile(expectedProfile, await admin.GetAsync("users/profile"));
             foreach (var identity in SeedData.IdentityUsers) await AssertStoredIdentityAsync(admin, identity);
             foreach (var (username, original) in originalUsers)
@@ -148,7 +148,7 @@ public sealed partial class TenantRealmReconciliationTests
 
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("an explicit fresh invocation reports {0}/{1}", resumed.Stage, resumed.Reason);
-            resumed.Mutations.Should().Be(36, "the durable preparation is reused; sixteen prior stock writes, one event-policy PUT and the additional native scope remain; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant)");
+            resumed.Mutations.Should().Be(38, "the durable preparation is reused; sixteen prior stock writes, one event-policy PUT and the additional native scope remain; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             resumed.PreparationDispatched.Should().BeFalse();
             var completed = await KeycloakReconciliationDriver.RunAsync(fixture);
             completed.Success.Should().BeTrue();
@@ -184,8 +184,8 @@ public sealed partial class TenantRealmReconciliationTests
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("the separate ordinary plan reports {0}/{1}", resumed.Stage, resumed.Reason);
             resumed.PreparationDispatched.Should().BeFalse();
-            resumed.Mutations.Should().Be(37, "sixteen prior stock writes, separate profile normalization, one event-policy PUT and the additional native scope; "
-                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant)");
+            resumed.Mutations.Should().Be(39, "sixteen prior stock writes, separate profile normalization, one event-policy PUT and the additional native scope; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             var expectedFinal = expectedPreparation.DeepClone();
             var definitions = expectedFinal["attributes"]!.AsArray();
             var index = definitions.IndexOf(definitions.Single(value => value!["name"]!.GetValue<string>() == "user_id"));

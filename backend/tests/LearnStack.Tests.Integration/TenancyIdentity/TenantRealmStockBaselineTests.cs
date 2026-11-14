@@ -171,8 +171,8 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("closed ordinary reconciliation outcome: {0}/{1} after {2} writes",
                 first.Stage, first.Reason, first.Mutations);
-            first.Mutations.Should().Be(36, "thirteen prior approved mutations, three console assignment DELETEs, one ADR-0070 event-policy PUT and one ADR-0078 native scope creation; "
-                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant)");
+            first.Mutations.Should().Be(38, "thirteen prior approved mutations, three console assignment DELETEs, one ADR-0070 event-policy PUT and one ADR-0078 native scope creation; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             var after = await CaptureAsync(admin, historicalAssignments: false);
             // ADR-0099: the retired console keeps its stock assignments; both account clients are only disabled.
             Names(after[consolePath + "/default-client-scopes"]).Should().Equal(DefaultScopes);
