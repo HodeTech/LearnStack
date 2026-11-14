@@ -73,10 +73,20 @@ internal static class FederationAddressPolicy
     ];
 
     /// <summary>
+    /// Cloud instance-metadata addresses inside a range an allow-list entry otherwise admits: fd00:ec2::/32 holds the AWS
+    /// IPv6 metadata endpoint (fd00:ec2::254) and its other services. It refuses even for a listed host.
+    /// </summary>
+    private static readonly (byte[] Prefix, int Bits)[] MetadataV6 =
+    [
+        (Parse("fd00:ec2::"), 32),
+    ];
+
+    /// <summary>
     /// An operator allow-listed host may additionally resolve to a private address: RFC 1918 IPv4 or unique-local IPv6
-    /// (fc00::/7). Nothing else widens. Loopback, link-local (169.254.0.0/16 cloud metadata, fe80::/10), CGNAT,
-    /// documentation, benchmarking, reserved, multicast, unspecified, scoped and every IPv4-embedding IPv6 form (mapped,
-    /// compatible, NAT64, 6to4, Teredo) still refuse, as for a tenant-supplied host (ADR-0099 Amendment 5).
+    /// (fc00::/7) outside fd00:ec2::/32. Nothing else widens. Loopback, link-local and cloud metadata (169.254.0.0/16,
+    /// fe80::/10, fd00:ec2::/32), CGNAT, documentation, benchmarking, reserved, multicast, unspecified, scoped and every
+    /// IPv4-embedding IPv6 form (mapped, compatible, NAT64, 6to4, Teredo) still refuse, as for a tenant-supplied host
+    /// (ADR-0099 Amendment 5).
     /// </summary>
     internal static bool IsAllowListable(IPAddress address)
     {
@@ -87,7 +97,10 @@ internal static class FederationAddressPolicy
             var bytes = address.GetAddressBytes();
             return PrivateV4.Any(range => Matches(bytes, range.Prefix, range.Bits));
         }
-        return address.AddressFamily == AddressFamily.InterNetworkV6 && address.IsIPv6UniqueLocal && address.ScopeId == 0;
+        if (address.AddressFamily != AddressFamily.InterNetworkV6 || !address.IsIPv6UniqueLocal || address.ScopeId != 0)
+            return false;
+        var v6 = address.GetAddressBytes();
+        return !MetadataV6.Any(range => Matches(v6, range.Prefix, range.Bits));
     }
 
     private static bool Matches(byte[] address, byte[] prefix, int bits)

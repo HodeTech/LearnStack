@@ -7672,19 +7672,23 @@ sign-in read). The
 
 #### `Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher`
 
-- **Asserts:** every production source under `backend/src` that names a network
-  transport primitive (`HttpClient`, `HttpClientHandler`, `SocketsHttpHandler`,
+- **Asserts:** every production source under `backend/src` that names a BCL HTTP or
+  socket primitive (`HttpClient`, `HttpClientHandler`, `SocketsHttpHandler`,
   `HttpMessageInvoker`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `SslStream`,
   `NetworkStream`, `ClientWebSocket`, `WebRequest`, `HttpWebRequest`, `WebClient`,
-  `IHttpClientFactory`, `AddHttpClient` or a `Dns.` call) is on a named allow-list, each
-  entry with its reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied
-  URL; and four clients of a fixed, composition-configured tenant-realm origin
+  `IHttpClientFactory`, `AddHttpClient` or a `Dns.` call) or the MailKit SMTP client
+  (`SmtpClient`, the `MailKit` namespace) is on a named allow-list, each entry with its
+  reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied URL; four
+  clients of a fixed, composition-configured tenant-realm origin
   (`KeycloakFederationProvider`, `KeycloakIdentityEventProvider`,
-  `TenantAuthenticationBackchannel`, `CurrentInvitationRecipientBackchannel`). An entry
+  `TenantAuthenticationBackchannel`, `CurrentInvitationRecipientBackchannel`); and
+  `SmtpEmailProvider`, the operator-configured SMTP host for invitation mail. An entry
   whose file no longer holds a transport fails as stale. Instrumentation, exception and
-  enum names (`AddHttpClientInstrumentation`, `SocketException`, `SocketType`) do not match.
-  The rule is exact for "who may open a connection"; that the four fixed-origin clients
-  never take a tenant URL rests on their own constructors and tests.
+  enum names (`AddHttpClientInstrumentation`, `SocketException`, `SocketType`) do not
+  match. Third-party HTTP clients beyond those names are not detected by this rule. The
+  rule is exact for "who may open a connection" through the named primitives; that the
+  fixed-origin clients never take a tenant URL rests on their own constructors and
+  tests.
 - **Source:** [ADR-0099 § Architecture Tests](../decisions/0099-confined-tenant-federation.md#architecture-tests)
   ("the egress fetcher is the only tenant-URL fetcher").
 - **Type:** source scan of all production sources with planted fetchers in the API,

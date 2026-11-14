@@ -33,10 +33,12 @@ internal static class FederationComposition
         var policy = policyConfiguration.GetSection("Resilience:federation").Get<ResilienceOptions>()!;
         // Provider writes are not safe to retry automatically (ADR-0099): a retried PUT can land after its outcome settled.
         // The shape is fixed, not a range: retry off, a 2.5-second timeout (the adapter's own call ceiling), the breaker on
-        // and a bulkhead of exactly four with no queue. Any other value refuses at startup.
+        // and a bulkhead of exactly four with no queue. Any other value refuses at startup. The breaker's own parameters
+        // are bounded so that an enabled breaker cannot be configured to never open or never sample.
         if (policy.Retry.Enabled || policy.Retry.MaxRetryAttempts != 0 || !policy.Timeout.Enabled
             || policy.Timeout.TotalSeconds != 2.5
-            || !policy.CircuitBreaker.Enabled || policy.Bulkhead is not { MaxConcurrency: 4, QueueLength: 0 })
+            || !policy.CircuitBreaker.Enabled || !BreakerInRange(policy.CircuitBreaker)
+            || policy.Bulkhead is not { MaxConcurrency: 4, QueueLength: 0 })
             throw new InvalidOperationException("Federation requires finite provider resilience without write retries.");
         services.AddProviderResilience<IFederationProvider>(policyConfiguration, "federation");
 
@@ -56,6 +58,16 @@ internal static class FederationComposition
                 : new UnconfiguredFederationEgressFetcher()));
         return services;
     }
+
+    /// <summary>
+    /// The admitted breaker range: failure ratio in (0, 1], minimum throughput in [2, 100] (Polly's own floor is 2),
+    /// sampling duration in [1, 60] seconds and break duration in [1, 300] seconds. NaN refuses.
+    /// </summary>
+    private static bool BreakerInRange(CircuitBreakerOptions breaker) =>
+        breaker.FailureRatio is > 0 and <= 1
+        && breaker.MinimumThroughput is >= 2 and <= 100
+        && breaker.SamplingDurationSeconds is >= 1 and <= 60
+        && breaker.BreakDurationSeconds is >= 1 and <= 300;
 
     private static bool Configured(ISecretProvider secrets) =>
         !string.IsNullOrEmpty(secrets.GetSecret(FederationAdapterFactory.SecretKey));

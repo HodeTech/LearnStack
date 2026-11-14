@@ -68,6 +68,49 @@ public sealed class FederationCompositionTests
         FluentActions.Invoking(() => services.AddLearnStackFederationAdapter(configuration)).Should().Throw<InvalidOperationException>();
     }
 
+    [Theory]
+    [InlineData("Resilience:federation:CircuitBreaker:FailureRatio", "0")]
+    [InlineData("Resilience:federation:CircuitBreaker:FailureRatio", "1.01")]
+    [InlineData("Resilience:federation:CircuitBreaker:FailureRatio", "NaN")]
+    [InlineData("Resilience:federation:CircuitBreaker:MinimumThroughput", "1")]
+    [InlineData("Resilience:federation:CircuitBreaker:MinimumThroughput", "101")]
+    [InlineData("Resilience:federation:CircuitBreaker:SamplingDurationSeconds", "0.5")]
+    [InlineData("Resilience:federation:CircuitBreaker:SamplingDurationSeconds", "61")]
+    [InlineData("Resilience:federation:CircuitBreaker:BreakDurationSeconds", "0.5")]
+    [InlineData("Resilience:federation:CircuitBreaker:BreakDurationSeconds", "301")]
+    public void An_enabled_breaker_outside_its_fixed_range_refuses_at_composition(string key, string value)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [key] = value }).Build();
+        FluentActions.Invoking(() => new ServiceCollection().AddLearnStackFederationAdapter(configuration))
+            .Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void A_breaker_at_every_range_edge_is_the_positive_control()
+    {
+        foreach (var values in new[]
+        {
+            new Dictionary<string, string?>
+            {
+                ["Resilience:federation:CircuitBreaker:FailureRatio"] = "1",
+                ["Resilience:federation:CircuitBreaker:MinimumThroughput"] = "2",
+                ["Resilience:federation:CircuitBreaker:SamplingDurationSeconds"] = "1",
+                ["Resilience:federation:CircuitBreaker:BreakDurationSeconds"] = "1",
+            },
+            new Dictionary<string, string?>
+            {
+                ["Resilience:federation:CircuitBreaker:FailureRatio"] = "0.01",
+                ["Resilience:federation:CircuitBreaker:MinimumThroughput"] = "100",
+                ["Resilience:federation:CircuitBreaker:SamplingDurationSeconds"] = "60",
+                ["Resilience:federation:CircuitBreaker:BreakDurationSeconds"] = "300",
+            },
+        })
+        {
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            FluentActions.Invoking(() => new ServiceCollection().AddLearnStackFederationAdapter(configuration)).Should().NotThrow();
+        }
+    }
+
     [Fact]
     public void The_fixed_resilience_shape_is_the_dirty_control()
     {

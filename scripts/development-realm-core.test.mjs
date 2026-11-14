@@ -511,7 +511,7 @@ test('an exact 512 KiB version document reaches planning only after the complete
 });
 
 
-test('the actual core retires the historical account console in five qualified writes and reruns read only', async () => {
+test('the actual core retires the historical account console in seven qualified writes and reruns read only', async () => {
   const fixture = await stockProvider();
   const before = structuredClone(fixture.state);
   const recording = providerTransport(fixture);

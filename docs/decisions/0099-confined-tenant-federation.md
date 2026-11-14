@@ -789,8 +789,8 @@ and their proof.
 
 ### Amendment 5 — Step 3 review: egress, adapter and linking decisions (2026-11-14)
 
-P03-8 Step 3 and its first review round make the following statements concrete. The
-Decision is unchanged.
+P03-8 Step 3 and its first two review rounds make the following statements concrete.
+The Decision is unchanged.
 
 1. **Egress ceiling.** § Bounded egress names "a four-second timeout"; § Intent-first
    operations budgets egress at three seconds in total. One fetch or endpoint check,
@@ -806,18 +806,21 @@ Decision is unchanged.
    port. An entry admits its host for every tenant. IP literals are never admitted,
    listed or not, and an internationalized host name refuses (the guard and the provider
    must see the same ASCII name). An entry widens only the port and the private ranges
-   (RFC 1918 IPv4, unique-local IPv6). Loopback, link-local (cloud metadata included),
-   CGNAT, documentation, reserved, multicast, unspecified, scoped and every IPv4-mapped,
-   IPv4-compatible or other IPv4-embedding IPv6 address still refuse for a listed host.
-   Standard 11's Amendment is corrected to this text.
+   (RFC 1918 IPv4, unique-local IPv6 outside `fd00:ec2::/32`). Loopback, link-local and
+   cloud metadata (169.254.0.0/16, `fe80::/10`, and the AWS IPv6 metadata range
+   `fd00:ec2::/32`, which lies inside unique-local), CGNAT, documentation, reserved,
+   multicast, unspecified, scoped and every IPv4-mapped, IPv4-compatible or other
+   IPv4-embedding IPv6 address still refuse for a listed host. Standard 11's Amendment
+   is corrected to this text.
 4. **The adapter enforces Amendment 3 and the in-place identity rule itself.** Before a
    write to a present broker, the adapter compares the desired state with the one the
    provider holds. A write that changes the issuer or SAML entity identifier refuses,
    with or without a secret, and a write without a fresh secret that changes the token
    endpoint, client identifier or client authentication refuses. Neither makes a
-   provider call. A consequence: if the provider's issuer drifts out of band, a write
-   restoring it also refuses; the corrective disable still applies (it keeps the
-   configuration read back), and recovery is a new connection.
+   provider write; the adapter reads the broker to compare. A consequence: if the
+   provider's issuer drifts out of band, a write restoring it also refuses; the
+   corrective disable still applies (it keeps the configuration read back), and
+   recovery is a new connection.
 5. **Unreadable owned brokers.** A broker whose marker matches but whose representation
    no longer reads as an admitted protocol is treated as foreign for every call, so no
    tenant operation, the corrective disable included, writes or deletes it. Recovery
@@ -836,6 +839,12 @@ Decision is unchanged.
    pinned provider (write, conforming readback, signature validation kept, drift
    detected) and through the egress parser. An end-to-end brokered SAML sign-in is not
    proven; Step 4's full qualification owns it, before the PR.
+9. **Residual: the item 4 comparison is read-then-write.** The guarantee holds per
+   operation and per observed state, not across concurrent writes. A delayed earlier
+   write without a secret can land after a later rotation to a new token endpoint and
+   restore the earlier endpoint while keeping the new secret, until the next readback
+   flags the drift. The exposure is bounded by that readback detection and by the
+   earlier endpoint being one the tenant itself configured. The mechanism is unchanged.
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review
 record and its proof.

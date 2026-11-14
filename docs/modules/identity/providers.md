@@ -61,7 +61,7 @@ specification.
 | Fetcher | Internal sealed `FederationEgressFetcher` in the same namespace; the only fetcher of a tenant-supplied URL |
 | Selection | API `FederationComposition` replaces the fail-closed defaults only when `Federation:ClientSecret` is configured; `FederationAdapterFactory` is the only entry. The choice is made when the port is first resolved (it follows `ISecretProvider`), so an empty or invalid `Authentication:Tenant:Issuer` with the secret present refuses at that first resolution, not at host startup |
 | Credentials | Client `learnstack-federation-admin`; secret through `ISecretProvider` key `Federation:ClientSecret`; a fresh client-credentials token per port call |
-| Resilience | `IProviderResilience<IFederationProvider>`, configuration `Resilience:federation`: retry disabled, a 2.5 s timeout, circuit breaker on, a bulkhead of exactly 4 with no queue; these are fixed values, and composition refuses any other value at startup |
+| Resilience | `IProviderResilience<IFederationProvider>`, configuration `Resilience:federation`: retry disabled, a 2.5 s timeout, circuit breaker on, a bulkhead of exactly 4 with no queue; these are fixed values, and composition refuses any other value at startup. The enabled breaker's parameters are bounded: failure ratio in (0, 1], minimum throughput 2 to 100, sampling duration 1 to 60 s, break duration 1 to 300 s (defaults 0.5, 10, 30 s, 30 s); a value outside a range refuses at startup |
 | Failures | Transport faults, 5xx and 429 are `FederationProviderException` (a `ProviderException`) inside the pipeline and leave as `Unavailable`; no provider text crosses the port |
 
 ### Admitted calls
@@ -175,11 +175,12 @@ SSO) without fetching it:
 `host:port` entries, no wildcard, scheme, path or IP literal, at most 64, empty by
 default. A listed host may use the named port and may resolve to a private address
 (RFC 1918 IPv4 or unique-local IPv6) besides a global one; nothing else widens.
-Loopback, link-local (cloud metadata included), CGNAT, documentation, reserved,
-multicast, unspecified, scoped and IPv4-embedding IPv6 answers still refuse. An entry
-admits the host for every tenant. It is composition configuration read once at startup;
-tenant input never extends it. Keycloak's own later fetches follow DNS; only deployment egress policy bounds
-them (Phase 11).
+Loopback, link-local and cloud metadata (169.254.0.0/16, `fe80::/10`, and the AWS
+IPv6 metadata range `fd00:ec2::/32` inside unique-local), CGNAT, documentation,
+reserved, multicast, unspecified, scoped and IPv4-embedding IPv6 answers still refuse.
+An entry admits the host for every tenant. It is composition configuration read once
+at startup; tenant input never extends it. Keycloak's own later fetches follow DNS;
+only deployment egress policy bounds them (Phase 11).
 
 ## Invitation SMTP
 

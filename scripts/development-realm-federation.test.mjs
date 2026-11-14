@@ -134,7 +134,8 @@ test('a client scope mapper emitting another claim, or a scope the client does n
   fixture.state.scopes.find(scope => scope.name === 'profile').protocolMappers.push(scopeEmitter('idp_hint', 'other-claim'));
   const unassigned = fixture.state.scopes.find(scope => ![...fixture.state.clients.flatMap(client =>
     [...client.defaultClientScopes, ...client.optionalClientScopes])].includes(scope.name));
-  if (unassigned) unassigned.protocolMappers.push(scopeEmitter('idp', 'unassigned-idp'));
+  assert.ok(unassigned, 'the fixture must keep a scope the client does not receive');
+  unassigned.protocolMappers.push(scopeEmitter('idp', 'unassigned-idp'));
   const plan = await planFederationRealm(fixture.admin, clone(desired));
   assert.equal(plan.changed, false);
   await plan.verify();

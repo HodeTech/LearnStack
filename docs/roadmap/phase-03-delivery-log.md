@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,602 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,680 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -499,7 +499,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 2 review round 2 corrections (2026-11-14)](#p03-8-step-2-review-round-2-corrections-2026-11-14) — 147 lines
   - [P03-8 Step 3 — provider and realm (2026-11-14)](#p03-8-step-3--provider-and-realm-2026-11-14) — 247 lines
   - [P03-8 Step 3 commit and log correction (2026-11-14)](#p03-8-step-3-commit-and-log-correction-2026-11-14) — 23 lines
-  - [P03-8 Step 3 review round 1 corrections (2026-11-14)](#p03-8-step-3-review-round-1-corrections-2026-11-14) — 84 lines
+  - [P03-8 Step 3 review round 1 corrections (2026-11-14)](#p03-8-step-3-review-round-1-corrections-2026-11-14) — 85 lines
+  - [P03-8 Step 3 review round 2 corrections (2026-11-14)](#p03-8-step-3-review-round-2-corrections-2026-11-14) — 77 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23276,7 +23277,8 @@ corrects it.
 
 The first independent review of Step 3 (`d166e12d`) reported five security findings
 (S1–S5) and sixteen corpus and test findings (C1–C16). Each was verified in the code
-before it was acted on; all were confirmed. The corrections are in the commit that adds this record.
+before it was acted on; all were confirmed. The corrections are in the commit that
+adds this record.
 [ADR-0099 Amendment 5](../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)
 records every change to ADR-stated behaviour; the Decision is unchanged.
 
@@ -23285,7 +23287,7 @@ records every change to ADR-stated behaviour; the Decision is unchanged.
 | ID | Verdict | Change |
 |---|---|---|
 | S1 | Fixed | `FederationEgressFetcher` awaited the resolver without a bound; the platform lookup ignores the token, and the existing hanging-host test used an instant resolver. The resolution is now `WaitAsync` on the same 3-second budget; expiry is `Unavailable`. New `A_resolver_that_never_answers_is_unavailable_within_the_ceiling` uses a resolver that never completes. |
-| S2 | Fixed | The adapter had no Amendment 3 defence. Before writing a present broker, `KeycloakFederationProvider` compares the desired state with the one read back: an issuer or SAML entity change refuses outright, and without a fresh secret a changed token endpoint, client identifier or client authentication refuses. No provider call is made. New unit tests: each changed secret target with a null secret is refused with zero `PUT`s and the stored broker unchanged; the same change with a fresh secret and an unchanged configuration without one are applied; an issuer and an entity change refuse even with a secret. |
+| S2 | Fixed | The adapter had no Amendment 3 defence. Before writing a present broker, `KeycloakFederationProvider` compares the desired state with the one read back: an issuer or SAML entity change refuses outright, and without a fresh secret a changed token endpoint, client identifier or client authentication refuses. No provider write is made (the adapter reads the broker first to compare). New unit tests: each changed secret target with a null secret is refused with zero `PUT`s and the stored broker unchanged; the same change with a fresh secret and an unchanged configuration without one are applied; an issuer and an entity change refuse even with a secret. |
 | S3 | Fixed | `IsConnectable` admitted almost every address for a listed host. It is replaced by `IsAllowListable`: global, or RFC 1918 IPv4, or unique-local IPv6, nothing else. New theory: 18 address classes (loopback, 169.254/16, `fe80::`, mapped and compatible IPv6, NAT64, CGNAT, documentation, reserved, multicast, unspecified, site-local) refuse for a listed host on 443 and on a listed port; private and public answers are the dirty control. An entry admitting its host for every tenant is recorded in Amendment 5. |
 | S4 | Fixed | `FederationDocumentReaders.Https` now refuses a host that is not ASCII or whose IDN form differs, so the guard and the provider always see the same name. `https://faß.de/t` and a mixed punycode/Unicode host refuse before resolution. |
 | S5 | Fixed | `development-realm-federation.mjs` reads learnstack-web's default and optional client scopes and their mappers, and any `idp` emitter outside the client's own canonical mapper refuses `mapper_conflict` at plan and readback. Planted default-scope and optional-scope emitters, a nested `idp.value` claim and a post-plan plant refuse; another claim in a scope, or an emitter in a scope the client does not receive, is the positive control. |
@@ -23294,7 +23296,7 @@ records every change to ADR-stated behaviour; the Decision is unchanged.
 
 | ID | Verdict | Change |
 |---|---|---|
-| C1 | Fixed, with one deviation recorded | New real-provider cases in `FederationProviderTests`: (a) an orphan whose marker names a connection no row holds, an unmarked broker at a derived alias, and an owned broker whose representation no longer reads as a protocol are `Foreign` for read, write and delete, and each stays byte-identical; the orphan's own owner is the dirty control. (b) A real `oidc-user-attribute-idp-mapper` on an owned alias reads back as `MapperCount` 1, its digest equals no desired state (enabled or not), a corrective full-state write leaves the mapper, and removing it clears the drift. That digest equality is what Activate requires; the runner's refusal on it is Step 2's proof. (c) The tenant's test IdP asserts hostile `user_id`, `tenant_id` and `organization_id` in its ID token (proven through the IdP's example-token endpoint); a linking and a linked brokered sign-in both issue learnstack-web tokens carrying the stored `user_id`, no `tenant_id` or `organization_id`, and leave the stored attributes unchanged. Reset-link resumption is qualified: a reset requested from the re-authentication form and completed in another browser changes the password and links nothing; completed in the browser holding the pending session, it resumes and links. The reset action therefore stays (Amendment 5). Deviation: a brokered SAML login is not proven; Step 4's full qualification owns it (Amendment 5). |
+| C1 | Fixed, with one deviation recorded | New real-provider cases in `FederationProviderTests`: (a) a broker whose owner marker names another tenant's connection (a cross-tenant owner mismatch: the caller is another tenant naming the same alias and connection), an unmarked broker at a derived alias, and an owned broker whose representation no longer reads as a protocol are `Foreign` for read, write and delete, and each stays byte-identical; the marker's own owner is the dirty control. (b) A real `oidc-user-attribute-idp-mapper` on an owned alias reads back as `MapperCount` 1, its digest equals no desired state (enabled or not), a corrective full-state write leaves the mapper, and removing it clears the drift. That digest equality is what Activate requires; the runner's refusal on it is Step 2's proof. (c) The tenant's test IdP asserts hostile `user_id`, `tenant_id` and `organization_id` in its ID token (proven through the IdP's example-token endpoint); a linking and a linked brokered sign-in both issue learnstack-web tokens carrying the stored `user_id`, no `tenant_id` or `organization_id`, and leave the stored attributes unchanged. Reset-link resumption is qualified: a reset requested from the re-authentication form and completed in another browser changes the password and links nothing; completed in the browser holding the pending session, it resumes and links. The reset action therefore stays (Amendment 5). Deviation: a brokered SAML login is not proven; Step 4's full qualification owns it (Amendment 5). |
 | C2 | Fixed | Eleven owner tests for `federationAdminEnvironment`: success, missing (`preflight`/`missing_federation_secret`), and each `configuration` refusal (second assignment, `export` alias, empty, 15 vs 16 characters, 1,024 vs 1,025 bytes with multibyte cases, mask literal, `${`, LF, CRLF and NUL, equality with the web, admin and event-reader secrets, a different `Federation__ClientSecret`, a different ambient value). `node:util` folds a bare CR, so CR alone is not separately testable. Owner tests: 66 to 77. |
 | C3 | Fixed | `Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher` now scans every production source under `backend/src` for transport primitives (HTTP clients and handlers, `Socket`, TCP/UDP clients, TLS and network streams, web requests, `Dns.`, client-factory registration) against a named allow-list with a reason per entry: the egress fetcher (tenant URLs) and four fixed tenant-realm clients (federation adapter, event reader, JWT back-channel, invitation UserInfo). A stale entry fails. Planted holders in the API, Infrastructure and two modules fail; instrumentation, exception and enum names do not match. The name is kept; Standard 21 states the narrower honest claim. |
 | C4 | Fixed | [Commit and log correction](#p03-8-step-3-commit-and-log-correction-2026-11-14) appended; the Status row names `d166e12d`. |
@@ -23303,13 +23305,13 @@ records every change to ADR-stated behaviour; the Decision is unchanged.
 | C7 | Recorded | Amendment 5 item 2 records `import-config` as a narrowing of an admitted set. |
 | C8 | Fixed | Standard 11's 2026-11-13 Amendment now states exactly what the guard admits and refuses, with a dated correction note. |
 | C9 | Fixed | The Keycloak README no longer describes a live console-graph correction and says an existing `.env` must add `KEYCLOAK_FEDERATION_ADMIN_SECRET` (and `Federation__ClientSecret`) before `make dev` starts; the README, the local-dev skill and Standard 12 name the federation secret, and Standard 12 names the two machine-client secrets the API does receive. |
-| C10 | Fixed (code tightened; docs corrected) | No test depended on the range, so `FederationComposition` now requires exactly a 2.5-second timeout and a bulkhead of 4 with no queue; five more refusal cases and a dirty control. The empty-issuer refusal stays at first resolution (the selection follows `ISecretProvider`, which is resolved there); the provider specification now says so. |
+| C10 | Fixed (code tightened; docs corrected) | No test depended on the range, so `FederationComposition` now requires exactly a 2.5-second timeout and a bulkhead of 4 with no queue; four more refusal cases and a dirty control. The empty-issuer refusal stays at first resolution (the selection follows `ISecretProvider`, which is resolved there); the provider specification now says so. |
 | C11 | Fixed | The "partial retirement commits" test again runs `[200, 201, 202, 409, 500, lost_ack, cancelled]`, now over all seven retirement writes, with path uniqueness, durable non-replay and no readback after an uncertain outcome restored. 2xx on a `PUT` is a success on the surviving path and is asserted to converge; the retired stock-console scope and role-read checks are replaced by equality with an uninterrupted run. |
 | C12 | Fixed | The old `kc_action` check put the action inside `redirect_uri`, so it could not run at all. The action is now an authorization parameter: disabled, it never reaches the broker and the client receives `kc_action_status=error`; enabled alone, it still refuses (the pinned `IdpLinkAction` also needs `manage-account` or `manage-account-links` in scope, which the realm removes); enabled with that role and scope restored for the control, it reaches the IdP. The console page asserts 404. The profile positive control is restored through the stock update-profile action, the surviving self-service write: an ordinary edit is stored, injected authority attributes are not, and the counterfactual proves the same injection reaches storage when the definition is user-editable. |
 | C13 | Recorded | Residual below; Amendment 5 item 5. |
 | C14 | Rerun | Verification below. |
 | C15 | Fixed | `detachStockConsoleAssignment` and its import are removed from the core write surface. The stock-console module and its own tests remain (unused by reconciliation) until the separate cleanup. |
-| C16 | Fixed | `KEYCLOAK_FAILURE_CLASSES` lists `FederationProviderTests` and `TenantRealmFederationReconciliationTests`; `test-ci-native-tests.py` expects them. `ci-test-shards-plan.json`'s `sharedFixtureClasses` was out of date at `d166e12d` (`test-ci-test-shards.py` failed there) and is regenerated from the census. |
+| C16 | Fixed | `KEYCLOAK_FAILURE_CLASSES` lists `FederationProviderTests` and `TenantRealmFederationReconciliationTests`; `test-ci-native-tests.py` expects them. `ci-test-shards-plan.json`'s `sharedFixtureClasses` was out of date at `d166e12d` (`test-ci-test-shards.py` failed there) and is regenerated from the census. The per-method `weights` were not regenerated: `FederationHttpTests`, `PublicSignInHttpTests`, `FederationProviderTests` and `TenantRealmFederationReconciliationTests` have no weight entries (they fall back to `defaultMethodMs`), and `TenantRealmSelfServiceTests` keeps four stale entries for methods it no longer has. |
 
 **Verification.** Local workstation (macOS, Docker, Testcontainers), on the corrected
 working tree over `d166e12d`.
@@ -23355,3 +23357,80 @@ A/B layout qualification.
   Contract suite was not run.
 - S-B and H from the Step 2 record before Step 4.
 - Review round 2 of Step 3.
+
+### P03-8 Step 3 review round 2 corrections (2026-11-14)
+
+The second independent review of Step 3 (`36c237b3`) reported four security findings
+(SR2-1–SR2-4) and nine corpus and test findings (CR2-1–CR2-9). Each was verified
+before it was acted on; all were confirmed. SR2-1 is recorded, not changed; the rest
+are fixed in the commit that adds this record.
+[ADR-0099 Amendment 5](../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)
+records the changed ADR-stated behaviour; the Decision is unchanged. Four rows of the
+[round 1 record](#p03-8-step-3-review-round-1-corrections-2026-11-14) (S2, C1, C10,
+C16) and its opening paragraph are corrected in place, as listed below; the packet is
+not shipped.
+
+**Security findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| SR2-1 | Confirmed; recorded | `KeycloakFederationProvider.ApplyAsync` reads the broker, compares, then writes; the provider offers no conditional write. A delayed write without a secret can land after a rotation to a new token endpoint and restore the earlier endpoint with the new secret until the next readback flags drift. The mechanism is unchanged; Amendment 5 item 9 records the residual. |
+| SR2-2 | Fixed | `FederationComposition` checked only `CircuitBreaker.Enabled`. It now refuses at startup a failure ratio outside (0, 1] (NaN included), a minimum throughput outside 2–100 (Polly's own floor is 2, so 1 cannot be admitted), a sampling duration outside 1–60 s and a break duration outside 1–300 s. The defaults (0.5, 10, 30 s, 30 s) are inside every range; nothing configures them. The ranges are in the provider specification. New: a nine-case theory, one per refused edge, and a positive control at both edges of every range. |
+| SR2-3 | Fixed | The transport rule did not match MailKit's `SmtpClient`. `SmtpClient` and `MailKit` are now detected, and `SmtpEmailProvider` is on the allow-list ("operator-configured SMTP host for invitation mail; not a tenant URL"). The planted control adds an unlisted `SmtpClient` holder and an unlisted `MailKit` import, both of which fail, and the listed `SmtpEmailProvider`, which does not. Standard 21 now says the rule covers BCL HTTP and socket primitives and the MailKit SMTP client, and that other third-party HTTP clients are not detected. |
+| SR2-4 | Fixed | `IsAllowListable` admitted all of `fc00::/7`, including the AWS IPv6 metadata address `fd00:ec2::254`. It now refuses `fd00:ec2::/32` for a listed host. New refusal cases `fd00:ec2::254`, `fd00:ec2::23`, `fd00:ec2:ffff::1`; `fd00:ec3::254` is the admitted near-miss control. Standard 11's Amendment (with a dated correction note), Amendment 5 item 3 and the provider specification name the range. |
+
+**Corpus and test findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| CR2-1 | Fixed | Round 1 C10 said "five more refusal cases"; `36c237b3` adds four `InlineData` cases and one dirty-control `Fact`. Corrected to four. This round adds ten composition tests (SR2-2) and four egress tests (SR2-4): unit 4,109 to 4,123. |
+| CR2-2 | Fixed | Amendment 5 item 4 and round 1 S2 said the refusals make no provider call; the adapter does make its `ReadOwnedAsync` GET. Both now say no provider write. |
+| CR2-3 | Fixed | Round 1 C16 now discloses that per-method `weights` were not regenerated: four classes have no entries and `TenantRealmSelfServiceTests` keeps four stale ones. |
+| CR2-4 | Fixed | The `development-realm-core` test that asserts seven writes is titled "seven". |
+| CR2-5 | Fixed | The unreceived-scope control in `development-realm-federation.test.mjs` now asserts the fixture holds such a scope before planting in it. |
+| CR2-6 | Fixed | The Keycloak README separates the two `.env` statements: compose's `:?` guard enforces `KEYCLOAK_FEDERATION_ADMIN_SECRET`; a missing `Federation__ClientSecret` leaves the adapter unselected and federation fails closed, and reconciliation refuses a different value. |
+| CR2-7 | Fixed | `A_resolver_that_never_answers_is_unavailable_within_the_ceiling` makes one call and asserts it returns within the ceiling plus 1 s. |
+| CR2-8 | Fixed | Round 1 C1 described the first case as an orphan "a connection no row holds". The test proves a cross-tenant owner mismatch: another tenant naming the same alias and connection is `Foreign` and the broker is untouched. The row says so. |
+| CR2-9 | Fixed | The listed lines in the provider specification, the round 1 record and Standards 20 and 21 are reflowed to 88 columns. |
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the corrected
+working tree over `36c237b3`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release` | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --include` (the five changed C# files) | exit 0 |
+| Unit, `FederationCompositionTests` and `FederationEgressFetcherTests` (which holds the address-policy cases) | 24 and 108 passed, 0 failed, 0 skipped |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 4,123 passed, 0 failed, 0 skipped |
+| Integration, Release, `FederationProviderTests` and `TenantRealmFederationReconciliationTests` (Docker) | 17 passed (14 and 3), 0 failed, 0 skipped (58.5 s) |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 661 passed, 0 failed, 0 skipped (45 min 38 s). This record's result cells were filled in after that run, so the classes that read the corpus (`CorpusConsistencyTests`, `AuditCoverageTests`, `AuditConventionTests`, `DomainGenericityTests`, `RepositoryLayoutTests`, `RequestSurfaceTests`, `AsyncStoreInventoryTests`) and `FederationAdapterConventionTests` were rerun on the final tree: 142 passed, 0 failed, 0 skipped |
+| `node --test` on `development-realm-federation` and `development-realm-core` | 25 and 66 passed |
+| `python3 scripts/run-realm-node-tests.py` | 13 files, 490 executed passing tests |
+| `python3 scripts/test-ci-test-shards.py` | 88 tests OK |
+| `python3 scripts/test-ci-native-tests.py` | 111 tests OK |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,766 fragment links resolve, roadmap structure conforms, 3 delivery-log indexes current; exit 0 |
+
+Not run: the rest of the Integration suite, the Contract suite (no OpenAPI or SDK
+surface changed), the SDK and web checks, hosted CI and the A/B layout qualification.
+
+**Residual risks.**
+
+- SR2-1: the adapter's changed-endpoint refusal holds per operation and per observed
+  state; a delayed earlier write can restore an earlier endpoint with the new secret
+  until the next readback (Amendment 5 item 9).
+- The transport rule does not detect third-party HTTP clients beyond the names it
+  lists (Standard 21).
+- Unchanged from the round 1 record: the unreadable owned broker (C13), an
+  out-of-band issuer change, an allow-list entry admitting its host for every tenant,
+  and the Step 3 record's residuals.
+
+**Open items.**
+
+- SR2-1: the read-then-write residual, recorded in Amendment 5 item 9.
+- The trailer model name (C-12, D-9), for the maintainer. This commit carries the
+  name of the model that wrote it.
+- The OpenAPI gate: no OpenAPI or SDK surface changed in this round, and the Contract
+  suite was not run.
+- The shard plan's per-method weights (round 1 C16, as corrected above).
+- Before Step 4: H and S-B from the Step 2 record; a brokered SAML login end to end
+  (Amendment 5 item 8); the P03-9 operator sweep for unreadable owned brokers.

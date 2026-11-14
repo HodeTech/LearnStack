@@ -780,9 +780,12 @@ LearnStack's adapter confines it to owned aliases (the
   provider's mask literal `**********`, not beginning `${`, and distinct from the
   web, admin and event-reader secrets. Reconciliation refuses with
   `missing_federation_secret` when it is absent. An existing private `.env`
-  created before P03-8 Step 3 must add `KEYCLOAK_FEDERATION_ADMIN_SECRET` (and the
-  same value as `Federation__ClientSecret`) before `make dev` will start: compose's
-  `:?` guard stops the provider without it.
+  created before P03-8 Step 3 must add `KEYCLOAK_FEDERATION_ADMIN_SECRET` before
+  `make dev` will start: compose's `:?` guard stops the provider without it. It
+  should also add the same value as `Federation__ClientSecret`; nothing stops
+  `make dev` without it, but the API then leaves the federation adapter unselected
+  and every federation operation fails closed. Reconciliation refuses a different
+  value.
 - **API.** The API reads the same value as `Federation__ClientSecret`. When the
   private file declares both, they must be identical. Without the API value the
   adapter is not selected and every federation operation reports the dependency

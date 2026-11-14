@@ -136,12 +136,16 @@ public sealed partial class FederationAdapterConventionTests
             ["LearnStack.Infrastructure/Planted/Socket.cs"] = "var socket = new Socket(family, SocketType.Stream, ProtocolType.Tcp);",
             ["LearnStack.Infrastructure/Planted/WebRequest.cs"] = "var request = WebRequest.Create(url);",
             ["LearnStack.Infrastructure/Planted/Factory.cs"] = "services.AddHttpClient(\"x\");",
+            ["LearnStack.Infrastructure/Planted/Smtp.cs"] = "using var client = new SmtpClient();",
+            ["Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Planted/Mail.cs"] = "using MailKit.Net.Smtp;",
+            ["LearnStack.Infrastructure/Email/Smtp/SmtpEmailProvider.cs"] = "using MailKit.Net.Smtp; new SmtpClient();",
             ["LearnStack.Api/Composition/Clean.cs"] = "t.AddHttpClientInstrumentation(); catch (SocketException) { } var type = SocketType.Stream;",
         }).Should().Equal("LearnStack.Api/Planted/Fetcher.cs", AdapterDirectory + "KeycloakFederationProfile.cs",
-            "LearnStack.Infrastructure/Planted/Factory.cs", "LearnStack.Infrastructure/Planted/Socket.cs",
-            "LearnStack.Infrastructure/Planted/WebRequest.cs",
+            "LearnStack.Infrastructure/Planted/Factory.cs", "LearnStack.Infrastructure/Planted/Smtp.cs",
+            "LearnStack.Infrastructure/Planted/Socket.cs", "LearnStack.Infrastructure/Planted/WebRequest.cs",
             "Modules/Education/LearnStack.Modules.Education.Infrastructure/Planted.cs",
-            "Modules/Identity/LearnStack.Modules.Identity.Application/Federation/Planted.cs");
+            "Modules/Identity/LearnStack.Modules.Identity.Application/Federation/Planted.cs",
+            "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Planted/Mail.cs");
     }
 
     private static Dictionary<string, string> Sources() =>
@@ -200,6 +204,8 @@ public sealed partial class FederationAdapterConventionTests
             "JWT bearer metadata and JWKS (ADR-0064): the fixed Authentication:Tenant:Issuer only",
         ["LearnStack.Api/Authentication/CurrentInvitationRecipientReader.cs"] =
             "the invitation recipient's UserInfo read (ADR-0093): the fixed tenant-realm issuer only",
+        ["LearnStack.Infrastructure/Email/Smtp/SmtpEmailProvider.cs"] =
+            "operator-configured SMTP host for invitation mail; not a tenant URL",
     };
 
     private static List<string> TransportOffenders(IReadOnlyDictionary<string, string> sources) =>
@@ -214,9 +220,10 @@ public sealed partial class FederationAdapterConventionTests
 
     /// <summary>
     /// Construction or use of a transport: an HTTP client or handler, a raw or TCP/UDP socket, a TLS or network stream, a
-    /// web request, a DNS lookup, or an HTTP client factory registration. Instrumentation names such as
-    /// AddHttpClientInstrumentation and exception or enum names such as SocketException and SocketType do not match.
+    /// web request, a DNS lookup, an HTTP client factory registration, or the MailKit SMTP client (SmtpClient, the
+    /// MailKit namespace). Instrumentation names such as AddHttpClientInstrumentation and exception or enum names such as
+    /// SocketException and SocketType do not match. Third-party HTTP clients beyond these names are not detected.
     /// </summary>
-    [GeneratedRegex("\\b(HttpClient|HttpClientHandler|SocketsHttpHandler|HttpMessageInvoker|Socket|TcpClient|TcpListener|UdpClient|SslStream|NetworkStream|ClientWebSocket|WebRequest|HttpWebRequest|WebClient|IHttpClientFactory|AddHttpClient)\\b|\\bDns\\.")]
+    [GeneratedRegex("\\b(HttpClient|HttpClientHandler|SocketsHttpHandler|HttpMessageInvoker|Socket|TcpClient|TcpListener|UdpClient|SslStream|NetworkStream|ClientWebSocket|WebRequest|HttpWebRequest|WebClient|IHttpClientFactory|AddHttpClient|SmtpClient|MailKit)\\b|\\bDns\\.")]
     private static partial Regex Transport();
 }

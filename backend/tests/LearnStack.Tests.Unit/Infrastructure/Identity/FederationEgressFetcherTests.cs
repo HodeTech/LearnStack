@@ -140,6 +140,9 @@ public sealed class FederationEgressFetcherTests
     [InlineData("64:ff9b::a00:1")]
     [InlineData("fec0::1")]
     [InlineData("ff02::1")]
+    [InlineData("fd00:ec2::254")]
+    [InlineData("fd00:ec2::23")]
+    [InlineData("fd00:ec2:ffff::1")]
     public async Task An_allow_listed_host_still_refuses_loopback_link_local_embedded_and_reserved_addresses(string address)
     {
         FederationAddressPolicy.IsAllowListable(IPAddress.Parse(address)).Should().BeFalse();
@@ -155,6 +158,7 @@ public sealed class FederationEgressFetcherTests
     [InlineData("172.31.255.254")]
     [InlineData("192.168.1.1")]
     [InlineData("fd12:3456::1")]
+    [InlineData("fd00:ec3::254")]
     [InlineData("93.184.216.34")]
     public async Task An_allow_listed_host_admits_private_and_public_addresses_as_the_dirty_control(string address)
     {
@@ -170,10 +174,9 @@ public sealed class FederationEgressFetcherTests
         var never = new TaskCompletionSource<IPAddress[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         var fetcher = new FederationEgressFetcher(FederationEgressOptions.Empty, (_, _) => never.Task, null);
         var started = System.Diagnostics.Stopwatch.StartNew();
-        (await fetcher.CheckEndpointAsync(new Uri("https://idp.example.com/token"))).Status.Should().Be(FederationEgressStatus.Unavailable);
         (await fetcher.FetchJwksAsync(new Uri("https://idp.example.com/certs"))).Status.Should().Be(FederationEgressStatus.Unavailable);
-        started.Elapsed.Should().BeLessThan(FederationEgressFetcher.Ceiling * 2 + TimeSpan.FromSeconds(1),
-            "each call returns at its own three-second ceiling although the resolver never completes");
+        started.Elapsed.Should().BeLessThan(FederationEgressFetcher.Ceiling + TimeSpan.FromSeconds(1),
+            "the call returns at its three-second ceiling although the resolver never completes");
         never.Task.IsCompleted.Should().BeFalse();
     }
 
