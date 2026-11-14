@@ -737,6 +737,18 @@ describe('native closed administration dispatcher', () => {
     expect(await call('token', scope, { kind: 'getMembership', id: '../other' }, signal())).toEqual(
       { kind: 'invalid-request' },
     );
+    // ADR-0099 Amendment 6: the test start and the test record belong to the BFF-only federation test client; the
+    // browser-reachable dispatcher has no such kind under any spelling a caller might try.
+    for (const kind of [
+      'startFederationTest',
+      'recordFederationTest',
+      'recordFederationTestResult',
+      'federationTestStart',
+      'federationTestResult',
+    ])
+      expect(await call('token', scope, { kind } as unknown as NativeOperation, signal())).toEqual({
+        kind: 'invalid-request',
+      });
     expect(transport).not.toHaveBeenCalled();
     expect(new Set(routes.map((route) => route.operation.kind)).size).toBe(29);
   });

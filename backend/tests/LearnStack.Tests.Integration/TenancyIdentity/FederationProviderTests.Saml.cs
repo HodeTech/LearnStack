@@ -26,10 +26,6 @@ public sealed partial class FederationProviderTests
         // The broker is configured exactly as the production runner would: the IdP's real signing certificate, SSO
         // endpoint and entity id, through the port, with the closed profile the adapter writes.
         var desired = Saml(owner, await SigningCertificateAsync(idpAdmin));
-        // Tenant B's broker in the same realm: the foreign host's alias for the host-binding inputs below.
-        (await adapter.ApplyAsync(new(Oidc(federation.OwnerB, "federation-idp-b", enabled: false), Secret(FederationKeycloakFixture.IdpSecretB))))
-            .Should().Be(FederationProviderResult.Applied);
-        (await adapter.ReadAsync(federation.OwnerB)).Status.Should().Be(FederationReadbackStatus.Present);
         (await admin.PostAsync("users", new
         {
             username = person,
@@ -113,7 +109,9 @@ public sealed partial class FederationProviderTests
             identities[0].GetProperty("userName").GetString().Should().NotBe(person,
                 "the SAML principal is the persistent NameID subject, not the asserted address");
 
-            // 3. The idp claim is on the brokered ID token, and not on the access token or a local sign-in's ID token.
+            // 3. The idp claim is on the brokered ID token, and not on the access token or a local sign-in's ID token. This
+            // is the value the BFF's host binding compares with the self read's federationAlias; that comparison runs in
+            // the BFF (its session-store tests), not here, and this test does not claim it.
             var exchange = await browser.RedeemAsync(linked.Authorization!);
             exchange.StatusCode.Should().Be(HttpStatusCode.OK);
             var brokeredIdp = Claims(exchange.IdToken).GetProperty("idp").GetString();
@@ -125,16 +123,6 @@ public sealed partial class FederationProviderTests
                 localTokens.StatusCode.Should().Be(HttpStatusCode.OK);
                 Claims(localTokens.IdToken).TryGetProperty("idp", out _).Should().BeFalse("a local sign-in is not brokered");
             }
-
-            // 4. Host-binding inputs. The BFF admits a brokered token only when its idp equals the host tenant's Active alias,
-            // the federationAlias on the native self read. That comparison is proven by the BFF unit tests, and the self
-            // read's alias by the API integration tests (IdentitySelfEntryHttpTests); this test proves the real SAML token
-            // carries the exact value they compare: tenant A's SAML alias, and neither tenant B's alias nor null.
-            owner.TenantId.Should().Be(federation.OwnerA.TenantId, "the SAML connection is tenant A's");
-            brokeredIdp.Should().NotBeNull();
-            brokeredIdp.Should().Be(owner.Alias, "tenant A's host alias admits it");
-            brokeredIdp.Should().NotBe(federation.OwnerB.Alias, "tenant B's host alias does not");
-            federation.OwnerB.TenantId.Should().NotBe(owner.TenantId);
         }
         finally
         {

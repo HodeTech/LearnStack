@@ -875,3 +875,51 @@ before Step 4. The Decision is unchanged.
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the Step 4 record
 and its proof.
+
+### Amendment 7 — Step 4 review: purposes, test freshness and detail loads (2026-11-15)
+
+The first independent review of P03-8 Step 4 found the following statements incomplete
+against the delivered code. The Decision is unchanged.
+
+1. **`federation_signin` is a named purpose.** § Sign-in exposure's option starts an
+   authorization with the purpose `federation_signin`: the ordinary request plus
+   `kc_idp_hint` set to the host tenant's Active alias, read server-side; no forced
+   login, no extra scope, the ordinary callback and publication rules.
+   [ADR-0070 Amendment 12](0070-owned-tenant-bff-sessions.md#amendment-12--federation-sign-in-purpose-and-server-side-end-session-2026-11-15)
+   records the purpose set as three.
+2. **The test-record scope is enforced by the BFF.** Amendment 6 item 2 says ordinary
+   sign-in tokens never carry `federation.test_record` because only the test requests
+   it. The authorization `scope` is browser-editable and the provider grants an
+   attached optional scope on request, so the BFF refuses any redemption other than
+   the `federation_test` owner's, and every refresh, whose granted `scope` contains it,
+   and refuses the test redemption without it.
+3. **The test proves a fresh authentication.** § Lifecycle and test's `prompt=login` is
+   a request parameter. The test request also sends `max_age=0`, and the result passes
+   only when the ID token's `auth_time` is present and at or after the test window's
+   start. This proves the provider authenticated the administrator anew, inside the
+   window, through the tested broker (`idp`). Whether the upstream IdP itself prompted
+   depends on that IdP's session and is not claimed.
+4. **The test sign-out also ends the provider session server-side**, with the test
+   refresh token, as a definitive host-binding mismatch does; the browser end-session
+   redirect remains.
+5. **Studio detail loads by navigation only.** The detail load (readback and corrective
+   write) is prepared only for `Sec-Fetch-Site` `same-origin` or `none` on a top-level
+   document navigation, or `same-origin` on an RSC navigation. A `same-site` request (a
+   sibling tenant subdomain) prepares nothing, as a `cross-site` one already did. A
+   browser that sends no `Sec-Fetch-Site` is not covered.
+6. **A bounded-timer abort is a timeout.** In the active refresh, the BFF's bounded
+   request timer can abort the self read before the native client's own deadline; for
+   a brokered session that outcome is indeterminate (§ Host binding), not a
+   cancellation, so the session is kept.
+7. **Local sessions share the alias read's availability.** § Host binding's "Local
+   sign-in follows the existing publication rules" holds for the decision: no alias
+   comparison decides a local token. The alias is part of every self read, so an
+   undecidable alias read answers 503 for local tokens and tenants without a connection
+   too, and a local session then follows the existing rules for a refused self read.
+   The coupling is accepted as the availability class of the self read's own database
+   read;
+   [Security § Federation host binding](../standards/11-security.md#federation-host-binding)
+   lists the affected paths.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record
+and its proof.

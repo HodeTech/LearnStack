@@ -181,6 +181,25 @@ function document(
   response.headers.set('referrer-policy', 'same-origin');
   return new Response(render(page), { status, headers: response.headers });
 }
+/**
+ * ADR-0099 Amendment 7: the federation detail load is prepared only for `Sec-Fetch-Site` `same-origin` or `none` on a
+ * top-level document navigation, or `same-origin` on an RSC navigation. A request without `Sec-Fetch-Site` (a browser
+ * that sends no fetch metadata) is not decided here; that is the recorded residual (D4-5).
+ */
+function federationNavigation(headers: Headers): boolean {
+  const site = headers.get('sec-fetch-site');
+  if (site === null) return true;
+  const mode = headers.get('sec-fetch-mode');
+  const dest = headers.get('sec-fetch-dest');
+  if ((site === 'same-origin' || site === 'none') && mode === 'navigate' && dest === 'document')
+    return true;
+  return (
+    site === 'same-origin' &&
+    headers.get('rsc') === '1' &&
+    (mode === 'cors' || mode === 'same-origin') &&
+    dest === 'empty'
+  );
+}
 function input(request: BffHttpRequest) {
   if (request.headers.has('authorization')) throw new BffInputError();
   return bffCookies(request.headers.get('cookie'));
@@ -306,12 +325,12 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
         let session: SessionProjection | null;
         if (protectedPage && request.method === 'GET') {
           const native = ticket(request);
-          // ADR-0099 (Step 2 review S-E): the federation detail load reads the provider back and may begin a
-          // corrective write, so a cross-site navigation (which SameSite=Lax still sends cookies on) prepares nothing.
+          // ADR-0099 (Step 2 review S-E, Step 4 review S4-1): the federation detail load reads the provider back and
+          // may begin a corrective write, so only a same-origin or user-initiated navigation prepares it. A
+          // cross-site or same-site request (which SameSite=Lax still sends cookies on) prepares nothing.
           if (
             native.prefetch ||
-            (path === '/studio/federation' &&
-              request.headers.get('sec-fetch-site') === 'cross-site')
+            (path === '/studio/federation' && !federationNavigation(request.headers))
           )
             session = await store.admit(current, request.source, 'passive', request.signal);
           else {

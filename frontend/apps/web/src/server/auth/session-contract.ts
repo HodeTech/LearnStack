@@ -37,10 +37,12 @@ export type SessionProvider = {
     signal?: AbortSignal,
     purpose?: ProviderPurpose,
   ) => Promise<Readonly<{ transaction: LoginTransaction; redirectUrl: string }>>;
+  /** `testRecord` is true only for the federation_test owner (ADR-0099 Amendment 7). */
   redeem: (
     transaction: LoginTransaction,
     uri: string,
     signal?: AbortSignal,
+    testRecord?: boolean,
   ) => Promise<ProviderCredentials>;
   refresh: (
     token: string,

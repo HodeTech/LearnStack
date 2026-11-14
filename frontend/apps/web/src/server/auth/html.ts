@@ -194,7 +194,8 @@ function invitationValidationContent(
   }
   return `<p role="alert">${escape(copy('mutation.invitation_refused'))}</p>${back}`;
 }
-function federationFieldLabel(name: string, admin: AdminCopy): string {
+/** The labels of the fields `federation-forms.ts` can report; any other name renders no label (Step 4 review C4-10). */
+function federationFieldLabel(name: string, admin: AdminCopy): string | null {
   switch (name) {
     case 'displayName':
       return admin('federation.display_name');
@@ -221,7 +222,7 @@ function federationFieldLabel(name: string, admin: AdminCopy): string {
     case 'clientSecret':
       return admin('federation.client_secret');
     default:
-      return admin('federation.required');
+      return null;
   }
 }
 /**
@@ -235,13 +236,15 @@ function federationMutationContent(
 ): string {
   const { admin } = createAdministrationTranslator(locale);
   const outcome = page.federation?.outcome ?? null;
-  const labels = (page.federation?.invalid ?? []).map((name) =>
-    name === 'confirm'
-      ? page.action.endsWith('-delete')
-        ? admin('federation.confirm_delete')
-        : admin('federation.confirm_disable')
-      : federationFieldLabel(name, admin),
-  );
+  const labels = (page.federation?.invalid ?? [])
+    .map((name) =>
+      name === 'confirm'
+        ? page.action.endsWith('-delete')
+          ? admin('federation.confirm_delete')
+          : admin('federation.confirm_disable')
+        : federationFieldLabel(name, admin),
+    )
+    .filter((label): label is string => label !== null);
   const message =
     page.reason === 'validation'
       ? labels.length

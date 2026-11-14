@@ -704,15 +704,17 @@ entered on the re-authentication form.
 
 - **Studio.** `/studio/federation` lets a holder of `identity.federation.admin` (advisory
   `canManageFederation`) configure, test and activate the tenant's one connection,
-  rename it, replace its secret, Resume an unsettled write, and Disable or Delete it
+  rename it, replace its secret, Resume an unsettled write, re-enable a Disabled
+  connection (back to Draft, so a new test is required), and Disable or Delete it
   behind a confirmation. Every operation goes through the closed native
   administration dispatcher and the generated-SDK wrappers
   ([Frontend Standards § Tenant federation](../../standards/07-frontend-architecture.md#tenant-federation));
   the API authorizes each one.
 - **Test.** The BFF alone starts the test window and holds the attempt identifier. Its
   `federation_test` callback records the result with a token carrying the
-  `federation.test_record` scope, which `POST test-results` requires, publishes no
-  session and signs the administrator out.
+  `federation.test_record` scope, which `POST test-results` requires and which the BFF
+  refuses on every other redemption and on refresh, publishes no session, ends the
+  provider session server-side and signs the administrator out.
 - **Host alias.** The native self read carries `federationAlias`, the host tenant's
   Active, entitled alias, through `FederationHostAliasReader`, the fourteenth logical
   tenant setter ([Standard 05](../../standards/05-database.md#federation-host-alias-read)).

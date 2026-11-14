@@ -373,7 +373,11 @@ host tenant's Active, entitled federation alias, read through the one host-only
 read-only setter of
 [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14);
 an undecidable read is 503, never null (after a committed bootstrap, the existing
-unknown-outcome answer that a deliberate retry converges). The `oneOf` members are
+unknown-outcome answer that a deliberate retry converges). That 503 applies to every
+self read and bootstrap on the host, local subjects and tenants without a connection
+included: the same availability class as the self read's own database read, accepted
+in [Security § Federation host binding](11-security.md#federation-host-binding) with
+the local session paths it affects. The `oneOf` members are
 unchanged; each gains the property. The contexts response is unchanged.
 The [Security contract](11-security.md#native-scope-and-global-self-admission)
 owns exact ordering, source consistency, terminal outcomes and creation budgets.

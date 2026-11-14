@@ -127,13 +127,13 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
     { issuer, clientSecret: privateCanary, allowLoopbackHttp: true },
     transport,
   );
-  async function login() {
-    const start = await provider.begin(callback);
+  async function login(purpose?: Parameters<typeof provider.begin>[2], testRecord?: boolean) {
+    const start = await provider.begin(callback, undefined, purpose);
     nonce = start.transaction.nonce;
     const url = new URL(callback);
     url.searchParams.set('code', 'owned-code');
     url.searchParams.set('state', start.transaction.state);
-    const result = await provider.redeem(start.transaction, url.href);
+    const result = await provider.redeem(start.transaction, url.href, undefined, testRecord);
     return { ...start, result };
   }
   return {
@@ -167,13 +167,15 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
 
 describe('ADR-0099 federation purposes, provenance and server-side end-session', () => {
   const alias = 'lsf-' + '0123456789abcdef'.repeat(2);
-  it('builds the federation_test request with the server alias hint, prompt=login and the test-record scope', async () => {
+  it('builds the federation_test request with the server alias hint, prompt=login, max_age=0 and the test-record scope', async () => {
     const f = await fixture();
     const test = new URL(
       (await f.provider.begin(callback, undefined, { kind: 'federation_test', alias })).redirectUrl,
     );
     expect(test.searchParams.get('kc_idp_hint')).toBe(alias);
     expect(test.searchParams.get('prompt')).toBe('login');
+    // ADR-0099 Amendment 7 (S4-3): the provider must authenticate anew, not reuse its session.
+    expect(test.searchParams.getAll('max_age')).toEqual(['0']);
     expect(test.searchParams.get('scope')).toBe('openid profile email federation.test_record');
     expect(test.searchParams.has('kc_action')).toBe(false);
     const signin = new URL(
@@ -183,9 +185,11 @@ describe('ADR-0099 federation purposes, provenance and server-side end-session',
     );
     expect(signin.searchParams.get('kc_idp_hint')).toBe(alias);
     expect(signin.searchParams.has('prompt')).toBe(false);
+    expect(signin.searchParams.has('max_age')).toBe(false);
     expect(signin.searchParams.get('scope')).toBe('openid profile email');
     const local = new URL((await f.provider.begin(callback)).redirectUrl);
     expect(local.searchParams.has('kc_idp_hint')).toBe(false);
+    expect(local.searchParams.has('max_age')).toBe(false);
     expect(local.searchParams.get('scope')).toBe('openid profile email');
     const before = f.calls.length;
     for (const purpose of [
@@ -209,6 +213,52 @@ describe('ADR-0099 federation purposes, provenance and server-side end-session',
       const g = await fixture();
       g.setClaims({ idp });
       await expect(g.login()).rejects.toMatchObject({ reason: 'identity' });
+    }
+  });
+
+  it('admits the test-record scope only on the test redemption, and requires it there (S4-2)', async () => {
+    const test = { kind: 'federation_test', alias } as const;
+    const withScope = 'openid profile email federation.test_record';
+    // Ordinary and federation sign-ins whose browser-edited scope gained the optional scope are refused.
+    for (const purpose of [undefined, { kind: 'federation_signin', alias } as const]) {
+      const f = await fixture();
+      f.setTokens({ scope: withScope });
+      await expect(f.login(purpose)).rejects.toMatchObject({ reason: 'response' });
+    }
+    // The test redemption requires the scope: without it, or with no scope at all, it is refused.
+    for (const scope of ['openid profile email', undefined]) {
+      const f = await fixture();
+      f.setTokens(scope === undefined ? {} : { scope });
+      await expect(f.login(test, true)).rejects.toMatchObject({ reason: 'response' });
+    }
+    const f = await fixture();
+    f.setTokens({ scope: withScope });
+    const { result } = await f.login(test, true);
+    expect(result.accessToken).toBe(privateCanary);
+    // A refresh is never a test redemption: a refresh that keeps the scope is refused.
+    await expect(f.provider.refresh(result.refreshToken!, result.identity)).rejects.toMatchObject({
+      reason: 'response',
+    });
+    // The ordinary path still works when the scope is absent.
+    const plain = await fixture();
+    plain.setTokens({ scope: 'openid profile email' });
+    const ordinary = (await plain.login()).result;
+    await expect(
+      plain.provider.refresh(ordinary.refreshToken!, ordinary.identity),
+    ).resolves.toMatchObject({ accessToken: privateCanary });
+  });
+
+  it('reads auth_time from the ID token and refuses a malformed one (S4-3)', async () => {
+    const f = await fixture();
+    f.setClaims({ auth_time: 1_800_000_123 });
+    expect((await f.login()).result.identity.authTime).toBe(1_800_000_123);
+    const absent = await fixture();
+    expect((await absent.login()).result.identity).not.toHaveProperty('authTime');
+    for (const auth_time of ['1800000123', 0, -1, 1.5]) {
+      const g = await fixture();
+      g.setClaims({ auth_time });
+      // The library refuses some shapes itself ('response'); the profile refuses the rest ('identity').
+      await expect(g.login()).rejects.toBeInstanceOf(BffProviderError);
     }
   });
 

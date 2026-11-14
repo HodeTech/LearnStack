@@ -165,9 +165,17 @@ type Owner = {
     subject: string;
     issuer: string;
     scope: NativeScope;
+    /** The test window's start (UTC milliseconds); the callback's `auth_time` must not precede it. */
+    startedAt: number;
   }>;
   /** ADR-0099 Amendment 6 (S-B): the attempt this administrator's session started; never sent to the browser. */
-  heldTest?: Readonly<{ attemptId: string; alias: string; version: string; expires: number }>;
+  heldTest?: Readonly<{
+    attemptId: string;
+    alias: string;
+    version: string;
+    expires: number;
+    startedAt: number;
+  }>;
 };
 
 /** A federation test window is ten minutes (ADR-0099 § Lifecycle and test); the BFF holds its attempt no longer. */
@@ -852,6 +860,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         displayLabel: previous ? null : next.identity.displayLabel,
         // A provider adapter that omits the claim is local, never brokered.
         idp: next.identity.idp ?? null,
+        ...(typeof next.identity.authTime === 'number' ? { authTime: next.identity.authTime } : {}),
       }),
       accessExpiresAt: next.accessExpiresAt,
       refreshExpiresAt: next.refreshExpiresAt,
@@ -1497,6 +1506,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         alias: started.alias,
         version: started.version,
         expires: this.#now() + FEDERATION_TEST_WINDOW_MS,
+        startedAt: this.#utc(),
       });
       return admin.heldTest;
     });
@@ -1526,6 +1536,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           tenantId: admin.identity!.tenantId,
           organizationId: admin.identity!.organizationId,
         }),
+        startedAt: held.startedAt,
       }),
       absolute: now + BFF_LIMITS.transactionMs,
       activity: now,
@@ -1617,6 +1628,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             entry.transaction!,
             input.responseUrl,
             entry.controller.signal,
+            // ADR-0099 Amendment 7: the test-record scope is admitted, and required, only for the test owner.
+            !!entry.federationTest,
           ),
         );
         redeemed = credentials;
@@ -1688,9 +1701,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   }
   /**
    * ADR-0099 § Lifecycle and test, the federation_test callback. The ID token was validated like any sign-in; the
-   * result passes only when its `idp` is the tested alias and its issuer and subject are the administrator's. The BFF
-   * records it with the test-purpose access token, publishes nothing, discards every token and signs the administrator
-   * out, because the shared provider session now carries the brokered note.
+   * result passes only when its `idp` is the tested alias, its issuer and subject are the administrator's and its
+   * `auth_time` is at or after the test window's start (a fresh authentication, ADR-0099 Amendment 7). The BFF records
+   * it with the test-purpose access token, publishes nothing, discards every token, ends the provider session
+   * server-side with the test refresh token and signs the administrator out, because the shared provider session now
+   * carries the brokered note.
    */
   async #completeTest(
     entry: Owner,
@@ -1698,10 +1713,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     input: Parameters<BffSessionStore['complete']>[0],
   ): Promise<FederationTestCompletion> {
     const test = entry.federationTest!;
+    const authTime = credentials.identity.authTime;
     const passed =
       credentials.identity.idp === test.alias &&
       credentials.identity.issuer === test.issuer &&
-      credentials.identity.subject === test.subject;
+      credentials.identity.subject === test.subject &&
+      typeof authTime === 'number' &&
+      authTime >= Math.floor(test.startedAt / 1000);
     let outcome: FederationTestOutcome = 'unrecorded';
     const api = this.#dependencies.federationTest;
     if (api) {
@@ -1736,6 +1754,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.federationTest = undefined;
     entry.transaction = undefined;
     entry.proof = undefined;
+    // The browser redirect below may never be followed; the provider session ends server-side too (D4-1's helper).
+    this.#endProviderSession(credentials, null);
     const logout = this.#logoutOwner(entry, input.host, idToken);
     return Object.freeze({ kind: 'federation_test', outcome, browser: group.browser, logout });
   }
@@ -2004,11 +2024,16 @@ export class InMemoryBffSessionStore implements BffSessionStore {
    * A definitive mismatch also ends the provider (SSO) session, server-side at the end-session endpoint, so the shared
    * session carrying the brokered note cannot mint another publication. Best effort: the refusal never waits on it.
    */
-  #endProviderSession(credentials: ProviderCredentials | undefined) {
+  #endProviderSession(
+    credentials: ProviderCredentials | undefined,
+    ended: SessionFailure | null = 'host_binding',
+  ) {
     const token = credentials?.refreshToken;
     if (!token) return;
     void this.#dependencies.provider.endSession(token).then(
-      () => this.#diagnostic('host_binding'),
+      () => {
+        if (ended) this.#diagnostic(ended);
+      },
       () => this.#diagnostic('provider_refused'),
     );
   }
@@ -2522,7 +2547,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             );
           } catch (error) {
             // ADR-0099 § Host binding: an undecidable self read keeps a brokered session; local follows the old rule.
-            if (previous.identity.idp !== null && this.#indeterminate(error))
+            // The bounded timer aborting this read (the owner itself still live) is a timeout too, not a cancellation
+            // (Step 4 review S4-4): the native client's own deadline starts later, so the outer timer fires first.
+            if (
+              previous.identity.idp !== null &&
+              (this.#indeterminate(error) ||
+                (current.aborted && !entry.controller.signal.aborted && !this.#stopped))
+            )
               throw new BffSessionError('host_unavailable');
             throw error;
           }

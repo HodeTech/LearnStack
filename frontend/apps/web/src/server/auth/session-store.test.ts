@@ -2689,6 +2689,63 @@ describe('ADR-0099 host binding at every credential publication path', () => {
     expect(f.store.peek(binding)).not.toBeNull();
   });
 
+  it('active refresh: a self read the bounded timer aborts keeps the brokered session (S4-4)', async () => {
+    const f = fixture();
+    const { binding } = await brokered(f);
+    refreshDue(f);
+    const before = f.store.peek(binding)!.expiresAt;
+    // The native client rejects a caller abort as `cancelled`; only the bounded timer aborts it here.
+    f.native.self.mockImplementationOnce(
+      async (_token, _binding, signal) =>
+        new Promise<never>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new NativeApiError('cancelled')), {
+            once: true,
+          });
+        }),
+    );
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const work = f.store.admit(binding, source, 'read');
+      const refused = expect(work).rejects.toMatchObject({ reason: 'host_unavailable' });
+      await flush();
+      vi.advanceTimersByTime(9_999);
+      await flush();
+      expect(f.store.peek(binding)).not.toBeNull();
+      vi.advanceTimersByTime(1);
+      await refused;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(f.store.peek(binding)?.expiresAt).toBe(before);
+    expect(f.provider.endSession).not.toHaveBeenCalled();
+    expect(f.diagnostics).toContain('host_unavailable');
+    await f.store.admit(binding, source, 'read');
+    expect(f.store.peek(binding)).not.toBeNull();
+    // The local branch keeps the existing rule: the same timeout ends a local session.
+    const local = fixture();
+    const plain = await local.login();
+    refreshDue(local);
+    local.native.self.mockImplementationOnce(
+      async (_token, _binding, signal) =>
+        new Promise<never>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new NativeApiError('cancelled')), {
+            once: true,
+          });
+        }),
+    );
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const work = local.store.admit(plain.binding, source, 'read');
+      const refused = expect(work).rejects.toMatchObject({ reason: 'deadline' });
+      await flush();
+      vi.advanceTimersByTime(10_000);
+      await refused;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(local.store.peek(plain.binding)).toBeNull();
+  });
+
   it('active refresh: a changed provenance is definitive in both directions', async () => {
     const lost = fixture();
     const { binding } = await brokered(lost);
@@ -2747,6 +2804,8 @@ describe('ADR-0099 host binding at every credential publication path', () => {
 
 describe('ADR-0099 federation_test purpose and the sign-in option', () => {
   const alias = 'lsf-' + 'a'.repeat(32);
+  // The fixture's UTC clock starts at 1_800_000_000_000 ms and the test window opens at monotonic time 0.
+  const windowStart = 1_800_000_000;
   async function admin(f: ReturnType<typeof fixture>) {
     const { binding, finished } = await f.login();
     return { binding, csrf: finished.session.csrfToken };
@@ -2791,9 +2850,13 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
     const { binding, csrf } = await admin(f);
     const subjects = f.store.counts().subjects;
     const started = await f.store.startFederationTest(binding, source, csrf);
-    f.setIdentity({ idp: alias });
+    f.setIdentity({ idp: alias, authTime: windowStart });
     const completed = await f.store.completeCallback(callback(started));
     expect(completed).toMatchObject({ kind: 'federation_test', outcome: 'passed' });
+    // ADR-0099 Amendment 7: only the test owner's redemption admits (and requires) the test-record scope.
+    const redemptions = vi.mocked(f.provider.redeem).mock.calls;
+    expect(redemptions.at(-1)![3]).toBe(true);
+    expect(redemptions.slice(0, -1).map((call) => call[3])).toEqual([false]);
     const [token, scope, input] = f.federationTest.record.mock.calls[0]!;
     expect(token).toMatch(new RegExp('^' + privateCanary + '-'));
     expect(scope).toMatchObject({ host, tenantId: identity.tenantId, organizationId: null });
@@ -2811,6 +2874,32 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
       'https://' + host + '/',
       expect.any(String),
     );
+    // The provider session also ends server-side with the test refresh token, not only by the browser redirect.
+    await flush();
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+    expect(f.provider.endSession).toHaveBeenCalledWith(privateCanary);
+  });
+
+  it('a test token whose auth_time precedes the window, or that has none, records a failed test (S4-3)', async () => {
+    for (const authTime of [windowStart - 1, undefined]) {
+      const f = fixture();
+      const { binding, csrf } = await admin(f);
+      const started = await f.store.startFederationTest(binding, source, csrf);
+      f.setIdentity({ idp: alias, ...(authTime === undefined ? {} : { authTime }) });
+      await expect(f.store.completeCallback(callback(started))).resolves.toMatchObject({
+        outcome: 'failed',
+      });
+      expect(f.federationTest.record.mock.calls[0]![2]).toMatchObject({ passed: false });
+    }
+    // A later authentication inside the window passes.
+    const later = fixture();
+    const { binding, csrf } = await admin(later);
+    const started = await later.store.startFederationTest(binding, source, csrf);
+    later.advance(60_000);
+    later.setIdentity({ idp: alias, authTime: windowStart + 60 });
+    await expect(later.store.completeCallback(callback(started))).resolves.toMatchObject({
+      outcome: 'passed',
+    });
   });
 
   it('a token from another subject or another broker records a failed test', async () => {
@@ -2822,7 +2911,7 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
       const f = fixture();
       const { binding, csrf } = await admin(f);
       const started = await f.store.startFederationTest(binding, source, csrf);
-      f.setIdentity({ idp: alias, ...patch });
+      f.setIdentity({ idp: alias, authTime: windowStart, ...patch });
       await expect(f.store.completeCallback(callback(started))).resolves.toMatchObject({
         outcome: 'failed',
       });

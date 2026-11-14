@@ -308,7 +308,8 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
 ### Federation host binding
 
 **Derives from:** [ADR-0099 § Host binding](../decisions/0099-confined-tenant-federation.md#host-binding)
-and Amendment 6; [ADR-0070 Amendment 11](../decisions/0070-owned-tenant-bff-sessions.md).
+and Amendments 6 and 7;
+[ADR-0070 Amendments 11 and 12](../decisions/0070-owned-tenant-bff-sessions.md).
 The native BFF applies these rules at every credential publication: code redemption,
 the invitation custody handoff, the consent and active refreshes, selection, creation
 and context switching.
@@ -318,9 +319,22 @@ and context switching.
   null for a local one. Selection, switching and the invitation handoff carry it with
   the credentials.
 - **Admission.** A local token (`idp` absent) follows the existing publication rules;
-  no federation read decides it. A brokered token is admitted only when its `idp`
+  no alias comparison decides it. A brokered token is admitted only when its `idp`
   equals the host tenant's Active, entitled alias (`federationAlias` from the
   authenticated native self read) and, when a provenance was recorded, equals it.
+- **Availability coupling (Step 4 decision D4-8).** The alias is part of every self
+  read and bootstrap result, so an undecidable alias read answers 503 for all of them
+  on that host
+  ([API Design § self entry](04-api-design.md#accepted-p03-3-self-entry-and-administration)),
+  local tokens included. The alias statement runs for every host tenant, with or
+  without a connection; the entitlement read runs only when an Active connection
+  exists. On a local session the existing rules for a refused self read then apply:
+  the entry read, creation (bootstrap) and the invitation custody's self read fail as
+  for any 503, and an active refresh fails and ends the BFF session, as a 503 self
+  read already did. Code redemption, selection and context switching make no self
+  read for a local token and are unaffected. This is the availability class of the
+  self read's own database read and of the entitlement read; it is accepted, and the
+  wire contract has no separate value for it.
 - **Definitive mismatch** (another alias, no Active or entitled connection, a changed
   provenance in either direction): the publication is refused, the BFF session ends
   and the provider session ends server-side at the fixed end-session endpoint with
@@ -330,18 +344,33 @@ and context switching.
 - **Indeterminate** (the self read times out, fails in transport, or answers 429 or
   503, which includes an unavailable alias or entitlement read): the publication is
   refused, an existing brokered session is kept without advancing its idle deadline,
-  no provider session ends, and a new brokered sign-in fails closed.
+  no provider session ends, and a new brokered sign-in fails closed. A timeout includes
+  the BFF's own bounded request timer aborting the self read of an active refresh: the
+  native client's deadline starts later, so that timer fires first.
 - **The test callback** never reaches subject reservation or credential assignment and
   publishes nothing ([Frontend Standards § Tenant federation](07-frontend-architecture.md#tenant-federation)).
+  The test request sends `prompt=login` and `max_age=0`; the result passes only when
+  the ID token's `auth_time` is present and at or after the test window's start. The
+  completion ends the provider session server-side with the test refresh token, as a
+  definitive mismatch does, besides the browser end-session redirect.
 - **Test-record carrier.** `POST identity/federation/test-results` requires the optional
   `federation.test_record` client scope, which only the `federation_test`
   authorization requests. A Studio or ordinary token without it is refused with the
-  closed 403 before the body is read; the scope grants nothing on its own.
-- **Cross-site detail loads (Step 2 review S-E).** The session cookie is
-  `SameSite=Lax`, which a top-level cross-site GET still carries. The federation page
-  prepares no data for `Sec-Fetch-Site: cross-site`, so another site cannot trigger
-  the detail load's provider readback or corrective write. A browser that sends no
-  `Sec-Fetch-Site` header is not covered by this check.
+  closed 403 before the body is read; the scope grants nothing on its own. The
+  authorization `scope` is browser-editable and the provider grants an attached
+  optional scope on request, so the BFF enforces the rest: a redemption by any owner
+  other than the test owner, and every refresh, is refused when the granted `scope`
+  contains `federation.test_record`, and the test redemption is refused without it.
+- **Detail loads by navigation only (Step 2 review S-E, Step 4 review S4-1).** The
+  session cookie is `SameSite=Lax`, which a top-level GET from another site, or from a
+  sibling tenant subdomain of the same site, still carries. The federation page
+  prepares data only for `Sec-Fetch-Site` `same-origin` or `none` on a top-level
+  document navigation (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`), or
+  `same-origin` on an RSC navigation (`RSC: 1`, mode `cors` or `same-origin`, dest
+  `empty`). A `cross-site` or `same-site` request, an embedded document and a
+  subresource prepare nothing, so none can trigger the detail load's provider
+  readback or corrective write. A browser that sends no `Sec-Fetch-Site` header is
+  not covered by this check.
 
 **Residuals.** Removing the `idp` mapper makes brokered tokens look local; enablement
 requires a mapper readback and reconciliation refuses a second emitter. Brokered

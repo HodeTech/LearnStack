@@ -224,10 +224,10 @@ test('the committed import declares the test-record scope optional on learnstack
 });
 
 test('a pre-Step-4 realm gains the optional test-record scope through the core, then reruns zero-write', async () => {
-  const fixture = preStepFour(providerWithoutFederationAdmin());
+  const fixture = preStepFour(provider());
   const recording = providerTransport(fixture);
   const first = await reconcileRealm(input(recording.transport, { federationSecret }));
-  assert.ok(first.mutations >= 2, 'the scope is created and attached as optional');
+  assert.equal(first.mutations, 2, 'exactly two writes: the scope is created and attached as optional');
   const web = fixture.state.clients.find(client => client.clientId === 'learnstack-web');
   assert.ok(web.optionalClientScopes.includes(testRecordScope));
   assert.ok(!web.defaultClientScopes.includes(testRecordScope));

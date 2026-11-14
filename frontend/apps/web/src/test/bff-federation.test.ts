@@ -95,9 +95,12 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
     const [name, proof] = login.split(';', 1)[0]!.split('=');
     const state = name!.slice(BFF_COOKIES.login.length);
     const original = await f.provider.redeem();
+    // The fixture clock's UTC origin is 1_800_000_000_000 ms; the test window opened there.
     f.provider.redeem.mockResolvedValueOnce({
       ...original,
-      identity: { ...original.identity, idp: alias },
+      accessToken: 'test-purpose-access-canary',
+      refreshToken: 'test-purpose-refresh-canary',
+      identity: { ...original.identity, idp: alias, authTime: 1_800_000_000 },
     });
     const callback = (await f.http.handle(
       bffRequest('/api/auth/callback/keycloak?state=' + state + '&code=owned', {
@@ -110,6 +113,22 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
     expect(edits.some((value) => value.startsWith(BFF_COOKIES.session + '=;'))).toBe(true);
     expect(edits.some((value) => value.startsWith(BFF_COOKIES.logout))).toBe(true);
     expect(f.federationTest.record).toHaveBeenCalledTimes(1);
+    const [token, scope, input] = f.federationTest.record.mock.calls[0]! as unknown as [
+      string,
+      Record<string, unknown>,
+      unknown,
+    ];
+    expect(token).toBe('test-purpose-access-canary');
+    expect(scope).toMatchObject({ tenantId: f.scope.tenantId, organizationId: null });
+    expect(input).toEqual({
+      version: '4',
+      attemptId: '019a154b-0000-7000-8000-0000000000aa',
+      passed: true,
+    });
+    // The redemption was the test owner's (the test-record scope admitted and required).
+    expect((f.provider.redeem.mock.calls.at(-1) as unknown[])[3]).toBe(true);
+    for (let turn = 0; turn < 12; ++turn) await Promise.resolve();
+    expect(f.provider.endSession).toHaveBeenCalledWith('test-purpose-refresh-canary');
     expect(f.store.peek(session.binding)).toBeNull();
   });
 
@@ -161,21 +180,62 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
     );
   });
 
-  it('prepares no federation page for a cross-site navigation, so no readback runs', async () => {
+  it('prepares the federation page only for a same-origin or user-initiated navigation (S-E, S4-1)', async () => {
     const f = federated();
+    const fallback = f.administration.getMockImplementation()!;
+    // The control needs a federation administrator, or the page plan denies before any detail read.
+    f.administration.mockImplementation(async (token, binding, operation, signal) => {
+      if (operation.kind === 'getFederationConnection')
+        return {
+          kind: 'success',
+          status: 200,
+          etag: null,
+          location: null,
+          replayed: false,
+          data: { connection: null, provider: 'not_read' },
+        };
+      const result = await fallback(token, binding, operation, signal);
+      return operation.kind === 'getOwnCapabilities' && result.kind === 'success'
+        ? ({
+            ...result,
+            data: { ...(result.data as object), canManageFederation: true },
+          } as typeof result)
+        : result;
+    });
     const session = await f.login();
-    const before = f.administration.mock.calls.length;
-    const projection = await f.http.project(
-      bffRequest('/studio/federation', {
-        cookie: session.cookie,
-        headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-dest': 'document' },
-      }),
-    );
-    expect(projection.session).not.toBeNull();
-    expect(
-      f.administration.mock.calls
+    const navigate = { 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+    const reads = async (headers: Record<string, string>) => {
+      const before = f.administration.mock.calls.length;
+      const projection = await f.http.project(
+        bffRequest('/studio/federation', { cookie: session.cookie, headers }),
+      );
+      expect(projection.session).not.toBeNull();
+      return f.administration.mock.calls
         .slice(before)
-        .some(([, , operation]) => operation.kind === 'getFederationConnection'),
-    ).toBe(false);
+        .filter(([, , operation]) => operation.kind === 'getFederationConnection').length;
+    };
+    // Positive controls: the same protocol path does read the detail.
+    expect(await reads({ 'sec-fetch-site': 'same-origin', ...navigate })).toBe(1);
+    expect(await reads({ 'sec-fetch-site': 'none', ...navigate })).toBe(1);
+    // Refused: another site, a sibling subdomain, and a same-origin request that is not a navigation.
+    expect(await reads({ 'sec-fetch-site': 'cross-site', ...navigate })).toBe(0);
+    expect(await reads({ 'sec-fetch-site': 'same-site', ...navigate })).toBe(0);
+    expect(
+      await reads({
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe',
+      }),
+    ).toBe(0);
+    expect(
+      await reads({
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-mode': 'no-cors',
+        'sec-fetch-dest': 'image',
+      }),
+    ).toBe(0);
+    expect(await reads({ 'sec-fetch-site': 'same-site', 'sec-fetch-dest': 'document' })).toBe(0);
+    // D4-5 residual: a browser that sends no Sec-Fetch-Site is not decided by this check.
+    expect(await reads({ 'sec-fetch-dest': 'document' })).toBe(1);
   });
 });

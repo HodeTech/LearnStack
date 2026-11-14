@@ -37,22 +37,59 @@ public sealed class FederationHostAliasSetterConventionTests
             "Fix: the host alias setter runs exactly SET TRANSACTION READ ONLY, the app.tenant_id announcement and the one "
             + "Active alias read of federation_connections; it announces no other GUC and writes nothing");
 
-        var implementations = ProductionAssemblies.All().SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.GetInterfaces().Any(contract => contract.FullName == Port))
-            .Select(type => type.FullName!).Order(StringComparer.Ordinal).ToArray();
-        implementations.Should().Equal([ReaderType], "the setter is enumerated: one implementation of the port");
+        Implementations(ProductionAssemblies.All().SelectMany(assembly => assembly.GetTypes()))
+            .Should().Equal([ReaderType], "the setter is enumerated: one implementation of the port");
 
         var callers = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var assembly in ProductionAssemblies.All())
         {
             using var production = ModuleDefinition.ReadModule(assembly.Location);
-            foreach (var type in production.Types.SelectMany(Flatten))
-                foreach (var method in type.Methods.Where(method => method.HasBody))
-                    if (method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference target
-                            && target.DeclaringType.FullName == Port && target.Name == "ReadActiveAliasAsync"))
-                        callers.Add(Owner(type));
+            callers.UnionWith(Callers(production));
         }
         callers.Should().Equal([Entry], "only the global self read consults the host alias setter");
+    }
+
+    /// <summary>
+    /// Step 4 review: planted controls for the implementation and caller censuses themselves, not only the statement
+    /// detector. A second implementation and a second caller, compiled into this assembly, are each found.
+    /// </summary>
+    [Fact]
+    public void The_host_alias_setter_censuses_find_a_planted_implementation_and_a_planted_caller()
+    {
+        Implementations(typeof(FederationHostAliasSetterConventionTests).Assembly.GetTypes())
+            .Should().Equal([typeof(PlantedAliasReader).FullName!], "a second implementation of the port is enumerated");
+        Implementations([typeof(FederationHostAliasSetterConventionTests)]).Should().BeEmpty("the dirty control");
+        using var module = ModuleDefinition.ReadModule(typeof(FederationHostAliasSetterConventionTests).Assembly.Location);
+        Callers(module).Should().Equal([typeof(PlantedAliasCaller).FullName!.Replace('+', '/')],
+            "a second caller, its async state machine included, is attributed to its declaring type");
+    }
+
+    private static string[] Implementations(IEnumerable<Type> types) => types
+        .Where(type => type.GetInterfaces().Any(contract => contract.FullName == Port))
+        .Select(type => type.FullName!).Order(StringComparer.Ordinal).ToArray();
+
+    private static SortedSet<string> Callers(ModuleDefinition module)
+    {
+        var callers = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var type in module.Types.SelectMany(Flatten))
+            foreach (var method in type.Methods.Where(method => method.HasBody))
+                if (method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference target
+                        && target.DeclaringType.FullName == Port && target.Name == "ReadActiveAliasAsync"))
+                    callers.Add(Owner(type));
+        return callers;
+    }
+
+    private sealed class PlantedAliasReader : LearnStack.Modules.Identity.Application.Contracts.Entry.IFederationHostAliasReader
+    {
+        public Task<string?> ReadActiveAliasAsync(LearnStack.SharedKernel.Identifiers.TenantId hostTenant,
+            CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+    }
+
+    private static class PlantedAliasCaller
+    {
+        public static async Task<string?> ReadAsync(
+            LearnStack.Modules.Identity.Application.Contracts.Entry.IFederationHostAliasReader reader,
+            LearnStack.SharedKernel.Identifiers.TenantId tenant) => await reader.ReadActiveAliasAsync(tenant);
     }
 
     [Fact]

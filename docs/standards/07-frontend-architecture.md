@@ -1129,21 +1129,26 @@ fresh read and retained read-only input, without automatic mutation retry.
 ## Tenant federation
 
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) and its
-Amendment 6. P03-8 Step 4 implements it; the
+Amendments 6 and 7. P03-8 Step 4 implements it; the
 [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
 
-**Authorization purposes.** The closed purpose set is `verify_email` and
-`federation_test` ([ADR-0070 Amendment 11](../decisions/0070-owned-tenant-bff-sessions.md)),
-plus the ordinary sign-in, which may start at the host tenant's broker. Their
-callbacks are mutually exclusive: `complete` never finishes a test owner, a test
-callback admits no `kc_action` result, and an ordinary or verification owner never
-completes as a test. Every alias comes from a server-side read, never from the browser.
+**Authorization purposes.** Besides the ordinary sign-in (no purpose), the closed
+purpose set is `verify_email`, `federation_signin` and `federation_test`
+([ADR-0070 Amendments 11 and 12](../decisions/0070-owned-tenant-bff-sessions.md)).
+`federation_signin` is an ordinary sign-in that starts at the host tenant's broker: the
+alias hint only, no forced login, no extra scope and the ordinary publication rules.
+The callbacks are mutually exclusive: `complete` never finishes a test owner, a test
+callback admits no `kc_action` result, and an ordinary, `federation_signin` or
+verification owner never completes as a test. Only the test owner's redemption admits
+the `federation.test_record` scope, and it requires it; any other redemption or a
+refresh carrying it is refused. Every alias comes from a server-side read, never from
+the browser.
 
 | Purpose | Authorization request | Callback |
 |---|---|---|
 | Ordinary sign-in | `openid profile email` | Entry owner; host binding at redemption |
-| Federation sign-in | Ordinary request plus `kc_idp_hint` = the host's Active alias from the public sign-in read | As ordinary sign-in |
-| `federation_test` | `openid profile email federation.test_record`, `kc_idp_hint` = the tested alias, `prompt=login` | Publishes nothing; records the result; signs the administrator out |
+| `federation_signin` | Ordinary request plus `kc_idp_hint` = the host's Active alias from the public sign-in read | As ordinary sign-in |
+| `federation_test` | `openid profile email federation.test_record`, `kc_idp_hint` = the tested alias, `prompt=login`, `max_age=0` | Publishes nothing; records the result; ends the provider session; signs the administrator out |
 
 **The test owner.** `POST /api/studio/federation-test` (current session and CSRF)
 starts the test window with the administrator's token through the BFF-only
@@ -1151,12 +1156,14 @@ federation test client and holds the attempt identifier, alias and connection
 revision in the administrator's server-side owner for the ten-minute window; a
 repeated start inside the window reuses it. The identifier never reaches the
 browser, a response or a log. The callback validates the ID token like any sign-in.
-The result passes only when `idp` is the tested alias and the issuer and subject are
-the administrator's. The BFF records it through `POST identity/federation/test-results`
-with the test-purpose access token, publishes nothing, reserves no subject, assigns
-no credentials and discards every token. It then ends the administrator's BFF session
-and redirects through the provider end-session. A callback without tokens (an IdP
-error or abandonment) records nothing; the window expires.
+The result passes only when `idp` is the tested alias, the issuer and subject are the
+administrator's and `auth_time` is present and at or after the window's start. The BFF
+records it through `POST identity/federation/test-results` with the test-purpose access
+token, publishes nothing, reserves no subject, assigns no credentials and discards
+every token. It then ends the provider session server-side with the test refresh
+token, ends the administrator's BFF session and redirects through the provider
+end-session. A callback without tokens (an IdP error or abandonment) records nothing;
+the window expires.
 
 **Host binding.** Every credential publication applies
 [Security § Federation host binding](11-security.md#federation-host-binding): code
@@ -1174,10 +1181,11 @@ holders of the advisory `canManageFederation` capability; the API authorizes eve
 operation. It renders the three steps, the IdP values (redirect or ACS URL, SP entity
 identifier, SP descriptor URL) derived server-side from the alias and the configured
 realm issuer, pending, drift and unavailable banners with Resume, and the
-explanations ADR-0099 § User experience requires. A cross-site navigation
-(`Sec-Fetch-Site: cross-site`) prepares no page data, so it cannot trigger the
-detail load's readback or corrective write. The native federation forms join the
-closed POST set:
+explanations ADR-0099 § User experience requires. Only a same-origin or
+user-initiated navigation prepares page data (the fetch-metadata rule in
+[Security § Federation host binding](11-security.md#federation-host-binding)); a
+cross-site or same-site request cannot trigger the detail load's readback or
+corrective write. The native federation forms join the closed POST set:
 
 | Path | Operation |
 |---|---|

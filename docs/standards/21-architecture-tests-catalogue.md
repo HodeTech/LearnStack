@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**376 test methods run in
+**377 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -7716,8 +7716,9 @@ sign-in read). The
   (H), [Database Standards § the logical-setter census](05-database.md#invitation-entry-and-consumption).
 - **Type:** IL string scan of the reader and its state machines, implementation and
   caller census over production assemblies; planted writes, widened announcements, a
-  second or an Active-less read, and a missing read-only statement. **Kind:**
-  structural.
+  second or an Active-less read, and a missing read-only statement; a planted second
+  implementation and a planted async caller, each found by the censuses (P03-8 Step 4
+  review round 1). **Kind:** structural.
 - **Status:** **Implemented** (`FederationHostAliasSetterConventionTests`).
 - **Test owner:** [FederationHostAliasSetterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationHostAliasSetterConventionTests.cs).
 - **Phase:** 03 (P03-8 Step 4).

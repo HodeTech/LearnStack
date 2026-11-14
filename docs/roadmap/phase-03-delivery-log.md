@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,873 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,988 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -501,7 +501,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 3 commit and log correction (2026-11-14)](#p03-8-step-3-commit-and-log-correction-2026-11-14) — 23 lines
   - [P03-8 Step 3 review round 1 corrections (2026-11-14)](#p03-8-step-3-review-round-1-corrections-2026-11-14) — 85 lines
   - [P03-8 Step 3 review round 2 corrections (2026-11-14)](#p03-8-step-3-review-round-2-corrections-2026-11-14) — 77 lines
-  - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 193 lines
+  - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 200 lines
+  - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 108 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23585,14 +23586,21 @@ closed.
 <oasdiff> --output <dir>` ran in a `linux/amd64` `python:3.12-slim` container after
 `scripts/install-oasdiff.py` verified `oasdiff version 1.33.0` (archive SHA-256
 `43a4e328…5247`). Exit 1; `result.json` is `{"policyRefused": true, "rawToolRefused":
-false}`. The policy and raw outputs, as printed:
+false}`. The two outputs, quoted from that run (its output directory is not in the
+repository).
+
+Policy result:
 
 ```text
 1 changes: 1 error, 0 warning, 0 info
 error	[response-body-one-of-added] at /tmp/res/comparison/normalized-head.json
 	in API GET /api/v1/identity/self
 		added `subschema #1, subschema #2` to the response body `oneOf` list for the response status `200`
+```
 
+Raw tool result:
+
+```text
 No breaking changes to report, but the specs are different.
 Run 'oasdiff diff' to see structural differences.
 ```
@@ -23628,3 +23636,111 @@ manual accessibility audit of the Studio page.
 - Unchanged: the delegation residual, the realm-wide adapter role, the delayed-write
   window, an owned broker that no longer reads as a protocol (P03-9), and an
   allow-list entry admitting its host for every tenant.
+
+### P03-8 Step 4 review round 1 corrections (2026-11-15)
+
+The first independent review of Step 4 (`77075be1`) reported four security findings
+(S4-1–S4-4) and eleven corpus and test findings (C4-1–C4-11), plus three open gaps.
+Each was verified in the code before it was acted on. C4-7 is confirmed as stated
+(the six failures are explained below) and needs no change; the rest are confirmed
+and fixed in the commit that adds this record.
+[ADR-0099 Amendment 7](../decisions/0099-confined-tenant-federation.md#amendment-7--step-4-review-purposes-test-freshness-and-detail-loads-2026-11-15)
+and [ADR-0070 Amendment 12](../decisions/0070-owned-tenant-bff-sessions.md#amendment-12--federation-sign-in-purpose-and-server-side-end-session-2026-11-15)
+record every change to ADR-stated behaviour; no Decision changes. The packet is not
+shipped, so the [Step 4 record](#p03-8-step-4--native-and-studio-2026-11-14)'s OpenAPI
+block is labelled in place (C4-6); nothing else in it is rewritten.
+
+**Security findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| S4-1 | Fixed | `http-protocol.ts` refused only `Sec-Fetch-Site: cross-site`; a `same-site` request from a sibling tenant subdomain reached `preparePage` and the detail read. `federationNavigation` now prepares the federation page only for `same-origin` or `none` on a top-level document navigation (`navigate`/`document`) or `same-origin` on an RSC navigation (`RSC: 1`, `cors` or `same-origin`, `empty`); every other request is admitted passively with no page data, the existing closed response. A request without `Sec-Fetch-Site` is unchanged (the D4-5 residual). `bff-federation.test.ts` drives the protocol with a federation administrator: `same-origin` and `none` navigations read the detail once each (positive controls); `cross-site`, `same-site`, a same-origin iframe, a same-origin image and a `same-site` request with only `Sec-Fetch-Dest` read nothing; a request without `Sec-Fetch-Site` reads it (residual). Reverting the guard to `cross-site` only fails the test. |
+| S4-2 | Fixed | `provider-core.ts` rejected only `offline_access` from the granted scope. `credentials` now refuses any grant or refresh whose `scope` contains `federation.test_record` unless the caller is the `federation_test` owner, and refuses the test redemption without it. `redeem` takes `testRecord`, which the session store passes as `!!entry.federationTest`; a refresh never passes it. New `provider.test.ts` case: ordinary and `federation_signin` redemptions with the scope refused; the test redemption without the scope, or with no `scope`, refused; with it, admitted; a refresh that keeps it refused; an ordinary refresh admitted. The session-store test asserts the test redemption passed `true` and the administrator's passed `false`. Removing the check fails the test. |
+| S4-3 | Fixed | The test request now also sends `max_age=0`. The ID token's `auth_time` is read into the optional `ProviderIdentity.authTime` (a non-positive or non-integer value refuses); the held attempt records its window start (UTC), and `#completeTest` passes only when `auth_time` is present and at or after it. `#completeTest` also ends the provider session server-side with the test refresh token through `#endProviderSession`, D4-1's helper, before the browser end-session redirect. New tests: the URL carries `max_age=0` (absent on the other purposes); an `auth_time` one second before the window, or none, records a failed test; one inside the window passes; the completion calls `endSession` with the test refresh token. Mutating each of the three fails its test. The claim is bounded in Amendment 7 item 3: the provider authenticated anew through the tested broker; whether the upstream IdP prompted is not claimed. |
+| S4-4 | Fixed (classification) | Confirmed by reading: in `#ready` the refresh grant and the self read share `#bounded`'s 10-second timer; the native client's own 10-second deadline starts later, so the timer aborts the self read, the transport rejects it as `cancelled`, `#bounded` reclassifies it as `deadline` and `#close(entry)` ends a brokered session. The self-read catch now treats an abort of the bounded signal while the owner is live and the store is running as indeterminate (`host_unavailable`) for a brokered session; one timer remains. New test: a brokered session whose self read hangs past 10,000 ms of fake time is kept, its idle deadline unchanged, no provider session ended, and the next read succeeds; a local session in the same situation still ends (the old rule). Removing the clause fails the test. |
+
+**Corpus and test findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| C4-1 | Fixed (documented) | Confirmed: `GlobalSelfEntryMiddleware` reads the alias for every host-classified self read and bootstrap result and answers 503 when it cannot decide; for a local session the active refresh then closes the session (the pre-Step-4 rule for any refused self read). The coupling is accepted and recorded as **D4-8** below, in Standard 11 (§ Federation host binding, a new Availability coupling bullet; the Admission bullet now says "no alias comparison decides it"), Standard 04 (§ Accepted P03-3 self entry) and Amendment 7 item 7. No wire change. |
+| C4-2 | Fixed | `ProviderPurpose` admits `verify_email`, `federation_signin` and `federation_test`. Standard 07 § Tenant federation, ADR-0070 Amendment 12 and ADR-0099 Amendment 7 item 1 now list three, with `federation_signin`'s semantics as the code implements them. ADR-0070 already had Amendments 1–11, so its new amendment is 12, not 7. The `provider-core.ts` comment now cites both amendments. Other enumerations checked: `provider.test.ts` (begin cases), `session-store.test.ts` and `bff-federation.test.ts` exercise all three; Architecture 13 and 14 name only `federation_test` and enumerate no set. |
+| C4-3 | Fixed | The detail-load test now has same-origin and `none` positive controls through the protocol (S4-1), with `canManageFederation` granted so the plan reaches the detail read. The callback test asserts `record`'s arguments: the test-purpose access token, the tenant scope, `{ version: '4', attemptId, passed: true }`; that the redemption passed `testRecord`; and that the provider session ended with the test refresh token. |
+| C4-4 | Fixed | `docs/modules/identity/README.md` lists "re-enable a Disabled connection (back to Draft, so a new test is required)" and the BFF's scope refusal and server-side end-session. |
+| C4-5 | Fixed | ADR-0070 Amendment 12 states the server-side end-session as the implementation of Amendment 11's OIDC end-session where no browser navigation exists. |
+| C4-6 | Fixed | The Step 4 OpenAPI block is split under "Policy result:" (the `policy-tool` output on the normalized documents) and "Raw tool result:" (the `raw-tool` output), each quoted exactly, with the note that the output directory is not in the repository. |
+| C4-7 | Verified; no change | Five assertion sites changed, but the one at `TenantRealmReconciliationTests.Preparation.cs` line 151 is inside a `[Theory]` with two `InlineData` rows (`lost_acknowledgement`, `partial_cancel`), so five sites are six test cases: 1 (`TenantRealmApiTests.WarmQualification`) + 1 + 2 + 1 (`TenantRealmReconciliationTests.Preparation`) + 1 (`TenantRealmStockBaselineTests`). The log's "six" is right. |
+| C4-8 | Fixed | The test now asserts exactly two writes. With the old fixture (`providerWithoutFederationAdmin`) the core also created the federation admin client, so the first pass made six writes; the test now starts from the full current realm without the scope (`preStepFour(provider())`), where the two scope writes are the only ones, matching the Integration pin (37 to 39). |
+| C4-9 | Fixed (claim removed) | The BFF comparison is TypeScript in the session store; it cannot run from this C# test. Section 4's assertions restated section 3 or held by construction, and are removed with tenant B's broker setup they used. Section 3 now says the claim is the token value only and that the comparison runs in the BFF's session-store tests. |
+| C4-10 | Fixed | `federationFieldLabel`'s default (the word "required" as a label) was unreachable: `federation-forms.ts` reports only the twelve named fields and `confirm`. The default now returns no label and unlabelled names are dropped. New `html.test.ts` case: an unlisted name renders the same closed failure as an empty list and never "required"; a listed field is named. |
+| C4-11 | Fixed | The five glossary entries say ADR-0099 "defines". |
+
+**Open gaps.**
+
+| Gap | Outcome |
+|---|---|
+| Planted control for the host-alias setter's implementation and caller census | Added. `FederationHostAliasSetterConventionTests` factors both censuses into helpers; `The_host_alias_setter_censuses_find_a_planted_implementation_and_a_planted_caller` plants an implementation of `IFederationHostAliasReader` and an async caller in the Architecture assembly and asserts each is found (the caller through its state machine), with a dirty control. |
+| Unit test for `TenantTokenProfile.HasScope` | Added. `TenantTokenProfileScopeTests` (12 cases) drives `TryReadValidated`: whole-token matches set the flag; a suffix, prefix, case variant, partial name or missing claim do not; a tab, a double space or `platform` refuse at `Scope` before the flag is read. |
+| The dispatcher refuses the test-start and test-record kinds | Added to `native-clients.test.ts` ("refuses unknown operations and SDK-invalid IDs before any transport"): five plausible spellings of a test-start or test-record kind return `invalid-request` with no transport call. The `NativeOperation` union has no such kind; the BFF-only `createNativeFederationTestApi` is their only client. |
+
+**Decision made in this round.**
+
+- **D4-8 — Local self reads share the alias read's availability.** An undecidable alias
+  read answers 503 for every self read and bootstrap on that host, local sessions and
+  tenants without a connection included (the alias statement runs for every host
+  tenant; the entitlement read only when an Active connection exists). Local paths
+  affected: the entry read, creation (bootstrap), the invitation custody's self read,
+  and the active refresh, which ends the BFF session as any refused self read did. Code
+  redemption, selection and switching make no self read for a local token. Accepted as
+  the self read's existing database and entitlement availability class; no new wire
+  value.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the corrected
+working tree over `77075be1`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release` (also `--no-incremental`) | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --no-restore --include` (the three changed C# files) | exit 0 |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 4,135 passed, 0 failed, 0 skipped (4,123 plus the 12 `TenantTokenProfileScopeTests` cases) |
+| Architecture, Release: `FederationHostAliasSetterConventionTests` | 3 passed, 0 failed, 0 skipped |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 664 total: 663 passed, 1 failed, 0 skipped (48 min 59 s). The failure was `CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules`: Standard 21 published 376 methods and the new census control makes 377. Corrected (Standard 21 now says 377 and describes the planted census controls); the corpus-reading classes (`CorpusConsistencyTests`, `AuditCoverageTests`, `AuditConventionTests`, `DomainGenericityTests`, `RepositoryLayoutTests`, `RequestSurfaceTests`, `AsyncStoreInventoryTests`) with `FederationHostAliasSetterConventionTests` and `FederationAdapterConventionTests` were rerun on the final tree, which also covers the corpus edits made during the full run: 145 passed, 0 failed, 0 skipped |
+| Integration, Release: `FederationProviderTests` and `TenantBffSessionTests` (Docker; the real BFF built from this tree against real Keycloak) | 31 passed (15 and 16), 0 failed, 0 skipped (12 min 9 s) |
+| `pnpm test` (frontend guarded workspace runner) | `apps/web` 133 files, 4,385 passed; `packages/sdk` 13 files, 233 passed; "Frontend guard: 4618 passed in 2 packages; zero skips/todos." |
+| `pnpm typecheck`, `pnpm lint` (frontend workspace) | clean; "No ESLint warnings or errors" |
+| `prettier --check` (every changed frontend file) | clean |
+| `node scripts/verify-bff-protocol.mjs --ui` (in `frontend/apps/web`) | "BFF production UI: passed" |
+| `node --test scripts/development-realm-federation.test.mjs` | 33 passed, 0 failed |
+| `python3 scripts/run-realm-node-tests.py` | "Complete development realm census: 13 files, 498 executed passing tests." |
+| `python3 scripts/test-realm-node-gate.py` | 6 tests OK |
+| `python3 scripts/test-ci-native-tests.py` | 111 tests OK |
+| `python3 scripts/test-ci-test-shards.py` | 88 tests OK |
+| `make docs-index`, `make lint-docs` | index regenerated; "3812 fragment links resolve", roadmap structure conforms, "Delivery log indexes: 3 current."; exit 0 |
+
+Not run: the OpenAPI gate (no OpenAPI or SDK contract changed in this round; the
+Step 4 transition record remains the maintainer's), the Contract suite, the
+Integration suite outside the classes listed, `make demo DEMO_MODE=ci`, hosted CI and
+the A/B layout qualification, and a browser, axe or manual accessibility audit.
+
+**Residual risks.**
+
+- A browser that sends no `Sec-Fetch-Site` can still trigger the detail readback
+  through a cross-site navigation (D4-5, unchanged).
+- The test proves a fresh provider authentication through the tested broker; whether
+  the upstream IdP re-prompted depends on that IdP (Amendment 7 item 3). Clock skew
+  between the BFF and the provider larger than the time between the window start and
+  the sign-in records a failed test, never a pass.
+- D4-8's availability coupling for local sessions.
+- Unchanged from the Step 4 record: the delegation residual, the realm-wide adapter
+  role, the delayed-write window, an owned broker that no longer reads as a protocol
+  (P03-9), and an allow-list entry admitting its host for every tenant.
+
+**Open items.**
+
+- The OpenAPI self-response transition record (maintainer, ADR-0096).
+- The manual accessibility checks for the Studio page and the sign-in option
+  (maintainer).
+- Step 4 review round 2.
+- The PR.
+- The commit-trailer model name (maintainer). This commit carries the trailer the
+  brief names.
