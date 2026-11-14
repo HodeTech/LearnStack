@@ -23,8 +23,11 @@ internal enum BrokeredStop
     OAuthError,
 }
 
+/// <remarks><see cref="DeliveredSamlResponses"/> counts SAML POST-binding responses the browser delivered to the tenant
+/// broker endpoint; it is zero for an OIDC broker. <see cref="SignatureRefused"/> is the closed fact that the error page
+/// was the pinned provider's invalid-signature refusal of the delivered SAML response.</remarks>
 internal sealed record BrokeredResult(BrokeredStop Stop, KeycloakAuthorization? Authorization, bool ReachedIdentityProvider,
-    bool ReachedConfirmation, bool PrefilledUsername)
+    bool ReachedConfirmation, bool PrefilledUsername, int DeliveredSamlResponses = 0, bool SignatureRefused = false)
 {
     public override string ToString() => "Brokered flow result (sensitive values omitted)";
 }
@@ -60,6 +63,7 @@ internal sealed partial class KeycloakBrowserFlow
         var response = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, path);
         var lastPath = "authorize";
         bool reachedIdp = false, reachedConfirmation = false, prefilled = false;
+        var samlResponses = 0;
         try
         {
             for (var hop = 0; hop < MaximumHops; hop++)
@@ -73,7 +77,7 @@ internal sealed partial class KeycloakBrowserFlow
                     {
                         var callback = Callback(response, redirectUri, state, verifier, "learnstack-web", nonce)!;
                         return new(callback.Authorized ? BrokeredStop.Authorized : BrokeredStop.OAuthError, callback, reachedIdp,
-                            reachedConfirmation, prefilled);
+                            reachedConfirmation, prefilled, samlResponses);
                     }
                     if (!SameOrigin(target, _baseAddress))
                         throw new InvalidOperationException("Brokered flow left the owned provider origin.");
@@ -89,7 +93,14 @@ internal sealed partial class KeycloakBrowserFlow
                         + ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture) + " after " + lastPath + ".");
                 var html = await KeycloakHttp.ReadBodyAsync(response);
                 var form = Form(html, out var fields, out var action);
-                if (form == "kc-form-login" && action.AbsolutePath.StartsWith("/realms/federation-idp-", StringComparison.Ordinal))
+                if (SamlPostBinding(fields, action, alias) is { } binding)
+                {
+                    // The SAML POST binding page auto-submits its hidden form, as a browser's script would: the
+                    // AuthnRequest to the test IdP, or the IdP's response to the tenant broker endpoint. Nothing is edited.
+                    if (binding == SamlMessage.Request) reachedIdp = true;
+                    else samlResponses++;
+                }
+                else if (form == "kc-form-login" && action.AbsolutePath.StartsWith("/realms/federation-idp-", StringComparison.Ordinal))
                 {
                     reachedIdp = true;
                     fields["username"] = idpUsername;
@@ -98,22 +109,28 @@ internal sealed partial class KeycloakBrowserFlow
                 else if (html.Contains("value=\"linkAccount\"", StringComparison.Ordinal))
                 {
                     reachedConfirmation = true;
-                    if (!confirmLink) return new(BrokeredStop.ConfirmationAbandoned, null, reachedIdp, true, prefilled);
+                    if (!confirmLink) return new(BrokeredStop.ConfirmationAbandoned, null, reachedIdp, true, prefilled, samlResponses);
                     fields["submitAction"] = "linkAccount";
                 }
                 else if (form == "kc-form-login" && action.AbsolutePath.StartsWith("/realms/" + _realm + "/login-actions/", StringComparison.Ordinal))
                 {
-                    if (!reachedIdp) return new(BrokeredStop.LocalLogin, null, false, false, false);
+                    if (!reachedIdp) return new(BrokeredStop.LocalLogin, null, false, false, false, samlResponses);
                     // A redisplayed form after one submission is a refusal; nothing is retried.
                     if (localUsername is null || localPassword is null)
-                        return new(BrokeredStop.ReauthenticationRefused, null, reachedIdp, reachedConfirmation, prefilled);
+                        return new(BrokeredStop.ReauthenticationRefused, null, reachedIdp, reachedConfirmation, prefilled, samlResponses);
                     prefilled = fields.TryGetValue("username", out var shown) && shown.Length != 0;
                     fields["username"] = localUsername;
                     fields["password"] = localPassword;
                     localUsername = null;
                     localPassword = null;
                 }
-                else return new(BrokeredStop.ErrorPage, null, reachedIdp, reachedConfirmation, prefilled);
+                else
+                {
+                    var signatureRefused = response.StatusCode == HttpStatusCode.BadRequest
+                        && lastPath == "POST /realms/" + _realm + "/broker/" + alias + "/endpoint"
+                        && html.Contains("Invalid signature in response from identity provider", StringComparison.Ordinal);
+                    return new(BrokeredStop.ErrorPage, null, reachedIdp, reachedConfirmation, prefilled, samlResponses, signatureRefused);
+                }
                 response.Dispose();
                 lastPath = "POST " + action.AbsolutePath;
                 response = await KeycloakHttp.SendAsync(_client, HttpMethod.Post, action.PathAndQuery, new FormUrlEncodedContent(fields));
@@ -121,6 +138,23 @@ internal sealed partial class KeycloakBrowserFlow
             throw new InvalidOperationException("Brokered flow exceeded its hop bound.");
         }
         finally { response.Dispose(); }
+    }
+
+    private enum SamlMessage { Request, Response }
+
+    /// <summary>
+    /// A SAML POST-binding form: exactly one SAML message field, posted to the test IdP's SAML endpoint (a request) or to
+    /// the tenant broker endpoint for <paramref name="alias"/> (a response). Any other target is not followed.
+    /// </summary>
+    private SamlMessage? SamlPostBinding(Dictionary<string, string> fields, Uri action, string alias)
+    {
+        var request = fields.ContainsKey("SAMLRequest");
+        var response = fields.ContainsKey("SAMLResponse");
+        if (request == response) return null;
+        if (request && action.AbsolutePath == "/realms/" + KeycloakFixture.SamlIdentityProviderRealm + "/protocol/saml")
+            return SamlMessage.Request;
+        if (response && action.AbsolutePath == "/realms/" + _realm + "/broker/" + alias + "/endpoint") return SamlMessage.Response;
+        throw new InvalidOperationException("SAML POST binding targets an unexpected endpoint.");
     }
 
     /// <summary>The first form on the page with its hidden and prefilled text inputs, or null.</summary>

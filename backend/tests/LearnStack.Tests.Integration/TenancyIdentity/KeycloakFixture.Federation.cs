@@ -15,7 +15,8 @@ public sealed partial class KeycloakFixture
 {
     internal const string IdentityProviderClientId = "learnstack-tenant-broker";
     internal const string IdentityProviderPassword = "federation-idp-user-password";
-    internal static readonly string[] IdentityProviderRealms = ["federation-idp-a", "federation-idp-b"];
+    internal const string SamlIdentityProviderRealm = "federation-idp-saml";
+    internal static readonly string[] IdentityProviderRealms = ["federation-idp-a", "federation-idp-b", SamlIdentityProviderRealm];
 
     /// <summary>The container-internal origin the tenant realm uses for back-channel calls to a test IdP realm.</summary>
     internal static readonly Uri InternalOrigin = new("https://localhost:8443/");
@@ -67,6 +68,78 @@ public sealed partial class KeycloakFixture
                 }),
             })]),
         };
+        await CreateRealmAsync(realm);
+    }
+
+    /// <summary>
+    /// Creates the test SAML IdP realm: one SAML client whose entity id is the tenant realm's own issuer (the broker's
+    /// default SP entity id, since the closed profile sets none) and whose only assertion consumer is the tenant broker
+    /// endpoint for <paramref name="alias"/>. It signs both the response and the assertion with the realm's own RS256
+    /// key, accepts unsigned AuthnRequests (the profile sends none signed), always issues a persistent NameID, and
+    /// asserts the address only as the X.500 email attribute the pinned broker reads.
+    /// </summary>
+    internal async Task CreateSamlIdentityProviderRealmAsync(string alias, params string[] emails)
+    {
+        var acs = new Uri(BaseAddress, "realms/learnstack/broker/" + alias + "/endpoint").AbsoluteUri;
+        var realm = new JsonObject
+        {
+            ["realm"] = SamlIdentityProviderRealm,
+            ["enabled"] = true,
+            ["sslRequired"] = "external",
+            ["registrationAllowed"] = false,
+            ["clients"] = new JsonArray(new JsonObject
+            {
+                ["clientId"] = Issuer,
+                ["enabled"] = true,
+                ["protocol"] = "saml",
+                ["frontchannelLogout"] = false,
+                ["redirectUris"] = new JsonArray(acs),
+                ["attributes"] = new JsonObject
+                {
+                    ["saml.server.signature"] = "true",
+                    ["saml.assertion.signature"] = "true",
+                    ["saml.client.signature"] = "false",
+                    ["saml.encrypt"] = "false",
+                    ["saml.signature.algorithm"] = "RSA_SHA256",
+                    ["saml.authnstatement"] = "true",
+                    ["saml_name_id_format"] = "persistent",
+                    ["saml_force_name_id_format"] = "true",
+                    ["saml_assertion_consumer_url_post"] = acs,
+                },
+                ["protocolMappers"] = new JsonArray(new JsonObject
+                {
+                    ["name"] = "X500 email",
+                    ["protocol"] = "saml",
+                    ["protocolMapper"] = "saml-user-property-mapper",
+                    ["consentRequired"] = false,
+                    ["config"] = new JsonObject
+                    {
+                        ["attribute.nameformat"] = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+                        ["user.attribute"] = "email",
+                        ["friendly.name"] = "email",
+                        ["attribute.name"] = "urn:oid:1.2.840.113549.1.9.1",
+                    },
+                }),
+            }),
+            ["users"] = new JsonArray([.. emails.Select(email => (JsonNode)new JsonObject
+            {
+                ["username"] = email,
+                ["email"] = email,
+                ["emailVerified"] = true,
+                ["enabled"] = true,
+                ["firstName"] = "Federated",
+                ["lastName"] = "Person",
+                ["credentials"] = new JsonArray(new JsonObject
+                {
+                    ["type"] = "password", ["value"] = IdentityProviderPassword, ["temporary"] = false,
+                }),
+            })]),
+        };
+        await CreateRealmAsync(realm);
+    }
+
+    private async Task CreateRealmAsync(JsonObject realm)
+    {
         using var client = KeycloakHttp.Create(new Uri(BaseAddress, "admin/"), RootCertificate);
         var credential = await AuthenticateAdministratorAsync(CancellationToken.None);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);

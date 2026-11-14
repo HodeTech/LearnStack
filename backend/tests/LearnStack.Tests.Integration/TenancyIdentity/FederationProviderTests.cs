@@ -26,9 +26,19 @@ public sealed class FederationKeycloakFixture : IAsyncLifetime
     internal const string IdpSecretB = "federation-idp-b-client-secret";
     internal const string UnknownPerson = "unknown-person@federation.test";
     internal const string ResetPerson = "reset-person@tenant-a.test";
+    internal const string SamlPerson = "saml-person@tenant-a.test";
     internal KeycloakFixture Keycloak { get; private set; } = null!;
     internal FederationBrokerOwner OwnerA { get; } = Owner();
     internal FederationBrokerOwner OwnerB { get; } = Owner();
+
+    /// <summary>Tenant A's SAML connection: the same tenant as <see cref="OwnerA"/>, its own connection and alias.</summary>
+    internal FederationBrokerOwner OwnerSaml { get; }
+
+    public FederationKeycloakFixture()
+    {
+        var connection = Guid.CreateVersion7();
+        OwnerSaml = new(OwnerA.TenantId, connection, FederationBrokerOwner.AliasPrefix + connection.ToString("N"));
+    }
 
     public async Task InitializeAsync()
     {
@@ -37,6 +47,7 @@ public sealed class FederationKeycloakFixture : IAsyncLifetime
         await Keycloak.CreateIdentityProviderRealmAsync("federation-idp-a", OwnerA.Alias, IdpSecretA,
             UnknownPerson, "demo-learner@tenant-a.test", "demo-admin@tenant-a.test", ResetPerson);
         await Keycloak.CreateIdentityProviderRealmAsync("federation-idp-b", OwnerB.Alias, IdpSecretB, "demo-learner@tenant-b.test");
+        await Keycloak.CreateSamlIdentityProviderRealmAsync(OwnerSaml.Alias, SamlPerson);
     }
 
     public async Task DisposeAsync() => await Keycloak.DisposeAsync();
@@ -53,7 +64,7 @@ public sealed class FederationKeycloakFixture : IAsyncLifetime
 /// flow and the owned provider's test IdP realms. Each case carries its dirty control.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class FederationProviderTests(FederationKeycloakFixture federation) : IClassFixture<FederationKeycloakFixture>
+public sealed partial class FederationProviderTests(FederationKeycloakFixture federation) : IClassFixture<FederationKeycloakFixture>
 {
     private const string Callback = "https://demo-english.learnstack.local:3000/api/auth/callback/keycloak";
     private KeycloakFixture Keycloak => federation.Keycloak;
