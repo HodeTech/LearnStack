@@ -265,7 +265,7 @@ baseline provider-credential-rotation row covers `rotate_secret`.
 | FederationConnection | `identity.federation.apply` | **MUST** (`security-event`) | `CompleteFederationOperationCommand` (the Complete outcome: applied, failed or uncertain) and `ReconcileFederationConnectionCommand` (a detail load's drift or expired window). |
 | FederationConnection | `identity.federation.enable` | **MUST** (`security-event`) | `EnableFederationCommand`; Disabled to Draft with no provider write. |
 | FederationConnection | `identity.federation.activate` | **MUST** (`security-event`) | `ActivateFederationCommand`; the connection becomes advertised and admits brokered sessions. |
-| FederationConnection | `identity.federation.test_record` | **MUST** (`security-event`) | `RecordFederationTestResultCommand`; intended as the BFF's server-side test result, never browser-invocable, but not enforced until Step 4 (S-B). |
+| FederationConnection | `identity.federation.test_record` | **MUST** (`security-event`) | `RecordFederationTestResultCommand`; the BFF's server-side test result, never browser-invocable: the route requires the `federation.test_record` token scope ([ADR-0099 Amendment 6](../../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)). |
 
 `GetFederationConnectionQuery` is an explicit Off binding: the connection detail holds
 no personal data. `GetPublicSignInQuery` is an explicit Off public read: it is

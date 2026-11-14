@@ -820,7 +820,19 @@ Each is created when absent, verified exactly when present and never overwritten
   `learnstack-identity-provider` user-session-note mapper: note `identity_provider`
   to claim `idp`, in the ID token only. Any other emitter of `idp` refuses with
   `mapper_conflict`.
+- **`federation.test_record` optional scope** ([ADR-0099 Amendment 6](../../docs/decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)).
+  A client scope with no mappers and `include.in.token.scope=true`, attached to
+  `learnstack-web` as optional only. The BFF requests it only in the administrator's
+  `federation_test` authorization, so only that token can record a test result;
+  ordinary sign-in tokens never carry it. Reconciliation creates the scope on a warm
+  realm, retains an exact existing one, and refuses (`mapper_conflict`) a differing
+  definition, any mapper on it, or its attachment as a default scope.
 - **Retired account clients.** See below.
+
+**Sign-in option.** While a tenant's connection is Active and entitled, the BFF
+sign-in page offers "Sign in with {displayName}" and starts that sign-in with
+`kc_idp_hint` set server-side to the tenant's alias. The broker stays `hideOnLogin`,
+so the provider's own login page never lists it.
 
 The pinned names (`idp-detect-existing-broker-user`, `idp-confirm-link`,
 `idp-username-password-form`, `conditional-user-configured`, `auth-otp-form`, the

@@ -346,6 +346,14 @@ selects process-local targets across hosts, never application scope. Unknown-ide
 callbacks and retained work remain fenced; ordinary browser Origin/CSRF and
 API bootstrap stay intact. Phase 03 Status owns delivery and qualification.
 
+Accepted [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds tenant
+single sign-on to the same native owner: a server-read "Sign in with …" option on the
+sign-in page, host-bound brokered sessions, the administrator's `federation_test`
+purpose whose callback publishes nothing, and the Studio federation page. The
+[Frontend contract](../standards/07-frontend-architecture.md#tenant-federation) owns
+the purposes, the closed forms and the page; [Security](../standards/11-security.md#federation-host-binding)
+owns the host binding.
+
 ## Page-Block Resolver
 
 The CMS stores pages as ordered lists of blocks. The renderer resolves each block to a

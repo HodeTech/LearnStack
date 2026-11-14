@@ -700,6 +700,26 @@ an asserted address with no existing account ends in the provider's closed error
 a matching account links only after its own password (and OTP when configured) is
 entered on the re-authentication form.
 
+### Tenant federation in Studio and the BFF (P03-8 Step 4)
+
+- **Studio.** `/studio/federation` lets a holder of `identity.federation.admin` (advisory
+  `canManageFederation`) configure, test and activate the tenant's one connection,
+  rename it, replace its secret, Resume an unsettled write, and Disable or Delete it
+  behind a confirmation. Every operation goes through the closed native
+  administration dispatcher and the generated-SDK wrappers
+  ([Frontend Standards § Tenant federation](../../standards/07-frontend-architecture.md#tenant-federation));
+  the API authorizes each one.
+- **Test.** The BFF alone starts the test window and holds the attempt identifier. Its
+  `federation_test` callback records the result with a token carrying the
+  `federation.test_record` scope, which `POST test-results` requires, publishes no
+  session and signs the administrator out.
+- **Host alias.** The native self read carries `federationAlias`, the host tenant's
+  Active, entitled alias, through `FederationHostAliasReader`, the fourteenth logical
+  tenant setter ([Standard 05](../../standards/05-database.md#federation-host-alias-read)).
+- **Host binding.** The BFF admits a brokered credential only on its tenant's host and
+  with unchanged provenance
+  ([Security § Federation host binding](../../standards/11-security.md#federation-host-binding)).
+
 ## Entity-relationship diagram
 
 ```mermaid

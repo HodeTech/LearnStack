@@ -368,6 +368,13 @@ they do not create an unresolved-context exemption for other endpoints. Self and
 context discovery are Off, own-person, no-store navigation reads. Bootstrap
 creates a binding only, with opt-in allocation and central MUST audit; it grants
 neither Membership nor a tenant session. Nonadmitting bindings never look missing.
+Both self states and the bootstrap result carry a nullable `federationAlias`: the
+host tenant's Active, entitled federation alias, read through the one host-only
+read-only setter of
+[ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14);
+an undecidable read is 503, never null (after a committed bootstrap, the existing
+unknown-outcome answer that a deliberate retry converges). The `oneOf` members are
+unchanged; each gains the property. The contexts response is unchanged.
 The [Security contract](11-security.md#native-scope-and-global-self-admission)
 owns exact ordering, source consistency, terminal outcomes and creation budgets.
 
@@ -669,7 +676,7 @@ is settled by Resume after its quiet window.
 | `POST /secret-rotations` | `BeginRotateFederationSecretCommand` | `If-Match` |
 | `PUT /display-name` | `BeginRenameFederationCommand` | `If-Match` |
 | `POST /test-starts` | `BeginFederationTestStartCommand` | `If-Match` |
-| `POST /test-results` | `RecordFederationTestResultCommand` (intended for the BFF server-side test owner only; not enforced until Step 4, S-B) | `If-Match` |
+| `POST /test-results` | `RecordFederationTestResultCommand` (the BFF server-side test owner only: a token without the optional `federation.test_record` scope is refused with the closed 403 before the body is read, [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)) | `If-Match` |
 | `POST /activation` | `ActivateFederationCommand` | `If-Match` |
 | `POST /disablement` | `BeginDisableFederationCommand` | `If-Match` |
 | `POST /enablement` | `EnableFederationCommand` | `If-Match` |

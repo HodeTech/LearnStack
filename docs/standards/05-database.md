@@ -6234,8 +6234,8 @@ logical tenant setter:
 - **Outcome.** The alias or null. Any failure, the three-second deadline included, is
   unavailable, which the self read reports as 503 and never as null.
 
-It writes nothing, grants nothing and is consulted only by `GlobalSelfEntryMiddleware`
-for the self state. [`Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`](21-architecture-tests-catalogue.md#federation_host_alias_setter_is_read_only_and_host_only)
+It writes nothing, grants nothing and is consulted only by `GlobalSelfEntryMiddleware`,
+for the self state and the bootstrap result (never the contexts read). [`Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`](21-architecture-tests-catalogue.md#federation_host_alias_setter_is_read_only_and_host_only)
 pins its statements, implementation and caller;
 `Out_Of_Band_Setters_Open_Read_Only_Transactions` lists it among the own-connection
 readers.

@@ -305,6 +305,49 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   enabled-development callback/logout canary scans console and trace artifacts;
   removing the trace guard must fail even with console logging disabled.
 
+### Federation host binding
+
+**Derives from:** [ADR-0099 § Host binding](../decisions/0099-confined-tenant-federation.md#host-binding)
+and Amendment 6; [ADR-0070 Amendment 11](../decisions/0070-owned-tenant-bff-sessions.md).
+The native BFF applies these rules at every credential publication: code redemption,
+the invitation custody handoff, the consent and active refreshes, selection, creation
+and context switching.
+
+- **Provenance.** The ID token's `idp` claim (from the realm's session-note mapper) is
+  recorded on the owner when the code is redeemed: the alias for a brokered sign-in,
+  null for a local one. Selection, switching and the invitation handoff carry it with
+  the credentials.
+- **Admission.** A local token (`idp` absent) follows the existing publication rules;
+  no federation read decides it. A brokered token is admitted only when its `idp`
+  equals the host tenant's Active, entitled alias (`federationAlias` from the
+  authenticated native self read) and, when a provenance was recorded, equals it.
+- **Definitive mismatch** (another alias, no Active or entitled connection, a changed
+  provenance in either direction): the publication is refused, the BFF session ends
+  and the provider session ends server-side at the fixed end-session endpoint with
+  the session's refresh token. A refresh or selection has no browser navigation to
+  carry an RP-initiated redirect. Other BFF sessions on that provider session end
+  through back-channel logout.
+- **Indeterminate** (the self read times out, fails in transport, or answers 429 or
+  503, which includes an unavailable alias or entitlement read): the publication is
+  refused, an existing brokered session is kept without advancing its idle deadline,
+  no provider session ends, and a new brokered sign-in fails closed.
+- **The test callback** never reaches subject reservation or credential assignment and
+  publishes nothing ([Frontend Standards § Tenant federation](07-frontend-architecture.md#tenant-federation)).
+- **Test-record carrier.** `POST identity/federation/test-results` requires the optional
+  `federation.test_record` client scope, which only the `federation_test`
+  authorization requests. A Studio or ordinary token without it is refused with the
+  closed 403 before the body is read; the scope grants nothing on its own.
+- **Cross-site detail loads (Step 2 review S-E).** The session cookie is
+  `SameSite=Lax`, which a top-level cross-site GET still carries. The federation page
+  prepares no data for `Sec-Fetch-Site: cross-site`, so another site cannot trigger
+  the detail load's provider readback or corrective write. A browser that sends no
+  `Sec-Fetch-Site` header is not covered by this check.
+
+**Residuals.** Removing the `idp` mapper makes brokered tokens look local; enablement
+requires a mapper readback and reconciliation refuses a second emitter. Brokered
+tokens remain in the provider session (`storeTokenInSession`), unread by LearnStack.
+The delegation residual of ADR-0099 § Linking is unchanged.
+
 ### Native back-channel logout
 
 **Derives from:** [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md). G11 acceptance does not establish runtime proof.

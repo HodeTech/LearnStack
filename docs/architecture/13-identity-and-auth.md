@@ -423,13 +423,22 @@ Membership result and required audit; native session admission is a separate act
 Tenant-specific SSO is enabled per tenant. Implementation:
 
 - A tenant configures a SAML or OIDC identity provider through a LearnStack-owned, confined adapter; the tenant never edits the shared realm broker directly ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
-- The tenant's public site shows "Sign in with {tenant}" on the login page.
+- The tenant's sign-in page shows "Sign in with {displayName}" beside the local
+  action while the tenant's connection is Active and entitled; the BFF reads the
+  option and its alias server-side.
 - Users authenticating through a broker land in the LearnStack realm. Broker
   authentication or email equality alone grants no LearnStack membership, role or
-  global account link. Phase 03 G1/G8/G12 supply the trusted linking/admission
-  contract before any such writer.
+  global account link; the link-only first-broker flow links an existing account only
+  with that account's own credentials.
+- A brokered BFF session is host-bound: its ID token's `idp` must equal the host
+  tenant's Active alias at every publication and keep its recorded provenance
+  ([Security § Federation host binding](../standards/11-security.md#federation-host-binding)).
+- The administrator's test (`federation_test`) signs in through the IdP as the
+  administrator, records the result server-side with a test-only token scope, publishes
+  no session and signs the administrator out
+  ([Frontend Standards § Tenant federation](../standards/07-frontend-architecture.md#tenant-federation)).
 
-This does not require LearnStack code changes per tenant; it is a configuration in Keycloak that LearnStack exposes via a tenant-admin UI.
+This does not require LearnStack code changes per tenant; it is a configuration in Keycloak that LearnStack exposes through the Studio federation page (`/studio/federation`).
 
 The UI needs a confined runtime adapter: tenant ownership of broker resources,
 write-only secrets, bounded metadata/discovery egress, trusted verification/MFA,

@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,680 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,873 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -501,6 +501,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 3 commit and log correction (2026-11-14)](#p03-8-step-3-commit-and-log-correction-2026-11-14) — 23 lines
   - [P03-8 Step 3 review round 1 corrections (2026-11-14)](#p03-8-step-3-review-round-1-corrections-2026-11-14) — 85 lines
   - [P03-8 Step 3 review round 2 corrections (2026-11-14)](#p03-8-step-3-review-round-2-corrections-2026-11-14) — 77 lines
+  - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 193 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23434,3 +23435,196 @@ surface changed), the SDK and web checks, hosted CI and the A/B layout qualifica
 - The shard plan's per-method weights (round 1 C16, as corrected above).
 - Before Step 4: H and S-B from the Step 2 record; a brokered SAML login end to end
   (Amendment 5 item 8); the P03-9 operator sweep for unreadable owned brokers.
+
+### P03-8 Step 4 — native and Studio (2026-11-14)
+
+The maintainer approved Step 4 and decided H and S-B before it
+([ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)).
+This record covers the implementation and its local verification. The two independent
+review rounds, hosted CI, the A/B layout qualification and the PR have not run.
+
+**Commits.** `65c5856c` (A: Amendment 6, the `federation.test_record` scope and its
+enforcement), `d4de6508` (B: the host-alias setter and `federationAlias`), `437bafec`
+(C: BFF purposes and host binding), `805f5f95` (D: the Studio page), `649d4e35` (E: the
+brokered SAML login), `393e9e8e` (F: qualification regressions), `db7a5c6d` (the
+realm-upgrade write counts) and this record's documentation commit. `437bafec`
+imported a value from `provider.js`, which pulls `server-only` into the native
+runtime; `805f5f95` moved the import and `393e9e8e` moved the constants into a
+dependency-free module. `65c5856c` also left `AuthenticatedHttpSurfaceRuntimeTests`'
+endpoint census without a scoped credential for the test record until `393e9e8e`, and
+the historical-upgrade write counts without the two test-record scope writes until
+`db7a5c6d`.
+
+**A — test-record carrier.** The realm export declares the optional client scope
+`federation.test_record` (no mappers, `include.in.token.scope=true`), attached to
+`learnstack-web` as optional only. The core plan creates it on a warm realm or retains
+an exact existing one; a differing definition, a mapper on it or a default attachment
+refuses `mapper_conflict`, and the federation plan checks the declaration and reads
+the optional attachment back. No audience mapper is needed: the default
+`learnstack-native-session` scope already carries the API audience. The token profile
+records the scope in `VerifiedProviderSubject.FederationTestRecord`;
+`FederationTestRecordScope.IsPresent` is its one reader, and
+`POST identity/federation/test-results` refuses a token without it with the closed 403
+before the body is read.
+
+**B — host alias.** `FederationHostAliasReader` is the fourteenth logical tenant setter
+([Standard 05](../standards/05-database.md#federation-host-alias-read)): its own
+connection, `SET TRANSACTION READ ONLY`, the classified host tenant's `app.tenant_id`
+only, one read of the live Active alias and protocol, then the protocol's plan
+entitlement through `IEntitlementProvider`. Any failure is unavailable.
+`GlobalSelfEntryMiddleware` consults it through a lazy port for the self state and the
+bootstrap result (never contexts); `IdentitySelfMissing` and `IdentitySelfActive` gain
+the nullable `federationAlias`, and an undecidable read answers 503. The BFF's strict
+parsers require the field on all three shapes.
+
+**C — BFF purposes and host binding.** The provider core admits `verify_email`,
+`federation_signin` (the server-read alias as `kc_idp_hint`) and `federation_test`
+(the hint, `prompt=login` and the test-record scope), records `idp` as provenance, and
+gains `endSession` (the end-session endpoint with the refresh token, server-side).
+The session owner applies
+[Security § Federation host binding](../standards/11-security.md#federation-host-binding)
+at redemption (before subject reservation and custody), the invitation custody
+admission, selection, context switching, creation and the active and consent
+refreshes. `startFederationTest` starts the window through the BFF-only
+`createNativeFederationTestApi` and holds the attempt in the administrator's owner for
+ten minutes; `completeCallback` alone completes the test owner, records the result
+with the test token, publishes nothing and signs the administrator out. The sign-in
+page renders the server-read option; `federation=1` is the only browser input.
+
+**D — Studio page.** `/studio/federation` with the federation SDK wrappers (no
+`Idempotency-Key`; a receipt carrying an attempt identifier is invalid), nine closed
+native forms, EN and TR copy, the IdP values derived from the configured realm issuer,
+pending, drift and unavailable banners with Resume, confirmed Disable and Delete, the
+cross-site guard and recovery documents that echo no submitted value
+([Frontend Standards § Tenant federation](../standards/07-frontend-architecture.md#tenant-federation)).
+
+**E — brokered SAML login.** `FederationProviderTests` gains a real brokered SAML
+sign-in: a Keycloak SAML IdP realm in the owned container, brokered through the real
+`learnstack` realm by the real adapter with the IdP's real signing certificate. It
+proves that signature validation stays on (the stored broker reads
+`validateSignature=true` and `wantAssertionsSigned=true`; a foreign-signed response, an
+unsigned response and a signed response with an unsigned assertion each stop at the
+broker endpoint with Keycloak's invalid-signature page, no code and no link), that a
+wrong password links nothing and the right one links exactly one identity, and that
+the brokered `learnstack-web` ID token carries `idp` equal to tenant A's alias (the
+access token and a local sign-in carry none) and differs from tenant B's alias. The
+BFF comparison itself is proven by the session-store tests and the self read's alias
+by `IdentitySelfEntryHttpTests` and `FederationHttpTests`; this test proves the real
+SAML token carries the exact value they compare. Amendment 5 item 8's deviation is
+closed.
+
+**Decisions made in this step.**
+
+- **D4-1 — Server-side provider end-session.** A definitive mismatch ends the provider
+  session at the end-session endpoint with the session's refresh token (Keycloak's
+  refresh-token logout form), because a refresh, selection or switch has no browser
+  navigation to carry the RP-initiated redirect. The test's own sign-out uses the
+  standard browser end-session redirect.
+- **D4-2 — Entitlement through the port.** The host-alias setter evaluates the SSO
+  keys through `IEntitlementProvider`, not `IFeatureFlags`, because the self path has
+  no resolved tenant context. Both keys are plan-projected, default false and name no
+  killswitch, so the answer equals the composed one; the reader refuses a descriptor
+  that ever names a killswitch.
+- **D4-3 — An undecidable alias read is 503 for every self read**, local sessions
+  included, as an unavailable binding read already is. After a committed bootstrap it
+  is the existing unknown-outcome answer.
+- **D4-4 — The test start is BFF-only.** No Studio form starts a test window:
+  `POST /api/studio/federation-test` starts it through the BFF-only client and begins
+  the authorization, so the attempt identifier never enters a generic operation
+  result. A repeated start inside the window reuses the held attempt.
+- **D4-5 — S-E decided.** The federation page prepares no data for
+  `Sec-Fetch-Site: cross-site`; a browser that sends no such header is not covered.
+- **D4-6 — Federation recovery documents echo nothing.** Unlike Standard 07's general
+  stale-edit review, a federation refusal shows a closed localized explanation and a
+  link back; no submitted value, secret or provider text is shown and nothing is
+  resubmitted. A secret is stripped from every recovery document centrally.
+- **D4-7 — An omitted `idp` claim is local.** A provider adapter or fixture that omits
+  the claim publishes as a local sign-in; a malformed claim refuses `identity`.
+
+**Deviations from the brief and from ADR-0099.**
+
+- No HTTP-level test drives the real BFF against Keycloak for a brokered or test
+  sign-in. The BFF behaviour is proven through the store and protocol (fixtures), the
+  tokens through `FederationProviderTests`; `TenantBffSessionTests` (real BFF, real
+  Keycloak) is rerun for regressions only.
+- `add-frontend-route` applies to the Studio page (route group, native page plan,
+  capability-gated navigation, server preparation) but not to the authentication
+  actions, which follow ADR-0099 and Standard 07 instead of the skill's SDK-fetch
+  pattern; the federation forms use no idempotency key, unlike the skill's mutation
+  forms.
+- The OpenAPI gate refuses the change (below). The self response gains a required
+  property inside a `oneOf` member, which a strict client parser treats as breaking;
+  the ADR-0096 transition record is the maintainer's. None was created.
+- Standard 16 is unchanged: the page introduces no new stated accessibility rule.
+- Commit trailers name Claude Haiku 5.5, as the maintainer chose.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers).
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release` (`393e9e8e` and the final tree) | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --no-restore --include` (the changed C# files, per commit) | exit 0 |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 4,123 passed, 0 failed, 0 skipped |
+| Contract (`LearnStack.Tests.Contract`, Release), after the snapshot refresh | 13 passed, 0 failed |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) on `649d4e35` | 663 total: 660 passed, 3 failed, 0 skipped (45 min 17 s); the three were the integration-lifecycle owner census, which did not name the new reader. Corrected in `393e9e8e` |
+| Architecture, Release: `OutboxDispatchConventionTests`, `NativeScopeAdmissionTests`, `FederationHostAliasSetterConventionTests`, `CorpusConsistencyTests`, `TenancyConventionTests` and the lifecycle boundary classes, on `393e9e8e` | 168 passed, 0 failed, 0 skipped |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) on the final tree | 663 total: 663 passed, 0 failed, 0 skipped (1 h 12 min) |
+| Integration, Release: `IdentitySelfEntryHttpTests`, `FederationHttpTests`, `PublicSignInHttpTests`, `AuthenticatedHttpSurfaceRuntimeTests`, `OperationHttpClassificationTests`, `TenantAuthenticationProfileTests` (Docker) | 65 total: 63 passed, 2 failed (the endpoint census lacked a scoped credential); corrected, then `AuthenticatedHttpSurfaceRuntimeTests` 7 passed, 0 failed |
+| Integration, Release: `FederationProviderTests` and `TenantRealmFederationReconciliationTests` (Docker) | 18 passed (15 and 3), 0 failed |
+| Integration, Release: every class in `LearnStack.Tests.Integration.TenancyIdentity` (Docker) | 111 total: 105 passed, 6 failed, 0 skipped (19 min 43 s); all six were historical-upgrade write counts missing the two test-record scope writes. Corrected, then `TenantRealmStockBaselineTests`, `TenantRealmReconciliationTests` and `TenantRealmApiTests` 38 passed, 0 failed (8 min 14 s) |
+| `pnpm test` (frontend guarded workspace runner) | `apps/web` 133 files, 4,380 passed; `packages/sdk` 13 files, 233 passed; "Frontend guard: 4613 passed in 2 packages; zero skips/todos." |
+| `pnpm typecheck`, `pnpm lint` (frontend workspace) | clean; no ESLint warnings or errors |
+| `node scripts/verify-bff-protocol.mjs --ui` | "BFF production UI: passed" |
+| `python3 scripts/run-realm-node-tests.py` | 13 files, 498 executed passing tests (`development-realm-federation.test.mjs` 25 to 33) |
+| `python3 scripts/test-realm-node-gate.py` | 6 tests OK |
+| `python3 scripts/test-ci-native-tests.py` | 111 tests OK |
+| `python3 scripts/test-ci-test-shards.py` | 88 tests OK |
+| `make docs-index`, `make lint-docs` | `make docs-index` regenerated the delivery-log index; `make lint-docs` passed |
+
+**OpenAPI gate.** `python3 scripts/openapi-ci.py --base 7e6a2f17 --head 393e9e8e --tool
+<oasdiff> --output <dir>` ran in a `linux/amd64` `python:3.12-slim` container after
+`scripts/install-oasdiff.py` verified `oasdiff version 1.33.0` (archive SHA-256
+`43a4e328…5247`). Exit 1; `result.json` is `{"policyRefused": true, "rawToolRefused":
+false}`. The policy and raw outputs, as printed:
+
+```text
+1 changes: 1 error, 0 warning, 0 info
+error	[response-body-one-of-added] at /tmp/res/comparison/normalized-head.json
+	in API GET /api/v1/identity/self
+		added `subschema #1, subschema #2` to the response body `oneOf` list for the response status `200`
+
+No breaking changes to report, but the specs are different.
+Run 'oasdiff diff' to see structural differences.
+```
+
+The companion list is empty. On `649d4e35` (before `393e9e8e` kept the `oneOf`
+members) the raw tool also refused, with "added
+`#/components/schemas/IdentitySelfCurrent` to the response body `oneOf` list". No
+transition record or policy was created or edited.
+
+**Accessibility.** The page uses native forms without JavaScript, labelled inputs,
+fieldsets with legends for the radio groups, `aria-describedby` hints, required
+confirmations with visible labels, `role="status"` banners and one `h1` with `h2`
+steps. The blocking `jsx-a11y` lint is clean and the component tests assert the
+labels, the write-only secret control and the confirmations. No browser, axe or
+Lighthouse audit covers Studio (Phase 06 owns that harness; the public demo covers
+public pages). Keyboard order, reflow at 320 CSS pixels, contrast and VoiceOver were
+not checked manually; that evidence is the maintainer's.
+
+**Not run.** `make demo DEMO_MODE=ci` (the demo serves the public pages with
+the BFF disabled; the sign-in page is BFF-rendered and is covered by the protocol tests
+and `verify-bff-protocol.mjs --ui`); an HTTP-level real BFF against real Keycloak for a
+brokered or test sign-in (see the deviations); the Integration suite outside the
+classes listed above; hosted CI; the A/B layout qualification; a browser, axe or
+manual accessibility audit of the Studio page.
+
+**Residuals and open items.**
+
+- The OpenAPI transition record for the self response (maintainer, ADR-0096).
+- Two independent review rounds, hosted CI, the A/B layout qualification and the PR.
+- Manual accessibility evidence for the Studio page and the sign-in option.
+- A browser without `Sec-Fetch-Site` can still trigger the detail readback through a
+  cross-site navigation (D4-5).
+- Unchanged: the delegation residual, the realm-wide adapter role, the delayed-write
+  window, an owned broker that no longer reads as a protocol (P03-9), and an
+  allow-list entry admitting its host for every tenant.
