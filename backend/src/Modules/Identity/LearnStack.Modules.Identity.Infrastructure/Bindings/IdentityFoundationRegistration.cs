@@ -92,6 +92,8 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IIdentitySelfBootstrapper>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
         services.TryAddScoped<IIdentitySelfStateReader>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
         services.TryAddScoped<IIdentitySelfDiscovery>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
+        // ADR-0099 Amendment 6 (H): the self read's one host-only, read-only federation alias setter.
+        services.TryAddScoped<IFederationHostAliasReader, FederationHostAliasReader>();
         services.TryAddScoped<ISeedIdentityBindingAdopter>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuditCatalogSource, IdentityAuditCatalogSource>());
         return services;

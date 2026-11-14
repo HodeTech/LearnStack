@@ -22,7 +22,7 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext http, HttpIdentitySelfEntryAdmission admission,
         Func<IIdentitySelfStateReader> states, Func<IIdentitySelfBootstrapper> bootstrap, Func<IIdentitySelfDiscovery> discovery,
-        Func<IOwnMembershipScopeLabels> labels, NativeEntryOriginOptions origins)
+        Func<IOwnMembershipScopeLabels> labels, NativeEntryOriginOptions origins, Func<IFederationHostAliasReader> federation)
     {
         var operation = GlobalSelfOperation.ForPath(http.Request.Path);
         if (operation is null) { await next(http); return; }
@@ -70,15 +70,39 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         }
         else binding = await states().ReadSelfAsync(subject, entry.ClaimedActor, http.RequestAborted);
         if (!source.IsCurrent(http)) { await ProblemAsync(http, 401); return; }
-        if (binding.Outcome == IdentityBindingOutcome.NotFound && operation.Kind == IdentitySelfOperation.State)
-        { await JsonAsync(http, new { state = "missing" }, 200); return; }
-        if (!binding.IsBound) { await ProblemAsync(http, BindingStatus(binding)); return; }
+        if (operation.Kind == IdentitySelfOperation.Bootstrap)
+        {
+            if (!binding.IsBound) { await ProblemAsync(http, BindingStatus(binding)); return; }
+            await JsonAsync(http, new
+            {
+                state = "active",
+                authorityId = subject.AuthorityId.Value.ToString("D"),
+                subjectKey = subject.SubjectKey.Hex,
+                actorId = binding.Actor!.Value.Value.ToString("D"),
+            }, status);
+            return;
+        }
+        if (binding.Outcome != IdentityBindingOutcome.NotFound && !binding.IsBound)
+        { await ProblemAsync(http, BindingStatus(binding)); return; }
+        // ADR-0099 Amendment 6 (H): the host tenant's Active, entitled alias through the one host-only read-only setter.
+        // An undecidable read is 503, which the BFF treats as indeterminate; it never reads as "no alias".
+        string? alias = null;
+        if (http.Features.Get<HostClassification>()?.TenantId is { } hostTenant)
+        {
+            try { alias = await federation().ReadActiveAliasAsync(hostTenant, http.RequestAborted); }
+            catch (InfrastructureException) when (!http.RequestAborted.IsCancellationRequested)
+            { await ProblemAsync(http, 503); return; }
+            if (!source.IsCurrent(http)) { await ProblemAsync(http, 401); return; }
+        }
+        if (binding.Outcome == IdentityBindingOutcome.NotFound)
+        { await JsonAsync(http, new { state = "missing", federationAlias = alias }, 200); return; }
         await JsonAsync(http, new
         {
             state = "active",
             authorityId = subject.AuthorityId.Value.ToString("D"),
             subjectKey = subject.SubjectKey.Hex,
             actorId = binding.Actor!.Value.Value.ToString("D"),
+            federationAlias = alias,
         }, status);
     }
 

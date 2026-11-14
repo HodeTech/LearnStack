@@ -25,6 +25,13 @@ const actor = (value: unknown): value is string =>
   canonicalUuid(value) &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value) &&
   value !== '00000000-0000-7000-8000-000000000001';
+/** The derived alias shape (`lsf-` and 32 lowercase hexadecimal characters) or null; anything else is a wire defect. */
+export function nativeFederationAlias(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !/^lsf-[0-9a-f]{32}$/.test(value))
+    throw new NativeApiError('response');
+  return value;
+}
 function cursor(value: unknown): value is string {
   return (
     typeof value === 'string' &&
@@ -215,14 +222,21 @@ export function createNativeSessionApi(
         signal,
       );
       ordinary(response);
-      if (exactFields(value, ['state']) && value.state === 'missing')
-        return Object.freeze({ state: 'missing' as const });
+      if (exactFields(value, ['state', 'federationAlias']) && value.state === 'missing')
+        return Object.freeze({
+          state: 'missing' as const,
+          federationAlias: nativeFederationAlias(value.federationAlias),
+        });
       if (
-        !exactFields(value, ['state', 'authorityId', 'subjectKey', 'actorId']) ||
+        !exactFields(value, ['state', 'authorityId', 'subjectKey', 'actorId', 'federationAlias']) ||
         value.state !== 'active'
       )
         throw new NativeApiError('response');
-      return Object.freeze({ state: 'active' as const, association: association(value) });
+      return Object.freeze({
+        state: 'active' as const,
+        association: association(value),
+        federationAlias: nativeFederationAlias(value.federationAlias),
+      });
     },
     async bootstrap(token, binding, signal) {
       const { response, value } = await read(

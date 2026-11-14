@@ -110,6 +110,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     self: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) => ({
       state: 'active' as const,
       association: association(token),
+      federationAlias: null as string | null,
     })),
     bootstrap: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) =>
       association(token),
@@ -1694,7 +1695,7 @@ describe('native entry, selection and private operation ownership', () => {
     const f = fixture();
     const entry = await f.enter(await f.start());
     const binding = entryBinding(entry);
-    f.native.self.mockResolvedValueOnce({ state: 'missing' } as never);
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null } as never);
     f.native.bootstrap.mockRejectedValueOnce(new BffProviderError('transport'));
     await expect(f.store.create(binding, source, entry.entry.csrfToken)).rejects.toMatchObject({
       reason: 'transport',

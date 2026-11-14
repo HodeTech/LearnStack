@@ -91,7 +91,11 @@ function fixture() {
       logoutUrl: () => 'https://identity.example.test/logout',
     },
     native: {
-      self: async (token) => ({ state: 'active', association: association(token) }),
+      self: async (token) => ({
+        state: 'active',
+        association: association(token),
+        federationAlias: null,
+      }),
       bootstrap: async (token) => association(token),
       contexts: async (_token, binding) => ({
         items: [

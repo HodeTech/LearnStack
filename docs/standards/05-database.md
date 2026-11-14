@@ -5649,9 +5649,11 @@ the earlier eight-function/ten-setter counts describe their historical slices.
 The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
 setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
 implements twelve definers/twelve logical setters. The
-[provider-event extension](#provider-event-intake-storage) brings the current
-census to fifteen definers/thirteen logical setters, preserving those four physical
+[provider-event extension](#provider-event-intake-storage) brings the census to
+fifteen definers/thirteen logical setters, preserving those four physical
 writers; qualification remains source-bound in the phase Status. SMTP adds no tenant setter.
+The [federation host-alias read](#federation-host-alias-read) is the fourteenth logical
+setter; it adds no definer and no physical context writer.
 
 ### Invitation root and constrained transitions
 
@@ -6209,4 +6211,32 @@ columns:
 - Every refusal condition is evaluated as `(condition) IS NOT FALSE`, so a condition
   that is NULL because a nullable pending or test column is NULL refuses: the guard
   fails closed.
+
+### Federation host-alias read
+
+**Derives from:** [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
+(H). The native self read (`GET /api/v1/identity/self`) ends before tenant resolution,
+so it cannot use the ambient owner. `FederationHostAliasReader` is the fourteenth
+logical tenant setter:
+
+- **Connection.** Its own short transaction on the application data source, as
+  `learnstack_app`; `SET TRANSACTION READ ONLY` is the first statement.
+- **Announcement.** `app.tenant_id` only, set to the classified host tenant. No
+  organization, scope, host or identity GUC; the platform sentinel and an unassigned
+  identifier are refused before any connection.
+- **Read.** One statement: the host tenant's live, `Active` alias and protocol, through
+  `FederationConnectionReads.LiveSql`. RLS and the explicit `tenant_id` predicate both
+  apply. A second row or an alias outside the derived shape is unavailable.
+- **Entitlement.** The protocol's `identity.sso.*` key through `IEntitlementProvider`,
+  the port `IFeatureFlags` composes over; both keys are plan-projected, default false
+  and name no killswitch, so the answer equals the composed one. The reader refuses a
+  descriptor that ever names a killswitch.
+- **Outcome.** The alias or null. Any failure, the three-second deadline included, is
+  unavailable, which the self read reports as 503 and never as null.
+
+It writes nothing, grants nothing and is consulted only by `GlobalSelfEntryMiddleware`
+for the self state. [`Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`](21-architecture-tests-catalogue.md#federation_host_alias_setter_is_read_only_and_host_only)
+pins its statements, implementation and caller;
+`Out_Of_Band_Setters_Open_Read_Only_Transactions` lists it among the own-connection
+readers.
 

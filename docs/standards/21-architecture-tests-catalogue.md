@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**374 test methods run in
+**376 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**280 rules in this catalogue are Implemented, and 163 of them are in that assembly.**
+**281 rules in this catalogue are Implemented, and 164 of them are in that assembly.**
 The other 117 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -7485,7 +7485,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
 Canonical names for ADR-0099's new obligations are assigned with the step that
 introduces them. Step 1 introduces two, Step 2 five (the last two from its review
-rounds) and Step 3 five; the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
+rounds), Step 3 five and Step 4 one; the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
 the new subjects unchanged (Step 2 extends the authenticated HTTP census with a runner
 handoff for the federation controller and the public census with the Identity-owned
 sign-in read). The
@@ -7700,3 +7700,24 @@ sign-in read). The
   [FederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FederationProviderTests.cs).
 - **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
 - **Phase:** 03 (P03-8 Step 3; widened to every production source in review round 1).
+
+#### `Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`
+
+- **Asserts:** `FederationHostAliasReader`, the native self read's host-alias setter,
+  loads exactly three statements, each once: `SET TRANSACTION READ ONLY`, the
+  `app.tenant_id` announcement and the one read of the host tenant's live, Active
+  `federation_connections` alias and protocol. It announces no organization, scope,
+  host or identity GUC and issues no write. It is the only implementation of
+  `IFederationHostAliasReader`, and `GlobalSelfEntryMiddleware` is its only caller.
+  `Out_Of_Band_Setters_Open_Read_Only_Transactions` separately proves the read-only
+  statement precedes the announcement, and `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate`
+  lists the reader in its closed raw-reader census.
+- **Source:** [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
+  (H), [Database Standards § the logical-setter census](05-database.md#invitation-entry-and-consumption).
+- **Type:** IL string scan of the reader and its state machines, implementation and
+  caller census over production assemblies; planted writes, widened announcements, a
+  second or an Active-less read, and a missing read-only statement. **Kind:**
+  structural.
+- **Status:** **Implemented** (`FederationHostAliasSetterConventionTests`).
+- **Test owner:** [FederationHostAliasSetterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationHostAliasSetterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 4).

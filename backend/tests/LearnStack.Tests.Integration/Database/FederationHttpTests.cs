@@ -4,7 +4,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Federation;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
@@ -86,6 +88,48 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         using var passed = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST", body, version);
         Assert.Equal("recorded", (await JsonAsync(passed)).GetProperty("outcome").GetString());
         Assert.Equal("TestPassed", (await RowAsync(proof, English)).State);
+    }
+
+    /// <summary>
+    /// ADR-0099 Amendment 6 (H): the native self read's host-only setter, against PostgreSQL as learnstack_app. It reads only
+    /// the host tenant's Active, entitled alias: nothing before Active, the alias while Active and entitled, nothing for
+    /// another host tenant, nothing after an entitlement lapse or Disable.
+    /// </summary>
+    [Fact]
+    public async Task The_host_alias_setter_reads_only_the_host_tenants_Active_entitled_alias()
+    {
+        await using var proof = await CreatePreparedAsync();
+        var harness = new Harness();
+        using var client = proof.Client(harness.Configure);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        await AdoptFederationReleaseAsync(client, token, English);
+        Assert.Null(await HostAliasAsync(proof, English));
+
+        using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
+        var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
+        Assert.Null(await HostAliasAsync(proof, English));
+        version = await ActivateAsync(client, token, version);
+        var alias = (await RowAsync(proof, English)).Alias;
+        Assert.Equal(alias, await HostAliasAsync(proof, English));
+        Assert.Null(await HostAliasAsync(proof, Yoga));
+
+        harness.Entitlement.SsoOff = true;
+        Assert.Null(await HostAliasAsync(proof, English));
+        harness.Entitlement.SsoOff = false;
+        Assert.Equal(alias, await HostAliasAsync(proof, English));
+
+        using var disabled = await SendAsync(client, token, "/api/v1/identity/federation/disablement", "POST", "{}", version);
+        Assert.Equal("applied", (await JsonAsync(disabled)).GetProperty("outcome").GetString());
+        Assert.Null(await HostAliasAsync(proof, English));
+
+        async Task<string?> HostAliasAsync(IdentityAuthorizationHttpProof owner, SeedTenant tenant)
+        {
+            // The production setter on its own learnstack_app connection; the plan half is the gated default provider.
+            await using var source = ApplicationDataSource.Build(owner.Database.AppConnectionString);
+            var reader = new FederationHostAliasReader(new Lazy<NpgsqlDataSource>(() => source),
+                new GatedEntitlementProvider(new NullEntitlementProvider(), harness.Entitlement));
+            return await reader.ReadActiveAliasAsync(tenant.TenantId);
+        }
     }
 
     [Fact]
@@ -707,6 +751,11 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
             services.Remove(flags);
             services.Add(ServiceDescriptor.Describe(typeof(IFeatureFlags), provider => new GatedFeatureFlags(Create<IFeatureFlags>(provider, flags), Entitlement),
                 flags.Lifetime));
+            // The self read's host alias setter takes entitlement through the port IFeatureFlags composes over; gate it the same way.
+            var entitlements = services.Last(descriptor => descriptor.ServiceType == typeof(IEntitlementProvider));
+            services.Remove(entitlements);
+            services.Add(ServiceDescriptor.Describe(typeof(IEntitlementProvider),
+                provider => new GatedEntitlementProvider(Create<IEntitlementProvider>(provider, entitlements), Entitlement), entitlements.Lifetime));
         }
 
         private static T Create<T>(IServiceProvider provider, ServiceDescriptor descriptor) where T : class =>
@@ -723,6 +772,21 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         public Task<bool> IsEnabledAsync(FeatureKey key, CancellationToken ct = default) =>
             gate.SsoOff && (key == FeatureKeys.SsoOidc || key == FeatureKeys.SsoSaml) ? Task.FromResult(false) : inner.IsEnabledAsync(key, ct);
         public Task<long> GetLimitAsync(LimitKey key, CancellationToken ct = default) => inner.GetLimitAsync(key, ct);
+    }
+
+    private sealed class GatedEntitlementProvider(IEntitlementProvider inner, EntitlementGate gate) : IEntitlementProvider
+    {
+        public async Task<EntitlementProjection> GetAsync(TenantId tenantId, CancellationToken ct = default)
+        {
+            var projection = await inner.GetAsync(tenantId, ct);
+            if (!gate.SsoOff) return projection;
+            var features = projection.Features.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            features[FeatureKeys.SsoOidc.Value] = false;
+            features[FeatureKeys.SsoSaml.Value] = false;
+            return projection with { Features = features };
+        }
+        public Task<EntitlementRefreshOutcome> RefreshAsync(EntitlementProjection projection, CancellationToken ct = default) =>
+            inner.RefreshAsync(projection, ct);
     }
 
     private sealed class MovableClock : IClock

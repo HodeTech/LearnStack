@@ -491,6 +491,64 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         response.Headers.Contains("Retry-After").Should().BeFalse();
     }
 
+    /// <summary>
+    /// ADR-0099 Amendment 6 (H): the self state carries the host tenant's alias from the one host-only setter, the bootstrap
+    /// and contexts reads never consult it, and an undecidable read is 503, never a null alias.
+    /// </summary>
+    [Fact]
+    public async Task The_self_state_carries_the_host_federation_alias_and_an_undecidable_alias_read_is_unavailable()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var database = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer);
+        var stub = new StubHostAlias { Alias = "lsf-" + new string('a', 32) };
+        using var client = Client(database, services => services.Replace(ServiceDescriptor.Scoped<IFederationHostAliasReader>(_ => stub)));
+        var token = issuer.Token(issuer.Without("user_id", "tenant_id", "organization_id"));
+        using (var missing = await SendAsync(client, token))
+        {
+            missing.StatusCode.Should().Be(HttpStatusCode.OK);
+            var json = await JsonAsync(missing);
+            json.EnumerateObject().Select(property => property.Name).Should().Equal("state", "federationAlias");
+            json.GetProperty("federationAlias").GetString().Should().Be(stub.Alias);
+        }
+        stub.Hosts.Should().Equal([SeedData.English.TenantId.Value], "the setter reads the host tenant only");
+        stub.Alias = null;
+        using (var none = await SendAsync(client, token))
+            (await JsonAsync(none)).GetProperty("federationAlias").ValueKind.Should().Be(JsonValueKind.Null);
+        using (var created = await SendAsync(client, token, Self + "/bootstrap", "POST", "{}"))
+        {
+            created.StatusCode.Should().Be(HttpStatusCode.Created);
+            (await JsonAsync(created)).EnumerateObject().Select(property => property.Name)
+                .Should().Equal("state", "authorityId", "subjectKey", "actorId");
+        }
+        using (var contexts = await SendAsync(client, token, Self + "/contexts"))
+            contexts.StatusCode.Should().Be(HttpStatusCode.OK);
+        stub.Hosts.Should().HaveCount(2, "bootstrap and contexts never consult the alias setter");
+        stub.Alias = "lsf-" + new string('b', 32);
+        using (var active = await SendAsync(client, token))
+        {
+            var json = await JsonAsync(active);
+            json.EnumerateObject().Select(property => property.Name)
+                .Should().Equal("state", "authorityId", "subjectKey", "actorId", "federationAlias");
+            json.GetProperty("state").GetString().Should().Be("active");
+            json.GetProperty("federationAlias").GetString().Should().Be(stub.Alias);
+        }
+        stub.Unavailable = true;
+        using (var undecidable = await SendAsync(client, token))
+            await TenantAuthenticationHttpTests.Problem(undecidable, HttpStatusCode.ServiceUnavailable, "dependency_unavailable");
+    }
+
+    private sealed class StubHostAlias : IFederationHostAliasReader
+    {
+        internal volatile string? Alias;
+        internal volatile bool Unavailable;
+        internal List<Guid> Hosts { get; } = [];
+        public Task<string?> ReadActiveAliasAsync(LearnStack.SharedKernel.Identifiers.TenantId hostTenant, CancellationToken cancellationToken = default)
+        {
+            lock (Hosts) Hosts.Add(hostTenant.Value);
+            return Unavailable ? throw new LearnStack.SharedKernel.Errors.InfrastructureException("unavailable") : Task.FromResult(Alias);
+        }
+    }
+
     private sealed class ExpiringBindingRead(UserBindingStore inner, ExpiryClock clock) : IUserBindingStore
     {
         public async Task<User?> FindExactAsync(GlobalIdentitySubject subject, CancellationToken cancellationToken = default)

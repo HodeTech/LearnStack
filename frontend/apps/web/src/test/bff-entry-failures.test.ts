@@ -65,7 +65,7 @@ describe('native entry failures retain closed meaning without publishing upstrea
   it('creation disabled stays 403, retains the entry and renders a creation-specific recovery without retrying POST', async () => {
     const f = fixture();
     const entry = await f.enter();
-    f.native.self.mockResolvedValueOnce({ state: 'missing' });
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null });
     f.native.bootstrap.mockRejectedValueOnce(new NativeApiError('provider_refused', 403));
     const render = vi.fn(() => 'localized creation unavailable');
     const response = await f.http.handle(
@@ -166,7 +166,7 @@ describe('native entry failures retain closed meaning without publishing upstrea
   it('unknown creation transport does not claim rollback and a deliberate retry resolves the durable binding before any further POST', async () => {
     const f = fixture();
     const entry = await f.enter();
-    f.native.self.mockResolvedValueOnce({ state: 'missing' });
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null });
     f.native.bootstrap.mockRejectedValueOnce(new Error('private-unknown-commit-canary'));
     const post = () =>
       bffRequest('/api/auth/entry/create', {

@@ -163,7 +163,7 @@ describe('owned invitation continuation', () => {
     const f = fixture();
     const offer = await captured(f);
     const entry = await signin(f, offer);
-    f.native.self.mockResolvedValueOnce({ state: 'missing' });
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null });
     const missing = await f.store.invitation(offer.binding, bffSource, {
       kind: 'inspect',
       csrf: offer.opened.csrfToken,
@@ -172,7 +172,7 @@ describe('owned invitation continuation', () => {
     expect(missing.entryCsrfToken).toBe(entry.finished.entry.csrfToken);
     expect(f.api.inspect).not.toHaveBeenCalled();
     expect(f.native.bootstrap).not.toHaveBeenCalled();
-    f.native.self.mockResolvedValueOnce({ state: 'missing' });
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null });
     await f.store.create(entry.binding, bffSource, missing.entryCsrfToken!);
     expect(f.native.bootstrap).toHaveBeenCalledTimes(1);
     const ready = await f.store.invitation(offer.binding, bffSource, {

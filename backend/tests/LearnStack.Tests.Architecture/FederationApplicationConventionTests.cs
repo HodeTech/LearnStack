@@ -101,10 +101,14 @@ public sealed class FederationApplicationConventionTests
         }
     }
 
-    /// <summary>The two raw SQL readers of the registry; neither can use the EF <c>Live</c> helper (Step 2 review S-D).</summary>
+    /// <summary>
+    /// The three raw SQL readers of the registry; none can use the EF <c>Live</c> helper (Step 2 review S-D). The host
+    /// alias reader is ADR-0099 Amendment 6's setter for the native self read.
+    /// </summary>
     private static readonly string[] RawLiveReaders =
     [
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/FederationConnectionStore.cs",
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/FederationHostAliasReader.cs",
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/PublicSignInReader.cs",
     ];
 
@@ -120,9 +124,9 @@ public sealed class FederationApplicationConventionTests
         sources.Keys.Should().Contain(path => path.StartsWith(IdentityApplication, StringComparison.Ordinal))
             .And.Contain(path => path.StartsWith(IdentityInfrastructure, StringComparison.Ordinal), "the scan reads both Identity projects");
         RawLiveOffenders(sources).Should().BeEmpty(
-            "Fix: every raw read of federation_connections lives in one of the two closed readers, and each statement interpolates "
+            "Fix: every raw read of federation_connections lives in one of the three closed readers, and each statement interpolates "
             + "FederationConnectionReads.LiveSql and spells no tombstone predicate of its own");
-        RawReaders(sources).Should().Equal(RawLiveReaders, "the census of raw registry readers is closed at two");
+        RawReaders(sources).Should().Equal(RawLiveReaders, "the census of raw registry readers is closed at three");
     }
 
     [Fact]
@@ -133,7 +137,8 @@ public sealed class FederationApplicationConventionTests
         {
             [RawLiveReaders[0]] = "SELECT public.fn_identity_assert_tenant_fence(@tenant,false);\nSELECT id FROM public.federation_connections "
                 + Shared + " FOR NO KEY UPDATE;",
-            [RawLiveReaders[1]] = "\"\"\"\nSELECT alias FROM public.federation_connections " + Shared + " AND state='Active'\n\"\"\";",
+            [RawLiveReaders[1]] = "\"\"\"\nSELECT alias,protocol FROM public.federation_connections " + Shared + " AND state='Active'\n\"\"\";",
+            [RawLiveReaders[2]] = "\"\"\"\nSELECT alias FROM public.federation_connections " + Shared + " AND state='Active'\n\"\"\";",
             [IdentityInfrastructure + "Persistence/FederationConnectionStorageDdl.cs"] =
                 "REVOKE ALL ON public.federation_connections FROM PUBLIC; CREATE TRIGGER t BEFORE INSERT OR UPDATE ON public.federation_connections;",
         };
@@ -173,8 +178,8 @@ public sealed class FederationApplicationConventionTests
             RawReaders(planted).Should().Contain(Planted, "the census sees the planted reader: " + reference);
         }
         // A closed reader that is removed leaves the census short.
-        var dropped = new Dictionary<string, string>(clean) { [RawLiveReaders[1]] = "public sealed class PublicSignInReader;" };
-        RawReaders(dropped).Should().Equal([RawLiveReaders[0]]);
+        var dropped = new Dictionary<string, string>(clean) { [RawLiveReaders[2]] = "public sealed class PublicSignInReader;" };
+        RawReaders(dropped).Should().Equal([RawLiveReaders[0], RawLiveReaders[1]]);
     }
 
     private const string IdentityApplication = "Modules/Identity/LearnStack.Modules.Identity.Application/";
@@ -193,7 +198,7 @@ public sealed class FederationApplicationConventionTests
         [.. sources.Where(pair => RawRead.IsMatch(pair.Value)).Select(pair => pair.Key).Order(StringComparer.Ordinal)];
 
     /// <summary>
-    /// Each raw read must sit in one of the two closed readers, and the statement around it, bounded by the nearest
+    /// Each raw read must sit in one of the three closed readers, and the statement around it, bounded by the nearest
     /// <c>;</c> or string delimiter on either side, must interpolate the shared constant and spell no tombstone predicate.
     /// </summary>
     private static List<string> RawLiveOffenders(IReadOnlyDictionary<string, string> sources) =>

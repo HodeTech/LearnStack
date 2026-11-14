@@ -12,7 +12,10 @@ public sealed partial class NativeScopeAdmissionTests
         (LazyEntryPorts[1], "BootstrapAsync", "InvokeAsync", BindingService),
         (LazyEntryPorts[2], "ReadScopesAsync", "ContextsAsync", BindingService),
         (LazyEntryPorts[3], "ReadAsync", "ContextsAsync", Labels),
+        // ADR-0099 Amendment 6 (H): the host-only alias setter; FederationHostAliasSetterConventionTests owns its body.
+        (LazyEntryPorts[4], "ReadActiveAliasAsync", "InvokeAsync", HostAliasReader),
     ];
+    private const string HostAliasReader = "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationHostAliasReader";
 
     // Borrow the same mutable production modules as the HTTP census; never dispose
     // them here or obtain a fresh assembly snapshot that would hide its mutants.
@@ -59,6 +62,8 @@ public sealed partial class NativeScopeAdmissionTests
         ("LearnStack.Modules.Tenancy.Application.Contracts", LazyEntryPorts[3]),
         ("LearnStack.Modules.Identity.Infrastructure", BindingService),
         ("LearnStack.Modules.Tenancy.Infrastructure", Labels),
+        ("LearnStack.Modules.Identity.Application.Contracts", LazyEntryPorts[4]),
+        ("LearnStack.Modules.Identity.Infrastructure", HostAliasReader),
     ];
 
     private static IEnumerable<string> CompiledDescriptorOffenders(Census census)

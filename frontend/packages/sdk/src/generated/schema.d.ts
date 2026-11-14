@@ -1011,7 +1011,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. No request body, query or assertion/scope selectors. */
+        /** @description Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. federationAlias is the host tenant's Active, entitled federation alias or null, read through the one host-only read-only setter; an undecidable read is 503 and never null. It is a provider hint for the BFF host binding, not authority. No request body, query or assertion/scope selectors. */
         get: operations["GetIdentitySelf"];
         put?: never;
         post?: never;
@@ -1467,11 +1467,22 @@ export interface components {
             /** Format: uuid */
             actorId: string;
         };
+        IdentitySelfCurrent: {
+            /** @enum {string} */
+            state: "active";
+            /** Format: uuid */
+            authorityId: string;
+            subjectKey: string;
+            /** Format: uuid */
+            actorId: string;
+            federationAlias: null | string;
+        };
         IdentitySelfMissing: {
             /** @enum {string} */
             state: "missing";
+            federationAlias: null | string;
         };
-        IdentitySelfState: components["schemas"]["IdentitySelfMissing"] | components["schemas"]["IdentitySelfActive"];
+        IdentitySelfState: components["schemas"]["IdentitySelfMissing"] | components["schemas"]["IdentitySelfCurrent"];
         InvitableRoleDirectory: {
             items: components["schemas"]["RoleSummaryResponse"][];
         };

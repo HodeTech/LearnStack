@@ -97,7 +97,8 @@ public sealed partial class OpenApiContractTests
         }
         foreach (var (name, fields) in new (string, string[])[]
         {
-            ("IdentitySelfMissing", ["state"]), ("IdentitySelfActive", ["state", "authorityId", "subjectKey", "actorId"]),
+            ("IdentitySelfMissing", ["state", "federationAlias"]), ("IdentitySelfActive", ["state", "authorityId", "subjectKey", "actorId"]),
+            ("IdentitySelfCurrent", ["state", "authorityId", "subjectKey", "actorId", "federationAlias"]),
             ("SelfContextItem", ["tenantId", "organizationId", "tenantName", "organizationName", "entryOrigin", "canUseCurrentHost"]),
             ("SelfContextPage", ["items", "pageInfo"]), ("NativeSessionScopeAdmission", ["actorId", "tenantId", "organizationId", "authorityId", "subjectKey"]),
         })

@@ -20653,7 +20653,7 @@
         "tags": [
           "Identity"
         ],
-        "description": "Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. No request body, query or assertion/scope selectors.",
+        "description": "Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. federationAlias is the host tenant\u0027s Active, entitled federation alias or null, read through the one host-only read-only setter; an undecidable read is 503 and never null. It is a provider hint for the BFF host binding, not authority. No request body, query or assertion/scope selectors.",
         "operationId": "GetIdentitySelf",
         "responses": {
           "400": {
@@ -23501,9 +23501,52 @@
         },
         "additionalProperties": false
       },
+      "IdentitySelfCurrent": {
+        "required": [
+          "state",
+          "authorityId",
+          "subjectKey",
+          "actorId",
+          "federationAlias"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "active"
+            ],
+            "type": "string"
+          },
+          "authorityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectKey": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "federationAlias": {
+            "maxLength": 36,
+            "minLength": 36,
+            "pattern": "^lsf-[0-9a-f]{32}$",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "IdentitySelfMissing": {
         "required": [
-          "state"
+          "state",
+          "federationAlias"
         ],
         "type": "object",
         "properties": {
@@ -23512,6 +23555,15 @@
               "missing"
             ],
             "type": "string"
+          },
+          "federationAlias": {
+            "maxLength": 36,
+            "minLength": 36,
+            "pattern": "^lsf-[0-9a-f]{32}$",
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -23522,7 +23574,7 @@
             "$ref": "#/components/schemas/IdentitySelfMissing"
           },
           {
-            "$ref": "#/components/schemas/IdentitySelfActive"
+            "$ref": "#/components/schemas/IdentitySelfCurrent"
           }
         ]
       },

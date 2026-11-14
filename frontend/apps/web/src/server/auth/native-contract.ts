@@ -5,9 +5,13 @@ import type { ProviderIdentity } from './provider.js';
 export type NativeBinding = Readonly<{ host: string; source: string; traceparent?: string }>;
 export type NativeScope = Readonly<{ tenantId: string; organizationId: string | null }>;
 export type Association = Readonly<{ authorityId: string; subjectKey: string; actorId: string }>;
+/**
+ * ADR-0099 Amendment 6 (H): the host tenant's Active, entitled federation alias, or null. A provider hint the BFF
+ * compares with a brokered ID token's `idp`; never authority, never accepted from the browser.
+ */
 export type NativeSelf =
-  | Readonly<{ state: 'missing' }>
-  | Readonly<{ state: 'active'; association: Association }>;
+  | Readonly<{ state: 'missing'; federationAlias: string | null }>
+  | Readonly<{ state: 'active'; association: Association; federationAlias: string | null }>;
 export type SelfContext = NativeScope &
   Readonly<{
     tenantName: string;

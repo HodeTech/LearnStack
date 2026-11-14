@@ -301,6 +301,8 @@ public sealed partial class TenancyConventionTests
         "LearnStack.Infrastructure.Audit/AuditConfigService.cs",
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs",
         "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs",
+        // ADR-0099 Amendment 6 (H): the native self read's host-only federation alias setter.
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/FederationHostAliasReader.cs",
     ];
 
     /// <summary>
@@ -423,6 +425,8 @@ public sealed partial class TenancyConventionTests
             "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags",
         "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs" =>
             "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner",
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/FederationHostAliasReader.cs" =>
+            "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationHostAliasReader",
         _ => throw new InvalidOperationException($"{reader} has no type mapped for the IL leg."),
     };
 

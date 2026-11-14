@@ -71,7 +71,11 @@ export function bffFixture(
     actorId: identity.actorId!,
   };
   const native = {
-    self: vi.fn<NativeSessionApi['self']>(async () => ({ state: 'active', association })),
+    self: vi.fn<NativeSessionApi['self']>(async () => ({
+      state: 'active',
+      association,
+      federationAlias: null,
+    })),
     bootstrap: vi.fn<NativeSessionApi['bootstrap']>(async () => association),
     contexts: vi.fn<NativeSessionApi['contexts']>(async (_token, binding) => ({
       items: [

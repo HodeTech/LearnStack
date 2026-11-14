@@ -83,6 +83,7 @@ function nativeCursorFixture(nextCursor = 'Zm9yd2FyZC1wYWdl') {
         authorityId,
         actorId: '019a154b-0000-7000-8000-000000000011',
         subjectKey: nativeSubjectKey(authorityId, 'opaque-subject'),
+        federationAlias: null,
       });
     if (target.pathname !== '/api/v1/identity/self/contexts')
       throw new Error('Unexpected native cursor proof endpoint');
@@ -858,12 +859,12 @@ describe('entry and scope HTTP publication', () => {
     expect(f.native.bootstrap).not.toHaveBeenCalled();
     expect(f.account).not.toHaveBeenCalled();
     expect(f.store.peek(entered.binding)).toBeNull();
-    f.native.self.mockResolvedValueOnce({ state: 'missing' });
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null });
     const read = await f.http.handle(bffRequest('/api/auth/entry', { cookie: entered.cookie }));
     expect(await read!.json()).toMatchObject({ identityState: 'missing', contexts: null });
     expect(read!.headers.getSetCookie()).toEqual([]);
     expect(f.native.bootstrap).not.toHaveBeenCalled();
-    f.native.self.mockResolvedValueOnce({ state: 'missing' });
+    f.native.self.mockResolvedValueOnce({ state: 'missing', federationAlias: null });
     const created = await f.http.handle(
       bffRequest('/api/auth/entry/create', {
         method: 'POST',
