@@ -766,12 +766,14 @@ test('largest compatible assignments and exact profile-group boundaries remain s
   const web = assigned.state.clients.find(client => client.clientId === 'learnstack-web');
   assigned.state.scopes = assigned.state.scopes.filter(scope => scope.protocol === 'openid-connect');
   fillScopes(assigned, 200);
-  web.defaultClientScopes = assigned.state.scopes.filter(scope => !['learnstack-tenant-api', 'offline_access'].includes(scope.name)).map(scope => scope.name);
-  web.optionalClientScopes = [];
+  web.defaultClientScopes = assigned.state.scopes.filter(scope => !['learnstack-tenant-api', 'offline_access', 'federation.test_record'].includes(scope.name)).map(scope => scope.name);
+  web.optionalClientScopes = ['federation.test_record'];
   await apply(await plan(assigned));
-  // Both fixed scopes exist inside the 200-scope inventory, but the native
-  // client cannot attach the scoped API declaration or default offline access.
-  assert.equal(web.defaultClientScopes.length, 198);
+  // The fixed scopes exist inside the 200-scope inventory, but the native client
+  // cannot attach the scoped API declaration, default offline access or a default
+  // test-record scope (ADR-0099 Amendment 6: optional only).
+  assert.equal(web.defaultClientScopes.length, 197);
+  assert.ok(web.optionalClientScopes.includes('federation.test_record'));
   assert.equal((await plan(assigned)).actions.length, 0);
   for (const count of [200, 201]) {
     const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;

@@ -12,6 +12,9 @@ export const firstBrokerFlow = 'learnstack-first-broker-login';
 const reauthenticationFlow = 'learnstack-first-broker-reauthentication';
 const otpFlow = 'learnstack-first-broker-conditional-otp';
 export const idpMapperName = 'learnstack-identity-provider';
+// ADR-0099 Amendment 6: the test-record scope is optional on learnstack-web, never default, and has no
+// mappers, so only an authorization request that names it receives it.
+export const testRecordScope = 'federation.test_record';
 
 // The exact pinned 26.7.5 execution listing of the flow (verified against the image):
 // [level, index, providerId or subflow alias, requirement].
@@ -36,6 +39,12 @@ function declared(desired) {
   const action = list(desired.requiredActions ?? [], 'plan').find(value => value?.alias === 'idp_link');
   const web = list(desired.clients, 'plan').find(value => value?.clientId === 'learnstack-web');
   const mapper = (web?.protocolMappers ?? []).find(value => value?.name === idpMapperName);
+  const scope = list(desired.clientScopes ?? [], 'plan').filter(value => value?.name === testRecordScope);
+  if (scope.length !== 1 || scope[0].protocol !== 'openid-connect' || (scope[0].protocolMappers ?? []).length !== 0
+    || scope[0].attributes?.['include.in.token.scope'] !== 'true'
+    || !(web?.optionalClientScopes ?? []).includes(testRecordScope)
+    || (web?.defaultClientScopes ?? []).includes(testRecordScope))
+    refuse('plan', 'unsupported');
   if (!flow || flows.filter(value => value.alias.startsWith('learnstack-first-broker-')).length !== 3
     || !action || action.enabled !== false || !mapper || mapper.protocolMapper !== 'oidc-usersessionmodel-note-mapper'
     || mapper.config?.['user.session.note'] !== 'identity_provider' || mapper.config?.['claim.name'] !== 'idp'
@@ -79,16 +88,21 @@ async function readWebMappers(admin, stage) {
   const mappers = list(await admin.get(`${base}/protocol-mappers/models`), stage);
   // The effective token mappers are the client's own plus those of every default and optional client
   // scope it receives; a scope mapper can emit `idp` exactly as a client mapper can.
-  const scopes = [...list(await admin.get(`${base}/default-client-scopes`), stage),
-    ...list(await admin.get(`${base}/optional-client-scopes`), stage)];
+  const defaults = list(await admin.get(`${base}/default-client-scopes`), stage);
+  const optional = list(await admin.get(`${base}/optional-client-scopes`), stage);
+  const scopes = [...defaults, ...optional];
   const scopeMappers = [];
   const seen = new Set();
   for (const scope of scopes) {
     if (typeof scope?.id !== 'string' || !scope.id || seen.has(scope.id)) refuse(stage, 'unsupported');
     seen.add(scope.id);
-    scopeMappers.push(...list(await admin.get(`client-scopes/${encode(scope.id)}/protocol-mappers/models`), stage));
+    const models = list(await admin.get(`client-scopes/${encode(scope.id)}/protocol-mappers/models`), stage);
+    if (scope.name === testRecordScope && models.length !== 0) refuse(stage, 'mapper_conflict');
+    scopeMappers.push(...models);
   }
-  return { clientId: found[0].id, mappers, scopeMappers };
+  if (defaults.some(scope => scope?.name === testRecordScope)) refuse(stage, 'mapper_conflict');
+  return { clientId: found[0].id, mappers, scopeMappers,
+    testRecordOptional: optional.some(scope => scope?.name === testRecordScope) };
 }
 
 const emitsIdp = mapper => claimRoot(mapper?.config?.['claim.name']) === 'idp';
@@ -157,6 +171,8 @@ export async function planFederationRealm(admin, desired) {
       if ((await readIdpLink(admin, 'readback')).enabled !== false) refuse('readback', 'readback_conflict');
       const after = await readWebMappers(admin, 'readback');
       if (after.clientId !== web.clientId || !qualifyMapper(after, canonical, 'readback')) refuse('readback', 'readback_conflict');
+      // The core plan attaches the test-record scope; its readback here confirms it is optional only.
+      if (!after.testRecordOptional) refuse('readback', 'readback_conflict');
       // Only the owned mapper was added; every other learnstack-web mapper is untouched.
       for (const original of web.mappers)
         if (!after.mappers.some(value => equal(value, original))) refuse('readback', 'readback_conflict');

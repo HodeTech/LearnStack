@@ -848,3 +848,30 @@ The Decision is unchanged.
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review
 record and its proof.
+
+### Amendment 6 — Host-alias carrier and test-record carrier (2026-11-14)
+
+The Step 2 review left two carriers to the maintainer (H and S-B in the
+[Phase 03 delivery log](../roadmap/phase-03-delivery-log.md)). The maintainer decided both
+before Step 4. The Decision is unchanged.
+
+1. **H — the host alias source.** § Host binding says the host tenant's alias, state and
+   entitlement come from the native self call. That call is served by
+   `GlobalSelfEntryMiddleware`, which ends before tenant resolution. It now announces the
+   host tenant read-only, host-only, through one new enumerated setter. The setter's only
+   read is the host tenant's Active, non-tombstone `federation_connections` alias and that
+   protocol's entitlement. It cannot write. The native self response gains a nullable
+   `federationAlias` field. [Database Standards](../standards/05-database.md) enumerate the
+   setter in the logical-setter census, and an architecture test pins its one statement
+   and its read-only transaction.
+2. **S-B — the test-record carrier.** `POST identity/federation/test-results` requires a
+   token carrying the realm client scope `federation.test_record`. The scope is an optional
+   client scope on `learnstack-web`, requested only by the `federation_test` authorization
+   request, so ordinary sign-in tokens never carry it. A token without the scope is refused
+   with the closed 403. The attempt identifier is returned only to the caller that starts
+   the attempt and is held server-side by the BFF, which never sends it to the browser. The
+   BFF records the result with the test-purpose access token it receives in the callback
+   and then discards every token.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the Step 4 record
+and its proof.

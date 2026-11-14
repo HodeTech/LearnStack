@@ -20,7 +20,7 @@ public sealed partial class AuthenticationAuthorityTests
     private const string Init = "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit)";
     private static readonly string[] IdentityArguments = ["System.String", "System.String", User, Tenant, Organization];
     private static readonly string IdentityConstructor = Signature(Identity, ".ctor", "System.Void", IdentityArguments);
-    private static readonly string[] VerifiedArguments = ["System.String", "System.String", OptionalUser, Tenant, Organization];
+    private static readonly string[] VerifiedArguments = ["System.String", "System.String", OptionalUser, Tenant, Organization, "System.Boolean"];
     private static readonly string VerifiedConstructor = Signature(Verified, ".ctor", "System.Void", VerifiedArguments);
     private static readonly string VerifiedCopyConstructor = Signature(Verified, ".ctor", "System.Void", Verified);
     private static readonly string IdentityCopyConstructor = Signature(Identity, ".ctor", "System.Void", Identity);
@@ -42,6 +42,7 @@ public sealed partial class AuthenticationAuthorityTests
         [InvitationSource + ".PrepareAsync"] = Signature(InvitationSource, "PrepareAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Identity.InvitationEntryObservation>>", Http),
         [RecipientReader + ".Matches"] = Signature(RecipientReader, "Matches", "System.Boolean", Http, InvitationCredential, "LearnStack.SharedKernel.Permissions.OperationInvocation"),
         [RecipientReader + ".ReadAsync"] = Signature(RecipientReader, "ReadAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.Modules.Identity.Application.Contracts.Invitations.CurrentInvitationRecipientEvidence>>", "LearnStack.SharedKernel.Permissions.OperationInvocation", "System.Threading.CancellationToken"),
+        [TestRecordScope + ".IsPresent"] = Signature(TestRecordScope, "IsPresent", "System.Boolean", Http),
         [Profile + ".TryReadValidated"] = Signature(Profile, "TryReadValidated", "System.Boolean", "System.String", Authentication + "TenantAuthenticationOptions", "System.DateTimeOffset", Verified + "&", Authentication + "TenantTokenFailure&"),
         [Events + ".MessageReceived"] = Signature(Events, "MessageReceived", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.MessageReceivedContext"),
         [Events + ".AuthenticationFailed"] = Signature(Events, "AuthenticationFailed", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.AuthenticationFailedContext"),
@@ -123,7 +124,8 @@ public sealed partial class AuthenticationAuthorityTests
             ["Subject"] = "System.String",
             ["ClaimedActor"] = OptionalUser,
             ["TenantId"] = Tenant,
-            ["OrganizationId"] = Organization
+            ["OrganizationId"] = Organization,
+            ["FederationTestRecord"] = "System.Boolean"
         });
 
     private static bool HasClosedRecordShape(TypeDefinition identity, string name, string[] arguments,

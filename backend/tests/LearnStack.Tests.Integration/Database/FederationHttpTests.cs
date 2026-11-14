@@ -39,6 +39,54 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
     private static readonly SeedTenant Yoga = SeedData.Yoga;
     /// <summary>An orgless Yoga host: the seed host maps to Studio One and therefore announces an organization (C-4).</summary>
     private const string YogaTenantHost = "federation-yoga.example.invalid";
+    /// <summary>
+    /// ADR-0099 Amendment 6: the test record needs the optional <c>federation.test_record</c> scope, which only the BFF's
+    /// federation_test authorization requests. These administrator tokens model that test-purpose token.
+    /// </summary>
+    private const string RecorderScope = "openid profile email federation.test_record";
+
+    [Fact]
+    public async Task The_test_record_refuses_a_token_without_the_test_record_scope_before_reading_the_body()
+    {
+        await using var proof = await CreatePreparedAsync();
+        var harness = new Harness();
+        using var client = proof.Client(harness.Configure);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        await AdoptFederationReleaseAsync(client, recorder, English);
+        using var configured = await SendAsync(client, recorder, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
+        var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
+        using var started = await SendAsync(client, recorder, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
+        var start = await JsonAsync(started);
+        var attempt = start.GetProperty("testAttemptId").GetString()!;
+        version = start.GetProperty("version").GetString()!;
+        var body = JsonSerializer.Serialize(new { testAttemptId = attempt, passed = true });
+
+        // An ordinary Studio token (the same administrator, no test-record scope) is refused with the closed 403, before the
+        // body is read: a malformed body is refused the same way, and nothing is audited or changed.
+        foreach (var scope in new[] { "openid profile email", "openid federation.test_record_extra", "federation.test_recorder" })
+        {
+            var ordinary = proof.Token(EnglishAdmin, English, scope: scope);
+            using (var refused = await SendAsync(client, ordinary, "/api/v1/identity/federation/test-results", "POST", body, version))
+            {
+                await ProblemAsync(refused, HttpStatusCode.Forbidden, "forbidden");
+                Assert.DoesNotContain(await proof.AuditAsync(refused, English), row => row.Operation == "identity.federation.test_record");
+            }
+            using (var malformed = await SendAsync(client, ordinary, "/api/v1/identity/federation/test-results", "POST", "{\"x\":1}", version))
+                await ProblemAsync(malformed, HttpStatusCode.Forbidden, "forbidden");
+        }
+        Assert.Equal("TestOpen", (await RowAsync(proof, English)).State);
+
+        // The scope grants nothing on its own: a learner holding it is still refused by the Tenant policy.
+        var learner = proof.Token(EnglishLearner, English, scope: RecorderScope);
+        using (var learned = await SendAsync(client, learner, "/api/v1/identity/federation/test-results", "POST", body, version))
+            Assert.Equal(HttpStatusCode.Forbidden, learned.StatusCode);
+        Assert.Equal("TestOpen", (await RowAsync(proof, English)).State);
+
+        // The positive control: the same administrator with the scope records the result.
+        using var passed = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST", body, version);
+        Assert.Equal("recorded", (await JsonAsync(passed)).GetProperty("outcome").GetString());
+        Assert.Equal("TestPassed", (await RowAsync(proof, English)).State);
+    }
 
     [Fact]
     public async Task The_lifecycle_commits_each_step_with_its_MUST_row_and_exposes_only_the_host_tenants_Active_alias()
@@ -46,7 +94,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
 
         using (var empty = await SendAsync(client, token, "/api/v1/identity/federation"))
@@ -120,7 +168,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var admin = proof.Token(EnglishAdmin, English);
+        var admin = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, admin, English);
         await PromoteLearnerAsync(client, admin);
         var second = proof.Token(EnglishLearner, English);
@@ -175,7 +223,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         harness.Audit.FailWrites = true;
         using (var failed = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody()))
@@ -221,7 +269,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await AddOrglessHostAsync(proof, Yoga, YogaTenantHost);
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var english = proof.Token(EnglishAdmin, English);
+        var english = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         var yoga = proof.Token(YogaAdmin, Yoga);
 
         // The organization-mapped seed host refuses the orgless operation for the Yoga administrator.
@@ -277,7 +325,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await proof.Database.AddMembershipAsync(English, EnglishLearner, English.DefaultOrganization.OrganizationId, BuiltInRoleKey.OrgAdmin);
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var admin = proof.Token(EnglishAdmin, English);
+        var admin = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, admin, English);
         var learner = proof.Token(EnglishLearner, English);
         var branch = proof.Token(EnglishLearner, English, organization: true, claimedOrganization: English.DefaultOrganization.OrganizationId);
@@ -308,7 +356,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = long.Parse((await JsonAsync(configured)).GetProperty("version").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
@@ -334,7 +382,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
@@ -395,7 +443,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
@@ -473,7 +521,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         harness.Provider.OnApply = (_, _) => throw new HttpRequestException("connection reset");
         using var faulted = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
@@ -496,7 +544,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English);
+        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;

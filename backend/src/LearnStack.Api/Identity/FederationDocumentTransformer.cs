@@ -93,6 +93,13 @@ internal sealed class FederationDocumentTransformer : IOpenApiDocumentTransforme
             ("503", "dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied."),
         ], string.Join(", ", path.Operations!.Keys.Select(method => method.Method).Order(StringComparer.Ordinal)));
         if (operation.Responses["503"] is OpenApiResponse unavailable) unavailable.Headers?.Remove("Retry-After");
+        if (contract.Name == "RecordFederationTestResult")
+        {
+            // ADR-0099 Amendment 6 (S-B): the BFF's federation_test callback is the only caller.
+            operation.Description += " The access token must also carry the optional federation.test_record client scope, which only the BFF's federation_test authorization requests; an ordinary sign-in or Studio token is refused with 403 before the body is read.";
+            if (operation.Responses["403"] is OpenApiResponse forbidden)
+                forbidden.Description = "forbidden without current Tenant identity.federation.admin in an orgless context, or when the access token lacks the federation.test_record scope; feature_disabled when the protocol is not entitled.";
+        }
         if (contract.Body is not null) operation.Responses["409"] = new OpenApiResponse
         {
             Description = "concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier.",

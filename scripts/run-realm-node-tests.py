@@ -20,7 +20,7 @@ EXPECTED = {
     'development-realm-http.test.mjs': 42,
     'development-realm-owner.test.mjs': 77,
     'development-realm-plan.test.mjs': 93,
-    'development-realm-federation.test.mjs': 25,
+    'development-realm-federation.test.mjs': 33,
     'development-realm-native-session.test.mjs': 6,
     'development-realm-preparation.test.mjs': 28,
     'development-realm-stock-console.test.mjs': 26,

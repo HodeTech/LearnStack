@@ -320,7 +320,8 @@
         "address",
         "phone",
         "microprofile-jwt",
-        "organization"
+        "organization",
+        "federation.test_record"
       ],
       "clientAuthenticatorType": "client-secret",
       "secret": "${KEYCLOAK_WEB_CLIENT_SECRET}",
@@ -799,6 +800,15 @@
           }
         }
       ]
+    },
+    {
+      "name": "federation.test_record",
+      "description": "ADR-0099 federation test record. Optional on learnstack-web and requested only by the BFF federation_test authorization; no mappers.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
     },
     {
       "name": "learnstack-native-session",

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { planFederationRealm, firstBrokerFlow, idpMapperName } from './development-realm-federation.mjs';
+import { planFederationRealm, firstBrokerFlow, idpMapperName, testRecordScope } from './development-realm-federation.mjs';
 import { planFederationAdmin, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
 import { reconcileRealm } from './development-realm-core.mjs';
 import { desired, manifest, secret, federationSecret, provider, providerTransport } from './development-realm-test-fixture.mjs';
@@ -204,4 +204,72 @@ test('a newly created service account leaves the realm default groups; an existi
     ? [{ id: 'g', name: 'g' }] : existingGet(path);
   await assert.rejects(planFederationAdmin(existing.admin, federationSecret), refusal('plan', 'unsupported'));
   assert.deepEqual(existing.writes, []);
+});
+
+// ADR-0099 Amendment 6: the test-record scope is optional only and carries no mapper.
+function preStepFour(fixture = provider()) {
+  fixture.state.scopes = fixture.state.scopes.filter(scope => scope.name !== testRecordScope);
+  const web = fixture.state.clients.find(client => client.clientId === 'learnstack-web');
+  web.optionalClientScopes = web.optionalClientScopes.filter(name => name !== testRecordScope);
+  return fixture;
+}
+
+test('the committed import declares the test-record scope optional on learnstack-web with no mapper', async () => {
+  const scope = desired.clientScopes.find(value => value.name === testRecordScope);
+  assert.deepEqual(scope.protocolMappers ?? [], []);
+  assert.equal(scope.attributes['include.in.token.scope'], 'true');
+  const web = desired.clients.find(client => client.clientId === 'learnstack-web');
+  assert.ok(web.optionalClientScopes.includes(testRecordScope));
+  assert.ok(!web.defaultClientScopes.includes(testRecordScope));
+});
+
+test('a pre-Step-4 realm gains the optional test-record scope through the core, then reruns zero-write', async () => {
+  const fixture = preStepFour(providerWithoutFederationAdmin());
+  const recording = providerTransport(fixture);
+  const first = await reconcileRealm(input(recording.transport, { federationSecret }));
+  assert.ok(first.mutations >= 2, 'the scope is created and attached as optional');
+  const web = fixture.state.clients.find(client => client.clientId === 'learnstack-web');
+  assert.ok(web.optionalClientScopes.includes(testRecordScope));
+  assert.ok(!web.defaultClientScopes.includes(testRecordScope));
+  assert.deepEqual(fixture.state.scopes.find(scope => scope.name === testRecordScope).protocolMappers, []);
+  assert.deepEqual(await reconcileRealm(input(recording.transport, { federationSecret })), { mutations: 0 });
+});
+
+test('the test-record scope as a default of learnstack-web refuses mapper_conflict without a write', async () => {
+  const fixture = provider();
+  const web = fixture.state.clients.find(client => client.clientId === 'learnstack-web');
+  web.optionalClientScopes = web.optionalClientScopes.filter(name => name !== testRecordScope);
+  web.defaultClientScopes.push(testRecordScope);
+  await assert.rejects(planFederationRealm(fixture.admin, clone(desired)), refusal('plan', 'mapper_conflict'));
+  assert.deepEqual(fixture.writes, []);
+});
+
+test('a mapper planted in the test-record scope refuses mapper_conflict, whatever claim it emits', async () => {
+  for (const claim of ['idp', 'other']) {
+    const fixture = provider();
+    fixture.state.scopes.find(scope => scope.name === testRecordScope).protocolMappers.push(scopeEmitter(claim, `planted-${claim}`));
+    await assert.rejects(planFederationRealm(fixture.admin, clone(desired)), refusal('plan', 'mapper_conflict'));
+    assert.deepEqual(fixture.writes, []);
+  }
+});
+
+test('an existing test-record scope with a differing definition refuses in the core plan rather than being adopted', async () => {
+  const fixture = providerWithoutFederationAdmin();
+  fixture.state.scopes.find(scope => scope.name === testRecordScope).attributes['include.in.token.scope'] = 'false';
+  const recording = providerTransport(fixture);
+  await assert.rejects(reconcileRealm(input(recording.transport, { federationSecret })), refusal('plan', 'mapper_conflict'));
+});
+
+for (const [name, mutate] of [
+  ['without the scope', value => { value.clientScopes = value.clientScopes.filter(scope => scope.name !== testRecordScope); }],
+  ['with the scope as a default', value => {
+    value.clients.find(client => client.clientId === 'learnstack-web').defaultClientScopes.push(testRecordScope); }],
+  ['with a scope mapper', value => { value.clientScopes.find(scope => scope.name === testRecordScope).protocolMappers =
+    [scopeEmitter('other', 'declared')]; }],
+]) test(`a desired export ${name} refuses unsupported before any read`, async () => {
+  const fixture = provider();
+  const changed = clone(desired);
+  mutate(changed);
+  await assert.rejects(planFederationRealm(fixture.admin, changed), refusal('plan', 'unsupported'));
+  assert.deepEqual(fixture.writes, []);
 });

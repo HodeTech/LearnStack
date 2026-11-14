@@ -361,7 +361,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. The access token must also carry the optional federation.test_record client scope, which only the BFF's federation_test authorization requests; an ordinary sign-in or Studio token is refused with 403 before the body is read. */
         post: operations["RecordFederationTestResult"];
         delete?: never;
         options?: never;
@@ -5310,7 +5310,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context, or when the access token lacks the federation.test_record scope; feature_disabled when the protocol is not entitled. */
             403: {
                 headers: {
                     "Cache-Control": "no-store";

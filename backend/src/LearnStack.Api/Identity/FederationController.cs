@@ -7,6 +7,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Application.Federation;
 using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -93,8 +94,9 @@ public sealed class FederationController(FederationOperationRunner runner) : Api
         await EmptyAsync() is { } version ? FederationHttpModels.Receipt(await runner.StartTestAsync(version, cancellationToken)) : AdministrationHttpInput.Invalid();
 
     /// <summary>
-    /// Intended for the BFF's server-side test callback reporting the attempt it holds, with the identifier kept from the
-    /// browser. Not enforced until Step 4 (S-B): today the route takes the tenant bearer and the Studio policy.
+    /// The BFF's server-side test callback reports the attempt it holds, with the identifier kept from the browser. ADR-0099
+    /// Amendment 6 (S-B): the token must also carry the optional <c>federation.test_record</c> client scope, which only the
+    /// <c>federation_test</c> authorization requests; without it the closed 403 refuses before the body is read.
     /// </summary>
     [HttpPost("test-results", Name = "RecordFederationTestResult")]
     [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme, Policy = OperationPolicyRequirement.Prefix + "identity.federation.test_record")]
@@ -102,6 +104,8 @@ public sealed class FederationController(FederationOperationRunner runner) : Api
     [ProducesResponseType<FederationOperationResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> RecordTestResult(CancellationToken cancellationToken)
     {
+        if (!FederationTestRecordScope.IsPresent(HttpContext))
+            return Result<FederationRun>.Fail(new Error(LocalizedMessage.Of("lockey_forbidden"))).ToActionResult();
         using var body = await BodyAsync("testAttemptId", "passed");
         if (body is null || !ProtectedEntityTag.TryRead(Request, out var version)
             || !AdministrationHttpInput.TryText(body.RootElement, "testAttemptId", false, 36, out var text)

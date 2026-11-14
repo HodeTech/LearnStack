@@ -8,6 +8,8 @@ import { developmentBackchannelUrl } from './development-backchannel.mjs';
 
 const managedScope = 'learnstack-tenant-api';
 const nativeScope = 'learnstack-native-session';
+// ADR-0099 Amendment 6: optional on learnstack-web only, requested by the federation_test authorization.
+export const federationTestScope = 'federation.test_record';
 const nativeDetachmentPaths = new WeakMap();
 const namedClients = ['learnstack-web', 'learnstack-api'];
 const pageSize = 100;
@@ -549,8 +551,8 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
           (wanted.protocolMappers ?? []).map(mapper => omit(mapper, ['id'])).sort(byName))) refuse('apply', 'mapper_conflict');
         scopeIds.set(name, found[0].id);
       }, wanted);
-    } else if (name === nativeScope) {
-      // This newly reserved scope is created or exactly retained, never adopted
+    } else if (name === nativeScope || name === federationTestScope) {
+      // These newly reserved scopes are created or exactly retained, never adopted
       // by overwriting an administrator's conflicting mapper/configuration.
       if (!matchesFields(current, omit(wanted, ['protocolMappers']))
         || !equal((before.scopeMappers.get(name) ?? []).map(mapper => omit(mapper, ['id'])).sort(byName),
@@ -631,6 +633,9 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
       // remains requestable and is an administrator conflict, not a second
       // detachable route. Every other effective mapper is checked below.
       if (optional.has(managedScope) || optional.has(nativeScope)) refuse('plan', 'mapper_conflict');
+      // The test-record scope is never a default: an ordinary sign-in must not carry it.
+      if (defaults.has(federationTestScope) || wanted.defaultClientScopes.includes(federationTestScope)
+        || !wanted.optionalClientScopes.includes(federationTestScope)) refuse('plan', 'mapper_conflict');
       if (defaults.has(managedScope)) {
         const legacy = baseline.defaults.find(scope => scope.name === managedScope);
         defaults.delete(managedScope);

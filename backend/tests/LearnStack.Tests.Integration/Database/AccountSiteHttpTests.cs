@@ -236,14 +236,15 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
 
     internal static string Token(TenantAuthenticationIssuer issuer, SeedTenant tenant, bool organization = false,
         Guid? claimedTenant = null, Guid? claimedOrganization = null, string? subject = null,
-        string? tokenId = null, Guid? actor = null)
+        string? tokenId = null, Guid? actor = null, string? scope = null)
     {
         var payload = issuer.Payload(
             ("tenant_id", (claimedTenant ?? tenant.TenantId.Value).ToString("D")),
             ("organization_id", (claimedOrganization ?? tenant.DefaultOrganization.OrganizationId.Value).ToString("D")),
             ("sub", subject ?? "opaque-keycloak-subject"),
             ("jti", tokenId ?? "account-http-token"),
-            ("user_id", (actor ?? TenantAuthenticationIssuer.Actor).ToString("D")));
+            ("user_id", (actor ?? TenantAuthenticationIssuer.Actor).ToString("D")),
+            ("scope", scope ?? "openid profile"));
         if (!organization)
         {
             using var document = JsonDocument.Parse(payload);

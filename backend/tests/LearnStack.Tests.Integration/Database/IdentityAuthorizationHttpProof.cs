@@ -67,9 +67,9 @@ internal sealed class IdentityAuthorizationHttpProof : IAsyncDisposable
         });
 
     internal string Token(UserId actor, SeedTenant tenant, bool organization = false, string? subject = null,
-        OrganizationId? claimedOrganization = null) => AccountSiteHttpTests.Token(Issuer, tenant, organization,
+        OrganizationId? claimedOrganization = null, string? scope = null) => AccountSiteHttpTests.Token(Issuer, tenant, organization,
             claimedOrganization: claimedOrganization?.Value, actor: actor.Value,
-            subject: subject ?? IdentityPublicReadFixture.FoundationSubject(actor));
+            subject: subject ?? IdentityPublicReadFixture.FoundationSubject(actor), scope: scope);
 
     internal static Task<HttpResponseMessage> SendAsync(HttpClient client, string token, string? host = null,
         string path = DirectoryPath, string? tenantAssertion = null, string? organizationAssertion = null,
