@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,990 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,066 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -503,6 +503,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 3 review round 2 corrections (2026-11-14)](#p03-8-step-3-review-round-2-corrections-2026-11-14) — 77 lines
   - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 200 lines
   - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 110 lines
+  - [P03-8 Step 4 review round 2 corrections (2026-11-15)](#p03-8-step-4-review-round-2-corrections-2026-11-15) — 76 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23746,3 +23747,79 @@ round (added by review round 2, C5-1).
 - The PR.
 - The commit-trailer model name (maintainer). This commit carries the trailer the
   brief names.
+
+### P03-8 Step 4 review round 2 corrections (2026-11-15)
+
+The second independent review of Step 4 (`52427adf`) reported two security findings
+(S4-3b, S4-2b) and four corpus and test findings (C5-1–C5-4). Each was verified in the
+code before it was acted on; all six are confirmed. The code and corpus fixes are in
+`1cd89086`; this record and the C5-1 additions to the round 1 record are in the commit
+that adds it.
+[ADR-0099 Amendment 8](../decisions/0099-confined-tenant-federation.md#amendment-8--step-4-review-round-2-test-session-replacement-and-scope-confinement-2026-11-15)
+corrects Amendment 7 item 3 and records the scope confinement; Amendments 6 and 7 are
+not edited. No Decision changes and no OpenAPI or SDK contract changes.
+
+**Security findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| S4-3b | Fixed | Confirmed by reading `#completeTest`: the pass condition compared `idp`, issuer, subject and `auth_time` only, and the test reused the administrator's provider session, so a stale `identity_provider` note let a local re-login under `prompt=login` pass. `startFederationTest` now records the administrator's provider session `sid` and refuses to start (`identity`) when it or the refresh token is missing; before `begin`, it ends that session server-side with the administrator's refresh token through `provider.endSession`, awaited and bound to the test owner's controller (the back-channel logout it causes closes the administrator's owner, not the test owner); a refused or failed request refuses the start. `#completeTest` additionally requires the completed ID token's `sid` to differ from the recorded one. New `session-store.test.ts` cases: the end-session is called with the administrator's refresh token while `begin` has not run, the start waits for it, and a refused end-session refuses the start with no login state; a completed token in the administrator's `sid` records `passed: false`, a fresh `sid` with the right `idp`, `sub` and `auth_time` records `passed: true`. `bff-federation.test.ts` asserts the end-session before the 303 and completes with a fresh `sid`. Removing the `sid` condition fails the `sid` case; removing the end-session fails the start case and both callback tests. Amendment 8 item 1 states the bounded claim: a replaced provider session completed through the tested broker, not an upstream prompt, which only a forwarded `passMaxAge` could show and the pinned broker profile sets false. |
+| S4-2b | Fixed | Confirmed: only `FederationController.RecordTestResult` read `FederationTestRecordScope.IsPresent`. `TenantCredentialAdmissionMiddleware`, directly after authentication and ahead of the global self entry, resolution and authorization, now refuses a verified token carrying `federation.test_record` on every endpoint except that action, by `ControllerActionDescriptor` identity, through `OperationClassificationMiddleware.RefuseAsync` with `FederationTestRecordScope.Refusal` (`lockey_forbidden`), the Error the controller's own refusal now also uses. `InvokeAsync` stays non-async, so `AuthenticationAuthorityTests`' site pins hold. New `FederationTestRecordAdmissionTests` (8 cases): the test record admits the scoped token; three other federation actions and an unmatched request refuse it with a `forbidden` Problem Details; the planted control serves the test record's path and method from another action and is refused; an unscoped token is admitted on two actions. Making the exception path-based fails the planted control; removing the refusal fails five cases. Integration: `FederationHttpTests.A_test_record_token_reaches_only_the_test_record` (Studio detail read, configure write, test start and capability read refused, the unscoped administrator admitted, the result recorded with the scoped token) and `IdentitySelfEntryHttpTests.Actual_native_entries_refuse_a_federation_test_record_token` (native self GET, bootstrap POST and session-scope admission POST refused with no audit row, the unscoped token admitted). The other `FederationHttpTests` facts now use an ordinary administrator token and the scoped token only for `test-results`. Standard 21 names the rule `Federation_Test_Record_Scope_Reaches_Only_The_Test_Record` (282 Implemented, 118 outside the assembly). |
+
+**Corpus and test findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| C5-1 | Fixed | The round 1 Architecture row and its "Not run" paragraph now say that a clean full Architecture run after the Standard 21 count fix was not repeated in that round. This round's full run is in the verification table below. |
+| C5-2 | Fixed | `bff-federation.test.ts` adds an RSC navigation (`RSC: 1`, `cors`, `empty`): `same-origin` reads the detail once, `same-site` reads nothing. With the RSC clause of `federationNavigation` replaced by `false`, the positive control fails. |
+| C5-3 | Fixed | The malformed `auth_time` cases now assert the reason: `'1800000123'` and `-1` are refused by the OIDC library (`response`), `0` and `1.5` by the profile's `authTime()` guard (`identity`). With the guard removed, the `0` and `1.5` cases are admitted and the test fails. |
+| C5-4 | Fixed (appended note) | Amendment 22's "runs one read" is exact for the setter's own connection, not false; `FederationHostAliasReader` then reads the protocol's entitlement through `IEntitlementProvider`. [ADR-0040 Amendment 23](../decisions/0040-ambient-unit-of-work.md#amendment-23--federation-host-alias-reader-the-entitlement-read-2026-11-15) states it; Amendment 22 is unchanged. |
+
+Standards 07 and 11 and the Identity module README describe the replaced provider
+session and the API-wide scope refusal.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the corrected
+working tree over `52427adf`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release` | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --no-restore --include` (the six changed C# files) | exit 0 |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 4,143 passed, 0 failed, 0 skipped (4,135 plus the 8 `FederationTestRecordAdmissionTests` cases) |
+| Architecture, Release: `AuthenticationAuthorityTests` and `AuthenticatedHttpSurfaceTests` (before the commit) | 36 passed, 0 failed, 0 skipped |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full, on `1cd89086`) | 664 total: 664 passed, 0 failed, 0 skipped (44 min 58 s). This is the clean full run after round 1's Standard 21 count fix; it also covers this round's Standard 21 counts |
+| Architecture, Release: the corpus-reading classes on the final tree with this record | `CorpusConsistencyTests`, `AuditCoverageTests`, `AuditConventionTests`, `DomainGenericityTests`, `RepositoryLayoutTests`, `RequestSurfaceTests`, `AsyncStoreInventoryTests`: 132 passed, 0 failed, 0 skipped |
+| Integration, Release: `FederationHttpTests`, `IdentitySelfEntryHttpTests`, `AuthenticatedHttpSurfaceRuntimeTests`, `OperationHttpClassificationTests` (Docker) | 48 passed (13, 14, 7 and 14), 0 failed, 0 skipped (2 min 57 s) |
+| Integration, Release: `FederationProviderTests` and `TenantBffSessionTests` (Docker; the real BFF built from this tree against real Keycloak) | 31 passed (15 and 16), 0 failed, 0 skipped (11 min 8 s) |
+| `pnpm test` (frontend guarded workspace runner) | `apps/web` 133 files, 4,387 passed; `packages/sdk` 13 files, 233 passed; "Frontend guard: 4620 passed in 2 packages; zero skips/todos." |
+| `pnpm typecheck`, `pnpm lint` (frontend workspace) | clean; "No ESLint warnings or errors" |
+| `prettier --check` (the four changed frontend files) | clean |
+| `node scripts/verify-bff-protocol.mjs --ui` (in `frontend/apps/web`) | "BFF production UI: passed" |
+| `python3 scripts/run-realm-node-tests.py` | "Complete development realm census: 13 files, 498 executed passing tests." |
+| `python3 scripts/test-ci-native-tests.py` | 111 tests OK |
+| `python3 scripts/test-ci-test-shards.py` | 88 tests OK |
+| `make docs-index`, `make lint-docs` | index regenerated; "3822 fragment links resolve", roadmap structure conforms, "Delivery log indexes: 3 current."; exit 0 |
+
+`AuthenticatedHttpSurfaceRuntimeTests` (7) and `OperationHttpClassificationTests` (14)
+needed no change; the runtime census invokes the controllers directly, so it does not
+pass through the credential admission.
+
+Not run: the OpenAPI gate (no OpenAPI or SDK contract changed; the ADR-0096 transition
+record remains the maintainer's), the Contract suite, the Integration suite outside the
+classes listed, `make demo DEMO_MODE=ci`, hosted CI and the A/B layout qualification,
+and a browser, axe or manual accessibility audit.
+
+**Residual risks.**
+
+- The test does not prove that the upstream IdP prompted (Amendment 8 item 1).
+- Starting a test ends the administrator's provider and BFF sessions; an abandoned
+  test leaves the administrator signed out.
+- Unchanged from round 1: D4-5 (no `Sec-Fetch-Site`), D4-8, and the Step 4 residuals.
+
+**Open items.**
+
+- The ADR-0096 OpenAPI self-response transition record (maintainer).
+- The manual accessibility checks of the Studio page and the sign-in option
+  (maintainer).
+- The commit-trailer model (maintainer).
+- The PR (not yet opened).
