@@ -126,4 +126,56 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
     expect(refused.status).toBe(403);
     expect(f.federationTest.start).not.toHaveBeenCalled();
   });
+
+  it('never echoes a submitted secret into a federation recovery document', async () => {
+    const f = federated();
+    const session = await f.login();
+    const secret = 'secret-canary-never-echoed';
+    const response = (await f.http.handle(
+      bffRequest('/api/studio/federation-configure', {
+        method: 'POST',
+        cookie: session.cookie,
+        form: new URLSearchParams({
+          csrfToken: session.finished.session.csrfToken,
+          protocol: 'oidc',
+          displayName: 'Acme',
+          source: 'discovery_url',
+          documentUrl: 'http://not-https.example/',
+          clientId: 'learnstack',
+          clientAuthentication: 'client_secret_basic',
+          clientSecret: secret,
+        }).toString(),
+        headers: { accept: 'text/html' },
+      }),
+      render,
+    ))!;
+    expect(response.status).toBe(400);
+    const body = await response.text();
+    expect(body).not.toContain(secret);
+    expect(body).toContain('/studio/federation');
+    expect(f.administration).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ kind: 'configureFederation' }),
+      expect.anything(),
+    );
+  });
+
+  it('prepares no federation page for a cross-site navigation, so no readback runs', async () => {
+    const f = federated();
+    const session = await f.login();
+    const before = f.administration.mock.calls.length;
+    const projection = await f.http.project(
+      bffRequest('/studio/federation', {
+        cookie: session.cookie,
+        headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-dest': 'document' },
+      }),
+    );
+    expect(projection.session).not.toBeNull();
+    expect(
+      f.administration.mock.calls
+        .slice(before)
+        .some(([, , operation]) => operation.kind === 'getFederationConnection'),
+    ).toBe(false);
+  });
 });

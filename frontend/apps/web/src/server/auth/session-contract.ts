@@ -97,6 +97,7 @@ export type NativeReturnPath =
   | '/studio/invitations'
   | `/studio/invitations/${string}`
   | '/studio/invitation-policy'
+  | '/studio/federation'
   | '/studio/custom-fields'
   | `/studio/custom-fields/${string}`
   | '/studio/roles'
@@ -205,6 +206,8 @@ export type SessionDependencies = Readonly<{
     binding: NativeBinding,
     signal: AbortSignal,
   ) => Promise<FederationSignInOption | null>;
+  /** The tenant realm issuer, for the IdP values the federation page shows; never a request value. */
+  federationIssuer?: string;
   federationTest?: NativeFederationTestApi;
   diagnostic?: (reason: SessionFailure) => void;
   /** Internal deterministic test clock, never deployment configuration. */

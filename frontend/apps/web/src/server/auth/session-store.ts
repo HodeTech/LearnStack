@@ -37,9 +37,9 @@ import type {
   NativePagePreparation,
   NativeSnapshotTicket,
 } from './page-snapshot-contract.js';
+import { FEDERATION_ALIAS } from './provider-core.js';
 import { BffProviderError } from './provider-error.js';
 import type { LoginTransaction, ProviderCredentials } from './provider.js';
-import { FEDERATION_ALIAS } from './provider.js';
 import { BffSessionError } from './session-contract.js';
 import type {
   FederationSignInOption,
@@ -710,6 +710,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
                     : 'members',
               cursor,
             ),
+          this.#dependencies.federationIssuer,
         );
       });
       lease.track(work);
@@ -2326,6 +2327,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       'getInvitation',
       'listInvitableRoles',
       'getInvitationPolicy',
+      'getFederationConnection',
       'listOrganizations',
       'getOrganization',
       'listCustomFieldDefinitions',

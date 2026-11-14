@@ -17,6 +17,11 @@ import {
   customFieldControlDescriptions,
 } from './custom-field-forms.js';
 import {
+  BffFederationInputError,
+  FEDERATION_FORMS,
+  FEDERATION_SECRET_FIELDS,
+} from './federation-forms.js';
+import {
   BFF_ADMIN_FORMS,
   BffProfileInputError,
   BffInvitationInputError,
@@ -48,7 +53,7 @@ import { bffSecretEquals, isBffOpaque } from './session-store.js';
 const opaque = () => randomBytes(32).toString('base64url');
 /** ADR-0099 § Lifecycle and test: the one browser action that begins the administrator's test. */
 const FEDERATION_TEST_PATH = '/api/studio/federation-test';
-const FEDERATION_TEST_DESTINATION: NativeReturnPath = '/studio';
+const FEDERATION_TEST_DESTINATION: NativeReturnPath = '/studio/federation';
 const cookieLife = 8 * 60 * 60;
 export type BffPage = Readonly<
   (
@@ -247,6 +252,12 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
     value: unknown,
     status: number,
   ): Promise<Response> => {
+    // A secret never enters a recovery document, whatever the action (ADR-0099).
+    if (page.kind === 'mutation_error')
+      page = {
+        ...page,
+        fields: page.fields.filter(([name]) => !FEDERATION_SECRET_FIELDS.includes(name)),
+      };
     const prepared = await store.preparePage(current, request.source, {
       kind: 'response',
       ticket: ticket(request),
@@ -295,7 +306,13 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
         let session: SessionProjection | null;
         if (protectedPage && request.method === 'GET') {
           const native = ticket(request);
-          if (native.prefetch)
+          // ADR-0099 (Step 2 review S-E): the federation detail load reads the provider back and may begin a
+          // corrective write, so a cross-site navigation (which SameSite=Lax still sends cookies on) prepares nothing.
+          if (
+            native.prefetch ||
+            (path === '/studio/federation' &&
+              request.headers.get('sec-fetch-site') === 'cross-site')
+          )
             session = await store.admit(current, request.source, 'passive', request.signal);
           else {
             const page = await store.preparePage(current, request.source, {
@@ -789,6 +806,23 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 400,
               );
             }
+            if (error instanceof BffFederationInputError)
+              return await actionDocument(
+                request,
+                render,
+                current,
+                {
+                  kind: 'mutation_error',
+                  action: path,
+                  destination: '/studio/federation',
+                  fields: [['csrfToken', csrf!]],
+                  reason: 'validation',
+                  retryable: false,
+                  federation: { invalid: error.invalidFields, outcome: null },
+                },
+                { code: 'validation_failed' },
+                400,
+              );
             if (
               !(error instanceof BffProfileInputError) &&
               !(error instanceof BffInvitationInputError)
@@ -854,13 +888,36 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 fields: [...fields.entries()],
                 customFieldControls,
                 reason: 'unavailable',
-                retryable: true,
+                // An unconfirmed federation write is settled by Resume, never resubmitted (ADR-0099).
+                retryable: !Object.hasOwn(FEDERATION_FORMS, path),
               },
               { code: 'unavailable' },
               503,
             );
           }
           if (outcome.kind === 'success') {
+            // ADR-0099: every settled federation outcome is a 200; only applied and recorded return to the page
+            // directly. Others are explained without provider text, and nothing is retried automatically.
+            const settled =
+              Object.hasOwn(FEDERATION_FORMS, path) &&
+              (outcome.data as { outcome?: unknown } | null)?.outcome;
+            if (typeof settled === 'string' && !['applied', 'recorded'].includes(settled))
+              return await actionDocument(
+                request,
+                render,
+                current,
+                {
+                  kind: 'mutation_error',
+                  action: path,
+                  destination: form.destination,
+                  fields: [['csrfToken', csrf!]],
+                  reason: settled === 'failed' || settled === 'drift' ? 'denied' : 'unavailable',
+                  retryable: false,
+                  federation: { invalid: [], outcome: settled },
+                },
+                { code: settled },
+                200,
+              );
             if (path === '/api/studio/invitation-create') {
               const location = outcome.location;
               const match =
@@ -927,7 +984,8 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             (path === '/api/account/profile' ||
               path === '/api/studio/membership-profile' ||
               path.startsWith('/api/studio/invitation-') ||
-              Object.hasOwn(CUSTOM_FIELD_FORMS, path))
+              Object.hasOwn(CUSTOM_FIELD_FORMS, path) ||
+              Object.hasOwn(FEDERATION_FORMS, path))
               ? 'validation'
               : code === 'concurrency_conflict'
                 ? 'stale'
@@ -960,7 +1018,12 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                     ),
                   }
                 : {}),
-              retryable: reason === 'unavailable' || reason === 'in_progress',
+              retryable:
+                !Object.hasOwn(FEDERATION_FORMS, path) &&
+                (reason === 'unavailable' || reason === 'in_progress'),
+              ...(Object.hasOwn(FEDERATION_FORMS, path)
+                ? { federation: { invalid: [], outcome: null } }
+                : {}),
             },
             { code },
             status,

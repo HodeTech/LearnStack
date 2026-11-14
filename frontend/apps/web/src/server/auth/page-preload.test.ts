@@ -80,17 +80,15 @@ const common: Omit<NativePageSnapshot, 'capabilities' | 'ownProfile' | 'profileS
     scopeKind: 'tenant',
     formKeys: ['owned-form-key'],
   };
-function success<const T extends Extract<NativeOperationResult, { kind: 'success' }>['data']>(
-  data: T,
-) {
+function success<const T>(data: T): NativeOperationResult {
   return {
     kind: 'success' as const,
     status: 200 as const,
-    data,
+    data: data as Extract<NativeOperationResult, { kind: 'success' }>['data'],
     etag: null,
     location: null,
     replayed: false,
-  };
+  } as NativeOperationResult;
 }
 
 function refused(status: number): NativeOperationResult {
@@ -173,7 +171,7 @@ function fixture(overrides: Partial<Record<NativeOperation['kind'], NativeOperat
     read,
     wrap,
     calls: () => read.mock.calls.map(([operation]) => operation.kind),
-    load: (target: string, currentOrganization: string | null = null) => {
+    load: (target: string, currentOrganization: string | null = null, issuer?: string) => {
       const plan = nativeDocumentPlan(target, false);
       return preloadPage(
         plan,
@@ -185,6 +183,7 @@ function fixture(overrides: Partial<Record<NativeOperation['kind'], NativeOperat
         currentOrganization,
         read,
         wrap,
+        issuer,
       );
     },
   };
@@ -631,5 +630,67 @@ describe('invitation page authority and exact lifetime choices', () => {
       '/studio/unknown/' + roleId,
     ])
       expect(() => nativeDocumentPlan(target, false)).toThrow();
+  });
+
+  it('ADR-0099: reads the federation detail only for a tenant-scope federation administrator and derives the IdP values server-side', async () => {
+    const alias = 'lsf-' + 'a'.repeat(32);
+    const connection = {
+      connectionId: '019a154b-0000-7000-8000-0000000000cc',
+      protocol: 'saml',
+      alias,
+      displayName: 'Acme SSO',
+      issuerOrEntityId: 'https://idp.example/entity',
+      status: 'draft',
+      source: 'metadata_url',
+      clientId: null,
+      configurationRevision: '1',
+      configurationDigest: 'a'.repeat(64),
+      desiredDigest: 'a'.repeat(64),
+      lastProviderDigest: null,
+      pending: null,
+      testExpiresAt: null,
+      version: '2',
+    };
+    const issuer = 'https://keycloak.example/realms/learnstack';
+    const test = fixture({
+      getOwnCapabilities: success({ ...capabilities, canManageFederation: true }),
+      getFederationConnection: success({ connection, provider: 'matches' }),
+    });
+    const ready = await test.load('/studio/federation', null, issuer);
+    expect(test.calls()).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+      'getFederationConnection',
+    ]);
+    expect(ready.outcome).toMatchObject({
+      kind: 'ready',
+      view: {
+        kind: 'federation',
+        federation: {
+          connection: { alias, status: 'draft' },
+          provider: 'matches',
+          values: {
+            redirectUri: issuer + '/broker/' + alias + '/endpoint',
+            entityId: issuer,
+            descriptorUrl: issuer + '/broker/' + alias + '/endpoint/descriptor',
+          },
+        },
+      },
+    });
+    expect(
+      (await test.load('/studio/federation', null, 'http://evil.example/realms/x')).outcome,
+    ).toMatchObject({ view: { federation: { values: null } } });
+    test.read.mockClear();
+    expect((await test.load('/studio/federation', organizationId, issuer)).outcome).toMatchObject({
+      kind: 'failure',
+      reason: 'denied',
+    });
+    expect(test.calls()).toEqual(['getOwnCapabilities', 'getOwnProfile']);
+    const plain = fixture();
+    expect((await plain.load('/studio/federation', null, issuer)).outcome).toMatchObject({
+      kind: 'failure',
+      reason: 'denied',
+    });
+    expect(plain.calls()).not.toContain('getFederationConnection');
   });
 });

@@ -268,6 +268,7 @@ export async function startPublicRuntime(control) {
         // ADR-0099: the server-side sign-in option read and the BFF-only federation test owner.
         publicSignIn: createPublicSignInReader(configuration, globalThis.fetch),
         federationTest: createNativeFederationTestApi(nativeConfiguration, globalThis.fetch),
+        federationIssuer: bff.issuer,
         diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
       };
       assertStarting();

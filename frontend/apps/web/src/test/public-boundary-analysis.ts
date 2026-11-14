@@ -143,6 +143,7 @@ function evaluateHttpSurface(
     'apps/web/src/app/(studio)/studio/invitations/page.tsx',
     'apps/web/src/app/(studio)/studio/invitations/[invitationId]/page.tsx',
     'apps/web/src/app/(studio)/studio/invitation-policy/page.tsx',
+    'apps/web/src/app/(studio)/studio/federation/page.tsx',
     'apps/web/src/app/(studio)/studio/custom-fields/page.tsx',
     'apps/web/src/app/(studio)/studio/custom-fields/[definitionId]/page.tsx',
     'apps/web/src/app/(portal)/portal/page.tsx',

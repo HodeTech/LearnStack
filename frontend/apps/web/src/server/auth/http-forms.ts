@@ -5,6 +5,7 @@ import {
 } from '@learnstack/sdk/administration-server';
 
 import { CUSTOM_FIELD_FORMS, customFieldForm } from './custom-field-forms.js';
+import { FEDERATION_FORMS, federationForm } from './federation-forms.js';
 import { BffInputError } from './input-error.js';
 import type { NativeScope } from './native-contract.js';
 import type { NativeOperation } from './native-operation-contract.js';
@@ -141,6 +142,7 @@ export class BffInvitationInputError extends BffInputError {
 }
 export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   ...CUSTOM_FIELD_FORMS,
+  ...FEDERATION_FORMS,
   '/api/studio/membership-profile': [...common, 'membershipId', 'displayName', 'preferredLocale'],
   '/api/studio/membership-roles': [...common, 'membershipId', 'roleIds'],
   '/api/studio/membership-status': [...common, 'membershipId', 'status'],
@@ -184,6 +186,8 @@ export function bffAdministrationForm(
   customFields?: MembershipCustomFields,
 ): Readonly<{ operation: NativeOperation; destination: string }> {
   if (Object.hasOwn(CUSTOM_FIELD_FORMS, path)) return customFieldForm(path, fields, customFields);
+  // ADR-0099: federation forms carry no idempotency key; the connection revision converges them.
+  if (Object.hasOwn(FEDERATION_FORMS, path)) return federationForm(path, fields);
   const allowed = BFF_ADMIN_FORMS[path];
   if (!allowed) throw new BffInputError();
   const names = [...fields.keys()];

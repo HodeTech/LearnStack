@@ -840,7 +840,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '4e031afdfbad5799f7baaf47bb1eb9b4b6c0917e5b5cca42b0d543edcf63c1cc',
+            '0a5efc84532742117dfb8de68b9ccd977305f57697cee7ddce54919071533138',
           ],
           [
             'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',

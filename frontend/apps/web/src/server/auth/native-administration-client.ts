@@ -195,6 +195,34 @@ function createCaller(configuration: NativeApiConfiguration, transport: typeof f
       case 'getInvitationPolicy':
         result = await sdk.getInvitationPolicy(read);
         break;
+      case 'getFederationConnection':
+        result = await sdk.getFederationConnection(read);
+        break;
+      case 'configureFederation':
+        result = await sdk.configureFederation(operation.input, {
+          version: operation.version,
+          signal,
+        });
+        break;
+      case 'rotateFederationSecret':
+        result = await sdk.rotateFederationSecret(operation.clientSecret, {
+          version: operation.version,
+          signal,
+        });
+        break;
+      case 'renameFederation':
+        result = await sdk.renameFederation(operation.displayName, {
+          version: operation.version,
+          signal,
+        });
+        break;
+      case 'activateFederation':
+      case 'disableFederation':
+      case 'enableFederation':
+      case 'deleteFederation':
+      case 'resumeFederationOperation':
+        result = await sdk[operation.kind]({ version: operation.version, signal });
+        break;
       case 'createInvitation':
         result = await sdk.createInvitation(operation.invitation, {
           idempotencyKey: operation.idempotencyKey,

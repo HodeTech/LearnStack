@@ -600,6 +600,7 @@ export async function prepareBffProof({
     'entry-cursor',
     'native-administration-client',
     'http-forms',
+    'federation-forms',
     'input-error',
     'page-query',
     'session-projection',

@@ -6,6 +6,7 @@ import type {
   ConsentScopes,
   LocalizedText,
   FormLabel,
+  FederationConnection,
 } from '@learnstack/sdk/administration-server';
 
 import type { EntryProjection, NativeReturnPath } from './session-contract.js';
@@ -106,8 +107,18 @@ export type PageInvitationPolicy = Readonly<{
   version: string | null;
   canEdit: boolean;
 }>;
+/**
+ * ADR-0099 § Sign-in exposure and § User experience: the nonsecret connection detail, the provider readback verdict and
+ * the values the administrator pastes into the IdP, all derived server-side from the alias and the realm issuer.
+ */
+export type PageFederation = Readonly<{
+  connection: FederationConnection | null;
+  provider: 'not_read' | 'matches' | 'drift' | 'unavailable';
+  values: Readonly<{ redirectUri: string; entityId: string; descriptorUrl: string }> | null;
+}>;
 export type PageView =
   | Readonly<{ kind: 'studio' | 'portal' }>
+  | Readonly<{ kind: 'federation'; federation: PageFederation }>
   | Readonly<{
       kind: 'members';
       items: readonly PageMember[];
@@ -218,6 +229,8 @@ export type NativeActionPage = Readonly<
         formLabels: readonly FormLabel[] | null;
       }>[];
       roleLabels?: readonly Pick<PageRole, 'roleId' | 'builtInKey' | 'capabilityScope'>[];
+      /** ADR-0099: the closed field names to correct, or the settled outcome; never a secret or provider text. */
+      federation?: Readonly<{ invalid: readonly string[]; outcome: string | null }>;
     }
   | { kind: 'account_change'; csrfToken: string }
 >;

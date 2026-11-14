@@ -12,6 +12,7 @@ import type { AuthCopy } from '@/i18n/auth-catalogues';
 import { optionalPreparedPage } from '@/server/auth/page';
 import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
+import { FederationPage } from './admin-federation';
 import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
 import { InvitationDetails, InvitationDirectory, InvitationPolicy } from './admin-invitations';
 import { MemberDetails, MemberDirectory } from './admin-members';
@@ -39,6 +40,7 @@ function title(kind: PageKind, admin: AdminCopy, profile: ProfileCopy, copy: Aut
     invitation_policy: admin('invitations.policy_title'),
     custom_fields: admin('custom_fields.title'),
     custom_field: admin('custom_fields.detail_title'),
+    federation: admin('federation.title'),
   };
   return titles[kind];
 }
@@ -72,6 +74,8 @@ function PageContents({
       return <InvitationDetails snapshot={snapshot} view={view} locale={locale} admin={admin} />;
     case 'invitation_policy':
       return <InvitationPolicy snapshot={snapshot} view={view} admin={admin} />;
+    case 'federation':
+      return <FederationPage snapshot={snapshot} view={view} admin={admin} locale={locale} />;
     case 'members':
       return <MemberDirectory view={view} admin={admin} />;
     case 'member':
@@ -231,6 +235,9 @@ export function PreparedAccountPage({
           )}
           {snapshot.scopeKind === 'tenant' && capabilities?.canManageCustomFields && (
             <a href="/studio/custom-fields">{admin('navigation.custom_fields')}</a>
+          )}
+          {snapshot.scopeKind === 'tenant' && capabilities?.canManageFederation && (
+            <a href="/studio/federation">{admin('navigation.federation')}</a>
           )}
           <a href="/account/consents">{admin('custom_fields.consent_history')}</a>
           <a href="/portal/profile">{admin('navigation.profile')}</a>

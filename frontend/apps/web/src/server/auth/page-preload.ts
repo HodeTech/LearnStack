@@ -4,6 +4,7 @@ import type {
   MembershipCustomFields,
   ConsentHistory,
   ConsentScopes,
+  FederationDetail,
   Invitation,
   InvitationPage,
   InvitationPolicy,
@@ -46,7 +47,8 @@ export type NativeDocumentPlan = Readonly<{
     | 'invitation'
     | 'invitation_policy'
     | 'custom_fields'
-    | 'custom_field';
+    | 'custom_field'
+    | 'federation';
   id?: string;
   cursor?: string;
   limit: number;
@@ -82,6 +84,9 @@ export function nativeDocumentPlan(target: string, flight: boolean): NativeDocum
       break;
     case '/studio/invitation-policy':
       kind = 'invitation_policy';
+      break;
+    case '/studio/federation':
+      kind = 'federation';
       break;
     default:
       if (path.startsWith('/studio/members/')) kind = 'member';
@@ -140,6 +145,8 @@ export async function preloadPage(
   organizationId: string | null,
   read: (operation: NativeOperation) => Promise<NativeOperationResult>,
   wrapCursor: (cursor: string) => string,
+  /** The tenant realm issuer the IdP values derive from (ADR-0099); absent shows no values. */
+  issuer?: string,
 ): Promise<NativePageSnapshot> {
   let capabilities: PageCapabilities | null = null;
   let ownProfile: PageProfile | null = null;
@@ -271,6 +278,31 @@ export async function preloadPage(
           roleChoice,
         );
         view = { kind: 'invitation', invitation: invitation(item, roles) };
+        break;
+      }
+      case 'federation': {
+        // Tenant-scope only, under the advisory capability; the API enforces every operation.
+        if (organizationId !== null || !capabilities.canManageFederation)
+          throw new PageReadFailure('denied', 403);
+        const detail = await data<FederationDetail>({ kind: 'getFederationConnection' });
+        const alias = detail.connection?.alias;
+        const base =
+          issuer && /^https:\/\/[^/?#]+\/realms\/[A-Za-z0-9_-]+$/.test(issuer) ? issuer : null;
+        view = {
+          kind: 'federation',
+          federation: {
+            connection: detail.connection,
+            provider: detail.provider,
+            values:
+              base && alias && /^lsf-[0-9a-f]{32}$/.test(alias)
+                ? {
+                    redirectUri: base + '/broker/' + alias + '/endpoint',
+                    entityId: base,
+                    descriptorUrl: base + '/broker/' + alias + '/endpoint/descriptor',
+                  }
+                : null,
+          },
+        };
         break;
       }
       case 'invitation_policy': {
