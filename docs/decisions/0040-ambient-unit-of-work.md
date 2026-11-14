@@ -992,3 +992,13 @@ own the exact contract.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and
 qualification.
+
+### Amendment 23 — Federation host-alias reader: the entitlement read (2026-11-15)
+
+Amendment 22's "runs one read" describes the setter's own connection, where it is exact:
+one statement reads the host tenant's Active alias and its protocol. The reader then
+reads that protocol's plan entitlement through `IEntitlementProvider`, the sanctioned
+reader, outside that connection and its announcement. That read is no setter statement
+and writes nothing. Amendment 22's text is unchanged; the P03-8 Step 4 review round 2
+(C5-4) in the [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) records the
+finding.

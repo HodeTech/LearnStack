@@ -2806,6 +2806,8 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
   const alias = 'lsf-' + 'a'.repeat(32);
   // The fixture's UTC clock starts at 1_800_000_000_000 ms and the test window opens at monotonic time 0.
   const windowStart = 1_800_000_000;
+  // ADR-0099 Amendment 8: the test authenticates in a new provider session, not the administrator's.
+  const freshSid = 'fresh-provider-session';
   async function admin(f: ReturnType<typeof fixture>) {
     const { binding, finished } = await f.login();
     return { binding, csrf: finished.session.csrfToken };
@@ -2850,7 +2852,7 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
     const { binding, csrf } = await admin(f);
     const subjects = f.store.counts().subjects;
     const started = await f.store.startFederationTest(binding, source, csrf);
-    f.setIdentity({ idp: alias, authTime: windowStart });
+    f.setIdentity({ idp: alias, authTime: windowStart, sid: freshSid });
     const completed = await f.store.completeCallback(callback(started));
     expect(completed).toMatchObject({ kind: 'federation_test', outcome: 'passed' });
     // ADR-0099 Amendment 7: only the test owner's redemption admits (and requires) the test-record scope.
@@ -2874,10 +2876,11 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
       'https://' + host + '/',
       expect.any(String),
     );
-    // The provider session also ends server-side with the test refresh token, not only by the browser redirect.
+    // The provider session also ends server-side with the test refresh token, not only by the browser redirect; the
+    // first call is the administrator's session, ended before the redirect (ADR-0099 Amendment 8).
     await flush();
-    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
-    expect(f.provider.endSession).toHaveBeenCalledWith(privateCanary);
+    expect(f.provider.endSession).toHaveBeenCalledTimes(2);
+    expect(f.provider.endSession).toHaveBeenNthCalledWith(2, privateCanary);
   });
 
   it('a test token whose auth_time precedes the window, or that has none, records a failed test (S4-3)', async () => {
@@ -2885,7 +2888,7 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
       const f = fixture();
       const { binding, csrf } = await admin(f);
       const started = await f.store.startFederationTest(binding, source, csrf);
-      f.setIdentity({ idp: alias, ...(authTime === undefined ? {} : { authTime }) });
+      f.setIdentity({ idp: alias, sid: freshSid, ...(authTime === undefined ? {} : { authTime }) });
       await expect(f.store.completeCallback(callback(started))).resolves.toMatchObject({
         outcome: 'failed',
       });
@@ -2896,10 +2899,63 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
     const { binding, csrf } = await admin(later);
     const started = await later.store.startFederationTest(binding, source, csrf);
     later.advance(60_000);
-    later.setIdentity({ idp: alias, authTime: windowStart + 60 });
+    later.setIdentity({ idp: alias, authTime: windowStart + 60, sid: freshSid });
     await expect(later.store.completeCallback(callback(started))).resolves.toMatchObject({
       outcome: 'passed',
     });
+  });
+
+  it('ends the administrator provider session server-side, awaited, before the redirect (S4-3b)', async () => {
+    const f = fixture();
+    const { binding, csrf } = await admin(f);
+    const ending = deferred<void>();
+    vi.mocked(f.provider.endSession).mockImplementationOnce(() => ending.promise);
+    const starting = f.store.startFederationTest(binding, source, csrf);
+    await flush();
+    // The administrator's refresh token ends its session before any authorization is begun or redirect returned.
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(f.provider.endSession).mock.calls[0]![0]).toBe(privateCanary);
+    expect(f.provider.begin).toHaveBeenCalledTimes(1);
+    ending.resolve();
+    await starting;
+    expect(f.provider.begin).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(f.provider.endSession).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(f.provider.begin).mock.invocationCallOrder[1]!,
+    );
+    // A refused end-session refuses the start: no authorization begins and nothing is held for a callback.
+    const g = fixture();
+    const other = await admin(g);
+    vi.mocked(g.provider.endSession).mockRejectedValueOnce(
+      new BffProviderError('provider_refused'),
+    );
+    await expect(
+      g.store.startFederationTest(other.binding, source, other.csrf),
+    ).rejects.toMatchObject({
+      reason: 'provider_refused',
+    });
+    expect(g.provider.begin).toHaveBeenCalledTimes(1);
+    expect(g.store.counts().loginStates).toBe(0);
+  });
+
+  it('a completed token in the administrator provider session records a failed test, a new one passes (S4-3b)', async () => {
+    // A stale brokered note on the old provider session lets a local re-login carry the alias, a fresh auth_time and
+    // the same subject; only the session identifier tells it apart.
+    const f = fixture();
+    const { binding, csrf } = await admin(f);
+    const started = await f.store.startFederationTest(binding, source, csrf);
+    f.setIdentity({ idp: alias, authTime: windowStart, sid: identity.sid });
+    await expect(f.store.completeCallback(callback(started))).resolves.toMatchObject({
+      outcome: 'failed',
+    });
+    expect(f.federationTest.record.mock.calls[0]![2]).toMatchObject({ passed: false });
+    const g = fixture();
+    const other = await admin(g);
+    const fresh = await g.store.startFederationTest(other.binding, source, other.csrf);
+    g.setIdentity({ idp: alias, authTime: windowStart, sid: freshSid });
+    await expect(g.store.completeCallback(callback(fresh))).resolves.toMatchObject({
+      outcome: 'passed',
+    });
+    expect(g.federationTest.record.mock.calls[0]![2]).toMatchObject({ passed: true });
   });
 
   it('a token from another subject or another broker records a failed test', async () => {
@@ -2911,7 +2967,7 @@ describe('ADR-0099 federation_test purpose and the sign-in option', () => {
       const f = fixture();
       const { binding, csrf } = await admin(f);
       const started = await f.store.startFederationTest(binding, source, csrf);
-      f.setIdentity({ idp: alias, authTime: windowStart, ...patch });
+      f.setIdentity({ idp: alias, authTime: windowStart, sid: freshSid, ...patch });
       await expect(f.store.completeCallback(callback(started))).resolves.toMatchObject({
         outcome: 'failed',
       });

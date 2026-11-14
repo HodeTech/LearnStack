@@ -349,9 +349,15 @@ and context switching.
   native client's deadline starts later, so that timer fires first.
 - **The test callback** never reaches subject reservation or credential assignment and
   publishes nothing ([Frontend Standards § Tenant federation](07-frontend-architecture.md#tenant-federation)).
-  The test request sends `prompt=login` and `max_age=0`; the result passes only when
-  the ID token's `auth_time` is present and at or after the test window's start. The
-  completion ends the provider session server-side with the test refresh token, as a
+  The test request sends `prompt=login` and `max_age=0`. Before the redirect the BFF
+  records the administrator's provider session `sid` and ends that session server-side
+  with its refresh token, awaited; a missing `sid` or refresh token, or a refused
+  request, refuses the start. The result passes only when the ID token's `auth_time` is
+  present and at or after the test window's start and its `sid` differs from the
+  recorded one: the test proves a replaced provider session completed through the
+  tested broker, not that the upstream IdP prompted
+  ([ADR-0099 Amendment 8](../decisions/0099-confined-tenant-federation.md#amendment-8--step-4-review-round-2-test-session-replacement-and-scope-confinement-2026-11-15)).
+  The completion ends the provider session server-side with the test refresh token, as a
   definitive mismatch does, besides the browser end-session redirect.
 - **Test-record carrier.** `POST identity/federation/test-results` requires the optional
   `federation.test_record` client scope, which only the `federation_test`
@@ -361,6 +367,8 @@ and context switching.
   optional scope on request, so the BFF enforces the rest: a redemption by any owner
   other than the test owner, and every refresh, is refused when the granted `scope`
   contains `federation.test_record`, and the test redemption is refused without it.
+  The API refuses a token carrying the scope on every other authenticated endpoint with
+  the same closed 403, at the credential admission directly after authentication.
 - **Detail loads by navigation only (Step 2 review S-E, Step 4 review S4-1).** The
   session cookie is `SameSite=Lax`, which a top-level GET from another site, or from a
   sibling tenant subdomain of the same site, still carries. The federation page

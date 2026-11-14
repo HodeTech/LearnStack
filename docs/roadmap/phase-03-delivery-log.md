@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,988 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,990 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -502,7 +502,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 3 review round 1 corrections (2026-11-14)](#p03-8-step-3-review-round-1-corrections-2026-11-14) — 85 lines
   - [P03-8 Step 3 review round 2 corrections (2026-11-14)](#p03-8-step-3-review-round-2-corrections-2026-11-14) — 77 lines
   - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 200 lines
-  - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 108 lines
+  - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 110 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23704,7 +23704,7 @@ working tree over `77075be1`.
 | `dotnet format LearnStack.slnx --verify-no-changes --no-restore --include` (the three changed C# files) | exit 0 |
 | Unit (`LearnStack.Tests.Unit`, Release, full) | 4,135 passed, 0 failed, 0 skipped (4,123 plus the 12 `TenantTokenProfileScopeTests` cases) |
 | Architecture, Release: `FederationHostAliasSetterConventionTests` | 3 passed, 0 failed, 0 skipped |
-| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 664 total: 663 passed, 1 failed, 0 skipped (48 min 59 s). The failure was `CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules`: Standard 21 published 376 methods and the new census control makes 377. Corrected (Standard 21 now says 377 and describes the planted census controls); the corpus-reading classes (`CorpusConsistencyTests`, `AuditCoverageTests`, `AuditConventionTests`, `DomainGenericityTests`, `RepositoryLayoutTests`, `RequestSurfaceTests`, `AsyncStoreInventoryTests`) with `FederationHostAliasSetterConventionTests` and `FederationAdapterConventionTests` were rerun on the final tree, which also covers the corpus edits made during the full run: 145 passed, 0 failed, 0 skipped |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 664 total: 663 passed, 1 failed, 0 skipped (48 min 59 s). The failure was `CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules`: Standard 21 published 376 methods and the new census control makes 377. Corrected (Standard 21 now says 377 and describes the planted census controls); the corpus-reading classes (`CorpusConsistencyTests`, `AuditCoverageTests`, `AuditConventionTests`, `DomainGenericityTests`, `RepositoryLayoutTests`, `RequestSurfaceTests`, `AsyncStoreInventoryTests`) with `FederationHostAliasSetterConventionTests` and `FederationAdapterConventionTests` were rerun on the final tree, which also covers the corpus edits made during the full run: 145 passed, 0 failed, 0 skipped. A clean full Architecture run after the Standard 21 count fix was not repeated in this round (added by review round 2, C5-1) |
 | Integration, Release: `FederationProviderTests` and `TenantBffSessionTests` (Docker; the real BFF built from this tree against real Keycloak) | 31 passed (15 and 16), 0 failed, 0 skipped (12 min 9 s) |
 | `pnpm test` (frontend guarded workspace runner) | `apps/web` 133 files, 4,385 passed; `packages/sdk` 13 files, 233 passed; "Frontend guard: 4618 passed in 2 packages; zero skips/todos." |
 | `pnpm typecheck`, `pnpm lint` (frontend workspace) | clean; "No ESLint warnings or errors" |
@@ -23720,7 +23720,9 @@ working tree over `77075be1`.
 Not run: the OpenAPI gate (no OpenAPI or SDK contract changed in this round; the
 Step 4 transition record remains the maintainer's), the Contract suite, the
 Integration suite outside the classes listed, `make demo DEMO_MODE=ci`, hosted CI and
-the A/B layout qualification, and a browser, axe or manual accessibility audit.
+the A/B layout qualification, and a browser, axe or manual accessibility audit. A
+clean full Architecture run after the Standard 21 count fix was not repeated in this
+round (added by review round 2, C5-1).
 
 **Residual risks.**
 

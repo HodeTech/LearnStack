@@ -1155,9 +1155,13 @@ starts the test window with the administrator's token through the BFF-only
 federation test client and holds the attempt identifier, alias and connection
 revision in the administrator's server-side owner for the ten-minute window; a
 repeated start inside the window reuses it. The identifier never reaches the
-browser, a response or a log. The callback validates the ID token like any sign-in.
-The result passes only when `idp` is the tested alias, the issuer and subject are the
-administrator's and `auth_time` is present and at or after the window's start. The BFF
+browser, a response or a log. Before the redirect the BFF records the administrator's
+provider session `sid` and ends that session server-side with its refresh token,
+awaited; without either, or when the provider refuses, the start is refused. The
+callback validates the ID token like any sign-in. The result passes only when `idp` is
+the tested alias, the issuer and subject are the administrator's, `auth_time` is present
+and at or after the window's start, and `sid` differs from the recorded one
+([Security § Federation host binding](11-security.md#federation-host-binding)). The BFF
 records it through `POST identity/federation/test-results` with the test-purpose access
 token, publishes nothing, reserves no subject, assigns no credentials and discards
 every token. It then ends the provider session server-side with the test refresh

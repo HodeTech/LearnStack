@@ -53,11 +53,12 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
+        var admin = proof.Token(EnglishAdmin, English);
         var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
-        await AdoptFederationReleaseAsync(client, recorder, English);
-        using var configured = await SendAsync(client, recorder, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
+        await AdoptFederationReleaseAsync(client, admin, English);
+        using var configured = await SendAsync(client, admin, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
-        using var started = await SendAsync(client, recorder, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
+        using var started = await SendAsync(client, admin, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
         var start = await JsonAsync(started);
         var attempt = start.GetProperty("testAttemptId").GetString()!;
         version = start.GetProperty("version").GetString()!;
@@ -91,6 +92,51 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
     }
 
     /// <summary>
+    /// ADR-0099 Amendment 8 (S4-2b): a token carrying the test-record scope reaches only the test record. The Studio
+    /// detail read, configure write, test start and capability read refuse it with the test record's own closed 403
+    /// before any handler, provider or row is touched; the same administrator without the scope is admitted on each.
+    /// </summary>
+    [Fact]
+    public async Task A_test_record_token_reaches_only_the_test_record()
+    {
+        await using var proof = await CreatePreparedAsync();
+        var harness = new Harness();
+        using var client = proof.Client(harness.Configure);
+        var admin = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        await AdoptFederationReleaseAsync(client, admin, English);
+
+        using (var read = await SendAsync(client, recorder, "/api/v1/identity/federation"))
+            await ProblemAsync(read, HttpStatusCode.Forbidden, "forbidden");
+        using (var write = await SendAsync(client, recorder, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody()))
+            await ProblemAsync(write, HttpStatusCode.Forbidden, "forbidden");
+        using (var capabilities = await SendAsync(client, recorder, "/api/v1/identity/me/capabilities"))
+            await ProblemAsync(capabilities, HttpStatusCode.Forbidden, "forbidden");
+        Assert.Empty(harness.Provider.Calls);
+        Assert.Null(await RowOrNullAsync(proof, English));
+
+        // The unscoped administrator is admitted on the same routes.
+        using (var capabilities = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
+            Assert.Equal(HttpStatusCode.OK, capabilities.StatusCode);
+        using var configured = await SendAsync(client, admin, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
+        var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
+        using (var read = await SendAsync(client, admin, "/api/v1/identity/federation"))
+            Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        using (var start = await SendAsync(client, recorder, "/api/v1/identity/federation/test-starts", "POST", "{}", version))
+            await ProblemAsync(start, HttpStatusCode.Forbidden, "forbidden");
+        Assert.Equal("Draft", (await RowAsync(proof, English)).State);
+        using var started = await SendAsync(client, admin, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
+        var attempt = await JsonAsync(started);
+
+        // The test record admits the scoped token, and only it.
+        using var passed = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST",
+            JsonSerializer.Serialize(new { testAttemptId = attempt.GetProperty("testAttemptId").GetString(), passed = true }),
+            attempt.GetProperty("version").GetString());
+        Assert.Equal("recorded", (await JsonAsync(passed)).GetProperty("outcome").GetString());
+        Assert.Equal("TestPassed", (await RowAsync(proof, English)).State);
+    }
+
+    /// <summary>
     /// ADR-0099 Amendment 6 (H): the native self read's host-only setter, against PostgreSQL as learnstack_app. It reads only
     /// the host tenant's Active, entitled alias: nothing before Active, the alias while Active and entitled, nothing for
     /// another host tenant, nothing after an entitlement lapse or Disable.
@@ -101,14 +147,15 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         Assert.Null(await HostAliasAsync(proof, English));
 
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
         Assert.Null(await HostAliasAsync(proof, English));
-        version = await ActivateAsync(client, token, version);
+        version = await ActivateAsync(client, token, recorder, version);
         var alias = (await RowAsync(proof, English)).Alias;
         Assert.Equal(alias, await HostAliasAsync(proof, English));
         Assert.Null(await HostAliasAsync(proof, Yoga));
@@ -138,7 +185,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
 
         using (var empty = await SendAsync(client, token, "/api/v1/identity/federation"))
@@ -166,7 +214,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         var attempt = start.GetProperty("testAttemptId").GetString()!;
         Assert.Equal(JsonValueKind.Null, (await SignInAsync(client, English)).GetProperty("federation").ValueKind);
 
-        using var passed = await SendAsync(client, token, "/api/v1/identity/federation/test-results", "POST",
+        using var passed = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST",
             JsonSerializer.Serialize(new { testAttemptId = attempt, passed = true }), start.GetProperty("version").GetString());
         var pass = await JsonAsync(passed);
         Assert.Equal("recorded", pass.GetProperty("outcome").GetString());
@@ -212,7 +260,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var admin = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var admin = proof.Token(EnglishAdmin, English);
         await AdoptFederationReleaseAsync(client, admin, English);
         await PromoteLearnerAsync(client, admin);
         var second = proof.Token(EnglishLearner, English);
@@ -267,7 +315,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         harness.Audit.FailWrites = true;
         using (var failed = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody()))
@@ -289,7 +338,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
             Assert.Equal("draft", (await JsonAsync(detail)).GetProperty("connection").GetProperty("status").GetString());
         using (var activation = await SendAsync(client, token, "/api/v1/identity/federation/activation", "POST", "{}", version))
             await ProblemAsync(activation, HttpStatusCode.Conflict, "business_rule_violation");
-        using (var result = await SendAsync(client, token, "/api/v1/identity/federation/test-results", "POST",
+        using (var result = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST",
             JsonSerializer.Serialize(new { testAttemptId = Guid.CreateVersion7().ToString("D"), passed = true }), version))
             await ProblemAsync(result, HttpStatusCode.Conflict, "business_rule_violation");
         // A mutation that would succeed still fails closed when its MUST row cannot be written.
@@ -313,7 +362,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await AddOrglessHostAsync(proof, Yoga, YogaTenantHost);
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var english = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var english = proof.Token(EnglishAdmin, English);
         var yoga = proof.Token(YogaAdmin, Yoga);
 
         // The organization-mapped seed host refuses the orgless operation for the Yoga administrator.
@@ -369,7 +418,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await proof.Database.AddMembershipAsync(English, EnglishLearner, English.DefaultOrganization.OrganizationId, BuiltInRoleKey.OrgAdmin);
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var admin = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var admin = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, admin, English);
         var learner = proof.Token(EnglishLearner, English);
         var branch = proof.Token(EnglishLearner, English, organization: true, claimedOrganization: English.DefaultOrganization.OrganizationId);
@@ -386,7 +436,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         // ADR-0099: no mutation accepts an Idempotency-Key; each refuses it as Standard 04's validation_failed.
         foreach (var (method, path, body) in Mutations(Guid.CreateVersion7()))
         {
-            using var idempotent = await SendAsync(client, admin, path, method, body, "0", key: "federation-key-0001");
+            using var idempotent = await SendAsync(client, path.EndsWith("/test-results", StringComparison.Ordinal) ? recorder : admin,
+                path, method, body, "0", key: "federation-key-0001");
             await ProblemAsync(idempotent, HttpStatusCode.BadRequest, "validation_failed");
         }
         Assert.Empty(harness.Provider.Calls);
@@ -400,7 +451,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = long.Parse((await JsonAsync(configured)).GetProperty("version").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
@@ -426,7 +477,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
@@ -443,7 +495,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         Assert.Equal("rotated-s3cret-value", harness.Provider.LastSecret);
         Assert.Equal(0, await AuditCountAsync(proof, "rotated-s3cret-value"));
 
-        version = await ActivateAsync(client, token, version);
+        version = await ActivateAsync(client, token, recorder, version);
         Assert.NotEqual(JsonValueKind.Null, (await SignInAsync(client, English)).GetProperty("federation").ValueKind);
         using (var disabled = await SendAsync(client, token, "/api/v1/identity/federation/disablement", "POST", "{}", version))
             version = (await JsonAsync(disabled)).GetProperty("version").GetString()!;
@@ -458,7 +510,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         Assert.Equal(JsonValueKind.Null, (await SignInAsync(client, English)).GetProperty("federation").ValueKind);
 
         // Active, then deleted: the tombstone is never offered and frees no other tenant's read.
-        version = await ActivateAsync(client, token, version);
+        version = await ActivateAsync(client, token, recorder, version);
         var alias = (await RowAsync(proof, English)).Alias;
         Assert.Equal(alias, (await SignInAsync(client, English)).GetProperty("federation").GetProperty("alias").GetString());
         using (var deleted = await SendAsync(client, token, "/api/v1/identity/federation/deletion", "POST", "{}", version))
@@ -487,7 +539,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
@@ -495,9 +548,11 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
 
         foreach (var (method, path, body) in Mutations(Guid.CreateVersion7()))
         {
-            using var stale = await SendAsync(client, token, path, method, body, "999");
+            // ADR-0099 Amendment 8: only the test record admits, and requires, the test-record token.
+            var sender = path.EndsWith("/test-results", StringComparison.Ordinal) ? recorder : token;
+            using var stale = await SendAsync(client, sender, path, method, body, "999");
             await ProblemAsync(stale, HttpStatusCode.Conflict, "concurrency_conflict");
-            using var missing = await SendAsync(client, token, path, method, body);
+            using var missing = await SendAsync(client, sender, path, method, body);
             // Configure without If-Match is a create; on an existing connection that is a recoverable conflict.
             if (path.EndsWith("/configuration", StringComparison.Ordinal)) await ProblemAsync(missing, HttpStatusCode.Conflict, "concurrency_conflict");
             else await ProblemAsync(missing, HttpStatusCode.BadRequest, "validation_failed");
@@ -516,7 +571,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
             using var refused = await SendAsync(client, token, "/api/v1/identity/federation/" + path, "POST", "{}", version);
             await ProblemAsync(refused, HttpStatusCode.Conflict, "business_rule_violation");
         }
-        using (var record = await SendAsync(client, token, "/api/v1/identity/federation/test-results", "POST",
+        using (var record = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST",
             JsonSerializer.Serialize(new { testAttemptId = Guid.CreateVersion7().ToString("D"), passed = true }), version))
             await ProblemAsync(record, HttpStatusCode.Conflict, "business_rule_violation");
         using (var started = await SendAsync(client, token, "/api/v1/identity/federation/test-starts", "POST", "{}", version))
@@ -565,7 +620,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
         await AdoptFederationReleaseAsync(client, token, English);
         harness.Provider.OnApply = (_, _) => throw new HttpRequestException("connection reset");
         using var faulted = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
@@ -588,7 +643,8 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         await using var proof = await CreatePreparedAsync();
         var harness = new Harness();
         using var client = proof.Client(harness.Configure);
-        var token = proof.Token(EnglishAdmin, English, scope: RecorderScope);
+        var token = proof.Token(EnglishAdmin, English);
+        var recorder = proof.Token(EnglishAdmin, English, scope: RecorderScope);
         await AdoptFederationReleaseAsync(client, token, English);
         using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
         var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
@@ -597,7 +653,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         using var started = await SendAsync(client, token, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
         var start = await JsonAsync(started);
         Assert.True(harness.Provider.Find(alias)!.State.Enabled);
-        using (var failed = await SendAsync(client, token, "/api/v1/identity/federation/test-results", "POST",
+        using (var failed = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST",
             JsonSerializer.Serialize(new { testAttemptId = start.GetProperty("testAttemptId").GetString(), passed = false }),
             start.GetProperty("version").GetString()))
         {
@@ -613,7 +669,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         Assert.Null(draft.PendingKind);
         Assert.Equal(0, harness.TransactionalProviderCalls);
 
-        version = await ActivateAsync(client, token, version);
+        version = await ActivateAsync(client, token, recorder, version);
         var held = harness.Provider.Find(alias)!.State;
         Assert.True(held.Enabled);
         harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Refused);
@@ -687,12 +743,15 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         ("POST", "/api/v1/identity/federation/resumption", "{}"),
     ];
 
-    /// <summary>Test start, a passed result and Activate from Draft; returns the Active version.</summary>
-    private static async Task<string> ActivateAsync(HttpClient client, string token, string version)
+    /// <summary>
+    /// Test start, a passed result and Activate from Draft; returns the Active version. The result is recorded with the
+    /// test-record token, which no other endpoint admits (ADR-0099 Amendment 8).
+    /// </summary>
+    private static async Task<string> ActivateAsync(HttpClient client, string token, string recorder, string version)
     {
         using var started = await SendAsync(client, token, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
         var start = await JsonAsync(started);
-        using var passed = await SendAsync(client, token, "/api/v1/identity/federation/test-results", "POST",
+        using var passed = await SendAsync(client, recorder, "/api/v1/identity/federation/test-results", "POST",
             JsonSerializer.Serialize(new { testAttemptId = start.GetProperty("testAttemptId").GetString(), passed = true }),
             start.GetProperty("version").GetString());
         using var activated = await SendAsync(client, token, "/api/v1/identity/federation/activation", "POST", "{}",

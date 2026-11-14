@@ -88,6 +88,9 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
     ))!;
     expect(started.status).toBe(303);
     expect(started.headers.get('location')).toBe('https://identity.example.test/authorize');
+    // ADR-0099 Amendment 8: the administrator's provider session ended server-side before the redirect.
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+    expect((f.provider.endSession.mock.calls[0] as unknown[])[0]).toBe('private-refresh-canary');
     const body = await started.text();
     expect(body + started.headers.get('set-cookie')).not.toContain('0000000000aa');
     const cookies = started.headers.getSetCookie();
@@ -100,7 +103,13 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
       ...original,
       accessToken: 'test-purpose-access-canary',
       refreshToken: 'test-purpose-refresh-canary',
-      identity: { ...original.identity, idp: alias, authTime: 1_800_000_000 },
+      // A new provider session: the administrator's was ended at the start (ADR-0099 Amendment 8).
+      identity: {
+        ...original.identity,
+        idp: alias,
+        authTime: 1_800_000_000,
+        sid: 'fresh-provider-session',
+      },
     });
     const callback = (await f.http.handle(
       bffRequest('/api/auth/callback/keycloak?state=' + state + '&code=owned', {
@@ -217,6 +226,10 @@ describe('ADR-0099 sign-in option and federation_test through the BFF protocol',
     // Positive controls: the same protocol path does read the detail.
     expect(await reads({ 'sec-fetch-site': 'same-origin', ...navigate })).toBe(1);
     expect(await reads({ 'sec-fetch-site': 'none', ...navigate })).toBe(1);
+    // An RSC navigation (a client-side transition) from the same origin reads it; from a sibling subdomain it does not.
+    const rsc = { rsc: '1', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' };
+    expect(await reads({ 'sec-fetch-site': 'same-origin', ...rsc })).toBe(1);
+    expect(await reads({ 'sec-fetch-site': 'same-site', ...rsc })).toBe(0);
     // Refused: another site, a sibling subdomain, and a same-origin request that is not a navigation.
     expect(await reads({ 'sec-fetch-site': 'cross-site', ...navigate })).toBe(0);
     expect(await reads({ 'sec-fetch-site': 'same-site', ...navigate })).toBe(0);

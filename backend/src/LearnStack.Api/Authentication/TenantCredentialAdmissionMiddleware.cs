@@ -3,7 +3,10 @@ using LearnStack.Api.PublicReads;
 
 namespace LearnStack.Api.Authentication;
 
-/// <summary>A failed present credential cannot fall through to an anonymous endpoint.</summary>
+/// <summary>
+/// A failed present credential cannot fall through to an anonymous endpoint, and a credential carrying the
+/// test-record scope reaches only the test record (ADR-0099 Amendment 8).
+/// </summary>
 internal sealed class TenantCredentialAdmissionMiddleware(RequestDelegate next)
 {
     public Task InvokeAsync(HttpContext context)
@@ -20,6 +23,10 @@ internal sealed class TenantCredentialAdmissionMiddleware(RequestDelegate next)
             // The outer status-code owner supplies the shared Problem Details body.
             return Task.CompletedTask;
         }
+        // ADR-0099 Amendment 8: the one enforcement point, before the global self entry, resolution and authorization,
+        // so no authenticated endpoint other than the test record admits a federation_test token.
+        if (FederationTestRecordScope.IsPresent(context) && !FederationTestRecordScope.IsTestRecordEndpoint(context))
+            return OperationClassificationMiddleware.RefuseAsync(context, FederationTestRecordScope.Refusal);
 
         return next(context);
     }

@@ -322,6 +322,42 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
             "trace URL/query attributes must not reveal the self-discovery cursor either");
     }
 
+    /// <summary>
+    /// ADR-0099 Amendment 8 (S4-2b): a token carrying the federation test-record scope is refused on the native self
+    /// read, the native bootstrap and the native session-scope admission with the closed 403, before any reader or
+    /// writer runs; the same subject's unscoped token is admitted.
+    /// </summary>
+    [Fact]
+    public async Task Actual_native_entries_refuse_a_federation_test_record_token()
+    {
+        await using var proof = await IdentityAuthorizationHttpProof.CreateAsync(parent);
+        var payload = proof.Issuer.Without("user_id", "tenant_id", "organization_id");
+        using var parsed = JsonDocument.Parse(payload);
+        var claims = parsed.RootElement.EnumerateObject().ToDictionary(property => property.Name,
+            property => property.Value.Clone());
+        claims["sub"] = JsonSerializer.SerializeToElement(IdentityPublicReadFixture.FoundationSubject(IdentityAuthorizationHttpProof.EnglishAdmin));
+        var token = proof.Issuer.Token(JsonSerializer.Serialize(claims));
+        claims["scope"] = JsonSerializer.SerializeToElement("openid profile federation.test_record");
+        var scoped = proof.Issuer.Token(JsonSerializer.Serialize(claims));
+        using var client = Client(proof.Database);
+        const string Admissions = "/api/v1/identity/session-scope/admissions";
+        foreach (var (path, method, body, tenant) in new (string, string, string?, Guid?)[]
+        {
+            (Self, "GET", null, null),
+            (Self + "/bootstrap", "POST", "{}", null),
+            (Admissions, "POST", "{}", SeedData.English.TenantId.Value),
+        })
+        {
+            using var refused = await SendAsync(client, scoped, path, method, body, tenant: tenant);
+            await TenantAuthenticationHttpTests.Problem(refused, HttpStatusCode.Forbidden, "forbidden");
+            (await proof.AuditAsync(refused, SeedData.English)).Should().BeEmpty();
+        }
+        using (var self = await SendAsync(client, token))
+            self.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var admitted = await SendAsync(client, token, Admissions, "POST", "{}", tenant: SeedData.English.TenantId.Value);
+        admitted.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     [Fact]
     public async Task Actual_native_scope_admission_commits_one_MUST_event_then_ordinary_reads_do_not_repeat_it()
     {

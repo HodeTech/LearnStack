@@ -712,9 +712,10 @@ entered on the re-authentication form.
   the API authorizes each one.
 - **Test.** The BFF alone starts the test window and holds the attempt identifier. Its
   `federation_test` callback records the result with a token carrying the
-  `federation.test_record` scope, which `POST test-results` requires and which the BFF
-  refuses on every other redemption and on refresh, publishes no session, ends the
-  provider session server-side and signs the administrator out.
+  `federation.test_record` scope, which `POST test-results` requires, every other API
+  endpoint refuses, and the BFF refuses on every other redemption and on refresh. The
+  test starts in a new provider session and passes only in it; it publishes no session,
+  ends the provider session server-side and signs the administrator out.
 - **Host alias.** The native self read carries `federationAlias`, the host tenant's
   Active, entitled alias, through `FederationHostAliasReader`, the fourteenth logical
   tenant setter ([Standard 05](../../standards/05-database.md#federation-host-alias-read)).

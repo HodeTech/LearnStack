@@ -167,6 +167,11 @@ type Owner = {
     scope: NativeScope;
     /** The test window's start (UTC milliseconds); the callback's `auth_time` must not precede it. */
     startedAt: number;
+    /**
+     * ADR-0099 Amendment 8: the administrator's provider session (`sid`), ended server-side before the redirect. The
+     * callback's session must differ from it, so a re-authentication inside that session cannot pass.
+     */
+    replacedSid: string;
   }>;
   /** ADR-0099 Amendment 6 (S-B): the attempt this administrator's session started; never sent to the browser. */
   heldTest?: Readonly<{
@@ -1512,6 +1517,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     });
     this.#assert(admin, 'active');
     const credentials = admin.credentials!;
+    // ADR-0099 Amendment 8: the provider session this test replaces, and the refresh token that ends it; without
+    // either the test cannot prove a new session, so it does not start.
+    const replacedSid = credentials.identity.sid;
+    const replacedRefresh = credentials.refreshToken;
+    if (typeof replacedSid !== 'string' || !replacedSid || !replacedRefresh)
+      throw new BffSessionError('identity');
     const now = this.#now();
     const entry: Owner = {
       id: opaque(),
@@ -1537,6 +1548,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           organizationId: admin.identity!.organizationId,
         }),
         startedAt: held.startedAt,
+        replacedSid,
       }),
       absolute: now + BFF_LIMITS.transactionMs,
       activity: now,
@@ -1547,6 +1559,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#owners.set(entry.id, entry);
     return this.#exclusive(entry, signal, async () => {
       try {
+        this.#assert(entry, 'starting');
+        // ADR-0099 Amendment 8: the administrator's provider session ends server-side, awaited, before the redirect,
+        // so the test authenticates in a new provider session; a stale brokered note on the old one cannot pass it.
+        // The request is bound to the test owner: the back-channel logout it causes closes the administrator's owner.
+        await this.#dependencies.provider.endSession(replacedRefresh, entry.controller.signal);
         this.#assert(entry, 'starting');
         const start = await this.#dependencies.provider.begin(
           'https://' + binding.host + '/api/auth/callback/keycloak',
@@ -1701,8 +1718,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   }
   /**
    * ADR-0099 § Lifecycle and test, the federation_test callback. The ID token was validated like any sign-in; the
-   * result passes only when its `idp` is the tested alias, its issuer and subject are the administrator's and its
-   * `auth_time` is at or after the test window's start (a fresh authentication, ADR-0099 Amendment 7). The BFF records
+   * result passes only when its `idp` is the tested alias, its issuer and subject are the administrator's, its
+   * `auth_time` is at or after the test window's start (a fresh authentication, ADR-0099 Amendment 7) and its `sid`
+   * differs from the administrator's provider session ended at the start (a new session, Amendment 8). The BFF records
    * it with the test-purpose access token, publishes nothing, discards every token, ends the provider session
    * server-side with the test refresh token and signs the administrator out, because the shared provider session now
    * carries the brokered note.
@@ -1718,6 +1736,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       credentials.identity.idp === test.alias &&
       credentials.identity.issuer === test.issuer &&
       credentials.identity.subject === test.subject &&
+      credentials.identity.sid !== test.replacedSid &&
       typeof authTime === 'number' &&
       authTime >= Math.floor(test.startedAt / 1000);
     let outcome: FederationTestOutcome = 'unrecorded';

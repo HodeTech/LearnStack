@@ -254,11 +254,17 @@ describe('ADR-0099 federation purposes, provenance and server-side end-session',
     expect((await f.login()).result.identity.authTime).toBe(1_800_000_123);
     const absent = await fixture();
     expect((await absent.login()).result.identity).not.toHaveProperty('authTime');
-    for (const auth_time of ['1800000123', 0, -1, 1.5]) {
+    // The library refuses a string and a negative value itself ('response'); the profile's own guard refuses zero
+    // and a fraction ('identity'), which the library admits, so those two cases pin the guard.
+    for (const [auth_time, reason] of [
+      ['1800000123', 'response'],
+      [0, 'identity'],
+      [-1, 'response'],
+      [1.5, 'identity'],
+    ] as const) {
       const g = await fixture();
       g.setClaims({ auth_time });
-      // The library refuses some shapes itself ('response'); the profile refuses the rest ('identity').
-      await expect(g.login()).rejects.toBeInstanceOf(BffProviderError);
+      await expect(g.login()).rejects.toMatchObject({ name: 'BffProviderError', reason });
     }
   });
 

@@ -218,8 +218,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**281 rules in this catalogue are Implemented, and 164 of them are in that assembly.**
-The other 117 are no less binding, and most could not live there. The table says where
+**282 rules in this catalogue are Implemented, and 164 of them are in that assembly.**
+The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -7485,7 +7485,7 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
 Canonical names for ADR-0099's new obligations are assigned with the step that
 introduces them. Step 1 introduces two, Step 2 five (the last two from its review
-rounds), Step 3 five and Step 4 one; the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
+rounds), Step 3 five and Step 4 two (the second from its review round 2); the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
 the new subjects unchanged (Step 2 extends the authenticated HTTP census with a runner
 handoff for the federation controller and the public census with the Identity-owned
 sign-in read). The
@@ -7722,3 +7722,30 @@ sign-in read). The
 - **Status:** **Implemented** (`FederationHostAliasSetterConventionTests`).
 - **Test owner:** [FederationHostAliasSetterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationHostAliasSetterConventionTests.cs).
 - **Phase:** 03 (P03-8 Step 4).
+
+#### `Federation_Test_Record_Scope_Reaches_Only_The_Test_Record`
+
+- **Asserts:** a verified token whose `scope` names `federation.test_record` is refused
+  with the closed 403 (`lockey_forbidden`), the shape the test record answers without
+  the scope, on every authenticated endpoint except `FederationController.RecordTestResult`.
+  The one enforcement point is `TenantCredentialAdmissionMiddleware`, directly after
+  authentication and ahead of the global self entry, tenant resolution and
+  authorization; the exception is the matched action's identity, never its path. The
+  unit owner refuses the scoped token on other federation actions and on an unmatched
+  request, admits it on the test record, and admits an unscoped token everywhere. The
+  integration owners refuse it, through the actual pipeline, on the Studio detail read,
+  configure write, test start and capability read and on the native self read,
+  bootstrap and session-scope admission, admit the same subject's unscoped token on each,
+  and record a result with the scoped token.
+- **Source:** [ADR-0099 Amendment 8](../decisions/0099-confined-tenant-federation.md#amendment-8--step-4-review-round-2-test-session-replacement-and-scope-confinement-2026-11-15)
+  (item 2), extending [Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14) (S-B).
+- **Type:** unit middleware tests with a planted control (the test record's own path and
+  method served by another action is refused), and Docker-backed HTTP tests.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`FederationTestRecordAdmissionTests`,
+  `FederationHttpTests.A_test_record_token_reaches_only_the_test_record`,
+  `IdentitySelfEntryHttpTests.Actual_native_entries_refuse_a_federation_test_record_token`).
+- **Test owners:** [FederationTestRecordAdmissionTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/FederationTestRecordAdmissionTests.cs),
+  [FederationHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationHttpTests.cs),
+  [IdentitySelfEntryHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/IdentitySelfEntryHttpTests.cs).
+- **Phase:** 03 (P03-8 Step 4, review round 2).

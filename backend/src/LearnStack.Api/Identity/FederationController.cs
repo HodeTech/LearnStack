@@ -105,7 +105,7 @@ public sealed class FederationController(FederationOperationRunner runner) : Api
     public async Task<IActionResult> RecordTestResult(CancellationToken cancellationToken)
     {
         if (!FederationTestRecordScope.IsPresent(HttpContext))
-            return Result<FederationRun>.Fail(new Error(LocalizedMessage.Of("lockey_forbidden"))).ToActionResult();
+            return Result<FederationRun>.Fail(FederationTestRecordScope.Refusal).ToActionResult();
         using var body = await BodyAsync("testAttemptId", "passed");
         if (body is null || !ProtectedEntityTag.TryRead(Request, out var version)
             || !AdministrationHttpInput.TryText(body.RootElement, "testAttemptId", false, 36, out var text)

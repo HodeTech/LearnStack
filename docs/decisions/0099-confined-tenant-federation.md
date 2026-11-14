@@ -923,3 +923,46 @@ against the delivered code. The Decision is unchanged.
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record
 and its proof.
+
+### Amendment 8 — Step 4 review round 2: test session replacement and scope confinement (2026-11-15)
+
+The second independent review of P03-8 Step 4 found Amendment 7 item 3 overstated and
+Amendment 6 item 2 enforced only at one endpoint. This amendment corrects both; the text
+of Amendments 6 and 7 is unchanged. The Decision is unchanged.
+
+1. **Correction to Amendment 7 item 3: the test proves a replaced provider session, not
+   an upstream prompt.** Keycloak sets the `identity_provider` user-session note only on
+   a brokered login, copies authentication-session notes into the user session without
+   removing older ones, and reuses the user session under `prompt=login`. A stale note
+   therefore let a local re-login during the test yield an ID token with the tested
+   `idp`, a fresh `auth_time` and the same `sub`. The test now:
+   - records the administrator's provider session identifier (`sid`) at the start, and
+     refuses to start when it, or the refresh token that ends it, is missing;
+   - ends that provider session server-side with the administrator's refresh token, at
+     the fixed end-session endpoint, before the authorization redirect. The request is
+     awaited, unlike the best-effort refusal path of
+     [ADR-0070 Amendment 12](0070-owned-tenant-bff-sessions.md#amendment-12--federation-sign-in-purpose-and-server-side-end-session-2026-11-15),
+     and a refused or failed request refuses the start. The back-channel logout it
+     causes ends the administrator's BFF session, as the completion already did;
+   - passes only when, besides Amendment 7's `idp`, issuer, subject and `auth_time`
+     conditions, the completed ID token's `sid` differs from the recorded one.
+
+   This proves that the provider session was replaced inside the window and that the
+   authentication that completed it carries the tested broker's alias. It does **not**
+   prove that the upstream IdP prompted the administrator: the IdP may answer from its
+   own session. That is proved only when the broker forwards the freshness request
+   (`passMaxAge`) and the IdP honours it. The broker's pinned configuration sets
+   `passMaxAge` to false ([§ Fixed broker profile](#fixed-broker-profile)), so the
+   delivered test makes no claim about the upstream prompt.
+2. **The test-record scope reaches only the test record.** Amendment 6 item 2 required
+   `federation.test_record` on `POST identity/federation/test-results`; nothing refused
+   it elsewhere. The API now refuses a verified token carrying the scope on every
+   authenticated endpoint except that action, with the test record's own closed 403.
+   The single enforcement point is the credential admission directly after
+   authentication, ahead of the global self entry, tenant resolution and authorization,
+   and the exception is the action's identity, never its path.
+   [Architecture tests § `Federation_Test_Record_Scope_Reaches_Only_The_Test_Record`](../standards/21-architecture-tests-catalogue.md#federation_test_record_scope_reaches_only_the_test_record)
+   names the rule.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record
+and its proof.
