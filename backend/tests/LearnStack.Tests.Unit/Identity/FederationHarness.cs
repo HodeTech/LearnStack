@@ -78,6 +78,13 @@ internal sealed class FederationHarness : IDisposable
     internal int SavesInLastRequest { get; set; }
     internal FederationBrokerWrite? LastWrite { get; set; }
 
+    /// <summary>
+    /// Provider calls made while a simulated transaction was open. Counted rather than asserted in the call: the runner
+    /// treats any exception from a provider call, an assertion failure included, as a provider fault, so an in-call assert
+    /// would turn the violation into an uncertain or unavailable outcome and hide it. <see cref="Dispose"/> asserts zero.
+    /// </summary>
+    internal int TransactionalProviderCalls { get; private set; }
+
     /// <summary>Calls the provider makes, through a wrapper that proves no transaction is open across them.</summary>
     internal IFederationProvider ObservedProvider => new Observing(this);
 
@@ -87,7 +94,11 @@ internal sealed class FederationHarness : IDisposable
     /// <summary>Sends one request straight to its real handler, as one top-level frame.</summary>
     internal Task<Result<T>> SendAsync<T>(IRequest<Result<T>> request) => DispatchAsync<T>(request, CancellationToken.None);
 
-    public void Dispose() => _candidates.Dispose();
+    public void Dispose()
+    {
+        _candidates.Dispose();
+        Assert.True(TransactionalProviderCalls == 0, TransactionalProviderCalls + " provider call(s) ran while a database transaction was open");
+    }
 
     private async Task<Result<T>> DispatchAsync<T>(object request, CancellationToken cancellationToken)
     {
@@ -213,7 +224,7 @@ internal sealed class FederationHarness : IDisposable
             : ForDecision(invocation, candidate, outcome);
     }
 
-    /// <summary>Records the provider calls in the log and proves no transaction is open across them.</summary>
+    /// <summary>Records the provider calls in the log and counts any made while a transaction is open.</summary>
     private sealed class Observing(FederationHarness harness) : IFederationProvider
     {
         public Task<FederationProviderResult> ApplyAsync(FederationBrokerWrite write, CancellationToken cancellationToken = default)
@@ -224,7 +235,7 @@ internal sealed class FederationHarness : IDisposable
         { Observe("delete"); return harness.Provider.DeleteAsync(owner, cancellationToken); }
         private void Observe(string call)
         {
-            Assert.False(harness.TransactionOpen, "no database transaction is open across provider I/O");
+            if (harness.TransactionOpen) harness.TransactionalProviderCalls++;
             harness.Log.Add("provider:" + call);
         }
     }

@@ -636,14 +636,25 @@ domain step before the next, because the storage guard admits one row version pe
 UPDATE. Budgets are 3 s egress, 1 s per database step, 2.5 s for all provider calls and
 1.5 s for Complete; an overrun is `uncertain` and stays pending for Resume after the
 90-second quiet window. Configure completes on Resume only when the nonsecret readback
-equals the stored desired digest; an interrupted rotation asks for a resubmit. Every
-readback compares a digest computed by `FederationDigest`; any mapper, nonconforming
-profile key or other state is drift and returns the connection to Draft. Activate and
-the test result read the provider before their state transaction and perform no
-write. Every read selects the live connection through `FederationConnectionReads.Live`,
-so a `Deleted` tombstone is never returned. Configure and test start require the
-protocol's entitlement (`identity.sso.oidc` or `identity.sso.saml`) through
-`IFeatureFlags`.
+equals the stored desired digest; an interrupted rotation asks for a resubmit. A
+Configure of an existing OIDC connection without a fresh client secret is admitted only
+when its configuration digest equals the stored one and the last readback confirmed
+that the provider holds it; otherwise the Begin refuses `validation_failed` before any
+provider call, so the stored secret never reaches a changed token endpoint
+([ADR-0099 Amendment 3](../../decisions/0099-confined-tenant-federation.md#amendment-3--a-changed-oidc-configuration-needs-a-fresh-secret-2026-11-14)).
+Every readback compares a digest computed by `FederationDigest`; any mapper,
+nonconforming profile key or other state is drift and returns the connection to Draft.
+Activate and the test result read the provider before their state transaction, and
+their state transitions make no provider write. Activate or the test result on an
+expired window, a failed test result, and a detail load that finds an expired window,
+new drift or an enabled broker the state does not admit begin a corrective disabling
+write, which the runner applies and completes before returning. That write keeps the
+configuration the provider holds and changes only the enabled flag
+([ADR-0099 Amendment 4](../../decisions/0099-confined-tenant-federation.md#amendment-4--corrective-disable-writes-and-gated-rotate-and-activate-2026-11-14)).
+Every read selects the live connection through `FederationConnectionReads.Live`, so a
+`Deleted` tombstone is never returned. Configure, Rotate secret, test start and
+Activate require the protocol's entitlement (`identity.sso.oidc` or
+`identity.sso.saml`) through `IFeatureFlags`.
 
 Until the federation admin client and the guarded fetcher exist (Step 3), both ports
 are registered with fail-closed defaults that report every call unavailable, so

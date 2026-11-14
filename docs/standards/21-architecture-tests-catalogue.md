@@ -218,8 +218,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**274 rules in this catalogue are Implemented, and 158 of them are in that assembly.**
-The other 116 are no less binding, and most could not live there. The table says where
+**275 rules in this catalogue are Implemented, and 158 of them are in that assembly.**
+The other 117 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -5517,7 +5517,8 @@ structural test proves — and what it does not.
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
 - **Asserts:** the production census closes the finite HTTP surface at 72 MVC
-  actions and 67 distinct `IRequest` roots, including the public and authenticated
+  actions and 67 distinct `IRequest` roots (both totals asserted on the literal census
+  that the rule binds to production), including the public and authenticated
   reads, the anonymous sign-in read, 23 protected keyed writes, native
   session-scope admission and the eleven ADR-0099 federation actions, which reach
   their requests only through `FederationOperationRunner`. It also
@@ -7483,10 +7484,11 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
 Canonical names for ADR-0099's new obligations are assigned with the step that
-introduces them. Step 1 introduces two and Step 2 three; the existing Identity,
-permission, RLS, census and OpenAPI/SDK rules extend to the new subjects unchanged
-(Step 2 extends the authenticated HTTP census with a runner handoff for the federation
-controller and the public census with the Identity-owned sign-in read). The
+introduces them. Step 1 introduces two and Step 2 five, the last two from its review
+rounds; the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
+the new subjects unchanged (Step 2 extends the authenticated HTTP census with a runner
+handoff for the federation controller and the public census with the Identity-owned
+sign-in read). The
 [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
 
 #### `Federation_Connection_Persists_No_Secret_Column`
@@ -7568,14 +7570,45 @@ controller and the public census with the Identity-owned sign-in read). The
 #### `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate`
 
 - **Asserts:** `FederationConnectionReads.LiveSql` is exactly
-  `state <> 'Deleted' AND deleted_at IS NULL`; the census of production sources that
-  select from `federation_connections` is exactly `FederationConnectionStore` and
-  `PublicSignInReader`; and each interpolates that constant and spells no tombstone
-  predicate of its own, so the two raw reads cannot drift from each other or from the EF
-  `Live` filter silently.
+  `state <> 'Deleted' AND deleted_at IS NULL`; every production source, both Identity
+  projects included, that reads `federation_connections` (`FROM` or `JOIN`, any case or
+  whitespace, with or without the schema, quoted or through the mapped table-name
+  constant) is exactly `FederationConnectionStore` or `PublicSignInReader`; and each
+  such statement, not merely its file, interpolates that constant and spells no
+  tombstone predicate of its own, so the two raw reads cannot drift from each other or
+  from the EF `Live` filter silently.
 - **Source:** [ADR-0099 Amendment 1](../decisions/0099-confined-tenant-federation.md#amendment-1--step-1-storage-deviations-2026-11-13)
   (the tombstone) and the P03-8 Step 2 review round 1 (S-D).
-- **Type:** source scan with planted own-predicate controls. **Kind:** structural.
+- **Type:** source scan with planted controls: an own predicate, a second statement
+  without the constant, an unlisted reader by `JOIN`, without the schema, with other
+  spacing, quoted or through the table-name constant, and a dropped reader.
+  **Kind:** structural.
 - **Status:** **Implemented** (`FederationApplicationConventionTests`).
 - **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
-- **Phase:** 03 (P03-8 Step 2, review round 1).
+- **Phase:** 03 (P03-8 Step 2, review rounds 1 and 2).
+
+#### `Federation_Secret_Never_Reaches_Audit_Log_Or_Dto`
+
+- **Asserts:** a federation client secret appears in no `audit_log` row, no response
+  or read schema, and no rendering of its type. Three existing assertions carry it:
+  `FederationHttpTests` counts zero `audit_log` rows whose text contains the
+  Configure secret (`The_lifecycle_commits_each_step_with_its_MUST_row_and_exposes_only_the_host_tenants_Active_alias`)
+  and the rotated secret (`Rotate_enable_and_delete_commit_with_their_MUST_rows_and_a_deleted_connection_is_never_offered`),
+  read as the owner over every column;
+  `OpenApiContractTests.Federation_census_refuses_an_idempotency_key_a_missing_precondition_and_a_readable_secret`
+  requires `clientSecret` to be `writeOnly` on both inputs that carry it and to be a
+  property of no other federation schema, with planted controls for each; and
+  `FederationOperationRunnerTests.A_client_secret_renders_and_serializes_as_nothing`
+  shows the redacting `FederationClientSecret` renders as `[redacted]` and refuses JSON
+  serialization. No test captures emitted log output: the log obligation rests on that
+  redacting type.
+- **Source:** [ADR-0099 § Architecture Tests](../decisions/0099-confined-tenant-federation.md#architecture-tests)
+  ("no secret in any audit, log, DTO"); the persisted-column part is
+  `Federation_Connection_Persists_No_Secret_Column`.
+- **Type:** integration, contract and unit assertions. **Kind:** behavioural.
+- **Status:** **Implemented** (`FederationHttpTests`, `OpenApiContractTests.Federation_census_refuses_an_idempotency_key_a_missing_precondition_and_a_readable_secret`,
+  `FederationOperationRunnerTests.A_client_secret_renders_and_serializes_as_nothing`).
+- **Test owners:** [FederationHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationHttpTests.cs),
+  [OpenApiContractTests.Federation.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.Federation.cs),
+  [FederationOperationRunnerTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/FederationOperationRunnerTests.cs).
+- **Phase:** 03 (P03-8 Step 2, review round 2).

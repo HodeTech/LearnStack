@@ -92,7 +92,10 @@ public sealed class FederationController(FederationOperationRunner runner) : Api
     public async Task<IActionResult> StartTest(CancellationToken cancellationToken) =>
         await EmptyAsync() is { } version ? FederationHttpModels.Receipt(await runner.StartTestAsync(version, cancellationToken)) : AdministrationHttpInput.Invalid();
 
-    /// <summary>Server-only: the BFF's test callback reports the attempt it holds; the browser never sees the identifier.</summary>
+    /// <summary>
+    /// Intended for the BFF's server-side test callback reporting the attempt it holds, with the identifier kept from the
+    /// browser. Not enforced until Step 4 (S-B): today the route takes the tenant bearer and the Studio policy.
+    /// </summary>
     [HttpPost("test-results", Name = "RecordFederationTestResult")]
     [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme, Policy = OperationPolicyRequirement.Prefix + "identity.federation.test_record")]
     [OperationPolicy(typeof(RecordFederationTestResultCommand))]

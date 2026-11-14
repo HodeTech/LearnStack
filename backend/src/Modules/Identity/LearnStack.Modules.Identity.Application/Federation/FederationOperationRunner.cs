@@ -127,7 +127,11 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         };
     }
 
-    /// <summary>Activate performs no provider write: its readback and egress check run before its state transaction.</summary>
+    /// <summary>
+    /// Activate's state transition makes no provider write: its readback and egress check run before its state transaction.
+    /// An expired window or new drift found there begins the corrective disabling write, applied before this returns
+    /// (ADR-0099 Amendment 4).
+    /// </summary>
     public async Task<Result<FederationRun>> ActivateAsync(long expectedVersion, CancellationToken cancellationToken)
     {
         var observation = await ObserveAsync(expectedVersion, cancellationToken);
@@ -145,7 +149,10 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             cancellationToken);
     }
 
-    /// <summary>Server-only test result: the BFF's callback reports the attempt it holds; the readback precedes the record.</summary>
+    /// <summary>
+    /// The test result: intended for the BFF's server-side callback reporting the attempt it holds, but not enforced as
+    /// server-only until Step 4 (S-B). The readback precedes the record; a failure begins the corrective disabling write.
+    /// </summary>
     public async Task<Result<FederationRun>> RecordTestResultAsync(long expectedVersion, Guid attempt, bool passed, CancellationToken cancellationToken)
     {
         var observation = await ObserveAsync(expectedVersion, cancellationToken);
@@ -177,10 +184,13 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             && view.TestExpiresAt is { } expires && clock.UtcNow >= expires;
         var newDrift = status == FederationProviderObservation.Drift && !string.Equals(observed, view.LastProviderDigest, StringComparison.Ordinal);
         // Only a broker the corrective write can rewrite counts, so a drifted one is recorded once, never rewritten per load.
+        // Its configuration is the provider's, not the row's: a refused or uncertain Configure of a changed configuration
+        // begun from an enabled state leaves the old one enabled, and only the enabled flag is rewritten.
+        var held = RewritableConfiguration(owner, readback, view.Protocol);
         var strayEnabled = view.Status is FederationConnectionStatus.Draft or FederationConnectionStatus.Disabled
-            && readback.State is { Enabled: true } && Rewritable(owner, readback, view);
+            && readback.State is { Enabled: true } && held is not null;
         if (!expired && !newDrift && !strayEnabled) return Result.Ok(new FederationConnectionDetail(view, status));
-        var reconciled = await StepAsync(new ReconcileFederationConnectionCommand(view.Version, observed), cancellationToken);
+        var reconciled = await StepAsync(new ReconcileFederationConnectionCommand(view.Version, observed, held), cancellationToken);
         if (reconciled.IsFailure) return Result.Ok(new FederationConnectionDetail(view, status));
         if (reconciled.Value!.Corrective is { } corrective) await ProviderThenCompleteAsync(corrective, null, null, cancellationToken);
         var reread = await StepAsync(new GetFederationConnectionQuery(), cancellationToken);
@@ -328,11 +338,14 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         return Result.Ok(new FederationRun(receipt with { Version = written.Value!.Receipt.Version, Corrective = null }));
     }
 
-    /// <summary>The owned, mapper-free, conforming broker of this connection's configuration: what a full-state rewrite starts from.</summary>
-    private static bool Rewritable(FederationBrokerOwner owner, FederationBrokerReadback readback, FederationConnectionView view) =>
+    /// <summary>
+    /// The configuration digest of an owned, mapper-free, conforming broker of this protocol, which a full-state rewrite
+    /// starts from; null for any other readback. It need not equal the connection's configuration.
+    /// </summary>
+    private static string? RewritableConfiguration(FederationBrokerOwner owner, FederationBrokerReadback readback, FederationBrokerProtocol protocol) =>
         readback.Status == FederationReadbackStatus.Present && readback.State is { } state && state.Owner == owner
-        && readback.MapperCount == 0 && readback.ProfileConforms && state.Protocol == view.Protocol
-        && string.Equals(FederationDigest.Configuration(state.Configuration), view.ConfigurationDigest, StringComparison.Ordinal);
+        && readback.MapperCount == 0 && readback.ProfileConforms && state.Protocol == protocol
+            ? FederationDigest.Configuration(state.Configuration) : null;
 
     /// <summary>
     /// Every fault a provider or egress call can raise, cancellation included, except the runtime's fatal ones; the caller

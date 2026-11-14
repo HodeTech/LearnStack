@@ -764,3 +764,25 @@ The Step 2 review (S-A) found a gap this record does not address. The Decision i
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record and
 its proof.
+
+### Amendment 4 — Corrective disable writes and gated Rotate and Activate (2026-11-14)
+
+The Step 2 review rounds found three statements the implementation of § Lifecycle and test
+and § Provider writes makes concrete. The Decision is unchanged.
+
+- **Corrective disabling writes.** Activate, the test record and a Studio detail load may
+  begin a disabling full-state write when they find an expired window, a failed test
+  result, drift, or an enabled broker the connection's state does not admit. This is how
+  "disabled at the next operation or readback" is carried out. The write keeps the
+  configuration the provider was read back holding and changes only the enabled flag, so a
+  refused or uncertain Configure of a changed configuration cannot leave the old broker
+  enabled. Like every provider write, it is applied with no transaction open and settled by
+  Complete with its own MUST row.
+- **Entitlement.** Rotate secret and Activate require the protocol's entitlement, as
+  Configure and test start do.
+- **Reading.** "Activate … performs no provider write" (§ Lifecycle and test) and "Enable
+  and Activate perform no provider write" (§ Intent-first operations) mean that the state
+  transition itself makes no provider write. Enable makes none at all.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review records
+and their proof.

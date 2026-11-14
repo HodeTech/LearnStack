@@ -304,6 +304,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var errors = Violations(modules, facts);
         errors.Should().BeEmpty(
             "Fix: retain the exact ADR-0064/0076 reads and ADR-0078/0079 finite entry/administration union; all findings: {0}", string.Join("\n", errors));
+        // The totals Standard 21 publishes for this rule; Violations binds the production surface to this literal census.
+        Endpoints.Should().HaveCount(72, "the census closes the surface at 72 MVC actions");
+        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(67,
+            "Standard 21 publishes 67 distinct IRequest roots for the 72 actions");
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>

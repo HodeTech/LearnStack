@@ -484,6 +484,66 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         Assert.Equal("Configure", (await RowAsync(proof, English)).PendingKind);
     }
 
+    /// <summary>
+    /// The two corrective-write carriers through the actual pipeline (Step 2 review round 2, M-1 and M-3): a failed test
+    /// result, and a detail load after a refused Configure of a changed configuration from Active. Each applies its
+    /// disabling write with no transaction open and records its own <c>apply</c> MUST row; the second keeps the
+    /// configuration the provider holds and changes only the enabled flag.
+    /// </summary>
+    [Fact]
+    public async Task A_failed_test_result_and_a_detail_reconcile_apply_their_disabling_writes_outside_any_transaction()
+    {
+        await using var proof = await CreatePreparedAsync();
+        var harness = new Harness();
+        using var client = proof.Client(harness.Configure);
+        var token = proof.Token(EnglishAdmin, English);
+        await AdoptFederationReleaseAsync(client, token, English);
+        using var configured = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT", ConfigureBody());
+        var version = (await JsonAsync(configured)).GetProperty("version").GetString()!;
+        var alias = (await RowAsync(proof, English)).Alias;
+
+        using var started = await SendAsync(client, token, "/api/v1/identity/federation/test-starts", "POST", "{}", version);
+        var start = await JsonAsync(started);
+        Assert.True(harness.Provider.Find(alias)!.State.Enabled);
+        using (var failed = await SendAsync(client, token, "/api/v1/identity/federation/test-results", "POST",
+            JsonSerializer.Serialize(new { testAttemptId = start.GetProperty("testAttemptId").GetString(), passed = false }),
+            start.GetProperty("version").GetString()))
+        {
+            var receipt = await JsonAsync(failed);
+            Assert.Equal("failed", receipt.GetProperty("outcome").GetString());
+            version = receipt.GetProperty("version").GetString()!;
+            Assert.Equal(["identity.federation.apply", "identity.federation.test_record"],
+                (await proof.AuditAsync(failed, English)).Select(row => row.Operation).Order(StringComparer.Ordinal));
+        }
+        Assert.False(harness.Provider.Find(alias)!.State.Enabled);
+        var draft = await RowAsync(proof, English);
+        Assert.Equal("Draft", draft.State);
+        Assert.Null(draft.PendingKind);
+        Assert.Equal(0, harness.TransactionalProviderCalls);
+
+        version = await ActivateAsync(client, token, version);
+        var held = harness.Provider.Find(alias)!.State;
+        Assert.True(held.Enabled);
+        harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Refused);
+        using (var refused = await SendAsync(client, token, "/api/v1/identity/federation/configuration", "PUT",
+            ManualConfigureBody(InMemoryFederationEgressFetcher.Issuer + "/protocol/openid-connect/token-v2", Secret), version))
+            Assert.Equal("failed", (await JsonAsync(refused)).GetProperty("outcome").GetString());
+        harness.Provider.OnApply = null;
+        Assert.Equal(held, harness.Provider.Find(alias)!.State);
+        var writes = harness.Provider.Calls.Count(call => call == "apply");
+        using (var detail = await SendAsync(client, token, "/api/v1/identity/federation"))
+        {
+            var body = await JsonAsync(detail);
+            Assert.Equal("draft", body.GetProperty("connection").GetProperty("status").GetString());
+            Assert.Equal(["identity.federation.apply", "identity.federation.apply"],
+                (await proof.AuditAsync(detail, English)).Select(row => row.Operation).ToArray());
+        }
+        Assert.Equal(writes + 1, harness.Provider.Calls.Count(call => call == "apply"));
+        Assert.Equal(held with { Enabled = false }, harness.Provider.Find(alias)!.State);
+        Assert.Null((await RowAsync(proof, English)).PendingKind);
+        Assert.Equal(0, harness.TransactionalProviderCalls);
+    }
+
     private static string ConfigureBody(string? displayName = "Acme SSO", string? secret = Secret) => JsonSerializer.Serialize(new
     {
         protocol = "oidc",

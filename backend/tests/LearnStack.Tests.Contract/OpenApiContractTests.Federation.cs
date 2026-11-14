@@ -31,6 +31,8 @@ public sealed partial class OpenApiContractTests
         "PublicSignIn", "PublicSignInFederation",
     ];
 
+    private static readonly string[] FederationSecretInputs = ["FederationConfigurationInput", "FederationSecretInput"];
+
     private static List<string> FederationContractErrors(JsonNode document)
     {
         var errors = new List<string>();
@@ -60,8 +62,12 @@ public sealed partial class OpenApiContractTests
         foreach (var name in FederationSchemaNames)
             if (document["components"]?["schemas"]?[name] is not JsonObject schema || schema["additionalProperties"]?.GetValue<bool>() != false)
                 errors.Add("federation-schema:" + name);
-        if (document["components"]?["schemas"]?["FederationSecretInput"]?["properties"]?["clientSecret"]?["writeOnly"]?.GetValue<bool>() != true
-            || document["components"]?["schemas"]?["FederationOperationResponse"]?["properties"]?["clientSecret"] is not null)
+        // The secret is write-only on both inputs that carry it and is a property of no other federation schema, so no
+        // response or read DTO can return it.
+        if (FederationSecretInputs.Any(name => document["components"]?["schemas"]?[name]?["properties"]?["clientSecret"]?["writeOnly"]
+                ?.GetValue<bool>() != true)
+            || FederationSchemaNames.Except(FederationSecretInputs, StringComparer.Ordinal)
+                .Any(name => document["components"]?["schemas"]?[name]?["properties"]?["clientSecret"] is not null))
             errors.Add("federation-secret");
         return errors;
     }
@@ -81,5 +87,12 @@ public sealed partial class OpenApiContractTests
         var readable = clean.DeepClone();
         readable["components"]!["schemas"]!["FederationSecretInput"]!["properties"]!["clientSecret"]!.AsObject().Remove("writeOnly");
         FederationContractErrors(readable).Should().Contain("federation-secret");
+        var readableConfiguration = clean.DeepClone();
+        readableConfiguration["components"]!["schemas"]!["FederationConfigurationInput"]!["properties"]!["clientSecret"]!.AsObject().Remove("writeOnly");
+        FederationContractErrors(readableConfiguration).Should().Contain("federation-secret");
+        var returned = clean.DeepClone();
+        returned["components"]!["schemas"]!["FederationConnectionBody"]!["properties"]!.AsObject()
+            .Add("clientSecret", new JsonObject { ["type"] = "string" });
+        FederationContractErrors(returned).Should().Contain("federation-secret");
     }
 }

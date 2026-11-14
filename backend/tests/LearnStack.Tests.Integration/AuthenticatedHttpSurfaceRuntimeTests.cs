@@ -203,8 +203,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     }
 
     /// <summary>
-    /// Dirty controls: every federation endpoint without its policy, or reclassified as public, fails the same assertion
-    /// the census applies; a planted Activate descriptor built without its <c>[Authorize]</c> is reported by it, and an
+    /// Dirty controls: every federation endpoint without its policy, or keeping its policy with <c>AllowAnonymous</c> added
+    /// (reported by the anonymous-bypass check itself), fails the same assertion the census applies; a planted Activate descriptor built without its <c>[Authorize]</c> is reported by it, and an
     /// inventory that gains or loses a federation action fails.
     /// </summary>
     private static void AssertFederationPolicyControls(RouteEndpoint[] endpoints)
@@ -220,8 +220,10 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             var unprotected = endpoint.Metadata.Where(item => item is not IAuthorizeData).ToArray();
             Action missing = () => AssertEndpointAuthorization(action, unprotected);
             missing.Should().Throw<Xunit.Sdk.XunitException>("a federation action without its live operation policy is not protected");
-            Action anonymous = () => AssertEndpointAuthorization(action, unprotected.Append(new AllowAnonymousAttribute()));
-            anonymous.Should().Throw<Xunit.Sdk.XunitException>("a federation action cannot be reclassified as a public read");
+            // The policy stays and AllowAnonymous is added: only the anonymous-bypass check can report this one.
+            Action anonymous = () => AssertEndpointAuthorization(action, endpoint.Metadata.Append(new AllowAnonymousAttribute()));
+            anonymous.Should().Throw<Xunit.Sdk.XunitException>("a federation action cannot be reclassified as a public read")
+                .WithMessage("*authenticated endpoint metadata must never bypass authorization*");
             AssertEndpointAuthorization(action, endpoint.Metadata);
         }
         var activate = actions.Single(action => action.ControllerTypeInfo.AsType() == typeof(FederationController)

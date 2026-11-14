@@ -92,11 +92,17 @@ public sealed record CompleteFederationOperationCommand(Guid ConnectionId, Guid 
 
 public sealed record EnableFederationCommand(long ExpectedVersion) : IRequest<Result<FederationOperationReceipt>>;
 
-/// <summary>Activate performs no provider write; its readback and egress check ran before this transaction.</summary>
+/// <summary>
+/// Activate's state transition makes no provider write; its readback and egress check ran before this transaction. An
+/// expired window begins the corrective disabling write instead (ADR-0099 Amendment 4).
+/// </summary>
 public sealed record ActivateFederationCommand(long ExpectedVersion, string ProviderDigest)
     : IRequest<Result<FederationOperationReceipt>>;
 
-/// <summary>Server-only: the BFF's test callback records the closed result of the current window's attempt.</summary>
+/// <summary>
+/// The test callback records the closed result of the current window's attempt. Intended for the BFF's server-side
+/// test owner only; not enforced until Step 4 (S-B).
+/// </summary>
 public sealed record RecordFederationTestResultCommand(long ExpectedVersion, Guid TestAttemptId, bool Passed, string? ProviderDigest)
     : IRequest<Result<FederationOperationReceipt>>
 {
@@ -106,8 +112,11 @@ public sealed record RecordFederationTestResultCommand(long ExpectedVersion, Gui
 /// <summary>
 /// A detail load's readback: records drift or an expired test window and, when the provider does not hold the
 /// connection's state, begins the corrective disabling write the runner then applies (ADR-0099 § Provider writes).
+/// <paramref name="ProviderConfigurationDigest"/> is the configuration digest of an owned, mapper-free, conforming
+/// broker as read back, which a refused or uncertain Configure can leave different from the connection's own; a
+/// disabling write keeps that configuration and changes only the enabled flag.
 /// </summary>
-public sealed record ReconcileFederationConnectionCommand(long ExpectedVersion, string? ProviderDigest)
+public sealed record ReconcileFederationConnectionCommand(long ExpectedVersion, string? ProviderDigest, string? ProviderConfigurationDigest = null)
     : IRequest<Result<FederationOperationReceipt>>;
 
 public sealed record GetFederationConnectionQuery() : IRequest<Result<FederationConnectionRead>>;

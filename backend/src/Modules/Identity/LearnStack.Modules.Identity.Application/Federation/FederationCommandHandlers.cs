@@ -185,10 +185,13 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
             if (drift) await store.UpdateAsync(connection, cancellationToken);
             // ADR-0099 § Provider writes: a readback that does not hold the connection's state (an expired window, drift,
             // a broker left enabled) makes the corrective full-state write with the broker disabled the next operation.
-            var corrective = !string.Equals(request.ProviderDigest, StateDigest(connection), StringComparison.Ordinal);
+            // A state that admits no enabled broker disables it with the configuration the provider holds, which a refused
+            // or uncertain Configure leaves different from the row's: only the enabled flag may change.
+            var held = FederationMapping.ProviderEnabled(connection.State) ? null : request.ProviderConfigurationDigest;
+            var corrective = !string.Equals(request.ProviderDigest, StateDigest(connection, held), StringComparison.Ordinal);
             if (!expired && !drift && !corrective) return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
             var outcome = expired ? FederationResultKind.Expired : drift ? FederationResultKind.Drift : FederationResultKind.Recorded;
-            return corrective ? await DisableBrokerAsync(connection, outcome, now, actor, cancellationToken)
+            return corrective ? await DisableBrokerAsync(connection, outcome, now, actor, cancellationToken, held)
                 : Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, outcome, drift ? FederationFailureReason.Drift : null));
         }, cancellationToken);
 
@@ -284,21 +287,28 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
     /// The disabling write after a failed or expired test, or a readback that does not hold the connection's state:
     /// a full-state rewrite of the current display name with the enabled value the state admits, begun here as its own
     /// saved step and applied by the runner. It is stored as the Rename kind, the state-preserving full-state write the
-    /// storage guard admits from Draft (ADR-0099 § Lifecycle and test, § Provider writes).
+    /// storage guard admits from Draft (ADR-0099 § Lifecycle and test, § Provider writes). A supplied
+    /// <paramref name="held"/> configuration digest is the provider's own: the write is bound to it through the pending
+    /// operation and its desired digest, so the runner refuses it unless the broker still holds exactly that configuration.
     /// </summary>
     private async Task<Result<FederationOperationReceipt>> DisableBrokerAsync(FederationConnection connection, FederationResultKind outcome,
-        DateTimeOffset now, UserId actor, CancellationToken cancellationToken)
+        DateTimeOffset now, UserId actor, CancellationToken cancellationToken, string? held = null)
     {
-        if (connection.BeginRename(connection.DisplayName, StateDigest(connection), NewOperation(), now, actor).IsFailure)
+        if (connection.BeginRename(connection.DisplayName, StateDigest(connection, held), NewOperation(), now, actor).IsFailure)
             return Refuse<FederationOperationReceipt>("lockey_business_rule_violation");
         await store.UpdateAsync(connection, cancellationToken);
         return Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, outcome,
-            outcome == FederationResultKind.Drift ? FederationFailureReason.Drift : null, Pending(connection)));
+            outcome == FederationResultKind.Drift ? FederationFailureReason.Drift : null,
+            Pending(connection) with { ConfigurationDigest = held ?? connection.ConfigurationDigest }));
     }
 
-    /// <summary>The desired digest of the connection as its state stands: the broker is enabled only where the state admits it.</summary>
-    private static string StateDigest(FederationConnection connection) =>
-        Desired(connection, connection.DisplayName, FederationMapping.ProviderEnabled(connection.State));
+    /// <summary>
+    /// The desired digest of the connection as its state stands: the broker is enabled only where the state admits it, over
+    /// the row's configuration or, for a disabling write, the configuration the provider was read back holding.
+    /// </summary>
+    private static string StateDigest(FederationConnection connection, string? held = null) =>
+        FederationDigest.Desired(connection.Alias, FederationMapping.Map(connection.Protocol), held ?? connection.ConfigurationDigest,
+            connection.DisplayName, FederationMapping.ProviderEnabled(connection.State));
 
     /// <summary>
     /// The stored secret is kept only for an unchanged configuration whose last readback confirmed the provider holds it;

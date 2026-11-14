@@ -111,10 +111,12 @@ public sealed class FederationApplicationConventionTests
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                 && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToDictionary(path => Path.GetRelativePath(SourceScan.SourceRoot, path).Replace(Path.DirectorySeparatorChar, '/'), File.ReadAllText);
+        sources.Keys.Should().Contain(path => path.StartsWith(IdentityApplication, StringComparison.Ordinal))
+            .And.Contain(path => path.StartsWith(IdentityInfrastructure, StringComparison.Ordinal), "the scan reads both Identity projects");
         RawLiveOffenders(sources).Should().BeEmpty(
-            "Fix: every raw SELECT from federation_connections interpolates FederationConnectionReads.LiveSql and spells no tombstone predicate of its own");
-        sources.Keys.Where(path => sources[path].Contains("FROM public.federation_connections", StringComparison.Ordinal))
-            .Order(StringComparer.Ordinal).Should().Equal(RawLiveReaders, "the census of raw registry readers is closed");
+            "Fix: every raw read of federation_connections lives in one of the two closed readers, and each statement interpolates "
+            + "FederationConnectionReads.LiveSql and spells no tombstone predicate of its own");
+        RawReaders(sources).Should().Equal(RawLiveReaders, "the census of raw registry readers is closed at two");
     }
 
     [Fact]
@@ -123,10 +125,14 @@ public sealed class FederationApplicationConventionTests
         const string Shared = "WHERE tenant_id=@tenant AND {FederationConnectionReads.LiveSql}";
         var clean = new Dictionary<string, string>
         {
-            [RawLiveReaders[0]] = "SELECT id FROM public.federation_connections " + Shared + " FOR NO KEY UPDATE",
-            [RawLiveReaders[1]] = "SELECT alias FROM public.federation_connections " + Shared + " AND state='Active'",
+            [RawLiveReaders[0]] = "SELECT public.fn_identity_assert_tenant_fence(@tenant,false);\nSELECT id FROM public.federation_connections "
+                + Shared + " FOR NO KEY UPDATE;",
+            [RawLiveReaders[1]] = "\"\"\"\nSELECT alias FROM public.federation_connections " + Shared + " AND state='Active'\n\"\"\";",
+            [IdentityInfrastructure + "Persistence/FederationConnectionStorageDdl.cs"] =
+                "REVOKE ALL ON public.federation_connections FROM PUBLIC; CREATE TRIGGER t BEFORE INSERT OR UPDATE ON public.federation_connections;",
         };
         RawLiveOffenders(clean).Should().BeEmpty();
+        RawReaders(clean).Should().Equal(RawLiveReaders);
         var own = new Dictionary<string, string>(clean)
         {
             [RawLiveReaders[1]] = "SELECT alias FROM public.federation_connections WHERE tenant_id=@tenant AND state='Active' AND deleted_at IS NULL",
@@ -134,17 +140,70 @@ public sealed class FederationApplicationConventionTests
         RawLiveOffenders(own).Should().Equal(RawLiveReaders[1]);
         var both = new Dictionary<string, string>(clean)
         {
-            [RawLiveReaders[0]] = clean[RawLiveReaders[0]] + " AND deleted_at IS NULL",
+            [RawLiveReaders[0]] = clean[RawLiveReaders[0]].Replace(" FOR NO KEY UPDATE;", " AND deleted_at IS NULL FOR NO KEY UPDATE;", StringComparison.Ordinal),
         };
         RawLiveOffenders(both).Should().Equal(RawLiveReaders[0]);
+        // Per statement, not per file: a second statement in a closed reader that skips the shared predicate is refused
+        // even though the file still interpolates it once.
+        var second = new Dictionary<string, string>(clean)
+        {
+            [RawLiveReaders[0]] = clean[RawLiveReaders[0]] + "\nSELECT count(*) FROM public.federation_connections WHERE tenant_id=@tenant;",
+        };
+        RawLiveOffenders(second).Should().Equal(RawLiveReaders[0]);
+        // A reader outside the closed census is refused however it spells the table: a JOIN, no schema, other spacing,
+        // a quoted identifier or the mapped table-name constant.
+        const string Planted = IdentityApplication + "Federation/PlantedReader.cs";
+        foreach (var reference in new[]
+        {
+            "SELECT m.id FROM memberships m JOIN public.federation_connections f ON f.tenant_id=m.tenant_id " + Shared,
+            "SELECT alias FROM federation_connections " + Shared,
+            "SELECT alias\n  from   public .\n\tfederation_connections " + Shared,
+            "SELECT alias FROM \"public\".\"federation_connections\" " + Shared,
+            "SELECT alias FROM public.{FederationConnectionConfiguration.Table} " + Shared,
+        })
+        {
+            var planted = new Dictionary<string, string>(clean) { [Planted] = reference };
+            RawLiveOffenders(planted).Should().Equal([Planted], "an unlisted reader is refused: " + reference);
+            RawReaders(planted).Should().Contain(Planted, "the census sees the planted reader: " + reference);
+        }
+        // A closed reader that is removed leaves the census short.
+        var dropped = new Dictionary<string, string>(clean) { [RawLiveReaders[1]] = "public sealed class PublicSignInReader;" };
+        RawReaders(dropped).Should().Equal([RawLiveReaders[0]]);
     }
 
+    private const string IdentityApplication = "Modules/Identity/LearnStack.Modules.Identity.Application/";
+    private const string IdentityInfrastructure = "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/";
+
+    /// <summary>
+    /// A relational read reference to the registry: <c>FROM</c> or <c>JOIN</c>, any case and whitespace, with or without
+    /// the schema, quoted or not, or through the mapped table-name constant. DDL (<c>ON</c>, <c>REVOKE … FROM PUBLIC</c>)
+    /// and constraint names are not reads.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex RawRead = new(
+        """\b(?:FROM|JOIN)\s+(?:\\?"?public\\?"?\s*\.\s*)?(?:\\?"?federation_connections\\?"?(?![A-Za-z0-9_])|\{[^{}]*FederationConnectionConfiguration\.Table\})""",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static List<string> RawReaders(IReadOnlyDictionary<string, string> sources) =>
+        [.. sources.Where(pair => RawRead.IsMatch(pair.Value)).Select(pair => pair.Key).Order(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Each raw read must sit in one of the two closed readers, and the statement around it, bounded by the nearest
+    /// <c>;</c> or string delimiter on either side, must interpolate the shared constant and spell no tombstone predicate.
+    /// </summary>
     private static List<string> RawLiveOffenders(IReadOnlyDictionary<string, string> sources) =>
-        [.. sources.Where(pair => pair.Value.Contains("FROM public.federation_connections", StringComparison.Ordinal)
-                && (!pair.Value.Contains("{FederationConnectionReads.LiveSql}", StringComparison.Ordinal)
-                    || pair.Value.Contains("deleted_at", StringComparison.Ordinal)
-                    || pair.Value.Contains("'Deleted'", StringComparison.Ordinal)))
+        [.. sources.Where(pair => RawRead.Matches(pair.Value).Any(match => !RawLiveReaders.Contains(pair.Key, StringComparer.Ordinal)
+                || Statement(pair.Value, match.Index) is var statement
+                    && (!statement.Contains("{FederationConnectionReads.LiveSql}", StringComparison.Ordinal)
+                        || statement.Contains("deleted_at", StringComparison.OrdinalIgnoreCase)
+                        || statement.Contains("'Deleted'", StringComparison.OrdinalIgnoreCase))))
             .Select(pair => pair.Key).Order(StringComparer.Ordinal)];
+
+    private static string Statement(string text, int index)
+    {
+        var start = text.LastIndexOfAny([';', '"'], index) + 1;
+        var end = text.IndexOfAny([';', '"'], index);
+        return text[start..(end < 0 ? text.Length : end)];
+    }
 
     private static List<string> PortOffenders(IReadOnlyDictionary<string, string> sources) =>
         [.. sources.Where(pair => PortTokens.Any(token => pair.Value.Contains(token, StringComparison.Ordinal))

@@ -107,6 +107,8 @@ public sealed class ReconcileFederationConnectionCommandValidator : AbstractVali
         RuleFor(request => request.ExpectedVersion).GreaterThanOrEqualTo(0).WithErrorCode("lockey_concurrency_conflict");
         RuleFor(request => request.ProviderDigest).Must(value => value is null || FederationConnection.IsDigest(value))
             .WithErrorCode("lockey_invalid_value");
+        RuleFor(request => request.ProviderConfigurationDigest).Must(value => value is null || FederationConnection.IsDigest(value))
+            .WithErrorCode("lockey_invalid_value");
     }
 }
 

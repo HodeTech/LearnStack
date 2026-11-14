@@ -669,7 +669,7 @@ is settled by Resume after its quiet window.
 | `POST /secret-rotations` | `BeginRotateFederationSecretCommand` | `If-Match` |
 | `PUT /display-name` | `BeginRenameFederationCommand` | `If-Match` |
 | `POST /test-starts` | `BeginFederationTestStartCommand` | `If-Match` |
-| `POST /test-results` | `RecordFederationTestResultCommand` (BFF server-side test owner only) | `If-Match` |
+| `POST /test-results` | `RecordFederationTestResultCommand` (intended for the BFF server-side test owner only; not enforced until Step 4, S-B) | `If-Match` |
 | `POST /activation` | `ActivateFederationCommand` | `If-Match` |
 | `POST /disablement` | `BeginDisableFederationCommand` | `If-Match` |
 | `POST /enablement` | `EnableFederationCommand` | `If-Match` |

@@ -304,6 +304,92 @@ public sealed class FederationOperationRunnerTests
         Assert.Equal(["begin:GetFederationConnectionQuery", "provider:read"], harness.Log);
     }
 
+    /// <summary>
+    /// Step 2 review round 2, M-1: a refused Configure of a changed configuration begun from Active leaves the row Draft
+    /// with the new configuration and nothing pending, while the provider still holds the old one enabled. The next detail
+    /// load disables that broker, keeping the configuration the provider holds.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_changed_Configure_from_Active_is_disabled_by_the_next_detail_readback()
+    {
+        using var harness = await ActiveAsync();
+        var alias = harness.Connection!.Alias;
+        var held = harness.Provider.Find(alias)!.State;
+        harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Refused);
+        var refused = await harness.Runner().ConfigureAsync(OidcInput() with { ClientId = "client-2" }, harness.Connection.Version,
+            CancellationToken.None);
+        Assert.Equal(FederationResultKind.Failed, refused.Value!.Receipt.Outcome);
+        Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        Assert.False(harness.Connection.HasPendingOperation);
+        Assert.Equal(held, harness.Provider.Find(alias)!.State);
+        harness.Provider.OnApply = null;
+        harness.Log.Clear();
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
+        Assert.Null(detail.Value.Connection.Pending);
+        Assert.Equal(["begin:GetFederationConnectionQuery", "provider:read", "begin:ReconcileFederationConnectionCommand", "provider:read",
+            "provider:apply", "provider:read", "complete:Applied", "begin:GetFederationConnectionQuery"], harness.Log);
+        AssertDisabledKeepingConfiguration(harness, held);
+        harness.Log.Clear();
+        var again = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationProviderObservation.Matches, again.Value!.Provider);
+        Assert.Equal(["begin:GetFederationConnectionQuery", "provider:read"], harness.Log);
+    }
+
+    [Fact]
+    public async Task An_uncertain_changed_Configure_from_Active_that_Resume_finds_unapplied_is_disabled_by_the_next_detail_readback()
+    {
+        using var harness = await ActiveAsync();
+        var alias = harness.Connection!.Alias;
+        var held = harness.Provider.Find(alias)!.State;
+        harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Unavailable);
+        var uncertain = await harness.Runner().ConfigureAsync(OidcInput() with { ClientId = "client-2" }, harness.Connection.Version,
+            CancellationToken.None);
+        Assert.Equal(FederationResultKind.Uncertain, uncertain.Value!.Receipt.Outcome);
+        harness.Provider.OnApply = null;
+        harness.Clock.Advance(FederationConnection.QuietWindow);
+        var resumed = await harness.Runner().ResumeAsync(harness.Connection.Version, CancellationToken.None);
+        Assert.Equal(FederationResultKind.Drift, resumed.Value!.Receipt.Outcome);
+        Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        Assert.False(harness.Connection.HasPendingOperation);
+        Assert.Equal(held, harness.Provider.Find(alias)!.State);
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
+        Assert.Null(detail.Value.Connection.Pending);
+        AssertDisabledKeepingConfiguration(harness, held);
+    }
+
+    [Fact]
+    public async Task An_Active_readback_enabled_with_the_connections_own_configuration_writes_nothing()
+    {
+        using var harness = await ActiveAsync();
+        var version = harness.Connection!.Version;
+        harness.Log.Clear();
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationProviderObservation.Matches, detail.Value!.Provider);
+        Assert.Equal(FederationConnectionStatus.Active, detail.Value.Connection!.Status);
+        Assert.Equal(["begin:GetFederationConnectionQuery", "provider:read"], harness.Log);
+        Assert.Equal(version, harness.Connection.Version);
+        Assert.True(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled);
+    }
+
+    [Fact]
+    public async Task The_harness_counts_a_provider_call_made_inside_a_transaction_the_runner_would_otherwise_swallow()
+    {
+        var harness = new FederationHarness();
+        var id = Guid.CreateVersion7();
+        var owner = new FederationBrokerOwner(Tenant, id, "lsf-" + id.ToString("N"));
+        // Planted: the Configure Begin's entitlement check, which runs inside the request, calls the provider.
+        harness.Features.IsEnabledAsync(Arg.Any<FeatureKey>(), Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            if (harness.TransactionOpen) await harness.ObservedProvider.ReadAsync(owner);
+            return true;
+        });
+        Assert.True((await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None)).IsSuccess);
+        Assert.Equal(1, harness.TransactionalProviderCalls);
+        Assert.Throws<Xunit.Sdk.TrueException>(harness.Dispose);
+    }
+
     [Fact]
     public async Task The_fail_closed_defaults_report_unavailable_and_Configure_writes_nothing()
     {
@@ -391,6 +477,21 @@ public sealed class FederationOperationRunnerTests
         var activated = await harness.Runner().ActivateAsync(harness.Connection.Version, CancellationToken.None);
         Assert.Equal(FederationResultKind.Recorded, activated.Value!.Receipt.Outcome);
         return harness;
+    }
+
+    /// <summary>
+    /// The corrective write disabled the broker and changed nothing else: the configuration the provider held, its display
+    /// name and owner are unchanged, and the write carried no secret, so the stored one is kept.
+    /// </summary>
+    private static void AssertDisabledKeepingConfiguration(FederationHarness harness, FederationBrokerState held)
+    {
+        var broker = harness.Provider.Find(held.Owner.Alias)!;
+        Assert.Equal(held with { Enabled = false }, broker.State);
+        Assert.Equal(FederationDigest.Configuration(held.Configuration), FederationDigest.Configuration(broker.State.Configuration));
+        Assert.Null(harness.LastWrite!.Secret);
+        Assert.False(harness.LastWrite.State.Enabled);
+        Assert.Equal(harness.Connection!.DesiredDigest, harness.Connection.LastProviderDigest);
+        Assert.NotEqual(FederationDigest.Configuration(held.Configuration), harness.Connection.ConfigurationDigest);
     }
 
     private static FederationConnection Draft(DateTimeOffset at)
