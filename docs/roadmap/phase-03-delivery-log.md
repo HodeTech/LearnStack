@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,101 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,248 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -496,6 +496,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 2 — application and API (2026-11-13)](#p03-8-step-2--application-and-api-2026-11-13) — 162 lines
   - [P03-8 Step 2 review round 1 corrections (2026-11-14)](#p03-8-step-2-review-round-1-corrections-2026-11-14) — 216 lines
   - [P03-8 Step 2 census regression N-1 (2026-11-14)](#p03-8-step-2-census-regression-n-1-2026-11-14) — 68 lines
+  - [P03-8 Step 2 review round 2 corrections (2026-11-14)](#p03-8-step-2-review-round-2-corrections-2026-11-14) — 147 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22850,3 +22851,150 @@ contract change), and hosted CI.
 
 **Open items.** N-1 is closed. C-12, the trailer model name, stays with the maintainer:
 this commit is attributed to the model that wrote it.
+
+### P03-8 Step 2 review round 2 corrections (2026-11-14)
+
+The second independent review of Step 2 (`8e435ed6`–`91501770`) raised three code findings
+(M-1–M-3) and nine documentation and test findings (D-1–D-9). Each was first checked
+against the code at `91501770`. This record covers the corrections and their local
+verification only. Hosted CI and qualification have not run.
+
+**Commits.** `53f12f0a` (`fix(identity): disable the provider-held federation
+broker`: product, tests, ADR-0099 Amendment 4 and the corpus corrections) and this
+record's commit.
+
+**Verdicts.**
+
+- **M-1 — fixed.** Confirmed by trace and by a failing test before the fix. A Configure
+  of a changed configuration begun from TestOpen, TestPassed or Active moves the row to
+  Draft with the new configuration digest. When the write is refused, or is uncertain
+  and Resume finds the old configuration, nothing is pending and the provider still
+  holds the old configuration enabled. The detail load's `newDrift` was false (the
+  readback equals `LastProviderDigest`), and `strayEnabled` required a broker of the
+  row's configuration, so the broker stayed enabled. Now the detail load passes the
+  configuration digest of any owned, mapper-free, conforming broker of the connection's
+  protocol in `ReconcileFederationConnectionCommand.ProviderConfigurationDigest`. A
+  broker in Draft or Disabled that is enabled triggers the reconcile whatever its
+  configuration. When the state admits no enabled broker, the Reconcile handler's
+  corrective write targets that provider-held configuration with `enabled=false`. The
+  write is still stored as the Rename kind. The pending operation carries the observed
+  configuration digest, and the desired digest binds it as well. The runner's existing
+  guards still refuse the write unless the broker still holds exactly that
+  configuration (owned, mapper-free, conforming, same protocol) and the full state
+  equals the committed desired digest. A state that admits an enabled broker still
+  uses the row's configuration. Proof (unit, real handlers):
+  `A_refused_changed_Configure_from_Active_is_disabled_by_the_next_detail_readback`
+  (the exact log `read`, Reconcile, `read`, `apply`, `read`, `complete:Applied`, and the
+  next load writes nothing), `An_uncertain_changed_Configure_from_Active_that_Resume_finds_unapplied_is_disabled_by_the_next_detail_readback`,
+  `An_Active_readback_enabled_with_the_connections_own_configuration_writes_nothing`. Both
+  M-1 tests check that the corrective write changed only `enabled`: the broker equals the
+  held state with `Enabled = false`, its configuration digest is unchanged, and the write
+  carried no secret. HTTP: the M-3 case below. A temporary mutation restoring the old
+  `strayEnabled` and dropping the observed digest fails both unit M-1 tests and the HTTP
+  case; it was reverted before the runs below.
+- **M-2 — fixed.** Confirmed: the harness's `Assert.False` inside the observed provider
+  threw into the runner, which treats any non-fatal exception as a provider fault, so a
+  violation became an uncertain or unavailable outcome. The harness now counts provider
+  calls made while a simulated transaction is open (`TransactionalProviderCalls`) and
+  `Dispose` asserts zero. Planted control:
+  `The_harness_counts_a_provider_call_made_inside_a_transaction_the_runner_would_otherwise_swallow`
+  calls the provider from inside the Configure Begin's entitlement check; the Configure
+  still succeeds, the count is 1 and `Dispose` throws.
+- **M-3 — fixed.** `FederationHttpTests.A_failed_test_result_and_a_detail_reconcile_apply_their_disabling_writes_outside_any_transaction`:
+  a failed test result disables the broker with the `test_record` and `apply` MUST rows.
+  After Active, a refused Configure of a changed token endpoint leaves the old broker
+  enabled. The next detail GET disables it with two `identity.federation.apply` rows
+  (Reconcile and Complete) and exactly one more provider apply, and the broker equals
+  its held state with `enabled=false`. `TransactionalProviderCalls` is 0 after each.
+- **D-1 — fixed.** The test-results route is described as intended for the BFF's
+  server-side test owner and not enforced until Step 4 (S-B) in
+  [Standard 04](../standards/04-api-design.md#tenant-federation-operations), the Identity
+  [audit matrix](../modules/identity/audit.md#tenant-federation) and the
+  `FederationController` route comment. The runner method and the
+  `RecordFederationTestResultCommand` contract comments said "Server-only" too and are
+  corrected the same way. The endpoint is unchanged.
+- **D-2 — fixed.** The [Identity README](../modules/identity/README.md) paragraph now says
+  that the state transitions of Activate and the test result make no provider write,
+  and that Activate or the test result on an expired window, a failed result, and a
+  detail load that finds an expired window, new drift or a broker left enabled begin the
+  corrective disabling write. It also says that Configure, Rotate secret, test start and
+  Activate are entitlement-gated. The runner comment and the `ActivateFederationCommand`
+  contract comment are corrected. ADR-0099's body is unchanged.
+  [Amendment 4](../decisions/0099-confined-tenant-federation.md#amendment-4--corrective-disable-writes-and-gated-rotate-and-activate-2026-11-14)
+  records the corrective writes, including the M-1 rule that the write keeps the
+  provider-held configuration. It also records the gated Rotate secret and Activate, and
+  that the Enable and Activate statements mean "no provider write for the state
+  transition itself".
+- **D-3 — fixed.** Standard 21 now says "Step 1 introduces two and Step 2 five, the
+  last two from its review rounds". It said "three" with four listed, and D-8 adds the
+  fifth.
+- **D-4 — fixed.** The [ADR index](../decisions/README.md) row says Step 2 is committed
+  in `8e435ed6`–`91501770` with round-one and round-two corrections, and that Steps 3–4
+  remain. The row already linked Amendment 2, so it now links Amendments 3 and 4 too.
+- **D-5 — fixed (Identity README only).** The fresh-secret rule of
+  [Amendment 3](../decisions/0099-confined-tenant-federation.md#amendment-3--a-changed-oidc-configuration-needs-a-fresh-secret-2026-11-14)
+  is in the Identity README's operations paragraph. Standard 19's federation section
+  names Configure only as a policy row (`identity.federation.configure`) and describes no
+  operation behaviour, so the rule is not added there.
+- **D-6 — fixed.** The federation control in `AuthenticatedHttpSurfaceRuntimeTests` now
+  keeps the endpoint's `[Authorize]` and adds `AllowAnonymous`, and it asserts the
+  anonymous-bypass message ("authenticated endpoint metadata must never bypass
+  authorization"). Only that check can report this control.
+- **D-7 — fixed.** `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate` matches
+  any `FROM` or `JOIN` read of `federation_connections` in every production source, both
+  Identity projects included. The match ignores case and whitespace and covers a
+  reference with or without the schema, a quoted identifier or the mapped table-name
+  constant. Each occurrence must lie in one of the two closed readers, and its statement
+  (bounded by the nearest `;` or string delimiter) must interpolate `LiveSql` and spell
+  no `deleted_at` or `'Deleted'`. The census equals the two readers. Planted controls
+  (inside the existing detector fact) refuse an own predicate in each reader and a second
+  statement without the constant in a reader that still interpolates it once. They also
+  refuse an unlisted reader by `JOIN`, without the schema, with other spacing, quoted or
+  through the constant, and they show that a dropped reader shortens the census. DDL
+  (`ON`, `REVOKE … FROM PUBLIC`) is a clean control.
+- **D-8 — verified and asserted; rule named.** The census literal holds 72 actions and 67
+  distinct `IRequest` roots. `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
+  now asserts both, and it passes. For the no-secret obligation, the existing tests are
+  named as the canonical rule
+  [`Federation_Secret_Never_Reaches_Audit_Log_Or_Dto`](../standards/21-architecture-tests-catalogue.md#federation_secret_never_reaches_audit_log_or_dto).
+  Its assertions are the zero `audit_log` text matches for the Configure and rotated
+  secrets in `FederationHttpTests`, the OpenAPI `federation-secret` check, and the unit
+  redaction test. The OpenAPI check was tightened: it now requires `writeOnly` on
+  `FederationConfigurationInput.clientSecret` as well, and `clientSecret` on no other
+  federation schema, with two planted controls. No test captures emitted logs; the entry
+  states that the log obligation rests on the redacting type. The catalogue's totals
+  move to 275 Implemented rules, 158 in the assembly and 117 outside. The method count
+  stays 364.
+- **D-9 — recorded (maintainer).** `4ec335bd` and `3483c342` carry a `Claude Haiku 5.5`
+  trailer, and `8e435ed6`, `efbdb7f6`, `ba87f0bd` and `91501770` carry `Claude Opus 5.5`.
+  This round's brief again named Haiku 5.5. This round's commits are attributed to the
+  model that wrote them, Claude Opus 5.5. History is not rewritten.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the working tree
+that became `53f12f0a`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --no-restore --include` (the changed C# files) | exit 0 |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 3,960 passed, 0 failed, 0 skipped; `FederationOperationRunnerTests` 29, `FederationCommandHandlerTests` 17 |
+| Contract (`LearnStack.Tests.Contract`, Release) | 13 passed, 0 failed |
+| Integration, Release: `FederationHttpTests` | 10 passed, 0 failed |
+| Integration, Release: `PublicSignInHttpTests` | 4 passed, 0 failed |
+| Integration, Release: `FederationConnectionStorageTests` | 133 passed, 0 failed |
+| Integration, Release: `IdentityMutationLockTests` | 15 passed, 0 failed |
+| Integration, Release: `OperationHttpClassificationTests` | 14 passed, 0 failed |
+| Integration, Release: `AuthenticatedHttpSurfaceRuntimeTests` | 7 passed, 0 failed |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 651 total: 651 passed, 0 failed, 0 skipped (44 min) |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,729 fragment links resolve, roadmap structure conforms, 3 delivery-log indexes current |
+
+Not run: the full integration suite, hosted CI and the A/B layout qualification; the
+SDK and web checks (the served OpenAPI snapshot is unchanged).
+
+**Open items.**
+
+- S-B: the BFF-only carrier for the test record and the attempt identifier (Step 4).
+- H: the `federationAlias` self field needs a maintainer carrier decision before Step 4.
+- C-12 and D-9: the commit trailer model names (maintainer).
+- Unchanged from round one: C-13 (Step 2's non-green intermediate commits) and the
+  entitlement-lapse residual.
