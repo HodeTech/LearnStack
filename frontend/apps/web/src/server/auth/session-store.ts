@@ -8,6 +8,7 @@ import type { ProviderLogoutTarget } from './backchannel-state.js';
 import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
+import { FEDERATION_ALIAS } from './federation-alias.js';
 import { bffActionDocumentTarget } from './http-paths.js';
 import { BffInputError } from './input-error.js';
 import type {
@@ -37,7 +38,6 @@ import type {
   NativePagePreparation,
   NativeSnapshotTicket,
 } from './page-snapshot-contract.js';
-import { FEDERATION_ALIAS } from './provider-core.js';
 import { BffProviderError } from './provider-error.js';
 import type { LoginTransaction, ProviderCredentials } from './provider.js';
 import { BffSessionError } from './session-contract.js';
@@ -850,7 +850,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         tenantId: next.identity.tenantId,
         organizationId: next.identity.organizationId,
         displayLabel: previous ? null : next.identity.displayLabel,
-        idp: next.identity.idp,
+        // A provider adapter that omits the claim is local, never brokered.
+        idp: next.identity.idp ?? null,
       }),
       accessExpiresAt: next.accessExpiresAt,
       refreshExpiresAt: next.refreshExpiresAt,
@@ -1979,7 +1980,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     recorded: string | null | undefined,
     self?: NativeSelf,
   ) {
-    const idp = credentials.identity.idp;
+    const idp = credentials.identity.idp ?? null;
     if (recorded !== undefined && idp !== recorded) throw new BffSessionError('host_binding');
     if (idp === null) return;
     let read = self;

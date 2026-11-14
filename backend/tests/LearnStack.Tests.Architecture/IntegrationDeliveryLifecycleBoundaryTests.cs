@@ -565,6 +565,8 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver", "ReadAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator", "BelongsToTenantAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags", "LoadTenantFlagsAsync"),
+                // ADR-0099 Amendment 6 (H): the native self read's host-only READ ONLY federation alias setter.
+                Owner(LifecycleIdentityAssembly, "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationHostAliasReader", "ReadAsync"),
             ],
             ["database.RollbackAsync"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "RollbackCoreAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "DisposeAsync"),

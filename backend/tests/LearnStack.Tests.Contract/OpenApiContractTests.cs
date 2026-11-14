@@ -369,7 +369,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var expectedNames = Dtos.Keys.Concat(["PublicCourseAccess", "PublicDisplayState", "ProblemDetails"]);
         if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal)
             .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames)
-                .Concat(["IdentitySelfActive", "IdentitySelfCurrent", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"])
+                .Concat(["IdentitySelfActive", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"])
                 .Concat(AdministrationSchemas.Keys).Concat(InvitationEntrySchemas.Keys).Concat(CustomFieldSchemaNames).Concat(FederationSchemaNames).Append("AdministrationGrantResponse"))) errors.Add("schema-census");
         errors.AddRange(AdministrationSchemaErrors(document));
         errors.AddRange(CustomFieldSchemaErrors(document));

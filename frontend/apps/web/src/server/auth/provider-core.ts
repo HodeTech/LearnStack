@@ -1,5 +1,6 @@
 import * as oidc from 'openid-client';
 
+import { FEDERATION_ALIAS, FEDERATION_TEST_SCOPE } from './federation-alias.js';
 import { BffProviderError } from './provider-error.js';
 import { providerOperation } from './provider-transport.js';
 
@@ -18,10 +19,7 @@ export type ProviderIdentity = Readonly<{
   idp: string | null;
 }>;
 
-/** The derived federation alias shape; the BFF never accepts an alias from the browser. */
-export const FEDERATION_ALIAS = /^lsf-[0-9a-f]{32}$/;
-/** ADR-0099 Amendment 6: the optional client scope only the federation_test authorization requests. */
-export const FEDERATION_TEST_SCOPE = 'federation.test_record';
+export { FEDERATION_ALIAS, FEDERATION_TEST_SCOPE };
 /**
  * The closed authorization purposes (ADR-0070 Amendment 11). `federation_signin` is an ordinary sign-in that starts at
  * the host tenant's Active broker; `federation_test` is the administrator's test, whose callback publishes nothing.

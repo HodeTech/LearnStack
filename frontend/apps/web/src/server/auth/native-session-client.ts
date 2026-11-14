@@ -252,10 +252,12 @@ export function createNativeSessionApi(
           ? response.headers.has('Location')
           : response.status !== 201 ||
             response.headers.get('Location') !== '/api/v1/identity/self') ||
-        !exactFields(value, ['state', 'authorityId', 'subjectKey', 'actorId']) ||
+        !exactFields(value, ['state', 'authorityId', 'subjectKey', 'actorId', 'federationAlias']) ||
         value.state !== 'active'
       )
         throw new NativeApiError('response');
+      // The bootstrap result carries the host alias too (ADR-0099 Amendment 6); creation reads it from its own self call.
+      nativeFederationAlias(value.federationAlias);
       return association(value);
     },
     async contexts(token, binding, page, signal) {

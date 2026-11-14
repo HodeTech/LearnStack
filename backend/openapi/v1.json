@@ -23474,38 +23474,6 @@
           "state",
           "authorityId",
           "subjectKey",
-          "actorId"
-        ],
-        "type": "object",
-        "properties": {
-          "state": {
-            "enum": [
-              "active"
-            ],
-            "type": "string"
-          },
-          "authorityId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "subjectKey": {
-            "maxLength": 64,
-            "minLength": 64,
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "actorId": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
-        "additionalProperties": false
-      },
-      "IdentitySelfCurrent": {
-        "required": [
-          "state",
-          "authorityId",
-          "subjectKey",
           "actorId",
           "federationAlias"
         ],
@@ -23574,7 +23542,7 @@
             "$ref": "#/components/schemas/IdentitySelfMissing"
           },
           {
-            "$ref": "#/components/schemas/IdentitySelfCurrent"
+            "$ref": "#/components/schemas/IdentitySelfActive"
           }
         ]
       },

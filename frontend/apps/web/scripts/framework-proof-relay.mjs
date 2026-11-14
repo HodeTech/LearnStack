@@ -72,6 +72,15 @@ export const NATIVE_OPERATION_KINDS = Object.freeze([
   'listOwnConsentScopes',
   'listOwnConsentHistory',
   'withdrawOwnFieldConsent',
+  'getFederationConnection',
+  'configureFederation',
+  'rotateFederationSecret',
+  'renameFederation',
+  'activateFederation',
+  'disableFederation',
+  'enableFederation',
+  'deleteFederation',
+  'resumeFederationOperation',
 ]);
 const OPERATION_SET = new Set(NATIVE_OPERATION_KINDS);
 

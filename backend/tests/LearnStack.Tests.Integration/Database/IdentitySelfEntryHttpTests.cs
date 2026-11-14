@@ -492,8 +492,8 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
     }
 
     /// <summary>
-    /// ADR-0099 Amendment 6 (H): the self state carries the host tenant's alias from the one host-only setter, the bootstrap
-    /// and contexts reads never consult it, and an undecidable read is 503, never a null alias.
+    /// ADR-0099 Amendment 6 (H): the self state and the bootstrap result carry the host tenant's alias from the one
+    /// host-only setter, the contexts read never consults it, and an undecidable read is 503, never a null alias.
     /// </summary>
     [Fact]
     public async Task The_self_state_carries_the_host_federation_alias_and_an_undecidable_alias_read_is_unavailable()
@@ -517,12 +517,14 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         using (var created = await SendAsync(client, token, Self + "/bootstrap", "POST", "{}"))
         {
             created.StatusCode.Should().Be(HttpStatusCode.Created);
-            (await JsonAsync(created)).EnumerateObject().Select(property => property.Name)
-                .Should().Equal("state", "authorityId", "subjectKey", "actorId");
+            var json = await JsonAsync(created);
+            json.EnumerateObject().Select(property => property.Name)
+                .Should().Equal("state", "authorityId", "subjectKey", "actorId", "federationAlias");
+            json.GetProperty("federationAlias").ValueKind.Should().Be(JsonValueKind.Null);
         }
         using (var contexts = await SendAsync(client, token, Self + "/contexts"))
             contexts.StatusCode.Should().Be(HttpStatusCode.OK);
-        stub.Hosts.Should().HaveCount(2, "bootstrap and contexts never consult the alias setter");
+        stub.Hosts.Should().HaveCount(3, "the self state and the bootstrap result consult the alias setter; contexts never does");
         stub.Alias = "lsf-" + new string('b', 32);
         using (var active = await SendAsync(client, token))
         {

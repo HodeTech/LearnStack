@@ -150,8 +150,9 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
     }
 
     /// <summary>
-    /// The test result: intended for the BFF's server-side callback reporting the attempt it holds, but not enforced as
-    /// server-only until Step 4 (S-B). The readback precedes the record; a failure begins the corrective disabling write.
+    /// The test result, reported by the BFF's server-side federation_test callback for the attempt it holds; the HTTP route
+    /// admits only a token carrying the federation.test_record scope (ADR-0099 Amendment 6). The readback precedes the
+    /// record; a failure begins the corrective disabling write.
     /// </summary>
     public async Task<Result<FederationRun>> RecordTestResultAsync(long expectedVersion, Guid attempt, bool passed, CancellationToken cancellationToken)
     {

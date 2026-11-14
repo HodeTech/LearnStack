@@ -601,6 +601,7 @@ export async function prepareBffProof({
     'native-administration-client',
     'http-forms',
     'federation-forms',
+    'federation-alias',
     'input-error',
     'page-query',
     'session-projection',
@@ -927,8 +928,17 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   if (!external) {
     backend = owner.ownServer(
       createServer((request, response) => {
-        assert.equal(request.url, '/api/v1/public/site');
         assert.equal(request.headers.authorization, undefined);
+        // ADR-0099: the sign-in page reads the anonymous sign-in option; this fixture has no federation.
+        if (request.url === '/api/v1/public/sign-in') {
+          response.writeHead(200, {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          });
+          response.end(JSON.stringify({ federation: null }));
+          return;
+        }
+        assert.equal(request.url, '/api/v1/public/site');
         if (!sites.some((site) => site.host === request.headers['x-learnstack-host'])) {
           response.writeHead(404, { 'content-type': 'application/problem+json' });
           response.end(

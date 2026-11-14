@@ -26,15 +26,14 @@ internal sealed class NativeEntryDocumentTransformer : IOpenApiDocumentTransform
         };
         var schemas = document.Components.Schemas;
         schemas.TryAdd("ProblemDetails", PublicReadDocumentTransformer.Problem());
-        // ADR-0099 Amendment 6 (H): the self state carries the host tenant's Active, entitled federation alias or null.
+        // ADR-0099 Amendment 6 (H): both self states and the bootstrap result carry the host tenant's Active, entitled
+        // federation alias or null. The oneOf members are unchanged; each gains one response property.
         schemas["IdentitySelfMissing"] = Object(("state", Literal("missing")), ("federationAlias", FederationAlias()));
         schemas["IdentitySelfActive"] = Object(("state", Literal("active")), ("authorityId", Uuid()),
-            ("subjectKey", Digest()), ("actorId", Uuid()));
-        schemas["IdentitySelfCurrent"] = Object(("state", Literal("active")), ("authorityId", Uuid()),
             ("subjectKey", Digest()), ("actorId", Uuid()), ("federationAlias", FederationAlias()));
         schemas["IdentitySelfState"] = new OpenApiSchema
         {
-            OneOf = [new OpenApiSchemaReference("IdentitySelfMissing", document), new OpenApiSchemaReference("IdentitySelfCurrent", document)],
+            OneOf = [new OpenApiSchemaReference("IdentitySelfMissing", document), new OpenApiSchemaReference("IdentitySelfActive", document)],
         };
         schemas["SelfContextItem"] = Object(("tenantId", Uuid()), ("organizationId", Uuid(true)),
             ("tenantName", Text()), ("organizationName", Text(true)), ("entryOrigin", new OpenApiSchema { Type = JsonSchemaType.String, Format = "uri" }),

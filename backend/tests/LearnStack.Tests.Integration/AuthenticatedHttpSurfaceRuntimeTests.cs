@@ -469,6 +469,13 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         // If-Match is the first configuration, the strictest closed input.
         if (controllerType == typeof(FederationController) && expected.Action is not ("Get" or "Configure"))
             context.Request.Headers.IfMatch = "\"7\"";
+        // ADR-0099 Amendment 6 (S-B): the test record admits only a credential carrying the test-record scope.
+        if (controllerType == typeof(FederationController) && expected.Action == "RecordTestResult")
+            context.Features.Set(new LearnStack.Api.Authentication.TenantCredentialFeature
+            {
+                VerifiedSubject = new LearnStack.Api.Authentication.VerifiedProviderSubject(
+                    "https://issuer.example/realms/learnstack", "census-subject", null, null, null, FederationTestRecord: true),
+            });
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
         {

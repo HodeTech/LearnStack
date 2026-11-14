@@ -70,28 +70,20 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         }
         else binding = await states().ReadSelfAsync(subject, entry.ClaimedActor, http.RequestAborted);
         if (!source.IsCurrent(http)) { await ProblemAsync(http, 401); return; }
-        if (operation.Kind == IdentitySelfOperation.Bootstrap)
-        {
-            if (!binding.IsBound) { await ProblemAsync(http, BindingStatus(binding)); return; }
-            await JsonAsync(http, new
-            {
-                state = "active",
-                authorityId = subject.AuthorityId.Value.ToString("D"),
-                subjectKey = subject.SubjectKey.Hex,
-                actorId = binding.Actor!.Value.Value.ToString("D"),
-            }, status);
-            return;
-        }
+        if (binding.Outcome == IdentityBindingOutcome.NotFound && operation.Kind != IdentitySelfOperation.State)
+        { await ProblemAsync(http, BindingStatus(binding)); return; }
         if (binding.Outcome != IdentityBindingOutcome.NotFound && !binding.IsBound)
         { await ProblemAsync(http, BindingStatus(binding)); return; }
-        // ADR-0099 Amendment 6 (H): the host tenant's Active, entitled alias through the one host-only read-only setter.
-        // An undecidable read is 503, which the BFF treats as indeterminate; it never reads as "no alias".
+        // ADR-0099 Amendment 6 (H): both self states and the bootstrap result carry the host tenant's Active, entitled
+        // alias through the one host-only read-only setter. An undecidable read is 503, which the BFF treats as
+        // indeterminate; it never reads as "no alias". After a committed bootstrap a 503 is the existing unknown-outcome
+        // answer, and a deliberate retry converges on the stored binding.
         string? alias = null;
         if (http.Features.Get<HostClassification>()?.TenantId is { } hostTenant)
         {
             try { alias = await federation().ReadActiveAliasAsync(hostTenant, http.RequestAborted); }
             catch (InfrastructureException) when (!http.RequestAborted.IsCancellationRequested)
-            { await ProblemAsync(http, 503); return; }
+            { http.Response.Headers.Remove("Location"); await ProblemAsync(http, 503); return; }
             if (!source.IsCurrent(http)) { await ProblemAsync(http, 401); return; }
         }
         if (binding.Outcome == IdentityBindingOutcome.NotFound)

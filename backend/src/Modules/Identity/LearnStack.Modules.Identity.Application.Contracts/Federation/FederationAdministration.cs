@@ -100,8 +100,8 @@ public sealed record ActivateFederationCommand(long ExpectedVersion, string Prov
     : IRequest<Result<FederationOperationReceipt>>;
 
 /// <summary>
-/// The test callback records the closed result of the current window's attempt. Intended for the BFF's server-side
-/// test owner only; not enforced until Step 4 (S-B).
+/// The test callback records the closed result of the current window's attempt. Only the BFF's server-side test owner
+/// reaches it: the route requires the federation.test_record token scope (ADR-0099 Amendment 6).
 /// </summary>
 public sealed record RecordFederationTestResultCommand(long ExpectedVersion, Guid TestAttemptId, bool Passed, string? ProviderDigest)
     : IRequest<Result<FederationOperationReceipt>>

@@ -1,9 +1,9 @@
+import { FEDERATION_ALIAS } from './federation-alias.js';
 import { canonicalUuid, createNativeApiTransport, exactFields } from './native-api-transport.js';
 import type { NativeApiConfiguration } from './native-api-transport.js';
 import { NativeApiError } from './native-contract.js';
 import type { NativeBinding, NativeScope } from './native-contract.js';
 import { nativePublicSdk } from './native-invitation-http.js';
-import { FEDERATION_ALIAS } from './provider-core.js';
 import type { FederationSignInOption, NativeFederationTestApi } from './session-contract.js';
 
 const version = (value: unknown): value is string =>

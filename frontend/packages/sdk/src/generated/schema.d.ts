@@ -1466,15 +1466,6 @@ export interface components {
             subjectKey: string;
             /** Format: uuid */
             actorId: string;
-        };
-        IdentitySelfCurrent: {
-            /** @enum {string} */
-            state: "active";
-            /** Format: uuid */
-            authorityId: string;
-            subjectKey: string;
-            /** Format: uuid */
-            actorId: string;
             federationAlias: null | string;
         };
         IdentitySelfMissing: {
@@ -1482,7 +1473,7 @@ export interface components {
             state: "missing";
             federationAlias: null | string;
         };
-        IdentitySelfState: components["schemas"]["IdentitySelfMissing"] | components["schemas"]["IdentitySelfCurrent"];
+        IdentitySelfState: components["schemas"]["IdentitySelfMissing"] | components["schemas"]["IdentitySelfActive"];
         InvitableRoleDirectory: {
             items: components["schemas"]["RoleSummaryResponse"][];
         };
