@@ -482,8 +482,9 @@ API composition root only when the `learnstack-federation-admin` secret
 (`Federation:ClientSecret`) is configured; otherwise the Identity fail-closed defaults stay
 registered. The adapter's resilience is `IProviderResilience<IFederationProvider>` from
 `Resilience:federation` with retry disabled, because a retried provider write can land
-after its outcome settled; the timeout is finite (2.5 s), the circuit breaker on, and the
-bulkhead bounded without a queue. The composition root refuses any other shape at startup.
+after its outcome settled; the timeout is 2.5 s, the circuit breaker on, and the bulkhead
+exactly 4 without a queue. These values are fixed: the composition root refuses any other
+value at startup.
 The operator egress allow-list `Federation:Egress:AllowedHosts` is composition
 configuration, never tenant input. The
 [provider specification](../modules/identity/providers.md#tenant-federation-adapter) owns

@@ -81,7 +81,8 @@ git clone <repo> learnstack
 cd learnstack
 
 make .env                 # creates a missing local-only file with private permissions
-# Before make dev, prepare KEYCLOAK_WEB_CLIENT_SECRET in that private file.
+# Before make dev, prepare KEYCLOAK_WEB_CLIENT_SECRET and KEYCLOAK_FEDERATION_ADMIN_SECRET
+# (with the identical Federation__ClientSecret) in that private file.
 
 (cd backend && dotnet restore LearnStack.slnx --locked-mode)
 node frontend/scripts/install-frontend.mjs

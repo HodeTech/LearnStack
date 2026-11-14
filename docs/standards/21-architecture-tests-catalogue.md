@@ -7672,17 +7672,27 @@ sign-in read). The
 
 #### `Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher`
 
-- **Asserts:** in the federation adapter namespace and the Identity federation
-  sources, only `FederationEgressFetcher` (tenant URLs) and `KeycloakFederationProvider`
-  (the fixed provider origin) construct an HTTP client, handler, socket or TLS stream
-  or call an HTTP send method.
+- **Asserts:** every production source under `backend/src` that names a network
+  transport primitive (`HttpClient`, `HttpClientHandler`, `SocketsHttpHandler`,
+  `HttpMessageInvoker`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `SslStream`,
+  `NetworkStream`, `ClientWebSocket`, `WebRequest`, `HttpWebRequest`, `WebClient`,
+  `IHttpClientFactory`, `AddHttpClient` or a `Dns.` call) is on a named allow-list, each
+  entry with its reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied
+  URL; and four clients of a fixed, composition-configured tenant-realm origin
+  (`KeycloakFederationProvider`, `KeycloakIdentityEventProvider`,
+  `TenantAuthenticationBackchannel`, `CurrentInvitationRecipientBackchannel`). An entry
+  whose file no longer holds a transport fails as stale. Instrumentation, exception and
+  enum names (`AddHttpClientInstrumentation`, `SocketException`, `SocketType`) do not match.
+  The rule is exact for "who may open a connection"; that the four fixed-origin clients
+  never take a tenant URL rests on their own constructors and tests.
 - **Source:** [ADR-0099 § Architecture Tests](../decisions/0099-confined-tenant-federation.md#architecture-tests)
   ("the egress fetcher is the only tenant-URL fetcher").
-- **Type:** source scan with planted fetchers. **Kind:** structural.
+- **Type:** source scan of all production sources with planted fetchers in the API,
+  Infrastructure and two modules, and a clean control. **Kind:** structural.
 - **Status:** **Implemented** (`FederationAdapterConventionTests`). The egress rules
   themselves are behavioural, in
   [FederationEgressFetcherTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/FederationEgressFetcherTests.cs)
   and the Docker suite
   [FederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FederationProviderTests.cs).
 - **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
-- **Phase:** 03 (P03-8 Step 3).
+- **Phase:** 03 (P03-8 Step 3; widened to every production source in review round 1).

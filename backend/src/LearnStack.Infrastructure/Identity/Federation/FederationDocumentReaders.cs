@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
@@ -135,13 +136,18 @@ internal static class FederationDocumentReaders
         return new FederationSamlMetadata(entity, singleSignOn!, certificates.ToImmutable());
     }
 
-    /// <summary>A tenant or document URL: absolute HTTPS, DNS host, no userinfo or fragment, at most 2,048 characters.</summary>
+    /// <summary>
+    /// A tenant or document URL: absolute HTTPS, an ASCII DNS host, no userinfo or fragment, at most 2,048 characters.
+    /// An internationalized host name refuses: the guard resolves the punycode form while the provider would be written
+    /// the Unicode form, and the two must never differ (enter the IdP's ASCII name instead).
+    /// </summary>
     internal static bool Https(string? value, out Uri? uri)
     {
         uri = null;
         if (string.IsNullOrEmpty(value) || value.Length > MaximumUrlLength || !Uri.TryCreate(value, UriKind.Absolute, out var parsed)
             || parsed.Scheme != Uri.UriSchemeHttps || parsed.UserInfo.Length != 0 || parsed.Fragment.Length != 0
-            || value.Contains('#', StringComparison.Ordinal) || parsed.HostNameType != UriHostNameType.Dns)
+            || value.Contains('#', StringComparison.Ordinal) || parsed.HostNameType != UriHostNameType.Dns
+            || !Ascii.IsValid(parsed.Host) || !string.Equals(parsed.Host, parsed.IdnHost, StringComparison.OrdinalIgnoreCase))
             return false;
         uri = parsed;
         return true;

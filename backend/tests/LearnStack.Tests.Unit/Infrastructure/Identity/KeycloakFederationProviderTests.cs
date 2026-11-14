@@ -91,6 +91,59 @@ public sealed class KeycloakFederationProviderTests
         (await adapter.ReadAsync(Owner)).State!.Enabled.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("token-endpoint")]
+    [InlineData("client-authentication")]
+    [InlineData("client-id")]
+    public async Task A_changed_secret_target_without_a_fresh_secret_refuses_before_any_write(string change)
+    {
+        var provider = new FakeKeycloak();
+        using var adapter = Create(provider);
+        (await adapter.ApplyAsync(new(State(), Fresh()))).Should().Be(FederationProviderResult.Applied);
+        var held = provider.Brokers[Owner.Alias].ToJsonString();
+        var oidc = (FederationOidcConfiguration)State().Configuration;
+        var changed = change switch
+        {
+            "token-endpoint" => oidc with { TokenEndpoint = new Uri("https://attacker.example.com/token") },
+            "client-authentication" => oidc with { ClientAuthentication = FederationClientAuthentication.ClientSecretBasic },
+            _ => oidc with { ClientId = "another-client" },
+        };
+        var desired = State() with { Configuration = changed };
+        var puts = provider.Requests.Count(request => request.Method == "PUT");
+        (await adapter.ApplyAsync(new(desired, null))).Should().Be(FederationProviderResult.Refused,
+            "the stored secret is never sent to a changed token endpoint, client or authentication method (ADR-0099 Amendment 3)");
+        provider.Requests.Count(request => request.Method == "PUT").Should().Be(puts, "no provider write was made");
+        provider.Brokers[Owner.Alias].ToJsonString().Should().Be(held);
+        // Dirty controls: the same change with a fresh secret is written, and an unchanged configuration keeps the secret.
+        (await adapter.ApplyAsync(new(desired, Fresh()))).Should().Be(FederationProviderResult.Applied);
+        (await adapter.ApplyAsync(new(desired with { Enabled = true, DisplayName = "Renamed" }, null))).Should().Be(FederationProviderResult.Applied);
+        provider.Requests.Count(request => request.Method == "PUT").Should().Be(puts + 2);
+    }
+
+    [Fact]
+    public async Task An_issuer_or_entity_change_refuses_even_with_a_fresh_secret()
+    {
+        var provider = new FakeKeycloak();
+        using var adapter = Create(provider);
+        (await adapter.ApplyAsync(new(State(), Fresh()))).Should().Be(FederationProviderResult.Applied);
+        var moved = State() with { Configuration = (FederationOidcConfiguration)State().Configuration with { Issuer = "https://idp.example.com/realms/other" } };
+        (await adapter.ApplyAsync(new(moved, Fresh()))).Should().Be(FederationProviderResult.Refused, "a new issuer needs a new connection");
+        (await adapter.ApplyAsync(new(moved, null))).Should().Be(FederationProviderResult.Refused);
+        provider.Requests.Should().NotContain(request => request.Method == "PUT");
+        ((FederationOidcConfiguration)(await adapter.ReadAsync(Owner)).State!.Configuration).Issuer.Should().Be("https://idp.example.com/realms/acme");
+
+        var samlConnection = Guid.CreateVersion7();
+        var samlOwner = new FederationBrokerOwner(Tenant, samlConnection, FederationBrokerOwner.AliasPrefix + samlConnection.ToString("N"));
+        var saml = new FederationBrokerState(samlOwner, "Acme SAML", false, new FederationSamlConfiguration("https://saml.example.com/entity",
+            new Uri("https://saml.example.com/sso"), [Pem()]));
+        (await adapter.ApplyAsync(new(saml, null))).Should().Be(FederationProviderResult.Applied);
+        var otherEntity = saml with { Configuration = ((FederationSamlConfiguration)saml.Configuration) with { EntityId = "https://saml.example.com/other" } };
+        (await adapter.ApplyAsync(new(otherEntity, null))).Should().Be(FederationProviderResult.Refused);
+        // Dirty control: the same entity with a new single sign-on endpoint is an edit.
+        var moveSso = saml with { Configuration = ((FederationSamlConfiguration)saml.Configuration) with { SingleSignOnEndpoint = new Uri("https://saml.example.com/sso2") } };
+        (await adapter.ApplyAsync(new(moveSso, null))).Should().Be(FederationProviderResult.Applied);
+    }
+
     [Fact]
     public async Task A_foreign_owner_marker_is_reported_and_never_written_read_or_deleted()
     {

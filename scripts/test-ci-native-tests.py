@@ -973,7 +973,8 @@ except launcher.Refusal as failure:
             constant = re.search(r'internal const int ' + name + r' = ([0-9_]+);', diagnostics)
             self.assertIsNotNone(constant)
             self.assertEqual(value, int(constant[1].replace('_', '')))
-        self.assertEqual({'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
+        self.assertEqual({'FederationProviderTests', 'TenantRealmApiTests', 'TenantRealmFederationReconciliationTests',
+                          'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
                           'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
                           'TenantRealmStockBaselineTests'},
                          self.owner.KEYCLOAK_FAILURE_CLASSES)

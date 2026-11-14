@@ -75,14 +75,29 @@ async function readIdpLink(admin, stage) {
 async function readWebMappers(admin, stage) {
   const found = list(await admin.get('clients?clientId=learnstack-web&max=2'), stage, 2);
   if (found.length !== 1 || found[0].clientId !== 'learnstack-web' || !found[0].id) refuse(stage, 'unsupported');
-  const mappers = list(await admin.get(`clients/${encode(found[0].id)}/protocol-mappers/models`), stage);
-  return { clientId: found[0].id, mappers };
+  const base = `clients/${encode(found[0].id)}`;
+  const mappers = list(await admin.get(`${base}/protocol-mappers/models`), stage);
+  // The effective token mappers are the client's own plus those of every default and optional client
+  // scope it receives; a scope mapper can emit `idp` exactly as a client mapper can.
+  const scopes = [...list(await admin.get(`${base}/default-client-scopes`), stage),
+    ...list(await admin.get(`${base}/optional-client-scopes`), stage)];
+  const scopeMappers = [];
+  const seen = new Set();
+  for (const scope of scopes) {
+    if (typeof scope?.id !== 'string' || !scope.id || seen.has(scope.id)) refuse(stage, 'unsupported');
+    seen.add(scope.id);
+    scopeMappers.push(...list(await admin.get(`client-scopes/${encode(scope.id)}/protocol-mappers/models`), stage));
+  }
+  return { clientId: found[0].id, mappers, scopeMappers };
 }
 
-function qualifyMapper(mappers, canonical, stage) {
+const emitsIdp = mapper => claimRoot(mapper?.config?.['claim.name']) === 'idp';
+
+function qualifyMapper({ mappers, scopeMappers }, canonical, stage) {
   const owned = mappers.filter(mapper => mapper?.name === idpMapperName);
   // Another emitter of the `idp` claim would let a mapper other than the session note decide provenance.
-  if (mappers.some(mapper => mapper?.name !== idpMapperName && claimRoot(mapper?.config?.['claim.name']) === 'idp'))
+  // Only the client's own canonical mapper is admitted; an emitter in any received client scope refuses.
+  if (mappers.some(mapper => mapper?.name !== idpMapperName && emitsIdp(mapper)) || scopeMappers.some(emitsIdp))
     refuse(stage, 'mapper_conflict');
   if (owned.length > 1) refuse(stage, 'mapper_conflict');
   if (owned.length && !equal(omit(owned[0], ['id']), canonical)) refuse(stage, 'mapper_conflict');
@@ -96,7 +111,7 @@ export async function planFederationRealm(admin, desired) {
   const flow = await readFlow(admin, 'plan');
   const idpLink = await readIdpLink(admin, 'plan');
   const web = await readWebMappers(admin, 'plan');
-  const hasMapper = qualifyMapper(web.mappers, canonical, 'plan');
+  const hasMapper = qualifyMapper(web, canonical, 'plan');
   const actions = [];
   if (!flow) actions.push(async () => {
     const accepted = result => { if (![200, 201, 204].includes(result?.status ?? result)) refuse('apply', 'status'); };
@@ -141,7 +156,7 @@ export async function planFederationRealm(admin, desired) {
       if (!await readFlow(admin, 'readback')) refuse('readback', 'readback_conflict');
       if ((await readIdpLink(admin, 'readback')).enabled !== false) refuse('readback', 'readback_conflict');
       const after = await readWebMappers(admin, 'readback');
-      if (after.clientId !== web.clientId || !qualifyMapper(after.mappers, canonical, 'readback')) refuse('readback', 'readback_conflict');
+      if (after.clientId !== web.clientId || !qualifyMapper(after, canonical, 'readback')) refuse('readback', 'readback_conflict');
       // Only the owned mapper was added; every other learnstack-web mapper is untouched.
       for (const original of web.mappers)
         if (!after.mappers.some(value => equal(value, original))) refuse('readback', 'readback_conflict');

@@ -59,9 +59,9 @@ specification.
 | Ports | SharedKernel `IFederationProvider` and `IFederationEgressFetcher`; held only by `FederationOperationRunner` |
 | Adapter | Internal sealed `KeycloakFederationProvider` in `LearnStack.Infrastructure.Identity.Federation`; direct HTTP, no SDK |
 | Fetcher | Internal sealed `FederationEgressFetcher` in the same namespace; the only fetcher of a tenant-supplied URL |
-| Selection | API `FederationComposition` replaces the fail-closed defaults only when `Federation:ClientSecret` is configured; `FederationAdapterFactory` is the only entry |
+| Selection | API `FederationComposition` replaces the fail-closed defaults only when `Federation:ClientSecret` is configured; `FederationAdapterFactory` is the only entry. The choice is made when the port is first resolved (it follows `ISecretProvider`), so an empty or invalid `Authentication:Tenant:Issuer` with the secret present refuses at that first resolution, not at host startup |
 | Credentials | Client `learnstack-federation-admin`; secret through `ISecretProvider` key `Federation:ClientSecret`; a fresh client-credentials token per port call |
-| Resilience | `IProviderResilience<IFederationProvider>`, configuration `Resilience:federation`: retry disabled, 2.5 s timeout, circuit breaker, bulkhead 4 with no queue; composition refuses any other shape |
+| Resilience | `IProviderResilience<IFederationProvider>`, configuration `Resilience:federation`: retry disabled, a 2.5 s timeout, circuit breaker on, a bulkhead of exactly 4 with no queue; these are fixed values, and composition refuses any other value at startup |
 | Failures | Transport faults, 5xx and 429 are `FederationProviderException` (a `ProviderException`) inside the pipeline and leave as `Unavailable`; no provider text crosses the port |
 
 ### Admitted calls
@@ -73,7 +73,7 @@ The adapter builds every route in `KeycloakFederationRoutes`, and only these:
 | `POST {realm}/protocol/openid-connect/token` | Client credentials for `learnstack-federation-admin`; the token must carry `azp` of that client, the tenant issuer and exactly the `realm-management` role `manage-identity-providers`, or nothing else is sent |
 | `GET admin/realms/learnstack/identity-provider/instances/{alias}` | Owned readback; precedes every write and delete |
 | `POST admin/realms/learnstack/identity-provider/instances` | Create, only when the owned alias is absent |
-| `PUT admin/realms/learnstack/identity-provider/instances/{alias}` | Full-state replace of an owned broker |
+| `PUT admin/realms/learnstack/identity-provider/instances/{alias}` | Full-state replace of an owned broker. Refused without a call when it would change the stored issuer or SAML entity identifier, or, without a fresh secret, the token endpoint, client identifier or client authentication ([ADR-0099 Amendment 5](../../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)) |
 | `DELETE admin/realms/learnstack/identity-provider/instances/{alias}` | Delete of an owned broker; an absent alias is already deleted |
 | `GET admin/realms/learnstack/identity-provider/instances/{alias}/mappers` | Mapper count for the readback; any mapper is drift |
 
@@ -145,8 +145,9 @@ SSO URL name, so no unsolicited SAML response has a target.
 every endpoint the provider later contacts (authorization, token, JWKS, UserInfo, SAML
 SSO) without fetching it:
 
-- HTTPS only; a DNS host (no IP literal), no userinfo or fragment, at most 2,048
-  characters; port 443 unless the operator allow-list names the port.
+- HTTPS only; an ASCII DNS host (no IP literal, no internationalized name: enter its
+  punycode form), no userinfo or fragment, at most 2,048 characters; port 443 unless
+  the operator allow-list names the port.
 - The host is resolved once. Every answer must be globally routable: loopback,
   link-local (169.254.0.0/16 cloud metadata included), private, CGNAT, documentation,
   benchmarking, multicast, reserved, unspecified and every IPv4-embedding IPv6 form
@@ -165,15 +166,19 @@ SSO) without fetching it:
   members refuses; SAML metadata is one `EntityDescriptor` with one SAML 2.0
   `IDPSSODescriptor`, its single HTTP-POST SSO location and one or two signing
   certificates, parsed with DTDs prohibited and no resolver.
-- One fetch is bounded by 3 seconds, and the runner's 3-second egress budget bounds the
+- One fetch, its DNS resolution included, is bounded by 3 seconds (a resolver that does
+  not answer cannot hold it longer), and the runner's 3-second egress budget bounds the
   whole phase. A timeout, connection failure, 5xx or 429 is `Unavailable`; a TLS
   validation failure and every rule above are `Refused`.
 
 `Federation:Egress:AllowedHosts` is the operator allow-list: exact `host` (port 443) or
 `host:port` entries, no wildcard, scheme, path or IP literal, at most 64, empty by
-default. A listed host may resolve to a private or loopback address (never unspecified or
-multicast). It is composition configuration read once at startup; tenant input never
-extends it. Keycloak's own later fetches follow DNS; only deployment egress policy bounds
+default. A listed host may use the named port and may resolve to a private address
+(RFC 1918 IPv4 or unique-local IPv6) besides a global one; nothing else widens.
+Loopback, link-local (cloud metadata included), CGNAT, documentation, reserved,
+multicast, unspecified, scoped and IPv4-embedding IPv6 answers still refuse. An entry
+admits the host for every tenant. It is composition configuration read once at startup;
+tenant input never extends it. Keycloak's own later fetches follow DNS; only deployment egress policy bounds
 them (Phase 11).
 
 ## Invitation SMTP

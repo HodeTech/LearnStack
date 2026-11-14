@@ -107,6 +107,48 @@ test('a second emitter of the idp claim refuses, so only the session note decide
   assert.deepEqual(fixture.writes, []);
 });
 
+const scopeEmitter = (claim, name = 'scope-idp') => ({ id: `planted-${name}`, name, protocol: 'openid-connect',
+  protocolMapper: 'oidc-hardcoded-claim-mapper', consentRequired: false,
+  config: { 'claim.name': claim, 'claim.value': 'lsf-forged', 'id.token.claim': 'true' } });
+
+for (const [kind, scopeName] of [['default', 'profile'], ['optional', 'phone']])
+  test(`an idp emitter in a ${kind} client scope of learnstack-web refuses mapper_conflict`, async () => {
+    const fixture = provider();
+    const web = fixture.state.clients.find(client => client.clientId === 'learnstack-web');
+    assert.ok((kind === 'default' ? web.defaultClientScopes : web.optionalClientScopes).includes(scopeName));
+    fixture.state.scopes.find(scope => scope.name === scopeName).protocolMappers.push(scopeEmitter('idp'));
+    await assert.rejects(planFederationRealm(fixture.admin, clone(desired)), refusal('plan', 'mapper_conflict'));
+    assert.deepEqual(fixture.writes, []);
+  });
+
+test('a scope mapper carrying the canonical mapper name still refuses, and a nested idp root counts', async () => {
+  for (const [name, claim] of [[idpMapperName, 'idp'], ['nested', 'idp.value']]) {
+    const fixture = provider();
+    fixture.state.scopes.find(scope => scope.name === 'roles').protocolMappers.push(scopeEmitter(claim, name));
+    await assert.rejects(planFederationRealm(fixture.admin, clone(desired)), refusal('plan', 'mapper_conflict'));
+  }
+});
+
+test('a client scope mapper emitting another claim, or a scope the client does not receive, does not refuse', async () => {
+  const fixture = provider();
+  fixture.state.scopes.find(scope => scope.name === 'profile').protocolMappers.push(scopeEmitter('idp_hint', 'other-claim'));
+  const unassigned = fixture.state.scopes.find(scope => ![...fixture.state.clients.flatMap(client =>
+    [...client.defaultClientScopes, ...client.optionalClientScopes])].includes(scope.name));
+  if (unassigned) unassigned.protocolMappers.push(scopeEmitter('idp', 'unassigned-idp'));
+  const plan = await planFederationRealm(fixture.admin, clone(desired));
+  assert.equal(plan.changed, false);
+  await plan.verify();
+  assert.deepEqual(fixture.writes, []);
+});
+
+test('an idp emitter that appears in a scope after planning fails the readback', async () => {
+  const fixture = preStepThree();
+  const plan = await planFederationRealm(fixture.admin, clone(desired));
+  await plan.apply();
+  fixture.state.scopes.find(scope => scope.name === 'email').protocolMappers.push(scopeEmitter('idp'));
+  await assert.rejects(plan.verify(), refusal('readback', 'mapper_conflict'));
+});
+
 for (const [name, mutate, reason] of [
   ['a different secret', fixture => { fixture.state.federation.client.secret = 'another-federation-secret-value'; }, 'secret_conflict'],
   ['full scope', fixture => { fixture.state.federation.client.fullScopeAllowed = true; }, 'readback_conflict'],

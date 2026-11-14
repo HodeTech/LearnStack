@@ -65,17 +65,29 @@ internal static class FederationAddressPolicy
         return !RefusedV6.Any(range => Matches(v6, range.Prefix, range.Bits));
     }
 
+    private static readonly (byte[] Prefix, int Bits)[] PrivateV4 =
+    [
+        ([10, 0, 0, 0], 8),
+        ([172, 16, 0, 0], 12),
+        ([192, 168, 0, 0], 16),
+    ];
+
     /// <summary>
-    /// An operator allow-listed host may resolve to a private or loopback address; it still may not name an address
-    /// no connection can be made to (unspecified, multicast, broadcast).
+    /// An operator allow-listed host may additionally resolve to a private address: RFC 1918 IPv4 or unique-local IPv6
+    /// (fc00::/7). Nothing else widens. Loopback, link-local (169.254.0.0/16 cloud metadata, fe80::/10), CGNAT,
+    /// documentation, benchmarking, reserved, multicast, unspecified, scoped and every IPv4-embedding IPv6 form (mapped,
+    /// compatible, NAT64, 6to4, Teredo) still refuse, as for a tenant-supplied host (ADR-0099 Amendment 5).
     /// </summary>
-    internal static bool IsConnectable(IPAddress address)
+    internal static bool IsAllowListable(IPAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
+        if (IsGlobal(address)) return true;
         if (address.AddressFamily == AddressFamily.InterNetwork)
-            return !address.Equals(IPAddress.Any) && address.GetAddressBytes()[0] is < 224;
-        return address.AddressFamily == AddressFamily.InterNetworkV6 && !address.Equals(IPAddress.IPv6Any)
-            && !address.IsIPv6Multicast && address.ScopeId == 0;
+        {
+            var bytes = address.GetAddressBytes();
+            return PrivateV4.Any(range => Matches(bytes, range.Prefix, range.Bits));
+        }
+        return address.AddressFamily == AddressFamily.InterNetworkV6 && address.IsIPv6UniqueLocal && address.ScopeId == 0;
     }
 
     private static bool Matches(byte[] address, byte[] prefix, int bits)

@@ -37,20 +37,24 @@ internal sealed class FederationEgressFetcher : IFederationEgressFetcher
     private readonly FederationEgressOptions _options;
     private readonly Func<string, CancellationToken, Task<IPAddress[]>> _resolve;
     private readonly X509Certificate2Collection? _trustRoots;
+    private readonly Func<IPAddress, IPAddress> _route;
 
     public FederationEgressFetcher(FederationEgressOptions options)
         : this(options, Dns.GetHostAddressesAsync, null) { }
 
     /// <summary>
-    /// Test seam: a resolver and a custom trust root. Neither disables certificate or host-name validation; the custom
-    /// root replaces the system store for a chain that must still verify against the original host.
+    /// Test seam: a resolver, a custom trust root and the socket address a validated address is dialled at. None disables
+    /// the address policy, certificate or host-name validation: the policy runs on the resolved addresses, the custom root
+    /// replaces the system store for a chain that must still verify against the original host, and the route lets a
+    /// local TLS listener stand in for a validated private address. Production dials the validated address itself.
     /// </summary>
     internal FederationEgressFetcher(FederationEgressOptions options, Func<string, CancellationToken, Task<IPAddress[]>> resolve,
-        X509Certificate2Collection? trustRoots)
+        X509Certificate2Collection? trustRoots, Func<IPAddress, IPAddress>? route = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _resolve = resolve ?? throw new ArgumentNullException(nameof(resolve));
         _trustRoots = trustRoots;
+        _route = route ?? (address => address);
     }
 
     public Task<FederationEgressResult<FederationOidcDiscovery>> FetchOidcDiscoveryAsync(Uri discoveryUrl, CancellationToken cancellationToken = default) =>
@@ -91,13 +95,16 @@ internal sealed class FederationEgressFetcher : IFederationEgressFetcher
         var allowListed = _options.Admits(host, parsed.Port);
         if (parsed.Port != 443 && !allowListed) return (FederationEgressStatus.Refused, []);
         IPAddress[] addresses;
-        try { addresses = await _resolve(host, cancellationToken).ConfigureAwait(false); }
+        // The resolver is bounded by the fetch ceiling itself: the platform lookup does not observe the token, so a
+        // non-answering resolver would otherwise hold the call past the ceiling. Expiry surfaces as cancellation, which
+        // the callers report as unavailable.
+        try { addresses = await _resolve(host, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false); }
         catch (SocketException) { return (FederationEgressStatus.Unavailable, []); }
         catch (ArgumentException) { return (FederationEgressStatus.Refused, []); }
         if (addresses is not { Length: > 0 }) return (FederationEgressStatus.Unavailable, []);
         // Every resolved address must pass: one private answer among public ones refuses the host.
         var admitted = allowListed
-            ? addresses.All(FederationAddressPolicy.IsConnectable)
+            ? addresses.All(FederationAddressPolicy.IsAllowListable)
             : addresses.All(FederationAddressPolicy.IsGlobal);
         return admitted ? (FederationEgressStatus.Admitted, addresses) : (FederationEgressStatus.Refused, []);
     }
@@ -205,8 +212,9 @@ internal sealed class FederationEgressFetcher : IFederationEgressFetcher
             SslOptions = tls,
             ConnectCallback = async (context, token) =>
             {
-                foreach (var address in addresses)
+                foreach (var validated in addresses)
                 {
+                    var address = _route(validated);
                     var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
                     try
                     {

@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,495 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,602 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -498,6 +498,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 2 census regression N-1 (2026-11-14)](#p03-8-step-2-census-regression-n-1-2026-11-14) — 68 lines
   - [P03-8 Step 2 review round 2 corrections (2026-11-14)](#p03-8-step-2-review-round-2-corrections-2026-11-14) — 147 lines
   - [P03-8 Step 3 — provider and realm (2026-11-14)](#p03-8-step-3--provider-and-realm-2026-11-14) — 247 lines
+  - [P03-8 Step 3 commit and log correction (2026-11-14)](#p03-8-step-3-commit-and-log-correction-2026-11-14) — 23 lines
+  - [P03-8 Step 3 review round 1 corrections (2026-11-14)](#p03-8-step-3-review-round-1-corrections-2026-11-14) — 84 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23246,3 +23248,110 @@ re-authentication form.
 - CI routing: `scripts/ci-native-tests.py` `KEYCLOAK_FAILURE_CLASSES` does not list the
   two new Docker classes (`FederationProviderTests`,
   `TenantRealmFederationReconciliationTests`); CI automation was not changed here.
+
+### P03-8 Step 3 commit and log correction (2026-11-14)
+
+The [Step 3 record](#p03-8-step-3--provider-and-realm-2026-11-14) was written before
+its commit and is now stale in four statements. It is not rewritten; this entry
+corrects it.
+
+- **Commits.** The record says "None", an unmerged index and an intended six-commit
+  split. Step 3 landed as one commit, `d166e12d` (`feat(identity): add the federation
+  provider adapter, egress and realm`, 65 files), over `5c8c4e19`, with a clean tree
+  after it. The pre-commit hook's earlier stash-pop conflict
+  (`stash@{0}: learnstack-precommit-1794619520`) was resolved by committing the whole
+  step at once; that stash entry was neither applied nor dropped and is still in the
+  stash list. No six-commit split exists.
+- **Verification basis.** The record's verification table was taken "on the uncommitted
+  working tree over `5c8c4e19`". The committed tree is that tree; the review round 1
+  record below reruns the suites on the corrected tree and is the current evidence.
+- **Trailer (E-9).** The record says the work is attributed to Claude Opus 5.5, "not
+  the Haiku name in the brief". The commit actually ends with
+  `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`, as the brief asked. Which
+  model name the trailers should carry is open for the maintainer (C-12, D-9).
+- **Status.** The Phase 03 Status row said Step 3 was uncommitted; it now names
+  `d166e12d`.
+
+### P03-8 Step 3 review round 1 corrections (2026-11-14)
+
+The first independent review of Step 3 (`d166e12d`) reported five security findings
+(S1–S5) and sixteen corpus and test findings (C1–C16). Each was verified in the code
+before it was acted on; all were confirmed. The corrections are in the commit that adds this record.
+[ADR-0099 Amendment 5](../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)
+records every change to ADR-stated behaviour; the Decision is unchanged.
+
+**Security findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| S1 | Fixed | `FederationEgressFetcher` awaited the resolver without a bound; the platform lookup ignores the token, and the existing hanging-host test used an instant resolver. The resolution is now `WaitAsync` on the same 3-second budget; expiry is `Unavailable`. New `A_resolver_that_never_answers_is_unavailable_within_the_ceiling` uses a resolver that never completes. |
+| S2 | Fixed | The adapter had no Amendment 3 defence. Before writing a present broker, `KeycloakFederationProvider` compares the desired state with the one read back: an issuer or SAML entity change refuses outright, and without a fresh secret a changed token endpoint, client identifier or client authentication refuses. No provider call is made. New unit tests: each changed secret target with a null secret is refused with zero `PUT`s and the stored broker unchanged; the same change with a fresh secret and an unchanged configuration without one are applied; an issuer and an entity change refuse even with a secret. |
+| S3 | Fixed | `IsConnectable` admitted almost every address for a listed host. It is replaced by `IsAllowListable`: global, or RFC 1918 IPv4, or unique-local IPv6, nothing else. New theory: 18 address classes (loopback, 169.254/16, `fe80::`, mapped and compatible IPv6, NAT64, CGNAT, documentation, reserved, multicast, unspecified, site-local) refuse for a listed host on 443 and on a listed port; private and public answers are the dirty control. An entry admitting its host for every tenant is recorded in Amendment 5. |
+| S4 | Fixed | `FederationDocumentReaders.Https` now refuses a host that is not ASCII or whose IDN form differs, so the guard and the provider always see the same name. `https://faß.de/t` and a mixed punycode/Unicode host refuse before resolution. |
+| S5 | Fixed | `development-realm-federation.mjs` reads learnstack-web's default and optional client scopes and their mappers, and any `idp` emitter outside the client's own canonical mapper refuses `mapper_conflict` at plan and readback. Planted default-scope and optional-scope emitters, a nested `idp.value` claim and a post-plan plant refuse; another claim in a scope, or an emitter in a scope the client does not receive, is the positive control. |
+
+**Corpus and test findings.**
+
+| ID | Verdict | Change |
+|---|---|---|
+| C1 | Fixed, with one deviation recorded | New real-provider cases in `FederationProviderTests`: (a) an orphan whose marker names a connection no row holds, an unmarked broker at a derived alias, and an owned broker whose representation no longer reads as a protocol are `Foreign` for read, write and delete, and each stays byte-identical; the orphan's own owner is the dirty control. (b) A real `oidc-user-attribute-idp-mapper` on an owned alias reads back as `MapperCount` 1, its digest equals no desired state (enabled or not), a corrective full-state write leaves the mapper, and removing it clears the drift. That digest equality is what Activate requires; the runner's refusal on it is Step 2's proof. (c) The tenant's test IdP asserts hostile `user_id`, `tenant_id` and `organization_id` in its ID token (proven through the IdP's example-token endpoint); a linking and a linked brokered sign-in both issue learnstack-web tokens carrying the stored `user_id`, no `tenant_id` or `organization_id`, and leave the stored attributes unchanged. Reset-link resumption is qualified: a reset requested from the re-authentication form and completed in another browser changes the password and links nothing; completed in the browser holding the pending session, it resumes and links. The reset action therefore stays (Amendment 5). Deviation: a brokered SAML login is not proven; Step 4's full qualification owns it (Amendment 5). |
+| C2 | Fixed | Eleven owner tests for `federationAdminEnvironment`: success, missing (`preflight`/`missing_federation_secret`), and each `configuration` refusal (second assignment, `export` alias, empty, 15 vs 16 characters, 1,024 vs 1,025 bytes with multibyte cases, mask literal, `${`, LF, CRLF and NUL, equality with the web, admin and event-reader secrets, a different `Federation__ClientSecret`, a different ambient value). `node:util` folds a bare CR, so CR alone is not separately testable. Owner tests: 66 to 77. |
+| C3 | Fixed | `Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher` now scans every production source under `backend/src` for transport primitives (HTTP clients and handlers, `Socket`, TCP/UDP clients, TLS and network streams, web requests, `Dns.`, client-factory registration) against a named allow-list with a reason per entry: the egress fetcher (tenant URLs) and four fixed tenant-realm clients (federation adapter, event reader, JWT back-channel, invitation UserInfo). A stale entry fails. Planted holders in the API, Infrastructure and two modules fail; instrumentation, exception and enum names do not match. The name is kept; Standard 21 states the narrower honest claim. |
+| C4 | Fixed | [Commit and log correction](#p03-8-step-3-commit-and-log-correction-2026-11-14) appended; the Status row names `d166e12d`. |
+| C5 | Recorded | The commit's trailer is Claude Haiku 5.5; the attribution model name is open for the maintainer. |
+| C6 | Fixed | Amendment 5 item 1: 3 seconds per fetch, DNS included, within the 3-second budget. |
+| C7 | Recorded | Amendment 5 item 2 records `import-config` as a narrowing of an admitted set. |
+| C8 | Fixed | Standard 11's 2026-11-13 Amendment now states exactly what the guard admits and refuses, with a dated correction note. |
+| C9 | Fixed | The Keycloak README no longer describes a live console-graph correction and says an existing `.env` must add `KEYCLOAK_FEDERATION_ADMIN_SECRET` (and `Federation__ClientSecret`) before `make dev` starts; the README, the local-dev skill and Standard 12 name the federation secret, and Standard 12 names the two machine-client secrets the API does receive. |
+| C10 | Fixed (code tightened; docs corrected) | No test depended on the range, so `FederationComposition` now requires exactly a 2.5-second timeout and a bulkhead of 4 with no queue; five more refusal cases and a dirty control. The empty-issuer refusal stays at first resolution (the selection follows `ISecretProvider`, which is resolved there); the provider specification now says so. |
+| C11 | Fixed | The "partial retirement commits" test again runs `[200, 201, 202, 409, 500, lost_ack, cancelled]`, now over all seven retirement writes, with path uniqueness, durable non-replay and no readback after an uncertain outcome restored. 2xx on a `PUT` is a success on the surviving path and is asserted to converge; the retired stock-console scope and role-read checks are replaced by equality with an uninterrupted run. |
+| C12 | Fixed | The old `kc_action` check put the action inside `redirect_uri`, so it could not run at all. The action is now an authorization parameter: disabled, it never reaches the broker and the client receives `kc_action_status=error`; enabled alone, it still refuses (the pinned `IdpLinkAction` also needs `manage-account` or `manage-account-links` in scope, which the realm removes); enabled with that role and scope restored for the control, it reaches the IdP. The console page asserts 404. The profile positive control is restored through the stock update-profile action, the surviving self-service write: an ordinary edit is stored, injected authority attributes are not, and the counterfactual proves the same injection reaches storage when the definition is user-editable. |
+| C13 | Recorded | Residual below; Amendment 5 item 5. |
+| C14 | Rerun | Verification below. |
+| C15 | Fixed | `detachStockConsoleAssignment` and its import are removed from the core write surface. The stock-console module and its own tests remain (unused by reconciliation) until the separate cleanup. |
+| C16 | Fixed | `KEYCLOAK_FAILURE_CLASSES` lists `FederationProviderTests` and `TenantRealmFederationReconciliationTests`; `test-ci-native-tests.py` expects them. `ci-test-shards-plan.json`'s `sharedFixtureClasses` was out of date at `d166e12d` (`test-ci-test-shards.py` failed there) and is regenerated from the census. |
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the corrected
+working tree over `d166e12d`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release` | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --include` (every changed C# file) | exit 0 |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 4,109 passed, 0 failed, 0 skipped |
+| Integration, Release, every class in `LearnStack.Tests.Integration.TenancyIdentity` (Docker), one run | 110 passed, 0 failed, 0 skipped (20 min 54 s): `FederationProviderTests` 14, `KeycloakStartupDiagnosticsTests` 4, `KeycloakTransportTests` 4, `ProviderEventActionTests` 1, `ProviderEventAdapterTests` 1, `TenantBffSessionTests` 16, `TenantRealmApiTests` 14, `TenantRealmEventTests` 2, `TenantRealmExportTests` 4, `TenantRealmFederationReconciliationTests` 3, `TenantRealmIssuanceTests` 13, `TenantRealmProfileProtectionTests` 8, `TenantRealmReconciliationTests` 22, `TenantRealmSelfServiceTests` 2, `TenantRealmStockBaselineTests` 2 |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 661 passed, 0 failed, 0 skipped (47 min 4 s). Corpus documents were still being edited during that run, so the classes that read them (`CorpusConsistencyTests`, `AuditCoverageTests`, `AuditConventionTests`, `DomainGenericityTests`, `RepositoryLayoutTests`, `RequestSurfaceTests`, `AsyncStoreInventoryTests`) and `FederationAdapterConventionTests` were rerun on the final tree: 142 passed, 0 failed, 0 skipped |
+| `python3 scripts/run-realm-node-tests.py` | 13 files, 490 executed passing tests |
+| `python3 scripts/test-realm-node-gate.py` | 6 tests OK |
+| `python3 scripts/test-ci-test-shard-results.py` | 42 tests OK |
+| `python3 scripts/test-ci-test-shards.py` | 88 tests OK |
+| `python3 scripts/test-ci-native-tests.py` | 111 tests OK |
+| `node --test` on `development-realm-owner`, `development-backchannel`, `reconcile-development-realm` | 77, 10 and 28 passed |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,762 fragment links resolve, roadmap structure conforms, 3 delivery-log indexes current |
+
+Not run: the rest of the Integration suite outside `TenancyIdentity`, the Contract
+suite (no OpenAPI or SDK surface changed), the SDK and web checks, hosted CI and the
+A/B layout qualification.
+
+**Residual risks.**
+
+- C13: an owned broker whose representation no longer reads as an admitted protocol is
+  foreign to every tenant operation, so the corrective disable cannot reach it while it
+  may still be enabled at the provider. Detection and recovery are the P03-9 operator
+  sweep.
+- An out-of-band issuer change at the provider makes every restoring write refuse
+  (Amendment 5 item 4); the corrective disable still applies, and recovery is a new
+  connection.
+- An allow-list entry admits its host for every tenant.
+- Unchanged from the Step 3 record: the realm-wide adapter role, the delayed-write
+  window, Keycloak's own later fetches following DNS, and the delegation residual.
+
+**Open items.**
+
+- C1: a brokered SAML login end to end (Step 4 full qualification, Amendment 5 item 8).
+- C5: the trailer model name (C-12, D-9), for the maintainer.
+- C13: the operator sweep for unreadable owned brokers (P03-9).
+- The OpenAPI gate: no OpenAPI or SDK surface changed in Step 3 or this round, and the
+  Contract suite was not run.
+- S-B and H from the Step 2 record before Step 4.
+- Review round 2 of Step 3.

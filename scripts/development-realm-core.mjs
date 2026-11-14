@@ -1,5 +1,4 @@
 import { buildRealmPlan, buildRealmPreparation, nativeWebScopeDetachmentPath } from './development-realm-plan.mjs';
-import { stockConsoleDetachmentPath } from './development-realm-stock-console.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
 import { planEventReader, planFederationAdmin, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
@@ -91,13 +90,8 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
         if (result.status < 200 || result.status >= 300) refuse(stage, 'status');
         return result.status;
       },
-      // This is deliberately not a generic DELETE API. Only an opaque binding
-      // minted by the complete stock-graph qualifier can name one assignment.
-      detachStockConsoleAssignment: async binding => {
-        const path = stockConsoleDetachmentPath(binding, stage);
-        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
-        if (result.status !== 204) refuse(stage, 'status');
-      },
+      // Deliberately not a generic DELETE API: each detach* entry below accepts only an opaque
+      // binding minted by its own planner, which alone names the one path it may delete.
       detachNativeWebScope: async binding => {
         const path = nativeWebScopeDetachmentPath(binding, stage);
         const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });

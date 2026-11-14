@@ -74,6 +74,7 @@ internal sealed class KeycloakAdminClient : IDisposable
     internal Task<HttpStatusCode> PutAsync(string path, object value) => WriteAsync(HttpMethod.Put, path, value);
     internal Task<HttpStatusCode> PostAsync(string path, object value) => WriteAsync(HttpMethod.Post, path, value);
     internal Task<HttpStatusCode> DeleteAsync(string path) => WriteAsync(HttpMethod.Delete, path, null);
+    internal Task<HttpStatusCode> DeleteAsync(string path, object value) => WriteAsync(HttpMethod.Delete, path, value);
 
     private async Task<HttpStatusCode> WriteAsync(HttpMethod method, string path, object? value)
     {

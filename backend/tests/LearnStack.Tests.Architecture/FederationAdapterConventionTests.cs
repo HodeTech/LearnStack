@@ -114,7 +114,12 @@ public sealed partial class FederationAdapterConventionTests
     public void Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher()
     {
         TransportOffenders(Sources()).Should().BeEmpty(
-            "Fix: in federation code only FederationEgressFetcher (tenant URLs) and KeycloakFederationProvider (the fixed admin origin) open HTTP connections");
+            "Fix: a network transport primitive in production source lives only in a file TransportHolders names with its reason. "
+            + "A tenant-supplied URL is fetched only by FederationEgressFetcher (ADR-0099 § Bounded egress); every other holder "
+            + "reaches a fixed, composition-configured provider origin");
+        var present = Sources().Where(pair => Transport().IsMatch(pair.Value)).Select(pair => pair.Key).ToHashSet(StringComparer.Ordinal);
+        TransportHolders.Keys.Should().OnlyContain(path => present.Contains(path),
+            "an allow-list entry whose file no longer holds a transport is stale and must be removed");
     }
 
     [Fact]
@@ -122,12 +127,20 @@ public sealed partial class FederationAdapterConventionTests
     {
         TransportOffenders(new Dictionary<string, string>
         {
-            [FetcherSource] = "new SocketsHttpHandler()",
+            [FetcherSource] = "new SocketsHttpHandler(); var socket = new Socket(family, SocketType.Stream, ProtocolType.Tcp);",
             [AdapterSource] = "new HttpClient(handler)",
             [AdapterDirectory + "KeycloakFederationProfile.cs"] = "using var client = new HttpClient();",
-            ["Modules/Identity/LearnStack.Modules.Identity.Application/Federation/Planted.cs"] = "await http.GetAsync(url);",
-            ["LearnStack.Api/Identity/Clean.cs"] = "var x = 1;",
-        }).Should().Equal(AdapterDirectory + "KeycloakFederationProfile.cs",
+            ["Modules/Identity/LearnStack.Modules.Identity.Application/Federation/Planted.cs"] = "await Dns.GetHostAddressesAsync(host);",
+            ["Modules/Education/LearnStack.Modules.Education.Infrastructure/Planted.cs"] = "using var client = new TcpClient();",
+            ["LearnStack.Api/Planted/Fetcher.cs"] = "var handler = new HttpClientHandler();",
+            ["LearnStack.Infrastructure/Planted/Socket.cs"] = "var socket = new Socket(family, SocketType.Stream, ProtocolType.Tcp);",
+            ["LearnStack.Infrastructure/Planted/WebRequest.cs"] = "var request = WebRequest.Create(url);",
+            ["LearnStack.Infrastructure/Planted/Factory.cs"] = "services.AddHttpClient(\"x\");",
+            ["LearnStack.Api/Composition/Clean.cs"] = "t.AddHttpClientInstrumentation(); catch (SocketException) { } var type = SocketType.Stream;",
+        }).Should().Equal("LearnStack.Api/Planted/Fetcher.cs", AdapterDirectory + "KeycloakFederationProfile.cs",
+            "LearnStack.Infrastructure/Planted/Factory.cs", "LearnStack.Infrastructure/Planted/Socket.cs",
+            "LearnStack.Infrastructure/Planted/WebRequest.cs",
+            "Modules/Education/LearnStack.Modules.Education.Infrastructure/Planted.cs",
             "Modules/Identity/LearnStack.Modules.Identity.Application/Federation/Planted.cs");
     }
 
@@ -173,10 +186,24 @@ public sealed partial class FederationAdapterConventionTests
                 && pair.Value.Contains("DeploymentMode", StringComparison.Ordinal))
             .Select(pair => pair.Key).Order(StringComparer.Ordinal)];
 
+    /// <summary>
+    /// Every production file that may hold a network transport primitive, with its reason. Only the egress fetcher fetches
+    /// a tenant-supplied URL; every other entry dials a fixed origin the composition root configures.
+    /// </summary>
+    private static readonly Dictionary<string, string> TransportHolders = new(StringComparer.Ordinal)
+    {
+        [FetcherSource] = "the only tenant-URL fetcher: ADR-0099 § Bounded egress guards every address it dials",
+        [AdapterSource] = "the federation admin client: the fixed tenant-realm issuer only (KeycloakFederationOptions)",
+        ["LearnStack.Infrastructure/Identity/ProviderEvents/KeycloakIdentityEventProvider.cs"] =
+            "the provider event reader (ADR-0097): the fixed tenant-realm issuer only",
+        ["LearnStack.Api/Authentication/TenantAuthenticationBackchannel.cs"] =
+            "JWT bearer metadata and JWKS (ADR-0064): the fixed Authentication:Tenant:Issuer only",
+        ["LearnStack.Api/Authentication/CurrentInvitationRecipientReader.cs"] =
+            "the invitation recipient's UserInfo read (ADR-0093): the fixed tenant-realm issuer only",
+    };
+
     private static List<string> TransportOffenders(IReadOnlyDictionary<string, string> sources) =>
-        [.. sources.Where(pair => (pair.Key.StartsWith(AdapterDirectory, StringComparison.Ordinal)
-                    || pair.Key.StartsWith("Modules/Identity/", StringComparison.Ordinal) && pair.Key.Contains("/Federation/", StringComparison.Ordinal))
-                && pair.Key != FetcherSource && pair.Key != AdapterSource && Transport().IsMatch(pair.Value))
+        [.. sources.Where(pair => !TransportHolders.ContainsKey(pair.Key) && Transport().IsMatch(pair.Value))
             .Select(pair => pair.Key).Order(StringComparer.Ordinal)];
 
     [GeneratedRegex("\"(?<value>(?:[^\"\\\\]|\\\\.)*)\"")]
@@ -185,6 +212,11 @@ public sealed partial class FederationAdapterConventionTests
     [GeneratedRegex("from[\\s_-]*url", RegexOptions.IgnoreCase)]
     private static partial Regex FromUrl();
 
-    [GeneratedRegex("\\b(HttpClient|SocketsHttpHandler|HttpMessageHandler|WebRequest|TcpClient|SslStream)\\b|\\.(GetAsync|PostAsync|SendAsync|GetStreamAsync|GetByteArrayAsync)\\(")]
+    /// <summary>
+    /// Construction or use of a transport: an HTTP client or handler, a raw or TCP/UDP socket, a TLS or network stream, a
+    /// web request, a DNS lookup, or an HTTP client factory registration. Instrumentation names such as
+    /// AddHttpClientInstrumentation and exception or enum names such as SocketException and SocketType do not match.
+    /// </summary>
+    [GeneratedRegex("\\b(HttpClient|HttpClientHandler|SocketsHttpHandler|HttpMessageInvoker|Socket|TcpClient|TcpListener|UdpClient|SslStream|NetworkStream|ClientWebSocket|WebRequest|HttpWebRequest|WebClient|IHttpClientFactory|AddHttpClient)\\b|\\bDns\\.")]
     private static partial Regex Transport();
 }

@@ -56,12 +56,27 @@ public sealed class FederationCompositionTests
     [InlineData("Resilience:federation:Retry:MaxRetryAttempts", "2")]
     [InlineData("Resilience:federation:Timeout:Enabled", "false")]
     [InlineData("Resilience:federation:Timeout:TotalSeconds", "30")]
+    [InlineData("Resilience:federation:Timeout:TotalSeconds", "2")]
     [InlineData("Resilience:federation:CircuitBreaker:Enabled", "false")]
+    [InlineData("Resilience:federation:Bulkhead:MaxConcurrency", "8")]
+    [InlineData("Resilience:federation:Bulkhead:MaxConcurrency", "1")]
+    [InlineData("Resilience:federation:Bulkhead:QueueLength", "2")]
     public void Write_retries_unbounded_timeouts_and_a_disabled_breaker_refuse_at_composition(string key, string value)
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [key] = value }).Build();
         FluentActions.Invoking(() => services.AddLearnStackFederationAdapter(configuration)).Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void The_fixed_resilience_shape_is_the_dirty_control()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Resilience:federation:Timeout:TotalSeconds"] = "2.5",
+            ["Resilience:federation:Bulkhead:MaxConcurrency"] = "4",
+        }).Build();
+        FluentActions.Invoking(() => new ServiceCollection().AddLearnStackFederationAdapter(configuration)).Should().NotThrow();
     }
 
     [Fact]

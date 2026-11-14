@@ -534,25 +534,53 @@ test('the actual core retires the historical account console in five qualified w
 });
 
 test('partial retirement commits are never replayed and explicit reruns finish only the remaining edges', async () => {
-  for (const outcome of [500, 'lost_ack', 'cancelled']) {
-    for (const ordinal of [1, 3, 5]) {
+  const reference = await stockProvider();
+  assert.deepEqual(await reconcileRealm(memoryInput(providerTransport(reference).transport)), { mutations: 7 });
+  const writeKey = request => `${request.method} ${request.path}`;
+  // The retirement writes are two client PUTs, one default-role composite DELETE and one DELETE per
+  // persona account grant. Pinned PUT admission accepts any 2xx, so 200/201/202 on a PUT is a success
+  // (the write is durable and the pass completes); every other uncertain outcome stops the owner.
+  for (const outcome of [200, 201, 202, 409, 500, 'lost_ack', 'cancelled']) {
+    for (const ordinal of [1, 2, 3, 4, 5, 6, 7]) {
       const fixture = await stockProvider();
       const recording = providerTransport(fixture);
       const stop = new AbortController();
       let seen = 0;
+      let failedKey;
+      let failedMethod;
       const transport = async (url, options) => {
         const response = await recording.transport(url, options);
         if (['PUT', 'DELETE'].includes(options.method) && ++seen === ordinal) {
+          failedKey = writeKey({ method: options.method, path: url.pathname });
+          failedMethod = options.method;
           if (outcome === 'lost_ack') throw new Error(privateCanary);
           if (outcome === 'cancelled') { stop.abort(); return response; }
           return { status: outcome, bytes: Buffer.alloc(0) };
         }
         return response;
       };
+      const input = { ...memoryInput(transport), signal: stop.signal };
+      const accepted = [200, 201, 202].includes(outcome);
       const reason = outcome === 'lost_ack' ? 'response' : outcome === 'cancelled' ? 'cancelled' : 'status';
-      await assert.rejects(reconcileRealm({ ...memoryInput(transport), signal: stop.signal }), refusal('apply', reason));
+      // Which verb the ordinal-th write uses is fixed by the plan order the reference run recorded.
+      const verb = reference.writes[ordinal - 1].method;
+      if (accepted && verb === 'PUT') {
+        assert.deepEqual(await reconcileRealm(input), { mutations: 7 });
+        assert.equal(fixture.writes.length, 7);
+        assert.deepEqual(fixture.state, reference.state, 'an accepted 2xx PUT completes the same retirement');
+        continue;
+      }
+      await assert.rejects(reconcileRealm(input), refusal('apply', reason));
+      assert.equal(failedMethod, verb);
       assert.equal(fixture.writes.length, ordinal, 'the owner stops at the exact uncertain durable prefix');
+      assert.equal(recording.requests.some(request => request.stage === 'readback'), false,
+        'no readback follows an uncertain outcome');
       assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 7 - ordinal });
+      const writes = recording.requests.filter(request => ['PUT', 'DELETE'].includes(request.method));
+      assert.equal(writes.filter(request => writeKey(request) === failedKey).length, 1, 'the durable write is never replayed');
+      assert.equal(writes.length, 7);
+      assert.equal(new Set(writes.map(writeKey)).size, 7, 'every retirement write names a distinct edge');
+      assert.deepEqual(fixture.state, reference.state, 'the remaining edges converge on the uninterrupted result');
       assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
       assert.equal(fixture.writes.length, 7);
     }

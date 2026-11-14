@@ -60,6 +60,53 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
         await AssertFreshIdentityAsync(identity);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Same_seed_account_can_edit_ordinary_profile_through_update_profile_but_cannot_write_authority(bool yoga)
+    {
+        // The account console is retired (ADR-0099 § Realm invariants); the surviving self-service profile write is the
+        // stock update-profile action. It must still admit an ordinary edit and still refuse every authority attribute.
+        var identity = SeedData.IdentityUsers.First(user => user.Tenant.MapHostToDefaultOrganization == yoga);
+        using var admin = await fixture.CreateAdminClientAsync();
+        var original = await admin.UserAsync(identity.Username);
+        SeedAttributesMatch(original, identity).Should().BeTrue();
+        var originalName = original.GetProperty("firstName").GetString()!;
+        try
+        {
+            using (var browser = fixture.Browser())
+                (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity), "Profile proof"))
+                    .Should().BeTrue("the owner's ordinary profile write completes");
+            var updated = await admin.UserAsync(identity.Username);
+            updated.GetProperty("firstName").GetString().Should().Be("Profile proof",
+                "independent admin readback proves this same user's ordinary write reached storage");
+            SeedAttributesMatch(updated, identity).Should().BeTrue();
+            foreach (var attribute in ProtectedAttributes)
+                foreach (var attempt in new[] { "replace", "empty", "multiple" })
+                {
+                    var injected = new List<KeyValuePair<string, string>>
+                    { new(attribute, attempt == "empty" ? "" : Guid.NewGuid().ToString("D")) };
+                    if (attempt == "multiple") injected.Add(new(attribute, Guid.NewGuid().ToString("D")));
+                    using var browser = fixture.Browser();
+                    await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity),
+                        "Profile proof", injected);
+                    SeedAttributesMatch(await admin.UserAsync(identity.Username), identity).Should().BeTrue(
+                        "a completed action can mean an injected field was ignored; the stored typed values decide protection");
+                }
+            await AssertFreshIdentityAsync(identity);
+        }
+        finally
+        {
+            // Restore only the ordinary field through the same owner's real profile action.
+            using var browser = fixture.Browser();
+            (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity), originalName))
+                .Should().BeTrue();
+            var restored = await admin.UserAsync(identity.Username);
+            restored.GetProperty("firstName").GetString().Should().Be(originalName);
+            SeedAttributesMatch(restored, identity).Should().BeTrue();
+        }
+    }
+
     [Fact]
     public async Task Ordinary_registration_works_and_injected_authority_never_becomes_new_account_data()
     {
@@ -129,11 +176,23 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
             ["edit"] = new JsonArray("admin", "user"),
         };
         string? registered = null;
+        string? restoreValue = null;
         try
         {
             (await admin.PutAsync("users/profile", dirtyProfile)).Should().Be(HttpStatusCode.OK);
             AdminOnlyDefinitions(await admin.GetAsync("users/profile")).Should().BeFalse();
             var replacement = Guid.NewGuid().ToString("D");
+            // The update-profile action: with a user-editable definition the same injected field reaches storage, so the
+            // clean proof's refusals are the definition's, not a form that ignores every unknown field.
+            var stored = await admin.UserAsync(identity.Username);
+            restoreValue = stored.GetProperty("attributes").GetProperty(attribute)[0].GetString();
+            using (var browser = fixture.Browser())
+                (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity),
+                    stored.GetProperty("firstName").GetString()!, [new(attribute, replacement)])).Should().BeTrue();
+            var changed = await admin.UserAsync(identity.Username);
+            StoredScalar(changed, attribute, replacement).Should().BeTrue(
+                "this counterfactual must positively reach the protected field, rather than receive a generic denial");
+            SeedAttributesMatch(changed, identity).Should().BeFalse("the exact predicate used by the clean proof must detect the actual stored mutation");
             registered = OwnedRegistrationName();
             using var registration = fixture.Browser();
             var dirtyRegistration = await registration.RegisterAsync(registered, KeycloakFixture.DemoPassword, Callback(identity),
@@ -151,6 +210,14 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
         {
             try
             {
+                if (restoreValue is not null)
+                {
+                    // Restore through the same owner's action while the definition is still user-editable.
+                    using var browser = fixture.Browser();
+                    var current = await admin.UserAsync(identity.Username);
+                    (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity),
+                        current.GetProperty("firstName").GetString()!, [new(attribute, restoreValue)])).Should().BeTrue();
+                }
                 if (registered is not null)
                 {
                     var registeredUser = await FindOwnedRegistrationAsync(admin, registered);

@@ -69,6 +69,8 @@ internal sealed class KeycloakFederationProvider : IFederationProvider, IDisposa
             if (current.Kind == Owned.Present && current.Protocol != state.Protocol) return FederationProviderResult.Refused;
             if (current.Kind == Owned.Absent && state.Protocol == FederationBrokerProtocol.Oidc && write.Secret is null)
                 return FederationProviderResult.Refused;
+            if (current.Kind == Owned.Present && RefusedChange(current.State!, state, write.Secret is not null))
+                return FederationProviderResult.Refused;
             var representation = KeycloakFederationProfile.Representation(state, write.Secret);
             var creating = current.Kind == Owned.Absent;
             var bytes = JsonSerializer.SerializeToUtf8Bytes(representation);
@@ -140,6 +142,25 @@ internal sealed class KeycloakFederationProvider : IFederationProvider, IDisposa
             };
         }, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The adapter's own defence for two rules, compared with what the provider holds now: the issuer or SAML entity
+    /// identifier never changes in place (ADR-0099 § Ownership; a new connection is required), and a write without a fresh
+    /// secret keeps the provider's stored secret, so it may not change the token endpoint, client identifier or client
+    /// authentication the stored secret would then be sent with (ADR-0099 Amendment 3). Either refuses before any write.
+    /// </summary>
+    private static bool RefusedChange(FederationBrokerState held, FederationBrokerState desired, bool freshSecret) =>
+        (held.Configuration, desired.Configuration) switch
+        {
+            (FederationOidcConfiguration current, FederationOidcConfiguration wanted) =>
+                !string.Equals(current.Issuer, wanted.Issuer, StringComparison.Ordinal)
+                || !freshSecret && (!string.Equals(current.TokenEndpoint.AbsoluteUri, wanted.TokenEndpoint.AbsoluteUri, StringComparison.Ordinal)
+                    || !string.Equals(current.ClientId, wanted.ClientId, StringComparison.Ordinal)
+                    || current.ClientAuthentication != wanted.ClientAuthentication),
+            (FederationSamlConfiguration current, FederationSamlConfiguration wanted) =>
+                !string.Equals(current.EntityId, wanted.EntityId, StringComparison.Ordinal),
+            _ => true,
+        };
 
     /// <summary>
     /// One port call: the admin secret is checked before any network effect, then the resilience pipeline (retry disabled,

@@ -629,8 +629,12 @@ connects `make seed` and `make demo` to the same awaited operation after
 application seed convergence. Its actual lifecycle qualification and reviews
 are recorded in the [Step 3 delivery record](../../docs/roadmap/phase-02b-delivery-log.md#p02b-6-step-3--shared-seeddemo-lifecycle-2026-10-21).
 The exact pre-P02b-6 export has a stock profile that hides identity values and
-broader account-console assignments. The qualified correction handles these
-prerequisites without inferring account ownership from a hidden projection.
+broader account-console assignments. The qualified correction handled these
+prerequisites without inferring account ownership from a hidden projection;
+since ADR-0099 retired the account clients (see
+[Account self-service retirement](#account-self-service-retirement)), the
+console-graph normalization is no longer run and the retired console keeps its
+stock assignments.
 [ADR-0068](../../docs/decisions/0068-development-warm-realm-qualification.md)
 is Accepted — 2026-10-22 after verified review corrections under conditional
 maintainer authority. Its three-step implementation and automatic-path proof
@@ -775,7 +779,10 @@ LearnStack's adapter confines it to owned aliases (the
   `KEYCLOAK_FEDERATION_ADMIN_SECRET` exactly once: 16 to 1,024 bytes, not the
   provider's mask literal `**********`, not beginning `${`, and distinct from the
   web, admin and event-reader secrets. Reconciliation refuses with
-  `missing_federation_secret` when it is absent.
+  `missing_federation_secret` when it is absent. An existing private `.env`
+  created before P03-8 Step 3 must add `KEYCLOAK_FEDERATION_ADMIN_SECRET` (and the
+  same value as `Federation__ClientSecret`) before `make dev` will start: compose's
+  `:?` guard stops the provider without it.
 - **API.** The API reads the same value as `Federation__ClientSecret`. When the
   private file declares both, they must be identical. Without the API value the
   adapter is not selected and every federation operation reports the dependency
@@ -841,7 +848,13 @@ on port 443 for tenant-supplied discovery, JWKS and SAML metadata URLs. A tenant
 IdP on a private network or a non-443 port is admitted only by naming it in the
 API configuration `Federation__Egress__AllowedHosts__<n>`: exact `host` (port 443)
 or `host:port`, no wildcard, scheme, path or IP literal, at most 64 entries. The
-API refuses an invalid entry at startup. Tenant input never extends the list.
+API refuses an invalid entry at startup. Tenant input never extends the list. An
+entry admits that host for every tenant, and widens only two rules: the port, and
+private addresses (RFC 1918 IPv4 and unique-local IPv6). Loopback, link-local
+(including cloud metadata), IPv4-mapped or -compatible IPv6 and every other
+reserved class still refuse for a listed host, and an internationalized host name
+refuses; enter its ASCII (punycode) form
+([ADR-0099 Amendment 5](../../docs/decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)).
 Keycloak's own later calls to the configured token and JWKS endpoints follow DNS;
 production egress policy for the Keycloak process belongs to Phase 11.
 

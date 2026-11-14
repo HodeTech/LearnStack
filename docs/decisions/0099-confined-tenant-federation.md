@@ -786,3 +786,56 @@ and § Provider writes makes concrete. The Decision is unchanged.
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review records
 and their proof.
+
+### Amendment 5 — Step 3 review: egress, adapter and linking decisions (2026-11-14)
+
+P03-8 Step 3 and its first review round make the following statements concrete. The
+Decision is unchanged.
+
+1. **Egress ceiling.** § Bounded egress names "a four-second timeout"; § Intent-first
+   operations budgets egress at three seconds in total. One fetch or endpoint check,
+   its DNS resolution included, is bounded by 3 seconds, and the runner's 3-second
+   budget bounds the whole egress phase. A resolver that does not answer cannot hold a
+   call past that bound; the call is unavailable. No body cap changed.
+2. **`import-config` is not called.** § Ownership admits the multipart `file` form; the
+   adapter does not use it. This narrows an admitted set and calls nothing forbidden:
+   the fetcher's own hardened parser supplies the entity identifier, SSO endpoint and
+   certificates the fixed profile consumes, and tenant XML never reaches the provider's
+   parser.
+3. **Allow-list semantics.** A bare host means port 443; `host:port` admits exactly that
+   port. An entry admits its host for every tenant. IP literals are never admitted,
+   listed or not, and an internationalized host name refuses (the guard and the provider
+   must see the same ASCII name). An entry widens only the port and the private ranges
+   (RFC 1918 IPv4, unique-local IPv6). Loopback, link-local (cloud metadata included),
+   CGNAT, documentation, reserved, multicast, unspecified, scoped and every IPv4-mapped,
+   IPv4-compatible or other IPv4-embedding IPv6 address still refuse for a listed host.
+   Standard 11's Amendment is corrected to this text.
+4. **The adapter enforces Amendment 3 and the in-place identity rule itself.** Before a
+   write to a present broker, the adapter compares the desired state with the one the
+   provider holds. A write that changes the issuer or SAML entity identifier refuses,
+   with or without a secret, and a write without a fresh secret that changes the token
+   endpoint, client identifier or client authentication refuses. Neither makes a
+   provider call. A consequence: if the provider's issuer drifts out of band, a write
+   restoring it also refuses; the corrective disable still applies (it keeps the
+   configuration read back), and recovery is a new connection.
+5. **Unreadable owned brokers.** A broker whose marker matches but whose representation
+   no longer reads as an admitted protocol is treated as foreign for every call, so no
+   tenant operation, the corrective disable included, writes or deletes it. Recovery
+   belongs to the P03-9 operator sweep.
+6. **The reset action stays on the linking form.** § Linking residuals left this to Step
+   3. On the pinned 26.7.5 build, a reset requested from the re-authentication form and
+   completed in another browser changes the password and links nothing; completed in
+   the browser that holds the pending first-broker session, it resumes and completes
+   the link. The reset path therefore resumes a link only for the person who holds both
+   the pending session and the mailbox, and the action is not removed.
+7. **Second barrier on `idp_link`.** The pinned `IdpLinkAction` also requires the user
+   to hold `manage-account` or `manage-account-links` within the client's scope. The
+   realm removes both, so an enabled action would still refuse.
+8. **Deviation: no brokered SAML login in Step 3.** § Implementation Notes Step 3 asks
+   for real OIDC and SAML brokers. Step 3 proves SAML at the adapter level against the
+   pinned provider (write, conforming readback, signature validation kept, drift
+   detected) and through the egress parser. An end-to-end brokered SAML sign-in is not
+   proven; Step 4's full qualification owns it, before the PR.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review
+record and its proof.

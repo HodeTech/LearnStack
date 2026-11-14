@@ -32,9 +32,11 @@ internal static class FederationComposition
         var policyConfiguration = new ConfigurationBuilder().AddInMemoryCollection(defaults).AddConfiguration(configuration).Build();
         var policy = policyConfiguration.GetSection("Resilience:federation").Get<ResilienceOptions>()!;
         // Provider writes are not safe to retry automatically (ADR-0099): a retried PUT can land after its outcome settled.
+        // The shape is fixed, not a range: retry off, a 2.5-second timeout (the adapter's own call ceiling), the breaker on
+        // and a bulkhead of exactly four with no queue. Any other value refuses at startup.
         if (policy.Retry.Enabled || policy.Retry.MaxRetryAttempts != 0 || !policy.Timeout.Enabled
-            || !double.IsFinite(policy.Timeout.TotalSeconds) || policy.Timeout.TotalSeconds is <= 0 or > 2.5
-            || !policy.CircuitBreaker.Enabled || policy.Bulkhead is not { MaxConcurrency: >= 1 and <= 16, QueueLength: 0 })
+            || policy.Timeout.TotalSeconds != 2.5
+            || !policy.CircuitBreaker.Enabled || policy.Bulkhead is not { MaxConcurrency: 4, QueueLength: 0 })
             throw new InvalidOperationException("Federation requires finite provider resilience without write retries.");
         services.AddProviderResilience<IFederationProvider>(policyConfiguration, "federation");
 

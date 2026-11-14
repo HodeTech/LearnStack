@@ -69,6 +69,8 @@ public sealed class FederationEgressFetcherTests
     [InlineData("https://[2606:4700:4700::1111]/x")]
     [InlineData("https://idp.example.com:8443/x")]
     [InlineData("ftp://idp.example.com/x")]
+    [InlineData("https://faß.de/t")]
+    [InlineData("https://xn--fa-hia.de.例え.jp/t")]
     public async Task Shape_and_port_rules_refuse_before_any_resolution(string url)
     {
         var resolutions = 0;
@@ -120,6 +122,62 @@ public sealed class FederationEgressFetcherTests
     }
 
     [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("127.8.9.10")]
+    [InlineData("169.254.169.254")]
+    [InlineData("169.254.1.1")]
+    [InlineData("100.64.0.1")]
+    [InlineData("0.0.0.0")]
+    [InlineData("192.0.2.10")]
+    [InlineData("224.0.0.1")]
+    [InlineData("240.0.0.1")]
+    [InlineData("::1")]
+    [InlineData("::")]
+    [InlineData("fe80::1")]
+    [InlineData("::ffff:10.0.0.1")]
+    [InlineData("::ffff:127.0.0.1")]
+    [InlineData("::10.0.0.1")]
+    [InlineData("64:ff9b::a00:1")]
+    [InlineData("fec0::1")]
+    [InlineData("ff02::1")]
+    public async Task An_allow_listed_host_still_refuses_loopback_link_local_embedded_and_reserved_addresses(string address)
+    {
+        FederationAddressPolicy.IsAllowListable(IPAddress.Parse(address)).Should().BeFalse();
+        var listed = new FederationEgressFetcher(new FederationEgressOptions(["idp.corp.internal", "sso.corp.internal:8443"]),
+            (_, _) => Task.FromResult(new[] { IPAddress.Parse(address) }), null);
+        (await listed.CheckEndpointAsync(new Uri("https://idp.corp.internal/x"))).Status.Should().Be(FederationEgressStatus.Refused);
+        (await listed.CheckEndpointAsync(new Uri("https://sso.corp.internal:8443/x"))).Status.Should().Be(FederationEgressStatus.Refused);
+    }
+
+    [Theory]
+    [InlineData("10.0.0.1")]
+    [InlineData("172.16.0.1")]
+    [InlineData("172.31.255.254")]
+    [InlineData("192.168.1.1")]
+    [InlineData("fd12:3456::1")]
+    [InlineData("93.184.216.34")]
+    public async Task An_allow_listed_host_admits_private_and_public_addresses_as_the_dirty_control(string address)
+    {
+        FederationAddressPolicy.IsAllowListable(IPAddress.Parse(address)).Should().BeTrue();
+        var listed = new FederationEgressFetcher(new FederationEgressOptions(["idp.corp.internal"]),
+            (_, _) => Task.FromResult(new[] { IPAddress.Parse(address) }), null);
+        (await listed.CheckEndpointAsync(new Uri("https://idp.corp.internal/x"))).Status.Should().Be(FederationEgressStatus.Admitted);
+    }
+
+    [Fact]
+    public async Task A_resolver_that_never_answers_is_unavailable_within_the_ceiling()
+    {
+        var never = new TaskCompletionSource<IPAddress[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fetcher = new FederationEgressFetcher(FederationEgressOptions.Empty, (_, _) => never.Task, null);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        (await fetcher.CheckEndpointAsync(new Uri("https://idp.example.com/token"))).Status.Should().Be(FederationEgressStatus.Unavailable);
+        (await fetcher.FetchJwksAsync(new Uri("https://idp.example.com/certs"))).Status.Should().Be(FederationEgressStatus.Unavailable);
+        started.Elapsed.Should().BeLessThan(FederationEgressFetcher.Ceiling * 2 + TimeSpan.FromSeconds(1),
+            "each call returns at its own three-second ceiling although the resolver never completes");
+        never.Task.IsCompleted.Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("*.corp.internal")]
     [InlineData("https://idp.corp.internal")]
     [InlineData("idp.corp.internal/path")]
@@ -146,7 +204,7 @@ public sealed class FederationEgressFetcherTests
         result.Status.Should().Be(FederationEgressStatus.Admitted);
         result.Value!.Issuer.Should().Be(actual);
         result.Value.TokenEndpoint.AbsoluteUri.Should().Be(actual + "/protocol/openid-connect/token");
-        // One resolution; the connection reached the validated loopback address and presented the original host as SNI.
+        // One resolution; the connection was dialled from the validated address and presented the original host as SNI.
         resolutions.Should().Be(1);
         server.ServerNames.Should().Equal(Host);
         server.Requests.Should().ContainSingle().Which.Should().NotContain("Cookie").And.NotContain("Authorization")
@@ -258,7 +316,7 @@ public sealed class FederationEgressFetcherTests
         {
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var fetcher = new FederationEgressFetcher(new FederationEgressOptions([$"{Host}:{port}"]),
-                (_, _) => Task.FromResult(new[] { IPAddress.Loopback }), null);
+                (_, _) => Task.FromResult(new[] { ValidatedPrivate }), null, LocalListener);
             var started = System.Diagnostics.Stopwatch.StartNew();
             (await fetcher.FetchJwksAsync(new Uri($"https://{Host}:{port}/certs"))).Status.Should().Be(FederationEgressStatus.Unavailable);
             started.Elapsed.Should().BeLessThan(FederationEgressFetcher.Ceiling + TimeSpan.FromSeconds(2));
@@ -266,13 +324,25 @@ public sealed class FederationEgressFetcherTests
         finally { listener.Stop(); }
     }
 
+    /// <summary>
+    /// The address the test resolver answers: private, so an allow-listed host admits it. The test route dials the local
+    /// TLS listener in its place; the address policy itself still runs on this answer.
+    /// </summary>
+    private static readonly IPAddress ValidatedPrivate = IPAddress.Parse("10.255.0.7");
+
+    private static IPAddress LocalListener(IPAddress validated)
+    {
+        validated.Should().Be(ValidatedPrivate, "only a validated address is ever dialled");
+        return IPAddress.Loopback;
+    }
+
     private static FederationEgressFetcher Fetcher(FederationTlsServer server, Action? resolved = null) =>
         new(new FederationEgressOptions([$"{Host}:{server.Port}"]), (host, _) =>
         {
             host.Should().Be(Host);
             resolved?.Invoke();
-            return Task.FromResult(new[] { IPAddress.Loopback });
-        }, [server.Authority]);
+            return Task.FromResult(new[] { ValidatedPrivate });
+        }, [server.Authority], LocalListener);
 
     private static string Discovery(string issuer) =>
         "{\"issuer\":\"" + issuer + "\",\"authorization_endpoint\":\"" + issuer + "/protocol/openid-connect/auth\",\"token_endpoint\":\"" + issuer
