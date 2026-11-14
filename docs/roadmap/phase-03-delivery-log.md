@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,248 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,495 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -497,6 +497,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 2 review round 1 corrections (2026-11-14)](#p03-8-step-2-review-round-1-corrections-2026-11-14) — 216 lines
   - [P03-8 Step 2 census regression N-1 (2026-11-14)](#p03-8-step-2-census-regression-n-1-2026-11-14) — 68 lines
   - [P03-8 Step 2 review round 2 corrections (2026-11-14)](#p03-8-step-2-review-round-2-corrections-2026-11-14) — 147 lines
+  - [P03-8 Step 3 — provider and realm (2026-11-14)](#p03-8-step-3--provider-and-realm-2026-11-14) — 247 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22998,3 +22999,250 @@ SDK and web checks (the served OpenAPI snapshot is unchanged).
 - C-12 and D-9: the commit trailer model names (maintainer).
 - Unchanged from round one: C-13 (Step 2's non-green intermediate commits) and the
   entitlement-lapse residual.
+
+### P03-8 Step 3 — provider and realm (2026-11-14)
+
+The maintainer approved Step 3. This record covers the implementation and its local
+verification only. The two independent review rounds that ADR-0099 requires before
+Step 4 have not run, and nothing here is hosted CI or qualification evidence.
+
+**Commits.** None. The first commit attempt (the egress fetcher) stopped in the
+pre-commit hook: its `dotnet format` reformatted a staged file
+(`FederationDocumentReaders.cs`, nested `foreach` indentation) while the hook's
+`--keep-index` stash held the same file, and the stash pop reported a conflict
+(`stash@{0}: learnstack-precommit-1794619520`, "stash pop failed … recover with: git
+stash list", then "error: Error building trees"). No commit was created. As instructed,
+the stash was neither dropped nor resolved through git; the working tree carries every
+Step 3 change, the conflict markers in that one file were replaced by the formatter's
+version, and the index still lists that path as unmerged. The intended commit split is
+in the open items.
+
+**Egress fetcher (`LearnStack.Infrastructure.Identity.Federation`).**
+`FederationEgressFetcher` is the only fetcher of a tenant-supplied URL and implements
+every rule of ADR-0099 § Bounded egress: HTTPS, a DNS host, no userinfo or fragment, at
+most 2,048 characters, port 443 unless `Federation:Egress:AllowedHosts` names
+`host:port`; one resolution, every answer globally routable (`FederationAddressPolicy`
+refuses loopback, link-local and 169.254.0.0/16, private, CGNAT, documentation,
+benchmarking, multicast, reserved, unspecified and every IPv4-embedding, unique-local
+or site-local IPv6 form; IPv6 must be 2000::/3); a connect callback that dials only a
+validated address while TLS verifies the certificate and SNI for the original host; one
+handler per fetch; no redirect, cookie, credential or proxy; `identity` encoding only;
+64 KiB and 256 KiB body caps; content types checked; discovery's issuer must prefix its
+URL; a JWKS with private members refuses; SAML metadata parsed with DTDs prohibited and
+no resolver. `FederationEgressOptions` parses the operator allow-list (exact `host` or
+`host:port`, no wildcard, scheme, path or IP literal, at most 64).
+
+**Keycloak adapter.** `KeycloakFederationProvider` (internal, direct HTTP, no SDK)
+takes a fresh client-credentials token per port call for `learnstack-federation-admin`
+with the secret from `ISecretProvider` `Federation:ClientSecret`, refused before any
+network effect when empty, over 1,024 bytes, the mask literal or beginning `${`. The
+token must be from that client and realm and carry exactly
+`realm-management/manage-identity-providers`. Every route comes from
+`KeycloakFederationRoutes`: token, `POST instances` (create, only for an absent owned
+alias), `GET`/`PUT`/`DELETE instances/{alias}` and `GET instances/{alias}/mappers`.
+Every call reads the alias first; a `learnstackOwner` marker naming another tenant or
+connection, or an owned alias that no longer reads as an admitted protocol, is
+`Foreign` and is never written or deleted. `KeycloakFederationProfile` writes the closed
+per-protocol profile (exhaustively listed in the
+[provider specification](../modules/identity/providers.md#tenant-federation-adapter))
+and a readback conforms only on exact top-level and configuration key-set and value
+equality. The secret is written, sent as the mask literal when not fresh (omitting it
+erases it on the pinned build), never read back and never returned; an OIDC create
+without a fresh secret is refused. Transport faults, 5xx and 429 surface inside the
+pipeline as `FederationProviderException` (a `ProviderException`) and leave as
+`Unavailable`.
+
+**Composition.** `FederationComposition` (API) registers
+`IProviderResilience<IFederationProvider>` from `Resilience:federation` (retry disabled,
+2.5 s timeout, circuit breaker, bulkhead 4 without a queue; any other shape refuses at
+startup), parses the allow-list at startup, and replaces the Identity fail-closed
+defaults with the adapter and fetcher only when the admin secret is present. The
+Development check that admits a loopback HTTP issuer is made there; modules and the
+adapter never read `DeploymentMode`.
+
+**Realm.** The export now declares the `learnstack-federation-admin` client (secret
+placeholder `${KEYCLOAK_FEDERATION_ADMIN_SECRET}` only), its service account with only
+`manage-identity-providers` and the matching scope mapping; the
+`learnstack-first-broker-login` flow and its two subflows; the complete pinned
+required-action list with `idp_link` disabled; the disabled `account` and
+`account-console` clients; a default role without `manage-account`; personas without
+account grants; and the `learnstack-identity-provider` mapper on `learnstack-web`.
+`development-realm-federation.mjs` plans the flow, `idp_link` and mapper (created when
+absent, verified exactly, `flow_conflict` or `mapper_conflict` otherwise);
+`development-event-reader.mjs` now plans both machine clients from one parametrized
+service-client planner (`planFederationAdmin` beside `planEventReader`);
+`development-realm-account.mjs` replaces the account self-service planner with the
+retirement planner (partial client disable carrying web origins and the resource-server
+flag; opaque-binding detachment of the default-role composites and each persona's
+direct grants; a retired role from any other source refuses). The CLI requires
+`KEYCLOAK_FEDERATION_ADMIN_SECRET` (`missing_federation_secret`), and compose, the
+lifecycle placeholder, `.env.example` and both READMEs carry it. The seed manifest no
+longer declares an account capability.
+
+**Two-tenant real brokers (Docker).** `FederationProviderTests` runs the real adapter
+against the pinned provider with two test IdP realms (`federation-idp-a`,
+`federation-idp-b`) in the same owned container: two OIDC brokers coexist with the
+closed profile; an unknown address ends in the closed error and creates no account; a
+matching address links only after re-authentication (abandoned confirmation and a wrong
+password link nothing); the brokered ID token carries `idp` and the local one does not;
+the account console, Account REST, deprecated linked-accounts builder and
+`kc_action=idp_link` refuse the brokered session; a disabled broker is not reachable by
+hint (and an enabled hidden one is, the ADR's stated reason for the enablement
+discipline); unusable admin and tenant secrets refuse before any provider request; a
+SAML broker keeps signature validation and a disabled value reads back as drift; egress
+refuses loopback, private and metadata endpoints and admits the allow-listed real
+discovery and JWKS; tenant B cannot read, write or delete tenant A's broker; a changed
+representation is drift; and a controlled proxy holding a PUT past the 2.5 s ceiling
+lands after a later settled write and the next readback detects it.
+`TenantRealmFederationReconciliationTests` proves the fresh import carries every
+invariant with a zero-write reconciliation, a realm built from the pre-Step-3 export
+converges and reruns write nothing twice, and an existing federation secret mismatch
+refuses `secret_conflict` without rotation.
+
+**Architecture.** Five new Standard 21 rules in `FederationAdapterConventionTests`, each
+with a planted control: `Federation_Client_Is_Held_Only_By_The_Adapter`,
+`Federation_Adapter_Admits_Only_The_Enumerated_Routes`,
+`Federation_Adapter_Never_Sends_A_Remote_Url_Import`,
+`Federation_Adapter_Does_Not_Read_DeploymentMode` and
+`Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher`.
+`Federation_Provider_Port_Is_Held_Only_By_The_Runner` now admits exactly the four
+adapter, fetcher, factory and composition files.
+
+**Pinned names verified.** Against the 26.7.5 sources
+(`raw.githubusercontent.com/keycloak/keycloak/26.7.5/...`) and a throwaway 26.7.5 image
+with the pinned digest:
+
+- Admin: `POST /admin/realms/{realm}/identity-provider/instances` (201),
+  `GET|PUT|DELETE …/instances/{alias}` (resolved by id or alias; 404 when absent; a PUT
+  that changes the alias is 400), `GET …/instances/{alias}/mappers`, and both
+  `import-config` forms (`multipart/form-data` with `providerId` and `file`; JSON with
+  `providerId` and `fromUrl`) in `IdentityProvidersResource`. A readback adds
+  `internalId` and `types`, drops empty-string configuration values, and masks
+  `clientSecret`; a PUT without `clientSecret` erases it and the mask keeps it.
+- Flows: `idp-detect-existing-broker-user`, `idp-confirm-link` and
+  `idp-username-password-form` (factory `PROVIDER_ID`s), `conditional-user-configured`
+  and `auth-otp-form` (the stock first-broker listing); `POST authentication/flows`,
+  `POST …/flows/{alias}/executions/execution`, `POST …/executions/flow` and
+  `PUT …/flows/{alias}/executions`. New executions start DISABLED except the
+  re-authentication form, whose only choice is REQUIRED. An unknown address in
+  `IdpDetectExistingBrokerUserAuthenticator` renders the closed
+  `FEDERATED_IDENTITY_UNAVAILABLE` error and creates no user.
+- Import: declaring `requiredActions` replaces the stock list (only the declared actions
+  and `delete_account` remain), so the export lists all fourteen; declaring
+  `authenticationFlows` still adds the built-in flows. `idp_link` is the stock alias.
+- The federation admin token carries `resource_access.realm-management.roles` =
+  `["manage-identity-providers"]`; `users`, `clients` and `authentication/flows` answer 403.
+- `import-config` on the pinned parser returns `validateSignature=true` for metadata
+  whose `WantAuthnRequestsSigned` is false (the CVE-2026-16443 class is fixed in 26.7.5).
+- A test IdP's ID token carries the issuer of the browser origin that authenticated,
+  not of the token-endpoint origin; `IdpUsernamePasswordForm` pre-fills an editable
+  username and links the account whose credentials are entered.
+
+**Decisions made in this step.**
+
+- **E-1 — Egress ceiling 3 s.** § Bounded egress says "a four-second timeout"; the
+  Step 2 budget gives egress 3 seconds in total for discovery then JWKS. One fetch is
+  bounded by 3 seconds and the runner's shared 3-second budget bounds the phase; the
+  stricter value wins. No body cap was reduced.
+- **E-2 — `import-config` multipart not called.** ADR-0099 admits it; Step 3 does not
+  use it. The port carries no metadata document, the fetcher's hardened parser already
+  yields the three values the profile consumes, and sending tenant XML to the provider's
+  parser adds the surface the CVE-2026-16443 class lived in. Its output would never be
+  forwarded either way.
+- **E-3 — Unreadable owned broker is `Foreign`.** An alias whose marker matches but whose
+  representation no longer reads as an admitted protocol is not adopted, rewritten or
+  deleted by a tenant operation; recovery is the operator sweep (P03-9).
+- **E-4 — Allow-list semantics.** A bare host means port 443; a listed host may resolve
+  to a private or loopback address but never to an unspecified or multicast one; IP
+  literals are never admitted, even listed.
+- **E-5 — Profile choices the ADR leaves open.** SAML: persistent NameID,
+  `allowCreate=true`, `principalType=SUBJECT`, the SP entity identifier stays the realm
+  default; no realm client names an IdP-initiated SSO URL, so an unsolicited response has
+  no target. OIDC: `disableUserInfo` is `true` exactly when no UserInfo endpoint is
+  configured; `forwardParameters` and `prompt` are absent.
+- **E-6 — Composition and resilience.** The real adapter is selected at first resolution
+  through `ISecretProvider`, so the decision follows the secret source; resilience is
+  2.5 s timeout, breaker on, bulkhead 4 with no queue.
+- **E-7 — Account self-service retirement.** As
+  [ADR-0068 Amendment 2](../decisions/0068-development-warm-realm-qualification.md#amendment-2--account-clients-disabled-2026-11-13)
+  records, the three stock-console detachments are superseded. The console graph normalization
+  (`development-realm-stock-console.mjs`) is no longer called; its module and its
+  standalone Node tests remain until a separate cleanup. The seed manifest's
+  `AccountCapability` is removed. `TenantRealmSelfServiceTests` is repurposed to prove
+  the retirement, and the profile, issuance, warm-qualification, stock-baseline and
+  reconciliation tests that relied on the console were updated: historical upgrades now
+  write eighteen more times (twenty-one federation-invariant writes and three retirement
+  edges, less the retired console normalization and grant), the retired console keeps
+  its stock assignments, and the access token no longer carries an `account` audience.
+- **E-8 — Test IdP topology.** The brief asked for an IdP container; the test IdPs are
+  separate realms in the same owned container, reached by the browser through the mapped
+  loopback origin and by the tenant realm's back-channel at `https://localhost:8443`, with
+  the fixture's CA. UserInfo is not configured for these brokers, because the pinned
+  UserInfo endpoint refuses a token whose issuer names the other origin.
+- **E-10 — New service accounts leave default groups.** A realm's configured default
+  groups join a newly created service account. The shared service-client planner now
+  removes those automatic memberships from a client it has just created (as it already
+  removed the automatic default role and `service_account` scope); an existing machine
+  account in any group still refuses. This applies to both machine clients; the
+  warm-legacy realm suite found it.
+- **E-9 — Commit trailer.** Following D-9, work is attributed to the model that wrote it,
+  Claude Opus 5.5, not the Haiku name in the brief.
+
+**Deviations from the brief.**
+
+- SAML is proven at the adapter level (write, conforming readback, signature validation
+  kept, drift on disable) and through the pinned parser, not with a brokered SAML login;
+  both brokered tenants are OIDC.
+- (j) "does not admit a session" belongs to Step 4's host binding; Step 3 proves drift
+  detection only.
+- (k) The 90-second quiet-window serialization is the Step 2 runner's state machine and
+  is proven there against the fake; Step 3 proves with the real provider that a delayed
+  write lands after its caller gave up and that the next readback detects it.
+- Standard 11 needs no further Amendment: its 2026-11-13 Amendment already states the
+  implemented address-class exception and allow-list.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers), on the uncommitted
+working tree over `5c8c4e19`.
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
+| `dotnet format LearnStack.slnx --verify-no-changes --include` (every changed C# file) | exit 0 |
+| Unit (`LearnStack.Tests.Unit`, Release, full) | 4,073 passed, 0 failed, 0 skipped (new: `FederationEgressFetcherTests`, `KeycloakFederationProviderTests`, `FederationCompositionTests`) |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 661 total: 659 passed, 2 failed, 0 skipped (46 min); both failures were Standard 21's published counts (`The_Catalogue_Counts_Its_Own_Rules`, `Every_Implemented_Rule_Names_A_Test_That_Exists`), corrected to 374 methods and 280 Implemented (163 in the assembly). The full suite was not rerun; `CorpusConsistencyTests` and every `Federation*` class then passed, 36 of 36 |
+| Integration, Release: `FederationProviderTests` (Docker) | 10 passed, 0 failed |
+| Integration, Release: `TenancyIdentity.TenantRealm*`, `KeycloakTransportTests`, `KeycloakStartupDiagnosticsTests`, `FederationProviderTests` (Docker) | 86 total: 79 passed and 7 failed on the first full run; the 7 (profile, self-service, three reconciliation and the historical API journey) were corrected, and a rerun of their six classes with the federation classes passed 57 of 57. The classes that passed the first run were not rerun |
+| `python3 scripts/run-realm-node-tests.py` | 13 files, 474 executed passing tests (new `development-realm-federation.test.mjs` 20; plan 93) |
+| `python3 scripts/test-realm-node-gate.py` | 6 tests OK |
+| `node --test` on `development-backchannel`, `development-realm-owner`, `reconcile-development-realm` | 10, 66 and 28 passed |
+| `vitest run` on `demo-lifecycle`, `demo-realm-lifecycle`, `demo-source`, `fixture-support` | 4 files, 293 passed |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,750 fragment links resolve, roadmap structure conforms, 3 delivery-log indexes current |
+
+Not run: the Contract suite (no OpenAPI or SDK surface changed), the full integration
+suite, hosted CI, the A/B layout qualification, and reset-link resumption (ADR-0099 §
+Linking residuals: whether a reset started from the re-authentication form resumes a
+pending link only in the browser holding it). The reset action is still shown on the
+re-authentication form.
+
+**Residual risks.**
+
+- The adapter holds a realm-wide role; confinement is the owner marker and the route set.
+- A delayed write beyond the quiet window is detected only at the next readback.
+- Keycloak's own later token and JWKS fetches follow DNS (Phase 11 egress policy).
+- The re-authentication form links whichever account's credentials are entered; the
+  delegation residual is unchanged.
+- The account console is retired for every realm user; there is no self-service
+  password change, profile edit or unlink.
+
+**Open items.**
+
+- The commits: the stash-pop conflict above needs the maintainer. Intended split:
+  (1) egress fetcher with its unit tests; (2) Keycloak adapter with its stub-server unit
+  tests; (3) composition with its tests; (4) realm export, reconciler, seed manifest,
+  compose and env, with the Node and realm-suite updates; (5) the two-tenant Docker suite
+  and fixture helpers; (6) architecture rules and documentation.
+- Two independent review rounds (ADR-0099 Steps).
+- Reset-link resumption qualification, and removal of the retired console-graph module.
+- CI routing: `scripts/ci-native-tests.py` `KEYCLOAK_FAILURE_CLASSES` does not list the
+  two new Docker classes (`FederationProviderTests`,
+  `TenantRealmFederationReconciliationTests`); CI automation was not changed here.

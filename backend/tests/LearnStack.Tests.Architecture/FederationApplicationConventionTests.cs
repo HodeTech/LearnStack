@@ -25,6 +25,12 @@ public sealed class FederationApplicationConventionTests
         "LearnStack.SharedKernel/Identity/IFederationEgressFetcher.cs",
         "Modules/Identity/LearnStack.Modules.Identity.Application/Federation/FederationOperationRunner.cs",
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Bindings/IdentityFoundationRegistration.cs",
+        // Step 3: the confined adapter and guarded fetcher implement the ports, their factory returns them, and the
+        // composition root selects them (Federation_Client_Is_Held_Only_By_The_Adapter owns the adapter's own rule).
+        "LearnStack.Infrastructure/Identity/Federation/KeycloakFederationProvider.cs",
+        "LearnStack.Infrastructure/Identity/Federation/FederationEgressFetcher.cs",
+        "LearnStack.Infrastructure/Identity/Federation/FederationAdapterFactory.cs",
+        "LearnStack.Api/Composition/FederationComposition.cs",
     ];
 
     [Fact]
@@ -35,7 +41,7 @@ public sealed class FederationApplicationConventionTests
                 && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToDictionary(path => Path.GetRelativePath(SourceScan.SourceRoot, path).Replace(Path.DirectorySeparatorChar, '/'), File.ReadAllText);
         PortOffenders(sources).Should().BeEmpty(
-            "Fix: only FederationOperationRunner calls the federation provider and egress fetcher; the Step 3 adapter is admitted with its own entry (ADR-0099)");
+            "Fix: only FederationOperationRunner calls the federation provider and egress fetcher; the Step 3 adapter, fetcher and composition implement or select them (ADR-0099)");
         var holders = ProductionAssemblies.All().SelectMany(SafeTypes)
             .Where(type => type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .SelectMany(constructor => constructor.GetParameters())

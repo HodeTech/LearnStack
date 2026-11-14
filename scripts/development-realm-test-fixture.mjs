@@ -1,21 +1,23 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { nativeWebScopeDetachmentPath } from './development-realm-plan.mjs';
+import { accountRetirementDetachment } from './development-realm-account.mjs';
 
 // Test-only in-memory provider; production entry points never import this module.
 export const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
 export const secret = 'private-test-source';
+export const federationSecret = 'private-federation-test-source';
 const clone = value => structuredClone(value);
 const omit = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
 // Pinned RepresentationToModel.toModel/removeEmptyString, independently modeled
 // for provider storage instead of echoing the declaration back to the planner.
 const storedMapper = mapper => ({ ...clone(mapper), config: Object.fromEntries(
   Object.entries(mapper.config ?? {}).filter(([, value]) => value !== null && value !== '')) });
-export const manifest = { users: desired.users.map((user, index) => ({
+export const personas = desired.users.filter(user => !user.serviceAccountClientId);
+export const manifest = { users: personas.map((user, index) => ({
   username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName,
   userId: user.attributes.user_id[0], tenantId: user.attributes.tenant_id[0],
   organizationId: user.attributes.organization_id?.[0] ?? null, realmRole: user.realmRoles[0],
-  accountCapability: { clientId: 'account', role: 'manage-account' },
   legacyTenantAttribute: index < 2 ? 'tenant-a' : null,
 })) };
 
@@ -34,9 +36,19 @@ export function provider() {
     clients: desired.clients.map(client => ({ ...clone(client), id: id(),
       protocolMappers: (client.protocolMappers ?? []).map(mapper => ({ ...storedMapper(mapper), id: id() })),
       secret: client.clientId === 'learnstack-web' ? secret : client.secret })),
-    users: desired.users.map(user => ({ ...omit(clone(user), ['realmRoles', 'clientRoles', 'credentials']), id: id(),
+    users: personas.map(user => ({ ...omit(clone(user), ['realmRoles', 'clientRoles', 'credentials']), id: id(),
       requiredActions: [], credentials: [{ id: id(), type: 'password', credentialData: 'retained password metadata' }],
       roles: { realmMappings: user.realmRoles.map(name => ({ id: id(), name, composite: false, clientRole: false })) } })),
+    // The committed import's pinned flow listing, required actions and the federation admin service account.
+    flows: [{ id: id(), alias: 'learnstack-first-broker-login', providerId: 'basic-flow', topLevel: true, builtIn: false }],
+    executions: [
+      [0, 0, 'idp-detect-existing-broker-user', 'REQUIRED'], [0, 1, 'idp-confirm-link', 'REQUIRED'],
+      [0, 2, 'learnstack-first-broker-reauthentication', 'REQUIRED', true], [1, 0, 'idp-username-password-form', 'REQUIRED'],
+      [1, 1, 'learnstack-first-broker-conditional-otp', 'CONDITIONAL', true], [2, 0, 'conditional-user-configured', 'REQUIRED'],
+      [2, 1, 'auth-otp-form', 'REQUIRED'],
+    ].map(([level, index, name, requirement, flow]) => ({ id: id(), level, index, requirement,
+      ...(flow ? { authenticationFlow: true, displayName: name } : { providerId: name, displayName: name }) })),
+    requiredActions: clone(desired.requiredActions),
     roles: desired.roles.realm.map(role => ({ ...clone(role), id: id(), composite: false, clientRole: false })),
     groups: [], memberships: {},
   };
@@ -50,9 +62,10 @@ export function provider() {
       .map(name => state.accountRoles.find(value => value.name === name))]));
   const clientMapping = names => ({ id: state.clients.find(client => client.clientId === 'account').id, client: 'account',
     mappings: names.map(name => clone(state.accountRoles.find(role => role.name === name))) });
-  for (const [index, user] of state.users.entries()) user.roles.clientMappings = {
-    account: clientMapping(desired.users[index].clientRoles.account),
-  };
+  // ADR-0099: the committed import grants personas no account capability, and the default
+  // role keeps view-profile only.
+  state.roleChildren[state.realm.defaultRole.id] = desired.roles.realm.find(role => role.name === state.realm.defaultRole.name)
+    .composites.client.account.map(name => clone(state.accountRoles.find(role => role.name === name)));
   state.scopeMappings = { [`clients/${console.id}`]: { clientMappings: {
     account: clientMapping(['manage-account', 'view-groups']),
   } } };
@@ -74,6 +87,17 @@ export function provider() {
     return [...values.values()].filter(role => role.containerId === state.clients.find(client => client.clientId === 'account').id);
   };
 
+  // The committed import's federation admin client (ADR-0099): its service account is served by
+  // its own endpoints and kept out of the persona census the ordinary planner tests index.
+  const management = { id: id(), clientId: 'realm-management' };
+  const federationRole = { id: id(), name: 'manage-identity-providers', containerId: management.id, clientRole: true, composite: false };
+  const federationClient = state.clients.find(client => client.clientId === 'learnstack-federation-admin');
+  federationClient.secret = federationSecret;
+  const federationMapping = { clientMappings: { 'realm-management': { id: management.id, client: 'realm-management', mappings: [clone(federationRole)] } } };
+  const federationUser = { id: id(), username: 'service-account-learnstack-federation-admin', enabled: true,
+    serviceAccountClientId: 'learnstack-federation-admin', roles: clone(federationMapping) };
+  state.federation = { management, role: federationRole, client: federationClient, user: federationUser };
+  state.scopeMappings ??= {};
   const writes = [];
   const reads = [];
   const canEdit = attribute => attribute.permissions?.edit?.includes('admin') === true;
@@ -103,7 +127,18 @@ export function provider() {
     const url = new URL(path, 'http://provider/');
     const parts = url.pathname.slice(1).split('/').map(decodeURIComponent);
     let value;
-    if (path === '') value = state.realm;
+    const federation = state.federation;
+    if (path === 'clients?clientId=realm-management&max=2') value = [federation.management];
+    else if (path === `clients/${federation.management.id}/roles/manage-identity-providers`) value = federation.role;
+    else if (path === `clients/${federation.client.id}`) value = omit(federation.client, ['protocolMappers', 'secret']);
+    else if (path === `clients/${federation.client.id}/scope-mappings`) value = clone(federationMapping);
+    else if (path === `clients/${federation.client.id}/service-account-user`)
+      value = omit(federation.user, ['roles', 'serviceAccountClientId']);
+    else if (path === `users/${federation.user.id}/groups?first=0&max=1`) value = [];
+    else if (path === `users/${federation.user.id}/role-mappings`) value = federation.user.roles;
+    else if (path === `users/${federation.user.id}/role-mappings/clients/${federation.management.id}/composite`)
+      value = federation.user.roles.clientMappings?.['realm-management']?.mappings ?? [];
+    else if (path === '') value = state.realm;
     else if (path === 'events/config') value = state.eventsConfig;
     else if (path === 'events?first=0&max=1') value = state.eventHistory.slice(0, 1);
     else if (path === 'users/profile') value = state.profile;
@@ -152,6 +187,11 @@ export function provider() {
         value = parts[5] === 'composite' ? effectiveAccountRoles(user) : user.roles?.clientMappings?.account?.mappings ?? [];
       else value = parts[2] === 'credentials' ? user.credentials : parts[2] === 'role-mappings' ? user.roles : projectUser(user);
     } else if (parts[0] === 'roles-by-id') value = state.roleChildren[parts[1]] ?? [];
+    else if (path === 'authentication/flows') value = state.flows;
+    else if (parts[0] === 'authentication' && parts[1] === 'flows' && parts[3] === 'executions')
+      value = state.flows.some(flow => flow.alias === parts[2]) ? state.executions : undefined;
+    else if (parts[0] === 'authentication' && parts[1] === 'required-actions')
+      value = state.requiredActions.find(action => action.alias === parts[2]);
     else if (parts.at(-1) === 'scope-mappings') value = state.scopeMappings[parts.slice(0, -1).join('/')] ?? {};
     else if (parts[0] === 'roles') value = state.roles.find(role => role.name === parts[1]);
     else if (path === 'client-scopes') value = state.scopes;
@@ -189,6 +229,10 @@ export function provider() {
         state.realm[key] = clone(body[key]);
     }
     else if (path === 'users/profile') state.profile = clone(body);
+    else if (parts[0] === 'authentication' && parts[1] === 'required-actions')
+      Object.assign(state.requiredActions.find(action => action.alias === parts[2]), clone(body));
+    else if (parts[0] === 'authentication' && parts[1] === 'flows')
+      Object.assign(state.executions.find(execution => execution.id === body.id), { requirement: body.requirement });
     else if (parts[0] === 'users') {
       const user = state.users.find(entry => entry.id === parts[1]);
       const readonly = Object.fromEntries(Object.entries(user.attributes ?? {}).filter(([name]) => {
@@ -246,6 +290,25 @@ export function provider() {
       state.scopes.find(scope => scope.id === parts[1]).protocolMappers.push({ ...storedMapper(body), id: id() });
     else if (parts[0] === 'clients' && parts[2] === 'protocol-mappers')
       state.clients.find(client => client.id === parts[1]).protocolMappers.push({ ...storedMapper(body), id: id() });
+    else if (path === 'authentication/flows') {
+      if (state.flows.some(flow => flow.alias === body.alias)) return { status: 409 };
+      state.flows.push({ ...clone(body), id: id() });
+      state.executions = [];
+    } else if (parts[0] === 'authentication' && parts[1] === 'flows') {
+      // Pinned execution listing: depth-first, a new step DISABLED unless REQUIRED is its only choice.
+      const parent = state.executions.findIndex(value => value.displayName === parts[2]);
+      const level = parent === -1 ? 0 : state.executions[parent].level + 1;
+      let at = parent === -1 ? state.executions.length : parent + 1;
+      let index = 0;
+      while (at < state.executions.length && (parent === -1 || state.executions[at].level > state.executions[parent].level)) {
+        if (state.executions[at].level === level) index++;
+        at++;
+      }
+      if (parent === -1) index = state.executions.filter(value => value.level === 0).length;
+      state.executions.splice(at, 0, { id: id(), level, index,
+        requirement: body.provider === 'idp-username-password-form' ? 'REQUIRED' : 'DISABLED',
+        ...(parts[4] === 'flow' ? { authenticationFlow: true, displayName: body.alias } : { providerId: body.provider, displayName: body.provider }) });
+    }
     else if (path === 'partialImport') {
       assert.equal(body.ifResourceExists, 'FAIL');
       assert.deepEqual(Object.keys(body).sort(), ['ifResourceExists', 'users']);
@@ -254,7 +317,7 @@ export function provider() {
       state.users.push({ ...omit(clone(user), ['credentials', 'realmRoles', 'clientRoles']), id: id(), requiredActions: [],
         credentials: [{ id: id(), type: 'password' }],
         roles: { realmMappings: user.realmRoles.map(name => clone(state.roles.find(role => role.name === name))),
-          clientMappings: { account: clientMapping(user.clientRoles.account) } } });
+          ...(user.clientRoles ? { clientMappings: { account: clientMapping(user.clientRoles.account) } } : {}) } });
       return { status: 200, body: { added: 1, overwritten: 0, skipped: 0,
         results: [{ action: 'ADDED', resourceType: 'USER', resourceName: user.username, id: state.users.at(-1).id }] } };
     }
@@ -269,7 +332,19 @@ export function provider() {
     } else throw new Error('unhandled fixture POST');
     return { status: 201 };
   };
-  const remove = async path => {
+  const remove = async (path, body) => {
+    const parts = path.split('/').map(decodeURIComponent);
+    if (parts[0] === 'roles-by-id' && parts[2] === 'composites') {
+      state.roleChildren[parts[1]] = state.roleChildren[parts[1]].filter(role => !body.some(value => value.id === role.id));
+      writes.push({ method: 'DELETE', path, body: clone(body) });
+      return 204;
+    }
+    if (parts[0] === 'users' && parts[2] === 'role-mappings' && parts[3] === 'clients') {
+      const mapping = state.users.find(user => user.id === parts[1]).roles.clientMappings.account;
+      mapping.mappings = mapping.mappings.filter(role => !body.some(value => value.id === role.id));
+      writes.push({ method: 'DELETE', path, body: clone(body) });
+      return 204;
+    }
     const web = state.clients.find(client => client.clientId === 'learnstack-web');
     const legacy = state.scopes.find(scope => scope.name === 'learnstack-tenant-api');
     assert.equal(path, `clients/${encodeURIComponent(web.id)}/default-client-scopes/${encodeURIComponent(legacy.id)}`);
@@ -279,7 +354,8 @@ export function provider() {
     return 204;
   };
   return { state, writes, reads, admin: { get, put, post, delete: remove,
-    detachNativeWebScope: binding => remove(nativeWebScopeDetachmentPath(binding)) } };
+    detachNativeWebScope: binding => remove(nativeWebScopeDetachmentPath(binding)),
+    detachAccountGrant: binding => { const { path, body } = accountRetirementDetachment(binding); return remove(path, body); } } };
 }
 
 /** Exercise the real core and planner against the same independent test state. */
@@ -306,11 +382,12 @@ export async function stockProvider() {
   state.roles.push(clone(stock.capture['roles/offline_access']));
   state.scopeMappings = Object.fromEntries(Object.entries(stock.capture)
     .filter(([path]) => path.endsWith('/scope-mappings')).map(([path, value]) => [path.slice(0, -'/scope-mappings'.length), clone(value)]));
-  for (const user of state.users) {
-    const mapping = user.roles.clientMappings.account;
-    mapping.id = stock.account.id;
-    mapping.mappings = mapping.mappings.map(role => omit(clone(state.accountRoles.find(value => value.name === role.name)), ['attributes']));
-  }
+  // The historical (pre-ADR-0099) realm: each persona holds a direct manage-account grant and
+  // the default role carries manage-account; both retire on reconciliation.
+  const legacyGrant = () => omit(clone(state.accountRoles.find(value => value.name === 'manage-account')), ['attributes']);
+  for (const user of state.users)
+    user.roles.clientMappings = { account: { id: stock.account.id, client: 'account', mappings: [legacyGrant()] } };
+  state.roleChildren[state.realm.defaultRole.id] = [legacyGrant()];
   fixture.admin.get = async path => {
     const parts = path.split('/');
     if (parts[0] === 'clients' && parts.length === 2 && [stock.account.id, stock.console.id].includes(parts[1])) {
@@ -330,17 +407,11 @@ export async function stockProvider() {
     }
     return originalGet(path);
   };
-  fixture.admin.delete = async path => {
-    const match = /^clients\/([^/]+)\/(default|optional)-client-scopes\/([^/]+)$/.exec(path);
-    assert.ok(match && match[1] === stock.console.id);
-    const scope = state.scopes.find(scope => scope.id === match[3]);
-    assert.ok(scope);
-    const client = state.clients.find(client => client.id === stock.console.id);
-    const key = `${match[2]}ClientScopes`;
-    assert.ok(client[key].includes(scope.name));
-    client[key] = client[key].filter(name => name !== scope.name);
-    writes.push({ method: 'DELETE', path });
-    return 204;
+  // ADR-0099 retires the console graph normalization: no console scope deletion is admitted.
+  const originalDelete = fixture.admin.delete;
+  fixture.admin.delete = async (path, body) => {
+    assert.ok(!/^clients\/[^/]+\/(default|optional)-client-scopes\//.test(path), 'no console assignment is deleted');
+    return originalDelete(path, body);
   };
   return { ...fixture, stock };
 }
@@ -368,7 +439,7 @@ export function providerTransport(fixture) {
     if (url.pathname === '/admin/serverinfo') return response(200, { systemInfo: { version: '26.7.5' } });
     assert.ok(url.pathname.startsWith('/admin/realms/learnstack/'));
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
-    if (options.method === 'DELETE') return response(await fixture.admin.delete(path));
+    if (options.method === 'DELETE') return response(await fixture.admin.delete(path, options.json));
     if (options.method === 'PUT') {
       const status = await fixture.admin.put(path, options.json);
       return response(status, path === 'users/profile' && status === 200 ? fixture.state.profile : undefined);

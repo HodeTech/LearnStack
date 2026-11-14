@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**364 test methods run in
+**374 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**275 rules in this catalogue are Implemented, and 158 of them are in that assembly.**
+**280 rules in this catalogue are Implemented, and 163 of them are in that assembly.**
 The other 117 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -7484,8 +7484,8 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
 
 **Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
 Canonical names for ADR-0099's new obligations are assigned with the step that
-introduces them. Step 1 introduces two and Step 2 five, the last two from its review
-rounds; the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
+introduces them. Step 1 introduces two, Step 2 five (the last two from its review
+rounds) and Step 3 five; the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
 the new subjects unchanged (Step 2 extends the authenticated HTTP census with a runner
 handoff for the federation controller and the public census with the Identity-owned
 sign-in read). The
@@ -7527,11 +7527,14 @@ sign-in read). The
 
 #### `Federation_Provider_Port_Is_Held_Only_By_The_Runner`
 
-- **Asserts:** only the port declarations, `FederationOperationRunner` and the
-  fail-closed Identity registration name `IFederationProvider` or
-  `IFederationEgressFetcher` in production source, and no production type other than
-  the runner takes either port by constructor injection. The Step 3 adapter is admitted
-  by its own entry when it lands.
+- **Asserts:** only the port declarations, `FederationOperationRunner`, the
+  fail-closed Identity registration and, since Step 3, the four files that implement,
+  return or select the real adapter and fetcher (`KeycloakFederationProvider`,
+  `FederationEgressFetcher`, `FederationAdapterFactory`, the API
+  `FederationComposition`) name `IFederationProvider` or `IFederationEgressFetcher` in
+  production source, and no production type other than the runner takes either port
+  by constructor injection. The adapter's own confinement is
+  `Federation_Client_Is_Held_Only_By_The_Adapter`.
 - **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
   and § Architecture Tests.
 - **Type:** source scan plus reflection over production assemblies, with a planted
@@ -7612,3 +7615,74 @@ sign-in read). The
   [OpenApiContractTests.Federation.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.Federation.cs),
   [FederationOperationRunnerTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/FederationOperationRunnerTests.cs).
 - **Phase:** 03 (P03-8 Step 2, review round 2).
+
+#### `Federation_Client_Is_Held_Only_By_The_Adapter`
+
+- **Asserts:** the literal client identifier `learnstack-federation-admin` appears in
+  production source only in `KeycloakFederationRoutes`, and the secret key
+  `Federation:ClientSecret` only in `KeycloakFederationProvider`; every other caller
+  reaches the adapter through `FederationAdapterFactory`, so no other code holds the
+  federation admin client or its credential.
+- **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
+  and § Architecture Tests ("no other code holds a federation client").
+- **Type:** source scan with planted holders in the API and the Identity Application.
+  **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Adapter_Admits_Only_The_Enumerated_Routes`
+
+- **Asserts:** `KeycloakFederationRoutes` builds exactly four routes (token, the
+  identity-provider collection, one owned instance and its mappers), and no string
+  literal in the adapter namespace names another Admin, identity-provider,
+  authentication, user, client or role path. The unit test
+  `KeycloakFederationProviderTests.Every_admitted_request_targets_the_enumerated_routes_only`
+  checks the same set behaviourally against a scripted provider.
+- **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
+  ("the adapter admits only the enumerated calls and aliases").
+- **Type:** reflection plus source scan, with planted routes. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs);
+  [KeycloakFederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/KeycloakFederationProviderTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Adapter_Never_Sends_A_Remote_Url_Import`
+
+- **Asserts:** no production source spells `fromUrl` (any case or separator), so
+  Keycloak is never handed a URL to fetch through the JSON `import-config` form.
+- **Source:** [ADR-0099 § Bounded egress](../decisions/0099-confined-tenant-federation.md#bounded-egress)
+  and § Architecture Tests ("no `fromUrl`").
+- **Type:** source scan with planted controls. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Adapter_Does_Not_Read_DeploymentMode`
+
+- **Asserts:** no source in `LearnStack.Infrastructure.Identity.Federation` names
+  `DeploymentMode`, and no field or constructor parameter of its types has that type;
+  the composition root alone selects the adapter and the Development loopback rule.
+- **Source:** [ADR-0099 § Bounded egress](../decisions/0099-confined-tenant-federation.md#bounded-egress)
+  ("modules never read `DeploymentMode`"), [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
+- **Type:** source scan and reflection, with a planted read. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher`
+
+- **Asserts:** in the federation adapter namespace and the Identity federation
+  sources, only `FederationEgressFetcher` (tenant URLs) and `KeycloakFederationProvider`
+  (the fixed provider origin) construct an HTTP client, handler, socket or TLS stream
+  or call an HTTP send method.
+- **Source:** [ADR-0099 § Architecture Tests](../decisions/0099-confined-tenant-federation.md#architecture-tests)
+  ("the egress fetcher is the only tenant-URL fetcher").
+- **Type:** source scan with planted fetchers. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`). The egress rules
+  themselves are behavioural, in
+  [FederationEgressFetcherTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/FederationEgressFetcherTests.cs)
+  and the Docker suite
+  [FederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FederationProviderTests.cs).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).

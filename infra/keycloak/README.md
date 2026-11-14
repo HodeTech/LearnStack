@@ -46,9 +46,9 @@ The selected private environment must add an independent
 creates `learnstack-event-reader`, a confidential service account with no browser,
 password or full-scope flow, no inherited client scopes and only the
 `realm-management/view-events` role/scope binding. The pinned provider's automatic
-`service_account` scope and newly-created default realm-role assignment are removed
-from this client only. A separate local mapper emits only its admitted event role.
-An existing secret mismatch or excess role/scope/mapper refuses; no silent rotation
+`service_account` scope, newly-created default realm-role assignment and automatic
+default-group memberships are removed from this client only. A separate local
+mapper emits only its admitted event role. An existing secret mismatch or excess role/scope/mapper refuses; no silent rotation
 or deletion of an existing account's permissions is performed.
 
 Configure the API independently:
@@ -185,7 +185,7 @@ manual ledger deletion, history reset, reduced retention or tenant-copy purge.
 
 | Realm | Population | Clients |
 |-------|------------|---------|
-| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader |
+| `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader; `learnstack-federation-admin`: confined federation adapter ([below](#federation-administration-client)); `account` and `account-console`: retired, disabled |
 | `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE; unchanged by P02b-6 |
 
 [SeedData.IdentityUsers](../../backend/src/LearnStack.Tools.Seeder/SeedData.cs)
@@ -199,12 +199,11 @@ against it, including the host's default organization where applicable.
   default organization is included in its identity claims.
 - Fresh development accounts use `demo-dev-secret`. Existing passwords, provider
   account IDs, MFA, required actions and unrelated attributes are not reset.
-- The four personas declare only the built-in `account/manage-account`
-  self-service capability in addition to their existing inert realm roles.
-  This permits owner credential/linked-account management; it grants no
-  LearnStack permission or membership. The
-  [approved adjustment](../../docs/roadmap/phase-02b-delivery-log.md#account-console-self-service-capability--proposal-2026-10-21)
-  owns this explicit exception to role-assignment preservation.
+- The four personas hold only their inert realm roles. The account-console
+  self-service capability the
+  [earlier adjustment](../../docs/roadmap/phase-02b-delivery-log.md#account-console-self-service-capability--proposal-2026-10-21)
+  granted is retired by [ADR-0099](../../docs/decisions/0099-confined-tenant-federation.md):
+  see [Account self-service retirement](#account-self-service-retirement).
 - The operator account remains `demo-operator@learnstack.test`; its separate
   realm is untouched. Neither realm's token is accepted by the other surface.
 
@@ -586,12 +585,11 @@ The Hub realm retains its own settings.
 
 Existing realm roles and `fullScopeAllowed: true` remain a development posture;
 the API derives no membership, permission or platform authority from them.
-The web client's retained roles scope can put the `account` audience and eligible
-account roles into its access token. That token can authorize Keycloak owner
-self-service, including ordinary profile updates; it is not restricted to the
-LearnStack API. The configured issuance lifetime limits token duration, not its
-capability. P02b-7 owns server-side BFF token custody; narrowing this already
-approved development capability requires a separate decision.
+The web client's retained roles scope can still put eligible account roles into
+its access token, but after ADR-0099 no persona and no registration default holds
+`manage-account` or `manage-account-links`, and both account clients are disabled,
+so such a token authorizes no owner self-service. P02b-7 owns server-side BFF token
+custody.
 The tenant export enables open registration with email as username, password
 reset and remember-me, while email verification is disabled. It declares no
 password policy. ADR-0070 enables the selected development identity-event types
@@ -702,19 +700,12 @@ corrections require their own validation and independent reviews. Merge remains
 a separate maintainer action.
 
 Fresh import declares both stock `account` and `account-console` definitions,
-including the stock role/composite and scope-mapping baseline. Warm reconciliation
-does not replace these clients, role definitions or composites. It qualifies
-their existing bounded capability and scope allowance before any mutation,
-adds only a missing named capability for a managed persona and preserves every
-prior mapping. An inherited effective capability needs no redundant grant.
-
-The console receives one fixed-account role emitter in access/introspection
-tokens, retaining its stock S256, audience resolver and restricted full scope.
-It emits no realm/all-client roles or ID/user-info/lightweight-token roles.
-Incompatible role, scope or mapper customization refuses before writes.
-Compatible existing emitters retain their identities. Because the console is
-shared, its mapper may also restore self-service for nonmanifest users already
-holding eligible account roles; their account data and grants stay unchanged.
+including the stock role/composite and scope-mapping baseline, and declares both
+clients disabled (ADR-0099). Warm reconciliation does not replace these clients,
+role definitions or composites; it retires them as described under
+[Account self-service retirement](#account-self-service-retirement). The console's
+fixed-account role emitter stays in the export and is inert while the console is
+disabled; its graph is no longer qualified or normalized.
 
 The accepted warm-upgrade contract preserves nonmanifest accounts, credentials,
 provider IDs and all Hub state. Only known legacy seed attributes are migrated;
@@ -763,6 +754,96 @@ The entire projected change must also fit the existing bounded readers and
 request bodies. Known overflow refuses before preparation. Payload growth revealed
 only by preparation can still refuse the fresh plan, leaving that metadata durable
 with no ordinary mutation. Every ordinary write requires the complete bounded plan.
+
+## Federation administration client
+
+[ADR-0099](../../docs/decisions/0099-confined-tenant-federation.md) adds
+`learnstack-federation-admin`, the confidential service client the API's confined
+federation adapter alone uses. It has no browser, password, implicit or full-scope
+flow, no default or optional client scopes, one local mapper that emits only
+`realm-management` roles into access tokens, and exactly the
+`realm-management/manage-identity-providers` role as its role and scope binding.
+The pinned provider's automatic `service_account` scope, default realm-role
+assignment and default-group memberships are removed from a newly created client
+only. That role is realm-wide;
+LearnStack's adapter confines it to owned aliases (the
+[provider specification](../../docs/modules/identity/providers.md#tenant-federation-adapter)).
+
+- **Secret.** The export carries only the placeholder
+  `${KEYCLOAK_FEDERATION_ADMIN_SECRET}`. Compose requires the variable
+  (`:?`), and the selected private environment must declare
+  `KEYCLOAK_FEDERATION_ADMIN_SECRET` exactly once: 16 to 1,024 bytes, not the
+  provider's mask literal `**********`, not beginning `${`, and distinct from the
+  web, admin and event-reader secrets. Reconciliation refuses with
+  `missing_federation_secret` when it is absent.
+- **API.** The API reads the same value as `Federation__ClientSecret`. When the
+  private file declares both, they must be identical. Without the API value the
+  adapter is not selected and every federation operation reports the dependency
+  unavailable; nothing reaches the provider.
+- **Continuity.** Reconciliation creates the client on a realm that lacks it and
+  verifies an existing one exactly. An existing secret that differs refuses with
+  `secret_conflict`; an extra role, scope, mapper or flow refuses too. Nothing is
+  rotated, repaired or deleted. To rotate, change the provider secret and both
+  private values together through the admin workflow, then rerun reconciliation.
+- **Token.** The adapter refuses any token that is not from this client, this
+  realm and exactly `manage-identity-providers`, before any Admin call.
+
+### Federation realm invariants
+
+Realm reconciliation owns, and the export declares, ADR-0099's realm invariants.
+Each is created when absent, verified exactly when present and never overwritten:
+
+- **`learnstack-first-broker-login`.** A basic top-level flow:
+  `idp-detect-existing-broker-user` (REQUIRED), `idp-confirm-link` (REQUIRED), then
+  the subflow `learnstack-first-broker-reauthentication` (REQUIRED) with
+  `idp-username-password-form` (REQUIRED) and the subflow
+  `learnstack-first-broker-conditional-otp` (CONDITIONAL) with
+  `conditional-user-configured` and `auth-otp-form` (both REQUIRED). There is no
+  create-user, review-profile, email-verification or auto-link step. An asserted
+  address with no existing account ends in the provider's closed error and creates
+  no user; a different existing definition refuses with `flow_conflict`.
+- **`idp_link` disabled.** The application-initiated linking action cannot be
+  started with `kc_action`. Declaring required actions in an import replaces the
+  stock list, so the export declares the complete pinned 26.7.5 list with only
+  `idp_link` changed.
+- **`idp` ID-token claim.** `learnstack-web` carries the
+  `learnstack-identity-provider` user-session-note mapper: note `identity_provider`
+  to claim `idp`, in the ID token only. Any other emitter of `idp` refuses with
+  `mapper_conflict`.
+- **Retired account clients.** See below.
+
+The pinned names (`idp-detect-existing-broker-user`, `idp-confirm-link`,
+`idp-username-password-form`, `conditional-user-configured`, `auth-otp-form`, the
+`idp_link` alias and the Admin flow-execution endpoints) were verified against the
+26.7.5 image and sources; the Phase 03 delivery log records how.
+
+### Account self-service retirement
+
+The `account` and `account-console` clients are disabled, and `manage-account`
+and `manage-account-links` are removed from `default-roles-learnstack` and from the
+four development personas. Password change, profile editing, linked-account
+self-service and the Account REST API are no longer available to any realm user;
+credential recovery uses the provider's reset-credentials flow. There is no
+self-unlink path.
+
+On a warm realm, reconciliation disables both clients with a partial client update
+that carries their web origins and resource-server flag, detaches the two roles
+from the default role's composites and each persona's direct grants, and changes
+nothing else on those clients, their roles or the console's scope graph. A retired
+role reachable through a group or another composite refuses before any write
+(`unsupported`). Registered accounts lose console access through the default role;
+the development personas lose it on their next reconciliation.
+
+### Operator egress allow-list
+
+The API's guarded egress fetcher admits only public, globally routable HTTPS hosts
+on port 443 for tenant-supplied discovery, JWKS and SAML metadata URLs. A tenant
+IdP on a private network or a non-443 port is admitted only by naming it in the
+API configuration `Federation__Egress__AllowedHosts__<n>`: exact `host` (port 443)
+or `host:port`, no wildcard, scheme, path or IP literal, at most 64 entries. The
+API refuses an invalid entry at startup. Tenant input never extends the list.
+Keycloak's own later calls to the configured token and JWKS endpoints follow DNS;
+production egress policy for the Keycloak process belongs to Phase 11.
 
 ## What does not live here
 

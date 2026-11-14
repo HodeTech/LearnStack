@@ -7,7 +7,7 @@ const reasons = new Set([
   'unsupported', 'response', 'status', 'redirect', 'deadline', 'cancelled',
   'transport', 'lock_busy', 'body_limit', 'readback_conflict', 'cleanup',
   'missing_web_secret', 'private_file', 'event_policy_conflict', 'seed_refused',
-  'backchannel_configuration', 'backchannel_conflict',
+  'backchannel_configuration', 'backchannel_conflict', 'missing_federation_secret', 'flow_conflict',
 ]);
 
 /** Neither upstream objects nor arbitrary caller text can become a diagnostic. */
@@ -38,6 +38,10 @@ export function realmFailureNotice(error) {
     message += '\nrealm: selected private environment must be a regular, single-link file owned by the current user with owner-only permissions; use chmod 600 on that file; see infra/keycloak/README.md';
   else if (error.reason === 'missing_web_secret')
     message += '\nrealm: add KEYCLOAK_WEB_CLIENT_SECRET explicitly to the selected private file; see infra/keycloak/README.md';
+  else if (error.reason === 'missing_federation_secret')
+    message += '\nrealm: add KEYCLOAK_FEDERATION_ADMIN_SECRET explicitly to the selected private file; see infra/keycloak/README.md#federation-administration-client';
+  else if (error.reason === 'flow_conflict')
+    message += '\nrealm: inspect the learnstack-first-broker-login flow; it is never overwritten; see infra/keycloak/README.md#federation-realm-invariants';
   else if (error.reason === 'secret_conflict')
     message += '\nrealm: retain the confidential client secret in the selected private file; see infra/keycloak/README.md#secret-continuity-and-recovery';
   else if (error.reason === 'event_policy_conflict')

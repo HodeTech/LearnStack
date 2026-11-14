@@ -10,8 +10,11 @@ eventing → secrets → Dapr sidecar → gateway).
 
 Bring it up with `make dev` from the repo root (the orchestrator copies
 `.env.example` → a private `.env` on first run). Before starting Keycloak,
-prepare `KEYCLOAK_WEB_CLIENT_SECRET` in that selected private source; Compose
-refuses a missing value instead of importing a published fallback. Preserve an
+prepare `KEYCLOAK_WEB_CLIENT_SECRET` and `KEYCLOAK_FEDERATION_ADMIN_SECRET` in that
+selected private source; Compose refuses a missing value instead of importing a
+published fallback. The federation secret is the
+[confined federation admin client](../keycloak/README.md#federation-administration-client)'s
+(ADR-0099); the API reads the same value as `Federation__ClientSecret`. Preserve an
 existing confidential secret and follow the
 [recovery procedure](../keycloak/README.md#secret-continuity-and-recovery) on
 mismatch. Existing file permissions require explicit operator correction.

@@ -49,8 +49,9 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IMembershipAdministrationReader, MembershipAdministrationReader>();
         services.TryAddScoped<IIdentityReceiptReader, IdentityReceiptReader>();
         services.TryAddScoped<IIdentityAdministrationReadStore, IdentityAdministrationReadStore>();
-        // ADR-0099: the connection registry, its authorization and the intent-first runner. Until the federation
-        // admin client and the guarded egress fetcher exist, both ports fail closed: every call is unavailable.
+        // ADR-0099: the connection registry, its authorization and the intent-first runner. Both ports default to
+        // fail-closed implementations (every call unavailable); the API composition root replaces them with the
+        // confined adapter and guarded egress fetcher only when the federation admin client is configured.
         services.TryAddScoped<IFederationConnectionStore, FederationConnectionStore>();
         services.TryAddScoped<IPublicSignInReader, PublicSignInReader>();
         services.TryAddScoped<FederationAuthorization>();

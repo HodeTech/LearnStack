@@ -656,13 +656,49 @@ Every read selects the live connection through `FederationConnectionReads.Live`,
 Activate require the protocol's entitlement (`identity.sso.oidc` or
 `identity.sso.saml`) through `IFeatureFlags`.
 
-Until the federation admin client and the guarded fetcher exist (Step 3), both ports
-are registered with fail-closed defaults that report every call unavailable, so
-Configure refuses `dependency_unavailable` and nothing reaches a provider. The
+Both ports keep fail-closed Identity defaults that report every call unavailable; the
+composition root replaces them with the Step 3 adapter and fetcher only when the
+federation admin client is configured (below). Without it, Configure refuses
+`dependency_unavailable` and nothing reaches a provider. The
 anonymous `GetPublicSignInQuery` exposes the host tenant's Active, entitled alias and
 display name, from LearnStack's database only. The HTTP census is in
 [Standard 04](../../standards/04-api-design.md#tenant-federation-operations); the
 audit matrix in [audit.md](audit.md#tenant-federation).
+
+### Tenant federation provider and realm (P03-8 Step 3)
+
+The confined Keycloak adapter and the guarded egress fetcher live in
+`LearnStack.Infrastructure.Identity.Federation`; their admitted calls, owner marker,
+readback rule, resilience and egress rules are specified in
+[providers.md](providers.md#tenant-federation-adapter). The API composition selects
+them only when `Federation:ClientSecret` is configured; modules never read
+`DeploymentMode`, and the Development loopback-HTTP admission is decided in the
+composition root.
+
+Realm reconciliation owns ADR-0099's realm invariants
+([Keycloak README](../../../infra/keycloak/README.md#federation-realm-invariants)):
+the `learnstack-federation-admin` client, the link-only `learnstack-first-broker-login`
+flow, the disabled `idp_link` action, the retired account clients and the `idp`
+ID-token mapper on `learnstack-web`. Two effects reach every realm user:
+
+- **Account console retired.** The `account` and `account-console` clients are
+  disabled and `manage-account` and `manage-account-links` leave the default role and
+  the development personas. Password change, profile editing, linked-account
+  self-service and the Account REST API are no longer available to any user;
+  credential recovery uses the provider's reset-credentials flow, and Studio holds no
+  self-service substitute. A linked person cannot unlink their own account
+  ([ADR-0099 Q1](../../decisions/0099-confined-tenant-federation.md#implementation-notes)).
+- **Warm upgrade.** An existing realm converges on the next reconciliation: both
+  clients are disabled, the default-role composites and each persona's direct grant are
+  detached, and nothing else on the account client or console is repaired. A retired
+  grant carried by a group or another composite refuses before any write. The
+  development personas therefore lose console access on upgrade; registered users lose
+  it through the default role.
+
+The seed manifest declares no account capability. Brokered sign-in creates no account:
+an asserted address with no existing account ends in the provider's closed error, and
+a matching account links only after its own password (and OTP when configured) is
+entered on the re-authentication form.
 
 ## Entity-relationship diagram
 

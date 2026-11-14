@@ -514,7 +514,11 @@ owns the account-preserving warm upgrade and its named account-console adjustmen
 [ADR-0068](../decisions/0068-development-warm-realm-qualification.md), Accepted —
 2026-10-22, adds bounded profile preparation and three qualified stock-console
 assignment detachments. This deletes named assignment edges, while preserving
-accounts and global definitions. Its [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
+accounts and global definitions. Since P03-8 Step 3,
+[ADR-0068 Amendment 2](../decisions/0068-development-warm-realm-qualification.md#amendment-2--account-clients-disabled-2026-11-13)
+and [ADR-0099](../decisions/0099-confined-tenant-federation.md) retire the account
+console instead: both account clients are disabled and the detachments are no longer
+applied ([realm runbook](../../infra/keycloak/README.md#account-self-service-retirement)). Its [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
 tracks all three locally completed steps and their independent review rounds.
 The preparation owner reuses identity-independent qualifiers, verifies the exact
 profile and discards its projections before complete planning. A later identity

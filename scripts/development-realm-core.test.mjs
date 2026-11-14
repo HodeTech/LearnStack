@@ -496,12 +496,11 @@ test('an exact 512 KiB version document reaches planning only after the complete
   const body = JSON.stringify({ systemInfo: { version: '26.7.5' }, padding: ' '.repeat(512 * 1024 - Buffer.byteLength(base)) });
   assert.equal(Buffer.byteLength(body), 512 * 1024);
   const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
-  const manifest = { users: desired.users.map(user => ({ username: user.username, email: user.email,
+  const manifest = { users: desired.users.filter(user => !user.serviceAccountClientId).map(user => ({ username: user.username, email: user.email,
     firstName: user.firstName, lastName: user.lastName,
     realmRole: user.realmRoles[0],
     userId: user.attributes.user_id[0], tenantId: user.attributes.tenant_id[0],
-    organizationId: user.attributes.organization_id?.[0] ?? null,
-    accountCapability: { clientId: 'account', role: 'manage-account' } })) };
+    organizationId: user.attributes.organization_id?.[0] ?? null })) };
   const f = await fixture(t, { version: { body }, desired, manifest });
   // This deliberately has no realm state: reaching the first read witnesses
   // accepted version admission without inventing a successful reconciliation.
@@ -512,140 +511,93 @@ test('an exact 512 KiB version document reaches planning only after the complete
 });
 
 
-test('the actual core removes only three qualified console assignments and converges without a marker', async () => {
+test('the actual core retires the historical account console in five qualified writes and reruns read only', async () => {
   const fixture = await stockProvider();
   const before = structuredClone(fixture.state);
   const recording = providerTransport(fixture);
-  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 4 });
-  const removed = fixture.writes.filter(write => write.method === 'DELETE');
-  assert.deepEqual(removed.map(write => write.path).sort(), [
-    `${fixture.stock.base}/default-client-scopes/${fixture.stock.capture[fixture.stock.scopePath('roles')].id}`,
-    ...['microprofile-jwt', 'offline_access'].map(name =>
-      `${fixture.stock.base}/optional-client-scopes/${fixture.stock.capture[fixture.stock.scopePath(name)].id}`),
-  ].sort());
-  assert.equal(fixture.writes.filter(write => write.method === 'POST').length, 1);
-  assert.ok(fixture.writes.filter(write => write.method === 'POST')
-    .every(write => write.path === `${fixture.stock.base}/protocol-mappers/models`));
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 7 });
+  const writes = fixture.writes.map(write => [write.method, write.path.split('/')[0]]);
+  assert.deepEqual(writes.filter(([method]) => method === 'PUT'), [['PUT', 'clients'], ['PUT', 'clients']]);
+  assert.deepEqual(writes.filter(([method]) => method === 'DELETE'), [['DELETE', 'roles-by-id'],
+    ...fixture.state.users.map(() => ['DELETE', 'users'])]);
+  for (const name of ['account', 'account-console'])
+    assert.equal(fixture.state.clients.find(client => client.clientId === name).enabled, false);
+  assert.deepEqual(fixture.state.roleChildren[fixture.state.realm.defaultRole.id], []);
+  for (const user of fixture.state.users) assert.deepEqual(user.roles.clientMappings.account.mappings, []);
   const console = fixture.state.clients.find(client => client.clientId === 'account-console');
   const expectedConsole = before.clients.find(client => client.clientId === 'account-console');
-  expectedConsole.defaultClientScopes = expectedConsole.defaultClientScopes.filter(name => name !== 'roles');
-  expectedConsole.optionalClientScopes = expectedConsole.optionalClientScopes.filter(name => !['microprofile-jwt', 'offline_access'].includes(name));
-  expectedConsole.protocolMappers.push(structuredClone(console.protocolMappers.at(-1)));
-  assert.deepEqual(fixture.state, before, 'global definitions, other assignments, users and grants are preserved');
-  assert.equal(console.defaultClientScopes.length, 5);
-  assert.equal(console.optionalClientScopes.length, 3);
+  assert.deepEqual(console.defaultClientScopes, expectedConsole.defaultClientScopes, 'the retired graph is not normalized');
+  assert.deepEqual(console.optionalClientScopes, expectedConsole.optionalClientScopes);
+  assert.deepEqual(console.protocolMappers, expectedConsole.protocolMappers);
   assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
-  assert.equal(fixture.writes.length, 4);
+  assert.equal(fixture.writes.length, 7);
 });
 
-test('partial assignment deletion commits are never replayed and explicit reruns requalify the remaining edges', async () => {
-  for (const outcome of [200, 201, 202, 409, 500, 'lost_ack', 'cancelled']) {
-    for (const ordinal of [1, 2, 3]) {
+test('partial retirement commits are never replayed and explicit reruns finish only the remaining edges', async () => {
+  for (const outcome of [500, 'lost_ack', 'cancelled']) {
+    for (const ordinal of [1, 3, 5]) {
       const fixture = await stockProvider();
       const recording = providerTransport(fixture);
       const stop = new AbortController();
       let seen = 0;
-      let failedPath;
       const transport = async (url, options) => {
         const response = await recording.transport(url, options);
-        if (options.method === 'DELETE' && ++seen === ordinal) {
-          failedPath = url.pathname;
+        if (['PUT', 'DELETE'].includes(options.method) && ++seen === ordinal) {
           if (outcome === 'lost_ack') throw new Error(privateCanary);
           if (outcome === 'cancelled') { stop.abort(); return response; }
           return { status: outcome, bytes: Buffer.alloc(0) };
         }
         return response;
       };
-      const input = { ...memoryInput(transport), signal: stop.signal };
       const reason = outcome === 'lost_ack' ? 'response' : outcome === 'cancelled' ? 'cancelled' : 'status';
-      await assert.rejects(reconcileRealm(input), refusal('apply', reason));
+      await assert.rejects(reconcileRealm({ ...memoryInput(transport), signal: stop.signal }), refusal('apply', reason));
       assert.equal(fixture.writes.length, ordinal, 'the owner stops at the exact uncertain durable prefix');
-      assert.equal(recording.requests.some(request => request.stage === 'readback'), false);
-      const firstFreshRead = fixture.reads.length;
-      assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 4 - ordinal });
-      assert.equal(recording.requests.filter(request => request.method === 'DELETE'
-        && request.path === failedPath).length, 1, 'the durable deletion is never replayed');
-      assert.equal(recording.requests.filter(request => request.method === 'DELETE').length, 3);
-      assert.equal(new Set(recording.requests.filter(request => request.method === 'DELETE').map(request => request.path)).size, 3);
-      assert.equal(fixture.reads.slice(firstFreshRead).some(path => path.startsWith('roles-by-id/')
-        && !path.endsWith('/composites')), ordinal < 3,
-      'only a remaining incompatible edge enters stock qualification; the final edge hands off to compatible mode');
-      const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-      assert.equal(console.defaultClientScopes.length, 5);
-      assert.equal(console.optionalClientScopes.length, 3);
+      assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 7 - ordinal });
       assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
-      assert.equal(fixture.writes.length, 4);
+      assert.equal(fixture.writes.length, 7);
     }
   }
 });
 
-test('every incompatible subset hands its last deletion to compatible preservation on the next pass', async () => {
-  for (let mask = 1; mask < 8; mask++) {
-    const fixture = await stockProvider();
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    if (!(mask & 1)) console.defaultClientScopes = console.defaultClientScopes.filter(name => name !== 'roles');
-    console.optionalClientScopes = console.optionalClientScopes.filter(name =>
-      (name !== 'microprofile-jwt' || mask & 2) && (name !== 'offline_access' || mask & 4));
-    const remaining = [1, 2, 4].filter(bit => mask & bit).length;
-    const recording = providerTransport(fixture);
-    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: remaining + 1 });
-    assert.equal(fixture.writes.filter(write => write.method === 'DELETE').length, remaining);
-    assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
-    assert.equal(console.defaultClientScopes.length, 5);
-    assert.equal(console.optionalClientScopes.length, 3);
-  }
+test('a retired grant carried by a group refuses before any write and keeps the group', async () => {
+  const fixture = await stockProvider();
+  const user = fixture.state.users[0];
+  fixture.state.groups.push({ id: 'legacy-console-group', name: 'Console', attributes: {}, clientRoles: { account: ['manage-account'] } });
+  fixture.state.memberships[user.id] = ['legacy-console-group'];
+  user.roles.clientMappings.account.mappings = [];
+  const recording = providerTransport(fixture);
+  await assert.rejects(reconcileRealm(memoryInput(recording.transport)), refusal('plan', 'unsupported'));
+  assert.deepEqual(fixture.writes, []);
 });
 
-test('a compatible customized graph wins before the stock-name exception and keeps every assignment', async () => {
-  const fixture = await stockProvider();
-  const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-  console.optionalClientScopes = console.optionalClientScopes.filter(name => !['microprofile-jwt', 'offline_access'].includes(name));
-  const roles = fixture.state.scopes.find(scope => scope.name === 'roles');
-  roles.description = 'retained compatible customization';
-  roles.protocolMappers = roles.protocolMappers.filter(mapper => mapper.protocolMapper === 'oidc-audience-resolve-mapper');
-  console.protocolMappers = [];
-  const before = structuredClone(roles);
-  const defaults = structuredClone(console.defaultClientScopes);
+test('an already retired realm converges without touching the console definition', async () => {
+  const fixture = provider();
+  const before = structuredClone(fixture.state);
+  const recording = providerTransport(fixture);
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  assert.deepEqual(fixture.state, before);
+});
+
+test('a re-enabled account console is disabled again with a partial client update', async () => {
+  const fixture = provider();
+  const account = fixture.state.clients.find(client => client.clientId === 'account');
+  account.enabled = true;
+  account.authorizationServicesEnabled = true;
   const recording = providerTransport(fixture);
   assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 1 });
-  assert.equal(fixture.writes.some(write => write.method === 'DELETE'), false);
-  assert.deepEqual(roles, before);
-  assert.deepEqual(console.defaultClientScopes, defaults);
-  assert.equal(fixture.reads.some(path => path.startsWith('roles-by-id/') && !path.endsWith('/composites')), false,
-    'the extra stock qualifier does not run for the compatible customized graph');
-  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 0 });
+  assert.deepEqual(Object.keys(fixture.writes[0].body).sort(), ['authorizationServicesEnabled', 'enabled', 'webOrigins']);
+  assert.equal(fixture.writes[0].body.authorizationServicesEnabled, true, 'the resource server flag is carried, never cleared');
+  assert.equal(account.enabled, false);
 });
 
-test('stock graph transport or response failures never authorize any pending mutation', async () => {
-  for (const kind of ['transport', 'status', 'json']) {
-    const fixture = await stockProvider();
-    fixture.state.realm.accessTokenLifespan = 1800;
-    const recording = providerTransport(fixture);
-    let reached = false;
-    const transport = async (url, options) => {
-      if (/\/roles-by-id\/[^/]+$/.test(url.pathname)) {
-        reached = true;
-        if (kind === 'transport') throw new Error(privateCanary);
-        return { status: kind === 'status' ? 503 : 200, bytes: Buffer.from(kind === 'json' ? '{' : '{}') };
-      }
-      return recording.transport(url, options);
-    };
-    await assert.rejects(reconcileRealm(memoryInput(transport)), refusal('plan', kind === 'status' ? 'status' : 'response'));
-    assert.equal(reached, true);
-    assert.deepEqual(fixture.writes, []);
-  }
-});
-
-test('stock normalization refuses a pending ordinary repair of its unchanged global baseline', async () => {
-  const fixture = await stockProvider();
+test('a default-role retired grant alone is detached as one exact composite edge', async () => {
+  const fixture = provider();
+  const role = fixture.state.accountRoles.find(value => value.name === 'manage-account-links');
+  fixture.state.roleChildren[fixture.state.realm.defaultRole.id].push(structuredClone(role));
   const recording = providerTransport(fixture);
-  const input = memoryInput(recording.transport);
-  const basic = input.desired.clientScopes.find(scope => scope.name === 'basic');
-  basic.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-sub-mapper').config['introspection.token.claim'] = 'false';
-  await assert.rejects(reconcileRealm(input), refusal('plan', 'unsupported'));
-  assert.ok(fixture.reads.some(path => path.startsWith('roles-by-id/') && !path.endsWith('/composites')),
-    'the independently qualified stock path is reached before rejecting the conflicting projected delta');
-  assert.deepEqual(fixture.writes, []);
+  assert.deepEqual(await reconcileRealm(memoryInput(recording.transport)), { mutations: 1 });
+  assert.deepEqual(fixture.writes[0].body.map(value => value.name), ['manage-account-links']);
+  assert.deepEqual(fixture.state.roleChildren[fixture.state.realm.defaultRole.id].map(value => value.name), ['view-profile']);
 });
 
 function preparationProvider() {

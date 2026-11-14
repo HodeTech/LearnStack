@@ -53,7 +53,7 @@ public sealed partial class TenantRealmExportTests
         ["LOGIN", "LOGIN_ERROR", "LOGOUT", "LOGOUT_ERROR", "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "REFRESH_TOKEN", "REFRESH_TOKEN_ERROR"];
     private static readonly string[] StockAccountRoles =
         ["view-profile", "manage-account", "manage-account-links", "view-applications", "view-consent", "manage-consent", "delete-account", "view-groups"];
-    private static readonly string[] StockDefaultAccountRoles = ["view-profile", "manage-account"];
+    private static readonly string[] RetiredDefaultAccountRoles = ["view-profile"];
     private static readonly string[] StockConsoleScopeRoles = ["manage-account", "view-groups"];
     private static readonly string[] UnsafeOptionalDestinations =
     [
@@ -107,8 +107,35 @@ public sealed partial class TenantRealmExportTests
             ("console dynamic role mapper", realm => Client(realm, "account-console")["protocolMappers"]![1]!["config"]!
                 .AsObject().Remove("usermodel.clientRoleMapping.clientId")),
             ("console ID token roles", realm => Client(realm, "account-console")["protocolMappers"]![1]!["config"]!["id.token.claim"] = "true"),
-            ("missing account grant", realm => realm["users"]![0]!.AsObject().Remove("clientRoles")),
-            ("wider account grant", realm => realm["users"]![0]!["clientRoles"]!["account"]!.AsArray().Add("view-profile")),
+            ("persona account grant", realm => realm["users"]![0]!["clientRoles"] = new JsonObject { ["account"] = new JsonArray("manage-account") }),
+            ("enabled account client", realm => Client(realm, "account")["enabled"] = true),
+            ("enabled account console", realm => Client(realm, "account-console")["enabled"] = true),
+            ("default account management", realm => realm["roles"]!["realm"]!.AsArray()
+                .Single(role => Text(role?["name"]) == "default-roles-learnstack")!["composites"]!["client"]!["account"]!.AsArray().Add("manage-account")),
+            ("default account links", realm => realm["roles"]!["realm"]!.AsArray()
+                .Single(role => Text(role?["name"]) == "default-roles-learnstack")!["composites"]!["client"]!["account"]!.AsArray().Add("manage-account-links")),
+            ("missing federation client", realm => realm["clients"]!.AsArray().Remove(Client(realm, "learnstack-federation-admin"))),
+            ("literal federation secret", realm => Client(realm, "learnstack-federation-admin")["secret"] = "unowned-federation-source"),
+            ("federation full scope", realm => Client(realm, "learnstack-federation-admin")["fullScopeAllowed"] = true),
+            ("federation browser flow", realm => Client(realm, "learnstack-federation-admin")["standardFlowEnabled"] = true),
+            ("federation default scope", realm => Client(realm, "learnstack-federation-admin")["defaultClientScopes"]!.AsArray().Add("roles")),
+            ("federation extra role", realm => FederationUser(realm)["clientRoles"]!["realm-management"]!.AsArray().Add("manage-users")),
+            ("federation extra scope role", realm => realm["clientScopeMappings"]!["realm-management"]![0]!["roles"]!.AsArray().Add("manage-users")),
+            ("federation password", realm => FederationUser(realm)["credentials"] = new JsonArray()),
+            ("enabled idp_link", realm => RequiredAction(realm, "idp_link")["enabled"] = true),
+            ("missing stock required action", realm => realm["requiredActions"]!.AsArray().Remove(RequiredAction(realm, "UPDATE_PASSWORD"))),
+            ("missing first broker flow", realm => realm["authenticationFlows"]!.AsArray().Remove(Flow(realm, "learnstack-first-broker-login"))),
+            ("alternative existing-user detection", realm => Flow(realm, "learnstack-first-broker-login")["authenticationExecutions"]![0]!["requirement"] = "ALTERNATIVE"),
+            ("create-user broker step", realm => Flow(realm, "learnstack-first-broker-login")["authenticationExecutions"]!.AsArray().Add(new JsonObject
+            {
+                ["authenticator"] = "idp-create-user-if-unique", ["authenticatorFlow"] = false, ["requirement"] = "ALTERNATIVE",
+                ["priority"] = 3, ["autheticatorFlow"] = false, ["userSetupAllowed"] = false,
+            })),
+            ("email verification broker step", realm => Flow(realm, "learnstack-first-broker-reauthentication")["authenticationExecutions"]![0]!["authenticator"] = "idp-email-verification"),
+            ("optional broker OTP", realm => Flow(realm, "learnstack-first-broker-reauthentication")["authenticationExecutions"]![1]!["requirement"] = "DISABLED"),
+            ("missing idp mapper", realm => Client(realm, "learnstack-web").Remove("protocolMappers")),
+            ("idp claim in access token", realm => Client(realm, "learnstack-web")["protocolMappers"]![0]!["config"]!["access.token.claim"] = "true"),
+            ("idp from another note", realm => Client(realm, "learnstack-web")["protocolMappers"]![0]!["config"]!["user.session.note"] = "clientHost"),
             ("default realm grant", realm => realm["users"]![0]!["realmRoles"]!.AsArray().Add("default-roles-learnstack")),
             ("wider account composite", realm => realm["roles"]!["client"]!["account"]!.AsArray()
                 .Single(role => Text(role?["name"]) == "manage-account")!["composites"]!["client"]!["account"]!.AsArray().Add("view-profile")),
@@ -306,7 +333,9 @@ public sealed partial class TenantRealmExportTests
                 foreach (var permission in new[] { "view", "edit" })
                     Require(Strings(attribute["permissions"]?[permission]).SequenceEqual(["admin"]), "admin-only identity");
             }
-            var users = realm["users"]!.AsArray();
+            ValidateFederationDeclaration(realm, Require);
+            var users = new JsonArray(realm["users"]!.AsArray().Where(value => value?["serviceAccountClientId"] is null)
+                .Select(value => value!.DeepClone()).ToArray());
             Require(users.Count == SeedData.IdentityUsers.Length, "exact seed population");
             foreach (var identity in SeedIdentityManifest.Create().Users)
             {
@@ -318,9 +347,7 @@ public sealed partial class TenantRealmExportTests
                 Require(credentials.Count == 1 && Text(credentials[0]?["type"]) == "password"
                     && Text(credentials[0]?["value"]) == "demo-dev-secret"
                     && credentials[0]?["temporary"]?.GetValue<bool>() == false, "one create-only development password");
-                Require(identity.AccountCapability == new SeedAccountCapability("account", "manage-account")
-                    && Strings(user["clientRoles"]?[identity.AccountCapability.ClientId]).SequenceEqual([identity.AccountCapability.Role])
-                    && user["clientRoles"]!.AsObject().Count == 1, "exact declared self-service capability");
+                Require(user["clientRoles"] is null, "ADR-0099: no persona account-console capability");
                 Require(Strings(user["realmRoles"]).SequenceEqual([identity.RealmRole]), "no implicit default or application role grant");
                 Require(user["id"] is null, "provider owns account ID");
                 var attributes = user["attributes"]!;
@@ -344,10 +371,10 @@ public sealed partial class TenantRealmExportTests
         foreach (var name in new[] { "account", "account-console" })
         {
             var client = Client(realm, name);
-            require(client["publicClient"]!.GetValue<bool>() && client["enabled"]!.GetValue<bool>()
+            require(client["publicClient"]!.GetValue<bool>() && !client["enabled"]!.GetValue<bool>()
                 && client["standardFlowEnabled"]!.GetValue<bool>() && !client["fullScopeAllowed"]!.GetValue<bool>()
                 && !client["directAccessGrantsEnabled"]!.GetValue<bool>() && !client["implicitFlowEnabled"]!.GetValue<bool>()
-                && !client["serviceAccountsEnabled"]!.GetValue<bool>(), "stock account client modes");
+                && !client["serviceAccountsEnabled"]!.GetValue<bool>(), "disabled stock account client (ADR-0099)");
             require(Text(client["rootUrl"]) == "${authBaseUrl}" && Text(client["baseUrl"]) == "/realms/learnstack/account/"
                 && Strings(client["redirectUris"]).SequenceEqual(["/realms/learnstack/account/*"])
                 && Strings(client["webOrigins"]).Length == 0
@@ -392,8 +419,8 @@ public sealed partial class TenantRealmExportTests
         }
         require(Text(realm["defaultRole"]?["name"]) == "default-roles-learnstack", "stock default role identity");
         var defaults = realm["roles"]!["realm"]!.AsArray().Single(role => Text(role?["name"]) == "default-roles-learnstack")!;
-        require(Strings(defaults["composites"]?["client"]?["account"]).Order().SequenceEqual(StockDefaultAccountRoles.Order()),
-            "stock registration default account roles");
+        require(Strings(defaults["composites"]?["client"]?["account"]).Order().SequenceEqual(RetiredDefaultAccountRoles.Order()),
+            "no account management in the default role (ADR-0099)");
         require(Strings(defaults["composites"]?["realm"]).Length == 0
             && defaults["composites"]?["client"]?.AsObject().Count == 1, "no default application composites");
         var allowance = realm["clientScopeMappings"]!["account"]!.AsArray();
@@ -401,6 +428,71 @@ public sealed partial class TenantRealmExportTests
             && Strings(allowance[0]?["roles"]).Order().SequenceEqual(StockConsoleScopeRoles.Order()),
             "stock console scope allowance");
     }
+
+    /// <summary>ADR-0099 § Realm invariants as the committed export declares them.</summary>
+    private static void ValidateFederationDeclaration(JsonObject realm, Action<bool, string> require)
+    {
+        var client = Client(realm, "learnstack-federation-admin");
+        require(client["enabled"]!.GetValue<bool>() && !client["publicClient"]!.GetValue<bool>() && !client["bearerOnly"]!.GetValue<bool>()
+            && client["serviceAccountsEnabled"]!.GetValue<bool>() && !client["standardFlowEnabled"]!.GetValue<bool>()
+            && !client["implicitFlowEnabled"]!.GetValue<bool>() && !client["directAccessGrantsEnabled"]!.GetValue<bool>()
+            && !client["fullScopeAllowed"]!.GetValue<bool>() && Strings(client["redirectUris"]).Length == 0
+            && Strings(client["webOrigins"]).Length == 0 && Strings(client["defaultClientScopes"]).Length == 0
+            && Strings(client["optionalClientScopes"]).Length == 0, "federation admin machine client modes");
+        require(Text(client["secret"]) == "${KEYCLOAK_FEDERATION_ADMIN_SECRET}", "federation secret placeholder only");
+        var mappers = client["protocolMappers"]!.AsArray();
+        require(mappers.Count == 1 && Text(mappers[0]?["protocolMapper"]) == "oidc-usermodel-client-role-mapper"
+            && Text(mappers[0]?["config"]?["usermodel.clientRoleMapping.clientId"]) == "realm-management"
+            && Text(mappers[0]?["config"]?["id.token.claim"]) == "false", "one admin-role emitter");
+        var serviceAccounts = realm["users"]!.AsArray().Where(user => user?["serviceAccountClientId"] is not null).ToArray();
+        var user = FederationUser(realm);
+        require(serviceAccounts.Length == 1 && user["credentials"] is null && user["realmRoles"] is null
+            && user["clientRoles"]!.AsObject().Count == 1
+            && Strings(user["clientRoles"]!["realm-management"]).SequenceEqual(["manage-identity-providers"]), "manage-identity-providers only");
+        var allowance = realm["clientScopeMappings"]!["realm-management"]!.AsArray();
+        require(allowance.Count == 1 && Text(allowance[0]?["client"]) == "learnstack-federation-admin"
+            && Strings(allowance[0]?["roles"]).SequenceEqual(["manage-identity-providers"]), "admin role scope only");
+        var actions = realm["requiredActions"]!.AsArray();
+        require(actions.Count == 14 && actions.All(action => Text(action?["alias"]) == Text(action?["providerId"])), "complete stock required actions");
+        require(!RequiredAction(realm, "idp_link")["enabled"]!.GetValue<bool>(), "idp_link application action disabled");
+        foreach (var name in new[] { "UPDATE_PASSWORD", "CONFIGURE_TOTP", "VERIFY_EMAIL", "UPDATE_PROFILE" })
+            require(RequiredAction(realm, name)["enabled"]!.GetValue<bool>(), "stock credential actions retained");
+        static string Step(JsonNode? step) => step?["authenticatorFlow"]!.GetValue<bool>() == true
+            ? "flow:" + Text(step["flowAlias"]) : Text(step?["authenticator"]);
+        var expected = new Dictionary<string, string[]>
+        {
+            ["learnstack-first-broker-login"] = ["idp-detect-existing-broker-user:REQUIRED", "idp-confirm-link:REQUIRED",
+                "flow:learnstack-first-broker-reauthentication:REQUIRED"],
+            ["learnstack-first-broker-reauthentication"] = ["idp-username-password-form:REQUIRED",
+                "flow:learnstack-first-broker-conditional-otp:CONDITIONAL"],
+            ["learnstack-first-broker-conditional-otp"] = ["conditional-user-configured:REQUIRED", "auth-otp-form:REQUIRED"],
+        };
+        var flows = realm["authenticationFlows"]!.AsArray();
+        require(flows.Count == expected.Count, "only the owned first-broker flows are declared");
+        foreach (var (alias, steps) in expected)
+        {
+            var flow = Flow(realm, alias);
+            require(Text(flow["providerId"]) == "basic-flow" && !flow["builtIn"]!.GetValue<bool>()
+                && flow["topLevel"]!.GetValue<bool>() == (alias == "learnstack-first-broker-login"), "owned basic flow");
+            require(flow["authenticationExecutions"]!.AsArray().Select(step => Step(step) + ":" + Text(step?["requirement"]))
+                .SequenceEqual(steps), "exact link-only first-broker steps");
+        }
+        var web = Client(realm, "learnstack-web")["protocolMappers"]?.AsArray() ?? [];
+        var idp = web.SingleOrDefault(mapper => Text(mapper?["name"]) == "learnstack-identity-provider");
+        var config = idp?["config"];
+        require(web.Count == 1 && Text(idp?["protocolMapper"]) == "oidc-usersessionmodel-note-mapper"
+            && Text(config?["user.session.note"]) == "identity_provider" && Text(config?["claim.name"]) == "idp"
+            && Text(config?["id.token.claim"]) == "true" && Text(config?["access.token.claim"]) == "false"
+            && Text(config?["userinfo.token.claim"]) == "false" && Text(config?["introspection.token.claim"]) == "false",
+            "idp ID-token claim from the session note only");
+    }
+
+    private static JsonObject FederationUser(JsonObject realm) => realm["users"]!.AsArray()
+        .Single(user => Text(user?["serviceAccountClientId"]) == "learnstack-federation-admin")!.AsObject();
+    private static JsonObject RequiredAction(JsonObject realm, string alias) => realm["requiredActions"]!.AsArray()
+        .Single(action => Text(action?["alias"]) == alias)!.AsObject();
+    private static JsonObject Flow(JsonObject realm, string alias) => realm["authenticationFlows"]!.AsArray()
+        .Single(flow => Text(flow?["alias"]) == alias)!.AsObject();
 
     private static string Text(JsonNode? node) => node?.GetValue<string>() ?? "";
     private static string[] Strings(JsonNode? node) => node?.AsArray().Select(Text).ToArray() ?? [];

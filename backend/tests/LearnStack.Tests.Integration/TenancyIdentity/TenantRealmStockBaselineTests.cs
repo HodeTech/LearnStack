@@ -114,7 +114,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task Historical_stock_ordinary_reconciliation_detaches_only_three_console_edges_and_then_writes_zero()
+    public async Task Historical_stock_ordinary_reconciliation_retires_the_console_adds_the_federation_invariants_and_then_writes_zero()
     {
         var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(KeycloakFixture.RealmPath("learnstack"))!, "..", "..", ".."));
         var historical = await HistoricalImportAsync(root);
@@ -171,11 +171,21 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("closed ordinary reconciliation outcome: {0}/{1} after {2} writes",
                 first.Stage, first.Reason, first.Mutations);
-            first.Mutations.Should().Be(18, "thirteen prior approved mutations, three console assignment DELETEs, one ADR-0070 event-policy PUT and one ADR-0078 native scope creation");
+            first.Mutations.Should().Be(36, "thirteen prior approved mutations, three console assignment DELETEs, one ADR-0070 event-policy PUT and one ADR-0078 native scope creation; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant)");
             var after = await CaptureAsync(admin, historicalAssignments: false);
-            Names(after[consolePath + "/default-client-scopes"]).Should().Equal(DefaultScopes.Where(value => value != "roles"));
-            Names(after[consolePath + "/optional-client-scopes"]).Should().Equal(OptionalScopes.Where(value => value is not ("microprofile-jwt" or "offline_access")));
-            Same(before[accountPath], after[accountPath]).Should().BeTrue("the account client is unchanged");
+            // ADR-0099: the retired console keeps its stock assignments; both account clients are only disabled.
+            Names(after[consolePath + "/default-client-scopes"]).Should().Equal(DefaultScopes);
+            Names(after[consolePath + "/optional-client-scopes"]).Should().Equal(OptionalScopes);
+            foreach (var path in new[] { accountPath, consolePath })
+            {
+                var expectedClient = JsonNode.Parse(before[path].GetRawText())!.AsObject();
+                var actualClient = JsonNode.Parse(after[path].GetRawText())!.AsObject();
+                actualClient["enabled"]!.GetValue<bool>().Should().BeFalse("the account client is retired");
+                expectedClient.Remove("enabled");
+                actualClient.Remove("enabled");
+                JsonNode.DeepEquals(expectedClient, actualClient).Should().BeTrue("the retired client keeps every other setting");
+            }
             Same(before[accountPath + "/roles"], after[accountPath + "/roles"]).Should().BeTrue("all account role definitions and composites are retained");
             foreach (var scopeName in DefaultScopes.Concat(OptionalScopes))
             {
@@ -209,10 +219,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
                 .Should().Contain("learnstack-tenant-api").And.NotContain("learnstack-native-session");
             foreach (var (path, prior) in assignmentsBefore)
             {
-                var expected = prior.EnumerateArray().Where(value => path == consolePath + "/default-client-scopes"
-                    ? Text(value, "name") != "roles"
-                    : path != consolePath + "/optional-client-scopes" || Text(value, "name") is not ("microprofile-jwt" or "offline_access"))
-                    .ToList();
+                var expected = prior.EnumerateArray().ToList();
                 var owner = before["clients"].EnumerateArray().Single(client => path.StartsWith("clients/" + Id(client) + "/", StringComparison.Ordinal));
                 if (Text(owner, "clientId") is "learnstack-web" or "learnstack-api")
                 {
@@ -226,10 +233,12 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
                     }
                 }
                 SameSet(expected, assignmentsAfter[path]).Should().BeTrue(
-                    "the exact edge delta is three console removals plus declared web/API scope additions; every other edge is preserved");
+                    "the exact edge delta is the declared web/API scope additions; every other edge, the retired console's included, is preserved");
             }
-            before["clients"].EnumerateArray().Select(Id).Order(StringComparer.Ordinal).Should().Equal(
-                after["clients"].EnumerateArray().Select(Id).Order(StringComparer.Ordinal), "no client is deleted or recreated");
+            var priorClients = before["clients"].EnumerateArray().Select(Id).ToHashSet(StringComparer.Ordinal);
+            priorClients.IsSubsetOf(after["clients"].EnumerateArray().Select(Id)).Should().BeTrue("no client is deleted or recreated");
+            after["clients"].EnumerateArray().Where(client => !priorClients.Contains(Id(client))).Select(client => Text(client, "clientId"))
+                .Should().Equal(["learnstack-federation-admin"], "the only new client is ADR-0099's federation admin client");
             var oldScopeIds = before["client-scopes"].EnumerateArray().Select(Id).ToHashSet(StringComparer.Ordinal);
             var newScopes = after["client-scopes"].EnumerateArray().Where(scope => !oldScopeIds.Contains(Id(scope))).ToArray();
             oldScopeIds.Except(after["client-scopes"].EnumerateArray().Select(Id), StringComparer.Ordinal).Should().BeEmpty(
@@ -240,8 +249,17 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
                 "only missing scopes from the approved declaration are created");
             Same(before["roles"], after["roles"]).Should().BeTrue("realm roles are retained");
             Same(before["groups"], after["groups"]).Should().BeTrue("groups are retained");
+            var defaultComposites = "roles-by-id/" + Id(before[""].GetProperty("defaultRole")) + "/composites";
             foreach (var (path, role) in before.Where(value => value.Key.StartsWith("roles-by-id/", StringComparison.Ordinal)))
-                Same(role, after[path]).Should().BeTrue("all existing role DTOs and composite edges are retained");
+            {
+                if (path == defaultComposites)
+                {
+                    var retained = role.EnumerateArray().Where(value => Text(value, "name") is not ("manage-account" or "manage-account-links")).ToList();
+                    SameSet(retained, after[path]).Should().BeTrue("only the retired account grants leave the default role");
+                    continue;
+                }
+                Same(role, after[path]).Should().BeTrue("all other role DTOs and composite edges are retained");
+            }
             var allUserIdsAfter = (await admin.GetAsync("users?max=100&briefRepresentation=false"))
                 .EnumerateArray().Select(Id).ToArray();
             allUserIdsBefore.Except(allUserIdsAfter, StringComparer.Ordinal).Should().BeEmpty("no preexisting user is deleted");
@@ -256,7 +274,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var rerun = await KeycloakReconciliationDriver.RunAsync(fixture);
             rerun.Success.Should().BeTrue("closed rerun outcome: {0}/{1}", rerun.Stage, rerun.Reason);
             rerun.Mutations.Should().Be(0);
-            output.WriteLine("Historical ordinary stock path: 18 mutations including event policy and native scope creation, then zero; retained five default/three optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
+            output.WriteLine("Historical ordinary stock path: 36 mutations including event policy, native scope creation and the ADR-0099 invariants, then zero; retired console keeps six default/five optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
         }
         finally
         {

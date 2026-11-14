@@ -112,7 +112,7 @@ async function ownedEntryFixture(t, scenario) {
   for (const name of ['compose', 'demo-process', 'demo-database', 'reconcile-development-realm',
     'development-realm-owner', 'development-realm-errors', 'development-backchannel', 'development-realm-core', 'development-realm-plan',
     'development-realm-events', 'development-event-reader', 'development-event-reader-test-fixture',
-    'development-realm-account', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
+    'development-realm-account', 'development-realm-federation', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
     'development-realm-stock-console', 'development-realm-stock-console-test-fixture'])
     await copyFile(new URL(`./${name}.mjs`, import.meta.url), join(root, `scripts/${name}.mjs`));
   await copyFile(new URL('./development-realm-stock-console-baseline.json', import.meta.url),
@@ -122,8 +122,9 @@ async function ownedEntryFixture(t, scenario) {
     join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'));
   await copyFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), join(root, 'infra/keycloak/realms/learnstack.json'));
   await writeFile(join(root, 'package.json'), '{"type":"module"}\n');
-  const { secret } = await import('./development-realm-test-fixture.mjs');
+  const { secret, federationSecret } = await import('./development-realm-test-fixture.mjs');
   const values = { KEYCLOAK_ADMIN: 'synthetic-admin', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: secret,
+    KEYCLOAK_FEDERATION_ADMIN_SECRET: federationSecret,
     IdentityEvents__ClientSecret: 'owned-event-reader-fixture-secret',
     ...(scenario.startsWith('foundation-') ? { ConnectionStrings__Default: canary,
       Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
