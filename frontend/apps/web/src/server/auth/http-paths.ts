@@ -23,6 +23,7 @@ export const BFF_POST_PATHS = Object.freeze([
   '/api/studio/invitation-revoke',
   '/api/studio/invitation-reissue',
   '/api/studio/invitation-policy',
+  '/api/studio/federation-test',
   '/api/auth/signin/keycloak',
   '/api/auth/signout',
   '/api/auth/extend',

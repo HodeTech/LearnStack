@@ -36,13 +36,15 @@ afterEach(() => {
       expect(call.credentials).toBe('omit');
       expect(call.cache).toBe('no-store');
       const token = `${issuer}/protocol/openid-connect/token`;
+      const logout = `${issuer}/protocol/openid-connect/logout`;
       expect([
         `${issuer}/.well-known/openid-configuration`,
         `${issuer}/protocol/openid-connect/certs`,
         token,
+        logout,
       ]).toContain(call.url);
-      expect(call.method).toBe(call.url === token ? 'POST' : 'GET');
-      if (call.url === token) {
+      expect(call.method).toBe(call.url === token || call.url === logout ? 'POST' : 'GET');
+      if (call.url === token || call.url === logout) {
         expect(call.body.getAll('client_id')).toEqual(['learnstack-web']);
         expect(call.body.getAll('client_secret')).toEqual([privateCanary]);
       } else expect([...call.body]).toEqual([]);
@@ -163,6 +165,72 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
   };
 }
 
+describe('ADR-0099 federation purposes, provenance and server-side end-session', () => {
+  const alias = 'lsf-' + '0123456789abcdef'.repeat(2);
+  it('builds the federation_test request with the server alias hint, prompt=login and the test-record scope', async () => {
+    const f = await fixture();
+    const test = new URL(
+      (await f.provider.begin(callback, undefined, { kind: 'federation_test', alias })).redirectUrl,
+    );
+    expect(test.searchParams.get('kc_idp_hint')).toBe(alias);
+    expect(test.searchParams.get('prompt')).toBe('login');
+    expect(test.searchParams.get('scope')).toBe('openid profile email federation.test_record');
+    expect(test.searchParams.has('kc_action')).toBe(false);
+    const signin = new URL(
+      (
+        await f.provider.begin(callback, undefined, { kind: 'federation_signin', alias })
+      ).redirectUrl,
+    );
+    expect(signin.searchParams.get('kc_idp_hint')).toBe(alias);
+    expect(signin.searchParams.has('prompt')).toBe(false);
+    expect(signin.searchParams.get('scope')).toBe('openid profile email');
+    const local = new URL((await f.provider.begin(callback)).redirectUrl);
+    expect(local.searchParams.has('kc_idp_hint')).toBe(false);
+    expect(local.searchParams.get('scope')).toBe('openid profile email');
+    const before = f.calls.length;
+    for (const purpose of [
+      { kind: 'federation_test', alias: 'lsf-' + 'A'.repeat(32) },
+      { kind: 'federation_test', alias: 'other' },
+      { kind: 'federation_test', alias, prompt: 'none' },
+      { kind: 'federation_admin', alias },
+      { kind: 'federation_signin' },
+    ])
+      await expect(f.provider.begin(callback, undefined, purpose as never)).rejects.toMatchObject({
+        reason: 'configuration',
+      });
+    expect(f.calls).toHaveLength(before);
+  });
+
+  it('records the brokered idp claim as provenance and refuses a malformed one', async () => {
+    const f = await fixture();
+    f.setClaims({ idp: alias });
+    expect((await f.login()).result.identity.idp).toBe(alias);
+    for (const idp of [7, '', 'line\nbreak', 'x'.repeat(256)]) {
+      const g = await fixture();
+      g.setClaims({ idp });
+      await expect(g.login()).rejects.toMatchObject({ reason: 'identity' });
+    }
+  });
+
+  it('ends a provider session server-side with the client credentials and the refresh token', async () => {
+    const f = await fixture();
+    await f.provider.begin(callback);
+    f.setResponse(() => new Response(null, { status: 204 }));
+    await f.provider.endSession('refresh-held-server-side');
+    const call = f.calls.at(-1)!;
+    expect(call.url).toBe(issuer + '/protocol/openid-connect/logout');
+    expect(call.method).toBe('POST');
+    expect(call.body.get('refresh_token')).toBe('refresh-held-server-side');
+    f.setResponse(() => Response.json({ error: 'invalid_grant' }, { status: 400 }));
+    await expect(f.provider.endSession('refresh-held-server-side')).rejects.toMatchObject({
+      reason: 'provider_refused',
+    });
+    await expect(f.provider.endSession('bad\r\ntoken')).rejects.toMatchObject({
+      reason: 'configuration',
+    });
+  });
+});
+
 describe('inactive tenant RP boundary', () => {
   it('builds only the fixed VERIFY_EMAIL action with the existing callback and fresh PKCE', async () => {
     const f = await fixture();
@@ -233,6 +301,7 @@ describe('inactive tenant RP boundary', () => {
       tenantId,
       organizationId: null,
       displayLabel: null,
+      idp: null,
     });
     expect(result.accessToken).toBe(privateCanary);
     expect(result.accessExpiresAt).toBeGreaterThanOrEqual(beforeGrant + 900_000);
@@ -327,6 +396,7 @@ describe('inactive tenant RP boundary', () => {
         tenantId: tenant,
         organizationId: organization,
         displayLabel: null,
+        idp: null,
       });
       expect((await f.provider.refresh(result.refreshToken!, result.identity)).identity).toEqual(
         result.identity,

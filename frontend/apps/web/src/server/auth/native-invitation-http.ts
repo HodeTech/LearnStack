@@ -25,15 +25,19 @@ export function nativeInvitationTarget(target: string): boolean {
   );
 }
 
-/** One fixed public bootstrap, with the same SDK projection and trusted host/source authority. */
-async function site(
+/**
+ * One fixed public read, with the same SDK projection and trusted host/source authority. The BFF uses it for the
+ * invitation bootstrap and for the sign-in option (ADR-0099 § Sign-in exposure); any other path is refused.
+ */
+export function nativePublicSdk(
   configuration: Readonly<{ apiOrigin: string; secret: string }>,
   binding: IngressContext,
   signal: AbortSignal,
   transport: typeof fetch,
+  allowed: '/api/v1/public/site' | '/api/v1/public/sign-in' = '/api/v1/public/site',
 ) {
-  const sdk = createServerSdk(async (path) => {
-    if (path !== '/api/v1/public/site') throw new Error('Invitation host admission refused');
+  return createServerSdk(async (path) => {
+    if (path !== allowed) throw new Error('Invitation host admission refused');
     const current = AbortSignal.any([signal, AbortSignal.timeout(PUBLIC_API_DEADLINE_MS)]);
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     let cancellation: Promise<void> | undefined;
@@ -92,7 +96,16 @@ async function site(
       reader?.releaseLock();
     }
   });
-  return sdk.getSite({ signal });
+}
+
+/** One fixed public bootstrap, with the same SDK projection and trusted host/source authority. */
+async function site(
+  configuration: Readonly<{ apiOrigin: string; secret: string }>,
+  binding: IngressContext,
+  signal: AbortSignal,
+  transport: typeof fetch,
+) {
+  return nativePublicSdk(configuration, binding, signal, transport).getSite({ signal });
 }
 
 /** Runs within the existing native response owner, before Next can observe the landing. */

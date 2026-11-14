@@ -606,6 +606,7 @@ export function productionDemoSources(
       'src/server/auth/logout-response.ts',
       'src/server/auth/native-administration-client.ts',
       'src/server/auth/native-consent-http.ts',
+      'src/server/auth/native-federation-client.ts',
       'src/server/auth/native-invitation-client.ts',
       'src/server/auth/native-invitation-http.ts',
       'src/server/auth/native-session-client.ts',
@@ -839,7 +840,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '4c4fa893154e9865573ad142e988729dfcd87437ab504b2470eb6e64e051318e',
+            '4e031afdfbad5799f7baaf47bb1eb9b4b6c0917e5b5cca42b0d543edcf63c1cc',
           ],
           [
             'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',

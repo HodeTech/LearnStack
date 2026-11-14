@@ -61,6 +61,38 @@ async function signin(f: ReturnType<typeof fixture>, offer: Awaited<ReturnType<t
 }
 
 describe('owned invitation continuation', () => {
+  it('ADR-0099: the invitation custody handoff admits a brokered callback only on its host alias', async () => {
+    const alias = 'lsf-' + 'a'.repeat(32);
+    const f = fixture();
+    const offer = await captured(f);
+    const credentials = await f.provider.redeem();
+    f.provider.redeem.mockResolvedValueOnce({
+      ...credentials,
+      identity: { ...credentials.identity, idp: alias },
+    });
+    f.native.self.mockResolvedValueOnce({
+      state: 'missing',
+      federationAlias: 'lsf-' + 'b'.repeat(32),
+    });
+    await expect(signin(f, offer)).rejects.toMatchObject({ reason: 'host_binding' });
+    // The custody never received the refused credentials and the provider session was ended.
+    expect((await f.store.invitation(offer.binding, bffSource)).state).toBe('signin');
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+    const accepted = fixture();
+    const second = await captured(accepted);
+    const held = await accepted.provider.redeem();
+    accepted.provider.redeem.mockResolvedValueOnce({
+      ...held,
+      identity: { ...held.identity, idp: alias },
+    });
+    accepted.native.self.mockResolvedValueOnce({
+      state: 'missing',
+      federationAlias: alias,
+    });
+    await signin(accepted, second);
+    expect((await accepted.store.invitation(second.binding, bffSource)).state).toBe('inspect');
+    expect(accepted.provider.endSession).not.toHaveBeenCalled();
+  });
   it('refuses a different callback subject and preserves the original live account', async () => {
     const f = fixture();
     const offer = await captured(f, true);

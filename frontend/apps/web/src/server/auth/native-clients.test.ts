@@ -34,6 +34,7 @@ const identity: ProviderIdentity = {
   tenantId: null,
   organizationId: null,
   displayLabel: 'Account label',
+  idp: null,
 };
 const association = {
   authorityId,

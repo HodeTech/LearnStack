@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as entryCursor from './entry-cursor';
 import { BffInputError } from './input-error';
+import { NativeApiError } from './native-contract';
 import type { SelfContexts } from './native-contract';
 import type { NativeAdministrationCaller } from './native-operation-contract';
 import type { ProviderCredentials, ProviderIdentity } from './provider';
@@ -15,6 +16,7 @@ import type {
   SessionBinding,
   SessionFailure,
   SessionProvider,
+  SessionDependencies,
 } from './session-contract';
 import { BFF_LIMITS, bffSecretEquals, InMemoryBffSessionStore } from './session-store';
 
@@ -31,6 +33,7 @@ const identity: ProviderIdentity = {
   tenantId: '10000000-0000-4000-8000-000000000001',
   organizationId: null,
   displayLabel: 'Confirmed account',
+  idp: null,
 };
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -59,6 +62,9 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
   let redeeming: ReturnType<typeof deferred<void>> | undefined;
   let accounting: ReturnType<typeof deferred<void>> | undefined;
   const tokens = new Map<string, ProviderIdentity>();
+  let hostAlias: string | null = null;
+  let selfFailure: unknown;
+  let signInOption: { alias: string; displayName: string } | null = null;
   const diagnostics: SessionFailure[] = [];
   const diagnostic = vi.fn((reason: SessionFailure) => diagnostics.push(reason));
   function credentials(): ProviderCredentials {
@@ -76,6 +82,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     return result;
   }
   const provider: SessionProvider = {
+    endSession: vi.fn(async () => undefined),
     begin: vi.fn(async (uri) => ({
       transaction: { callbackUri: uri, state: secret(), nonce: secret(), verifier: secret() },
       redirectUrl: 'https://identity.example.test/authorize',
@@ -107,11 +114,14 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     actorId: tokens.get(token)!.actorId ?? identity.actorId!,
   });
   const native = {
-    self: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) => ({
-      state: 'active' as const,
-      association: association(token),
-      federationAlias: null as string | null,
-    })),
+    self: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) => {
+      if (selfFailure) throw selfFailure;
+      return {
+        state: 'active' as const,
+        association: association(token),
+        federationAlias: hostAlias,
+      };
+    }),
     bootstrap: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) =>
       association(token),
     ),
@@ -183,11 +193,42 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
       replayed: false,
     };
   });
+  const federationTest = {
+    start: vi.fn(async (_token: string, _binding: unknown, _signal: AbortSignal) => ({
+      alias: 'lsf-' + 'a'.repeat(32),
+      attemptId: '019a154b-0000-7000-8000-0000000000aa',
+      version: '4',
+      connectionId: '019a154b-0000-7000-8000-0000000000cc',
+    })),
+    record: vi.fn(
+      async (_token: string, _binding: unknown, _input: unknown, _signal: AbortSignal) => ({
+        outcome: 'recorded',
+      }),
+    ),
+  };
+  const publicSignIn = vi.fn(async () => signInOption);
+  const retainedConsent = vi.fn<NonNullable<SessionDependencies['retainedConsent']>>(
+    async () =>
+      ({
+        kind: 'success',
+        status: 200,
+        data: {
+          items: [],
+          pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+        },
+        etag: null,
+        location: null,
+        replayed: false,
+      }) as never,
+  );
   const store = new InMemoryBffSessionStore({
     provider,
     account,
     native,
     administration,
+    federationTest,
+    publicSignIn,
+    retainedConsent,
     clock: {
       monotonic: () => now,
       utc: () => 1_800_000_000_000 + now + (options.utcJitter?.() ?? 0),
@@ -255,6 +296,18 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     account,
     native,
     administration,
+    federationTest,
+    publicSignIn,
+    retainedConsent,
+    setHostAlias(value: string | null) {
+      hostAlias = value;
+    },
+    failSelf(value: unknown) {
+      selfFailure = value;
+    },
+    setSignInOption(value: { alias: string; displayName: string } | null) {
+      signInOption = value;
+    },
     identity: () => currentIdentity,
     diagnostics,
     diagnostic,
@@ -2516,5 +2569,312 @@ describe('entry provider logout is a separate retained owner', () => {
     expect(f.store.peek(active.binding)).toEqual(active.finished.session);
     expect(f.store.consumeLogout({ ...binding(entry), ...logout })).toBe(true);
     expect(f.store.counts().owners).toBe(1);
+  });
+});
+
+describe('ADR-0099 host binding at every credential publication path', () => {
+  const alias = 'lsf-' + 'a'.repeat(32);
+  const other = 'lsf-' + 'b'.repeat(32);
+  const scope = { tenantId: identity.tenantId!, organizationId: null };
+  const unavailable = () => new NativeApiError('provider_refused', 503);
+  async function brokered(f: ReturnType<typeof fixture>) {
+    f.setIdentity({ idp: alias });
+    f.setHostAlias(alias);
+    return f.login();
+  }
+  function refreshDue(f: ReturnType<typeof fixture>) {
+    f.advance(900_000 - BFF_LIMITS.refreshAheadMs + 1);
+  }
+
+  it('leaves a local sign-in on the existing rules: no alias read decides it and no provider session ends', async () => {
+    const f = fixture();
+    f.setHostAlias(other);
+    const { binding } = await f.login();
+    expect(f.store.peek(binding)).not.toBeNull();
+    refreshDue(f);
+    await f.store.admit(binding, source, 'read');
+    expect(f.store.peek(binding)).not.toBeNull();
+    expect(f.provider.endSession).not.toHaveBeenCalled();
+  });
+
+  it('redemption: admits a brokered token whose idp is the host alias and refuses another, ending the provider session', async () => {
+    const accepted = fixture();
+    const { binding } = await brokered(accepted);
+    expect(accepted.store.peek(binding)).not.toBeNull();
+    const refused = fixture();
+    refused.setIdentity({ idp: alias });
+    refused.setHostAlias(other);
+    const login = await refused.start();
+    await expect(refused.enter(login)).rejects.toMatchObject({ reason: 'host_binding' });
+    await flush();
+    expect(refused.provider.endSession).toHaveBeenCalledWith(privateCanary);
+    expect(refused.store.counts()).toMatchObject({ subjects: 0, credentialRecords: 0 });
+  });
+
+  it('redemption: an undecidable self read refuses the brokered sign-in closed and ends no provider session', async () => {
+    const f = fixture();
+    f.setIdentity({ idp: alias });
+    f.failSelf(unavailable());
+    const login = await f.start();
+    await expect(f.enter(login)).rejects.toMatchObject({ reason: 'host_unavailable' });
+    await flush();
+    expect(f.provider.endSession).not.toHaveBeenCalled();
+    expect(f.store.counts()).toMatchObject({ subjects: 0, credentialRecords: 0 });
+  });
+
+  it('selection: an alias that stopped being Active after redemption refuses publication and ends both sessions', async () => {
+    const f = fixture();
+    f.setIdentity({ idp: alias });
+    f.setHostAlias(alias);
+    const entry = await f.enter(await f.start());
+    f.setHostAlias(null);
+    const binding = { host, browser: entry.browser, handle: entry.handle };
+    await expect(
+      f.store.select(binding, source, entry.entry.csrfToken, scope),
+    ).rejects.toMatchObject({
+      reason: 'host_binding',
+    });
+    await flush();
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+    expect(f.store.counts()).toMatchObject({ credentialRecords: 0 });
+  });
+
+  it('creation: the self read that creation already makes decides the brokered host binding', async () => {
+    const f = fixture();
+    f.setIdentity({ idp: alias });
+    f.setHostAlias(alias);
+    const entry = await f.enter(await f.start());
+    f.setHostAlias(other);
+    await expect(
+      f.store.create(
+        { host, browser: entry.browser, handle: entry.handle },
+        source,
+        entry.entry.csrfToken,
+      ),
+    ).rejects.toMatchObject({ reason: 'host_binding' });
+    expect(f.native.bootstrap).not.toHaveBeenCalled();
+    await flush();
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('active refresh: a changed host alias ends the session; the same alias keeps it', async () => {
+    const f = fixture();
+    const { binding } = await brokered(f);
+    refreshDue(f);
+    await f.store.admit(binding, source, 'read');
+    expect(f.store.peek(binding)).not.toBeNull();
+    refreshDue(f);
+    f.setHostAlias(other);
+    await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({
+      reason: 'host_binding',
+    });
+    expect(f.store.peek(binding)).toBeNull();
+    await flush();
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('active refresh: an undecidable self read keeps the brokered session without advancing its idle deadline', async () => {
+    const f = fixture();
+    const { binding } = await brokered(f);
+    refreshDue(f);
+    const before = f.store.peek(binding)!.expiresAt;
+    f.failSelf(unavailable());
+    await expect(f.store.admit(binding, source, 'read')).rejects.toMatchObject({
+      reason: 'host_unavailable',
+    });
+    expect(f.store.peek(binding)?.expiresAt).toBe(before);
+    expect(f.provider.endSession).not.toHaveBeenCalled();
+    f.failSelf(undefined);
+    await f.store.admit(binding, source, 'read');
+    expect(f.store.peek(binding)).not.toBeNull();
+  });
+
+  it('active refresh: a changed provenance is definitive in both directions', async () => {
+    const lost = fixture();
+    const { binding } = await brokered(lost);
+    refreshDue(lost);
+    lost.setIdentity({ idp: null });
+    await expect(lost.store.admit(binding, source, 'read')).rejects.toMatchObject({
+      reason: 'host_binding',
+    });
+    expect(lost.store.peek(binding)).toBeNull();
+    // A local session whose shared provider session later carries a brokered note (a test, say) ends at refresh.
+    const gained = fixture();
+    gained.setHostAlias(alias);
+    const local = await gained.login();
+    refreshDue(gained);
+    gained.setIdentity({ idp: alias });
+    await expect(gained.store.admit(local.binding, source, 'read')).rejects.toMatchObject({
+      reason: 'host_binding',
+    });
+    expect(gained.store.peek(local.binding)).toBeNull();
+  });
+
+  it('context switching: a brokered session switches only while its alias is the host alias', async () => {
+    const f = fixture();
+    const { binding, finished } = await brokered(f);
+    f.setHostAlias(other);
+    await expect(
+      f.store.switchScope(binding, source, finished.session.csrfToken, scope),
+    ).rejects.toMatchObject({ reason: 'host_binding' });
+    expect(f.store.peek(binding)).toBeNull();
+    await flush();
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('consent refresh: the entry-phase refresh is bound like any publication', async () => {
+    const f = fixture();
+    f.setIdentity({ idp: alias });
+    f.setHostAlias(alias);
+    // An access token inside the refresh-ahead window, so the consent call refreshes before the entry expires.
+    f.setTokens({ accessExpiresAt: BFF_LIMITS.refreshAheadMs - 1 });
+    const entry = await f.enter(await f.start());
+    const binding = { host, browser: entry.browser, handle: entry.handle };
+    f.setHostAlias(other);
+    await expect(
+      f.store.retainedConsent(
+        binding,
+        source,
+        { kind: 'listOwnConsentScopes' },
+        entry.entry.csrfToken,
+      ),
+    ).rejects.toMatchObject({ reason: 'host_binding' });
+    expect(f.retainedConsent).not.toHaveBeenCalled();
+    await flush();
+    expect(f.provider.endSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ADR-0099 federation_test purpose and the sign-in option', () => {
+  const alias = 'lsf-' + 'a'.repeat(32);
+  async function admin(f: ReturnType<typeof fixture>) {
+    const { binding, finished } = await f.login();
+    return { binding, csrf: finished.session.csrfToken };
+  }
+  function callback(started: { state: string; proof: string; browser: string }, query = '') {
+    return {
+      host,
+      source,
+      browser: started.browser,
+      state: started.state,
+      proof: started.proof,
+      responseUrl:
+        'https://' +
+        host +
+        '/api/auth/callback/keycloak?state=' +
+        started.state +
+        '&code=owned-code' +
+        query,
+    };
+  }
+
+  it('begins the test with the server alias, holds the attempt server-side and reuses it inside the window', async () => {
+    const f = fixture();
+    const { binding, csrf } = await admin(f);
+    const started = await f.store.startFederationTest(binding, source, csrf);
+    expect(JSON.stringify(started)).not.toContain('0000000000aa');
+    expect(vi.mocked(f.provider.begin).mock.calls.at(-1)![2]).toEqual({
+      kind: 'federation_test',
+      alias,
+    });
+    await f.store.startFederationTest(binding, source, csrf);
+    expect(f.federationTest.start).toHaveBeenCalledTimes(1);
+    await expect(
+      f.store.startFederationTest(binding, source, 'x'.repeat(43)),
+    ).rejects.toMatchObject({
+      reason: 'csrf',
+    });
+  });
+
+  it('the test callback records the result with the test token, publishes nothing and signs the administrator out', async () => {
+    const f = fixture();
+    const { binding, csrf } = await admin(f);
+    const subjects = f.store.counts().subjects;
+    const started = await f.store.startFederationTest(binding, source, csrf);
+    f.setIdentity({ idp: alias });
+    const completed = await f.store.completeCallback(callback(started));
+    expect(completed).toMatchObject({ kind: 'federation_test', outcome: 'passed' });
+    const [token, scope, input] = f.federationTest.record.mock.calls[0]!;
+    expect(token).toMatch(new RegExp('^' + privateCanary + '-'));
+    expect(scope).toMatchObject({ host, tenantId: identity.tenantId, organizationId: null });
+    expect(input).toEqual({
+      version: '4',
+      attemptId: '019a154b-0000-7000-8000-0000000000aa',
+      passed: true,
+    });
+    expect(f.store.peek(binding)).toBeNull();
+    expect(f.store.counts()).toMatchObject({ credentialRecords: 0, identityRecords: 0 });
+    expect(f.store.counts().subjects).toBeLessThanOrEqual(subjects);
+    expect(completed.kind === 'federation_test' && completed.logout.redirectUrl).toBeTruthy();
+    expect(f.provider.logoutUrl).toHaveBeenCalledWith(
+      privateCanary,
+      'https://' + host + '/',
+      expect.any(String),
+    );
+  });
+
+  it('a token from another subject or another broker records a failed test', async () => {
+    for (const patch of [
+      { subject: 'someone-else' },
+      { idp: 'lsf-' + 'c'.repeat(32) },
+      { idp: null },
+    ]) {
+      const f = fixture();
+      const { binding, csrf } = await admin(f);
+      const started = await f.store.startFederationTest(binding, source, csrf);
+      f.setIdentity({ idp: alias, ...patch });
+      await expect(f.store.completeCallback(callback(started))).resolves.toMatchObject({
+        outcome: 'failed',
+      });
+      expect(f.federationTest.record.mock.calls[0]![2]).toMatchObject({ passed: false });
+    }
+  });
+
+  it('the two callback purposes are mutually exclusive in both directions', async () => {
+    const f = fixture();
+    const { binding, csrf } = await admin(f);
+    const test = await f.store.startFederationTest(binding, source, csrf);
+    // The ordinary completion never completes a test owner.
+    await expect(f.store.complete(callback(test))).rejects.toMatchObject({
+      reason: 'transaction',
+    });
+    const again = await f.store.startFederationTest(binding, source, csrf);
+    // A verification action result is never admitted on a test callback.
+    await expect(
+      f.store.completeCallback(callback(again, '&kc_action=VERIFY_EMAIL&kc_action_status=success')),
+    ).rejects.toMatchObject({ reason: 'transaction' });
+    expect(f.federationTest.record).not.toHaveBeenCalled();
+    // An ordinary sign-in through the callback stays an entry; it is never a test.
+    const g = fixture();
+    const login = await g.start();
+    await expect(g.store.completeCallback(callback(login))).resolves.toMatchObject({
+      kind: 'entry',
+    });
+    expect(g.federationTest.record).not.toHaveBeenCalled();
+    await expect(
+      g.store.start({ host, source, returnPath: '/', federation: true, verification: true }),
+    ).rejects.toMatchObject({ reason: 'transaction' });
+  });
+
+  it('the sign-in option comes only from the server read; a missing or failed read refuses only the federation start', async () => {
+    const f = fixture();
+    expect(await f.store.signInOption(host, source)).toBeNull();
+    await expect(f.start({ federation: true })).rejects.toMatchObject({
+      reason: 'provider_refused',
+    });
+    f.setSignInOption({ alias, displayName: 'Acme SSO' });
+    expect(await f.store.signInOption(host, source)).toEqual({ alias, displayName: 'Acme SSO' });
+    await f.start({ federation: true });
+    expect(vi.mocked(f.provider.begin).mock.calls.at(-1)![2]).toEqual({
+      kind: 'federation_signin',
+      alias,
+    });
+    f.setSignInOption({ alias: 'not-an-alias', displayName: 'Acme SSO' });
+    expect(await f.store.signInOption(host, source)).toBeNull();
+    vi.mocked(f.publicSignIn).mockRejectedValueOnce(new Error('down'));
+    expect(await f.store.signInOption(host, source)).toBeNull();
+    // The local action is unchanged whatever the option read says.
+    await f.start();
+    expect(vi.mocked(f.provider.begin).mock.calls.at(-1)![2]).toBeUndefined();
   });
 });

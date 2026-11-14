@@ -296,7 +296,17 @@ export function renderBffDocument(
       <input type="hidden" name="csrfToken" value="${escape(page.csrfToken)}">
       <input type="hidden" name="returnTo" value="${escape(page.returnPath)}">
       ${page.contextHint === undefined ? '' : hidden('contextHint', page.contextHint)}
-      <button type="submit">${escape(copy('signin.continue'))}</button></form>`
+      <button type="submit">${escape(copy('signin.continue'))}</button></form>${
+        page.federation === undefined
+          ? ''
+          : `
+      <form action="/api/auth/signin/keycloak" method="post">
+      <input type="hidden" name="csrfToken" value="${escape(page.csrfToken)}">
+      <input type="hidden" name="returnTo" value="${escape(page.returnPath)}">
+      ${page.contextHint === undefined ? '' : hidden('contextHint', page.contextHint)}
+      <input type="hidden" name="federation" value="1">
+      <button type="submit">${escape(copy('signin.federation', { name: page.federation }))}</button></form>`
+      }`
                 : `<p>${escape(
                     page.kind === 'busy'
                       ? copy('error.busy')

@@ -222,6 +222,7 @@ export async function startPublicRuntime(control) {
         { createNativeConsentHandler, nativeConsentTarget: consentTarget },
         { default: authEn },
         { default: authTr },
+        { createNativeFederationTestApi, createPublicSignInReader },
       ] = await Promise.all([
         ownSetup(import('../.server/auth/provider-core.js')),
         ownSetup(import('../.server/auth/account-client.js')),
@@ -237,6 +238,7 @@ export async function startPublicRuntime(control) {
         ownSetup(import('../.server/auth/native-consent-http.js')),
         ownSetup(import('../src/i18n/messages/en/auth.json', { with: { type: 'json' } })),
         ownSetup(import('../src/i18n/messages/tr/auth.json', { with: { type: 'json' } })),
+        ownSetup(import('../.server/auth/native-federation-client.js')),
       ]);
       assertStarting();
       const nativeConfiguration = {
@@ -263,6 +265,9 @@ export async function startPublicRuntime(control) {
         administration,
         retainedConsent: createNativeRetainedConsentCaller(nativeConfiguration, globalThis.fetch),
         invitations: createNativeInvitationApi(nativeConfiguration, globalThis.fetch),
+        // ADR-0099: the server-side sign-in option read and the BFF-only federation test owner.
+        publicSignIn: createPublicSignInReader(configuration, globalThis.fetch),
+        federationTest: createNativeFederationTestApi(nativeConfiguration, globalThis.fetch),
         diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
       };
       assertStarting();

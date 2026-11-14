@@ -15,7 +15,10 @@ export function providerOperation(
     [`${issuer}/.well-known/openid-configuration`, 'GET'],
     [`${issuer}/protocol/openid-connect/token`, 'POST'],
     [`${issuer}/protocol/openid-connect/certs`, 'GET'],
+    // ADR-0099 § Host binding: the server-side end of a provider session after a definitive mismatch.
+    [`${issuer}/protocol/openid-connect/logout`, 'POST'],
   ]);
+  const logout = `${issuer}/protocol/openid-connect/logout`;
   const interrupted = () => {
     if (signal.aborted) throw new BffProviderError(caller?.aborted ? 'cancelled' : 'deadline');
   };
@@ -41,7 +44,12 @@ export function providerOperation(
         if (response.redirected || (response.status >= 300 && response.status < 400))
           throw new BffProviderError('response');
         const media = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
-        if (media !== 'application/json' && media !== 'application/jwk-set+json')
+        // The end-session form answers 204 with no body; every other purpose is JSON.
+        if (
+          !(url === logout && response.status === 204) &&
+          media !== 'application/json' &&
+          media !== 'application/jwk-set+json'
+        )
           throw new BffProviderError('response');
         const chunks: Uint8Array[] = [];
         let length = 0;
@@ -63,6 +71,11 @@ export function providerOperation(
         // Fetch supplies decoded bytes. Never describe them as the original encoding.
         headers.delete('content-encoding');
         headers.delete('content-length');
+        // A 204 (the end-session answer) cannot carry even an empty body.
+        if (response.status === 204) {
+          if (length !== 0) throw new BffProviderError('response');
+          return new Response(null, { status: 204, headers });
+        }
         return new Response(bytes, { status: response.status, headers });
       } catch (error) {
         interrupted();

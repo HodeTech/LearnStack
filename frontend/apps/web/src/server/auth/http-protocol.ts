@@ -46,10 +46,20 @@ import { isNativeReturnPath } from './session-path.js';
 import { bffSecretEquals, isBffOpaque } from './session-store.js';
 
 const opaque = () => randomBytes(32).toString('base64url');
+/** ADR-0099 § Lifecycle and test: the one browser action that begins the administrator's test. */
+const FEDERATION_TEST_PATH = '/api/studio/federation-test';
+const FEDERATION_TEST_DESTINATION: NativeReturnPath = '/studio';
 const cookieLife = 8 * 60 * 60;
 export type BffPage = Readonly<
   (
-    | { kind: 'signin'; csrfToken: string; returnPath: string; contextHint?: string }
+    | {
+        kind: 'signin';
+        csrfToken: string;
+        returnPath: string;
+        contextHint?: string;
+        /** ADR-0099 § Sign-in exposure: the Active broker's display name, read server-side; absent hides it. */
+        federation?: string;
+      }
     | { kind: 'entry'; entry: EntryProjection | null; cursor?: string }
     | { kind: 'scope_choices'; selection: ScopeChoices; cursor?: string }
     | {
@@ -339,6 +349,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
       if (!bffRoute(request.method, path) && !rootReturn)
         return path.startsWith('/api/auth/') ||
           path === '/api/auth' ||
+          path === FEDERATION_TEST_PATH ||
           Object.hasOwn(BFF_ADMIN_FORMS, path)
           ? result(request, { code: 'not_found' }, 404)
           : null;
@@ -393,13 +404,21 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             cookies.has(BFF_COOKIES.csrf) ? [] : [bffCookie(BFF_COOKIES.csrf, csrfToken, 300)],
           );
           if (render && path.endsWith('/signin')) {
+            // A missing, slow or failed public read hides only the federation option.
+            const option = await store.signInOption(request.host, request.source, request.signal);
             response.headers.set('content-type', 'text/html; charset=utf-8');
             // Fetch serializes navigation POST Origin as null under no-referrer.
             // This credential-free form needs its exact same-origin CSRF proof;
             // provider redirects, callbacks and logout keep no-referrer.
             response.headers.set('referrer-policy', 'same-origin');
             return new Response(
-              render({ kind: 'signin', csrfToken, returnPath: destination, contextHint }),
+              render({
+                kind: 'signin',
+                csrfToken,
+                returnPath: destination,
+                contextHint,
+                ...(option ? { federation: option.displayName } : {}),
+              }),
               {
                 status: response.status,
                 headers: response.headers,
@@ -470,7 +489,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           const browser = cookies.get(BFF_COOKIES.browser);
           const proof = state && cookies.get(BFF_COOKIES.login + state);
           if (!isBffOpaque(state) || !browser || !proof) throw new BffInputError();
-          const completed = await store.complete({
+          const completed = await store.completeCallback({
             host: request.host,
             source: request.source,
             traceparent: request.headers.get('traceparent') ?? undefined,
@@ -481,6 +500,15 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             signal: request.signal,
           });
           if (request.signal.aborted) throw new BffInputError();
+          if (completed.kind === 'federation_test')
+            // ADR-0099: nothing is published; the administrator's session ends and the browser leaves through the
+            // provider end-session, because the shared provider session now carries the brokered note.
+            return redirect(request, completed.logout.redirectUrl ?? '/', [
+              clearBffCookie(BFF_COOKIES.session),
+              ...(cookies.has(BFF_COOKIES.entry) ? [clearBffCookie(BFF_COOKIES.entry)] : []),
+              clearBffCookie(BFF_COOKIES.login + state),
+              bffCookie(BFF_COOKIES.logout + completed.logout.state, completed.logout.proof, 300),
+            ]);
           return redirect(
             request,
             completed.invitation ? '/invitations/confirm' : '/api/auth/entry',
@@ -499,8 +527,13 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             'returnTo',
             'contextHint',
             'invitation',
+            'federation',
           ]);
           const invitation = fields.get('invitation');
+          // The browser chooses only "federation"; the alias is read server-side by the owner.
+          const federation = fields.get('federation');
+          if (federation !== null && (federation !== '1' || invitation !== null))
+            throw new BffInputError();
           if (
             invitation !== null &&
             (invitation !== 'continue' || !cookies.has(BFF_COOKIES.invitation))
@@ -518,6 +551,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             ...(invitation === 'continue'
               ? { invitation: cookies.get(BFF_COOKIES.invitation)! }
               : {}),
+            ...(federation === '1' ? { federation: true } : {}),
             signal: request.signal,
           });
           if (request.signal.aborted) throw new BffInputError();
@@ -595,6 +629,60 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 409,
               );
             throw error;
+          }
+        }
+        if (path === FEDERATION_TEST_PATH) {
+          const fields = await bffForm(request, ['csrfToken']);
+          const csrf = fields.get('csrfToken');
+          const session = current && store.peek(current);
+          if (!current || !session || !bffSecretEquals(csrf, session.csrfToken))
+            return result(request, { code: 'csrf' }, 403);
+          try {
+            const started = await store.startFederationTest(
+              current,
+              request.source,
+              csrf!,
+              request.signal,
+            );
+            if (request.signal.aborted) throw new BffInputError();
+            return redirect(request, started.redirectUrl, [
+              bffCookie(BFF_COOKIES.browser, started.browser, cookieLife),
+              bffCookie(BFF_COOKIES.login + started.state, started.proof, 300),
+            ]);
+          } catch (error) {
+            const live = store.peek(current);
+            if (
+              httpSignal.aborted ||
+              !live ||
+              !(error instanceof BffSessionError || error instanceof BffProviderError) ||
+              (error instanceof BffSessionError &&
+                ['revoked', 'expired', 'csrf', 'identity', 'stopped', 'host_binding'].includes(
+                  error.reason,
+                ))
+            )
+              throw error;
+            const status =
+              error instanceof NativeApiError && error.status !== undefined ? error.status : 503;
+            return await actionDocument(
+              request,
+              render,
+              current,
+              {
+                kind: 'mutation_error',
+                action: FEDERATION_TEST_PATH,
+                destination: FEDERATION_TEST_DESTINATION,
+                fields: [['csrfToken', csrf!]],
+                reason:
+                  status === 409
+                    ? 'stale'
+                    : [401, 403, 404].includes(status)
+                      ? 'denied'
+                      : 'unavailable',
+                retryable: false,
+              },
+              { code: status === 409 ? 'concurrency_conflict' : 'unavailable' },
+              status,
+            );
           }
         }
         const adminFields = Object.hasOwn(BFF_ADMIN_FORMS, path)
@@ -957,6 +1045,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                         'provider_refused',
                         'configuration',
                         'response',
+                        'host_unavailable',
                       ].includes(error.reason)
                     ? 503
                     : 400;
@@ -964,9 +1053,14 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             error instanceof NativeApiError ? error.retryAfterSeconds : undefined;
           const reason =
             status === 401 ||
-            ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(
-              error.reason,
-            )
+            [
+              'identity',
+              'invalid_grant',
+              'reauthenticate',
+              'expired',
+              'revoked',
+              'host_binding',
+            ].includes(error.reason)
               ? 'reauthenticate'
               : status === 403 &&
                   path === '/api/auth/entry/create' &&

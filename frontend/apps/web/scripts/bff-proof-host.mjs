@@ -591,6 +591,7 @@ export async function prepareBffProof({
     'native-invitation-client',
     'native-invitation-http',
     'native-consent-http',
+    'native-federation-client',
     'consent-response-contract',
     'custom-field-forms',
     'invitation-session',
