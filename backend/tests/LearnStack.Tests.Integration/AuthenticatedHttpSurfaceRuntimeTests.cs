@@ -13,6 +13,8 @@ using LearnStack.Api.Idempotency;
 using LearnStack.Api.Pagination;
 using LearnStack.Api.Tenancy;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
+using LearnStack.Modules.Identity.Application.Federation;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
@@ -22,6 +24,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.Tests.Fixtures;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -42,8 +45,13 @@ namespace LearnStack.Tests.Integration;
 [Collection(TenantAuthenticationDiagnosticsTestGroup.Name)]
 public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 {
+    /// <summary>
+    /// <paramref name="Reads"/> are the requests the action sends, in order, before <paramref name="Request"/>; the census
+    /// answers exactly those and stops at the action's own request. Only the ADR-0099 runner's Activate and test record
+    /// read before their operation; every other action's first send is its request.
+    /// </summary>
     private sealed record SurfaceAction(string Path, string Verb, Type Controller, string Action, Type Request,
-        Type Response, string? Policy = null, ProtectedAdministrationOperation? Protected = null);
+        Type Response, string? Policy = null, ProtectedAdministrationOperation? Protected = null, Type[]? Reads = null);
 
     // This literal wire/caller inventory is independent of production classifiers and descriptors.
     private static readonly SurfaceAction[] ApprovedActions =
@@ -107,6 +115,20 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         new("tenancy/membership-field-consents/withdrawals", "POST", typeof(ConsentSubjectController), "Withdraw", typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ConsentWithdrawalResponse), "tenancy.membership_field_consent.withdraw", ProtectedAdministrationOperation.WithdrawOwnFieldConsent),
         new("tenancy/membership-field-consents/own", "GET", typeof(OwnFieldConsentController), "Current", typeof(GetOwnMembershipFieldConsentQuery), typeof(OwnFieldConsentCurrentResponse), "tenancy.membership_field_consent.get_own"),
         new("tenancy/membership-field-consents/grants", "POST", typeof(OwnFieldConsentController), "Grant", typeof(GrantOwnMembershipFieldConsentCommand), typeof(FieldConsentReceiptResponse), "tenancy.membership_field_consent.grant", ProtectedAdministrationOperation.GrantOwnFieldConsent),
+        new("public/sign-in", "GET", typeof(PublicSignInController), "Get", typeof(GetPublicSignInQuery), typeof(PublicSignIn)),
+        new("public/sign-in", "HEAD", typeof(PublicSignInController), "Head", typeof(GetPublicSignInQuery), typeof(void)),
+        // ADR-0099: the federation controller holds only FederationOperationRunner; the census observes the runner's sends.
+        new("identity/federation", "GET", typeof(FederationController), "Get", typeof(GetFederationConnectionQuery), typeof(FederationConnectionResponse), "identity.federation.read"),
+        new("identity/federation/configuration", "PUT", typeof(FederationController), "Configure", typeof(BeginConfigureFederationCommand), typeof(FederationOperationResponse), "identity.federation.configure"),
+        new("identity/federation/secret-rotations", "POST", typeof(FederationController), "RotateSecret", typeof(BeginRotateFederationSecretCommand), typeof(FederationOperationResponse), "identity.federation.rotate_secret"),
+        new("identity/federation/display-name", "PUT", typeof(FederationController), "Rename", typeof(BeginRenameFederationCommand), typeof(FederationOperationResponse), "identity.federation.rename"),
+        new("identity/federation/test-starts", "POST", typeof(FederationController), "StartTest", typeof(BeginFederationTestStartCommand), typeof(FederationOperationResponse), "identity.federation.test_start"),
+        new("identity/federation/test-results", "POST", typeof(FederationController), "RecordTestResult", typeof(RecordFederationTestResultCommand), typeof(FederationOperationResponse), "identity.federation.test_record", Reads: [typeof(GetFederationConnectionQuery)]),
+        new("identity/federation/activation", "POST", typeof(FederationController), "Activate", typeof(ActivateFederationCommand), typeof(FederationOperationResponse), "identity.federation.activate", Reads: [typeof(GetFederationConnectionQuery)]),
+        new("identity/federation/disablement", "POST", typeof(FederationController), "Disable", typeof(BeginDisableFederationCommand), typeof(FederationOperationResponse), "identity.federation.disable"),
+        new("identity/federation/enablement", "POST", typeof(FederationController), "Enable", typeof(EnableFederationCommand), typeof(FederationOperationResponse), "identity.federation.enable"),
+        new("identity/federation/deletion", "POST", typeof(FederationController), "Delete", typeof(BeginDeleteFederationCommand), typeof(FederationOperationResponse), "identity.federation.delete"),
+        new("identity/federation/resumption", "POST", typeof(FederationController), "Resume", typeof(ResumeFederationOperationCommand), typeof(FederationOperationResponse), "identity.federation.resume"),
     ];
     private static readonly Type[] ContextControllers =
         [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController), typeof(InvitationsController), typeof(InvitationPolicyController), typeof(MembershipCustomFieldsController), typeof(ConsentSubjectController), typeof(OwnFieldConsentController)];
@@ -158,6 +180,12 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         Action wrongAdmissionMethod = () => AssertUnion(actual.Select(entry => entry.Replace("identity/session-scope/admissions|POST|",
             "identity/session-scope/admissions|GET|", StringComparison.Ordinal)));
         wrongAdmissionMethod.Should().Throw<Xunit.Sdk.XunitException>("native admission remains the exact POST route");
+        Action readOnlyActivation = () => AssertUnion(actual.Select(entry => entry.Replace(typeof(ActivateFederationCommand).FullName!,
+            typeof(GetFederationConnectionQuery).FullName!, StringComparison.Ordinal)));
+        readOnlyActivation.Should().Throw<Xunit.Sdk.XunitException>("an Activate whose runner stops at its detail read never reached its operation");
+        Action anonymousSignIn = () => AssertUnion(actual.Where(entry => !entry.StartsWith("api/v1/public/sign-in|", StringComparison.Ordinal)));
+        anonymousSignIn.Should().Throw<Xunit.Sdk.XunitException>("the anonymous sign-in GET and HEAD belong to the closed union");
+        AssertFederationPolicyControls(endpoints.Cast<RouteEndpoint>().ToArray());
 
         await using var dirtyFactory = new SurfaceFactory(environment, addFilterProvider: true);
         using var dirtyClient = dirtyFactory.CreateClient();
@@ -172,6 +200,49 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         dirtyProviders.OfType<UnexpectedFilterProvider>().Single().OnProvidersExecuting(context);
         context.Results[0].Filter.Should().BeOfType<UnexpectedAuthorizationFilter>();
         AssertFilterProviders(factory.Services.GetServices<IFilterProvider>());
+    }
+
+    /// <summary>
+    /// Dirty controls: every federation endpoint without its policy, or reclassified as public, fails the same assertion
+    /// the census applies; a planted Activate descriptor built without its <c>[Authorize]</c> is reported by it, and an
+    /// inventory that gains or loses a federation action fails.
+    /// </summary>
+    private static void AssertFederationPolicyControls(RouteEndpoint[] endpoints)
+    {
+        var actions = endpoints.Select(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>())
+            .OfType<ControllerActionDescriptor>().ToArray();
+        var federation = endpoints.Where(endpoint =>
+            endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()?.ControllerTypeInfo.AsType() == typeof(FederationController)).ToArray();
+        federation.Should().HaveCount(11, "ADR-0099 Step 2 routes eleven federation actions, each through the runner");
+        foreach (var endpoint in federation)
+        {
+            var action = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()!;
+            var unprotected = endpoint.Metadata.Where(item => item is not IAuthorizeData).ToArray();
+            Action missing = () => AssertEndpointAuthorization(action, unprotected);
+            missing.Should().Throw<Xunit.Sdk.XunitException>("a federation action without its live operation policy is not protected");
+            Action anonymous = () => AssertEndpointAuthorization(action, unprotected.Append(new AllowAnonymousAttribute()));
+            anonymous.Should().Throw<Xunit.Sdk.XunitException>("a federation action cannot be reclassified as a public read");
+            AssertEndpointAuthorization(action, endpoint.Metadata);
+        }
+        var activate = actions.Single(action => action.ControllerTypeInfo.AsType() == typeof(FederationController)
+            && action.MethodInfo.Name == nameof(FederationController.Activate));
+        var planted = new ControllerActionDescriptor
+        {
+            ControllerTypeInfo = activate.ControllerTypeInfo,
+            MethodInfo = activate.MethodInfo,
+            ControllerName = activate.ControllerName,
+            ActionName = activate.ActionName,
+            FilterDescriptors = activate.FilterDescriptors,
+            EndpointMetadata = [.. activate.EndpointMetadata.Where(item => item is not IAuthorizeData)],
+        };
+        Action plantedPolicy = () => AssertEndpointAuthorization(planted, planted.EndpointMetadata);
+        plantedPolicy.Should().Throw<Xunit.Sdk.XunitException>("the census reports a federation descriptor that lacks its policy")
+            .WithMessage("*authorizations to contain a single item, but the collection is empty*");
+        Action extra = () => AssertActionInventory(actions.Append(planted));
+        extra.Should().Throw<Xunit.Sdk.XunitException>("a second federation Activate descriptor is not the approved inventory");
+        Action dropped = () => AssertActionInventory(actions.Where(action => !ReferenceEquals(action, activate)));
+        dropped.Should().Throw<Xunit.Sdk.XunitException>("a missing federation action is not the approved inventory");
+        AssertActionInventory(actions);
     }
 
     private static void AssertEndpointAuthorizationControls(ControllerActionDescriptor action, EndpointMetadataCollection metadata)
@@ -242,7 +313,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     private static void AssertActionInventory(IEnumerable<ControllerActionDescriptor> actions)
     {
         var actual = actions.ToArray();
-        actual.Should().HaveCount(59);
+        actual.Should().HaveCount(72);
         actual.Select(action => action.ControllerTypeInfo.FullName + "." + action.MethodInfo.Name).Order(StringComparer.Ordinal)
             .Should().Equal(ApprovedActions.Select(expected => expected.Controller.FullName + "." + expected.Action).Order(StringComparer.Ordinal),
                 "every convention must reach exactly the approved controller/action multiset");
@@ -336,8 +407,13 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var expected = Approved(action);
         var sender = DispatchProxy.Create<ISender, RequestObservation>();
         var observation = (RequestObservation)sender;
+        var reads = expected.Reads ?? [];
+        observation.Answer = request => observation.Requests.Count <= reads.Length
+            && request.GetType() == reads[observation.Requests.Count - 1] ? CensusRead(request) : null;
         var controllerType = action.ControllerTypeInfo.AsType();
-        object[] constructor = controllerType == typeof(OwnMembershipController)
+        // The federation controller holds only the runner (ADR-0099); the real runner sends through the observed sender.
+        object[] constructor = controllerType == typeof(FederationController) ? [CensusRunner(sender, services)]
+            : controllerType == typeof(OwnMembershipController)
             ? [sender, new CensusTenantContext(), services.GetRequiredService<LearnStack.Api.Authentication.NativeEntryOriginOptions>()]
             : controllerType == typeof(CustomFieldDefinitionsController) ? [sender, new CensusTenantContext(), services.GetRequiredService<IGuidFactory>()]
             : ContextControllers.Contains(controllerType) ? [sender, new CensusTenantContext()] : [sender];
@@ -372,7 +448,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         if (controllerType == typeof(OwnFieldConsentController) && expected.Action == "Current")
             context.Request.QueryString = new QueryString("?membershipId=" + CensusTarget + "&definitionId=" + CensusTarget + "&definitionVersion=1");
         var body = expected.Protected is { } operation ? CensusBody(operation)
-            : controllerType == typeof(NativeSessionAdmissionController) ? "{}" : string.Empty;
+            : controllerType == typeof(NativeSessionAdmissionController) ? "{}"
+            : controllerType == typeof(FederationController) ? FederationCensusBody(expected.Action) : string.Empty;
         using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(body));
         context.Request.Body = input;
         context.Request.ContentLength = input.Length;
@@ -386,6 +463,10 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
                 or ProtectedAdministrationOperation.RegisterCustomFieldDefinition or ProtectedAdministrationOperation.GrantOwnFieldConsent
                 or ProtectedAdministrationOperation.WithdrawOwnFieldConsent)) context.Request.Headers.IfMatch = "\"7\"";
         }
+        // Federation mutations carry no Idempotency-Key; the connection revision converges them. Configure without
+        // If-Match is the first configuration, the strictest closed input.
+        if (controllerType == typeof(FederationController) && expected.Action is not ("Get" or "Configure"))
+            context.Request.Headers.IfMatch = "\"7\"";
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
         {
@@ -397,7 +478,64 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var execution = (Task)action.MethodInfo.Invoke(controller, arguments)!;
         Func<Task> invoke = () => execution;
         await invoke.Should().ThrowAsync<DispatchObservedException>();
-        return observation.Requests.Should().ContainSingle("each discovered production action sends its exact request once").Which;
+        observation.Requests.Should().HaveCount(reads.Length + 1, "each discovered production action sends its exact request once, after its declared reads");
+        observation.Requests.Take(reads.Length).Should().Equal(reads, "only the declared reads precede the action's own request");
+        return observation.Requests[^1];
+    }
+
+    /// <summary>The real runner with census collaborators: entitled, an empty broker store and admitted example egress.</summary>
+    private static FederationOperationRunner CensusRunner(ISender sender, IServiceProvider services) => new(sender,
+        new InMemoryFederationProvider(), new InMemoryFederationEgressFetcher(), new CensusFeatureFlags(), new CensusTenantContext(),
+        services.GetRequiredService<IGuidFactory>(), services.GetRequiredService<LearnStack.SharedKernel.Time.IClock>(),
+        FederationOperationBudgets.Default);
+
+    /// <summary>
+    /// The census's answer to a declared read: the connection at revision 7, whose desired digest differs from the empty
+    /// broker's, so Activate skips the endpoint re-check and the runner reaches the operation's own send.
+    /// </summary>
+    private static Task<LearnStack.SharedKernel.Results.Result<FederationConnectionRead>> CensusRead(object request)
+    {
+        request.Should().BeOfType<GetFederationConnectionQuery>("the only declared read is the federation detail query");
+        var connection = Guid.Parse(CensusTarget);
+        var view = new FederationConnectionView(connection, LearnStack.SharedKernel.Identity.FederationBrokerProtocol.Oidc,
+            LearnStack.SharedKernel.Identity.FederationBrokerOwner.AliasPrefix + connection.ToString("N"), "Census",
+            InMemoryFederationEgressFetcher.Issuer, FederationConnectionStatus.TestPassed, FederationSource.DiscoveryUrl, "learnstack", 7,
+            "census-configuration", "census-desired", null, null, null, 7);
+        return Task.FromResult(LearnStack.SharedKernel.Results.Result.Ok(new FederationConnectionRead(view)));
+    }
+
+    private static string FederationCensusBody(string action) => action switch
+    {
+        "Get" => string.Empty,
+        "Configure" => System.Text.Json.JsonSerializer.Serialize(new
+        {
+            protocol = "oidc",
+            displayName = "Census",
+            source = "discovery_url",
+            documentUrl = InMemoryFederationEgressFetcher.Discovery.AbsoluteUri,
+            issuerOrEntityId = (string?)null,
+            authorizationEndpoint = (string?)null,
+            tokenEndpoint = (string?)null,
+            jwksEndpoint = (string?)null,
+            userInfoEndpoint = (string?)null,
+            singleSignOnEndpoint = (string?)null,
+            signingCertificates = Array.Empty<string>(),
+            clientId = "learnstack",
+            clientAuthentication = "client_secret_basic",
+            clientSecret = "census-s3cret-value",
+        }),
+        "RotateSecret" => "{\"clientSecret\":\"census-s3cret-value\"}",
+        "Rename" => "{\"displayName\":\"Census\"}",
+        "RecordTestResult" => "{\"testAttemptId\":\"" + CensusTarget + "\",\"passed\":true}",
+        "StartTest" or "Activate" or "Disable" or "Enable" or "Delete" or "Resume" => "{}",
+        _ => throw new InvalidOperationException("Unclassified federation census input"),
+    };
+
+    private sealed class CensusFeatureFlags : LearnStack.SharedKernel.Entitlements.IFeatureFlags
+    {
+        public Task<bool> IsEnabledAsync(LearnStack.SharedKernel.Entitlements.FeatureKey key, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<long> GetLimitAsync(LearnStack.SharedKernel.Entitlements.LimitKey key, CancellationToken ct = default) =>
+            Task.FromResult(LearnStack.SharedKernel.Entitlements.LimitKeys.Unlimited);
     }
 
     private static string CensusBody(ProtectedAdministrationOperation operation) => operation switch
@@ -437,8 +575,12 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 
     private static void AssertUnion(IEnumerable<string> actual)
     {
-        ApprovedActions.Should().HaveCount(59);
+        ApprovedActions.Should().HaveCount(72);
         ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(23);
+        ApprovedActions.Count(expected => expected.Controller == typeof(FederationController)).Should().Be(11);
+        ApprovedActions.Count(expected => expected.Policy is null).Should().Be(10, "eight public site and course reads plus the sign-in GET and HEAD");
+        ApprovedActions.Where(expected => expected.Reads is not null).Select(expected => expected.Action)
+            .Should().BeEquivalentTo(["RecordTestResult", "Activate"], "only the runner's observe-first operations read before they send");
         var mvc = ApprovedActions.Select(expected => Mvc(expected.Path, expected.Verb, expected.Controller, expected.Action, expected.Request));
         var infrastructure = new[]
         {
@@ -459,11 +601,14 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     public class RequestObservation : DispatchProxy
     {
         internal List<Type> Requests { get; } = [];
+        /// <summary>Answers a declared read; null stops the dispatch at the observed request.</summary>
+        internal Func<object, object?>? Answer { get; set; }
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
             targetMethod!.Name.Should().Be("Send");
-            Requests.Add(args![0]!.GetType());
-            throw new DispatchObservedException();
+            var request = args![0]!;
+            Requests.Add(request.GetType());
+            return Answer?.Invoke(request) ?? throw new DispatchObservedException();
         }
     }
 

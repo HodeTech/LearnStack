@@ -5516,9 +5516,11 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the production census closes the finite HTTP surface at 31 MVC
-  actions and 27 distinct `IRequest` roots, including the public and authenticated
-  reads, ten protected keyed writes and native session-scope admission. It also
+- **Asserts:** the production census closes the finite HTTP surface at 72 MVC
+  actions and 67 distinct `IRequest` roots, including the public and authenticated
+  reads, the anonymous sign-in read, 23 protected keyed writes, native
+  session-scope admission and the eleven ADR-0099 federation actions, which reach
+  their requests only through `FederationOperationRunner`. It also
   checks the separate three exact GlobalSelf middleware routes. The canonical
   name is historical: administration includes writes, and sensitive reads can
   require a ReadWrite owner to commit MUST audit evidence. AccountSite and public

@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,033 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 1,101 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -495,6 +495,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 0 review round 1 corrections (2026-11-13)](#p03-8-step-0-review-round-1-corrections-2026-11-13) — 48 lines
   - [P03-8 Step 2 — application and API (2026-11-13)](#p03-8-step-2--application-and-api-2026-11-13) — 162 lines
   - [P03-8 Step 2 review round 1 corrections (2026-11-14)](#p03-8-step-2-review-round-1-corrections-2026-11-14) — 216 lines
+  - [P03-8 Step 2 census regression N-1 (2026-11-14)](#p03-8-step-2-census-regression-n-1-2026-11-14) — 68 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -22781,3 +22782,71 @@ web checks (no generated or parsed contract changed).
   lapse-driven disable (C-1 covers failure, expiry, drift and an enabled broker in Draft or
   Disabled).
 - The second independent review round of Step 2.
+
+### P03-8 Step 2 census regression N-1 (2026-11-14)
+
+**Diagnosis (verified at `3483c342`).** `AuthenticatedHttpSurfaceRuntimeTests` failed 7 of
+7. Five tests stopped at `AssertActionInventory`, which expected 59 controller actions and
+found 72. The two endpoint-union tests stopped at `Approved()`, because the first
+unapproved action had no matching row. The 13 new actions are Step 2's eleven
+`FederationController` actions and the anonymous `PublicSignInController` GET and HEAD.
+The census built every controller with a stub `ISender`. `FederationController` holds only
+`FederationOperationRunner`, the concrete runner class and not an interface. Activate and
+the test record read the connection before their operation, and Configure reaches egress
+before its first send.
+
+**Fix (test-only).** The census now observes the federation surface through the real
+runner:
+
+- It builds `FederationController` with a real `FederationOperationRunner`. The runner
+  sends through the observed sender and has census collaborators: entitled flags, an
+  empty `InMemoryFederationProvider` and the admitted `InMemoryFederationEgressFetcher`.
+  Every federation action receives a valid closed body and its `If-Match`. Configure has
+  no `If-Match` because it is the first configuration.
+- A row can declare `Reads`, the requests the action sends before its own. Only Activate
+  and `RecordTestResult` declare one, `GetFederationConnectionQuery`. The census answers
+  that read with a revision-7 connection and stops at the action's own request. It asserts
+  the exact sequence: the declared reads, then one request.
+- The 13 actions get the checks the other 59 already had: the exact live
+  `LearnStackOperation:identity.federation.*` policy on the built endpoint, effective
+  filters, real dispatch under closed input, and no anonymous bypass. The sign-in GET and
+  HEAD are expected anonymous: exactly `AllowAnonymousAttribute` and no authorization
+  metadata.
+- The totals are pinned at 72 actions, 23 keyed, 11 federation and 10 anonymous.
+- New dirty controls:
+  - Each federation endpoint stripped of its `[Authorize]`, or given
+    `AllowAnonymous`, fails.
+  - A planted Activate descriptor without its policy is reported as "authorizations to
+    contain a single item, but the collection is empty".
+  - An inventory that gains or loses a federation action fails.
+  - An Activate that only reads fails the union, and so does a union without the sign-in
+    routes.
+- No action was excluded, and no production code changed.
+- [Standard 21 § `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`](../standards/21-architecture-tests-catalogue.md#authenticated_http_surface_is_enumerated_and_readonly)
+  said 31 MVC actions, 27 `IRequest` roots and ten keyed writes, which was stale before
+  Step 2. It now says 72, 67 and 23, plus the sign-in read and the eleven runner-routed
+  federation actions.
+
+**Commit.** `test(identity): census the federation surface through the runner`, this
+record's commit.
+
+**Verification.** Local workstation (macOS, Docker, Testcontainers).
+
+| Command | Result |
+|---|---|
+| `dotnet build backend/LearnStack.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
+| Integration, Release: `AuthenticatedHttpSurfaceRuntimeTests` | 7 passed, 0 failed (before the fix: 0 passed, 7 failed) |
+| Integration, Release: `FederationHttpTests` | 9 passed, 0 failed |
+| Integration, Release: `PublicSignInHttpTests` | 4 passed, 0 failed |
+| Integration, Release: `OperationHttpClassificationTests` | 14 passed, 0 failed |
+| Architecture (`LearnStack.Tests.Architecture`, Release, full) | 651 total: 651 passed, 0 failed, 0 skipped (46 min) |
+| `dotnet format --verify-no-changes` on the changed test file | clean |
+
+A temporary mutation check removed Activate's declared read, and the census failed. It
+was restored before the runs above.
+
+Not run: the full integration suite, the unit and contract suites (no production or
+contract change), and hosted CI.
+
+**Open items.** N-1 is closed. C-12, the trailer model name, stays with the maintainer:
+this commit is attributed to the model that wrote it.
