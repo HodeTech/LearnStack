@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,104 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,105 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -504,7 +504,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 200 lines
   - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 110 lines
   - [P03-8 Step 4 review round 2 corrections (2026-11-15)](#p03-8-step-4-review-round-2-corrections-2026-11-15) — 76 lines
-  - [P03-8 PR CI triage corrections (2026-11-15)](#p03-8-pr-ci-triage-corrections-2026-11-15) — 38 lines
+  - [P03-8 PR CI triage corrections (2026-11-15)](#p03-8-pr-ci-triage-corrections-2026-11-15) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
