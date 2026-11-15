@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,066 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,104 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -504,6 +504,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 4 — native and Studio (2026-11-14)](#p03-8-step-4--native-and-studio-2026-11-14) — 200 lines
   - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 110 lines
   - [P03-8 Step 4 review round 2 corrections (2026-11-15)](#p03-8-step-4-review-round-2-corrections-2026-11-15) — 76 lines
+  - [P03-8 PR CI triage corrections (2026-11-15)](#p03-8-pr-ci-triage-corrections-2026-11-15) — 38 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23823,3 +23824,42 @@ and a browser, axe or manual accessibility audit.
   (maintainer).
 - The commit-trailer model (maintainer).
 - The PR (not yet opened).
+
+### P03-8 PR CI triage corrections (2026-11-15)
+
+**Trigger.** The first hosted run on PR #45 (run `43654864708`, head `b4f82d85`)
+failed. Four backend tests and one frontend test failed. Three of the backend results
+are census or closure faults; the fourth is a fixture-readiness failure, not an
+assertion. The build, integration and `backend base tests and gates` aggregate jobs failed with
+`producer_not_successful` or `producer_state_refusal`; they are consequences, not
+independent faults. The OpenAPI diff failure is the ADR-0096 self-response decision,
+recorded above, and is unchanged.
+
+**Root causes and corrections.**
+
+| Failure | Cause | Correction |
+|---|---|---|
+| `BackgroundJobProductionManifestTests.BackgroundJob_Runtime_Has_Only_Approved_Production_Definitions_And_No_Dashboard` (base) | The exact application-route census listed 65 routes; the served set has 78. The 13 extra are the eleven `FederationController` routes and the anonymous `public/sign-in` GET and HEAD. | The census lists all 13, with their controller actions. |
+| `PublicEducationHttpTests.Production_route_inventory_is_exactly_the_four_get_head_pairs` (ordinary-1) | The inventory expected eight `api/v1/public` endpoints and four pairs. ADR-0099 § Sign-in exposure and ADR-0052 Amendment 16 admit the sign-in pair. | Expects ten endpoints and five pairs; renamed `..._exactly_the_five_get_head_pairs`; the shard plan's measurement entry follows the new name. |
+| `PublicLocalLaunchTests`, three cases (ordinary-6) | The launcher compiles a staged closure of ingress sources. `provider-core.ts` imports `./federation-alias.js`, which the closure did not stage, so `tsc --project tsconfig.server.json` exited 1. | `src/server/auth/federation-alias.ts` is staged. A reproduction of the staged closure compiles with exit 0. |
+| `public-boundaries.test.ts` › "keeps imported helpers in fixture-named production directories visible" (frontend) | Vitest's default 5 s timeout fired at 5,067 ms on the hosted runner. The same test takes about 1.1 s locally. The test builds four TypeScript source graphs. | The test has an explicit 30 s timeout, the convention already used by `bff-browser-launch.test.ts`. |
+| `FederationProviderTests.An_unknown_address_ends_in_the_closed_error_and_creates_no_account` (ordinary-10) | Not an assertion failure. The shard's `failureLocations` record `readiness_timeout` at `provider_starting`, with `readinessOutcome: tls` over 111 probes and 120 s. Other Keycloak fixture consumers in the same run passed, including `ProviderEventActionTests` (1 min 25 s). The test passed locally. | Not changed. Classified as a hosted Keycloak fixture-readiness flake. The rerun decides; a recurrence needs `KeycloakFixture` readiness work. |
+
+**Verification.** Local, Release, Docker:
+
+| Command | Result |
+|---|---|
+| `dotnet test` filtered to `BackgroundJobProductionManifestTests`, `PublicEducationHttpTests`, `FederationProviderTests`, `PublicLocalLaunchTests` | 91 passed, 0 failed (`EXIT=0`) |
+| `pnpm exec vitest run src/test/public-boundaries.test.ts` (`apps/web`) | 313 passed |
+| The staged-closure `tsc --project tsconfig.server.json` reproduction | exit 0 |
+| `python3 scripts/test-ci-test-shards.py` | 88 tests OK |
+
+Not run locally: the full integration, architecture and frontend suites. The hosted
+rerun on the corrected head is the evidence for the full set of shards.
+
+**Stash and worktree hygiene (2026-11-15).** The uncommitted diff in the scratchpad
+worktree `wtA` (detached `8f1b6961`) was superseded by `development`. It asserted the
+pre-step-4 counts (six pairs, eleven capabilities); `development` asserts seven pairs
+and the v4 adoption test. Its diff was saved before removal. The stash list was not
+dropped: each entry's files differ from `HEAD`, so none is provably contained in
+history.

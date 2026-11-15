@@ -10296,7 +10296,7 @@
     },
     {
       "assembly": "learnstack.tests.integration",
-      "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Production_route_inventory_is_exactly_the_four_get_head_pairs",
+      "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Production_route_inventory_is_exactly_the_five_get_head_pairs",
       "milliseconds": 39,
       "source": "p033-77f62-a1-ordinary-9"
     },

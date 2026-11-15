@@ -71,6 +71,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
             {
                 "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts",
                 "src/server/auth/http-paths.ts", "src/server/auth/input-error.ts",
+                "src/server/auth/federation-alias.ts",
                 "src/server/auth/native-contract.ts", "src/server/auth/native-operation-contract.ts",
                 "src/server/auth/page-contract.ts", "src/server/auth/page-query.ts",
                 "src/server/auth/page-snapshot-contract.ts", "src/server/auth/provider-core.ts",
