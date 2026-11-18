@@ -145,23 +145,23 @@ def main():
     if result not in (0, 1) or first_baseline:
         return result
     record = transition.candidate(ROOT, lambda path: committed_file(head_sha, path),
-        git('ls-tree', '-r', '--name-only', head_sha, '--', 'backend/openapi/policy').stdout.decode().splitlines(),
+        git('ls-tree', '-r', '--name-only', head_sha, '--', 'backend/openapi/policy', 'docs/decisions').stdout.decode().splitlines(),
         base, head, args.tool.resolve(), comparison, identity)
     if record is None:
         return result
     if result != 1:
-        raise ValueError('ADR-0096 comparison result disagrees with the reviewed incompatibility')
+        raise ValueError('ADR-' + record['adr'] + ' comparison result disagrees with the reviewed incompatibility')
     controls = args.output / 'approval-fixtures'
     result = subprocess.run([sys.executable, str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
         '--fixtures', '--output', str(controls.resolve())], check=False).returncode
     if result != 0:
         return result
     transition.validate_controls(ROOT, args.tool.resolve(), controls, record)
-    approval = {'outcome': 'approved-incompatibility', 'compatibility': False, 'adr': '0096', 'baseCommit': base_sha,
+    approval = {'outcome': 'approved-incompatibility', 'compatibility': False, 'adr': record['adr'], 'baseCommit': base_sha,
         'headCommit': head_sha, 'baseSha256': record['baseSha256'], 'headSha256': record['headSha256'],
         'findings': record['findings'], 'inputs': record['inputs'], 'runtimeBehaviorVerified': False}
     (args.output / 'approval.json').write_text(json.dumps(approval, indent=2, sort_keys=True) + '\n')
-    print('ADR-0096 approved incompatibility; raw findings retained; runtime proof is separate.')
+    print('ADR-' + record['adr'] + ' approved incompatibility; raw findings retained; runtime proof is separate.')
     return 0
 
 

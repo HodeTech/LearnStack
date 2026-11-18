@@ -1,4 +1,10 @@
-"""ADR-0096 admission for one Git-backed, fully classified incompatibility."""
+"""Admission for Git-backed, fully classified incompatibilities that an Accepted ADR approves.
+
+Each approved transition has one carrier, `backend/openapi/policy/transition-NNNN.json`,
+bound to the Accepted `docs/decisions/NNNN-*.md` it names (ADR-0096, ADR-0100).
+Every carrier is validated on every run; only the one whose exact snapshot pair
+matches the comparison can approve it.
+"""
 import hashlib
 import importlib.util
 import json
@@ -6,8 +12,8 @@ from pathlib import Path
 import re
 import stat
 
-ADR = 'docs/decisions/0096-p035-administration-contract-baseline.md'
-CARRIER = 'backend/openapi/policy/transition-0096.json'
+POLICY = 'backend/openapi/policy/'
+DECISIONS = 'docs/decisions/'
 TOOL = 'Linux AMD64 oasdiff 1.33.0 executable'
 INPUTS = (
     'scripts/openapi-policy.py', 'backend/openapi/policy/oasdiff.json',
@@ -19,6 +25,8 @@ REPORTS = {'raw': ('Raw tool', 'raw-tool.json'),
            'companion': ('Companion policy', 'companion.json')}
 VERSION = 'oasdiff version 1.33.0'
 LIMIT = 2 * 1024 * 1024
+CARRIER = re.compile(re.escape(POLICY) + r'transition-([0-9]{4})\.json')
+REVIEWED = re.compile(r'Reviewed P[0-9]{2}-[0-9]+ contract')
 status_spec = importlib.util.spec_from_file_location('transition_adr_status', Path(__file__).with_name('adr-status.py'))
 status_reader = importlib.util.module_from_spec(status_spec)
 status_spec.loader.exec_module(status_reader)
@@ -26,7 +34,7 @@ status_spec.loader.exec_module(status_reader)
 
 def require(condition, reason):
     if not condition:
-        raise ValueError('ADR-0096 approval refused: ' + reason)
+        raise ValueError('OpenAPI transition approval refused: ' + reason)
 
 
 def digest(data):
@@ -44,7 +52,7 @@ def strict_json(data):
         return result
 
     def invalid(_value):
-        raise ValueError('ADR-0096 approval refused: nonfinite JSON number')
+        raise ValueError('OpenAPI transition approval refused: nonfinite JSON number')
 
     return json.loads(data, object_pairs_hook=unique, parse_constant=invalid)
 
@@ -79,12 +87,37 @@ def execution_identity(root, tool):
     except (OSError, ValueError):
         # Paths and provider exception text are not diagnostic output. The
         # closed reason distinguishes unavailable evidence from byte drift.
-        raise ValueError('ADR-0096 approval refused: execution identity unavailable') from None
+        raise ValueError('OpenAPI transition approval refused: execution identity unavailable') from None
 
 
-def decision_tables(source):
+def carrier_paths(committed_paths):
+    """Every committed `transition-*.json`, keyed by the ADR number its file name carries."""
+    carriers = {}
+    for path in committed_paths:
+        name = Path(path).name
+        if path.startswith(POLICY) and name.startswith('transition-') and Path(path).suffix == '.json':
+            match = CARRIER.fullmatch(path)
+            require(match is not None, 'unrecognized transition carrier name')
+            carriers[match.group(1)] = path
+    return carriers
+
+
+def decision_path(adr, committed_paths):
+    pattern = re.compile(re.escape(DECISIONS) + adr + r'-[a-z0-9][a-z0-9-]*\.md')
+    found = [path for path in committed_paths if pattern.fullmatch(path)]
+    require(len(found) == 1, 'missing/ambiguous decision')
+    return found[0]
+
+
+def reviewed_label(rows):
+    labels = [label for label in rows if REVIEWED.fullmatch(label)]
+    require(len(labels) == 1, 'missing/extra decision identity')
+    return labels[0]
+
+
+def decision_tables(adr, source):
     text = source.decode('utf-8')
-    require(text.startswith('# ADR-0096: '), 'unknown decision identity')
+    require(text.startswith('# ADR-' + adr + ': '), 'unknown decision identity')
     require(status_reader.lifecycle(text) == 'Accepted', 'decision is not Accepted')
     rows = {}
     for line in text.splitlines():
@@ -95,10 +128,10 @@ def decision_tables(source):
             continue
         require(cells[0] not in rows, 'duplicate decision row')
         rows[cells[0]] = cells[1:]
-    expected = {'Prior contract', 'Reviewed P03-5 contract', *INPUTS,
-                *(label for label, _ in REPORTS.values())}
+    reviewed = reviewed_label(rows)
+    expected = {'Prior contract', reviewed, *INPUTS, *(label for label, _ in REPORTS.values())}
     require(set(rows) == expected, 'missing/extra decision identity')
-    for key in ('Prior contract', 'Reviewed P03-5 contract'):
+    for key in ('Prior contract', reviewed):
         require(len(rows[key]) == 2 and re.fullmatch('[0-9a-f]{8,40}', rows[key][0]), 'invalid snapshot row')
     for key in INPUTS:
         require(len(rows[key]) == 1, 'invalid input row')
@@ -119,33 +152,51 @@ def validate_policy_metadata(root, output):
                          'severitySha256': digest(severity)}, 'comparison policy metadata mismatch')
 
 
-def candidate(root, read_committed, committed_paths, base, head, tool, output, before):
-    """Only the verified Git wrapper supplies these committed bytes/callbacks."""
-    source = read_committed(CARRIER)
-    if source is None:
-        return None
-    transitions = {p for p in committed_paths if p.startswith('backend/openapi/policy/')
-                   and Path(p).name.startswith('transition-') and Path(p).suffix == '.json'}
-    require(transitions == {CARRIER}, 'missing/extra transition carrier')
+def load_carrier(adr, source):
+    """Shape only; the decision tables bind its values."""
+    require(source is not None, 'missing carrier')
     record = strict_json(source)
     fields(record, ('schemaVersion', 'adr', 'baseSha256', 'headSha256', 'findings', 'inputs'))
-    require(type(record['schemaVersion']) is int and record['schemaVersion'] == 1 and record['adr'] == '0096', 'invalid carrier identity')
+    require(type(record['schemaVersion']) is int and record['schemaVersion'] == 1 and record['adr'] == adr,
+            'invalid carrier identity')
     require(hex_digest(record['baseSha256']) and hex_digest(record['headSha256']), 'invalid snapshot digest')
-    if (digest(base), digest(head)) != (record['baseSha256'], record['headSha256']):
-        return None
-    decision = read_committed(ADR)
-    require(decision is not None, 'missing decision')
-    rows = decision_tables(decision)
-    require(record['baseSha256'] == rows['Prior contract'][1]
-            and record['headSha256'] == rows['Reviewed P03-5 contract'][1], 'carrier repointed from decision')
     fields(record['findings'], REPORTS)
+    for item in record['findings'].values():
+        fields(item, ('count', 'sha256'))
+    fields(record['inputs'], INPUTS)
+    return record
+
+
+def bind(record, rows):
+    """A carrier is only the Accepted decision's tables restated; it can never differ from them."""
+    require(record['baseSha256'] == rows['Prior contract'][1]
+            and record['headSha256'] == rows[reviewed_label(rows)][1], 'carrier repointed from decision')
     for name, (label, _) in REPORTS.items():
         item = record['findings'][name]
-        fields(item, ('count', 'sha256'))
         require(type(item['count']) is int and item['count'] == int(rows[label][0])
                 and item['sha256'] == rows[label][1], 'finding declaration differs from decision')
-    fields(record['inputs'], INPUTS)
     require(record['inputs'] == {name: rows[name][0] for name in INPUTS}, 'input declaration differs from decision')
+
+
+def candidate(root, read_committed, committed_paths, base, head, tool, output, before):
+    """Only the verified Git wrapper supplies these committed bytes/callbacks."""
+    carriers = carrier_paths(committed_paths)
+    if not carriers:
+        return None
+    records = {}
+    for adr, path in sorted(carriers.items()):
+        record = load_carrier(adr, read_committed(path))
+        decision = read_committed(decision_path(adr, committed_paths))
+        require(decision is not None, 'missing decision')
+        bind(record, decision_tables(adr, decision))
+        records[adr] = record
+    pairs = [(record['baseSha256'], record['headSha256']) for record in records.values()]
+    require(len(pairs) == len(set(pairs)), 'duplicate transition pair')
+    matches = [record for record in records.values()
+               if (record['baseSha256'], record['headSha256']) == (digest(base), digest(head))]
+    if not matches:
+        return None
+    record = matches[0]
     require(before == record['inputs'] == execution_identity(root, tool), 'execution identity mismatch')
     for name in INPUTS:
         if name != TOOL:

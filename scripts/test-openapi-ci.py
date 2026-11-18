@@ -16,6 +16,8 @@ MODULE_SPEC = importlib.util.spec_from_file_location('openapi_ci', Path(__file__
 ci = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(ci)
 REAL_RUN = subprocess.run
+ADR_PATH = 'docs/decisions/0096-p035-administration-contract-baseline.md'
+CARRIER_PATH = 'backend/openapi/policy/transition-0096.json'
 EMPTY = {'openapi': '3.1.0', 'info': {'title': 'Fixture', 'version': '1'}, 'paths': {}}
 CURRENT = {**EMPTY, 'paths': {'/api/v1/fixture': {'get': {'responses': {'200': {'description': 'OK'}}}}}}
 
@@ -233,8 +235,8 @@ class TransitionControls(unittest.TestCase):
             'headSha256': self.t.digest(self.head_bytes),
             'findings': {k: {'count': len(v), 'sha256': self.t.digest(self.t.canonical_findings(v))} for k, v in self.reports.items()},
             'inputs': inputs}
-        decision = (self.real / self.t.ADR).read_text()
-        original = self.t.decision_tables(decision.encode())
+        decision = (self.real / ADR_PATH).read_text()
+        original = self.t.decision_tables('0096', decision.encode())
         replacements = {original['Prior contract'][1]: self.record['baseSha256'],
                         original['Reviewed P03-5 contract'][1]: self.record['headSha256'],
                         original[self.t.TOOL][0]: inputs[self.t.TOOL]}
@@ -244,13 +246,13 @@ class TransitionControls(unittest.TestCase):
         for old, new in replacements.items():
             decision = decision.replace(old, new)
         self.decision = decision.encode()
-        for name, data in [(self.t.ADR, self.decision), (self.t.CARRIER, json.dumps(self.record).encode())]:
+        for name, data in [(ADR_PATH, self.decision), (CARRIER_PATH, json.dumps(self.record).encode())]:
             destination = self.root / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(data)
         self.head = self.save(revised)
         self.committed = {name: (self.root / name).read_bytes() for name in self.t.INPUTS if name != self.t.TOOL}
-        self.committed.update({self.t.ADR: self.decision, self.t.CARRIER: json.dumps(self.record).encode()})
+        self.committed.update({ADR_PATH: self.decision, CARRIER_PATH: json.dumps(self.record).encode()})
         self.paths = list(self.committed)
         self.comparison = self.root / 'isolated-comparison'
         self.write_comparison(self.comparison)
@@ -268,11 +270,35 @@ class TransitionControls(unittest.TestCase):
         self.write_json(output / 'policy.json', {'version': self.t.VERSION, 'severity': severity.decode(),
                                                 'severitySha256': self.t.digest(severity)})
 
-    def write_comparison(self, output):
+    def write_comparison(self, output, reports=None):
         self.write_metadata(output)
         for name, (_, file) in self.t.REPORTS.items():
-            self.write_json(output / file, self.reports[name])
+            self.write_json(output / file, (reports or self.reports)[name])
         self.write_json(output / 'result.json', {'rawToolRefused': True, 'policyRefused': True})
+
+    def add_transition(self, adr, base_bytes, head_bytes, label='Reviewed P03-8 contract'):
+        """A further Accepted decision and carrier beside the first, for its own exact pair."""
+        reports = {
+            'raw': [{'id': 'second-break', 'level': 3, 'path': '/api/v1/second', 'fingerprint': str(i)} for i in range(5)],
+            'normalized': [{'id': 'second-break', 'level': 3, 'path': '/api/v1/second', 'fingerprint': str(i)} for i in range(5)],
+            'companion': [{'id': 'second-companion', 'location': ['paths', str(i)]} for i in range(54)],
+        }
+        record = {'schemaVersion': 1, 'adr': adr, 'baseSha256': self.t.digest(base_bytes), 'headSha256': self.t.digest(head_bytes),
+            'findings': {k: {'count': len(v), 'sha256': self.t.digest(self.t.canonical_findings(v))} for k, v in reports.items()},
+            'inputs': self.record['inputs']}
+        decision = self.decision.decode()
+        replacements = {self.record['baseSha256']: record['baseSha256'], self.record['headSha256']: record['headSha256']}
+        for name in self.t.REPORTS:
+            replacements[self.record['findings'][name]['sha256']] = record['findings'][name]['sha256']
+        for old, new in replacements.items():
+            decision = decision.replace(old, new)
+        decision = decision.replace('# ADR-0096:', '# ADR-' + adr + ':', 1).replace('Reviewed P03-5 contract', label)
+        decision_path = 'docs/decisions/' + adr + '-second-reviewed-transition.md'
+        carrier_path = 'backend/openapi/policy/transition-' + adr + '.json'
+        self.committed[decision_path] = decision.encode()
+        self.committed[carrier_path] = json.dumps(record).encode()
+        self.paths += [decision_path, carrier_path]
+        return record, reports, decision_path, carrier_path
 
     def write_controls(self, output):
         self.write_metadata(output)
@@ -357,40 +383,40 @@ class TransitionControls(unittest.TestCase):
                 if key == 'baseSha256': self.base_bytes = changed
                 else: self.head_bytes = changed
             with self.subTest(key=key):
-                self.committed[self.t.CARRIER] = json.dumps(altered).encode()
+                self.committed[CARRIER_PATH] = json.dumps(altered).encode()
                 with self.assertRaises(ValueError):
                     self.candidate()
             self.base_bytes = self.git('show', self.base + ':' + ci.SNAPSHOT).encode()
             self.head_bytes = self.git('show', self.head + ':' + ci.SNAPSHOT).encode()
-        self.committed[self.t.CARRIER] = json.dumps(self.record).encode()
+        self.committed[CARRIER_PATH] = json.dumps(self.record).encode()
 
     def test_nonaccepted_or_missing_decisions_and_duplicate_decision_rows_refuse(self):
         for state in ['Proposed', 'Superseded', 'Deprecated', 'Rejected']:
             with self.subTest(state=state):
-                self.committed[self.t.ADR] = self.decision.replace(b'\nAccepted\n', ('\n' + state + '\n').encode(), 1)
+                self.committed[ADR_PATH] = self.decision.replace(b'\nAccepted\n', ('\n' + state + '\n').encode(), 1)
                 with self.assertRaises(ValueError):
                     self.candidate()
-        self.committed[self.t.ADR] = self.decision.replace(b'# ADR-0096:', b'# ADR-9999:', 1)
+        self.committed[ADR_PATH] = self.decision.replace(b'# ADR-0096:', b'# ADR-9999:', 1)
         with self.assertRaises(ValueError):
             self.candidate()
-        self.committed[self.t.ADR] = self.decision + ('\n| Raw tool | 5 | `' + self.record['findings']['raw']['sha256'] + '` |\n').encode()
+        self.committed[ADR_PATH] = self.decision + ('\n| Raw tool | 5 | `' + self.record['findings']['raw']['sha256'] + '` |\n').encode()
         with self.assertRaises(ValueError):
             self.candidate()
-        del self.committed[self.t.ADR]
+        del self.committed[ADR_PATH]
         with self.assertRaises(ValueError):
             self.candidate()
 
     def test_carrier_schema_duplicate_keys_unknown_fields_and_extra_files_refuse(self):
         for value in [[], {}, {**self.record, 'unknown': True}, {**self.record, 'schemaVersion': True},
                       {**self.record, 'findings': {**self.record['findings'], 'raw': {'count': True, 'sha256': '0' * 64}}}]:
-            self.committed[self.t.CARRIER] = json.dumps(value).encode()
+            self.committed[CARRIER_PATH] = json.dumps(value).encode()
             with self.assertRaises(ValueError):
                 self.candidate()
         original = json.dumps(self.record).encode()
-        self.committed[self.t.CARRIER] = original[:-1] + b',"adr":"0096"}'
+        self.committed[CARRIER_PATH] = original[:-1] + b',"adr":"0096"}'
         with self.assertRaises(ValueError):
             self.candidate()
-        self.committed[self.t.CARRIER] = original
+        self.committed[CARRIER_PATH] = original
         self.paths.append('backend/openapi/policy/transition-0097.json')
         with self.assertRaises(ValueError):
             self.candidate()
@@ -401,8 +427,15 @@ class TransitionControls(unittest.TestCase):
             self.base_bytes, self.head_bytes = old, new
             self.assertIsNone(self.candidate())
         self.base_bytes, self.head_bytes = base, head
-        del self.committed[self.t.CARRIER]
+        # Absent from the tree, so absent from the committed listing too.
+        del self.committed[CARRIER_PATH]
+        self.paths.remove(CARRIER_PATH)
         self.assertIsNone(self.candidate())
+
+    def test_a_listed_carrier_that_cannot_be_read_refuses_instead_of_meaning_no_approval_needed(self):
+        del self.committed[CARRIER_PATH]
+        with self.assertRaisesRegex(ValueError, 'missing carrier'):
+            self.candidate()
 
     def test_changed_tool_policy_config_severity_or_fixture_sources_refuse(self):
         for name in self.t.INPUTS:
@@ -424,10 +457,10 @@ class TransitionControls(unittest.TestCase):
                     patch.object(self.t, 'file_bytes', side_effect=failure), \
                     self.assertRaises(ValueError) as caught:
                 self.t.execution_identity(self.root, self.tool)
-            self.assertEqual('ADR-0096 approval refused: execution identity unavailable', str(caught.exception))
+            self.assertEqual('OpenAPI transition approval refused: execution identity unavailable', str(caught.exception))
             self.assertTrue(caught.exception.__suppress_context__)
         self.tool.unlink()
-        with self.assertRaisesRegex(ValueError, '^ADR-0096 approval refused: execution identity unavailable$'):
+        with self.assertRaisesRegex(ValueError, '^OpenAPI transition approval refused: execution identity unavailable$'):
             self.run_ci()
         self.assertFalse((self.root / 'reports/approval.json').exists())
         self.assertEqual([], self.calls, 'No comparison executes without identifiable inputs')
@@ -515,6 +548,89 @@ class TransitionControls(unittest.TestCase):
                     patch.object(self.t, 'candidate', side_effect=AssertionError('Forbidden admission path')):
                 self.assertEqual(0 if fixture else 1, policy.main())
             self.assertFalse((output / 'approval.json').exists())
+
+    def test_two_carriers_each_approve_only_their_own_exact_pair(self):
+        base2, head2 = b'second prior snapshot', b'second reviewed snapshot'
+        _, reports2, _, _ = self.add_transition('0100', base2, head2)
+        self.assertEqual('0096', self.candidate()['adr'])
+        self.write_comparison(self.comparison, reports2)
+        second = self.t.candidate(self.root, self.committed.get, self.paths, base2, head2, self.tool, self.comparison, self.before)
+        self.assertEqual('0100', second['adr'])
+        for pair in [(base2, self.head_bytes), (self.base_bytes, head2), (head2, base2)]:
+            with self.subTest(pair=pair):
+                self.assertIsNone(self.t.candidate(self.root, self.committed.get, self.paths, *pair, self.tool, self.comparison, self.before))
+
+    def test_an_invalid_sibling_carrier_refuses_every_approval_even_for_the_other_pair(self):
+        record2, _, decision_path, carrier_path = self.add_transition('0100', b'prior', b'reviewed')
+        carrier, decision = self.committed[carrier_path], self.committed[decision_path]
+        variants = {
+            'unknown field': lambda: self.committed.__setitem__(carrier_path, json.dumps({**record2, 'unknown': True}).encode()),
+            'repointed digest': lambda: self.committed.__setitem__(carrier_path, json.dumps({**record2, 'baseSha256': self.t.digest(b'elsewhere')}).encode()),
+            'not accepted': lambda: self.committed.__setitem__(decision_path, decision.replace(b'\nAccepted\n', b'\nProposed\n', 1)),
+            'wrong identity': lambda: self.committed.__setitem__(decision_path, decision.replace(b'# ADR-0100:', b'# ADR-0101:', 1)),
+            'decision absent': lambda: self.paths.remove(decision_path),
+            'decision ambiguous': lambda: self.paths.append('docs/decisions/0100-duplicate.md'),
+        }
+        for name, break_it in variants.items():
+            with self.subTest(variant=name):
+                break_it()
+                with self.assertRaises(ValueError):
+                    self.candidate()
+                self.committed[carrier_path], self.committed[decision_path] = carrier, decision
+                self.paths[:] = [p for p in self.paths if p != 'docs/decisions/0100-duplicate.md']
+                if decision_path not in self.paths:
+                    self.paths.append(decision_path)
+        self.assertEqual('0096', self.candidate()['adr'])
+
+    def test_one_pair_cannot_be_approved_by_two_carriers(self):
+        self.add_transition('0100', self.base_bytes, self.head_bytes)
+        with self.assertRaisesRegex(ValueError, 'duplicate transition pair'):
+            self.candidate()
+
+    def test_carrier_file_name_must_carry_the_adr_the_record_names(self):
+        record2, _, _, carrier_path = self.add_transition('0100', b'prior', b'reviewed')
+        self.committed[carrier_path] = json.dumps({**record2, 'adr': '0099'}).encode()
+        with self.assertRaisesRegex(ValueError, 'invalid carrier identity'):
+            self.candidate()
+
+    def test_unrecognized_transition_carrier_names_refuse(self):
+        for name in ['transition-x.json', 'transition-12345.json', 'transition-0100-copy.json', 'sub/transition-0100.json']:
+            with self.subTest(name=name):
+                self.paths.append('backend/openapi/policy/' + name)
+                with self.assertRaisesRegex(ValueError, 'unrecognized transition carrier name'):
+                    self.candidate()
+                self.paths.pop()
+
+    def test_a_decision_must_name_exactly_one_reviewed_contract_row(self):
+        for label in ['Reviewed contract', 'Reviewed P3-8 contract', 'Reviewed P03-8 contract extra']:
+            with self.subTest(label=label):
+                self.add_transition('0100', b'prior', b'reviewed', label=label)
+                with self.assertRaisesRegex(ValueError, 'missing/extra decision identity'):
+                    self.candidate()
+                for path in ['docs/decisions/0100-second-reviewed-transition.md', 'backend/openapi/policy/transition-0100.json']:
+                    del self.committed[path]
+                    self.paths.remove(path)
+        record2, _, decision_path, _ = self.add_transition('0100', b'prior', b'reviewed')
+        extra = '\n| Reviewed P03-9 contract | `abcdef12` | `' + self.t.digest(b'other') + '` |\n'
+        self.committed[decision_path] += extra.encode()
+        with self.assertRaisesRegex(ValueError, 'missing/extra decision identity'):
+            self.candidate()
+
+    def test_wrapper_records_the_adr_of_the_carrier_that_approved_the_pair(self):
+        prior = {**CURRENT, 'info': {**CURRENT['info'], 'title': 'Second prior'}}
+        reviewed = {**CURRENT, 'info': {**CURRENT['info'], 'title': 'Second reviewed'}}
+        record2, reports2, decision_path, carrier_path = self.add_transition(
+            '0100', json.dumps(prior).encode(), json.dumps(reviewed).encode())
+        for path in (decision_path, carrier_path):
+            (self.root / path).write_bytes(self.committed[path])
+        base_commit, head_commit = self.save(prior), self.save(reviewed)
+        self.reports = reports2
+        code, output = self.run_ci(name='second-pair', base=base_commit, head=head_commit)
+        self.assertEqual(0, code)
+        approval = json.loads((output / 'approval.json').read_text())
+        self.assertEqual(('0100', record2['baseSha256'], record2['headSha256']),
+                         (approval['adr'], approval['baseSha256'], approval['headSha256']))
+        self.assertEqual(2, len(self.calls))
 
 
 if __name__ == '__main__':
