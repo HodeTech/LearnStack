@@ -3,6 +3,9 @@ import type { FederationConfigurationInput } from '@learnstack/sdk/administratio
 import { BffInputError } from './input-error.js';
 import type { NativeOperation } from './native-operation-contract.js';
 
+/** One signing certificate's PEM text: the contract's `signingCertificates` item `maxLength`. */
+const MAXIMUM_CERTIFICATE_LENGTH = 6144;
+
 /** ADR-0099: the Studio federation page's closed native forms. Every result returns to the page. */
 export const FEDERATION_DESTINATION = '/studio/federation';
 const proof = ['csrfToken', 'version'] as const;
@@ -128,7 +131,11 @@ export function federationForm(
       const certificates = ['signingCertificate1', 'signingCertificate2']
         .map((name) => {
           const raw = (value(name) ?? '').trim();
-          if (raw && (raw.length > 8192 || !raw.includes('-----BEGIN CERTIFICATE-----')))
+          if (
+            raw &&
+            (raw.length > MAXIMUM_CERTIFICATE_LENGTH ||
+              !raw.includes('-----BEGIN CERTIFICATE-----'))
+          )
             invalid.push(name);
           return raw;
         })

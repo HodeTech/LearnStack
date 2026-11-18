@@ -88,6 +88,31 @@ describe('ADR-0099 closed federation forms', () => {
     });
   });
 
+  it('admits a certificate at the contract bound and refuses one byte beyond it', () => {
+    // The contract bounds one PEM at 6,144 characters; a larger form value would only be refused later by the API.
+    const pem = (length: number) =>
+      '-----BEGIN CERTIFICATE-----\n' + 'A'.repeat(length - 54) + '\n-----END CERTIFICATE-----';
+    const saml = (certificate: string) =>
+      federationForm(
+        '/api/studio/federation-configure',
+        form({
+          csrfToken: csrf,
+          protocol: 'saml',
+          displayName: 'Acme SAML',
+          source: 'manual',
+          issuerOrEntityId: 'https://idp.example/entity',
+          singleSignOnEndpoint: 'https://idp.example/sso',
+          signingCertificate1: certificate,
+          signingCertificate2: '',
+        }),
+      );
+    expect(pem(6144)).toHaveLength(6144);
+    expect(saml(pem(6144)).operation).toMatchObject({
+      input: { signingCertificates: [pem(6144)] },
+    });
+    expect(() => saml(pem(6145))).toThrow();
+  });
+
   it.each([
     ['an http URL', { documentUrl: 'http://idp.example/x' }, 'documentUrl'],
     ['the mask literal', { clientSecret: '**********' }, 'clientSecret'],

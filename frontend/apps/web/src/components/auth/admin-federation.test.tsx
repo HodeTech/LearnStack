@@ -101,6 +101,27 @@ describe('ADR-0099 Studio federation page', () => {
     expect(document.querySelector(`label[for="federation-confirm-delete"]`)).not.toBeNull();
   });
 
+  it('shows the service-provider entity ID and descriptor only where the protocol uses them', () => {
+    const labels = (document: Document) =>
+      [...document.querySelectorAll('dt')]
+        .map((term) => term.textContent!)
+        .filter((term) => ['Redirect URI', 'Service provider'].some((own) => term.startsWith(own)))
+        .map((term) => (term.startsWith('Redirect URI') ? 'Redirect URI' : term));
+    // OIDC registers a redirect URI only.
+    expect(labels(render({ connection, provider: 'matches', values }))).toEqual(['Redirect URI']);
+    // SAML adds the entity ID and the metadata URL.
+    const saml = { ...connection, protocol: 'saml' as const, source: 'metadata_url' as const };
+    expect(labels(render({ connection: saml, provider: 'matches', values }))).toEqual([
+      'Redirect URI',
+      'Service provider entity ID',
+      'Service provider metadata URL',
+    ]);
+    // Before any connection the protocol is not chosen yet, so the entity ID stays available.
+    expect(labels(render({ connection: null, provider: 'not_read', values }))).toContain(
+      'Service provider entity ID',
+    );
+  });
+
   it('activates only after a passed test and disables only with a confirmation', () => {
     expect(
       actions(

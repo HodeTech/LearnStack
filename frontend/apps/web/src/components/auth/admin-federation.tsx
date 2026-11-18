@@ -1,6 +1,9 @@
 import type { AdminCopy } from '@/i18n/administration-catalogues';
 import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
+/** One signing certificate's PEM text: the contract's `signingCertificates` item `maxLength`. */
+const MAXIMUM_CERTIFICATE_LENGTH = 6144;
+
 type FederationView = Extract<PageView, { kind: 'federation' }>;
 type Connection = NonNullable<FederationView['federation']['connection']>;
 
@@ -82,7 +85,13 @@ function Certificate({
         {label}
         {required && <> ({admin('federation.required')})</>}
       </label>
-      <textarea id={id} name={name} rows={6} spellCheck={false} maxLength={8192} />
+      <textarea
+        id={id}
+        name={name}
+        rows={6}
+        spellCheck={false}
+        maxLength={MAXIMUM_CERTIFICATE_LENGTH}
+      />
     </div>
   );
 }
@@ -398,10 +407,14 @@ export function FederationPage({
               <dd>
                 <code>{values.redirectUri}</code>
               </dd>
-              <dt>{admin('federation.sp_entity_id')}</dt>
-              <dd>
-                <code>{values.entityId}</code>
-              </dd>
+              {connection?.protocol !== 'oidc' && (
+                <>
+                  <dt>{admin('federation.sp_entity_id')}</dt>
+                  <dd>
+                    <code>{values.entityId}</code>
+                  </dd>
+                </>
+              )}
               {connection?.protocol === 'saml' && (
                 <>
                   <dt>{admin('federation.sp_descriptor')}</dt>

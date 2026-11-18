@@ -107,6 +107,30 @@ describe('ADR-0099 closed federation administration wrappers', () => {
     }
   });
 
+  it('bounds a signing certificate at the contract limit before transport', async () => {
+    const transport = vi.fn<AdministrationFetch>(async () => json(receipt));
+    const sdk = createAdministrationServerSdk(transport);
+    const saml = (certificate: string) => ({
+      ...input,
+      protocol: 'saml',
+      source: 'manual',
+      documentUrl: null,
+      issuerOrEntityId: 'https://idp.example/entity',
+      singleSignOnEndpoint: 'https://idp.example/sso',
+      signingCertificates: [certificate],
+      clientId: null,
+      clientAuthentication: null,
+      clientSecret: null,
+    });
+    expect(
+      (await sdk.configureFederation(saml('A'.repeat(6145)) as never, { version: null })).kind,
+    ).toBe('invalid-request');
+    expect(transport).not.toHaveBeenCalled();
+    expect(
+      (await sdk.configureFederation(saml('A'.repeat(6144)) as never, { version: null })).kind,
+    ).not.toBe('invalid-request');
+  });
+
   it('refuses a malformed request before transport and a receipt carrying an attempt identifier', async () => {
     const transport = vi.fn<AdministrationFetch>(async () => json(receipt));
     const sdk = createAdministrationServerSdk(transport);

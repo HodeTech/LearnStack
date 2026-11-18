@@ -14,6 +14,8 @@ import type {
 import { appError, parseProblem } from './response-policy.js';
 export type * from './federation-contract.js';
 
+/** One signing certificate's PEM text: the contract's `signingCertificates` item `maxLength`. */
+const MAXIMUM_CERTIFICATE_LENGTH = 6144;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const digest = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 const instant = (value: unknown) =>
@@ -147,7 +149,7 @@ function configuration(input: FederationConfigurationInput): boolean {
     url(input.singleSignOnEndpoint) &&
     Array.isArray(input.signingCertificates) &&
     input.signingCertificates.length <= 2 &&
-    input.signingCertificates.every((pem) => bounded(pem, 8192)) &&
+    input.signingCertificates.every((pem) => bounded(pem, MAXIMUM_CERTIFICATE_LENGTH)) &&
     bounded(input.clientId, 255, true) &&
     (input.clientAuthentication === null ||
       oneOf(input.clientAuthentication, ['client_secret_basic', 'client_secret_post'])) &&
