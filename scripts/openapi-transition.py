@@ -24,7 +24,8 @@ REPORTS = {'raw': ('Raw tool', 'raw-tool.json'),
            'normalized': ('Normalized tool', 'policy-tool.json'),
            'companion': ('Companion policy', 'companion.json')}
 VERSION = 'oasdiff version 1.33.0'
-LIMIT = 2 * 1024 * 1024
+LIMIT = 2 * 1024 * 1024  # JSON records and reports
+FILE_LIMIT = 64 * 1024 * 1024  # any hashed input, including the tool executable
 CARRIER = re.compile(re.escape(POLICY) + r'transition-([0-9]{4})\.json')
 REVIEWED = re.compile(r'Reviewed P[0-9]{2}[a-z]?-[0-9]+ contract')
 status_spec = importlib.util.spec_from_file_location('transition_adr_status', Path(__file__).with_name('adr-status.py'))
@@ -76,7 +77,7 @@ def canonical_findings(findings):
 def file_bytes(path):
     path = Path(path)
     info = path.lstat()
-    require(stat.S_ISREG(info.st_mode) and info.st_size <= max(LIMIT, 64 * 1024 * 1024), 'nonregular/oversized input')
+    require(stat.S_ISREG(info.st_mode) and info.st_size <= FILE_LIMIT, 'nonregular/oversized input')
     return path.read_bytes()
 
 

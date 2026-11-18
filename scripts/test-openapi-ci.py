@@ -239,7 +239,9 @@ class TransitionControls(unittest.TestCase):
         original = self.t.decision_tables('0096', decision.encode())
         replacements = {original['Prior contract'][1]: self.record['baseSha256'],
                         original['Reviewed P03-5 contract'][1]: self.record['headSha256'],
-                        original[self.t.TOOL][0]: inputs[self.t.TOOL]}
+                        # Every input row restates the inputs that exist here, so a legitimate change to a
+                        # comparison input cannot break the synthetic decision.
+                        **{original[name][0]: inputs[name] for name in self.t.INPUTS}}
         for k, (label, _) in self.t.REPORTS.items():
             # Raw and normalized intentionally have the same complete finding identity.
             replacements[original[label][1]] = self.record['findings'][k]['sha256']
@@ -549,6 +551,54 @@ class TransitionControls(unittest.TestCase):
                 self.assertEqual(0 if fixture else 1, policy.main())
             self.assertFalse((output / 'approval.json').exists())
 
+    def test_the_policy_script_never_references_the_admission_module_or_an_approval_result(self):
+        source = (self.real / 'scripts/openapi-policy.py').read_text()
+        for forbidden in ('openapi-transition', 'approval', 'candidate', 'transition'):
+            self.assertNotIn(forbidden, source, 'Only the verified-Git wrapper may admit an approval')
+
+    def test_a_refused_comparison_of_an_unapproved_pair_stays_refused(self):
+        other = self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Unreviewed head'}})
+        self.comparison_code = 1
+        code, output = self.run_ci(name='unapproved', head=other)
+        self.assertEqual(1, code)
+        self.assertFalse((output / 'approval.json').exists())
+        self.assertEqual(1, len(self.calls), 'No fresh controls run on a path that cannot approve')
+
+    def test_the_wrapper_refuses_approval_when_the_fresh_controls_are_incomplete(self):
+        complete = self.write_controls
+
+        def incomplete(output):
+            complete(output)
+            path = output / 'fixtures.json'
+            path.write_text(json.dumps(json.loads(path.read_text())[:-1]))
+        with patch.object(self, 'write_controls', side_effect=incomplete), self.assertRaises(ValueError):
+            self.run_ci(name='partial-controls')
+        self.assertFalse((self.root / 'partial-controls/approval.json').exists())
+
+    def test_a_decision_whose_finding_hash_differs_from_the_carrier_refuses(self):
+        self.committed[ADR_PATH] = self.decision.replace(
+            self.record['findings']['companion']['sha256'].encode(), self.t.digest(b'another').encode())
+        with self.assertRaisesRegex(ValueError, 'finding declaration differs from decision'):
+            self.candidate()
+
+    def test_the_identity_captured_before_the_comparison_must_equal_the_one_after(self):
+        before = {**self.before, 'scripts/openapi-policy.py': self.t.digest(b'changed during the comparison')}
+        with self.assertRaisesRegex(ValueError, 'execution identity mismatch'):
+            self.t.candidate(self.root, self.committed.get, self.paths, self.base_bytes, self.head_bytes,
+                             self.tool, self.comparison, before)
+
+    def test_admission_reads_the_verified_head_commit_never_the_working_tree(self):
+        good = (self.root / CARRIER_PATH).read_bytes()
+        (self.root / CARRIER_PATH).write_text('{"not": "a carrier"}')
+        code, _ = self.run_ci(name='tampered-tree')
+        self.assertEqual(0, code, 'An uncommitted edit cannot withdraw a committed approval')
+        (self.root / CARRIER_PATH).write_text('{"not": "a carrier"}')
+        bad_head = self.save()
+        (self.root / CARRIER_PATH).write_bytes(good)
+        with self.assertRaises(ValueError):
+            self.run_ci(name='good-tree-bad-head', head=bad_head)
+        self.assertFalse((self.root / 'good-tree-bad-head/approval.json').exists())
+
     def test_two_carriers_each_approve_only_their_own_exact_pair(self):
         base2, head2 = b'second prior snapshot', b'second reviewed snapshot'
         _, reports2, _, _ = self.add_transition('0100', base2, head2)
@@ -712,10 +762,10 @@ class TransitionControls(unittest.TestCase):
         for carrier in carriers:
             adr = carrier.name[len('transition-'):-len('.json')]
             with self.subTest(carrier=carrier.name):
-                decisions = sorted((self.real / 'docs/decisions').glob(adr + '-*.md'))
-                self.assertEqual(1, len(decisions))
+                listing = [str(path.relative_to(self.real)) for path in (self.real / 'docs/decisions').glob('*.md')]
+                decision = self.t.decision_path(adr, listing)
                 record = self.t.load_carrier(adr, carrier.read_bytes())
-                self.t.bind(record, self.t.decision_tables(adr, decisions[0].read_bytes()))
+                self.t.bind(record, self.t.decision_tables(adr, (self.real / decision).read_bytes()))
 
     def test_non_ascii_carrier_names_reach_the_name_check_through_real_git(self):
         (self.root / 'backend/openapi/policy/transition-0100\u00e9.json').write_text('{}')
@@ -739,6 +789,16 @@ class TransitionControls(unittest.TestCase):
         self.assertEqual(('0100', record2['baseSha256'], record2['headSha256']),
                          (approval['adr'], approval['baseSha256'], approval['headSha256']))
         self.assertEqual(2, len(self.calls))
+
+
+class CommandLineControls(unittest.TestCase):
+    def test_a_gate_failure_exits_two_with_the_closed_message(self):
+        with tempfile.TemporaryDirectory(prefix='learnstack-openapi-cli-') as output:
+            result = REAL_RUN([sys.executable, str(Path(__file__).with_name('openapi-ci.py')), '--base', 'HEAD', '--head', 'HEAD',
+                '--tool', str(Path(output) / 'missing-tool'), '--output', str(Path(output) / 'reports')],
+                capture_output=True, text=True)
+        self.assertEqual(2, result.returncode)
+        self.assertTrue(result.stderr.startswith('OpenAPI CI failed: '), result.stderr)
 
 
 if __name__ == '__main__':
