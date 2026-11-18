@@ -52,30 +52,42 @@ executable of the same pinned version. The first baseline is proved by building
 and serving the verified base Program; a missing file alone is insufficient.
 
 
-## Approved P03-5 comparison
+## Approved comparisons
 
-[ADR-0096](../../../docs/decisions/0096-p035-administration-contract-baseline.md)
-approves one development-only incompatibility after the maintainer's usage
-confirmation. Its Accepted tables own the exact snapshots, complete canonical
-raw/normalized/companion finding sets and comparison identities. The sole
-`transition-0096.json` carrier must match those tables; repointing it cannot
-approve another pair. The existing comparison algorithm and all 60 policy
-controls remain unchanged.
+[ADR-0096](../../../docs/decisions/0096-p035-administration-contract-baseline.md) (P03-5)
+and [ADR-0100](../../../docs/decisions/0100-p038-federation-contract-transition.md)
+(P03-8) each approve one development-only incompatibility after the maintainer's usage
+confirmation. An approved transition's Accepted tables own its exact snapshots, complete
+canonical raw/normalized/companion finding sets and comparison identities. Its carrier,
+`transition-NNNN.json`, restates them for the ADR it names; repointing a carrier cannot
+approve another pair.
 
-Only the verified Git-snapshot wrapper can admit that transition, after normal
+Every committed carrier is checked on every run for its shape, its file name (the ADR
+number it names) and a unique (base, head) pair; one malformed or unrecognized carrier
+fails the whole job. Only the carrier whose pair equals the compared Git snapshot bytes
+is bound to its Accepted decision and can approve, and a retained decision is history. A
+carrier is immutable; a different record shape would need a new `schemaVersion` that
+keeps accepting earlier ones. The existing comparison algorithm and all 60 policy
+controls remain unchanged. A further exception needs its own ADR and carrier. Their
+basis, no consumer outside the coordinated bundle, ends at the first outside consumer,
+a pilot or production deployment, or a 1.0 release; after that ADR-0024 governs every
+change and no further carrier is admitted.
+
+Only the verified Git-snapshot wrapper can admit a transition, after normal
 comparisons and fresh successful controls. File/fixture/bootstrap paths cannot.
 Tool/report/control failures remain failures even for matching snapshot hashes.
-Each invocation uses fresh output; original findings remain beside a distinct
+Each wrapper invocation uses fresh output; original findings remain beside a distinct
 approval result. A green approved comparison is not raw compatibility or proof
 of runtime/SDK behavior. Coordinate API/SDK/native/web replacement and verify
-actual registry, Role, capabilities and complete replacement separately.
+actual registry, Role, capabilities, self read and complete replacement separately.
 [Phase 03 Status](../../../docs/roadmap/phase-03-identity-admin.md) owns extension
 implementation and complete hosted qualification.
-
 
 Approval artifacts explicitly state `compatibility: false` and
 `runtimeBehaviorVerified: false`. The six pinned identities cover comparator
 inputs/tool bytes; `openapi-ci.py`, `openapi-transition.py` and the ADR status
 reader are reviewed gate implementation, not additional pinned inputs. Their
 changes require code review and the wrapper's positive/negative controls; this
-mechanism is not a cryptographic attestation of its own implementation.
+mechanism is not a cryptographic attestation of its own implementation. Because a pull
+request that adds an Accepted ADR, its carrier and the snapshot passes the gate, review
+of those files is the control.

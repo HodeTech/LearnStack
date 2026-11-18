@@ -75,12 +75,17 @@ Summary so reviewers don't have to chase a link to know the shape:
   [ADR-0019](../decisions/0019-learnstack-hub.md) and is not governed by
   ADR-0024.
 
-[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) grants one
-bounded pre-MVP exception to the new-major requirement. Only its exact snapshots,
-full findings and comparison identities can obtain explicit Git-backed approval;
-all other changes retain ADR-0024. This does not establish runtime behavior or
-permit mixed old/new consumers. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
-owns implementation and qualification.
+[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) and
+[ADR-0100](../decisions/0100-p038-federation-contract-transition.md) each grant one
+bounded pre-MVP exception to the new-major requirement, one per Accepted ADR. Only an
+ADR's exact snapshots, full findings and comparison identities can obtain explicit
+Git-backed approval; all other changes retain ADR-0024, and a further exception needs
+its own ADR and carrier. The basis, no consumer outside the coordinated bundle, ends at
+the first outside consumer, a pilot or production deployment, or a 1.0 release; after
+that ADR-0024 governs every change and no further carrier is admitted. This does not
+establish runtime behavior or permit mixed old/new consumers. The
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and
+qualification.
 
 For the breaking/non-breaking matrix, the exact header set
 (`Deprecation` per RFC 9745, `Sunset` per RFC 8594, `Link:

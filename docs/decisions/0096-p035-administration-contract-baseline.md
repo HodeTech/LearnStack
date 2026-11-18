@@ -264,3 +264,16 @@ boundary; they are not claims that hash admission verifies runtime semantics.
   [policy README](../../backend/openapi/policy/README.md).
 - [SDK administration policy](../../frontend/packages/sdk/src/administration-policy.ts),
   [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+## Amendment 1 — generalized carrier rule (2026-11-18)
+
+[ADR-0100](0100-p038-federation-contract-transition.md) admits a second exact transition
+and replaces three statements of § Gate behavior and carrier: that
+`transition-0096.json` is the sole carrier, that additional `transition-*.json` files
+refuse approval, and that the gate reads and binds this decision on every approval. Each
+approved transition now has its own carrier, bound to the Accepted ADR it names. A
+malformed or unrecognized carrier and a repeated pair still refuse, and this decision is
+read and bound only when its own pair is compared. That pair is spent: the remote `main`
+snapshot is its reviewed contract. This record's pair, tables, findings, comparison
+identities, usage confirmation and carrier are unchanged, and the carrier stays as
+history.

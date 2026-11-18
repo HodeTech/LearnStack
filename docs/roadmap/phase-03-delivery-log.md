@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,105 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,230 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -505,6 +505,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 Step 4 review round 1 corrections (2026-11-15)](#p03-8-step-4-review-round-1-corrections-2026-11-15) — 110 lines
   - [P03-8 Step 4 review round 2 corrections (2026-11-15)](#p03-8-step-4-review-round-2-corrections-2026-11-15) — 76 lines
   - [P03-8 PR CI triage corrections (2026-11-15)](#p03-8-pr-ci-triage-corrections-2026-11-15) — 39 lines
+  - [ADR-0100 maintainer review disposition and acceptance (2026-11-18)](#adr-0100-maintainer-review-disposition-and-acceptance-2026-11-18) — 71 lines
+  - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23863,3 +23865,128 @@ pre-step-4 counts (six pairs, eleven capabilities); `development` asserts seven 
 and the v4 adoption test. Its diff was saved before removal. The stash list was not
 dropped: each entry's files differ from `HEAD`, so none is provably contained in
 history.
+
+### ADR-0100 maintainer review disposition and acceptance (2026-11-18)
+
+**Trigger.** The required `openapi diff` check stayed red on PR #45 through three
+hosted runs (`43654864708`, `43692731726`, `43695471819`); on the last, every other
+check was green. The job log prints no verdict, so the pinned comparison was reproduced
+locally: oasdiff 1.33.0 built from source in an isolated scratch directory behind a
+version shim. Its 60 policy controls matched CI's "60 passed; 39 breaking" and it
+reproduced ADR-0096's three finding hashes exactly, so its results for the P03-8 pair
+are the evidence below; the hosted pinned run stays the authority.
+
+**What the reproduction established.**
+
+- The remote `main` snapshot (`0c7394c7`, SHA-256 `a32f7813…`) is ADR-0096's reviewed
+  contract, so ADR-0096's approval is spent and cannot cover the P03-8 head
+  (`393e9e8e`, `d81576c0…`).
+- The refused findings are raw 5, normalized 6 and companion 54. Required-field
+  additions are not findings. Earlier statements in this log that treated them as
+  breaking, or that called the self-response and registry change ADR-0096's, were
+  inferences from the spec diff. They are history and are not rewritten: the Step 2
+  round 1 record ("the ADR-0096 transition record is the maintainer's"), the Step 4
+  records ("The OpenAPI transition record for the self response (maintainer,
+  ADR-0096)", and the same in round 2) and the CI triage record ("the ADR-0096
+  self-response decision"). The transition they name is ADR-0100's.
+- Any new assignable permission key repeats the raw five (measured with a synthetic
+  eleventh pair), so per-transition approvals recur until gate G20 is decided.
+
+**Maintainer disposition.** After four independent reviews of the draft ADR-0100, the
+maintainer confirmed that the application is in development and not actively used, so no
+backward compatibility is owed; directed the findings to be analyzed on their merits,
+noting that the reviewers did not know the process; and approved moving the documents to
+Accepted and continuing implementation. ADR-0100 is Accepted on that basis.
+
+**Dispositions.** Each finding was verified against the repository or reproduced before
+it was accepted or declined.
+
+| Finding | Disposition |
+|---|---|
+| "64 distinct keys" cannot be verified (all four) | Accepted. The count came from an unrecorded method and was removed; the ADR now states what the matrices show. |
+| The measured table's base is undefined; some rows do not reproduce | Accepted. Every row was re-measured with an explicit base and head; a ninth row and the variant definitions were added. |
+| "Nine branches shift" | Accepted. Eight branches shift and the Tenant/Organization boundary adds one scope change per occurrence of the union, verified from the companion data. |
+| The normalized self finding is a materialization artifact | Accepted and stated; the incompatibility is the previous exact-key parser. |
+| `GET /api/v1/identity/me/capabilities` is missing from the affected surfaces | Accepted and verified: a closed object that grew from ten to eleven flags. |
+| "Refuses all approval" understates a malformed carrier | Accepted: it fails the whole OpenAPI job, now stated in the ADR, Standard 06 and the README. |
+| The carrier schema is frozen against later gate changes | Accepted: carriers are immutable history and a new shape needs a `schemaVersion`. |
+| Citations: ADR-0040 names the reader, not the property; ADR-0099 foresaw the break | Accepted. The property is ADR-0099's (body and Amendment 6); a process finding was added to the ADR. |
+| The usage assumption is written as fact | Accepted: it is the maintainer's confirmation, recorded at acceptance. |
+| The exception has no end condition | Accepted. The implementer drafted the triggers: the first consumer outside the coordinated bundle, a pilot or production deployment, or a 1.0 release. The maintainer accepted the ADR with them and may change them by Amendment. |
+| Standard 04 says "one exception"; one per Accepted ADR is a class | Accepted and stated; Standard 04 now says so. |
+| Option 5's rationale conflicts with the no-active-use premise | Accepted: it now rests on gate integrity. |
+| Implementation Notes do not say what is done | Accepted: delivered items and before-merge items are separate. |
+| The gate generalization was committed before the ADR was accepted | Accepted as a disclosure, below. |
+| ADR-0096 misquoted; the "wrapper" qualifier on fresh output was dropped; "one sentence" understates | Accepted. The ADR lists the three replaced statements and quotes them. |
+| Policy README, Amendments, carrier, standards and `CONTRIBUTING.md` still describe one exception | Accepted. Done with this acceptance. |
+| Phase 03 Status is stale ("review round 2 not run") | Accepted and fixed. |
+| A re-applied pair is "duplicate" | Reframed. Re-applying the same pair is approved by the same carrier; the real edge is a carrier whose comparison identity later changes, now stated. |
+| Runtime and hosted evidence must finish before acceptance | Not adopted. ADR-0096 and ADR-0100 state that acceptance implies neither; the evidence is required before merge. |
+| The API layer "reads no Identity release data" | Accepted and narrowed to the OpenAPI document builder. |
+| Test gaps found by mutation (red exit of an unmatched pair, fresh controls, hash binding, identity before the run, head-only reads, exit code, a vacuous direct-mode test, a fragile setUp, glob versus grammar, one file cap) | Accepted. Controls were added in `79433ea6`; all six reviewer mutants are caught. |
+
+**Process disclosure.** ADR-0096 required acceptance to precede executable gate
+implementation. The generalized gate was implemented and reviewed first, in `bac20429`,
+`0b607611` and `79433ea6`, and never pushed; the merge is gated on this acceptance.
+
+**Decisions recorded.** One exception per Accepted ADR, with the end condition above.
+Making review of the carrier, decision and gate files mechanical, for example with an
+owners rule, is part of G20; no owners file was added. Gate G20 stays Open.
+
+**Amendments and reconciliation.** ADR-0024 Amendment 3 and ADR-0096 Amendment 1; API
+04, Testing 06, Permission 19, the served-contract catalogue entry, the policy README and
+`CONTRIBUTING.md`; the decisions index; the Phase 03 Status and G20.
+
+### P03-8 OpenAPI transition implementation and reviews (2026-11-18)
+
+**Gate generalization.** `scripts/openapi-transition.py` and `scripts/openapi-ci.py` treat
+each `backend/openapi/policy/transition-NNNN.json` as the restatement of the Accepted
+`docs/decisions/NNNN-*.md` it names. Every carrier is checked for shape, file name and a
+unique (base, head) pair on every run; only the carrier whose pair equals the compared
+Git bytes is bound to its decision, so a retained ADR is history. The execution
+identity, finding sets, refusal summary and fresh 60 controls are unchanged for the
+matching carrier, and `openapi-policy.py`, the severity file, the oasdiff configuration
+and the fixtures are untouched, so ADR-0096's pinned input hashes still hold. The tree
+listing is NUL-separated and lettered phase ids are admitted.
+
+**Reviews.** Round 1 was an independent read-only adversarial review of `bac20429`. It
+found no way to approve what should not be approved; its one real regression (every
+retained decision parsed on every run) is fixed in `0b607611`. Round 2 was the four
+maintainer-supplied reviews of ADR-0100, which also listed test gaps found by mutation;
+`79433ea6` closes them. Mutants of the gate that the controls now catch include
+duplicate pairs, validating only the matching carrier, the table-set and path grammar,
+the count grammar, the inputs-versus-decision and finding-hash bindings, the identity
+captured before the run, reading the working tree instead of the head, an unmatched
+pair returning success, skipped fresh controls and a swallowed exit code. The one
+equivalent mutant (several "Reviewed" rows) is refused by the table-set check below it.
+
+**Carrier.** `transition-0100.json` binds the pair `a32f7813…` to `d81576c0…`, the three
+finding sets (5, 6 and 54, hashes in ADR-0100) and ADR-0096's six comparison inputs. A
+control binds every real carrier to its real decision on each run of the suite.
+
+**Verification.** Local workstation (macOS), on the working tree for this record.
+
+| Command | Result |
+|---|---|
+| `python3 scripts/test-openapi-ci.py` | 56 tests OK (33 before this work), including the real-carrier binding for 0096 and 0100 |
+| Mutation runs of the gate (three rounds, 24 distinct mutants) | every non-equivalent mutant caught; one equivalent mutant explained above |
+| `python3 scripts/test-adr-status.py`, `test-roadmap-structure.py`, `test-delivery-log-index.py`, `test-markdown-link-audit.py`, `test-ci-supply-chain.py`, `test-realm-node-gate.py`, `test-ci-native-environment.py` | OK |
+| `python3 scripts/test-ci-test-shards.py` | OK |
+| Architecture, Release: `CorpusConsistencyTests` and `RepositoryLayoutTests` | 8 passed, 0 failed |
+| `make docs-index`, `make lint-docs` | index regenerated; fragment links resolve, roadmap structure conforms, delivery log indexes current |
+
+**Not run.** The hosted pinned run, which is the authority for the executable hash and
+for `ADR-0100 approved incompatibility`; the final-head A/B; the full Architecture,
+Integration and frontend suites; and a third independent review of the final text.
+`test-ci-native-provisioning.py` fails only in this workstation's shell environment and
+is unrelated.
+
+**Residual risks and open items.**
+
+- Hosted approval is untested until the pinned run on the pushed head.
+- Gate G20 is Open: how the closed grant contract grows, and whether review of the
+  carrier, decision and gate files becomes mechanical.
+- The end condition of the exception's basis was drafted by the implementer and accepted
+  with the ADR; the maintainer may change it by Amendment.
+- Unchanged from earlier records: the manual accessibility checks, the commit-trailer
+  model and final-head qualification.

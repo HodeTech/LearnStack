@@ -671,7 +671,9 @@ v1–v3 bytes, fingerprints and shipped guards are unchanged; a forward migratio
 replaces the release guard and the registry/adoption CHECKs.
 
 Every grant-array bound tracks the registry size, as the v3 transition did under
-[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md): the
+[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) and the v4
+transition does under [ADR-0100](../decisions/0100-p038-federation-contract-transition.md):
+the
 registry `items`, `release.tenantAdminDelta`, Role detail `grants` and the
 `RoleGrantsInput` body are each bounded at ten. The server's grant-change validator
 bounds the request at the current release's definition count, and the SDK and BFF

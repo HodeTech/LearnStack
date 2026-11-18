@@ -370,6 +370,22 @@ named transition. API 04, Testing 06, the existing served-contract rule and the
 OpenAPI Git-snapshot gate carry the successor. Runtime behavior and final-source
 hosted A/B remain independently required.
 
+### Amendment 3 — bounded P03-8 compatibility successor (2026-11-18)
+
+[ADR-0100](0100-p038-federation-contract-transition.md) narrowly supersedes this
+record's new-major requirement for its exact prior/reviewed P03-8 snapshot pair,
+complete finding sets and pinned comparison identities, as Amendment 2 does for
+ADR-0096's. The maintainer confirms development-only/no-active-use outside the
+coordinated API/SDK/native/web bundle. That basis ends at the first consumer outside
+the bundle, a pilot or production deployment, or a 1.0 release; from then on this
+record governs every change and the mechanism admits no further carrier. An altered
+carrier, unexpected finding or failed tool/control cannot obtain approval. All other
+transitions retain this record's versioning and coexistence requirements. ADR-0024
+remains Accepted and its body is the historical decision; only this clause is
+superseded for the named transitions. API 04, Testing 06, the served-contract rule and
+the OpenAPI Git-snapshot gate carry the successor. Runtime behavior and final-source
+hosted A/B remain independently required.
+
 ## References
 
 - [Standards 04 § Versioning](../standards/04-api-design.md)
