@@ -975,3 +975,30 @@ transaction; loss of ownership poisons the whole unit before physical COMMIT.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 22 — Federation host-alias reader (2026-11-14)
+
+[ADR-0099 Amendment 6](0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
+supplies the bounded new authority. This record's body remains the historical decision;
+it remains Accepted outside the named extension.
+
+The fourteenth logical tenant setter is `FederationHostAliasReader`, consulted only by
+the native self read, which ends before tenant resolution. On a connection of its own it
+issues `SET TRANSACTION READ ONLY`, announces only the classified host tenant's
+`app.tenant_id` and runs one read: that tenant's Active federation alias. It writes
+nothing, joins no business transaction and adds no physical context writer, definer,
+connector or role. [Database Standards](../standards/05-database.md#federation-host-alias-read)
+own the exact contract.
+
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and
+qualification.
+
+### Amendment 23 — Federation host-alias reader: the entitlement read (2026-11-15)
+
+Amendment 22's "runs one read" describes the setter's own connection, where it is exact:
+one statement reads the host tenant's Active alias and its protocol. The reader then
+reads that protocol's plan entitlement through `IEntitlementProvider`, the sanctioned
+reader, outside that connection and its announcement. That read is no setter statement
+and writes nothing. Amendment 22's text is unchanged; the P03-8 Step 4 review round 2
+(C5-4) in the [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) records the
+finding.

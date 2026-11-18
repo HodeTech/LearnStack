@@ -12,6 +12,7 @@ export function isNativeReturnPath(value: unknown): value is NativeReturnPath {
       '/studio/custom-fields',
       '/studio/invitations',
       '/studio/invitation-policy',
+      '/studio/federation',
       '/portal',
       '/portal/profile',
     ].includes(value) ||

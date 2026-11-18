@@ -498,7 +498,7 @@ describe('ADR-0053 production public boundaries', () => {
       expect(reachable(graph, [probe])).toContain(helper);
       expect(transportFindings(graph).map((item) => item.file)).toContain(helper);
     }
-  });
+  }, 30_000);
   it('keeps browser custody declaration work local to each graph analysis', () => {
     const helper = 'apps/web/src/lib/storage-control.ts';
     const current = {
@@ -612,6 +612,7 @@ describe('ADR-0053 production public boundaries', () => {
         'apps/web/src/app/(studio)/studio/invitations/page.tsx',
         'apps/web/src/app/(studio)/studio/invitations/[invitationId]/page.tsx',
         'apps/web/src/app/(studio)/studio/invitation-policy/page.tsx',
+        'apps/web/src/app/(studio)/studio/federation/page.tsx',
         'apps/web/src/app/(portal)/layout.tsx',
         'apps/web/src/app/(portal)/portal/page.tsx',
         'apps/web/src/app/(portal)/portal/profile/page.tsx',

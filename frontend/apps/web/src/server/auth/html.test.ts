@@ -237,6 +237,30 @@ it('uncertain mutation recovery keeps the original key and edits escaped in a de
   expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
 });
 
+it('a federation recovery document names only the fields it can label (C4-10)', () => {
+  const render = (invalid: string[]) =>
+    new DOMParser()
+      .parseFromString(
+        renderBffDocument(site(), {
+          kind: 'mutation_error',
+          action: '/api/studio/federation-configure',
+          destination: '/studio/federation',
+          fields: [],
+          reason: 'validation',
+          retryable: false,
+          federation: { invalid, outcome: null },
+        }),
+        'text/html',
+      )
+      .querySelector('[role="alert"]')!.textContent!;
+  const listed = render(['displayName']);
+  expect(listed).toContain('Name shown on the sign-in page');
+  // An unlisted name is never rendered as a field called "required"; with nothing to name, the closed failure shows.
+  const unlisted = render(['protocol']);
+  expect(unlisted).not.toMatch(/required/i);
+  expect(unlisted).toBe(render([]));
+});
+
 it.each([
   ['en', 'stale'],
   ['en', 'key_reuse'],

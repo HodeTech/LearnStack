@@ -118,6 +118,7 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard.PrepareAsync",
             "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.AdmitAsync",
             "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler.Handle",
+            "LearnStack.Modules.Identity.Application.Federation.FederationCommandHandlers.ActAsync",
         ];
         // A retained-plan check is not another acquisition: the guards, bounded
         // reader and two separately confined source/witness pairs must recheck it.
@@ -145,6 +146,7 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.Tools.Seeder.FixedSeedCompletionSource.Capture",
             "LearnStack.SharedKernel.Permissions.SeedPrerequisiteReadWitness.RequireCurrent",
             "LearnStack.SharedKernel.Permissions.SeedCompletionReadWitness.RequireCurrent",
+            "LearnStack.Modules.Identity.Application.Federation.FederationCommandHandlers.ActAsync",
         ];
         // Exact set controls detect a missing named site and an unrelated borrower.
         static bool SameSites(IEnumerable<string> actual, IEnumerable<string> expected) =>

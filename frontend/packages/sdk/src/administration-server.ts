@@ -42,10 +42,12 @@ import {
 } from './administration-policy.js';
 import type { AdministrationShape } from './administration-policy.js';
 import { createCustomFieldServerSdk } from './custom-field-server.js';
+import { createFederationServerSdk } from './federation-server.js';
 import { appError, parseProblem } from './response-policy.js';
 
 export type * from './administration-contract.js';
 export type * from './custom-field-contract.js';
+export type * from './federation-contract.js';
 export {
   createCustomFieldServerSdk,
   parseCustomFieldJson,
@@ -279,6 +281,7 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
   }
   return Object.freeze({
     ...createCustomFieldServerSdk(transport),
+    ...createFederationServerSdk(transport),
     listInvitations: (options?: AdministrationPageOptions) =>
       request<InvitationPage>(
         'invitations',
@@ -413,7 +416,7 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
         options,
       ),
     getPermissions: (
-      options?: AdministrationReadOptions & Readonly<{ sourceReleaseVersion?: 1 | 2 }>,
+      options?: AdministrationReadOptions & Readonly<{ sourceReleaseVersion?: 1 | 2 | 3 }>,
     ) =>
       request<PermissionRegistry>(
         'permissions',

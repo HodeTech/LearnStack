@@ -52,7 +52,7 @@ public sealed partial class TenantRealmApiTests
         var journey = Stopwatch.StartNew();
         try
         {
-            (await warm.StockProviderVersionAsync()).Should().Be("26.6.2");
+            (await warm.StockProviderVersionAsync()).Should().Be("26.7.5");
             using var admin = await warm.CreateAdminClientAsync();
             using var hub = await warm.CreateAdminClientAsync("learnstack-hub");
             var profile = await admin.GetAsync("users/profile");
@@ -67,9 +67,9 @@ public sealed partial class TenantRealmApiTests
             var legacyPath = UserPath(await admin.UserAsync(legacy.Username));
             (await admin.PutAsync(legacyPath + "/reset-password", new { type = "password", value = changedPassword, temporary = false }))
                 .Should().Be(HttpStatusCode.NoContent);
-            await WarmPasswordRefusedAsync(warm, legacy.Username, passwords[legacy.Username]);
+            await WarmPasswordRefusedAsync(warm, legacy.Username, passwords[legacy.Username], console: true);
             passwords[legacy.Username] = changedPassword;
-            await WarmMfaRefusalAsync(warm, mfaIdentity.Username, passwords[mfaIdentity.Username], otp);
+            await WarmMfaRefusalAsync(warm, mfaIdentity.Username, passwords[mfaIdentity.Username], otp, console: true);
             await WarmConsoleTokensAsync(warm, mfaIdentity.Username, passwords[mfaIdentity.Username], false, 1800, otp: otp);
             output.WriteLine("Historical journey stage: changed password and actual MFA challenge controls passed.");
 
@@ -93,7 +93,8 @@ public sealed partial class TenantRealmApiTests
             var first = await KeycloakReconciliationDriver.RunAsync(warm);
             first.Success.Should().BeTrue("closed historical reconciliation outcome: {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(19, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; the unrelated account needs no grant");
+            first.Mutations.Should().Be(39, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             output.WriteLine("Historical journey stage: automatic reconciliation completed.");
             var accountsAfter = await WarmAccountsAsync(admin, usernames);
             WarmSame(expectedProfile, WarmNode(await admin.GetAsync("users/profile"))).Should().BeTrue(
@@ -137,35 +138,24 @@ public sealed partial class TenantRealmApiTests
             (await AuditCountsAsync(warmDatabase)).Should().Equal(auditCounts);
             output.WriteLine("Historical journey stage: four signed API personas passed physical ReadOnly application-role reads.");
 
-            var legacyAfter = await WarmConsoleTokensAsync(warm, legacy.Username, changedPassword, true, 900);
-            var unrelatedAfter = await WarmConsoleTokensAsync(warm, unrelated, KeycloakFixture.DemoPassword, true, 900);
-            WarmAssertConsoleDelta(legacyBefore, legacyAfter, addedCapability: true);
-            WarmAssertConsoleDelta(unrelatedBefore, unrelatedAfter, addedCapability: false);
-            await WarmConsoleScopeEffectsAsync(warm, unrelated, unrelatedAfter, beforeUpgrade: false);
-            await WarmExistingOfflineAsync(warm, unrelated, offlineBefore!);
-            await WarmProfileActionsAsync(warm, admin, legacy.Username, legacyAfter.Exchange, legacy);
-            await WarmProfileActionsAsync(warm, admin, unrelated, unrelatedAfter.Exchange, identity: null);
+            // ADR-0099 retired the account console: after the upgrade neither the migrated persona nor the unrelated account
+            // obtains a console code, and their web sign-in and stored accounts are unchanged.
+            foreach (var (username, password) in new[] { (legacy.Username, changedPassword), (unrelated, KeycloakFixture.DemoPassword) })
+            {
+                using var console = warm.Browser();
+                (await console.AuthorizeAsync(username, password, WarmConsoleCallback(warm), clientId: "account-console", scope: "openid"))
+                    .Authorized.Should().BeFalse("the retired console issues no code");
+            }
             await WarmWebTokensAsync(warm, legacy, changedPassword);
             await WarmNonmanifestWebTokensAsync(warm, unrelated);
-            var unrelatedFresh = await WarmConsoleTokensAsync(warm, unrelated, KeycloakFixture.DemoPassword, true, 900);
-            WarmSame(WarmClaims(unrelatedAfter.Access, ordinaryNameChanged: true), WarmClaims(unrelatedFresh.Access, ordinaryNameChanged: true))
-                .Should().BeTrue("ordinary profile editing cannot add identity authority or other unexpected signed claims");
-            WarmSame(WarmClaims(unrelatedAfter.Id, ordinaryNameChanged: true), WarmClaims(unrelatedFresh.Id, ordinaryNameChanged: true))
-                .Should().BeTrue("fresh independently verified ID claims retain the same nonmanifest identity boundary");
-            WarmSame(accountsAfter[unrelated]!["/role-mappings"],
-                WarmNode(await admin.GetAsync(UserPath(await admin.UserAsync(unrelated)) + "/role-mappings")))
-                .Should().BeTrue("nonmanifest grants remain unchanged after self-service too");
-            var edited = await WarmAccountsAsync(admin, usernames);
-            var afterSelfService = await KeycloakReconciliationDriver.RunAsync(warm);
-            afterSelfService.Success.Should().BeTrue("closed post-self-service pass: {0}/{1}", afterSelfService.Stage, afterSelfService.Reason);
-            afterSelfService.Mutations.Should().Be(0);
-            afterSelfService.PreparationDispatched.Should().BeFalse();
-            WarmAssertPass(afterSelfService, preparation: false);
-            WarmSame(edited, await WarmAccountsAsync(admin, usernames)).Should().BeTrue(
-                "the final explicit pass preserves ordinary edits, credentials, identity attributes and grants without login between snapshots");
-            foreach (var username in new[] { legacy.Username, unrelated })
-                (edited[username]![""]!["firstName"]!.GetValue<string>() == "Ordinary warm edit").Should().BeTrue();
-            output.WriteLine("Historical live journey: personas=4; account POST/readback=2; protected fields=3 per subject; MFA before/after=true; wrong OTP before/after=true.");
+            var afterRetirement = await KeycloakReconciliationDriver.RunAsync(warm);
+            afterRetirement.Success.Should().BeTrue("closed post-retirement pass: {0}/{1}", afterRetirement.Stage, afterRetirement.Reason);
+            afterRetirement.Mutations.Should().Be(0);
+            afterRetirement.PreparationDispatched.Should().BeFalse();
+            WarmAssertPass(afterRetirement, preparation: false);
+            WarmSame(accountsRerun, await WarmAccountsAsync(admin, usernames)).Should().BeTrue(
+                "the final explicit pass preserves credentials, identity attributes and grants");
+            output.WriteLine("Historical live journey: personas=4; console retired after upgrade; MFA before/after=true; wrong OTP before/after=true.");
             output.WriteLine("Costs seconds: fixture={0:F3}; token/API/profile={1:F3}; journey={2:F3}. Small owned fixture only; no worst-case capacity claim.",
                 warm.StartupElapsed.TotalSeconds, tokenFlow.Elapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }
@@ -230,17 +220,18 @@ public sealed partial class TenantRealmApiTests
             }
             WarmSame(oldUser, newUser).Should().BeTrue("all unrelated account fields are preserved");
             var grants = current["/role-mappings"]!.DeepClone().AsObject();
+            var expectedGrants = previous["/role-mappings"]!.DeepClone().AsObject();
             if (username != unrelated)
             {
-                var added = grants["clientMappings"]!["account"]!["mappings"]!.AsArray();
-                added.Count.Should().Be(1);
-                (added[0]!["name"]!.GetValue<string>() == "manage-account").Should().BeTrue();
-                var role = await admin.GetAsync("clients/" + WarmId(await admin.ClientAsync("account")) + "/roles/manage-account");
-                (added[0]!["id"]!.GetValue<string>() == WarmId(role)).Should().BeTrue();
-                grants["clientMappings"]!.AsObject().Remove("account");
-                if (grants["clientMappings"]!.AsObject().Count == 0) grants.Remove("clientMappings");
+                // ADR-0099: a persona's direct account grant is detached; every other mapping is unchanged.
+                ((grants["clientMappings"] as JsonObject)?["account"]).Should().BeNull("no persona keeps an account-client grant");
+                if (expectedGrants["clientMappings"] is JsonObject clients)
+                {
+                    clients.Remove("account");
+                    if (clients.Count == 0) expectedGrants.Remove("clientMappings");
+                }
             }
-            WarmSame(previous["/role-mappings"], grants).Should().BeTrue("only the declared manifest account capability may be added");
+            WarmSame(expectedGrants, grants).Should().BeTrue("only the retired account capability may be removed");
         }
         var mfa = after[SeedData.IdentityUsers[1].Username]!["/credentials"]!.AsArray();
         mfa.Count(value => value!["type"]!.GetValue<string>() == "otp").Should().Be(1);
@@ -307,36 +298,29 @@ public sealed partial class TenantRealmApiTests
     {
         var console = await admin.ClientAsync("account-console");
         var consolePath = "clients/" + WarmId(console);
+        var accountPath = "clients/" + WarmId(await admin.ClientAsync("account"));
+        var realmState = await admin.GetAsync();
+        var defaultCompositesPath = "roles-by-id/" + realmState.GetProperty("defaultRole").GetProperty("id").GetString() + "/composites";
         var desired = JsonNode.Parse(await File.ReadAllTextAsync(KeycloakFixture.RealmPath("learnstack")))!;
         var currentScopes = await admin.GetAsync("client-scopes");
         foreach (var (path, prior) in before)
         {
             var current = await admin.GetAsync(path);
-            if (path == consolePath + "/protocol-mappers/models")
+            if (path == consolePath || path == accountPath)
             {
-                var afterMappers = WarmNode(current).AsArray();
-                var owned = afterMappers.Single(mapper => mapper!["name"]!.GetValue<string>() == "learnstack-account-self-service-roles")!;
-                var declared = desired["clients"]!.AsArray().Single(client => client!["clientId"]!.GetValue<string>() == "account-console")!
-                    ["protocolMappers"]!.AsArray().Single(mapper => mapper!["name"]!.GetValue<string>() == "learnstack-account-self-service-roles")!;
-                var expectedConfig = declared["config"]!.DeepClone().AsObject();
-                expectedConfig.Remove("usermodel.clientRoleMapping.rolePrefix");
-                WarmSame(expectedConfig, owned["config"]).Should().BeTrue("the sole new mapper is exactly the approved fixed-account emitter");
-                (owned["protocol"]!.GetValue<string>() == "openid-connect"
-                    && owned["protocolMapper"]!.GetValue<string>() == "oidc-usermodel-client-role-mapper").Should().BeTrue();
-                afterMappers.Remove(owned);
-                WarmSame(WarmNode(prior), afterMappers).Should().BeTrue("every preexisting direct console mapper survives unchanged");
-                continue;
-            }
-            if (path == consolePath)
-            {
+                // ADR-0099 retires both account clients: each differs from its prior representation only by enabled=false.
                 var expectedClient = WarmNode(prior).AsObject();
                 var actualClient = WarmNode(current).AsObject();
-                foreach (var client in new[] { expectedClient, actualClient }) client.Remove("protocolMappers");
-                expectedClient["defaultClientScopes"] = new JsonArray(expectedClient["defaultClientScopes"]!.AsArray()
-                    .Where(scope => scope!.GetValue<string>() != "roles").Select(scope => scope!.DeepClone()).ToArray());
-                expectedClient["optionalClientScopes"] = new JsonArray(expectedClient["optionalClientScopes"]!.AsArray()
-                    .Where(scope => scope!.GetValue<string>() is not ("microprofile-jwt" or "offline_access")).Select(scope => scope!.DeepClone()).ToArray());
-                WarmSame(expectedClient, actualClient).Should().BeTrue("all console settings retain their exact preexisting values beyond the three edge removals");
+                actualClient["enabled"]!.GetValue<bool>().Should().BeFalse();
+                foreach (var client in new[] { expectedClient, actualClient }) client.Remove("enabled");
+                WarmSame(expectedClient, actualClient).Should().BeTrue("all retired account-client settings retain their exact preexisting values");
+                continue;
+            }
+            if (path == defaultCompositesPath)
+            {
+                var expectedComposites = new JsonArray(WarmNode(prior).AsArray().Where(role => role!["name"]!.GetValue<string>()
+                    is not ("manage-account" or "manage-account-links")).Select(role => role!.DeepClone()).ToArray());
+                WarmSame(expectedComposites, WarmNode(current)).Should().BeTrue("only the retired account grants leave the default role");
                 continue;
             }
             if (path is "clients" or "client-scopes")
@@ -344,7 +328,9 @@ public sealed partial class TenantRealmApiTests
                 var oldIds = prior.EnumerateArray().Select(WarmId).ToHashSet(StringComparer.Ordinal);
                 var currentIds = current.EnumerateArray().Select(WarmId).ToHashSet(StringComparer.Ordinal);
                 oldIds.IsSubsetOf(currentIds).Should().BeTrue("no preexisting client or scope is deleted or recreated");
-                if (path == "clients") currentIds.SetEquals(oldIds).Should().BeTrue();
+                if (path == "clients")
+                    current.EnumerateArray().Where(client => !oldIds.Contains(WarmId(client))).Select(client => client.GetProperty("clientId").GetString())
+                        .Should().Equal(["learnstack-federation-admin"], "the only new client is ADR-0099's federation admin client");
                 else current.EnumerateArray().Where(scope => !oldIds.Contains(WarmId(scope)))
                     .Select(scope => scope.GetProperty("name").GetString()).Order(StringComparer.Ordinal)
                     .Should().Equal(desired["clientScopes"]!.AsArray().Select(scope => scope!["name"]!.GetValue<string>())
@@ -355,9 +341,7 @@ public sealed partial class TenantRealmApiTests
             if (path.EndsWith("-client-scopes", StringComparison.Ordinal))
             {
                 var owner = before["clients"].EnumerateArray().Single(client => path.StartsWith("clients/" + WarmId(client) + "/", StringComparison.Ordinal));
-                var expected = prior.EnumerateArray().Where(scope => path == consolePath + "/default-client-scopes"
-                    ? scope.GetProperty("name").GetString() != "roles"
-                    : path != consolePath + "/optional-client-scopes" || scope.GetProperty("name").GetString() is not ("microprofile-jwt" or "offline_access"))
+                var expected = prior.EnumerateArray()
                     .Select(scope => (Id: WarmId(scope), Name: scope.GetProperty("name").GetString())).ToHashSet();
                 var clientId = owner.GetProperty("clientId").GetString();
                 if (clientId is "learnstack-web" or "learnstack-api")
@@ -372,12 +356,12 @@ public sealed partial class TenantRealmApiTests
                 }
                 var actual = current.EnumerateArray().Select(scope => (Id: WarmId(scope), Name: scope.GetProperty("name").GetString())).ToArray();
                 (actual.Length == expected.Count && expected.SetEquals(actual)).Should().BeTrue(
-                    "exact edge delta: three console removals and approved web/API additions; every other assignment is preserved");
+                    "exact edge delta: approved web/API additions; every other assignment, the retired console's included, is preserved");
                 continue;
             }
             WarmSame(WarmNode(prior), WarmNode(current)).Should().BeTrue("global definitions, role graphs, account client, groups and API secret are preserved");
         }
-        foreach (var (category, count) in new[] { ("default", 5), ("optional", 3) })
+        foreach (var (category, count) in new[] { ("default", 6), ("optional", 5) })
             (await admin.GetAsync(consolePath + "/" + category + "-client-scopes")).GetArrayLength().Should().Be(count);
     }
 
@@ -401,26 +385,34 @@ public sealed partial class TenantRealmApiTests
         return state;
     }
 
-    private static async Task WarmPasswordRefusedAsync(KeycloakFixture fixture, string username, string password)
+    // Before the upgrade the historical console is the enabled code client; after it, ADR-0099 retired the console
+    // and the converged web client carries the same refusal.
+    private static async Task WarmPasswordRefusedAsync(KeycloakFixture fixture, string username, string password, bool console = false)
     {
         using var browser = fixture.Browser();
-        var refusal = await browser.AuthorizeAsync(username, password, WarmConsoleCallback(fixture), clientId: "account-console", scope: "openid");
+        var refusal = console
+            ? await browser.AuthorizeAsync(username, password, WarmConsoleCallback(fixture), clientId: "account-console", scope: "openid")
+            : await browser.AuthorizeAsync(username, password, Callback(SeedData.English));
         refusal.Authorized.Should().BeFalse();
         refusal.Error.Should().Be("invalid_credentials");
     }
 
-    private static async Task WarmMfaRefusalAsync(KeycloakFixture fixture, string username, string password, WarmTotp otp)
+    private static async Task WarmMfaRefusalAsync(KeycloakFixture fixture, string username, string password, WarmTotp otp, bool console = false)
     {
         using (var browser = fixture.Browser())
         {
-            var missing = await browser.AuthorizeAsync(username, password, WarmConsoleCallback(fixture), clientId: "account-console", scope: "openid");
+            var missing = console
+                ? await browser.AuthorizeAsync(username, password, WarmConsoleCallback(fixture), clientId: "account-console", scope: "openid")
+                : await browser.AuthorizeAsync(username, password, Callback(SeedData.English));
             missing.Authorized.Should().BeFalse();
             missing.MfaChallenged.Should().BeTrue();
             missing.Error.Should().Be("mfa_challenge_required");
         }
         using var wrong = fixture.Browser();
-        var refused = await wrong.AuthorizeAsync(username, password, WarmConsoleCallback(fixture), clientId: "account-console", scope: "openid",
-            otpCode: () => Task.FromResult(otp.WrongCode()));
+        var refused = console
+            ? await wrong.AuthorizeAsync(username, password, WarmConsoleCallback(fixture), clientId: "account-console", scope: "openid",
+                otpCode: () => Task.FromResult(otp.WrongCode()))
+            : await wrong.AuthorizeAsync(username, password, Callback(SeedData.English), otpCode: () => Task.FromResult(otp.WrongCode()));
         refused.Authorized.Should().BeFalse();
         refused.MfaChallenged.Should().BeTrue();
         refused.Error.Should().Be("invalid_otp");

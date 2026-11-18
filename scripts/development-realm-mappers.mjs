@@ -10,7 +10,7 @@ const knownTypes = new Set([
   'oidc-usermodel-realm-role-mapper', 'oidc-usersessionmodel-note-mapper',
 ]);
 
-// Match pinned 26.6.2 JsonUtils.splitClaimPath: a backslash escapes any
+// Match pinned 26.7.5 JsonUtils.splitClaimPath: a backslash escapes any
 // character; an unescaped dot ends a nonempty component. A leading dot is literal.
 export function claimRoot(claim) {
   if (typeof claim !== 'string') return '';

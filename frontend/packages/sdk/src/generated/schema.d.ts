@@ -231,6 +231,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        get: operations["GetPublicSignIn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
+        head: operations["HeadPublicSignIn"];
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/site": {
         parameters: {
             query?: never;
@@ -246,6 +264,193 @@ export interface paths {
         options?: never;
         /** @description Anonymous host-scoped read through the read-only pipeline. Present invalid credentials are refused rather than treated as anonymous. Unknown query keys and repeated single-valued keys are refused. No response caching or validators. */
         head: operations["HeadPublicSite"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current tenant's nonsecret federation connection in an orgless context, under Tenant identity.federation.admin. Audit Off: no personal data. One provider readback under the request deadline; a definitive drift or an expired test window is recorded as a MUST apply outcome. No request body or query. No-store. */
+        get: operations["GetFederationConnection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        put: operations["ConfigureFederation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/secret-rotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["RotateFederationSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/display-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        put: operations["RenameFederation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/test-starts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["StartFederationTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/test-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. The access token must also carry the optional federation.test_record client scope, which only the BFF's federation_test authorization requests; an ordinary sign-in or Studio token is refused with 403 before the body is read. */
+        post: operations["RecordFederationTestResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/activation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["ActivateFederation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/disablement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["DisableFederation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/enablement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["EnableFederation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["DeleteFederation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/federation/resumption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description ADR-0099 intent-first federation operation under Tenant identity.federation.admin in an orgless context. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. No Idempotency-Key: the operation converges through If-Match on the connection revision, the pending operation and a fresh read. Every settled outcome is 200 with its outcome; an uncertain or pending operation is settled later by Resume after its quiet window. A secret is never returned, logged or audited. */
+        post: operations["ResumeFederationOperation"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -806,7 +1011,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. No request body, query or assertion/scope selectors. */
+        /** @description Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. federationAlias is the host tenant's Active, entitled federation alias or null, read through the one host-only read-only setter; an undecidable read is 503 and never null. It is a provider hint for the BFF host binding, not authority. No request body, query or assertion/scope selectors. */
         get: operations["GetIdentitySelf"];
         put?: never;
         post?: never;
@@ -865,6 +1070,11 @@ export interface components {
             scope: "Tenant";
             /** @enum {string} */
             key: "customization.custom_field.admin";
+        } | {
+            /** @enum {string} */
+            scope: "Tenant";
+            /** @enum {string} */
+            key: "identity.federation.admin";
         } | {
             /** @enum {string} */
             scope: "Tenant";
@@ -1143,6 +1353,87 @@ export interface components {
         /** @enum {string} */
         DirectoryMembershipStatus: "Active" | "Suspended";
         EmptyAdministrationInput: Record<string, never>;
+        FederationConfigurationInput: {
+            /** @enum {string} */
+            protocol: "oidc" | "saml";
+            displayName: null | string;
+            /** @enum {string} */
+            source: "metadata_url" | "discovery_url" | "manual";
+            documentUrl: null | string;
+            issuerOrEntityId: null | string;
+            authorizationEndpoint: null | string;
+            tokenEndpoint: null | string;
+            jwksEndpoint: null | string;
+            userInfoEndpoint: null | string;
+            singleSignOnEndpoint: null | string;
+            signingCertificates: string[];
+            clientId: null | string;
+            /** @enum {null|string} */
+            clientAuthentication: "client_secret_post" | "client_secret_basic" | null;
+            /** @description Write-only client secret, at most 1,024 UTF-8 bytes; never the mask literal or a ${ vault reference. Never returned, logged, audited or persisted. */
+            clientSecret: null | string;
+        };
+        FederationConnectionBody: {
+            /** Format: uuid */
+            connectionId: string;
+            /** @enum {string} */
+            protocol: "oidc" | "saml";
+            alias: string;
+            displayName: string;
+            issuerOrEntityId: string;
+            /** @enum {string} */
+            status: "draft" | "test_open" | "test_passed" | "active" | "disabled";
+            /** @enum {string} */
+            source: "metadata_url" | "discovery_url" | "manual";
+            clientId: null | string;
+            /** @description Canonical decimal connection revision from 0 through 9223372036854775807. Never a JSON number. */
+            configurationRevision: string;
+            configurationDigest: string;
+            desiredDigest: string;
+            lastProviderDigest: null | string;
+            pending: components["schemas"]["FederationPendingResponse"] | null;
+            /** Format: date-time */
+            testExpiresAt: null | string;
+            /** @description Canonical decimal connection revision from 0 through 9223372036854775807. Never a JSON number. */
+            version: string;
+        };
+        FederationConnectionResponse: {
+            connection: components["schemas"]["FederationConnectionBody"] | null;
+            /** @enum {string} */
+            provider: "not_read" | "matches" | "drift" | "unavailable";
+        };
+        FederationDisplayNameInput: {
+            displayName: string;
+        };
+        FederationOperationResponse: {
+            /** Format: uuid */
+            connectionId: string;
+            /** @description Canonical decimal connection revision from 0 through 9223372036854775807. Never a JSON number. */
+            version: string;
+            /** @enum {string} */
+            outcome: "applied" | "failed" | "uncertain" | "pending" | "drift" | "recorded" | "expired" | "superseded";
+            /** @enum {null|string} */
+            reason: "provider_refused" | "drift" | "owner_mismatch" | "egress_refused" | "resubmit_required" | "provider_unavailable" | "egress_unavailable" | null;
+            /** Format: uuid */
+            testAttemptId: null | string;
+        };
+        FederationPendingResponse: {
+            /** @enum {string} */
+            kind: "configure" | "rotate_secret" | "rename" | "test_start" | "disable" | "delete";
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            quietUntil: string;
+        };
+        FederationSecretInput: {
+            /** @description Write-only client secret, at most 1,024 UTF-8 bytes; never the mask literal or a ${ vault reference. Never returned, logged, audited or persisted. */
+            clientSecret: string;
+        };
+        FederationTestResultInput: {
+            /** Format: uuid */
+            testAttemptId: string;
+            passed: boolean;
+        };
         FieldConsentGrantInput: {
             /** Format: uuid */
             definitionId: string;
@@ -1175,10 +1466,12 @@ export interface components {
             subjectKey: string;
             /** Format: uuid */
             actorId: string;
+            federationAlias: null | string;
         };
         IdentitySelfMissing: {
             /** @enum {string} */
             state: "missing";
+            federationAlias: null | string;
         };
         IdentitySelfState: components["schemas"]["IdentitySelfMissing"] | components["schemas"]["IdentitySelfActive"];
         InvitableRoleDirectory: {
@@ -1395,6 +1688,7 @@ export interface components {
             canWriteOwnProfile: boolean;
             canManageOrganizations: boolean;
             canManageCustomFields: boolean;
+            canManageFederation: boolean;
         };
         OwnFieldConsentCurrentResponse: {
             consent: components["schemas"]["ConsentDetailsResponse"] | null;
@@ -1530,6 +1824,13 @@ export interface components {
             title: string;
             /** Format: int32 */
             sort: number;
+        };
+        PublicSignIn: {
+            federation: components["schemas"]["PublicSignInFederation"] | null;
+        };
+        PublicSignInFederation: {
+            alias: string;
+            displayName: string;
         };
         PublicSite: {
             displayName: string;
@@ -3927,6 +4228,202 @@ export interface operations {
             };
         };
     };
+    GetPublicSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSignIn"];
+                };
+            };
+            /** @description validation_failed; the sign-in read accepts no query parameters, and malformed or repeated assertion headers are refused. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed from routing. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, HEAD";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error from unexpected failures; no exception or query details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    HeadPublicSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description validation_failed; the sign-in read accepts no query parameters, and malformed or repeated assertion headers are refused. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description unauthorized; present invalid or undecidable credentials on a known host. Bare Bearer challenge; no credential or provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not_found for unavailable host or hidden/untranslated/ineligible resource; tenant_mismatch for authenticated host/claim or header disagreement, without disclosure. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description method_not_allowed from routing. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET, HEAD";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description payload_too_large; the decoded body bound precedes host classification and authentication. Kestrel framing/backstop refusals may occur outside the application response policy and omit these headers/body. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description rate_limited from early visitor/peer admission, validated-subject quota or subject-registry capacity. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description internal_error from unexpected failures; no exception or query details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     GetPublicSite: {
         parameters: {
             query?: never;
@@ -4120,6 +4617,1443 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    GetFederationConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current nonsecret connection detail, or a null connection. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The connection revision, present exactly when a live connection exists. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationConnectionResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ConfigureFederation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Absent only to create the tenant's first live connection; otherwise one canonical strong quoted decimal connection revision. A stale revision or an existing live connection is 409. */
+                "If-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FederationConfigurationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "PUT";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RotateFederationSecret: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FederationSecretInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RenameFederation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FederationDisplayNameInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "PUT";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    StartFederationTest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RecordFederationTestResult: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FederationTestResultInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context, or when the access token lacks the federation.test_record scope; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ActivateFederation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DisableFederation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    EnableFederation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteFederation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ResumeFederationOperation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One canonical strong quoted decimal connection revision. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale revision is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Settled operation receipt. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationOperationResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, an unexpected body or query, an invalid precondition, or a refused egress address. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current Tenant identity.federation.admin in an orgless context; feature_disabled when the protocol is not entitled. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing credentials, noncoverage or no live connection. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a stale revision, a pending operation inside its quiet window or a racing first configuration; business_rule_violation for a lifecycle state the operation does not admit or a changed issuer or entity identifier. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; federation bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable: the provider, egress fetcher or storage could not decide; nothing unconfirmed is reported as applied. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
@@ -7177,7 +9111,7 @@ export interface operations {
     GetPermissionRegistry: {
         parameters: {
             query?: {
-                /** @description Current source release, default1. Source1 returns v2; source2 returns v3; no automatic adoption/grant. */
+                /** @description Current source release, default1. Source1 returns v2; source2 returns v3; source3 returns v4; no automatic adoption/grant. */
                 sourceReleaseVersion?: number;
             };
             header?: never;

@@ -645,14 +645,14 @@ jobs:
           global-json-file: backend/global.json
 
       - name: Install pinned, checksum-verified oasdiff
-        run: python3 scripts/install-oasdiff.py artifacts/openapi/tool
+        run: python3 -I scripts/install-oasdiff.py artifacts/openapi/tool
 
       - name: Prove snapshot admission and fail-closed controls
-        run: python3 scripts/test-openapi-ci.py
+        run: python3 -I scripts/test-openapi-ci.py
 
       - name: Prove breaking-policy controls
         run: |
-          python3 scripts/openapi-policy.py \
+          python3 -I scripts/openapi-policy.py \
             --tool artifacts/openapi/tool/oasdiff \
             --fixtures --output artifacts/openapi/fixtures
 
@@ -679,7 +679,7 @@ jobs:
             workflow_dispatch) openapi_base="$MANUAL_BASE_REF"; openapi_head="$HEAD_SHA" ;;
             *) echo "Unsupported OpenAPI event" >&2; exit 1 ;;
           esac
-          python3 scripts/openapi-ci.py --base "$openapi_base" --head "$openapi_head" \
+          python3 -I scripts/openapi-ci.py --base "$openapi_base" --head "$openapi_head" \
             --tool artifacts/openapi/tool/oasdiff --output artifacts/openapi/diff
 
       - name: Upload specs, SHAs, policy, tool version and comparison reports

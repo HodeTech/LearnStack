@@ -297,7 +297,12 @@ See [10-observability.md](10-observability.md).
 - P02b-6's development realm uses `KEYCLOAK_WEB_CLIENT_SECRET` as a private
   import/reconciliation source and the enabled P02b-7 native BFF runtime source.
   Never pass it or Keycloak admin credentials to the API, public-only process or
-  .NET Seeder. Existing confidential secrets are verified, never silently
+  .NET Seeder. The API receives exactly two machine-client secrets of its own:
+  `IdentityEvents__ClientSecret` ([ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md))
+  and `Federation__ClientSecret`, the value of the realm's
+  `KEYCLOAK_FEDERATION_ADMIN_SECRET` ([ADR-0099](../decisions/0099-confined-tenant-federation.md));
+  neither is a web, master or admin credential, and neither reaches the web process
+  or the Seeder. Existing confidential secrets are verified, never silently
   rotated. The [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
   owns bounded tooling, selected-target validation and the no-credential-output
   contract; the [realm guide](../../infra/keycloak/README.md) owns local setup.

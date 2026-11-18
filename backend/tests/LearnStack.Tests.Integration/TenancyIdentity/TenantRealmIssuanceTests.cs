@@ -488,9 +488,9 @@ public sealed class TenantRealmIssuanceTests(KeycloakFixture fixture, ITestOutpu
         AssertAuthorized(authorization);
         var exchange = await browser.RedeemAsync(authorization);
         exchange.StatusCode.Should().Be(HttpStatusCode.OK);
-        // The production role declaration and stock roles audience resolver retain this independent audience.
-        // This checks signature/issuer/lifetime even when the deliberately dirty API audience is absent.
-        var access = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.AccessToken, "account",
+        // This checks signature/issuer/lifetime even when the deliberately dirty API audience is absent; since ADR-0099
+        // retired the account capability, no independent "account" audience remains to validate against.
+        var access = await KeycloakTokenVerifier.ValidateAnyAudienceAsync(provider, exchange.AccessToken,
             allowMissingSubject: defect == "missing_sub");
         var id = await KeycloakTokenVerifier.ValidateAsync(provider, exchange.IdToken, "learnstack-web",
             allowMissingSubject: defect == "missing_sub");

@@ -130,6 +130,7 @@ public static class ApiVersioningExtensions
             options.AddDocumentTransformer(new Authentication.NativeEntryDocumentTransformer());
             options.AddDocumentTransformer(new Identity.AdministrationDocumentTransformer());
             options.AddDocumentTransformer(new Customization.CustomFieldDocumentTransformer());
+            options.AddDocumentTransformer(new Identity.FederationDocumentTransformer());
 
             options.AddDocumentTransformer((document, _, _) =>
             {

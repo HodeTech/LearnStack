@@ -4,6 +4,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.SharedKernel.Permissions;
@@ -37,9 +38,17 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public static PermissionDefinition OrganizationProfileWrite { get; } = new(PermissionScope.Organization, IdentityFoundationManifest.ProfileWrite);
     public static PermissionDefinition MembershipAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.MembershipAdmin);
     public static PermissionDefinition RoleAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
+    public const string FederationReadOperation = "identity.federation.read";
+    public const string PublicSignInOperation = "identity.public_sign_in.read";
+    /// <summary>Virtual Portal Public definition for the anonymous sign-in read; never a stored Role grant.</summary>
+    public static PermissionDefinition PublicSignIn { get; } = new(PermissionScope.Tenant, "identity.public_sign_in.read");
 
+    // Registry v4's federation pair is Identity-owned and assignable; registration grants it
+    // to no Role. Its Step 2 operations declare requiresOrglessWrite (ADR-0099).
     public IEnumerable<PermissionRegistration> Definitions => IdentityFoundationManifest.Version1.Definitions
-        .Select(definition => new PermissionRegistration(definition, Assignable: true));
+        .Append(FederationPermissions.Definition)
+        .Select(definition => new PermissionRegistration(definition, Assignable: true))
+        .Append(new PermissionRegistration(PublicSignIn, Assignable: false));
 
     public IEnumerable<OperationPolicy> Policies =>
     [
@@ -94,6 +103,21 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
             [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ChangeRoleGrantsCommand>("identity.role.change_grants", RoleAdministration, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", RoleAdministration, requiresOrglessWrite: true),
+        // ADR-0099: every federation operation is Protected on Tenant identity.federation.admin and orgless.
+        Federation<BeginConfigureFederationCommand>("identity.federation.configure"),
+        Federation<BeginRotateFederationSecretCommand>("identity.federation.rotate_secret"),
+        Federation<BeginRenameFederationCommand>("identity.federation.rename"),
+        Federation<BeginFederationTestStartCommand>("identity.federation.test_start"),
+        Federation<BeginDisableFederationCommand>("identity.federation.disable"),
+        Federation<BeginDeleteFederationCommand>("identity.federation.delete"),
+        Federation<ResumeFederationOperationCommand>("identity.federation.resume"),
+        Federation<CompleteFederationOperationCommand>("identity.federation.apply"),
+        Federation<EnableFederationCommand>("identity.federation.enable"),
+        Federation<ActivateFederationCommand>("identity.federation.activate"),
+        Federation<RecordFederationTestResultCommand>("identity.federation.test_record"),
+        Federation<ReconcileFederationConnectionCommand>("identity.federation.reconcile"),
+        Federation<GetFederationConnectionQuery>(FederationReadOperation),
+        OperationPolicy.ForPublic<GetPublicSignInQuery>(PublicSignInOperation, PublicSignIn),
         OperationPolicy.ForTrusted<InitializeSeedRoleCommand>("identity.role.initialize", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<CreateFirstSeedAdminMembershipCommand>("identity.membership.create_first_seed_admin", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<CreateSeedMembershipCommand>("identity.membership.create_seed", AuthorizationSourceKind.Seed),
@@ -101,4 +125,7 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<GetRoleSeedStateQuery>("identity.role.verify_seed", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetMembershipSeedStateQuery>("identity.membership.verify_seed", AuthorizationSourceKind.Seed),
     ];
+
+    private static OperationPolicy Federation<TRequest>(string id) =>
+        OperationPolicy.ForProtected<TRequest>(id, FederationPermissions.Definition, requiresOrglessWrite: true);
 }

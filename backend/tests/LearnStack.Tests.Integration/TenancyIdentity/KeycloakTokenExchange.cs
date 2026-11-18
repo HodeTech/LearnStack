@@ -79,6 +79,28 @@ internal static class KeycloakTokenVerifier
             audience == clientId ? "ID" : "Bearer", allowMissingSubject);
     }
 
+    /// <summary>
+    /// An access token whose API audience may be deliberately absent: since ADR-0099 retired the account capability, no
+    /// independent "account" audience remains, so the token is validated against whatever single audience it carries, or
+    /// none. Signature, issuer, lifetime, purpose and azp are still checked.
+    /// </summary>
+    internal static Task<JsonElement> ValidateAnyAudienceAsync(KeycloakFixture fixture, string token, bool allowMissingSubject = false)
+    {
+        string? audience;
+        try
+        {
+            using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(token.Split('.')[1]));
+            audience = payload.RootElement.TryGetProperty("aud", out var value) ? value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString(),
+                JsonValueKind.Array when value.GetArrayLength() > 0 => value[0].GetString(),
+                _ => null,
+            } : null;
+        }
+        catch (Exception) { throw new InvalidOperationException("Keycloak fixture token validation failed."); }
+        return ValidateProfileAsync(fixture, token, audience, "learnstack", "learnstack-web", "Bearer", allowMissingSubject);
+    }
+
     // Stock legacy console access has no audience. That closed expectation still
     // requires signature, issuer, lifetime, purpose, subject and account-console azp.
     internal static Task<JsonElement> ValidateConsoleAsync(KeycloakFixture fixture, string token,

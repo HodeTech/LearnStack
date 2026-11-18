@@ -75,12 +75,17 @@ Summary so reviewers don't have to chase a link to know the shape:
   [ADR-0019](../decisions/0019-learnstack-hub.md) and is not governed by
   ADR-0024.
 
-[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) grants one
-bounded pre-MVP exception to the new-major requirement. Only its exact snapshots,
-full findings and comparison identities can obtain explicit Git-backed approval;
-all other changes retain ADR-0024. This does not establish runtime behavior or
-permit mixed old/new consumers. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
-owns implementation and qualification.
+[ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) and
+[ADR-0100](../decisions/0100-p038-federation-contract-transition.md) each grant one
+bounded pre-MVP exception to the new-major requirement, one per Accepted ADR. Only an
+ADR's exact snapshots, full findings and comparison identities can obtain explicit
+Git-backed approval; all other changes retain ADR-0024, and a further exception needs
+its own ADR and carrier. The basis, no consumer outside the coordinated bundle, ends at
+the first outside consumer, a pilot or production deployment, or a 1.0 release; after
+that ADR-0024 governs every change and no further carrier is admitted. This does not
+establish runtime behavior or permit mixed old/new consumers. The
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and
+qualification.
 
 For the breaking/non-breaking matrix, the exact header set
 (`Deprecation` per RFC 9745, `Sunset` per RFC 8594, `Link:
@@ -284,8 +289,9 @@ The set is this table and nothing else:
 | `GetPublicCoursesQuery` | GET, HEAD | Exact-locale host-scoped marketing catalog, audit Off and READ ONLY | P02d-4 Step 3 |
 | `GetPublicCourseQuery` | GET, HEAD | Eligible marketing and public-only outline, audit Off and READ ONLY | P02d-4 Step 3 |
 | `GetPublicLessonQuery` | GET, HEAD | Eligible public-parent content, audit Off and READ ONLY | P02d-4 Step 3 |
+| `GetPublicSignInQuery` | GET, HEAD | Host tenant's Active, entitled federation alias and display name or null, owned by Identity; LearnStack database only, `no-store`, audit Off and READ ONLY ([ADR-0099](../decisions/0099-confined-tenant-federation.md#sign-in-exposure), [ADR-0052 Amendment 16](../decisions/0052-anonymous-public-read-boundary.md)) | P03-8 Step 2 |
 
-All four rows are production requests with explicit GET/HEAD endpoints.
+All five rows are production requests with explicit GET/HEAD endpoints.
 `PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
 ([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) now guard
@@ -367,6 +373,17 @@ they do not create an unresolved-context exemption for other endpoints. Self and
 context discovery are Off, own-person, no-store navigation reads. Bootstrap
 creates a binding only, with opt-in allocation and central MUST audit; it grants
 neither Membership nor a tenant session. Nonadmitting bindings never look missing.
+Both self states and the bootstrap result carry a nullable `federationAlias`: the
+host tenant's Active, entitled federation alias, read through the one host-only
+read-only setter of
+[ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14);
+an undecidable read is 503, never null (after a committed bootstrap, the existing
+unknown-outcome answer that a deliberate retry converges). That 503 applies to every
+self read and bootstrap on the host, local subjects and tenants without a connection
+included: the same availability class as the self read's own database read, accepted
+in [Security § Federation host binding](11-security.md#federation-host-binding) with
+the local session paths it affects. The `oneOf` members are
+unchanged; each gains the property. The contexts response is unchanged.
 The [Security contract](11-security.md#native-scope-and-global-self-admission)
 owns exact ordering, source consistency, terminal outcomes and creation budgets.
 
@@ -649,6 +666,36 @@ winner is 200. Unknown COMMIT is 503: deliberate retry can find the committed
 binding or make a newly admitted creation, without assuming rollback.
 
 
+### Tenant federation operations
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md#intent-first-operations).
+The protected federation operations accept **no `Idempotency-Key`**; a supplied key is
+refused with `validation_failed`. They stay outside the protected-receipt census and
+converge instead through `If-Match` on the connection revision, the pending operation,
+the unique live connection per tenant (a racing first configuration is a recoverable
+409) and a fresh read. The native transport admits no DELETE, so deletion is a POST
+to an action resource. Every settled outcome (applied, failed, uncertain, pending,
+drift, recorded, expired, superseded) is a 200 receipt; an uncertain or pending write
+is settled by Resume after its quiet window.
+
+| Method and path under `/api/v1/identity/federation` | Request type | Precondition |
+|---|---|---|
+| `GET` | `GetFederationConnectionQuery` | none; `ETag` when a live connection exists |
+| `PUT /configuration` | `BeginConfigureFederationCommand` | absent only for the first live connection, otherwise `If-Match` |
+| `POST /secret-rotations` | `BeginRotateFederationSecretCommand` | `If-Match` |
+| `PUT /display-name` | `BeginRenameFederationCommand` | `If-Match` |
+| `POST /test-starts` | `BeginFederationTestStartCommand` | `If-Match` |
+| `POST /test-results` | `RecordFederationTestResultCommand` (the BFF server-side test owner only: a token without the optional `federation.test_record` scope is refused with the closed 403 before the body is read, [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)) | `If-Match` |
+| `POST /activation` | `ActivateFederationCommand` | `If-Match` |
+| `POST /disablement` | `BeginDisableFederationCommand` | `If-Match` |
+| `POST /enablement` | `EnableFederationCommand` | `If-Match` |
+| `POST /deletion` | `BeginDeleteFederationCommand` | `If-Match` |
+| `POST /resumption` | `ResumeFederationOperationCommand` | `If-Match` |
+
+`CompleteFederationOperationCommand` and `ReconcileFederationConnectionCommand` have no
+route: the Identity federation runner dispatches them inside the request that owns the
+operation.
+
 ## Optimistic Concurrency
 
 Mutable resources expose `ETag` (or `version` field).
@@ -844,7 +891,14 @@ Public but rate-limited.
 - `POST /resources` returns the created resource with `201` + `Location`.
 - `PATCH` accepts partial JSON; unknown fields → `400`.
 - `DELETE` is idempotent; deleting a missing resource → `204`.
-- `GET` is safe and idempotent; never has side effects.
+- `GET` is safe and idempotent; never has side effects. One exception is recorded: the
+  federation connection detail read (`GET /api/v1/identity/federation`) reconciles the
+  broker, so it can record drift, apply the corrective disabling write and disable an
+  Active broker whose protocol is no longer entitled. Each of those is the ordinary
+  operation, with its own MUST audit row and the reading administrator as its actor, and
+  a repeated read changes nothing once the state holds
+  ([ADR-0099](../decisions/0099-confined-tenant-federation.md) § Provider writes,
+  Amendment 9).
 - Sort parameters never affect filtering.
 
 ## Forbidden

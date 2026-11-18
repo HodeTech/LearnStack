@@ -18,9 +18,10 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>A separate provider database; never a substitute for application-role isolation tests.</summary>
 public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
 {
-    internal const string Image = "quay.io/keycloak/keycloak:26.6.2";
+    internal const string Image = "quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85";
     internal const string WebClientSecret = "keycloak-fixture-web-secret";
     internal const string EventReaderSecret = "keycloak-fixture-event-reader-secret";
+    internal const string FederationAdminSecret = "keycloak-fixture-federation-admin-secret";
     internal const string DemoPassword = "demo-dev-secret";
     private const string AdminUsername = "fixture-admin";
     private readonly string _adminPassword = Guid.NewGuid().ToString("N");
@@ -166,6 +167,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", AdminUsername)
                 .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", _adminPassword)
                 .WithEnvironment("KEYCLOAK_WEB_CLIENT_SECRET", WebClientSecret)
+                .WithEnvironment("KEYCLOAK_FEDERATION_ADMIN_SECRET", FederationAdminSecret)
                 // byte[] destinations are files. Testcontainers' string/string overload treats the target as a directory.
                 .WithResourceMapping(Encoding.UTF8.GetBytes(tenantImport), "/opt/keycloak/data/import/learnstack-realm.json")
                 .WithResourceMapping(hubImport, "/opt/keycloak/data/import/learnstack-hub-realm.json")
@@ -298,6 +300,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             adminUsername = AdminUsername,
             adminPassword = _adminPassword,
             webSecret = WebClientSecret,
+            federationSecret = FederationAdminSecret,
             manifest = SeedIdentityManifest.Create(),
             desired = desired.RootElement,
             ca = RootCertificate.ExportCertificatePem(),

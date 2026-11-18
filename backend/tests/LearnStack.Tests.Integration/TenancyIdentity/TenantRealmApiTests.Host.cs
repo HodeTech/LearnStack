@@ -139,7 +139,7 @@ public sealed partial class TenantRealmApiTests
         return "users/" + id;
     }
 
-    // A supplied attribute map replaces profile values in Keycloak 26.6.2.
+    // A supplied attribute map replaces profile values in Keycloak 26.7.5.
     private static object UserAttributeUpdate(System.Text.Json.JsonElement user, object attributes) => new
     {
         username = user.GetProperty("username"),

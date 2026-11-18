@@ -45,8 +45,9 @@ public sealed partial class BoundedAdministrationHttpTests
         using (var after = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
         {
             var capabilities = await JsonAsync(after);
-            Assert.Equal(10, capabilities.EnumerateObject().Count());
+            Assert.Equal(11, capabilities.EnumerateObject().Count());
             Assert.True(capabilities.GetProperty("canManageCustomFields").GetBoolean());
+            Assert.False(capabilities.GetProperty("canManageFederation").GetBoolean(), "v3 adoption grants no federation authority");
         }
         using (var currentRole = await SendAsync(client, admin, "/api/v1/identity/roles/" + role))
         {
@@ -130,8 +131,50 @@ public sealed partial class BoundedAdministrationHttpTests
         Assert.Equal(releaseVersion, registry.GetProperty("release").GetProperty("version").GetInt32());
         var custom = registry.GetProperty("items").EnumerateArray().Where(x =>
             x.GetProperty("key").GetString() == "customization.custom_field.admin").ToArray();
-        Assert.Equal(releaseVersion == 3 ? 1 : 0, custom.Length);
+        Assert.Equal(releaseVersion >= 3 ? 1 : 0, custom.Length);
         if (custom.Length != 0) Assert.Equal("Tenant", custom[0].GetProperty("scope").GetString());
+        var federation = registry.GetProperty("items").EnumerateArray().Where(x =>
+            x.GetProperty("key").GetString() == "identity.federation.admin").ToArray();
+        Assert.Equal(releaseVersion == 4 ? 1 : 0, federation.Length);
+        if (federation.Length != 0) Assert.Equal("Tenant", federation[0].GetProperty("scope").GetString());
+    }
+
+    [Fact]
+    public async Task Actual_v4_adoption_over_HTTP_follows_v3_and_publishes_the_eleventh_capability()
+    {
+        await using var proof = await CreatePreparedAsync();
+        using var client = ConsentClient(proof);
+        var admin = proof.Token(EnglishAdmin, Tenant);
+        var role = SeedData.IdentityRoles.Single(x => x.Tenant == Tenant && x.BuiltInKey == LearnStack.SharedKernel.Permissions.BuiltInRoleKey.TenantAdmin).RoleId.ToString("D");
+        using (var before = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
+            Assert.False((await JsonAsync(before)).GetProperty("canManageFederation").GetBoolean());
+        // ADR-0099: the seed administrator adopts v2, v3 and v4 in order through the explicit command.
+        for (var source = 1; source <= 3; source++)
+        {
+            using var registry = await SendAsync(client, admin, "/api/v1/identity/permissions?sourceReleaseVersion=" + source);
+            var registryBody = await JsonAsync(registry);
+            AssertRegistryRuntime(registryBody, source + 1, source + 7);
+            var release = registryBody.GetProperty("release");
+            if (source == 3)
+                Assert.Equal("identity.federation.admin", Assert.Single(release.GetProperty("tenantAdminDelta").EnumerateArray()).GetProperty("key").GetString());
+            var body = JsonSerializer.Serialize(new { manifestVersion = source + 1, manifestFingerprint = release.GetProperty("fingerprint").GetString() });
+            await MutateAsync(client, admin, "POST", "/api/v1/identity/roles/" + role + "/manifest-adoptions", body,
+                await ResourceVersionAsync(client, admin, "/api/v1/identity/roles/" + role), Key());
+        }
+        using (var after = await SendAsync(client, admin, "/api/v1/identity/me/capabilities"))
+        {
+            var capabilities = await JsonAsync(after);
+            Assert.Equal(11, capabilities.EnumerateObject().Count());
+            Assert.True(capabilities.GetProperty("canManageFederation").GetBoolean());
+        }
+        using (var currentRole = await SendAsync(client, admin, "/api/v1/identity/roles/" + role))
+        {
+            var detail = await JsonAsync(currentRole);
+            Assert.Equal(4, detail.GetProperty("adoptedReleaseVersion").GetInt32());
+            Assert.Contains("identity.federation.admin", detail.GetProperty("grants").EnumerateArray().Select(x => x.GetProperty("key").GetString()));
+        }
+        using (var exhausted = await SendAsync(client, admin, "/api/v1/identity/permissions?sourceReleaseVersion=4"))
+            Assert.Equal(HttpStatusCode.BadRequest, exhausted.StatusCode);
     }
     private static string AuthoringBoundaryBody()
     {

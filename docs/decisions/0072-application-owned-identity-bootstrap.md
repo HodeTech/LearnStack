@@ -397,3 +397,7 @@ accepted historical tenant targets remain named P03-10 inventory subjects.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 5 — Federation adapter does not allocate identity (2026-11-13)
+
+Amendment 2 mentions no runtime provider administrator in the context of identity allocation. [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds a runtime provider adapter for tenant-brokered identity-provider configuration. It allocates no identity, reissues no subject and merges no email. The rejection of a provider allocator or runtime Admin API for identity allocation in Option 2 stands. A brokered person without a LearnStack binding enters through the existing global-self path and its opt-in budgets.

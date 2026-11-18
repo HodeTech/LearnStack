@@ -11,6 +11,8 @@ using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
+using LearnStack.Modules.Identity.Application.Federation;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identity;
@@ -47,6 +49,17 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IMembershipAdministrationReader, MembershipAdministrationReader>();
         services.TryAddScoped<IIdentityReceiptReader, IdentityReceiptReader>();
         services.TryAddScoped<IIdentityAdministrationReadStore, IdentityAdministrationReadStore>();
+        // ADR-0099: the connection registry, its authorization and the intent-first runner. Both ports default to
+        // fail-closed implementations (every call unavailable); the API composition root replaces them with the
+        // confined adapter and guarded egress fetcher only when the federation admin client is configured.
+        services.TryAddScoped<IFederationConnectionStore, FederationConnectionStore>();
+        services.TryAddScoped<IPublicSignInReader, PublicSignInReader>();
+        services.TryAddScoped<FederationAuthorization>();
+        services.TryAddScoped<FederationOperationRunner>();
+        services.TryAddSingleton(FederationOperationBudgets.Default);
+        services.TryAddSingleton<IFederationProvider, UnconfiguredFederationProvider>();
+        services.TryAddSingleton<IFederationEgressFetcher, UnconfiguredFederationEgressFetcher>();
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetFederationConnectionQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipContextsQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnCapabilitiesQuery)));
@@ -79,6 +92,8 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IIdentitySelfBootstrapper>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
         services.TryAddScoped<IIdentitySelfStateReader>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
         services.TryAddScoped<IIdentitySelfDiscovery>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
+        // ADR-0099 Amendment 6 (H): the self read's one host-only, read-only federation alias setter.
+        services.TryAddScoped<IFederationHostAliasReader, FederationHostAliasReader>();
         services.TryAddScoped<ISeedIdentityBindingAdopter>(provider => provider.GetRequiredService<GlobalIdentityBindingService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuditCatalogSource, IdentityAuditCatalogSource>());
         return services;

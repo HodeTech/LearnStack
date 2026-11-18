@@ -7,12 +7,14 @@ export const AUTHENTICATED_GET_CONTRACTS = Object.freeze({
   '/api/v1/identity/memberships': 'ListMemberships',
   '/api/v1/identity/self': 'GetIdentitySelf',
   '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts',
+  '/api/v1/identity/federation': 'GetFederationConnection',
   ...ADMINISTRATION_GET_CONTRACTS,
 } as const satisfies {
   '/api/v1/account/site': 'GetAccountSite';
   '/api/v1/identity/memberships': 'ListMemberships';
   '/api/v1/identity/self': 'GetIdentitySelf';
   '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts';
+  '/api/v1/identity/federation': 'GetFederationConnection';
 } & typeof ADMINISTRATION_GET_CONTRACTS);
 
 export type AuthenticatedGetOperation =

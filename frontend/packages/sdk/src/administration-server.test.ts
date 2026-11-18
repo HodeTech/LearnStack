@@ -66,6 +66,27 @@ describe('closed administration server SDK', () => {
     expect(transport.mock.calls[1]![0]).toBe('/api/v1/identity/permissions?sourceReleaseVersion=2');
     body = { ...registry(false), release: { ...registry(false).release, version: 3 } };
     expect((await sdk.getPermissions()).kind).toBe('invalid-response');
+    const federation = { scope: 'Tenant', key: 'identity.federation.admin' };
+    const v4 = {
+      items: [...pairs, custom, federation].map((pair) => ({
+        ...pair,
+        labelKey: 'label',
+        canGrant: false,
+      })),
+      release: { version: 4, fingerprint: 'b'.repeat(64), tenantAdminDelta: [federation] },
+    };
+    body = v4;
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('success');
+    expect(transport.mock.calls.at(-1)![0]).toBe(
+      '/api/v1/identity/permissions?sourceReleaseVersion=3',
+    );
+    // A v4 release must carry exactly the federation delta and all ten pairs.
+    body = { ...v4, release: { ...v4.release, tenantAdminDelta: [custom] } };
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('invalid-response');
+    body = { ...v4, items: v4.items.slice(0, 9) };
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('invalid-response');
+    body = { ...v4, release: { ...v4.release, version: 5 } };
+    expect((await sdk.getPermissions({ sourceReleaseVersion: 3 })).kind).toBe('invalid-response');
   });
 
   it('keeps public and AccountSite callers separate and exposes no generic request method', () => {
@@ -73,6 +94,7 @@ describe('closed administration server SDK', () => {
     expect(Object.keys(createAuthenticatedServerSdk(transport))).toEqual(['getAccountSite']);
     expect(Object.keys(createServerSdk(transport))).toEqual([
       'getSite',
+      'getSignIn',
       'getCourses',
       'getCourse',
       'getLesson',
@@ -97,6 +119,15 @@ describe('closed administration server SDK', () => {
       'listOwnConsentHistory',
       'grantOwnFieldConsent',
       'withdrawOwnFieldConsent',
+      'getFederationConnection',
+      'configureFederation',
+      'rotateFederationSecret',
+      'renameFederation',
+      'activateFederation',
+      'disableFederation',
+      'enableFederation',
+      'deleteFederation',
+      'resumeFederationOperation',
       'listInvitations',
       'getInvitation',
       'listInvitableRoles',
@@ -134,6 +165,33 @@ describe('closed administration server SDK', () => {
     expectTypeOf<
       Extract<AdministrationResult<unknown>, { kind: 'success' }>['status']
     >().toEqualTypeOf<200>();
+  });
+
+  it('admits a full replacement with all ten registry v4 pairs, the role-grants bound', async () => {
+    const transport = vi.fn<AdministrationFetch>(async () => version());
+    const all = [
+      { scope: 'Tenant', key: 'identity.membership.admin' },
+      { scope: 'Tenant', key: 'identity.role.admin' },
+      { scope: 'Tenant', key: 'identity.membership_profile.write' },
+      { scope: 'Organization', key: 'identity.membership.admin' },
+      { scope: 'Organization', key: 'identity.membership_profile.write' },
+      { scope: 'Tenant', key: 'tenancy.organization.admin' },
+      { scope: 'Tenant', key: 'tenancy.locale.write' },
+      { scope: 'Tenant', key: 'tenancy.setting.write' },
+      { scope: 'Tenant', key: 'customization.custom_field.admin' },
+      { scope: 'Tenant', key: 'identity.federation.admin' },
+    ] as const;
+    const sdk = createAdministrationServerSdk(transport);
+    expect((await sdk.changeRoleGrants(member, all, options)).kind).toBe('success');
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(
+      await sdk.changeRoleGrants(
+        member,
+        [...all, { scope: 'Tenant', key: 'identity.role.admin' }],
+        options,
+      ),
+    ).toEqual({ kind: 'invalid-request' });
+    expect(transport).toHaveBeenCalledTimes(1);
   });
 
   it('preserves unsafe-integer aggregate versions as strings in preconditions, JSON and metadata', async () => {
@@ -500,6 +558,7 @@ describe('closed administration server SDK', () => {
       canWriteOwnProfile: true,
       canManageOrganizations: true,
       canManageCustomFields: false,
+      canManageFederation: false,
     };
     const transport = vi.fn<AdministrationFetch>(async () => json(flags));
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
@@ -509,7 +568,12 @@ describe('closed administration server SDK', () => {
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
       'invalid-response',
     );
-    const { canManageCustomFields: _custom, ...nine } = flags;
+    const { canManageFederation: _federation, ...ten } = flags;
+    transport.mockImplementation(async () => json(ten));
+    expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
+      'invalid-response',
+    );
+    const { canManageCustomFields: _custom, ...nine } = ten;
     transport.mockImplementation(async () => json(nine));
     expect((await createAdministrationServerSdk(transport).getOwnCapabilities()).kind).toBe(
       'invalid-response',

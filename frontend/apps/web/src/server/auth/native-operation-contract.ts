@@ -3,6 +3,7 @@ import type {
   CustomFieldInput,
   CustomFieldPatch,
   ConsentGrant,
+  FederationConfigurationInput,
   ConsentWithdrawal,
   GrantInput,
   InvitationInput,
@@ -38,7 +39,7 @@ export type NativeOperation =
         | 'listInvitableRoles'
         | 'getInvitationPolicy';
     }>
-  | Readonly<{ kind: 'getPermissions'; sourceReleaseVersion?: 1 | 2 }>
+  | Readonly<{ kind: 'getPermissions'; sourceReleaseVersion?: 1 | 2 | 3 }>
   | Readonly<{ kind: 'createInvitation'; invitation: InvitationInput; idempotencyKey: string }>
   | (Readonly<{ kind: 'revokeInvitation' | 'reissueInvitation'; id: string }> & Write)
   | Readonly<{
@@ -106,6 +107,24 @@ export type NativeOperation =
       definitionVersion: number;
     }>
   | Readonly<{ kind: 'grantOwnFieldConsent'; input: ConsentGrant; idempotencyKey: string }>
+  // ADR-0099: no Idempotency-Key; the connection revision converges them. No test start or record here.
+  | Readonly<{ kind: 'getFederationConnection' }>
+  | Readonly<{
+      kind: 'configureFederation';
+      input: FederationConfigurationInput;
+      version: string | null;
+    }>
+  | Readonly<{ kind: 'rotateFederationSecret'; clientSecret: string; version: string }>
+  | Readonly<{ kind: 'renameFederation'; displayName: string; version: string }>
+  | Readonly<{
+      kind:
+        | 'activateFederation'
+        | 'disableFederation'
+        | 'enableFederation'
+        | 'deleteFederation'
+        | 'resumeFederationOperation';
+      version: string;
+    }>
   | RetainedConsentOperation;
 export type RetainedConsentOperation =
   | (Readonly<{ kind: 'listOwnConsentScopes' }> & Page)

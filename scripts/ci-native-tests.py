@@ -156,7 +156,8 @@ PUBLIC_DEVTOOLS_KINDS = {
     'owner-inactive', 'port-unreadable', 'deadline-missing', 'deadline-empty', 'deadline-malformed',
 }
 KEYCLOAK_FAILURE_CLASSES = {
-    'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
+    'FederationProviderTests', 'TenantRealmApiTests', 'TenantRealmFederationReconciliationTests',
+    'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
     'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
     'TenantRealmStockBaselineTests',
 }

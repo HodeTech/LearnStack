@@ -174,8 +174,7 @@
         "composites": {
           "client": {
             "account": [
-              "view-profile",
-              "manage-account"
+              "view-profile"
             ]
           }
         }
@@ -321,15 +320,75 @@
         "address",
         "phone",
         "microprofile-jwt",
-        "organization"
+        "organization",
+        "federation.test_record"
       ],
       "clientAuthenticatorType": "client-secret",
-      "secret": "${KEYCLOAK_WEB_CLIENT_SECRET}"
+      "secret": "${KEYCLOAK_WEB_CLIENT_SECRET}",
+      "protocolMappers": [
+        {
+          "name": "learnstack-identity-provider",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "identity_provider",
+            "claim.name": "idp",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "false",
+            "lightweight.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "learnstack-federation-admin",
+      "name": "LearnStack federation administration (confidential service)",
+      "description": "API-only machine client for confined tenant federation (ADR-0099). manage-identity-providers only. See infra/keycloak/README.md.",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_FEDERATION_ADMIN_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "consentRequired": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "attributes": {},
+      "defaultClientScopes": [],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "learnstack-federation-admin-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "realm-management",
+            "claim.name": "resource_access.realm-management.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "account",
       "name": "${client_account}",
-      "enabled": true,
+      "enabled": false,
       "alwaysDisplayInConsole": false,
       "publicClient": true,
       "clientAuthenticatorType": "client-secret",
@@ -356,7 +415,7 @@
     {
       "clientId": "account-console",
       "name": "${client_account-console}",
-      "enabled": true,
+      "enabled": false,
       "alwaysDisplayInConsole": false,
       "publicClient": true,
       "clientAuthenticatorType": "client-secret",
@@ -433,11 +492,6 @@
         "tenant_id": [
           "01930000-0000-7000-8000-000000000001"
         ]
-      },
-      "clientRoles": {
-        "account": [
-          "manage-account"
-        ]
       }
     },
     {
@@ -463,11 +517,6 @@
         ],
         "tenant_id": [
           "01930000-0000-7000-8000-000000000001"
-        ]
-      },
-      "clientRoles": {
-        "account": [
-          "manage-account"
         ]
       }
     },
@@ -498,11 +547,6 @@
         "organization_id": [
           "01930000-0000-7000-8000-0000000000b1"
         ]
-      },
-      "clientRoles": {
-        "account": [
-          "manage-account"
-        ]
       }
     },
     {
@@ -532,10 +576,15 @@
         "organization_id": [
           "01930000-0000-7000-8000-0000000000b1"
         ]
-      },
+      }
+    },
+    {
+      "username": "service-account-learnstack-federation-admin",
+      "enabled": true,
+      "serviceAccountClientId": "learnstack-federation-admin",
       "clientRoles": {
-        "account": [
-          "manage-account"
+        "realm-management": [
+          "manage-identity-providers"
         ]
       }
     }
@@ -751,6 +800,15 @@
           }
         }
       ]
+    },
+    {
+      "name": "federation.test_record",
+      "description": "ADR-0099 federation test record. Optional on learnstack-web and requested only by the BFF federation_test authorization; no mappers.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
     },
     {
       "name": "learnstack-native-session",
@@ -1338,6 +1396,227 @@
           "view-groups"
         ]
       }
+    ],
+    "realm-management": [
+      {
+        "client": "learnstack-federation-admin",
+        "roles": [
+          "manage-identity-providers"
+        ]
+      }
     ]
-  }
+  },
+  "authenticationFlows": [
+    {
+      "alias": "learnstack-first-broker-login",
+      "description": "Link-only first broker login: existing account required, confirmation, then the account's own password and conditional OTP. Creates no user (ADR-0099).",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-detect-existing-broker-user",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "idp-confirm-link",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 1,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 2,
+          "autheticatorFlow": true,
+          "flowAlias": "learnstack-first-broker-reauthentication",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "learnstack-first-broker-reauthentication",
+      "description": "Re-authentication of the existing account before a link (ADR-0099).",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 1,
+          "autheticatorFlow": true,
+          "flowAlias": "learnstack-first-broker-conditional-otp",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "learnstack-first-broker-conditional-otp",
+      "description": "The account's OTP when it has one configured (ADR-0099).",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 1,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "TERMS_AND_CONDITIONS",
+      "name": "Terms and Conditions",
+      "providerId": "TERMS_AND_CONDITIONS",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 20,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PROFILE",
+      "name": "Update Profile",
+      "providerId": "UPDATE_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 40,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 50,
+      "config": {}
+    },
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 54,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 57,
+      "config": {}
+    },
+    {
+      "alias": "delete_account",
+      "name": "Delete Account",
+      "providerId": "delete_account",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 60,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_EMAIL",
+      "name": "Update Email",
+      "providerId": "UPDATE_EMAIL",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 70,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register",
+      "name": "Webauthn Register",
+      "providerId": "webauthn-register",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 80,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register-passwordless",
+      "name": "Webauthn Register Passwordless",
+      "providerId": "webauthn-register-passwordless",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 90,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_PROFILE",
+      "name": "Verify Profile",
+      "providerId": "VERIFY_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 100,
+      "config": {}
+    },
+    {
+      "alias": "delete_credential",
+      "name": "Delete Credential",
+      "providerId": "delete_credential",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 110,
+      "config": {}
+    },
+    {
+      "alias": "idp_link",
+      "name": "Linking Identity Provider",
+      "providerId": "idp_link",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 120,
+      "config": {}
+    },
+    {
+      "alias": "CONFIGURE_RECOVERY_AUTHN_CODES",
+      "name": "Recovery Authentication Codes",
+      "providerId": "CONFIGURE_RECOVERY_AUTHN_CODES",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 130,
+      "config": {}
+    },
+    {
+      "alias": "update_user_locale",
+      "name": "Update User Locale",
+      "providerId": "update_user_locale",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 1000,
+      "config": {}
+    }
+  ]
 }

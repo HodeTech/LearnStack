@@ -99,6 +99,8 @@ Every security review walks this lens before signing off.
 | A09 Logging & Monitoring Failures | OpenTelemetry traces/metrics/logs; correlation id end-to-end; Sentry on errors; audit log on privileged ops ([18-audit-coverage.md](18-audit-coverage.md)). |
 | A10 SSRF | Outbound calls allow-listed; rendered outbound URLs validated against an allow-list before emit. |
 
+**Amendment (2026-11-13, [ADR-0099](../decisions/0099-confined-tenant-federation.md)).** The A10 row's allow-list rule has one bounded exception. Tenant-supplied identity-provider discovery, JWKS and SAML metadata URLs are fetched only by LearnStack's egress guard, which admits public, globally routable HTTPS hosts on port 443 with TLS verification, no redirects and no ambient credentials. Private ranges (RFC 1918 IPv4 and unique-local IPv6 outside `fd00:ec2::/32`) and non-443 ports are admitted only through the operator allow-list `Federation:Egress:AllowedHosts`, which is composition configuration and never tenant input; an entry admits its host for every tenant. No entry admits loopback, link-local or cloud metadata (169.254.0.0/16, `fe80::/10` and the AWS IPv6 metadata range `fd00:ec2::/32`), CGNAT, documentation, multicast, unspecified, reserved (240.0.0.0/4) or IPv4-mapped, IPv4-compatible or other IPv4-embedding IPv6 addresses, an IP-literal host or an internationalized host name. (Corrected 2026-11-14 to match the implemented guard, [ADR-0099 Amendment 5](../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14); the 2026-11-13 text said the allow-list admitted loopback, link-local and other reserved ranges. Corrected again 2026-11-14 for review round 2: the unique-local admission had included the AWS IPv6 metadata address `fd00:ec2::254`, which the guard now refuses.) Every other outbound call remains allow-listed as written above.
+
 ## Multi-Tenant + Organization Isolation Review Checklist
 
 A PR that touches tenant- or organization-owned data, queries, or background jobs must
@@ -212,8 +214,9 @@ tokens, including shorter session-clamped issuance. ID tokens remain identity
 credentials rejected by the tenant API; this shared expiration does not select
 a BFF session lifetime.
 
-Keycloak 26.6.2 reads issuance and expiration clocks separately. The configured
-lifespan is not an exact `exp - iat` guarantee or a fixed 901-second ceiling.
+The pinned Keycloak 26.7.5 reads issuance and expiration clocks separately. The
+configured lifespan is not an exact `exp - iat` guarantee or a fixed 901-second
+ceiling.
 Qualify exact realm configuration and absence of client overrides independently;
 fresh signed expiration must fit the observed UTC/monotonic code-exchange window
 plus that lifespan. Any explicit fixture/provider clock tolerance is at most the
@@ -301,6 +304,87 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   while preserving separate build traces and API/business telemetry. A real
   enabled-development callback/logout canary scans console and trace artifacts;
   removing the trace guard must fail even with console logging disabled.
+
+### Federation host binding
+
+**Derives from:** [ADR-0099 § Host binding](../decisions/0099-confined-tenant-federation.md#host-binding)
+and Amendments 6 and 7;
+[ADR-0070 Amendments 11 and 12](../decisions/0070-owned-tenant-bff-sessions.md).
+The native BFF applies these rules at every credential publication: code redemption,
+the invitation custody handoff, the consent and active refreshes, selection, creation
+and context switching.
+
+- **Provenance.** The ID token's `idp` claim (from the realm's session-note mapper) is
+  recorded on the owner when the code is redeemed: the alias for a brokered sign-in,
+  null for a local one. Selection, switching and the invitation handoff carry it with
+  the credentials.
+- **Admission.** A local token (`idp` absent) follows the existing publication rules;
+  no alias comparison decides it. A brokered token is admitted only when its `idp`
+  equals the host tenant's Active, entitled alias (`federationAlias` from the
+  authenticated native self read) and, when a provenance was recorded, equals it.
+- **Availability coupling (Step 4 decision D4-8).** The alias is part of every self
+  read and bootstrap result, so an undecidable alias read answers 503 for all of them
+  on that host
+  ([API Design § self entry](04-api-design.md#accepted-p03-3-self-entry-and-administration)),
+  local tokens included. The alias statement runs for every host tenant, with or
+  without a connection; the entitlement read runs only when an Active connection
+  exists. On a local session the existing rules for a refused self read then apply:
+  the entry read, creation (bootstrap) and the invitation custody's self read fail as
+  for any 503, and an active refresh fails and ends the BFF session, as a 503 self
+  read already did. Code redemption, selection and context switching make no self
+  read for a local token and are unaffected. This is the availability class of the
+  self read's own database read and of the entitlement read; it is accepted, and the
+  wire contract has no separate value for it.
+- **Definitive mismatch** (another alias, no Active or entitled connection, a changed
+  provenance in either direction): the publication is refused, the BFF session ends
+  and the provider session ends server-side at the fixed end-session endpoint with
+  the session's refresh token. A refresh or selection has no browser navigation to
+  carry an RP-initiated redirect. Other BFF sessions on that provider session end
+  through back-channel logout.
+- **Indeterminate** (the self read times out, fails in transport, or answers 429 or
+  503, which includes an unavailable alias or entitlement read): the publication is
+  refused, an existing brokered session is kept without advancing its idle deadline,
+  no provider session ends, and a new brokered sign-in fails closed. A timeout includes
+  the BFF's own bounded request timer aborting the self read of an active refresh: the
+  native client's deadline starts later, so that timer fires first.
+- **The test callback** never reaches subject reservation or credential assignment and
+  publishes nothing ([Frontend Standards § Tenant federation](07-frontend-architecture.md#tenant-federation)).
+  The test request sends `prompt=login` and `max_age=0`. Before the redirect the BFF
+  records the administrator's provider session `sid` and ends that session server-side
+  with its refresh token, awaited; a missing `sid` or refresh token, or a refused
+  request, refuses the start. The result passes only when the ID token's `auth_time` is
+  present and at or after the test window's start and its `sid` differs from the
+  recorded one: the test proves a replaced provider session completed through the
+  tested broker, not that the upstream IdP prompted
+  ([ADR-0099 Amendment 8](../decisions/0099-confined-tenant-federation.md#amendment-8--step-4-review-round-2-test-session-replacement-and-scope-confinement-2026-11-15)).
+  The completion ends the provider session server-side with the test refresh token, as a
+  definitive mismatch does, besides the browser end-session redirect.
+- **Test-record carrier.** `POST identity/federation/test-results` requires the optional
+  `federation.test_record` client scope, which only the `federation_test`
+  authorization requests. A Studio or ordinary token without it is refused with the
+  closed 403 before the body is read; the scope grants nothing on its own. The
+  authorization `scope` is browser-editable and the provider grants an attached
+  optional scope on request, so the BFF enforces the rest: a redemption by any owner
+  other than the test owner, and every refresh, is refused when the granted `scope`
+  contains `federation.test_record`, and the test redemption is refused without it.
+  The API refuses a token carrying the scope on every other authenticated endpoint with
+  the same closed 403, at the credential admission directly after authentication.
+- **Detail loads by navigation only (Step 2 review S-E, Step 4 review S4-1).** The
+  session cookie is `SameSite=Lax`, which a top-level GET from another site, or from a
+  sibling tenant subdomain of the same site, still carries. The federation page
+  prepares data only for `Sec-Fetch-Site` `same-origin` or `none` on a top-level
+  document navigation (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`), or
+  `same-origin` on an RSC navigation (`RSC: 1`, mode `cors` or `same-origin`, dest
+  `empty`). A `cross-site` or `same-site` request, an embedded document and a
+  subresource prepare nothing, so none can trigger the detail load's provider
+  readback or corrective write. A browser that sends no `Sec-Fetch-Site` header is
+  not covered by this check.
+
+**Residuals.** Removing the `idp` mapper makes brokered tokens look local. The adapter
+cannot read it; realm reconciliation creates and verifies it and refuses a second
+emitter ([ADR-0099 Amendment 9](../decisions/0099-confined-tenant-federation.md#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).
+Brokered tokens remain in the provider session (`storeTokenInSession`), unread by
+LearnStack. The delegation residual of ADR-0099 § Linking is unchanged.
 
 ### Native back-channel logout
 
@@ -635,8 +719,10 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The accepted thirteen logical setter paths are
-enumerated below; ADR-0097 adds only the machine provider-recipient owner.
+`TransactionExecutionCoordinator`. The accepted fourteen logical setter paths are
+enumerated below; ADR-0097 adds only the machine provider-recipient owner, and
+[ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
+only the federation host-alias reader.
 Implementation and source-bound proof are recorded in
 the [phase Status](../roadmap/phase-03-identity-admin.md).
 ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth own-context
@@ -667,6 +753,7 @@ physical unit-of-work writer with the exact operation mode below:
 | `InvitationEntryScope` | operation-bound existing owner, physical ReadOnly for inspection/result or ordinary ReadWrite for acceptance | Single-use exact offer/host/verified-subject witness; no ordinary native context, directory or general-purpose scope |
 | `ConsentSubjectScope` | operation-bound existing owner, physical ReadOnly for retained discovery/history or ordinary ReadWrite for withdrawal | Single-use exact operation/actor/subject/real-host/retained-scope/mode witness; no Membership, ordinary native session, custom value or `app.scope` |
 | `ProviderEventRecipient` | actual claimed-target owner, ordinary app ReadWrite | Private source-validated single-use target/EventId/tenant/token/lease witness; only its outbox production; no HTTP, Platform, profile or ordinary protected command authority |
+| `FederationHostAliasReader` | its own short read-only one | The native self read ends before tenant resolution; it announces only the classified host tenant and reads only that tenant's Active federation alias ([Database Standards § Federation host-alias read](05-database.md#federation-host-alias-read)) |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -691,7 +778,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the thirteen admitted setters connects as `learnstack_app`. A setter that reached
+Every one of the fourteen admitted setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -708,7 +795,7 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the thirteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
+Of the fourteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census
@@ -724,6 +811,9 @@ witness through the existing physical unit-of-work writer. The preliminary
 offer function owner closes before that consumer owner starts. The twelfth
 consumes its distinct consent-subject witness after its preliminary owner closes;
 its retained history/withdrawal modes cannot be exchanged or reused.
+The fourteenth, `FederationHostAliasReader`, issues raw `NpgsqlCommand`s on a READ ONLY
+connection of its own, like the cached-projection loaders, and announces only the host
+tenant for its one alias read.
 `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection

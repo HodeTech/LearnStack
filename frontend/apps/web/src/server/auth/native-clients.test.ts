@@ -34,6 +34,7 @@ const identity: ProviderIdentity = {
   tenantId: null,
   organizationId: null,
   displayLabel: 'Account label',
+  idp: null,
 };
 const association = {
   authorityId,
@@ -162,11 +163,12 @@ describe('native global entry and scope client', () => {
       expect(() => api.verifyAssociation(identity, wrong)).toThrow('BFF provider: identity');
   });
   it('uses exact global routes without native scope/assertion/idempotency selectors', async () => {
-    const transport = vi.fn<typeof fetch>(async () => json(active));
+    const transport = vi.fn<typeof fetch>(async () => json({ ...active, federationAlias: null }));
     const api = createNativeSessionApi(configuration, transport);
     expect(await api.self('held-access', scope, signal())).toEqual({
       state: 'active',
       association,
+      federationAlias: null,
     });
     expect(await api.bootstrap('held-access', scope, signal())).toEqual(association);
     for (const [index, path] of ['/identity/self', '/identity/self/bootstrap'].entries()) {
@@ -200,11 +202,16 @@ describe('native global entry and scope client', () => {
   it('keeps missing distinct from active and validates new-bootstrap Location without automatic retry', async () => {
     const transport = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(json({ state: 'missing' }))
+      .mockResolvedValueOnce(json({ state: 'missing', federationAlias: null }))
       .mockResolvedValueOnce(json(problem(503), 503, { 'Retry-After': '10' }))
-      .mockResolvedValueOnce(json(active, 201, { Location: '/api/v1/identity/self' }));
+      .mockResolvedValueOnce(
+        json({ ...active, federationAlias: null }, 201, { Location: '/api/v1/identity/self' }),
+      );
     const api = createNativeSessionApi(configuration, transport);
-    expect(await api.self('token', binding, signal())).toEqual({ state: 'missing' });
+    expect(await api.self('token', binding, signal())).toEqual({
+      state: 'missing',
+      federationAlias: null,
+    });
     await expect(api.bootstrap('token', binding, signal())).rejects.toMatchObject({
       reason: 'provider_refused',
       status: 503,
@@ -213,6 +220,63 @@ describe('native global entry and scope client', () => {
     expect(transport).toHaveBeenCalledTimes(2);
     expect(await api.bootstrap('token', binding, signal())).toEqual(association);
     expect(transport).toHaveBeenCalledTimes(3);
+  });
+  it('reads the host federation alias strictly on both self states and the bootstrap result', async () => {
+    const alias = 'lsf-' + '0123456789abcdef'.repeat(2);
+    for (const [body, expected] of [
+      [
+        { ...active, federationAlias: alias },
+        { state: 'active', association, federationAlias: alias },
+      ],
+      [
+        { state: 'missing', federationAlias: alias },
+        { state: 'missing', federationAlias: alias },
+      ],
+    ] as const) {
+      const api = createNativeSessionApi(
+        configuration,
+        vi.fn<typeof fetch>(async () => json(body)),
+      );
+      expect(await api.self('token', binding, signal())).toEqual(expected);
+    }
+    for (const body of [
+      active,
+      { state: 'missing' },
+      { ...active, federationAlias: 'lsf-' + 'A'.repeat(32) },
+      { ...active, federationAlias: 'lsf-' + 'a'.repeat(31) },
+      { ...active, federationAlias: 'other-' + 'a'.repeat(32) },
+      { ...active, federationAlias: 7 },
+      { ...active, federationAlias: alias, extra: true },
+      { state: 'missing', federationAlias: '' },
+    ]) {
+      const api = createNativeSessionApi(
+        configuration,
+        vi.fn<typeof fetch>(async () => json(body)),
+      );
+      await expect(api.self('token', binding, signal())).rejects.toMatchObject({
+        reason: 'response',
+      });
+    }
+    // The bootstrap result also carries the alias and is parsed as strictly; a missing field refuses.
+    for (const [body, ok] of [
+      [{ ...active, federationAlias: alias }, true],
+      [active, false],
+      [{ ...active, federationAlias: 'other' }, false],
+    ] as const) {
+      const bootstrap = createNativeSessionApi(
+        configuration,
+        vi.fn<typeof fetch>(async () =>
+          json(body, 201, {
+            Location: '/api/v1/identity/self',
+          }),
+        ),
+      );
+      if (ok) expect(await bootstrap.bootstrap('token', binding, signal())).toEqual(association);
+      else
+        await expect(bootstrap.bootstrap('token', binding, signal())).rejects.toMatchObject({
+          reason: 'response',
+        });
+    }
   });
   it('uses exact scoped empty-JSON admission and refuses a mismatched scope', async () => {
     const transport = vi.fn<typeof fetch>(async () =>
@@ -673,6 +737,18 @@ describe('native closed administration dispatcher', () => {
     expect(await call('token', scope, { kind: 'getMembership', id: '../other' }, signal())).toEqual(
       { kind: 'invalid-request' },
     );
+    // ADR-0099 Amendment 6: the test start and the test record belong to the BFF-only federation test client; the
+    // browser-reachable dispatcher has no such kind under any spelling a caller might try.
+    for (const kind of [
+      'startFederationTest',
+      'recordFederationTest',
+      'recordFederationTestResult',
+      'federationTestStart',
+      'federationTestResult',
+    ])
+      expect(await call('token', scope, { kind } as unknown as NativeOperation, signal())).toEqual({
+        kind: 'invalid-request',
+      });
     expect(transport).not.toHaveBeenCalled();
     expect(new Set(routes.map((route) => route.operation.kind)).size).toBe(29);
   });

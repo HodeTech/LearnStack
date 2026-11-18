@@ -154,7 +154,8 @@ internal static class TenantTokenProfile
                 subject,
                 actor,
                 tenantId,
-                organizationId
+                organizationId,
+                HasScope(claims, FederationTestRecordScope.Name)
             );
             failure = TenantTokenFailure.None;
             return true;
@@ -412,6 +413,28 @@ internal static class TenantTokenProfile
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Whether the already-validated space-separated <c>scope</c> names exactly <paramref name="name"/>. Called only
+    /// after <see cref="HasAllowedScope"/> accepted the claim's shape.
+    /// </summary>
+    private static bool HasScope(Dictionary<string, JsonElement> claims, string name)
+    {
+        if (!TryReadNonemptyString(claims, "scope", out var scope))
+        {
+            return false;
+        }
+
+        foreach (var token in scope.Split(' '))
+        {
+            if (string.Equals(token, name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryReadUuid(

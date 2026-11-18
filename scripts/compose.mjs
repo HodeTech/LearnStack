@@ -127,7 +127,10 @@ export function composeSelection(mode, environment = process.env, root = reposit
   for (const match of source.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)=/gm)) delete env[match[1]];
   // This process-only value never reaches a container-creating command or the
   // private source. Full config output also remains strict.
-  if (lifecycleOnly(commandArgs)) env.KEYCLOAK_WEB_CLIENT_SECRET = 'learnstack-lifecycle-placeholder';
+  if (lifecycleOnly(commandArgs)) {
+    env.KEYCLOAK_WEB_CLIENT_SECRET = 'learnstack-lifecycle-placeholder';
+    env.KEYCLOAK_FEDERATION_ADMIN_SECRET = 'learnstack-lifecycle-placeholder';
+  }
   const files = [resolve(root, 'infra/compose/dev.yml')];
   if (mode === 'e2e') files.push(resolve(root, 'infra/compose/e2e.yml'));
   return Object.freeze({

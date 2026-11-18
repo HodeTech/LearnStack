@@ -1,14 +1,15 @@
 import { buildRealmPlan, buildRealmPreparation, nativeWebScopeDetachmentPath } from './development-realm-plan.mjs';
-import { stockConsoleDetachmentPath } from './development-realm-stock-console.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
-import { planEventReader, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
+import { planEventReader, planFederationAdmin, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
+import { planFederationRealm } from './development-realm-federation.mjs';
+import { accountRetirementDetachment } from './development-realm-account.mjs';
 
 export const realmPassMilliseconds = 120000;
 
 /** Internal core for the owned launcher and isolated provider tests; no CLI overrides. */
 export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, adminPassword,
-  webSecret, eventReaderSecret, manifest, desired, backchannel, signal, ca, transport = realmRequest, afterVerified }) {
+  webSecret, eventReaderSecret, federationSecret, manifest, desired, backchannel, signal, ca, transport = realmRequest, afterVerified }) {
   let base;
   try { base = new URL(baseUrl); }
   catch { refuse('preflight', 'configuration'); }
@@ -75,7 +76,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     };
     stage = 'version';
     const version = await authenticatedRequest('admin/serverinfo', { stage: 'version' });
-    if (version.status !== 200 || document(version, 'version').systemInfo?.version !== '26.6.2')
+    if (version.status !== 200 || document(version, 'version').systemInfo?.version !== '26.7.5')
       refuse('version', 'unsupported');
     stage = 'plan';
     const admin = {
@@ -89,16 +90,18 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
         if (result.status < 200 || result.status >= 300) refuse(stage, 'status');
         return result.status;
       },
-      // This is deliberately not a generic DELETE API. Only an opaque binding
-      // minted by the complete stock-graph qualifier can name one assignment.
-      detachStockConsoleAssignment: async binding => {
-        const path = stockConsoleDetachmentPath(binding, stage);
-        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
-        if (result.status !== 204) refuse(stage, 'status');
-      },
+      // Deliberately not a generic DELETE API: each detach* entry below accepts only an opaque
+      // binding minted by its own planner, which alone names the one path it may delete.
       detachNativeWebScope: async binding => {
         const path = nativeWebScopeDetachmentPath(binding, stage);
         const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
+        if (result.status !== 204) refuse(stage, 'status');
+      },
+      // Only an opaque binding minted by the account-retirement planner can name a
+      // default-role composite or a persona's direct account grant (ADR-0099).
+      detachAccountGrant: async binding => {
+        const { path, body } = accountRetirementDetachment(binding);
+        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', json: body, stage }, () => { mutations++; });
         if (result.status !== 204) refuse(stage, 'status');
       },
       detachNewEventReaderDefault: async binding => {
@@ -126,6 +129,10 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     }
     // Preparation's projections and actions never cross this full fresh read.
     const plan = await buildRealmPlan({ admin, desired, manifest, webSecret, backchannel });
+    // ADR-0099 realm invariants and the federation admin client: read-only plans, completed
+    // before the first ordinary write and applied after the main plan's own readback.
+    const federationAdmin = federationSecret === undefined ? null : await planFederationAdmin(admin, federationSecret);
+    const federation = await planFederationRealm(admin, desired);
     stage = 'apply';
     for (const action of plan.actions) {
       if (active.aborted) refuse(stage, signal?.aborted ? 'cancelled' : 'deadline');
@@ -133,14 +140,19 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     }
     stage = 'readback';
     await plan.verify();
-    if (reader) {
+    for (const owned of [reader, federationAdmin, federation]) {
+      if (!owned) continue;
       stage = 'apply';
-      await reader.apply();
+      await owned.apply();
       stage = 'readback';
-      await reader.verify();
+      await owned.verify();
     }
     const remaining = await buildRealmPlan({ admin, desired, manifest, webSecret, backchannel });
     if (remaining.actions.length !== 0) refuse(stage, 'readback_conflict');
+    stage = 'readback';
+    if ((await planFederationRealm(admin, desired)).changed
+      || federationSecret !== undefined && (await planFederationAdmin(admin, federationSecret)).changed)
+      refuse(stage, 'readback_conflict');
     if (afterVerified) {
       stage = 'identity';
       if (active.aborted) refuse(stage, signal?.aborted ? 'cancelled' : 'deadline');

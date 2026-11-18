@@ -69,6 +69,7 @@ describe('generated GET contract ownership', () => {
       '/api/v1/identity/memberships': 'ListMemberships',
       '/api/v1/identity/self': 'GetIdentitySelf',
       '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts',
+      '/api/v1/identity/federation': 'GetFederationConnection',
       '/api/v1/identity/organization-memberships': 'ListOrganizationMemberships',
       '/api/v1/identity/memberships/{id}': 'GetMembershipDetail',
       '/api/v1/identity/me/profile': 'GetOwnMembershipProfile',
@@ -89,6 +90,7 @@ describe('generated GET contract ownership', () => {
       '/api/v1/public/courses': 'GetPublicCourses',
       '/api/v1/public/courses/{slug}': 'GetPublicCourse',
       '/api/v1/public/courses/{slug}/lessons/{lessonSlug}': 'GetPublicLesson',
+      '/api/v1/public/sign-in': 'GetPublicSignIn',
     });
     expect(GET_CONTRACT_OWNERSHIP).toBe(true);
     expect(ownershipErrors(PUBLIC_GET_CONTRACTS, AUTHENTICATED_GET_CONTRACTS)).toEqual([]);
@@ -98,6 +100,7 @@ describe('generated GET contract ownership', () => {
       | 'ListMemberships'
       | 'GetIdentitySelf'
       | 'ListIdentitySelfContexts'
+      | 'GetFederationConnection'
       | 'ListOrganizationMemberships'
       | 'GetMembershipDetail'
       | 'GetOwnMembershipProfile'

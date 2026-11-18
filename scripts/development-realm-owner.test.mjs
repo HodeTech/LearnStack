@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { RealmError, realmFailure } from './development-realm-errors.mjs';
 import {
-  acquireRealmLock, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext, validateRealmTarget,
+  acquireRealmLock, federationAdminEnvironment, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext, validateRealmTarget,
 } from './development-realm-owner.mjs';
 
 const keys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
@@ -53,6 +53,110 @@ function refusal(stage = 'preflight', reason = 'configuration') {
   };
 }
 
+const federationKey = 'KEYCLOAK_FEDERATION_ADMIN_SECRET';
+const federationValue = 'synthetic-federation-secret-82b1';
+const federationFile = (...lines) => lines.join('\n');
+const withFederation = value => federationFile(source, `${federationKey}=${value}`);
+
+// A federation refusal must never echo a private value, whichever credential it concerns.
+function federationRefusal(reason = 'configuration', ...secretsToHide) {
+  return error => {
+    assert.ok(error instanceof RealmError);
+    assert.equal(error.stage, 'preflight');
+    assert.equal(error.reason, reason);
+    assert.equal(realmFailure(error), `realm: preflight/${reason}`);
+    for (const value of [...Object.values(values), federationValue, ...secretsToHide])
+      assert.ok(!error.message.includes(value));
+    return true;
+  };
+}
+
+test('the federation admin secret is returned when it is the one distinct, valid assignment', () => {
+  assert.equal(federationAdminEnvironment(withFederation(federationValue), {}), federationValue);
+  assert.equal(federationAdminEnvironment(withFederation(federationValue), { [federationKey]: federationValue }), federationValue);
+});
+
+test('a missing federation admin secret refuses with the dedicated code at preflight', () => {
+  assert.throws(() => federationAdminEnvironment(source, {}), federationRefusal('missing_federation_secret'));
+  assert.throws(() => federationAdminEnvironment('', {}), federationRefusal('missing_federation_secret'));
+  // An ambient value alone never stands in for the selected private file.
+  assert.throws(() => federationAdminEnvironment(source, { [federationKey]: federationValue }),
+    federationRefusal('missing_federation_secret'));
+});
+
+test('a duplicated, exported or indented federation admin assignment refuses configuration', () => {
+  const other = 'synthetic-federation-other-82b1';
+  for (const second of [`${federationKey}=${other}`, `export ${federationKey}=${other}`, ` ${federationKey}=${other}`,
+    `${federationKey} = ${other}`, `\texport\t${federationKey}=${other}`])
+    assert.throws(() => federationAdminEnvironment(federationFile(withFederation(federationValue), second), {}),
+      federationRefusal('configuration', other), second);
+  for (const alias of [`export ${federationKey}=${federationValue}`, ` ${federationKey}=${federationValue}`,
+    `${federationKey} = ${federationValue}`])
+    assert.throws(() => federationAdminEnvironment(federationFile(source, alias), {}), federationRefusal(), alias);
+});
+
+test('an empty or whitespace-only federation admin secret refuses', () => {
+  for (const value of ['', '   ', '""', '"                "'])
+    assert.throws(() => federationAdminEnvironment(withFederation(value), {}), federationRefusal(), JSON.stringify(value));
+});
+
+test('the federation admin secret needs at least 16 characters', () => {
+  assert.throws(() => federationAdminEnvironment(withFederation('f'.repeat(15)), {}), federationRefusal());
+  assert.equal(federationAdminEnvironment(withFederation('f'.repeat(16)), {}), 'f'.repeat(16));
+});
+
+test('the federation admin secret is bounded at 1,024 UTF-8 bytes, not characters', () => {
+  assert.equal(federationAdminEnvironment(withFederation('f'.repeat(1024)), {}), 'f'.repeat(1024));
+  assert.throws(() => federationAdminEnvironment(withFederation('f'.repeat(1025)), {}), federationRefusal());
+  // 512 two-byte characters are exactly 1,024 bytes; 513 exceed it although far below 1,024 characters.
+  const edge = '\u00e9'.repeat(512);
+  assert.equal(Buffer.byteLength(edge, 'utf8'), 1024);
+  assert.equal(federationAdminEnvironment(withFederation(edge), {}), edge);
+  assert.throws(() => federationAdminEnvironment(withFederation('\u00e9'.repeat(513)), {}), federationRefusal());
+  assert.throws(() => federationAdminEnvironment(withFederation(`${'f'.repeat(1023)}\u00e9`), {}), federationRefusal());
+});
+
+test('the masked literal and a ${ vault reference are refused as the federation admin secret', () => {
+  assert.throws(() => federationAdminEnvironment(withFederation('**********'), {}), federationRefusal());
+  assert.throws(() => federationAdminEnvironment(withFederation('${vault.federation-secret-value}'), {}), federationRefusal());
+  assert.throws(() => federationAdminEnvironment(withFederation("'${vault.federation-secret-value}'"), {}), federationRefusal());
+  // Neither rule is a substring test: the same text inside a longer value is plain data.
+  assert.equal(federationAdminEnvironment(withFederation('prefix-**********-suffix'), {}), 'prefix-**********-suffix');
+});
+
+test('CR, LF and NUL inside the federation admin secret are refused', () => {
+  // node:util parseEnv drops a bare CR and folds CRLF to LF, so CR reaches the guard only as the LF it becomes.
+  for (const value of ['"synthetic-federation\nsecret-82b1"', '"synthetic-federation\r\nsecret-82b1"'])
+    assert.throws(() => federationAdminEnvironment(withFederation(value), {}), federationRefusal(), JSON.stringify(value));
+  assert.throws(() => federationAdminEnvironment(withFederation('synthetic-federation\0secret-82b1'), {}), federationRefusal());
+});
+
+test('the federation admin secret is distinct from every other private credential', () => {
+  const events = 'synthetic-event-reader-secret-82b1';
+  for (const [name, value] of [['KEYCLOAK_WEB_CLIENT_SECRET', values.KEYCLOAK_WEB_CLIENT_SECRET],
+    ['KEYCLOAK_ADMIN_PASSWORD', values.KEYCLOAK_ADMIN_PASSWORD], ['IdentityEvents__ClientSecret', events]]) {
+    assert.throws(() => federationAdminEnvironment(federationFile(source, `IdentityEvents__ClientSecret=${events}`,
+      `${federationKey}=${value}`), {}), federationRefusal('configuration', events), name);
+  }
+  assert.equal(federationAdminEnvironment(federationFile(source, `IdentityEvents__ClientSecret=${events}`,
+    `${federationKey}=${federationValue}`), {}), federationValue);
+});
+
+test('Federation__ClientSecret in the same file must equal the federation admin secret', () => {
+  const api = 'synthetic-api-federation-secret-82b1';
+  assert.throws(() => federationAdminEnvironment(federationFile(withFederation(federationValue), `Federation__ClientSecret=${api}`), {}),
+    federationRefusal('configuration', api));
+  assert.equal(federationAdminEnvironment(federationFile(withFederation(federationValue),
+    `Federation__ClientSecret=${federationValue}`), {}), federationValue);
+});
+
+test('an inherited federation admin secret may only repeat the selected file value', () => {
+  const ambient = 'synthetic-ambient-federation-82b1';
+  assert.throws(() => federationAdminEnvironment(withFederation(federationValue), { [federationKey]: ambient }),
+    federationRefusal('configuration', ambient));
+  assert.equal(federationAdminEnvironment(withFederation(federationValue), { [federationKey]: federationValue }), federationValue);
+});
+
 function target() {
   const id = 'a'.repeat(64);
   return {
@@ -60,14 +164,14 @@ function target() {
     model: {
       name: 'selected-development',
       services: {
-        keycloak: { image: 'quay.io/keycloak/keycloak:26.6.2', environment: { ...values } },
+        keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', environment: { ...values } },
       },
     },
     containers: [id],
     inspected: {
       Id: id,
       Config: {
-        Image: 'quay.io/keycloak/keycloak:26.6.2',
+        Image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85',
         Labels: {
           'com.docker.compose.project': 'selected-development',
           'com.docker.compose.service': 'keycloak',
@@ -224,7 +328,10 @@ const mismatches = [
   ['model project', (f) => { f.model.name = 'foreign'; }],
   ['service missing', (f) => { delete f.model.services.keycloak; }],
   ['service image', (f) => { f.model.services.keycloak.image = 'quay.io/keycloak/keycloak:latest'; }],
-  ['container image', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.6.1'; }],
+  ['container image', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.6.2'; }],
+  ['tag-only service image', (f) => { f.model.services.keycloak.image = 'quay.io/keycloak/keycloak:26.7.5'; }],
+  ['tag-only container image', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.7.5'; }],
+  ['foreign digest', (f) => { f.inspected.Config.Image = 'quay.io/keycloak/keycloak:26.7.5@sha256:' + 'f'.repeat(64); }],
   ['container missing', (f) => { f.containers = []; }],
   ['multiple containers', (f) => { f.containers.push('b'.repeat(64)); }],
   ['short container identifier', (f) => { f.containers = ['a'.repeat(12)]; }],

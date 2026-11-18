@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -295,4 +296,12 @@ test('the offline CLI checks a private capture and cannot overwrite the committe
   assert.equal(privateFailure.status, 1);
   assert.equal(privateFailure.stdout, '');
   assert.equal(privateFailure.stderr, 'realm: plan/unsupported\n');
+});
+
+test('the provenance pins the committed normalization and extraction modules by their exact bytes', async () => {
+  // sourceCaptureSha256 stays unchecked by design: recomputing it needs the private
+  // capture taken from the pinned provider image, which is never committed.
+  const digest = async name => createHash('sha256').update(await readFile(new URL(name, import.meta.url))).digest('hex');
+  assert.equal(await digest('./development-realm-stock-console.mjs'), baseline.provenance.normalizationModuleSha256);
+  assert.equal(await digest('./extract-development-realm-stock-console.mjs'), baseline.provenance.extractionSha256);
 });

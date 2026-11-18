@@ -1,5 +1,6 @@
 import * as oidc from 'openid-client';
 
+import { FEDERATION_ALIAS, FEDERATION_TEST_SCOPE } from './federation-alias.js';
 import { BffProviderError } from './provider-error.js';
 import { providerOperation } from './provider-transport.js';
 
@@ -11,7 +12,30 @@ export type ProviderIdentity = Readonly<{
   tenantId: string | null;
   organizationId: string | null;
   displayLabel: string | null;
+  /**
+   * ADR-0099 § Host binding: the ID token's `idp` (the brokering alias) on a brokered authentication, null on a local
+   * one. Provenance only; the session owner compares it with the host tenant's Active alias before any publication.
+   */
+  idp: string | null;
+  /**
+   * ADR-0099 Amendment 7: the ID token's `auth_time` (seconds since the epoch) when present. The federation_test
+   * callback requires it at or after the test window's start; nothing else reads it.
+   */
+  authTime?: number;
 }>;
+
+export { FEDERATION_ALIAS, FEDERATION_TEST_SCOPE };
+/**
+ * The closed authorization purposes (ADR-0070 Amendments 11 and 12): `verify_email`, `federation_signin` and
+ * `federation_test`. `federation_signin` is an ordinary sign-in that starts at the host tenant's Active broker (the
+ * alias as `kc_idp_hint`, no forced login, the ordinary publication rules); `federation_test` is the administrator's
+ * test (`prompt=login`, `max_age=0` and the test-record scope), whose callback publishes nothing. Every alias comes
+ * from a server-side read, never from the browser.
+ */
+export type ProviderPurpose =
+  | 'verify_email'
+  | Readonly<{ kind: 'federation_signin'; alias: string }>
+  | Readonly<{ kind: 'federation_test'; alias: string }>;
 
 /** Server-only grant result; never a session/client/RSC projection. */
 export type ProviderCredentials = Readonly<{
@@ -44,6 +68,26 @@ function optionalId(value: unknown): string | null {
   if (typeof value !== 'string' || !uuid.test(value) || value === allZero)
     throw new BffProviderError('identity');
   return value.toLowerCase();
+}
+
+function provenance(value: unknown): string | null {
+  if (value === undefined) return null;
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    value.length > 255 ||
+    // eslint-disable-next-line no-control-regex -- Reject control bytes in an opaque provider alias.
+    /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value)
+  )
+    throw new BffProviderError('identity');
+  return value;
+}
+
+function authTime(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0)
+    throw new BffProviderError('identity');
+  return value;
 }
 
 function displayLabel(claims: oidc.IDToken): string | null {
@@ -79,6 +123,7 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
   const tenantId = optionalId(claims.tenant_id);
   const organizationId = optionalId(claims.organization_id);
   if (organizationId !== null && tenantId === null) throw new BffProviderError('identity');
+  const authenticated = authTime(claims.auth_time);
   return Object.freeze({
     issuer,
     subject: claims.sub,
@@ -87,6 +132,8 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
     tenantId,
     organizationId,
     displayLabel: displayLabel(claims),
+    idp: provenance(claims.idp),
+    ...(authenticated === undefined ? {} : { authTime: authenticated }),
   });
 }
 
@@ -198,6 +245,7 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
     result: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers,
     started: number,
     previous?: ProviderIdentity,
+    testRecord = false,
   ): ProviderCredentials {
     const current = identity(result.claims(), expectedIssuer);
     if (
@@ -217,7 +265,12 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
         throw new BffProviderError('response');
       return value;
     };
-    if (typeof result.scope === 'string' && result.scope.split(/\s+/u).includes('offline_access'))
+    const scopes = typeof result.scope === 'string' ? result.scope.split(/\s+/u) : [];
+    if (scopes.includes('offline_access')) throw new BffProviderError('response');
+    // ADR-0099 Amendment 7 (Step 4 review S4-2): the test-record scope belongs to the federation_test redemption
+    // alone. A browser-edited `scope` on any other authorization, or a refresh that keeps it, is refused; the test
+    // redemption is refused without it.
+    if (scopes.includes(FEDERATION_TEST_SCOPE) !== testRecord)
       throw new BffProviderError('response');
     if (
       typeof result.id_token !== 'string' ||
@@ -243,9 +296,19 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
   }
 
   return Object.freeze({
-    async begin(callbackUri: string, signal?: AbortSignal, purpose?: 'verify_email') {
-      if (purpose !== undefined && purpose !== 'verify_email')
+    async begin(callbackUri: string, signal?: AbortSignal, purpose?: ProviderPurpose) {
+      if (
+        purpose !== undefined &&
+        purpose !== 'verify_email' &&
+        (typeof purpose !== 'object' ||
+          purpose === null ||
+          (purpose.kind !== 'federation_signin' && purpose.kind !== 'federation_test') ||
+          Object.keys(purpose).length !== 2 ||
+          typeof purpose.alias !== 'string' ||
+          !FEDERATION_ALIAS.test(purpose.alias))
+      )
         throw new BffProviderError('configuration');
+      const federation = typeof purpose === 'object' ? purpose : undefined;
       browserReturn(callbackUri, '/api/auth/callback/keycloak');
       return perform(signal, async (operation) => {
         const config = await configuration(operation);
@@ -257,8 +320,13 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
         });
         const url = oidc.buildAuthorizationUrl(config, {
           redirect_uri: callbackUri,
-          scope: 'openid profile email',
+          scope:
+            federation?.kind === 'federation_test'
+              ? 'openid profile email ' + FEDERATION_TEST_SCOPE
+              : 'openid profile email',
           ...(purpose === 'verify_email' ? { kc_action: 'VERIFY_EMAIL' } : {}),
+          ...(federation ? { kc_idp_hint: federation.alias } : {}),
+          ...(federation?.kind === 'federation_test' ? { prompt: 'login', max_age: '0' } : {}),
           code_challenge_method: 'S256',
           code_challenge: await oidc.calculatePKCECodeChallenge(transaction.verifier),
           state: transaction.state,
@@ -267,7 +335,13 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
         return Object.freeze({ transaction, redirectUrl: url.href });
       });
     },
-    async redeem(transaction: LoginTransaction, responseUrl: string, signal?: AbortSignal) {
+    /** `testRecord` is true only for the federation_test owner's redemption (ADR-0099 Amendment 7). */
+    async redeem(
+      transaction: LoginTransaction,
+      responseUrl: string,
+      signal?: AbortSignal,
+      testRecord = false,
+    ) {
       browserReturn(transaction.callbackUri, '/api/auth/callback/keycloak');
       let response: URL;
       try {
@@ -293,7 +367,32 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
             idTokenExpected: true,
           }),
           started,
+          undefined,
+          testRecord,
         );
+      });
+    },
+    /**
+     * Ends the provider (SSO) session a refresh token belongs to, server-side, at the fixed end-session endpoint with
+     * this client's credentials (Keycloak's refresh-token logout form). Used when a definitive host-binding mismatch
+     * refuses a publication outside any browser navigation (ADR-0099 § Host binding). Never returns a token.
+     */
+    async endSession(refreshToken: string, signal?: AbortSignal) {
+      if (typeof refreshToken !== 'string' || !refreshToken || /[\r\n]/.test(refreshToken))
+        throw new BffProviderError('configuration');
+      return perform(signal, async (operation) => {
+        await configuration(operation);
+        const response = await operation.fetch(expected.end_session_endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: 'learnstack-web',
+            client_secret: secret,
+            refresh_token: refreshToken,
+          }).toString(),
+        });
+        if (response.status !== 204 && response.status !== 200)
+          throw new BffProviderError('provider_refused');
       });
     },
     async refresh(refreshToken: string, previous: ProviderIdentity, signal?: AbortSignal) {

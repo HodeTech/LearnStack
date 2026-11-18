@@ -112,6 +112,7 @@ owns its exact global SQL, grants and guards.
 | `membership_role_assignments` | Tenant-owned, org-scoped; contained Membership child | PK `(tenant_id,membership_id,role_id)`; exact Membership organization mirror; Role capability compatibility guard |
 | `roles` | Tenant-owned, tenant-wide; Role root | UUIDv7 `RoleId`; referenceable `(tenant_id,id)`; current unique `(tenant_id,permission_scope,built_in_key) WHERE deleted_at IS NULL`; no `organization_id` |
 | `role_permission_grants` | Tenant-owned, tenant-wide; contained Role child | PK `(tenant_id,role_id,permission_scope,permission_key)`; exact Role capability-scope mirror; no `organization_id` |
+| `federation_connections` | Tenant-owned, tenant-wide; FederationConnection root ([ADR-0099](../../decisions/0099-confined-tenant-federation.md)) | UUIDv7 `FederationConnectionId`; referenceable `(tenant_id,id)`; one live per tenant `(tenant_id) WHERE deleted_at IS NULL`; terminal `Deleted` tombstone; no `organization_id` |
 
 Use each [Standard 05 table class](../../standards/05-database.md#table-classes),
 its EF filter and ENABLE/FORCE RLS. Org-scoped tables receive canonical
@@ -602,6 +603,154 @@ Membership lock protect final admission through commit. Historical values keep t
 classification; withdrawal withholds sensitive values from ordinary DTOs without
 erasing them. `None` does not automatically exclude subject-linked values from
 P03-10 fulfillment. The phase Status owns implementation and qualification.
+
+### Tenant federation storage (P03-8 Step 1)
+
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) and its Amendment 1
+define `FederationConnection`, one per tenant. Its lifecycle is `Draft`,
+`TestOpen` (10-minute test window), `TestPassed` (10 minutes to Activate), `Active`,
+`Disabled` and the terminal `Deleted` tombstone, which keeps the row and its alias
+reserved instead of removing it. The alias is `lsf-` plus the identifier's 32
+lowercase hex characters, derived once. The display name is 1–80 normalized code
+points with no control, format, bidirectional or blank-rendering character and no
+leading combining mark. The issuer or SAML entity identifier is fixed from the first
+configuration; a change is a domain and storage refusal and needs a new connection.
+An OIDC issuer carries no userinfo, query or fragment. At most one provider write is pending; an
+uncertain one is resumable after a 90-second quiet window. A drifted readback returns
+every live state, `Disabled` included, to `Draft`. Expected refusals are
+`Result` failures. The row stores no secret, token, assertion or certificate.
+[Standard 05](../../standards/05-database.md#federation-connection-storage) owns the
+exact columns, CHECKs, grants and guard; the application operations, provider adapter
+and Studio page belong to Steps 2–4 and the
+[phase Status](../../roadmap/phase-03-identity-admin.md) owns their state.
+
+`FederationConnection` lifecycle (Delete is available from every live state):
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft: first Configure applied
+    Draft --> TestOpen: test start applied
+    TestOpen --> TestPassed: passed result recorded
+    TestOpen --> Draft: failed result, expiry or drift
+    TestPassed --> Active: Activate
+    TestPassed --> Draft: expiry or drift
+    Active --> Disabled: Disable, or an entitlement lapse at readback
+    Active --> Draft: drift
+    Disabled --> Draft: Enable (a new test is required) or drift
+    Draft --> Deleted: Delete
+    TestOpen --> Deleted: Delete
+    TestPassed --> Deleted: Delete
+    Active --> Deleted: Delete
+    Disabled --> Deleted: Delete
+    Deleted --> [*]
+```
+
+- A first configuration ends in `Draft`; only `Draft` starts a test.
+- `TestOpen` and `TestPassed` last 10 minutes and return to `Draft` when they expire.
+- The provider broker is enabled in `TestOpen`, `TestPassed` and `Active` only. `Active`
+  alone advertises the option and admits brokered sessions; `TestOpen` admits only the
+  test callback.
+- A drifted readback returns every live state, `Disabled` included, to `Draft`.
+- `Deleted` is the terminal tombstone; its alias stays reserved.
+
+### Tenant federation operations (P03-8 Step 2)
+
+`FederationOperationRunner` is the one Identity application service around provider
+I/O ([ADR-0099 § Intent-first operations](../../decisions/0099-confined-tenant-federation.md#intent-first-operations)).
+It is not a MediatR handler: it sends a Begin (one request type per operation), calls
+`IFederationProvider` and the guarded `IFederationEgressFetcher` with no database
+transaction open, then sends the shared `CompleteFederationOperationCommand` on a
+token detached from the request. Each request is its own transaction and saves each
+domain step before the next, because the storage guard admits one row version per
+UPDATE. Budgets are 3 s egress, 1 s per database step, 2.5 s for all provider calls and
+1.5 s for Complete; an overrun is `uncertain` and stays pending for Resume after the
+90-second quiet window. Configure completes on Resume only when the nonsecret readback
+equals the stored desired digest; an interrupted rotation asks for a resubmit. A
+Configure of an existing OIDC connection without a fresh client secret is admitted only
+when its configuration digest equals the stored one and the last readback confirmed
+that the provider holds it; otherwise the Begin refuses `validation_failed` before any
+provider call, so the stored secret never reaches a changed token endpoint
+([ADR-0099 Amendment 3](../../decisions/0099-confined-tenant-federation.md#amendment-3--a-changed-oidc-configuration-needs-a-fresh-secret-2026-11-14)).
+Every readback compares a digest computed by `FederationDigest`; any mapper,
+nonconforming profile key or other state is drift and returns the connection to Draft.
+Activate and the test result read the provider before their state transaction, and
+their state transitions make no provider write. Activate or the test result on an
+expired window, a failed test result, and a detail load that finds an expired window,
+new drift or an enabled broker the state does not admit begin a corrective disabling
+write, which the runner applies and completes before returning. That write keeps the
+configuration the provider holds and changes only the enabled flag
+([ADR-0099 Amendment 4](../../decisions/0099-confined-tenant-federation.md#amendment-4--corrective-disable-writes-and-gated-rotate-and-activate-2026-11-14)).
+Every read selects the live connection through `FederationConnectionReads.Live`, so a
+`Deleted` tombstone is never returned. Configure, Rotate secret, test start and
+Activate require the protocol's entitlement (`identity.sso.oidc` or
+`identity.sso.saml`) through `IFeatureFlags`.
+
+Both ports keep fail-closed Identity defaults that report every call unavailable; the
+composition root replaces them with the Step 3 adapter and fetcher only when the
+federation admin client is configured (below). Without it, Configure refuses
+`dependency_unavailable` and nothing reaches a provider. The
+anonymous `GetPublicSignInQuery` exposes the host tenant's Active, entitled alias and
+display name, from LearnStack's database only. The HTTP census is in
+[Standard 04](../../standards/04-api-design.md#tenant-federation-operations); the
+audit matrix in [audit.md](audit.md#tenant-federation).
+
+### Tenant federation provider and realm (P03-8 Step 3)
+
+The confined Keycloak adapter and the guarded egress fetcher live in
+`LearnStack.Infrastructure.Identity.Federation`; their admitted calls, owner marker,
+readback rule, resilience and egress rules are specified in
+[providers.md](providers.md#tenant-federation-adapter). The API composition selects
+them only when `Federation:ClientSecret` is configured; modules never read
+`DeploymentMode`, and the Development loopback-HTTP admission is decided in the
+composition root.
+
+Realm reconciliation owns ADR-0099's realm invariants
+([Keycloak README](../../../infra/keycloak/README.md#federation-realm-invariants)):
+the `learnstack-federation-admin` client, the link-only `learnstack-first-broker-login`
+flow, the disabled `idp_link` action, the retired account clients and the `idp`
+ID-token mapper on `learnstack-web`. Two effects reach every realm user:
+
+- **Account console retired.** The `account` and `account-console` clients are
+  disabled and `manage-account` and `manage-account-links` leave the default role and
+  the development personas. Password change, profile editing, linked-account
+  self-service and the Account REST API are no longer available to any user;
+  credential recovery uses the provider's reset-credentials flow, and Studio holds no
+  self-service substitute. A linked person cannot unlink their own account
+  ([ADR-0099 Q1](../../decisions/0099-confined-tenant-federation.md#implementation-notes)).
+- **Warm upgrade.** An existing realm converges on the next reconciliation: both
+  clients are disabled, the default-role composites and each persona's direct grant are
+  detached, and nothing else on the account client or console is repaired. A retired
+  grant carried by a group or another composite refuses before any write. The
+  development personas therefore lose console access on upgrade; registered users lose
+  it through the default role.
+
+The seed manifest declares no account capability. Brokered sign-in creates no account:
+an asserted address with no existing account ends in the provider's closed error, and
+a matching account links only after its own password (and OTP when configured) is
+entered on the re-authentication form.
+
+### Tenant federation in Studio and the BFF (P03-8 Step 4)
+
+- **Studio.** `/studio/federation` lets a holder of `identity.federation.admin` (advisory
+  `canManageFederation`) configure, test and activate the tenant's one connection,
+  rename it, replace its secret, Resume an unsettled write, re-enable a Disabled
+  connection (back to Draft, so a new test is required), and Disable or Delete it
+  behind a confirmation. Every operation goes through the closed native
+  administration dispatcher and the generated-SDK wrappers
+  ([Frontend Standards § Tenant federation](../../standards/07-frontend-architecture.md#tenant-federation));
+  the API authorizes each one.
+- **Test.** The BFF alone starts the test window and holds the attempt identifier. Its
+  `federation_test` callback records the result with a token carrying the
+  `federation.test_record` scope, which `POST test-results` requires, every other API
+  endpoint refuses, and the BFF refuses on every other redemption and on refresh. The
+  test starts in a new provider session and passes only in it; it publishes no session,
+  ends the provider session server-side and signs the administrator out.
+- **Host alias.** The native self read carries `federationAlias`, the host tenant's
+  Active, entitled alias, through `FederationHostAliasReader`, the fourteenth logical
+  tenant setter ([Standard 05](../../standards/05-database.md#federation-host-alias-read)).
+- **Host binding.** The BFF admits a brokered credential only on its tenant's host and
+  with unchanged provenance
+  ([Security § Federation host binding](../../standards/11-security.md#federation-host-binding)).
 
 ## Entity-relationship diagram
 

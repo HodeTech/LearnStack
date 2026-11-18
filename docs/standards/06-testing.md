@@ -138,7 +138,7 @@ belongs to is decided by what it needs, not by what it is about:
   These live under `Database/` with the rest of the Docker-bound suite and carry
   the same trait.
 - **Identity-provider tests** — P02b-6's `TenancyIdentity/KeycloakFixture` imports
-  the committed realms into Keycloak 26.6.2 with its own PostgreSQL database.
+  the committed realms into Keycloak 26.7.5 with its own PostgreSQL database.
   `SharedKeycloakRealm` shares a baseline provider, not an immutable or read-only
   store: real login changes provider sessions, and the actual reconciler runs
   against it with independently checked zero-write expectations. Cases in that
@@ -335,11 +335,13 @@ and were read as running.
 ### API Contract Tests
 
 - Validate every endpoint against the published OpenAPI.
-- Breaking changes require a version bump, except the one exact transition in
-  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md). Its
-  Git-snapshot approval binds the Accepted decision, complete finding sets and
-  comparison identities; it cannot approve a failed tool/control or a new finding.
-  Fresh policy controls and actual registry/Role/capability/replacement API/SDK
+- Breaking changes require a version bump, except the exact transitions in
+  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md) and
+  [ADR-0100](../decisions/0100-p038-federation-contract-transition.md), one per
+  Accepted ADR. A transition's Git-snapshot approval binds its Accepted decision,
+  complete finding sets and comparison identities; it cannot approve a failed
+  tool/control or a new finding, and one malformed carrier fails the whole OpenAPI job.
+  Fresh policy controls and actual registry/Role/capability/self/replacement API/SDK
   behavior remain independently required. File/fixture/bootstrap modes cannot
   consume approval. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
   owns extension implementation and final-source qualification.

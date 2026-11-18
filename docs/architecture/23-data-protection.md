@@ -290,6 +290,7 @@ govern personal data; exclusion here grants no erasure exemption.
 | `roles` | Synchronous tenant-owned authority templates, not queued payloads |
 | `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
 | `invitations` | Synchronous scoped Identity offer and acceptance result, including sensitive recipient/verifier and job linkage; the invitation inventory below owns fulfillment constraints |
+| `federation_connections` | Synchronous tenant-owned federation configuration (ADR-0099): public IdP identifiers, nonsecret digests and lifecycle, with pseudonymous pending/test actor identifiers; no secret, token or assertion and no queued payload |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not

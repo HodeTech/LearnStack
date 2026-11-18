@@ -1245,6 +1245,7 @@ describe('P02d-7 exact demo identity boundary', () => {
         'src/server/auth/logout-response.ts',
         'src/server/auth/native-administration-client.ts',
         'src/server/auth/native-consent-http.ts',
+        'src/server/auth/native-federation-client.ts',
         'src/server/auth/native-invitation-client.ts',
         'src/server/auth/native-invitation-http.ts',
         'src/server/auth/native-session-client.ts',

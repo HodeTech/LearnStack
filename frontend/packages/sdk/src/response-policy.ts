@@ -4,7 +4,8 @@ export type PublicGetOperation =
   | 'GetPublicSite'
   | 'GetPublicCourses'
   | 'GetPublicCourse'
-  | 'GetPublicLesson';
+  | 'GetPublicLesson'
+  | 'GetPublicSignIn';
 export type PublicSuccess<T extends PublicGetOperation> =
   operations[T]['responses'][200]['content']['application/json'];
 export type ApiProblem = components['schemas']['ProblemDetails'];
@@ -112,6 +113,15 @@ export function isSuccess<T extends PublicGetOperation>(
 ): value is PublicSuccess<T> {
   if (!record(value)) return false;
   switch (operation) {
+    case 'GetPublicSignIn':
+      // ADR-0099: the host tenant's Active option or null; the alias is a provider hint, never a URL.
+      return (
+        value.federation === null ||
+        (record(value.federation) &&
+          typeof value.federation.alias === 'string' &&
+          /^lsf-[0-9a-f]{32}$/.test(value.federation.alias) &&
+          typeof value.federation.displayName === 'string')
+      );
     case 'GetPublicSite':
       return (
         typeof value.displayName === 'string' &&

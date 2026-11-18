@@ -1,0 +1,1079 @@
+# ADR-0099: Confined Tenant Federation
+
+## Status
+
+Accepted — 2026-11-13, after three review rounds and the maintainer's answers to the
+four open decisions (Q1–Q4 under [Implementation Notes](#implementation-notes)).
+Acceptance fixes the contract, its decisions and the carriers that land with it. It does
+not start implementation. Each of the four steps, including the Keycloak pin move, needs
+its own maintainer approval, and implementation and qualification are separate records.
+
+**Date:** 2026-11-13
+**Deciders:** @cemil
+
+This closes Phase 03 gate G12 for P03-8 when Accepted. It applies
+[ADR-0004 Amendment 1](0004-authentication-strategy.md)'s realm-level brokering to the
+first runtime Keycloak adapter that writes to the Admin REST API, which reopens the
+provider-boundary pass that [P02b-6](../roadmap/phase-02b-delivery-log.md) reserved for
+that event. [ADR-0072](0072-application-owned-identity-bootstrap.md)'s rejection of a
+runtime Admin API concerned application-identity allocation; this record adds no
+allocator, reissue or email merge. Dated Amendments, not body rewrites, record the
+changes to the Accepted records listed under Implementation Notes.
+
+The [P03-8 package](../roadmap/phase-03-delivery-log.md#p03-8-proposed-tenant-federation-package-2026-11-13)
+owns the four implementation steps and their proof.
+
+## Decision Drivers
+
+- One realm serves every tenant. `manage-identity-providers` is realm-wide, so a
+  tenant's authority over "its" broker exists only if LearnStack confines it; the
+  provider cannot.
+- **The pinned provider is affected by advisories that touch this surface.** Keycloak
+  26.6.2 is below the 26.6.5 fix line for CVE-2026-16443 (SAML metadata import disables
+  response signature validation), CVE-2026-16442 (SAML IdP-initiated login bypasses the
+  link-only restriction), CVE-2026-11800 (JWT algorithm confusion, fixed in 26.6.4),
+  CVE-2026-15573 (authorization bypass through unnormalized URI matching), CVE-2026-15572
+  and CVE-2026-16102 (dynamic client registration), CVE-2026-16100 (metric cardinality) and
+  CVE-2026-16071 (LDAP user search). This record's contract is written for 26.6.5 or later;
+  the pin move is P03-8 Step 0 ([Implementation Notes](#implementation-notes)).
+- Keycloak 26.6.2's JSON `import-config` fetches any supplied `fromUrl` through its HTTP
+  client with no address check
+  ([source](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/IdentityProvidersResource.java)).
+  Keycloak also fetches a broker's token, JWKS, UserInfo, logout, introspection and SAML
+  artifact/SLO endpoints. Standard 11's OWASP A10 (SSRF) row requires allow-listed outbound
+  calls, while [P02b m-38](../roadmap/phase-02b-delivery-log.md) records private IdP
+  networks as legitimate for SaaS, Dedicated and Self-Hosted.
+- A broker that **creates** a user for an address nobody has registered yet lets a hostile
+  tenant pre-create the future owner's account. The owner's later password reset sets
+  `emailVerified` (Keycloak `ResetCredentialEmail`), the IdP link survives, and
+  [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md)'s `email_verified == true`
+  check then passes for the attacker's session.
+- Stock Keycloak adds linking paths a tenant must not reach. The `idp_link`
+  application-initiated action is registered enabled and accepts either `manage-account`
+  or `manage-account-links`, which realm users hold through the default role. The
+  deprecated linked-accounts builder needs `manage-account` and ignores
+  `showInAccountConsole`. The account console lists every broker whose
+  `showInAccountConsole` is its default `ALWAYS`. `hideOnLogin` affects only the login page.
+- `kc_idp_hint` starts any **enabled** broker, hidden or not. A provider-enabled broker
+  is therefore reachable from any host that knows its alias, whatever LearnStack's state
+  says.
+- Linking gives a tenant IdP's controller a Keycloak session for the linked account. Stock
+  Keycloak then lets a fresh session run credential and OTP required actions
+  (`kc_action` needs re-authentication only after 300 seconds). No LearnStack-side check
+  confines those actions, and Keycloak cannot deny them per session without breaking
+  password reset and TOTP enrollment.
+- Keycloak 26.6.2's identity-provider update takes a whole representation with no version
+  or ETag check. A provider write therefore cannot be fenced, and a delayed request can land
+  after its outcome was recorded.
+- MUST audit commits with the state it describes
+  ([ADR-0033](0033-audit-durability-model.md)). A provider write cannot join that
+  transaction, and an unknown provider outcome must stay visible rather than guessed.
+- Federation is additive. No failed, mistaken or malicious configuration may remove
+  existing local sign-in, and anonymous pages stay independent of the provider
+  ([ADR-0064](0064-tenant-api-authentication-boundary.md)).
+- Existing seams are fixed: entitlement keys `identity.sso.saml` and `identity.sso.oidc`,
+  registry-release adoption, the closed native administration dispatcher with its 16 KiB
+  input bound, and the shared new-subject budgets of
+  [ADR-0078](0078-native-session-scope-and-self-entry.md).
+- Maintainer decisions of 2026-11-13: a real interactive test is required before
+  activation, in the form this record gives it; an existing account links only through
+  that account's own re-authentication; a tenant has one connection; the broker creates no
+  accounts; and linking is accepted as delegating the linked account to the IdP's
+  controller, documented rather than enforced inside Keycloak.
+
+## Considered Options
+
+1. **LearnStack-owned connection registry, dedicated Admin adapter, fixed broker profile,
+   link-only first-broker flow, provider enablement only while needed, host-bound
+   brokered sessions and serialized, readback-verified provider writes** (chosen).
+2. **Operator-provisioned brokers, read-only tenant UI** (rejected). Confines trivially but
+   delivers no usable tenant configuration (D11).
+3. **Realm per tenant** (rejected). ADR-0004 Amendment 1 keeps it an enterprise opt-in; it
+   multiplies issuers, BFF configuration and provisioning and leaves realm-level authority
+   just as broad.
+4. **Pass-through of Keycloak's IdP representation and `import-config fromUrl`** (rejected).
+   Lets a tenant choose flows, mappers, trust flags and egress targets.
+5. **Broker creates accounts for unknown addresses** (rejected). Enables the pre-creation
+   takeover above. Admitting it later needs verified-domain control enforced inside the
+   provider and its own decision; nothing here provides that.
+6. **Verification-mail or email-matching linking, `trustEmail=true`** (rejected). Each turns
+   an asserted claim into account takeover or cross-tenant invitation acceptance.
+7. **A Keycloak provider extension denying credential, profile and linking actions on
+   brokered sessions** (not provided here). It needs a new Java build, image and release
+   line for every deployment mode and its own decision. It would close the delegation
+   residual; it is not part of this contract.
+8. **Provider-side fencing by alias generation, one new broker per write** (rejected).
+   Every credential or configuration change would change the callback path that the tenant
+   registered at its IdP, and links would be lost on every rotation. Keycloak offers no
+   conditional update to fence with (see Context).
+9. **Provider call inside the business transaction** (rejected: holds a connection across
+   I/O and leaves an unaudited effect after a failed COMMIT), **or the ADR-0047 job
+   runtime** (rejected: its capacity and quiescence machinery protects irreversible
+   external sends, which an idempotent full-state call is not). **Intent-first** commit,
+   provider call, outcome commit is chosen.
+
+## Decision
+
+LearnStack stores one `FederationConnection` per tenant and is the sole confiner of the
+realm-level broker. A dedicated confidential client `learnstack-federation-admin`, holding
+only `realm-management/manage-identity-providers`, backs one Infrastructure adapter that
+calls a fixed set of Admin endpoints for an alias LearnStack derived and can prove it owns.
+The alias is fixed for the connection's life and is the broker's callback path. Tenants
+author only protocol, display name and OIDC endpoints and client credentials, or SAML
+identifiers and certificates. Changing the issuer or SAML entity identifier is not an edit:
+it requires a new connection.
+
+The broker is enabled at the provider only while its connection is in a test window, has
+passed its test, or is Active. Every provider write is a full desired state, serialized per
+connection, verified by readback and preceded and followed by committed MUST audit rows. A
+crash, timeout or unknown result stays visible and retryable. The broker creates no
+accounts: a person with an existing local account links it by re-authenticating that
+account, which delegates that account to the IdP's controller. A brokered LearnStack session
+is admitted only on its own tenant's host, only while that tenant's connection is Active and
+entitled, and only with matching provenance. A connection is advertised only after a real
+brokered test sign-in on its current configuration. Local sign-in is never refused by any
+LearnStack check.
+
+## Context
+
+### Verified baseline (HEAD `0e029dcf`, Keycloak 26.6.2)
+
+- The `learnstack` export declares no `identityProviders`, `authenticationFlows`,
+  `firstBrokerLoginFlow` or `requiredActions`, so stock brokering applies, including stock
+  create-or-link and the registered `idp_link` action. Registration is open, email is the
+  username (`registrationEmailAsUsername`), `verifyEmail` is false, duplicate emails are
+  refused, and `learnstack-web` has `fullScopeAllowed=true`.
+- Runtime Keycloak clients are the UserInfo recipient reader ([ADR-0093](0093-verified-invitation-acceptance-and-handoff.md))
+  and the read-only `learnstack-event-reader` ([ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md)).
+  `KeycloakIdentityEventProvider` performs GET requests only, so no runtime adapter writes
+  to the Admin REST API today.
+- The BFF authorization request is fixed (`openid profile email`, optional
+  `kc_action=VERIFY_EMAIL`) with no `kc_idp_hint`, and sign-in offers one local action. The
+  closed token profile whitelists no `amr` or `acr` claim, so no LearnStack operation
+  authorizes on assurance.
+- `identity.sso.saml` and `identity.sso.oidc` are plan-projected, default-false,
+  fail-closed keys in both repositories; `NullEntitlementProvider` grants them. Registry
+  release v3 is current. A new Tenant key needs release v4, explicit adoption and an
+  eleventh advisory capability.
+- Keycloak treats a masked `clientSecret` (`**********`) as "keep the stored value", so
+  LearnStack never reads back or retains a secret.
+- A brokered login records the alias in the user-session note `identity_provider`
+  (`Details.IDENTITY_PROVIDER`). The note stays on the user session, and refresh re-issues
+  the ID token from the session's notes. The user session is the shared provider (SSO)
+  session, not one application session.
+- Keycloak refuses an authentication whose user differs from the browser's existing SSO
+  session (`DIFFERENT_USER_AUTHENTICATED`), including under `prompt=login`.
+- `storeToken=false` controls only persistence of the federated identity record.
+  `storeTokenInSession` defaults to `true`; Keycloak honors a `false` value only under the
+  preview `IDENTITY_BROKERING_API_V2` feature, which the compose configuration does not enable
+  (`KC_FEATURES=token-exchange,admin-fine-grained-authz`). Brokered tokens therefore remain in
+  the user session. LearnStack never reads them, and no fixed-profile setting removes them.
+- The deprecated linked-accounts builder (`GET /account/linked-accounts/{alias}`) and the
+  linked-account `DELETE` both require `manage-account`. Stock Keycloak 26.6.2 therefore has
+  no narrow self-unlink role, and the account console is the only self-service surface for
+  linked accounts.
+- `IdpUsernamePasswordForm` pre-fills the detected account's username. The field is editable,
+  and a normal login clears the context user before validating the submitted username and
+  password. The account that gets linked is whichever account the submitted username and
+  password validate.
+- A reset started from the re-authentication form resumes a pending link only in the browser
+  that holds the pending authentication session.
+
+### Advisory baseline of the pin
+
+| Advisory | Severity | Relevance to this surface |
+|---|---|---|
+| CVE-2026-16443 | high | SAML metadata import can disable response signature validation. Direct: SAML brokers. |
+| CVE-2026-16442 | high | SAML IdP-initiated login bypasses the link-only restriction. Direct: first-broker linking. |
+| CVE-2026-11800 | high | JWT algorithm confusion, fixed in 26.6.4. Direct for the JWT grant; kept off by the profile. |
+| CVE-2026-15573 | high | Authorization bypass through unnormalized URI matching in the path matcher. Realm-wide. |
+| CVE-2026-15572, CVE-2026-16102 | high | Dynamic client registration policy and mapper issues. Not enabled here; realm-wide. |
+| CVE-2026-16100, CVE-2026-16071 | medium | Metric cardinality; LDAP user search bounds. Realm-wide. |
+
+Every entry is fixed in 26.6.5 (and 26.7.1 for the 26.7 line). CVE-2026-2092 (encrypted SAML
+assertions) does not affect 26.6.2. Two IDs proposed in the round-three review,
+CVE-2026-9087 and CVE-2026-4874, do not appear in the Keycloak security advisory list and
+are excluded.
+
+### Ownership and the confined adapter
+
+- The alias is `lsf-` followed by the connection identifier's 32 lowercase hexadecimal
+  characters. LearnStack derives it once and stores it. It is never accepted from input, and
+  it does not change for the connection's life. A recreated connection has a new identifier
+  and therefore a new alias.
+- The provider representation carries `learnstackOwner`, naming tenant and connection. The
+  adapter refuses every read or write unless the owner marker and the stored row agree, so a
+  stale row, foreign alias or manually created broker is never touched.
+- At first successful configuration the connection stores its issuer (the OIDC discovery
+  `issuer`) or SAML entity identifier. A configuration that changes either is refused as an
+  edit and must create a new connection. The old broker is deleted, its links end, and the
+  tenant updates the IdP's callback for the new alias. Existing `(alias, subject)` links
+  therefore never point at a different identity source.
+- The adapter admits only: the token endpoint; `POST instances` for a new connection;
+  `GET`, `PUT` and `DELETE instances/{alias}`; `GET instances/{alias}/mappers`; and the
+  multipart `file` form of `identity-provider/import-config`. It admits no JSON `fromUrl`, no
+  other alias, user, flow, realm, client or required-action call. A mapper on an owned alias
+  is drift and refuses activation. The adapter creates none.
+- Credentials: a fresh client-credentials token per operation, the secret through
+  `ISecretProvider` (`Federation:ClientSecret`), HTTPS mandatory except explicit local
+  Development loopback, no redirects, and no ambient proxy credentials. The provider role is
+  broader than the admitted calls, as with `learnstack-event-reader`; this is stated, not
+  hidden. No BFF, master, demo or event-reader credential is substituted.
+- The port is a narrow `IFederationProvider` in the SharedKernel identity namespace beside
+  `IIdentityEventProvider`, not ADR-0004's broader `IIdentityProvider`. This record is the
+  decision P02b-6 required for a runtime provider boundary. The adapter lives in
+  `LearnStack.Infrastructure.Identity.Federation`. It uses the `Resilience:federation`
+  configuration with retry disabled, because its provider writes are not safe to retry
+  automatically. It has finite timeouts and a circuit breaker. Vendor types and exceptions
+  stay inside the adapter and surface as `ProviderException`s. Direct HTTP introduces no SDK,
+  so `Provider_SDK_Types_NotImportedOutsideInfrastructure` stays Awaiting backfill.
+
+### Fixed broker profile
+
+LearnStack builds the provider representation from a closed per-protocol allow-list and never
+forwards `import-config` output or any tenant-supplied key. Every write enforces, and every
+readback must equal, the exact key set and values below. An extra or differing key is drift.
+
+| Setting | Value | Why |
+|---|---|---|
+| `hideOnLogin` | true | The shared login page never lists another tenant's IdP |
+| `showInAccountConsole` | `NEVER` | The account console neither lists nor links any tenant IdP |
+| `trustEmail` | false | An asserted address is never verified; ADR-0093 stays intact |
+| `storeToken` | false | No persisted federated identity record. Session storage is not controllable (see Context) |
+| `linkOnly`, `authenticateByDefault`, `addReadTokenRoleOnCreate`, `doNotStoreUsers`, `acceptsPromptNoneForwardFromClient`, `passMaxAge` | false | No default redirect, silent forwarding, or IdP control of session freshness |
+| `firstBrokerLoginFlowAlias` | `learnstack-first-broker-login` | The only admitted linking behavior |
+| `postBrokerLoginFlowAlias`, mappers, `organizationId` | none | No claim-to-role, group, attribute or organization authority |
+| `syncMode` | `IMPORT` | The IdP never overwrites profile data |
+| OIDC trust | signature validation on, JWKS URL, PKCE S256, nonce and type checks on, scope `openid email profile`, `jwtAuthorizationGrantEnabled` and `supportsClientAssertions` off, closed client-authentication choice | No tenant-selected trust relaxation or alternate grant |
+| OIDC server-side URLs | `logoutUrl`, introspection and back-channel logout unset | Only guarded endpoints are fetched |
+| SAML trust | signature validation on, signed assertions required, a fixed non-transient NameID policy, no IdP-initiated SSO | Unsigned, unsolicited or per-login-identity assertions refuse |
+| SAML server-side URLs | artifact resolution, SLO, back-channel and `metadataDescriptorUrl` unset or off | Only guarded endpoints are fetched |
+
+The Identity provider specification enumerates the exhaustive key list per protocol, including
+`forwardParameters`, `loginHint`, `filteredByClaim`, `allowedClockSkew` and `principalType`.
+Any key outside it is drift. The provider display name equals the connection's display name,
+which is 1 to 80 characters, normalized, and free of control, format and bidirectional
+characters. Rename writes it through the same provider path.
+
+A client secret is refused when empty, over 1,024 bytes, equal to the mask literal, or
+beginning `${`, which Keycloak interprets as a vault reference.
+
+### Realm invariants
+
+Realm reconciliation owns these, and the Step 3 tests assert them:
+
+- The realm-owned `learnstack-first-broker-login` flow and the `learnstack-federation-admin`
+  client (`manage-identity-providers` only).
+- The `idp_link` required action is disabled, so no application-initiated action links a
+  broker.
+- The `account` and `account-console` clients are disabled, and `manage-account` and
+  `manage-account-links` are removed from the default role and from the development personas.
+  Password change, profile editing and the linked-accounts API then leave the console, and
+  credential recovery uses the reset flow. This retires the development account-console
+  self-service capability. No self-unlink path exists in this contract (Decision Q1).
+- On `learnstack-web`, a user-session-note mapper maps the `identity_provider` note to the
+  `idp` ID-token claim. Enablement of any broker requires a readback of this mapper.
+
+The adapter cannot read these invariants. Phase 11's production identity provisioning must
+replicate them; this record does not assume that.
+
+> **Erratum (2026-11-18,
+> [Amendment 9](#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).**
+> The Realm invariants bullet above and the Residual in § Host binding say that
+> enablement requires a readback of the `idp` mapper. That was false when written: the
+> adapter holds `manage-identity-providers` only and cannot read a client's mappers, as
+> the paragraph above says. Realm reconciliation creates the mapper, verifies it and
+> refuses a second emitter; enablement checks nothing about it.
+
+### Bounded egress
+
+`IFederationEgressFetcher` retrieves OIDC discovery and JWKS documents or SAML metadata.
+Keycloak is never handed a URL to fetch during configuration.
+
+- HTTPS only; port 443 unless allow-listed; no userinfo, fragment or IP-literal host; at most
+  2,048 characters.
+- Every resolved address must be globally routable. Loopback, link-local (including cloud
+  metadata), private, CGNAT, documentation, multicast, reserved and mapped or unique-local
+  IPv6 ranges refuse. The connection is made to the validated address with SNI and certificate
+  verification for the original host, so rebinding between check and connect cannot redirect
+  it.
+- No redirects, cookies, credentials or proxy; a four-second timeout; bodies of at most 64 KiB
+  (discovery) or 256 KiB (JWKS, metadata); content type checked; XML parsed with DTDs
+  prohibited and no resolver.
+- An operator allow-list `Federation:Egress:AllowedHosts` (exact `host` or `host:port`, no
+  wildcard, empty by default) admits named private or non-443 endpoints. It is composition
+  configuration, never tenant input, and modules never read `DeploymentMode`.
+- The guard runs at Configure, test start and Activate. It applies to every authorization,
+  token, JWKS, UserInfo and SAML SSO endpoint, because real IdPs span hosts. The adapter writes
+  explicit endpoints, not a discovery URL.
+- **Standard 11 exception (accepted, Q2).** The OWASP A10 row requires allow-listed outbound calls.
+  Tenant-supplied public IdP hosts cannot be enumerated by operators without contradicting
+  self-service. This record therefore proposes a bounded exception: address-class checks for
+  tenant-supplied public hosts, TLS and no redirects; private hosts only through the operator
+  allow-list. The exception is recorded as a dated Amendment to Standard 11 at acceptance.
+- Keycloak itself still contacts the validated token, JWKS and UserInfo endpoints at sign-in,
+  and the mandatory test sends the client secret to the configured token endpoint. A later DNS
+  change is a residual risk that LearnStack cannot close from outside the provider. Network
+  egress policy for the Keycloak process is a deployment control, owned by Phase 11's Keycloak
+  hardening.
+
+### Linking, email trust and MFA
+
+- **The broker creates no accounts.** `learnstack-first-broker-login` detects an existing user
+  (required; an unknown address ends in a closed error), confirms the link, then re-authenticates
+  an account with its password and conditional OTP. No create-user, email-verification or
+  auto-link step exists.
+- **The asserted address selects no account.** The form pre-fills the detected username, but
+  the field is editable, and the linked account is whichever submitted username and password
+  validate. A hostile IdP therefore links an account only when someone enters that account's
+  credentials. Whether an address has an account is visible to the browser that completes the
+  flow.
+- **Residuals.** A person may enter their password on the genuine provider page after following
+  a hostile IdP's link. Any tenant can send any user such a link, with the tenant's chosen
+  display name. The "forgot password" action on the form can complete a pending link. Step 3
+  qualifies that it resumes only in the browser holding the pending session; if it resumes
+  elsewhere, the form's reset action is removed.
+- **No verified-email precondition.** The stock flow does not require the local account's email
+  to be verified. Registration is open and `verifyEmail` is false, so an account can exist with
+  an unverified address registered by someone else. Linking that account still requires its
+  credentials, and the reset path resumes the link only for the mailbox owner. This
+  pre-registration residual already exists under open registration and is not created by
+  federation.
+- **Delegation.** A linked IdP's controller can start a Keycloak session as that account. The
+  credential and OTP required actions remain available to a fresh session, so the controller can
+  add local credentials. The host binding below confines LearnStack sessions, not Keycloak's
+  actions. A person with memberships in several tenants should link only an IdP whose controller
+  they trust with all of them. Studio, the runbook and the confirm-link copy say so. A linked
+  person cannot unlink their own account; recovery is account review (Decision Q1).
+- **Onboarding.** SSO is a sign-in convenience for an account that already exists. A new person
+  registers locally, verifies the address when the invitation requires it, and then links SSO.
+  Brokered sign-in creates no Keycloak account. A person with a verified Keycloak account but no
+  LearnStack binding enters through ADR-0078's opt-in bootstrap and draws its shared budgets
+  exactly as on a first local entry.
+- **Not provided.** A trusted-email or per-domain setting, just-in-time provisioning, SCIM,
+  claim-to-role mapping and SSO-only enforcement. Each would need its own decision for
+  cross-tenant or authority reasons. They are recorded as explicit rejections of this record; a
+  future request needs its own ADR and an owning phase (Decision Q4).
+- **MFA.** A brokered sign-in carries no LearnStack MFA assurance. No mapper imports `acr` or
+  `amr`, linking requires the account's own OTP, and the tenant IdP's MFA is neither verified nor
+  attested. [Architecture 13](../architecture/13-identity-and-auth.md)'s statement that LearnStack
+  reads `amr` is corrected at acceptance. Any future MFA-gated operation takes assurance only from
+  LearnStack-controlled Keycloak authentication. Production MFA enforcement stays in Phase 11.
+
+### Host binding
+
+The ID token carries `idp` only on brokered authentications. The BFF records the value as the
+session's provenance at publication. Every publication (code redemption, the invitation custody
+handoff, the consent and active refreshes, selection, creation and context switching) requires:
+
+- `idp` absent (a local authentication) or exactly equal to the host tenant's current Active
+  alias; and
+- on refresh, equal to the provenance recorded for that session.
+
+The host tenant's alias, state and entitlement come from the authenticated native self call that
+publication already makes. The refresh path uses no anonymous read. That call returns a nullable
+`federationAlias` for the host tenant, which is a field of the self contract that Step 2 adds.
+
+Outcomes:
+
+- **Definitive mismatch** (different alias, connection not Active, entitlement lapsed, changed
+  provenance): refuse the publication, end the BFF session, and end the provider session through
+  OIDC end-session ([ADR-0070](0070-owned-tenant-bff-sessions.md)). Other sessions that share the
+  provider session end too, which is the documented consequence of a shared SSO note.
+- **Indeterminate** (self call timeout, 429, 503, store unavailable): refuse this publication and
+  keep the existing session without advancing its idle deadline, following
+  [ADR-0070 Amendment 1](0070-owned-tenant-bff-sessions.md). Do not end the provider session, and
+  fail new brokered sign-ins closed. Local sign-in follows the existing publication rules.
+- The federation test callback never reaches subject reservation or credential assignment.
+- Brokered tokens keep the closed access-token profile.
+
+**Residual.** Removing the `idp` mapper makes brokered tokens look local. Enablement requires a
+mapper readback, and startup reconciliation detects drift. Manual realm edits by an operator are
+outside this contract.
+
+> **Erratum (2026-11-18,
+> [Amendment 9](#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).**
+> Enablement requires no mapper readback; see the erratum in § Realm invariants. Realm
+> reconciliation, not the adapter, detects a missing or second `idp` emitter.
+
+### Lifecycle and test
+
+| State | Provider enabled | Advertised | Brokered sessions admitted |
+|---|---|---|---|
+| Draft | no | no | no |
+| TestOpen (10 minutes) | yes | no | no; only the test callback |
+| TestPassed (10 minutes to Activate) | yes | no | no |
+| Active | yes | yes, when entitled | yes, on the host's own tenant |
+| Disabled | no | no | no |
+
+- **Configure** writes the new configuration with the broker disabled and moves the connection to
+  Draft, clearing any test. Configuration is refused when the issuer or entity identifier changed.
+- **Rotate secret** is a Configure with a new secret. An Active connection therefore becomes Draft
+  and stops being advertised until it passes a new test. Availability is traded for correctness:
+  a wrong secret cannot remain advertised.
+- **Test start** is allowed from Draft. It enables the broker for 10 minutes, and the page explains
+  that the window is open.
+- **Test** means signing in through the IdP as yourself. The BFF begins a `federation_test` purpose
+  on `learnstack-web` with `kc_idp_hint=<alias>` and `prompt=login`. It validates the ID token like any
+  sign-in and requires the `idp` claim to equal the alias and the subject to equal the administrator's
+  session subject. Keycloak refuses a brokered identity that resolves to anyone else. The credentials
+  entered at re-authentication must be the administrator's own, and a first test links that account
+  to the IdP. The link is persistent and stated. The BFF publishes nothing, discards every token and
+  reports a closed result. The result is recorded only by the BFF's server-side callback, never by a
+  browser-invocable operation, and the attempt identifier stays server-side. The test then signs the
+  administrator out, because the shared provider session now carries the brokered note. The page says
+  so before the test starts. The result attests an admin-run check, not a security control.
+- **Test result.** A pass moves the connection to TestPassed. A failure, abandonment or expiry disables
+  the broker and returns the connection to Draft.
+- **Activate** moves TestPassed to Active. It requires a readback equal to the desired digest, the
+  mapper invariant, enabled state, a fresh egress check, no pending operation and the protocol's
+  entitlement. It performs no provider write, so it is not intent-first, and its I/O runs before the
+  state transaction.
+- **Disable** moves Active to Disabled and writes enabled=false. Brokered sessions end at their next
+  refresh, because their alias stops being Active.
+- **Enable** moves Disabled to Draft. It performs no provider write, because the broker is already
+  disabled, and a new test is required.
+- **Delete** removes the broker, confirms its absence and then removes the row. Keycloak removes its
+  federated links, and sessions through it end.
+- **Rename** writes the display name with the broker's current enabled value.
+- **Entitlement lapse** refuses sessions at once, through the host binding, and hides the public
+  option. The provider broker is disabled by the next federation operation or readback. Until then it
+  is inert for sessions. A linked account's owner can still sign in through it and link or act within
+  Keycloak's rules. This residual is accepted, and it follows from the absence of self-unlink
+  (Decision Q1).
+- **Expired windows.** A TestOpen or TestPassed broker left enabled past its window is inert for
+  sessions and is disabled at the next operation or readback.
+- **Last-login recovery.** Local credentials are untouched, and no SSO-only enforcement exists. Disable
+  and Delete stop brokering and end brokered sessions. They do not revert credentials or OTP added
+  through a brokered session. Account review (credentials, sessions, owner notice) is a Phase 11 runbook
+  item and a P03-9 operator recovery step, not an automatic rollback. A user cannot unlink their own
+  account (Decision Q1).
+
+### Provider writes: serialization, readback and the bounded residual
+
+- No provider-side fence exists (see Context), and this record does not claim one.
+- At most one provider write per connection is unsettled at a time. A Begin is refused while another is
+  pending. A pending write whose Complete is uncertain becomes eligible for Resume only after a quiet
+  window of 90 seconds. This judged bound exceeds the adapter's maximum call duration. It is not
+  measured, and it is not a guarantee about Keycloak's processing time.
+- Every readback compares the provider representation with the desired digest and the mapper invariant.
+  A mismatch is drift: the connection moves to Draft, and a corrective full-state write with the broker
+  disabled becomes the next operation. The owner sees that drift occurred.
+- Readbacks occur at Resume, test start, test result, Activate, and each Studio detail load under the
+  request deadline.
+- **Residual.** A request delayed beyond the quiet window can land after the last readback. The next
+  readback detects it. While undetected, the exposure is availability (a wrong secret) or an enabled
+  broker that no host admits. Step 3 tests this with a controlled delayed proxy and asserts serialization,
+  drift detection and downgrade.
+
+### Intent-first operations
+
+Configure, Rotate secret, Rename, test start, Disable and Delete run as committed requests around provider
+writes. Enable and Activate perform no provider write; they read the provider at most. One Identity application
+service sends these top-level commands through `ISender`, each in its own frame:
+
+1. **Begin**, one request type per operation, validates, authorizes and records a pending operation
+   (kind, identifier, actor, start time, desired digest) with its MUST audit intent in one transaction.
+   Nothing has touched the provider yet.
+2. The provider call applies the full desired state under its own timeout, with no database transaction
+   open. A secret exists only in memory for this call, in a redacting type. It is never persisted, logged,
+   audited or returned.
+3. **Complete**, one shared request type, records `applied`, `failed` with a closed reason, or `uncertain`
+   as a successful result with its own MUST audit row. A failed or uncertain outcome is settled, not rolled
+   back. Both rows carry the operation identifier. Complete is an ordinary protected internal request under
+   the Tenant key, dispatched without an HTTP route, and it authorizes like any protected request. If the
+   actor's permission was revoked since Begin, the operation stays pending, and any current administrator's
+   **Resume** settles it. A superseded identifier's Complete changes nothing and records drift.
+
+Budgets are unmeasured, judged limits within the 10-second native deadline. Egress has 3 seconds in total,
+covering discovery and then JWKS, because the second URL comes from the first. Each database step has
+1 second. Provider calls have 2.5 seconds in total, covering a PUT, a readback GET and a mapper GET. Complete
+has 1.5 seconds on a detached token, so a client abort still settles. Cancellation of the detached Complete
+is a deliberate exception to request-cancellation propagation, documented here. An operation that exceeds a
+budget is uncertain.
+
+A second mutation while an operation is pending is refused as a conflict until the first has settled or its
+quiet window has passed. Resume completes the pending kind. It completes Configure only when the non-secret
+readback equals the stored desired digest. An interrupted Rotate, or a Configure whose readback differs, asks
+the administrator to resubmit. Delete removes the row only after the provider confirms absence.
+
+A create that lands after its connection row was removed leaves an orphan broker. The owner marker names a
+missing connection, so the orphan is foreign to every tenant, is never adopted or touched, and its removal is
+the operator sweep P03-9 owns. Its exposure is limited to its own tenant's IdP.
+
+The mutations accept no `Idempotency-Key`. They converge through `If-Match` on the connection revision, the
+pending identifier, a unique-per-tenant row giving a recoverable 409, and a fresh read that reconciles a lost
+response. This keeps them out of the protected-receipt census. The native transport admits no DELETE, so Delete
+is a POST to an action resource, and the other operations use PUT or POST. The sign-in read and the native self
+read use the credential-free public transport or the authenticated self call respectively.
+
+### Sign-in exposure
+
+An Active, entitled connection is exposed to its tenant host by one anonymous, host-bound, read-only, `no-store`
+operation, `GET` and `HEAD /api/v1/public/sign-in`. It returns an object with a nullable `federation` member
+holding `alias` and `displayName`. It reads LearnStack's database only. The BFF sign-in page adds one labeled
+"Sign in with {displayName}" action beside the unchanged local one. A missing, slow or failed read hides only that
+action. The alias is a provider hint, not a secret. The BFF never accepts an alias or URL from the browser. A
+non-Tenancy module may own a public read, as Education does (`EducationOperationPolicySource.cs`). The public census
+then closes in Standard 04's public-surface table, an ADR-0052 Amendment, `OperationHttpClassification`, the
+public-surface marker and its registration test, and the OpenAPI/SDK snapshot. The read is audit Off, because it is
+anonymous and carries no personal data, and that reason is stated in the Standard 18 row. Each sign-in page view adds
+one anonymous call to the per-peer budget of [ADR-0054](0054-bounded-public-renderer-admission.md). The Studio page shows
+the redirect/ACS URL, SP entity identifier and Keycloak's descriptor URL, all derived from the alias and the issuer base.
+
+### Authority, audit and storage
+
+- One Tenant-scope key, `identity.federation.admin`, in registry release v4, registered Assignable with orgless
+  writes and adopted explicitly by existing Tenant Admin roles. Seed admins adopt v1→v2→v3→v4 in order. The
+  eleventh advisory capability is `canManageFederation`. Org Admin and every other role are unaffected. Keycloak
+  realm roles grant nothing.
+- A default `IFederationProvider` registration fails closed when the admin client is not configured.
+- The Hub-side plan row that carries `identity.sso.oidc` is Hub plan data, not a contract change. Until it exists,
+  OIDC is unentitled on a real Hub.
+- Eleven operations are MUST under `identity.federation.*`: `configure`, `rotate_secret`, `rename`, `enable`,
+  `disable`, `delete`, `resume`, `activate`, `test_start`, `test_record` and `apply` (the Complete outcome). Each Begin,
+  Resume and Complete is its own request type. Standard 18's baseline row for provider credential rotation covers
+  `rotate_secret`. Configuration reads are explicit Off, because they hold no personal data, and the Standard 18
+  row states that reason. No audit row carries a secret, an assertion or a token. Snapshots hold non-secret fields and
+  digests. ADR-0097's retained-event catalogue is unchanged. Mirroring brokered-login or link events needs its own
+  Amendment.
+- `federation_connections` is Identity-owned, tenant-owned and tenant-wide, unique per tenant. It uses the
+  [canonical RLS template](../standards/05-database.md)'s policy and EF filter, grants only to `learnstack_app`, and a
+  forward-only migration. It holds protocol, alias (fixed), issuer or entity identifier, display name, state,
+  configuration revision, configuration digest, desired digest, provider digest of the last readback, the pending
+  operation with its quiet-window end, the test attempt identifier, expiry and result, client identifier, audit
+  columns and row version. CHECKs cover states and exclusivity. A mutation-guard trigger enforces the state machine.
+  The Identity tenant fence and lock ordering apply. The applied census, `SchemaTableClasses`, model snapshot and one
+  personal-data declaration per scalar change with it. The table stores no secret, token or assertion. Actor references
+  are pseudonymous identifiers.
+
+### User experience
+
+Studio gains one Federation page with a three-step layout: configure, test and activate. It shows the values to paste
+into the IdP, a write-only secret control, and pending, drift and uncertain banners with Resume. It explains plainly that
+SSO links an existing account and delegates it to the IdP, that the test signs you in as yourself and then signs you
+out, and that Disable and Delete do not revert credentials added through a brokered session. Disable and Delete require
+confirmation. Configuration offers a discovery or metadata URL, or manual endpoints and identifiers with at most two PEM
+certificates, all within the 16 KiB native input bound. There is no metadata paste. English and Turkish copy, keyboard and
+focus behavior, reflow and contrast follow the existing C20 controls. No identifier, provider message or secret enters
+product copy.
+
+## Consequences
+
+### Positive
+
+- A tenant can self-serve SAML and OIDC without gaining realm authority, egress, account creation, or linking beyond an
+  owner's own credentials.
+- Provider exposure is limited to windows the administrator opened, plus Active connections. A wrong secret cannot remain
+  advertised.
+- Crashes, timeouts and provider outages leave an auditable, retryable state. Local sign-in is untouched in every failure.
+- A brokered session cannot cross tenants. Repointing never inherits links.
+
+### Negative
+
+- A realm-wide provider role backs the adapter. Confinement is LearnStack's alone, and realm invariants (`idp_link`, the flow,
+  the disabled account console, the `idp` mapper) depend on reconciliation that production provisioning must replicate.
+- The account console leaves the realm for every user. Password change, profile editing and linked-account self-service move to
+  the reset flow, and the development personas lose the capability.
+- A linked account is delegated to its IdP's controller, who can add local credentials to it inside Keycloak. Only a provider
+  extension or a realm per tenant would stop that.
+- Provider writes cannot be fenced. The design serializes them, verifies them by readback and detects drift. A delayed request
+  beyond the quiet window is detected only at the next readback.
+- Rotating a secret requires a new test, so SSO is unavailable until it passes.
+- Keycloak's later fetches follow DNS. Only deployment network policy can bound them.
+- SSO is not an onboarding path. An administrator whose IdP email matches no local account cannot pass the test, and the test ends
+  in a sign-out.
+- The test result is admin-reported. A create that lands after its row was removed leaves an orphan until P03-9's sweep.
+- The pinned Keycloak must move to 26.6.5 or later before this contract's SAML steps can be qualified.
+
+### Neutral
+
+- No Hub crossing, no new cross-module mechanism and no new Keycloak SDK.
+- Production IdP provisioning, network egress policy and MFA enforcement stay in Phase 11. The move to 26.6.5
+  is P03-8 Step 0 (Decision Q3).
+- Tenant offboarding removes the connection and broker inside P03-10's tenant-erasure inventory. Until then, Disable, Delete and
+  P03-9's sweep apply.
+
+## Implementation Notes
+
+**Decisions recorded at acceptance.**
+
+- **Q1 — No self-unlink.** Stock Keycloak 26.6.2 requires `manage-account` for the linked-account
+  `DELETE`, and no narrow role exists. A linked person cannot remove their own link. Recovery is the
+  tenant's Disable or Delete, which stops brokering and ends brokered sessions, followed by an account
+  review: credentials, OTP, sessions and owner notice. That review is a Phase 11 production runbook item
+  and a P03-9 operator recovery step. LearnStack-mediated unlink (which would need `manage-users` on the
+  federation client, giving the adapter realm-wide user authority) is not chosen. A Keycloak extension
+  remains a Phase 11 decision.
+- **Q2 — Address-class exception to Standard 11 A10.** Tenant-supplied public IdP hosts are admitted by
+  the address-class guard, with TLS and no redirects. Private hosts are admitted only through the operator
+  allow-list. Standard 11 receives a dated Amendment at acceptance.
+- **Q3 — Keycloak pin.** The pin moves from 26.6.2 to 26.6.5 as P03-8 Step 0: a separate infrastructure
+  commit with dev-realm fresh import and warm-upgrade verification. It needs implementation approval like
+  every step.
+- **Q4 — Non-goals.** Trusted-email or per-domain trust, just-in-time provisioning, SCIM, claim-to-role
+  mapping and SSO-only enforcement are explicit rejections of this record. A future request needs its own
+  ADR and an owning phase.
+
+**Carriers that land at acceptance.**
+
+- Dated Amendments to ADR-0004, ADR-0021 (with an inline erratum beside the `sso.saml.enabled` snippet),
+  ADR-0052, ADR-0064, ADR-0068, ADR-0070, ADR-0072, ADR-0078, ADR-0079, ADR-0097 and ADR-0098. Each names the
+  statement it changes. Accepted bodies are not rewritten. ADR-0093 is unchanged.
+- Standard 11: a dated Amendment for the A10 exception (Q2).
+- Architecture 13: the statement that LearnStack reads `amr` is corrected to current behavior, and the
+  admin-API statement points to this record.
+- Phase 03: G12 is Accepted and the Status block records it. Phase 11 gains entries for Keycloak egress
+  policy, advisory review and the delegation residual.
+- The decisions index and the glossary.
+
+**Carriers that land with their implementation steps.** Each commit cites ADR-0099.
+
+- Standards 01, 04, 05, 07, 09, 10, 18, 19, 20 and 21, including the canonical names of new architecture tests.
+- The Identity README, permissions, audit and providers specifications, the Keycloak README (client, flow,
+  account-client, mapper and pin sections), and the workflow skills each step uses.
+
+These documents describe rules in force. Writing them before the code that introduces the surface would make
+current documents describe behavior that does not exist yet.
+
+**Steps.** Each step needs its own approval. Each commits, passes two independent review rounds with verified
+fixes committed after each round, and then the next step starts.
+
+0. **Step 0 — Keycloak pin.** 26.6.2 to 26.6.5. Dev-realm fresh import and warm upgrade verified, existing
+   tests green, and the advisory note recorded.
+1. **Step 1 — authority and storage.** Registry v4 with `canManageFederation` across the domain, the migration,
+   the SDK and OpenAPI contracts and the BFF strict parsers, with the explicit v2→v4 adoption chain. The
+   `federation_connections` aggregate, migration, RLS, census and `learnstack_app` proof.
+2. **Step 2 — application and API.** The Begin, apply and Complete service; commands and queries over a fake
+   provider port; the entitlement gate; the audit catalogue and matrix; the HTTP and OpenAPI census, including
+   the public sign-in read and the `federationAlias` self field. Unit, architecture and database proof.
+3. **Step 3 — provider and realm.** The egress fetcher, the Keycloak adapter, and realm reconciliation (client,
+   flow, `idp_link`, account clients, mapper) with a zero-write rerun. Real two-tenant OIDC and SAML brokers with
+   negatives for: linking with and without the owner's credentials; confinement; egress refusals; secret refusal;
+   attribute injection; account-console and deprecated-builder refusal; reset-link resumption; delayed-request
+   serialization and drift detection through a controlled proxy; orphan handling; and mapper readback. Requires
+   Step 0.
+4. **Step 4 — native and Studio.** The BFF hint; the `federation_test` owner with mutually exclusive callback
+   purposes; the host binding at every publication path; the Studio page; SDK and native operations; i18n;
+   accessibility; end-to-end proof; full qualification; the carriers listed above; and the PR.
+
+## Architecture Tests
+
+- Existing Identity, permission, audit, RLS, endpoint-census, public-surface, SDK, native and BFF obligations extend to the new subjects with dirty controls.
+  None is relaxed. Canonical names for the new obligations are assigned in Standard 21 with the step that introduces them.
+- New obligations: the adapter admits only the enumerated calls and aliases; no other code holds a federation client; the egress fetcher is the only
+  tenant-URL fetcher; no `fromUrl`; fixed-profile key-set equality; no secret in any audit, log, DTO, persisted column or idempotency fingerprint
+  (no fingerprint is taken for these mutations); the issuer or entity identifier cannot change in place.
+- Real-provider controls: two tenant brokers coexist, and neither reads or changes the other's; an unknown address creates no account; a foreign
+  address links only with the owner's credentials; a disabled or hidden broker is not reachable with `kc_idp_hint`; the account console, deprecated
+  builder and broker link paths refuse a brokered session; a session from tenant A's broker is refused on tenant B's host and after Disable; the
+  `idp` mapper and provenance checks refuse a mid-session change; indeterminate self-call outcomes keep the session without ending the provider
+  session; brokered tokens keep the closed profile; private, metadata and loopback endpoints refuse; a failed activation keeps local sign-in.
+
+## References
+
+- [Phase 03](../roadmap/phase-03-identity-admin.md) G12, D11 and C13,
+  [Authentication](../architecture/13-identity-and-auth.md#sso-and-federation),
+  [Security 11](../standards/11-security.md), [Audit 18](../standards/18-audit-coverage.md),
+  [Permissions 19](../standards/19-permissions.md), [Infrastructure Stack 20](../standards/20-infrastructure-stack.md).
+- [ADR-0004](0004-authentication-strategy.md), [ADR-0033](0033-audit-durability-model.md),
+  [ADR-0064](0064-tenant-api-authentication-boundary.md), [ADR-0070](0070-owned-tenant-bff-sessions.md),
+  [ADR-0072](0072-application-owned-identity-bootstrap.md), [ADR-0078](0078-native-session-scope-and-self-entry.md),
+  [ADR-0079](0079-bounded-identity-administration.md), [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md),
+  [ADR-0095](0095-revision-pinned-membership-custom-fields.md), [ADR-0097](0097-retained-provider-events-and-tenant-audit-mirror.md),
+  [ADR-0098](0098-session-targeted-back-channel-logout.md).
+- Keycloak 26.6.2 sources:
+  [IdentityProvidersResource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/IdentityProvidersResource.java),
+  [IdentityProviderResource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/IdentityProviderResource.java),
+  [IdpDetectExistingBrokerUserAuthenticator](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/authentication/authenticators/broker/IdpDetectExistingBrokerUserAuthenticator.java),
+  [IdpLinkAction](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/authentication/requiredactions/IdpLinkAction.java),
+  [LinkedAccountsResource](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/account/LinkedAccountsResource.java),
+  [IdentityProviderModel](https://github.com/keycloak/keycloak/blob/26.6.2/server-spi/src/main/java/org/keycloak/models/IdentityProviderModel.java).
+- Keycloak security advisories for the CVEs listed in the advisory baseline (fixed in 26.6.4 or 26.6.5).
+
+## Amendments
+
+### Amendment 1 — Step 1 storage deviations (2026-11-13)
+
+P03-8 Step 1 implements the authority and storage above. The Decision is unchanged.
+Three storage details differ from, or make concrete, this record's text; each is
+listed with its reason. The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md)
+holds the step record.
+
+1. **Delete keeps a tombstone.** § Lifecycle and test says Delete "removes the row"
+   after the provider confirms absence. Identity tables grant `learnstack_app` no
+   `DELETE`, and Identity roots end by soft state (Membership revocation, invitation
+   terminal states). A confirmed Delete therefore moves the connection to a terminal
+   `Deleted` state and sets `deleted_at` and `deleted_by`; a CHECK binds the two. No
+   later update may change the row, and its alias stays reserved because the alias is
+   derived from the primary key. "One connection per tenant" is a partial unique
+   index on `tenant_id` `WHERE deleted_at IS NULL`, the form
+   [Database Standards § Soft Delete](../standards/05-database.md#soft-delete)
+   requires, so a tombstone frees the slot for a recreated connection with a new
+   identifier and a new alias. Every later reference to "removes the row" in this
+   record reads as "records the tombstone".
+2. **The issuer or entity identifier is stored at creation.** § Ownership says the
+   connection stores it "at first successful configuration". A connection is created
+   by its first Configure Begin, after the egress-validated configuration has
+   produced the issuer, so the row stores it then and the column is never null. A
+   Configure whose issuer differs is a domain refusal and is also refused by the
+   storage guard. If that first provider write fails, the issuer stays recorded; a
+   different issuer still needs a new connection, as this record already requires.
+3. **Admission stops before a downgrading provider write.** Disable moves Active to
+   Disabled at Begin, and Delete Begin moves TestOpen, TestPassed or Active to Draft,
+   so no host admits a brokered session while the write is in flight. A test window
+   opens only when the enabling test-start write is applied; the attempt identifier is
+   recorded then. The storage guard admits exactly these transitions under the
+   Identity tenant fence in shared mode.
+
+Carriers: Standard 05 § Federation connection storage, Standard 19 § Federation and
+version-4 adoption, Standard 21's `Federation_Connection_Persists_No_Secret_Column`,
+the Identity module specification and permission matrix.
+
+### Amendment 2 — Keycloak pin decision (2026-11-13)
+
+P03-8 Step 0 moves the pin. The § Decision section and the facts of the
+[advisory baseline](#advisory-baseline-of-the-pin) are unchanged. Implementation Notes
+Q3 and Step 0 literally say the pin moves to 26.6.5, and the Consequences name 26.6.5,
+because that was the 26.6 fix line; the requirement is "26.6.5 or later". This
+amendment retargets Q3 and Step 0 to 26.7.5 and records why.
+
+- **26.6.5 is not published as an image.** On 2026-11-13 the `quay.io/keycloak/keycloak`
+  tag list returned no `26.6.5` tag, so the pin cannot move to it.
+- **The pin is 26.7.5**, the newest published 26.7.x release. On the 26.6 line the fix
+  line that clears all eight advisories is 26.6.5 or later; 26.6.4 does not clear
+  CVE-2026-16443 or CVE-2026-16442 (the other entries it does not name are fixed at 26.6.5). On the 26.7 line every advisory in the baseline is fixed at 26.7.1, so
+  26.7.5 clears all eight.
+- **The move is a minor-version upgrade.** Version-bound artifacts were re-derived on
+  the 26.7.5 image instead of renamed: the stock account-console baseline (only
+  `providerVersion` changed), the pinned default-saved event fixture (now
+  `keycloak-26.7.5-default-events.json`; `EventType.java` is byte-identical at both
+  tags). The reconciler's version guard and image checks move with the pin. The realm
+  exports carry no version field.
+  The source review, the Keycloak 26.7 migration's effect on a warm database and every
+  verification result are in the
+  [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-step-0--keycloak-pin-move-2026-11-13).
+- Source citations elsewhere in this record stay on the 26.6.2 tag: they are the evidence
+  examined at acceptance. Later steps cite 26.7.5 sources for the behaviour they rely on.
+
+### Amendment 3 — A changed OIDC configuration needs a fresh secret (2026-11-14)
+
+The Step 2 review (S-A) found a gap this record does not address. The Decision is unchanged.
+
+- **Rule.** A protocol-relevant change to an existing OIDC connection requires a fresh client
+  secret, because the stored secret must not be sent to a changed token endpoint. A full-state
+  write without a secret keeps the provider's stored one, and Keycloak sends that secret to the
+  token endpoint during the test login.
+- **What counts as changed.** The stored secret is kept only when the new configuration digest
+  equals the stored one and the last readback confirmed that the provider holds that
+  configuration. Otherwise a fresh secret is required. That covers a changed issuer endpoint,
+  client identifier or client-authentication method, and an earlier changed write that was
+  refused, uncertain or drifted. In those cases the stored secret may belong to the previous
+  endpoint.
+- **Where it is enforced.** The Configure Begin handler enforces it under the connection's row
+  lock and refuses with the closed `validation_failed`, so no provider call is made. The Begin
+  request carries only whether the write has a fresh secret, never the secret itself. An
+  unchanged configuration without a secret is still a Configure that keeps the stored secret.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record and
+its proof.
+
+### Amendment 4 — Corrective disable writes and gated Rotate and Activate (2026-11-14)
+
+The Step 2 review rounds found three statements the implementation of § Lifecycle and test
+and § Provider writes makes concrete. The Decision is unchanged.
+
+- **Corrective disabling writes.** Activate, the test record and a Studio detail load may
+  begin a disabling full-state write when they find an expired window, a failed test
+  result, drift, or an enabled broker the connection's state does not admit. This is how
+  "disabled at the next operation or readback" is carried out. The write keeps the
+  configuration the provider was read back holding and changes only the enabled flag, so a
+  refused or uncertain Configure of a changed configuration cannot leave the old broker
+  enabled. Like every provider write, it is applied with no transaction open and settled by
+  Complete with its own MUST row.
+- **Entitlement.** Rotate secret and Activate require the protocol's entitlement, as
+  Configure and test start do.
+- **Reading.** "Activate … performs no provider write" (§ Lifecycle and test) and "Enable
+  and Activate perform no provider write" (§ Intent-first operations) mean that the state
+  transition itself makes no provider write. Enable makes none at all.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review records
+and their proof.
+
+### Amendment 5 — Step 3 review: egress, adapter and linking decisions (2026-11-14)
+
+P03-8 Step 3 and its first two review rounds make the following statements concrete.
+The Decision is unchanged.
+
+1. **Egress ceiling.** § Bounded egress names "a four-second timeout"; § Intent-first
+   operations budgets egress at three seconds in total. One fetch or endpoint check,
+   its DNS resolution included, is bounded by 3 seconds, and the runner's 3-second
+   budget bounds the whole egress phase. A resolver that does not answer cannot hold a
+   call past that bound; the call is unavailable. No body cap changed.
+2. **`import-config` is not called.** § Ownership admits the multipart `file` form; the
+   adapter does not use it. This narrows an admitted set and calls nothing forbidden:
+   the fetcher's own hardened parser supplies the entity identifier, SSO endpoint and
+   certificates the fixed profile consumes, and tenant XML never reaches the provider's
+   parser.
+3. **Allow-list semantics.** A bare host means port 443; `host:port` admits exactly that
+   port. An entry admits its host for every tenant. IP literals are never admitted,
+   listed or not, and an internationalized host name refuses (the guard and the provider
+   must see the same ASCII name). An entry widens only the port and the private ranges
+   (RFC 1918 IPv4, unique-local IPv6 outside `fd00:ec2::/32`). Loopback, link-local and
+   cloud metadata (169.254.0.0/16, `fe80::/10`, and the AWS IPv6 metadata range
+   `fd00:ec2::/32`, which lies inside unique-local), CGNAT, documentation, reserved,
+   multicast, unspecified, scoped and every IPv4-mapped, IPv4-compatible or other
+   IPv4-embedding IPv6 address still refuse for a listed host. Standard 11's Amendment
+   is corrected to this text.
+4. **The adapter enforces Amendment 3 and the in-place identity rule itself.** Before a
+   write to a present broker, the adapter compares the desired state with the one the
+   provider holds. A write that changes the issuer or SAML entity identifier refuses,
+   with or without a secret, and a write without a fresh secret that changes the token
+   endpoint, client identifier or client authentication refuses. Neither makes a
+   provider write; the adapter reads the broker to compare. A consequence: if the
+   provider's issuer drifts out of band, a write restoring it also refuses; the
+   corrective disable still applies (it keeps the configuration read back), and
+   recovery is a new connection.
+5. **Unreadable owned brokers.** A broker whose marker matches but whose representation
+   no longer reads as an admitted protocol is treated as foreign for every call, so no
+   tenant operation, the corrective disable included, writes or deletes it. Recovery
+   belongs to the P03-9 operator sweep.
+6. **The reset action stays on the linking form.** § Linking residuals left this to Step
+   3. On the pinned 26.7.5 build, a reset requested from the re-authentication form and
+   completed in another browser changes the password and links nothing; completed in
+   the browser that holds the pending first-broker session, it resumes and completes
+   the link. The reset path therefore resumes a link only for the person who holds both
+   the pending session and the mailbox, and the action is not removed.
+7. **Second barrier on `idp_link`.** The pinned `IdpLinkAction` also requires the user
+   to hold `manage-account` or `manage-account-links` within the client's scope. The
+   realm removes both, so an enabled action would still refuse.
+8. **Deviation: no brokered SAML login in Step 3.** § Implementation Notes Step 3 asks
+   for real OIDC and SAML brokers. Step 3 proves SAML at the adapter level against the
+   pinned provider (write, conforming readback, signature validation kept, drift
+   detected) and through the egress parser. An end-to-end brokered SAML sign-in is not
+   proven; Step 4's full qualification owns it, before the PR.
+9. **Residual: the item 4 comparison is read-then-write.** The guarantee holds per
+   operation and per observed state, not across concurrent writes. A delayed earlier
+   write without a secret can land after a later rotation to a new token endpoint and
+   restore the earlier endpoint while keeping the new secret, until the next readback
+   flags the drift. The exposure is bounded by that readback detection and by the
+   earlier endpoint being one the tenant itself configured. The mechanism is unchanged.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review
+record and its proof.
+
+### Amendment 6 — Host-alias carrier and test-record carrier (2026-11-14)
+
+The Step 2 review left two carriers to the maintainer (H and S-B in the
+[Phase 03 delivery log](../roadmap/phase-03-delivery-log.md)). The maintainer decided both
+before Step 4. The Decision is unchanged.
+
+1. **H — the host alias source.** § Host binding says the host tenant's alias, state and
+   entitlement come from the native self call. That call is served by
+   `GlobalSelfEntryMiddleware`, which ends before tenant resolution. It now announces the
+   host tenant read-only, host-only, through one new enumerated setter. The setter's only
+   read is the host tenant's Active, non-tombstone `federation_connections` alias and that
+   protocol's entitlement. It cannot write. The native self response gains a nullable
+   `federationAlias` field. [Database Standards](../standards/05-database.md) enumerate the
+   setter in the logical-setter census, and an architecture test pins its one statement
+   and its read-only transaction.
+2. **S-B — the test-record carrier.** `POST identity/federation/test-results` requires a
+   token carrying the realm client scope `federation.test_record`. The scope is an optional
+   client scope on `learnstack-web`, requested only by the `federation_test` authorization
+   request, so ordinary sign-in tokens never carry it. A token without the scope is refused
+   with the closed 403. The attempt identifier is returned only to the caller that starts
+   the attempt and is held server-side by the BFF, which never sends it to the browser. The
+   BFF records the result with the test-purpose access token it receives in the callback
+   and then discards every token.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the Step 4 record
+and its proof.
+
+### Amendment 7 — Step 4 review: purposes, test freshness and detail loads (2026-11-15)
+
+The first independent review of P03-8 Step 4 found the following statements incomplete
+against the delivered code. The Decision is unchanged.
+
+1. **`federation_signin` is a named purpose.** § Sign-in exposure's option starts an
+   authorization with the purpose `federation_signin`: the ordinary request plus
+   `kc_idp_hint` set to the host tenant's Active alias, read server-side; no forced
+   login, no extra scope, the ordinary callback and publication rules.
+   [ADR-0070 Amendment 12](0070-owned-tenant-bff-sessions.md#amendment-12--federation-sign-in-purpose-and-server-side-end-session-2026-11-15)
+   records the purpose set as three.
+2. **The test-record scope is enforced by the BFF.** Amendment 6 item 2 says ordinary
+   sign-in tokens never carry `federation.test_record` because only the test requests
+   it. The authorization `scope` is browser-editable and the provider grants an
+   attached optional scope on request, so the BFF refuses any redemption other than
+   the `federation_test` owner's, and every refresh, whose granted `scope` contains it,
+   and refuses the test redemption without it.
+3. **The test proves a fresh authentication.** § Lifecycle and test's `prompt=login` is
+   a request parameter. The test request also sends `max_age=0`, and the result passes
+   only when the ID token's `auth_time` is present and at or after the test window's
+   start. This proves the provider authenticated the administrator anew, inside the
+   window, through the tested broker (`idp`). Whether the upstream IdP itself prompted
+   depends on that IdP's session and is not claimed.
+4. **The test sign-out also ends the provider session server-side**, with the test
+   refresh token, as a definitive host-binding mismatch does; the browser end-session
+   redirect remains.
+5. **Studio detail loads by navigation only.** The detail load (readback and corrective
+   write) is prepared only for `Sec-Fetch-Site` `same-origin` or `none` on a top-level
+   document navigation, or `same-origin` on an RSC navigation. A `same-site` request (a
+   sibling tenant subdomain) prepares nothing, as a `cross-site` one already did. A
+   browser that sends no `Sec-Fetch-Site` is not covered.
+6. **A bounded-timer abort is a timeout.** In the active refresh, the BFF's bounded
+   request timer can abort the self read before the native client's own deadline; for
+   a brokered session that outcome is indeterminate (§ Host binding), not a
+   cancellation, so the session is kept.
+7. **Local sessions share the alias read's availability.** § Host binding's "Local
+   sign-in follows the existing publication rules" holds for the decision: no alias
+   comparison decides a local token. The alias is part of every self read, so an
+   undecidable alias read answers 503 for local tokens and tenants without a connection
+   too, and a local session then follows the existing rules for a refused self read.
+   The coupling is accepted as the availability class of the self read's own database
+   read;
+   [Security § Federation host binding](../standards/11-security.md#federation-host-binding)
+   lists the affected paths.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record
+and its proof.
+
+### Amendment 8 — Step 4 review round 2: test session replacement and scope confinement (2026-11-15)
+
+The second independent review of P03-8 Step 4 found Amendment 7 item 3 overstated and
+Amendment 6 item 2 enforced only at one endpoint. This amendment corrects both; the text
+of Amendments 6 and 7 is unchanged. The Decision is unchanged.
+
+1. **Correction to Amendment 7 item 3: the test proves a replaced provider session, not
+   an upstream prompt.** Keycloak sets the `identity_provider` user-session note only on
+   a brokered login, copies authentication-session notes into the user session without
+   removing older ones, and reuses the user session under `prompt=login`. A stale note
+   therefore let a local re-login during the test yield an ID token with the tested
+   `idp`, a fresh `auth_time` and the same `sub`. The test now:
+   - records the administrator's provider session identifier (`sid`) at the start, and
+     refuses to start when it, or the refresh token that ends it, is missing;
+   - ends that provider session server-side with the administrator's refresh token, at
+     the fixed end-session endpoint, before the authorization redirect. The request is
+     awaited, unlike the best-effort refusal path of
+     [ADR-0070 Amendment 12](0070-owned-tenant-bff-sessions.md#amendment-12--federation-sign-in-purpose-and-server-side-end-session-2026-11-15),
+     and a refused or failed request refuses the start. The back-channel logout it
+     causes ends the administrator's BFF session, as the completion already did;
+   - passes only when, besides Amendment 7's `idp`, issuer, subject and `auth_time`
+     conditions, the completed ID token's `sid` differs from the recorded one.
+
+   This proves that the provider session was replaced inside the window and that the
+   authentication that completed it carries the tested broker's alias. It does **not**
+   prove that the upstream IdP prompted the administrator: the IdP may answer from its
+   own session. That is proved only when the broker forwards the freshness request
+   (`passMaxAge`) and the IdP honours it. The broker's pinned configuration sets
+   `passMaxAge` to false ([§ Fixed broker profile](#fixed-broker-profile)), so the
+   delivered test makes no claim about the upstream prompt.
+2. **The test-record scope reaches only the test record.** Amendment 6 item 2 required
+   `federation.test_record` on `POST identity/federation/test-results`; nothing refused
+   it elsewhere. The API now refuses a verified token carrying the scope on every
+   authenticated endpoint except that action, with the test record's own closed 403.
+   The single enforcement point is the credential admission directly after
+   authentication, ahead of the global self entry, tenant resolution and authorization,
+   and the exception is the action's identity, never its path.
+   [Architecture tests § `Federation_Test_Record_Scope_Reaches_Only_The_Test_Record`](../standards/21-architecture-tests-catalogue.md#federation_test_record_scope_reaches_only_the_test_record)
+   names the rule.
+
+The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record
+and its proof.
+
+### Amendment 9 — PR review: behavior corrected to this record, and decisions recorded (2026-11-18)
+
+The independent reviews of PR #45 found three places where the code did not do what this
+record says, and several where this record was silent or its carrier list was stale. The
+Decision is unchanged.
+
+**Behavior now as this record says.**
+
+1. **Entitlement lapse.** § Lifecycle says the broker is disabled by the next operation
+   or readback after a lapse. The detail read now runs the ordinary Disable for an
+   Active connection whose protocol is no longer entitled, with its own MUST audit row
+   and the reading administrator as its actor. A Draft or Disabled connection advertises
+   nothing and a test window ends on its own, so nothing is written for them.
+
+2. **A lost test start.** Resume of a pending test start no longer opens a test. The
+   attempt belongs only to the server-side owner that started it (Amendment 6 item 2),
+   and a browser-driven Resume is not that owner. The start settles as
+   `resubmit_required`, the connection stays in Draft, and the next readback disables a
+   broker found enabled.
+
+3. **An unconfirmed desired state.** A refused Rename of an Active connection leaves the
+   provider at its old, confirmed state, which the "recorded once" rule counted as
+   already recorded. Recording drift returns a connection to Draft, so a connection that
+   is not in Draft and whose provider differs from the desired state has not recorded
+   it, and the next readback records the drift (§ Provider writes).
+
+**Decisions recorded.** None changes behavior.
+
+4. **Transport revocation.** Egress does not check certificate revocation, for
+   tenant-chosen and allow-listed hosts alike. That is the platform default, and an OCSP
+   or CRL fetch is an outbound request to a host the certificate names, a fetch surface
+   of its own. The address-class guard, SNI and chain validation stand.
+
+5. **A nonconforming broker.** One that holds an extra mapper or a changed fixed profile
+   is recorded as drift and left as found. No corrective write starts from a state the
+   adapter cannot prove, so the corrective disabling write of § Provider writes does
+   not apply to it. The P03-9 operator step repairs it, and Studio shows the drift.
+
+6. **A test no one finishes.** A test completed by a subject without administrator
+   authority cannot record its failure, and a test whose browser closes records nothing.
+   Both end when the window closes; that expiry is the abandonment path of § Lifecycle,
+   and Reconfigure or Delete is available meanwhile. The sign-in itself shares the BFF's
+   five-minute transaction ceiling, inside the ten-minute window.
+
+7. **Any exception after Begin settles uncertain.** The catch is broad on purpose. An
+   exception nobody foresaw still leaves the operation pending, never silently applied,
+   and Resume settles it by readback.
+
+8. **The detail read is a recorded exception to GET without side effects**, stated in
+   [API Standards](../standards/04-api-design.md) § Etiquette.
+
+9. **Carriers.** The carriers that landed with the steps are Standards 01 (the
+   intent-first tier, added by the review), 04, 05, 06, 07, 11, 12, 18, 19, 20 and 21,
+   the glossary and the module specifications. Standards 09 and 10 are unchanged:
+   federation adds no error-code family and no telemetry rule, and egress
+   instrumentation is suppressed because its destination is tenant-chosen.
+
+10. **Steps.** The record lists five steps, 0 to 4. The Status line's "four steps,
+    including the pin move" miscounts them.
+
+11. **The `idp` mapper is not read by the adapter.** The erratum in § Realm invariants
+    corrects the claim that enablement reads it. What holds is realm reconciliation: it
+    creates the mapper, verifies it and refuses a second emitter, and it runs with
+    `make seed` and `make demo`. A production realm that lacks the mapper makes brokered
+    tokens look local and opens the host binding, so
+    [Phase 11](../roadmap/phase-11-production-hardening.md) replicates and verifies
+    every realm invariant of this record before a production tenant enables federation.
+
+12. **A pre-registered account stays linked.** Under open registration with
+    `verifyEmail` false, a person can register another person's address with a password
+    they know. If their own IdP then asserts that address, the link-only flow links it,
+    since they hold the account's credentials. The address owner's later password reset
+    replaces the password but does not remove the link, so that IdP keeps a way into the
+    account and into a fresh credential action. Before federation a reset ended such a
+    registration. § Linking is right that federation does not create it and wrong that
+    nothing changes: the link makes it persistent. The residual stays accepted for the
+    development realm, whose registration is open by design.
+    [Phase 11](../roadmap/phase-11-production-hardening.md) decides, before a production
+    realm admits federation, whether linking requires a verified address or registration
+    is closed; removing a link is account review (Decision Q1).
+
+13. **The confirm-link copy is not delivered.** § Linking says that Studio, the runbook
+    and the confirm-link copy state the delegation risk. The realm ships no localization
+    text or theme, so the confirm-link page is Keycloak's own. Studio, beside the single
+    sign-on form, and the Keycloak guide carry the warning; a themed confirm-link page
+    belongs to the production realm theme that
+    [Phase 11](../roadmap/phase-11-production-hardening.md) owns.
+
+14. **A superseded Complete records no drift.** § Intent-first operations says it does;
+    the code does not and is right. A superseded identifier's Complete changes nothing
+    and its MUST audit row records that it arrived. Drift is recorded only by a readback
+    that finds it, and a connection whose state moved on is owned by the operation that
+    moved it.
+
+The
+[Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-pr-review-disposition-2026-11-18)
+holds the review record, each finding's disposition and its proof.

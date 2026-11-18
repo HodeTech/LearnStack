@@ -6,7 +6,7 @@ import { composeSelection, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { publicSeederEnvironment, developmentSeederRuntimeEnvironment } from './demo-database.mjs';
 import { reconcileRealm, realmPassMilliseconds } from './development-realm-core.mjs';
-import { acquireRealmLock, eventReaderEnvironment, isLocalDockerEndpoint, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
+import { acquireRealmLock, eventReaderEnvironment, federationAdminEnvironment, isLocalDockerEndpoint, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateRealmTarget } from './development-realm-owner.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
 import { developmentBackchannelConfiguration, validateKeycloakBackchannelTrust } from './development-backchannel.mjs';
 
@@ -30,6 +30,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     const backchannel = await developmentBackchannelConfiguration({ source });
     const values = realmEnvironment(source);
     const eventReaderSecret = eventReaderEnvironment(source);
+    const federationSecret = federationAdminEnvironment(source);
     const identityEnvironment = seedIdentityFoundation ? seedAuthorityEnvironment(source) : undefined;
     const context = JSON.parse(await run(['context', 'inspect']));
     const model = JSON.parse(await run([...selected.args, 'config', '--format', 'json']));
@@ -47,7 +48,7 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     }));
     const desired = JSON.parse(await readFile(join(repositoryRoot, 'infra/keycloak/realms/learnstack.json'), 'utf8'));
     result = await reconcileRealm({ ...target, adminUsername: values.KEYCLOAK_ADMIN,
-      adminPassword: values.KEYCLOAK_ADMIN_PASSWORD, webSecret: values.KEYCLOAK_WEB_CLIENT_SECRET, eventReaderSecret,
+      adminPassword: values.KEYCLOAK_ADMIN_PASSWORD, webSecret: values.KEYCLOAK_WEB_CLIENT_SECRET, eventReaderSecret, federationSecret,
       manifest, desired, backchannel, signal: active,
       afterVerified: !seedIdentityFoundation ? undefined : async witness => {
         const applicationConnection = parseEnv(source).ConnectionStrings__Default;

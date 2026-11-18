@@ -601,7 +601,7 @@ under the existing tenant-wide and organization-scoped classes.
 | Class | Rule | Tables |
 |---|---|---|
 | **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), `background_jobs`, `background_job_attempts`, `background_job_recipients` (P02b-4 Step 2), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables; P03-1 Step 4 adds `memberships`, `membership_profiles` and `membership_role_assignments` |
-| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); P03-1 Step 4 adds `roles` and `role_permission_grants` |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `background_job_capacity`, `background_job_reservations` (P02b-4 Step 2), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); P03-1 Step 4 adds `roles` and `role_permission_grants`; P03-8 Step 1 adds `federation_connections` ([ADR-0099](../decisions/0099-confined-tenant-federation.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes have exact declared owners | `platform_host_to_tenant`, `platform_killswitches`, `identity_authority` (P03-1 Step 3) |
 | **Infrastructure control** | `ENABLE` + `FORCE`, no app policy or privilege; enumerated confined bypass control access under ADR-0047 | `background_job_recurrences`, `background_job_occurrences` |
@@ -1093,6 +1093,7 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
 | `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
 | `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
+| `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | — | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -5649,9 +5650,11 @@ the earlier eight-function/ten-setter counts describe their historical slices.
 The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
 setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
 implements twelve definers/twelve logical setters. The
-[provider-event extension](#provider-event-intake-storage) brings the current
-census to fifteen definers/thirteen logical setters, preserving those four physical
+[provider-event extension](#provider-event-intake-storage) brings the census to
+fifteen definers/thirteen logical setters, preserving those four physical
 writers; qualification remains source-bound in the phase Status. SMTP adds no tenant setter.
+The [federation host-alias read](#federation-host-alias-read) is the fourteenth logical
+setter; it adds no definer and no physical context writer.
 
 ### Invitation root and constrained transitions
 
@@ -6144,3 +6147,97 @@ history and never resets its activation boundary; receipt retirement is not a
 replay permission. Target, outbox, delivery/inbox and Audit copies retain their
 coordinated Phase 11 retention dependency. P03-10 owns subject erasure across all
 these stores and immutable linkage; no global erasure writer is added here.
+
+## Federation connection storage
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) and its
+Amendment 1. P03-8 Step 1 implements the storage; the federation operations that
+write it are Step 2's, and the [phase Status](../roadmap/phase-03-identity-admin.md)
+owns qualification.
+
+`federation_connections` is Identity-owned, tenant-owned and tenant-wide (§ Table
+classes): `[TenantOwned]` only, no organization column, the tenant-wide EF filter,
+`ENABLE` and `FORCE` RLS with the one tenant-only isolation policy of
+[the canonical template](#tenant-owned-and-organization-scoped-tables), and
+`SELECT`, `INSERT`, `UPDATE` to `learnstack_app` only — no `DELETE` grant. It is the
+eighth member of the `SchemaTableClasses` Identity contextual class. The forward-only
+migration refuses reversal.
+
+| Facts | Storage contract |
+|---|---|
+| Identity | UUIDv7 `FederationConnectionId`; `(tenant_id,id)` reference key; tenant, protocol, alias, issuer or entity identifier and creation stamps immutable |
+| Alias | `lsf-` plus the identifier's 32 lowercase hex characters, checked against `id`; never input, so a tombstone keeps its alias reserved without an index |
+| One per tenant | Partial unique `(tenant_id) WHERE deleted_at IS NULL` (§ Soft Delete); a tombstone frees the slot |
+| Lifecycle | `Draft`, `TestOpen`, `TestPassed`, `Active`, `Disabled`, terminal `Deleted` tombstone with `deleted_at`/`deleted_by` set; CHECKs bind state, protocol, source kind and client identifier (OIDC only) |
+| Pending write | Kind, operation identifier, actor, start, quiet-window end (start + 90 seconds) and desired digest are all null or all set; none on a tombstone |
+| Test attempt | Identifier, actor, revision (= configuration revision), expiry and result exist exactly in `TestOpen` (Pending) and `TestPassed` (Passed, expiry = pass + 10 minutes) |
+| Values | Display name 1–80 code points, trimmed, `IS NFC NORMALIZED`, with no C0/C1 control, format (bidirectional marks, embeddings, overrides and isolates included), line or paragraph separator, non-U+0020 space, private-use or blank-rendering code point (U+115F, U+1160, U+3164, U+FFA0, U+2800), and no leading variation selector or generic combining mark; unassigned code points and a leading script-specific mark are refused by the domain only. Issuer and client identifier visible ASCII; an OIDC issuer has no userinfo, query or fragment, a SAML entity identifier stays free-form; digests 64 lowercase hex; configuration revision ≥ 1 |
+| Actors | `created_by`, `updated_by`, `pending_actor`, `test_actor` and `deleted_by` are UUIDv7 and never the system actor, as `ck_users_actor` requires of `users.id`; the nil UUID has no version and is refused |
+| Personal data | Configuration columns `None`; `pending_actor` and `test_actor` are pseudonymous `Identity` identifiers; audit columns as § Audit Columns |
+| Secrets | No secret, token, assertion, certificate or key column; `Federation_Connection_Persists_No_Secret_Column` closes the column set |
+
+`fn_identity_federation_connection_guard`, a `SECURITY INVOKER` `BEFORE INSERT OR
+UPDATE` trigger, admits only `learnstack_app`, requires the Identity tenant fence
+(`fn_identity_assert_tenant_fence`, shared), starts every row as a `Draft` with its
+pending Configure, pins the immutable columns, advances `row_version` and a monotonic
+`updated_at`, bounds `created_at` and `updated_at` above by `transaction_timestamp()` plus
+five minutes, admits a revision step only for a newly begun Configure or Rotate secret,
+refuses a second unsettled operation and admits only ADR-0099's transitions:
+`Draft`→`TestOpen` (applied test start), `TestOpen`→`TestPassed` and
+`TestPassed`→`Active` (no pending write), any of `TestOpen`/`TestPassed`/`Active`/
+`Disabled`→`Draft`, `Active`→`Disabled` (Disable Begin), and a confirmed Delete to the
+terminal tombstone, which no later UPDATE may change. It also pins the pending and test
+columns:
+
+- While the pending identifier is unchanged, its kind, actor, start, quiet-window end
+  and desired digest are unchanged. A new operation starts at the update's
+  `updated_at`, by its `updated_by`, for the row's desired digest, and only from a
+  state its kind admits: Configure or Rotate secret into `Draft` with the revision
+  step, Rename in place, test start from `Draft`, Disable from `Active` into
+  `Disabled`, Delete in place or from `TestOpen`/`TestPassed`/`Active` into `Draft`.
+- A test window opens with the applied test start, for its starter, expiring 10 minutes
+  after that update. The attempt identifier, actor and revision are fixed while the row
+  stays in `TestOpen` or `TestPassed`; expiry, result and pass time move only with the
+  pass, stamped at that update before expiry, and Activate lands before the activation
+  expiry.
+- Configuration moves only with its own operation: source kind, client identifier
+  and configuration digest with the revision step, the display name with a newly
+  begun Rename, and the desired digest with any newly begun operation. The applied
+  test start records the readback of its pending digest as `last_provider_digest`,
+  and Activate records the desired digest.
+- The tombstone's `deleted_at` and `deleted_by` equal the confirming update's
+  `updated_at` and `updated_by`.
+- No lower bound against the transaction clock applies, because the aggregate
+  supplies its own instants; a stamp back-dated within the monotonic order is admitted.
+- Every refusal condition is evaluated as `(condition) IS NOT FALSE`, so a condition
+  that is NULL because a nullable pending or test column is NULL refuses: the guard
+  fails closed.
+
+### Federation host-alias read
+
+**Derives from:** [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
+(H). The native self read (`GET /api/v1/identity/self`) ends before tenant resolution,
+so it cannot use the ambient owner. `FederationHostAliasReader` is the fourteenth
+logical tenant setter:
+
+- **Connection.** Its own short transaction on the application data source, as
+  `learnstack_app`; `SET TRANSACTION READ ONLY` is the first statement.
+- **Announcement.** `app.tenant_id` only, set to the classified host tenant. No
+  organization, scope, host or identity GUC; the platform sentinel and an unassigned
+  identifier are refused before any connection.
+- **Read.** One statement: the host tenant's live, `Active` alias and protocol, through
+  `FederationConnectionReads.LiveSql`. RLS and the explicit `tenant_id` predicate both
+  apply. A second row or an alias outside the derived shape is unavailable.
+- **Entitlement.** The protocol's `identity.sso.*` key through `IEntitlementProvider`,
+  the port `IFeatureFlags` composes over; both keys are plan-projected, default false
+  and name no killswitch, so the answer equals the composed one. The reader refuses a
+  descriptor that ever names a killswitch.
+- **Outcome.** The alias or null. Any failure, the three-second deadline included, is
+  unavailable, which the self read reports as 503 and never as null.
+
+It writes nothing, grants nothing and is consulted only by `GlobalSelfEntryMiddleware`,
+for the self state and the bootstrap result (never the contexts read). [`Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`](21-architecture-tests-catalogue.md#federation_host_alias_setter_is_read_only_and_host_only)
+pins its statements, implementation and caller;
+`Out_Of_Band_Setters_Open_Read_Only_Transactions` lists it among the own-connection
+readers.
+

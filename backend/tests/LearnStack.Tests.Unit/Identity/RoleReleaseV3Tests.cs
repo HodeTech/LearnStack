@@ -38,7 +38,7 @@ public sealed class RoleReleaseV3Tests
         Assert.Equal("ba16d2c21f2547f3dc7f9dce24e25a18f30103186739ea00a33e9edf43834794", initial.Fingerprint);
         Assert.Equal("abc5b3e06a6cbdf0f6bb3abadc172c7c9ecfe0fcbd28ba4529d1e60100c6a0ff", previous.Fingerprint);
         Assert.Equal("1645d43001d88592535ee022e2044702cc2929c98d6d5959083016b0a5067cd9", current.Fingerprint);
-        Assert.Same(current, IdentityRoleRelease.Current);
+        Assert.Same(current, IdentityRoleRelease.Find(3));
         Assert.Equal(9, current.Definitions.Length);
         Assert.Equal(BoundedCustomFieldPermissions.Definition, Assert.Single(current.TenantAdminDelta));
         Assert.Equal(previous.Definitions.Concat(current.TenantAdminDelta), current.Definitions);
@@ -67,7 +67,7 @@ public sealed class RoleReleaseV3Tests
         Assert.Equal(IdentityFoundationManifest.Version1.TenantAdminKernel.Concat(release.TenantAdminDelta).OrderBy(pair => pair.Key),
             role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey)).OrderBy(pair => pair.Key));
         Assert.All(retained, grant => Assert.Contains(role.Grants, current => ReferenceEquals(grant, current)));
-        Assert.Null(IdentityRoleRelease.NextFor(role));
+        Assert.Same(IdentityRoleRelease.Version4, IdentityRoleRelease.NextFor(role));
         Assert.True(role.ReplaceGrants(IdentityFoundationManifest.Version1.TenantAdminKernel, At.AddMinutes(2), Actor).IsSuccess);
         Assert.True(role.AdoptRelease(release.Version, release.Fingerprint, At.AddMinutes(3), Actor).IsFailure);
         Assert.DoesNotContain(role.Grants, grant => grant.PermissionKey == BoundedCustomFieldPermissions.Definition.Key);
@@ -91,7 +91,11 @@ public sealed class RoleReleaseV3Tests
     [Fact]
     public void Invalid_or_unknown_markers_are_not_valid_installed_state()
     {
-        var release = IdentityRoleRelease.Current;
+        // Pinned to v3 so each row fails on the rule it names: with v4 current, the Editor and OrgAdmin rows
+        // would also fail on the v3 marker carrying a v4 fingerprint, and would prove nothing about the role.
+        var release = IdentityRoleRelease.Version3;
+        Assert.True(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 3, release.Fingerprint),
+            "positive control: the exact v3 Tenant Admin marker is valid installed state");
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 2, release.Fingerprint));
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant, 3, IdentityRoleRelease.Version2.Fingerprint));
         Assert.False(release.IsValidAdoptionState(BuiltInRoleKey.Editor, PermissionScope.Tenant, 3, release.Fingerprint));
@@ -244,7 +248,7 @@ public sealed class RoleReleaseV3Tests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(3)]
+    [InlineData(4)]
     [InlineData(int.MaxValue)]
     public async Task Registry_unknown_source_refuses_without_exposing_a_release(int source)
     {

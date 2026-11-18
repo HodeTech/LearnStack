@@ -26,9 +26,11 @@ internal sealed class NativeEntryDocumentTransformer : IOpenApiDocumentTransform
         };
         var schemas = document.Components.Schemas;
         schemas.TryAdd("ProblemDetails", PublicReadDocumentTransformer.Problem());
-        schemas["IdentitySelfMissing"] = Object(("state", Literal("missing")));
+        // ADR-0099 Amendment 6 (H): both self states and the bootstrap result carry the host tenant's Active, entitled
+        // federation alias or null. The oneOf members are unchanged; each gains one response property.
+        schemas["IdentitySelfMissing"] = Object(("state", Literal("missing")), ("federationAlias", FederationAlias()));
         schemas["IdentitySelfActive"] = Object(("state", Literal("active")), ("authorityId", Uuid()),
-            ("subjectKey", Digest()), ("actorId", Uuid()));
+            ("subjectKey", Digest()), ("actorId", Uuid()), ("federationAlias", FederationAlias()));
         schemas["IdentitySelfState"] = new OpenApiSchema
         {
             OneOf = [new OpenApiSchemaReference("IdentitySelfMissing", document), new OpenApiSchemaReference("IdentitySelfActive", document)],
@@ -54,7 +56,7 @@ internal sealed class NativeEntryDocumentTransformer : IOpenApiDocumentTransform
                 Description = bootstrap
                     ? "Opt-in tenantless natural-key convergent create. New binding returns 201, existing/racing winner returns 200; unknown COMMIT returns 503 and a deliberate retry resolves the actual stored binding. Real creation alone writes the central MUST event. No membership, scoped session or browser cookie is created. Idempotency-Key and scope/assertion selectors are refused. Empty JSON object only, at most 512 bytes."
                     : contexts ? "Off self-only navigation read. Returns only Active self membership scopes with live tenant/organization labels and configured HTTPS entry origins. No profiles, role grants or arbitrary actor selection. Forward-only subject-bound seek cursor, not authority or a snapshot. No request body or assertion/scope selectors."
-                    : "Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. No request body, query or assertion/scope selectors.",
+                    : "Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. federationAlias is the host tenant's Active, entitled federation alias or null, read through the one host-only read-only setter; an undecidable read is 503 and never null. It is a provider hint for the BFF host binding, not authority. No request body, query or assertion/scope selectors.",
                 Parameters = contexts ? ContextParameters() : [],
             };
             SetSecurity(document, operation);
@@ -153,5 +155,12 @@ internal sealed class NativeEntryDocumentTransformer : IOpenApiDocumentTransform
     private static OpenApiSchema Text(bool nullable = false) => new() { Type = nullable ? JsonSchemaType.String | JsonSchemaType.Null : JsonSchemaType.String };
     private static OpenApiSchema Uuid(bool nullable = false) { var value = Text(nullable); value.Format = "uuid"; return value; }
     private static OpenApiSchema Digest() => new() { Type = JsonSchemaType.String, MinLength = 64, MaxLength = 64, Pattern = "^[0-9a-f]{64}$" };
+    private static OpenApiSchema FederationAlias() => new()
+    {
+        Type = JsonSchemaType.String | JsonSchemaType.Null,
+        MinLength = 36,
+        MaxLength = 36,
+        Pattern = "^lsf-[0-9a-f]{32}$",
+    };
     private static OpenApiSchema Literal(string value) => new() { Type = JsonSchemaType.String, Enum = [JsonValue.Create(value)!] };
 }

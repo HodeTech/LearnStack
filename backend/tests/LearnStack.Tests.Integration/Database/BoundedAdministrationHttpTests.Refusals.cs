@@ -7,7 +7,7 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class BoundedAdministrationHttpTests
 {
-    private static readonly string[] OwnCapabilityWireNames = new[] { "canAdoptRoleRelease", "canChangeRoleGrants", "canManageCustomFields", "canManageMemberships",
+    private static readonly string[] OwnCapabilityWireNames = new[] { "canAdoptRoleRelease", "canChangeRoleGrants", "canManageCustomFields", "canManageFederation", "canManageMemberships",
                 "canManageOrganizations", "canReadOrganizationMembers", "canReadRoles", "canReadTenantMembers",
                 "canWriteMemberProfiles", "canWriteOwnProfile" };
 
@@ -100,6 +100,7 @@ public sealed partial class BoundedAdministrationHttpTests
                 body.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
             Assert.False(body.GetProperty("canReadRoles").GetBoolean());
             Assert.False(body.GetProperty("canManageCustomFields").GetBoolean());
+            Assert.False(body.GetProperty("canManageFederation").GetBoolean());
             Assert.Null(preview.Headers.ETag);
             Assert.Empty(await proof.AuditAsync(preview, Tenant));
         }

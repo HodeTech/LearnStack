@@ -81,3 +81,6 @@ identity) remains an option, also unchanged.
 The two-realm separation is a hard architectural invariant: an operator cannot be a tenant
 user under the same identity, and vice versa.
 
+## Amendment 2 — Federation adapter boundary (2026-11-13)
+
+Accepted [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds the first runtime Keycloak adapter that writes to the Admin REST API, scoped to tenant-brokered identity-provider configuration. Its port is `IFederationProvider`, not the `IIdentityProvider` named in the Consequences above, which remains unimplemented. The domain depends on no provider type, and the adapter lives in `LearnStack.Infrastructure.Identity.Federation`. Realm-level brokering stays the mechanism of Amendment 1; ADR-0099 specifies its confinement. Tenants receive no realm administration authority.

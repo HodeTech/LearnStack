@@ -346,7 +346,8 @@ describe('HTTP protocol cancellation reaches the real session owner', () => {
       const adapter = new Proxy(f.store, {
         get(target, key) {
           const value = Reflect.get(target, key);
-          if (key === method)
+          // The callback route completes through the purpose-aware completeCallback (ADR-0099).
+          if (key === (method === 'complete' ? 'completeCallback' : method))
             return async (...args: unknown[]) => {
               const result = await value.apply(target, args);
               controller.abort();

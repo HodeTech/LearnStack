@@ -14,7 +14,9 @@ public sealed class IdentityRoleRelease
         BoundedTenancyAdministrationPermissions.Definitions);
     public static IdentityRoleRelease Version3 { get; } = new(3,
         Version2.Fingerprint, Version2.Definitions, [BoundedCustomFieldPermissions.Definition]);
-    public static IdentityRoleRelease Current => Version3;
+    public static IdentityRoleRelease Version4 { get; } = new(4,
+        Version3.Fingerprint, Version3.Definitions, [FederationPermissions.Definition]);
+    public static IdentityRoleRelease Current => Version4;
 
     private IdentityRoleRelease(int version, string predecessorFingerprint,
         ImmutableArray<PermissionDefinition> precedingDefinitions, ImmutableArray<PermissionDefinition> delta)
@@ -46,6 +48,7 @@ public sealed class IdentityRoleRelease
     {
         2 => Version2,
         3 => Version3,
+        4 => Version4,
         _ => null,
     };
 
@@ -56,6 +59,7 @@ public sealed class IdentityRoleRelease
         {
             1 when role.AdoptedReleaseFingerprint == IdentityFoundationManifest.Version1.Fingerprint => Version2,
             2 when Version2.IsExact(role.AdoptedReleaseVersion, role.AdoptedReleaseFingerprint) => Version3,
+            3 when Version3.IsExact(role.AdoptedReleaseVersion, role.AdoptedReleaseFingerprint) => Version4,
             _ => null,
         };
     }

@@ -703,3 +703,7 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 8 — Federation adapter outside the API bearer boundary (2026-11-13)
+
+P02b-5 introduced no Keycloak admin adapter. [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds one, `IFederationProvider`, confined to tenant-brokered identity-provider configuration. It uses a dedicated confidential client with `manage-identity-providers` only, admits a closed list of calls, and grants no tenant authority. The tenant API bearer boundary and the closed access-token profile are unchanged. Brokered ID tokens carry an `idp` claim that the BFF reads only for provenance and host binding; it is not an API authorization input.

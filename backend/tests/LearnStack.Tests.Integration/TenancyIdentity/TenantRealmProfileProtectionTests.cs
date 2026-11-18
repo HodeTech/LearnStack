@@ -21,55 +21,88 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Same_seed_account_can_edit_ordinary_profile_but_cannot_see_write_or_delete_authority(bool yoga)
+    public async Task Retired_account_console_refuses_the_seed_account_and_authority_stays_admin_only(bool yoga)
     {
+        // ADR-0099 § Realm invariants: the account and account-console clients are disabled and no persona holds
+        // manage-account, so profile editing and the Account REST API leave the console for every user.
         var identity = SeedData.IdentityUsers.First(user => user.Tenant.MapHostToDefaultOrganization == yoga);
         using var admin = await fixture.CreateAdminClientAsync();
         SeedAttributesMatch(await admin.UserAsync(identity.Username), identity).Should().BeTrue();
-        var profile = await admin.GetAsync("users/profile");
-        AdminOnlyDefinitions(profile).Should().BeTrue("the provider's independent profile configuration is admin-only");
-        using var account = await AccountClientAsync(identity);
-        var original = await AccountAsync(account);
-        HiddenFromAccount(original).Should().BeTrue("both user data and user-profile metadata hide every authority attribute");
-        var ordinary = AccountUpdate(original);
-        var originalName = original.GetProperty("firstName").GetString();
-        ordinary["firstName"] = "Profile proof";
+        AdminOnlyDefinitions(await admin.GetAsync("users/profile")).Should().BeTrue("the provider's independent profile configuration is admin-only");
+        using (var browser = fixture.Browser())
+        {
+            var console = await browser.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword,
+                new Uri(fixture.BaseAddress, "realms/learnstack/account/").AbsoluteUri, clientId: "account-console", scope: "openid");
+            console.Authorized.Should().BeFalse("the disabled account console issues no code");
+        }
+        using var web = fixture.Browser();
+        var authorization = await web.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity));
+        var exchange = await web.RedeemAsync(authorization);
+        exchange.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var account = KeycloakHttp.Create(fixture.BaseAddress, fixture.RootCertificate);
+        account.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", exchange.AccessToken);
+        account.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using (var read = await KeycloakHttp.SendAsync(account, HttpMethod.Get, "realms/learnstack/account/?userProfileMetadata=true"))
+            ((int)read.StatusCode).Should().BeOneOf([401, 403, 404], "a web session carries no account capability and the account client is disabled");
+        var payload = new JsonObject
+        {
+            ["firstName"] = "Profile proof",
+            ["attributes"] = new JsonObject
+            { ["tenant_id"] = new JsonArray(Guid.NewGuid().ToString("D")) }
+        };
+        (await UpdateAsync(account, payload)).Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound);
+        var stored = await admin.UserAsync(identity.Username);
+        stored.GetProperty("firstName").GetString().Should().NotBe("Profile proof");
+        SeedAttributesMatch(stored, identity).Should().BeTrue("no self-service write reached the stored identity");
+        var direct = await admin.GetAsync("users/" + RequiredId(stored) + "/role-mappings");
+        direct.TryGetProperty("clientMappings", out var clients).Should().BeFalse("no persona holds an account-client grant");
+        clients.ValueKind.Should().Be(JsonValueKind.Undefined);
+        await AssertFreshIdentityAsync(identity);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Same_seed_account_can_edit_ordinary_profile_through_update_profile_but_cannot_write_authority(bool yoga)
+    {
+        // The account console is retired (ADR-0099 § Realm invariants); the surviving self-service profile write is the
+        // stock update-profile action. It must still admit an ordinary edit and still refuse every authority attribute.
+        var identity = SeedData.IdentityUsers.First(user => user.Tenant.MapHostToDefaultOrganization == yoga);
+        using var admin = await fixture.CreateAdminClientAsync();
+        var original = await admin.UserAsync(identity.Username);
+        SeedAttributesMatch(original, identity).Should().BeTrue();
+        var originalName = original.GetProperty("firstName").GetString()!;
         try
         {
-            (await UpdateAsync(account, ordinary)).Should().Be(HttpStatusCode.NoContent);
+            using (var browser = fixture.Browser())
+                (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity), "Profile proof"))
+                    .Should().BeTrue("the owner's ordinary profile write completes");
             var updated = await admin.UserAsync(identity.Username);
-            (updated.GetProperty("firstName").GetString() == "Profile proof").Should().BeTrue(
+            updated.GetProperty("firstName").GetString().Should().Be("Profile proof",
                 "independent admin readback proves this same user's ordinary write reached storage");
             SeedAttributesMatch(updated, identity).Should().BeTrue();
             foreach (var attribute in ProtectedAttributes)
-                foreach (var attempt in new[] { "replace", "empty", "multiple", "delete", "omit" })
+                foreach (var attempt in new[] { "replace", "empty", "multiple" })
                 {
-                    var payload = AccountUpdate(await AccountAsync(account));
-                    var attributes = payload["attributes"]?.AsObject() ?? new JsonObject();
-                    if (payload["attributes"] is null) payload["attributes"] = attributes;
-                    switch (attempt)
-                    {
-                        case "replace": attributes[attribute] = new JsonArray(Guid.NewGuid().ToString("D")); break;
-                        case "empty": attributes[attribute] = new JsonArray(""); break;
-                        case "multiple": attributes[attribute] = new JsonArray(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D")); break;
-                        case "delete": attributes[attribute] = new JsonArray(); break;
-                        case "omit": attributes.Remove(attribute); break;
-                    }
-                    (await UpdateAsync(account, payload)).Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.Forbidden, HttpStatusCode.NoContent);
+                    var injected = new List<KeyValuePair<string, string>>
+                    { new(attribute, attempt == "empty" ? "" : Guid.NewGuid().ToString("D")) };
+                    if (attempt == "multiple") injected.Add(new(attribute, Guid.NewGuid().ToString("D")));
+                    using var browser = fixture.Browser();
+                    await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity),
+                        "Profile proof", injected);
                     SeedAttributesMatch(await admin.UserAsync(identity.Username), identity).Should().BeTrue(
-                        "a 204 can mean a protected omission was ignored; the stored typed values decide protection");
-                    HiddenFromAccount(await AccountAsync(account)).Should().BeTrue();
+                        "a completed action can mean an injected field was ignored; the stored typed values decide protection");
                 }
             await AssertFreshIdentityAsync(identity);
         }
         finally
         {
-            // Restore only the ordinary field through the same owner's real account API.
-            var restore = AccountUpdate(await AccountAsync(account));
-            restore["firstName"] = originalName;
-            (await UpdateAsync(account, restore)).Should().Be(HttpStatusCode.NoContent);
+            // Restore only the ordinary field through the same owner's real profile action.
+            using var browser = fixture.Browser();
+            (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity), originalName))
+                .Should().BeTrue();
             var restored = await admin.UserAsync(identity.Username);
-            (restored.GetProperty("firstName").GetString() == originalName).Should().BeTrue();
+            restored.GetProperty("firstName").GetString().Should().Be(originalName);
             SeedAttributesMatch(restored, identity).Should().BeTrue();
         }
     }
@@ -142,21 +175,20 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
             ["view"] = new JsonArray("admin", "user"),
             ["edit"] = new JsonArray("admin", "user"),
         };
-        HttpClient? account = null;
-        JsonObject? restore = null;
         string? registered = null;
+        string? restoreValue = null;
         try
         {
             (await admin.PutAsync("users/profile", dirtyProfile)).Should().Be(HttpStatusCode.OK);
             AdminOnlyDefinitions(await admin.GetAsync("users/profile")).Should().BeFalse();
-            account = await AccountClientAsync(identity);
-            var visible = await AccountAsync(account);
-            HiddenFromAccount(visible).Should().BeFalse("the same visibility predicate detects a user-visible authority definition");
-            restore = AccountUpdate(visible);
-            var payload = restore.DeepClone().AsObject();
             var replacement = Guid.NewGuid().ToString("D");
-            payload["attributes"]!.AsObject()[attribute] = new JsonArray(replacement);
-            (await UpdateAsync(account, payload)).Should().Be(HttpStatusCode.NoContent);
+            // The update-profile action: with a user-editable definition the same injected field reaches storage, so the
+            // clean proof's refusals are the definition's, not a form that ignores every unknown field.
+            var stored = await admin.UserAsync(identity.Username);
+            restoreValue = stored.GetProperty("attributes").GetProperty(attribute)[0].GetString();
+            using (var browser = fixture.Browser())
+                (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity),
+                    stored.GetProperty("firstName").GetString()!, [new(attribute, replacement)])).Should().BeTrue();
             var changed = await admin.UserAsync(identity.Username);
             StoredScalar(changed, attribute, replacement).Should().BeTrue(
                 "this counterfactual must positively reach the protected field, rather than receive a generic denial");
@@ -178,48 +210,29 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
         {
             try
             {
-                try
+                if (restoreValue is not null)
                 {
-                    if (account is not null && restore is not null)
-                        (await UpdateAsync(account, restore)).Should().Be(HttpStatusCode.NoContent);
+                    // Restore through the same owner's action while the definition is still user-editable.
+                    using var browser = fixture.Browser();
+                    var current = await admin.UserAsync(identity.Username);
+                    (await browser.UpdateProviderProfileAsync(identity.Username, KeycloakFixture.DemoPassword, Callback(identity),
+                        current.GetProperty("firstName").GetString()!, [new(attribute, restoreValue)])).Should().BeTrue();
                 }
-                finally
+                if (registered is not null)
                 {
-                    if (registered is not null)
-                    {
-                        var registeredUser = await FindOwnedRegistrationAsync(admin, registered);
-                        if (registeredUser.HasValue)
-                            (await admin.DeleteAsync("users/" + RequiredId(registeredUser.Value))).Should().Be(HttpStatusCode.NoContent);
-                    }
+                    var registeredUser = await FindOwnedRegistrationAsync(admin, registered);
+                    if (registeredUser.HasValue)
+                        (await admin.DeleteAsync("users/" + RequiredId(registeredUser.Value))).Should().Be(HttpStatusCode.NoContent);
                 }
             }
             finally
             {
-                account?.Dispose();
                 (await admin.PutAsync("users/profile", originalProfile)).Should().Be(HttpStatusCode.OK);
             }
             AdminOnlyDefinitions(await admin.GetAsync("users/profile")).Should().BeTrue();
             SeedAttributesMatch(await admin.UserAsync(identity.Username), identity).Should().BeTrue();
         }
-        using var restoredAccount = await AccountClientAsync(identity);
-        HiddenFromAccount(await AccountAsync(restoredAccount)).Should().BeTrue();
         await AssertFreshIdentityAsync(identity);
-    }
-
-    private async Task<HttpClient> AccountClientAsync(SeedIdentity identity)
-    {
-        using var browser = fixture.Browser();
-        var authorization = await browser.AuthorizeAsync(identity.Username, KeycloakFixture.DemoPassword,
-            new Uri(fixture.BaseAddress, "realms/learnstack/account/").AbsoluteUri,
-            clientId: "account-console", scope: "openid");
-        authorization.Authorized.Should().BeTrue("the delivered account-console code/S256 configuration must work");
-        var exchange = await browser.RedeemAsync(authorization, secret: null);
-        exchange.StatusCode.Should().Be(HttpStatusCode.OK);
-        (exchange.AccessToken.Length > 0).Should().BeTrue();
-        var client = KeycloakHttp.Create(fixture.BaseAddress, fixture.RootCertificate);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", exchange.AccessToken);
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        return client;
     }
 
     private async Task AssertFreshIdentityAsync(SeedIdentity identity)
@@ -233,37 +246,12 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
         TokenIdentityMatches(token, identity).Should().BeTrue("fresh native web issuance retains the typed actor without provider context");
     }
 
-    private static async Task<JsonElement> AccountAsync(HttpClient client)
-    {
-        using var response = await KeycloakHttp.SendAsync(client, HttpMethod.Get,
-            "realms/learnstack/account/?userProfileMetadata=true");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (response.Content.Headers.ContentType?.MediaType == "application/json").Should().BeTrue(
-            "the account request must reach Account REST rather than the HTML console shell");
-        using var json = await KeycloakHttp.ReadJsonAsync(response);
-        return json.RootElement.Clone();
-    }
-
     private static async Task<HttpStatusCode> UpdateAsync(HttpClient client, JsonObject payload)
     {
         using var response = await KeycloakHttp.SendAsync(client, HttpMethod.Post, "realms/learnstack/account/",
             JsonContent.Create(payload));
         return response.StatusCode;
     }
-
-    private static JsonObject AccountUpdate(JsonElement account)
-    {
-        var payload = JsonNode.Parse(account.GetRawText())!.AsObject();
-        payload.Remove("userProfileMetadata");
-        payload.Remove("id");
-        if (payload["attributes"] is null) payload["attributes"] = new JsonObject();
-        return payload;
-    }
-
-    private static bool HiddenFromAccount(JsonElement account) => NoAuthorityAttributes(account)
-        && account.TryGetProperty("userProfileMetadata", out var metadata)
-        && metadata.TryGetProperty("attributes", out var attributes) && attributes.ValueKind == JsonValueKind.Array
-        && !attributes.EnumerateArray().Any(definition => ProtectedAttributes.Contains(definition.GetProperty("name").GetString()));
 
     private static bool AdminOnlyDefinitions(JsonElement profile) => ProtectedAttributes.All(name =>
     {

@@ -101,7 +101,7 @@ internal static class KeycloakReconciliationDriver
     private static readonly string[] Reasons =
         ["configuration", "identity_conflict", "mapper_conflict", "secret_conflict", "unsupported", "response", "status",
             "redirect", "deadline", "cancelled", "transport", "lock_busy", "body_limit", "readback_conflict", "cleanup", "missing_web_secret", "event_policy_conflict",
-            "backchannel_conflict", "backchannel_configuration"];
+            "backchannel_conflict", "backchannel_configuration", "missing_federation_secret", "flow_conflict"];
     private static readonly string[] RequestPhases =
         ["discovery", "authentication", "version", "initialPlan", "prepare", "freshPlan", "apply", "readback"];
 

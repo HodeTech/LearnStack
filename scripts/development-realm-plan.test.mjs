@@ -14,7 +14,8 @@ for (const [name, mutate, reason = 'identity_conflict'] of [
   ['wrong realm', input => { input.desired.realm = 'foreign'; }, 'unsupported'],
   ['wrong lifespan', input => { input.desired.accessTokenLifespan = 1800; }, 'unsupported'],
   ['missing exported users', input => { input.desired.users = null; }, 'unsupported'],
-  ['wrong exported count', input => { input.desired.users.pop(); }, 'unsupported'],
+  ['wrong exported count', input => { input.desired.users.shift(); }, 'unsupported'],
+  ['service account with credentials', input => { input.desired.users.at(-1).credentials = [{ type: 'password', value: 'x', temporary: false }]; }, 'unsupported'],
   ['missing manifest users', input => { input.manifest.users = null; }, 'unsupported'],
   ['wrong manifest count', input => { input.manifest.users.pop(); }, 'unsupported'],
   ['empty secret', input => { input.webSecret = ''; }, 'unsupported'],
@@ -31,7 +32,7 @@ for (const [name, mutate, reason = 'identity_conflict'] of [
   ['wrong legacy literal', input => { input.manifest.users[0].legacyTenantAttribute = 'another-legacy'; }],
   ['Yoga legacy migration', input => { input.manifest.users[2].legacyTenantAttribute = 'tenant-a'; }],
   ['legacy organization', input => { input.manifest.users[0].organizationId = input.manifest.users[2].organizationId; }],
-  ['wrong account capability', input => { input.manifest.users[0].accountCapability.role = 'view-profile'; }],
+  ['declared account capability', input => { input.manifest.users[0].accountCapability = { clientId: 'account', role: 'manage-account' }; }],
   ['missing exported persona', input => { input.desired.users[0].username = 'other'; }],
   ['duplicate exported persona', input => { input.desired.users[1].username = input.desired.users[0].username; }],
   ['wrong email', input => { input.desired.users[0].email = 'other@fixture.invalid'; }],
@@ -47,7 +48,7 @@ for (const [name, mutate, reason = 'identity_conflict'] of [
   ['empty credential', input => { input.desired.users[0].credentials[0].value = ''; }],
   ['wrong declared role', input => { input.manifest.users[0].realmRole = 'unknown'; }],
   ['wrong exported role', input => { input.desired.users[0].realmRoles = ['tenant-learner']; }],
-  ['wrong account grant', input => { input.desired.users[0].clientRoles.account = ['view-profile']; }],
+  ['exported account grant', input => { input.desired.users[0].clientRoles = { account: ['manage-account'] }; }],
   ['wrong exported actor', input => { input.desired.users[0].attributes.user_id = [input.manifest.users[1].userId]; }],
 ]) {
   test(`input preflight rejects ${name} before the first provider read`, async () => {
@@ -74,17 +75,17 @@ test('disabled realm or named client and consent drift refuse without repairing 
   }
 });
 
-test('stock account callbacks, origins and consent must match the supported warm boundary', async () => {
-  for (const name of ['account', 'account-console']) for (const [field, value] of [
-    ['redirectUris', ['https://foreign.fixture.invalid/*']], ['webOrigins', ['*']],
-    ['rootUrl', 'https://foreign.fixture.invalid/'], ['baseUrl', '/foreign/'],
-    ['consentRequired', true], ['attributes', { 'post.logout.redirect.uris': '*' }],
+test('retired account clients are qualified by identity, not by their stock console settings', async () => {
+  for (const name of ['account', 'account-console']) for (const [field, value, refused] of [
+    ['redirectUris', ['https://foreign.fixture.invalid/*'], false], ['rootUrl', 'https://foreign.fixture.invalid/', false],
+    ['publicClient', false, true], ['bearerOnly', true, true], ['serviceAccountsEnabled', true, true], ['protocol', 'saml', true],
   ]) {
     const fixture = provider();
     const client = fixture.state.clients.find(client => client.clientId === name);
-    client[field] = field === 'attributes' ? { ...client.attributes, ...value } : clone(value);
+    client[field] = clone(value);
     const original = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported', `${name}/${field}`);
+    if (refused) await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported', `${name}/${field}`);
+    else assert.equal((await plan(fixture)).actions.length, 0, `${name}/${field} is inert while the client is disabled`);
     assert.deepEqual(fixture.writes, []);
     assert.deepEqual(fixture.state, original);
   }
@@ -210,7 +211,7 @@ test('successful user import receipts cannot conceal independently corrupted cre
     user => { user.attributes.tenant_id = [manifest.users[0].tenantId]; },
     user => { user.requiredActions = ['UPDATE_PASSWORD']; },
     user => { user.roles.realmMappings[0].id = 'different-role-id'; },
-    user => { user.roles.clientMappings.account.mappings = []; },
+    user => { user.roles.clientMappings = { account: { id: 'account', client: 'account', mappings: [{ id: 'x', name: 'manage-account' }] } }; },
     user => { user.credentials = []; },
     user => { user.credentials[0].type = 'otp'; },
     user => { user.credentials.push({ id: 'extra-credential', type: 'password' }); },
@@ -398,373 +399,29 @@ test('fresh desired state has zero actions and independently verifies', async ()
   assert.equal(fixture.writes.length, 0);
 });
 
-test('pinned mapper storage omits an empty account role prefix while qualification accepts precisely empty or absent', async () => {
-  const canonical = desired.clients.find(client => client.clientId === 'account-console').protocolMappers
-    .find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper');
-  const prefix = 'usermodel.clientRoleMapping.rolePrefix';
-  assert.equal(canonical.config[prefix], '');
+test('a legacy persona grant and default-role edge retire as exact detachments and independently verify', async () => {
   const fixture = provider();
-  const mappers = fixture.state.clients.find(client => client.clientId === 'account-console').protocolMappers;
-  const stored = mappers.find(mapper => mapper.protocolMapper === canonical.protocolMapper);
-  assert.equal(Object.hasOwn(stored.config, prefix), false, 'provider state is not an echo of the export');
-  assert.deepEqual(omit(stored, ['id']), accountMapperRepresentation(canonical));
-  for (const value of [undefined, '']) {
-    if (value === undefined) delete stored.config[prefix];
-    else stored.config[prefix] = value;
-    const before = clone(fixture.state);
-    assert.equal(validateAccountMappers(mappers, canonical), true);
-    const change = await plan(fixture);
-    assert.equal(change.actions.length, 0);
-    await change.verify();
-    assert.deepEqual(fixture.state, before);
-  }
-});
-
-test('account prefix normalization never drops unknown configuration or supplies another missing required field', async () => {
-  const canonical = desired.clients.find(client => client.clientId === 'account-console').protocolMappers
-    .find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper');
-  const mutations = Object.keys(canonical.config).filter(key => key !== 'usermodel.clientRoleMapping.rolePrefix')
-    .map(key => config => { delete config[key]; });
-  for (const value of [null, ' ', 'unexpected-', false]) mutations.push(config => { config['usermodel.clientRoleMapping.rolePrefix'] = value; });
-  mutations.push(config => { config['unqualified.empty.setting'] = ''; });
-  for (const mutate of mutations) {
-    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
-    const mapper = fixture.state.clients.find(client => client.clientId === 'account-console').protocolMappers
-      .find(mapper => mapper.protocolMapper === canonical.protocolMapper);
-    mutate(mapper.config);
-    const before = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan' && ['mapper_conflict', 'unsupported'].includes(error.reason));
-    assert.equal(fixture.writes.length, 0);
-    assert.deepEqual(fixture.state, before);
-  }
-});
-
-test('new account mapper readback accepts only the pinned empty-prefix omission, including one exact creation conflict check', async () => {
-  for (const status of [201, 409]) for (const corrupt of [false, true]) {
-    const fixture = provider();
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    console.protocolMappers = console.protocolMappers.filter(mapper => mapper.protocolMapper !== 'oidc-usermodel-client-role-mapper');
-    const originalPost = fixture.admin.post;
-    fixture.admin.post = async (path, body) => {
-      await originalPost(path, body);
-      if (corrupt) console.protocolMappers.at(-1).config['id.token.claim'] = 'true';
-      return { status };
-    };
-    const change = await plan(fixture);
-    assert.deepEqual(change.actions.map(action => action.label), ['create_account_mapper']);
-    if (corrupt) await assert.rejects(change.actions[0].apply(), error => error.stage === 'apply' && error.reason === 'mapper_conflict');
-    else {
-      await apply(change);
-      assert.equal(Object.hasOwn(console.protocolMappers.at(-1).config, 'usermodel.clientRoleMapping.rolePrefix'), false);
-      assert.equal((await plan(fixture)).actions.length, 0);
-    }
-    assert.equal(fixture.writes.length, 1);
-  }
-});
-
-test('normalization of the intended addition does not weaken raw preservation of an existing mapper', async () => {
-  const fixture = provider();
-  const mapper = fixture.state.clients.find(client => client.clientId === 'account-console').protocolMappers
-    .find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper');
-  mapper.config['usermodel.clientRoleMapping.rolePrefix'] = '';
+  const role = clone(fixture.state.accountRoles.find(value => value.name === 'manage-account'));
+  for (const user of fixture.state.users) user.roles.clientMappings = { account: { id: role.containerId, client: 'account', mappings: [clone(role)] } };
+  fixture.state.roleChildren[fixture.state.realm.defaultRole.id].push(clone(role));
+  for (const name of ['account', 'account-console']) fixture.state.clients.find(client => client.clientId === name).enabled = true;
   const change = await plan(fixture);
-  assert.equal(change.actions.length, 0);
-  delete mapper.config['usermodel.clientRoleMapping.rolePrefix'];
-  await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
-  assert.equal(fixture.writes.length, 0);
-});
-
-test('account capability is explicit manifest data and agrees with the exact export grant', async () => {
-  for (const variant of ['missing', 'other_role', 'extra_grant', 'default_role']) {
-    const fixture = provider();
-    const declaration = clone(manifest);
-    const exported = clone(desired);
-    if (variant === 'missing') delete declaration.users[0].accountCapability;
-    if (variant === 'other_role') declaration.users[0].accountCapability.role = 'view-profile';
-    if (variant === 'extra_grant') exported.users[0].clientRoles.account.push('view-profile');
-    if (variant === 'default_role') exported.users[0].clientRoles = {};
-    await assert.rejects(buildRealmPlan({ admin: fixture.admin, desired: exported, manifest: declaration, webSecret: secret }),
-      error => error.stage === 'plan' && error.reason === 'identity_conflict');
-    assert.equal(fixture.writes.length, 0);
-  }
-});
-
-test('inherited account capability and a compatible differently named fixed mapper need no new grant or mapper', async () => {
-  for (const source of ['group', 'composite']) {
-    const fixture = provider();
-    const user = fixture.state.users[0];
-    const role = fixture.state.accountRoles.find(role => role.name === 'manage-account');
-    delete user.roles.clientMappings;
-    if (source === 'group') {
-      fixture.state.groups.push({ id: 'eligible-group', name: 'Eligible', attributes: {}, clientRoles: { account: ['manage-account'] } });
-      fixture.state.memberships[user.id] = ['eligible-group'];
-    } else fixture.state.roleChildren[user.roles.realmMappings[0].id] = [role];
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper').name = 'retained-compatible-name';
-    const before = clone(fixture.state);
-    const change = await plan(fixture);
-    assert.equal(change.actions.length, 0);
-    await change.verify();
-    assert.deepEqual(fixture.state, before);
-  }
-});
-
-test('an existing fixed emitter must be effective without selecting an optional console scope', async () => {
-  for (const kind of ['defaultClientScopes', 'optionalClientScopes']) {
-    const fixture = provider();
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
-    scope.protocolMappers.push(console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper'));
-    console.protocolMappers = console.protocolMappers.filter(mapper => mapper.protocolMapper !== 'oidc-usermodel-client-role-mapper');
-    console[kind].push(scope.name);
-    if (kind === 'optionalClientScopes') await assert.rejects(plan(fixture), error => error.reason === 'unsupported');
-    else {
-      const change = await plan(fixture);
-      assert.equal(change.actions.length, 0);
-      await change.verify();
-    }
-    assert.equal(fixture.writes.length, 0);
-  }
-});
-
-test('account scope id/name summaries resolve full representations and preserve compatible custom graphs', async () => {
-  const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
-  const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-  const account = fixture.state.clients.find(client => client.clientId === 'account');
-  const emitter = console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper');
-  emitter.name = 'retained-compatible-emitter';
-  console.protocolMappers = console.protocolMappers.filter(mapper => mapper !== emitter);
-  const custom = ['default', 'optional'].map(kind => ({ id: `retained-${kind}`, name: `retained-${kind}`,
-    protocol: 'openid-connect', attributes: { retained: `custom ${kind} setting` },
-    protocolMappers: kind === 'default' ? [emitter] : [{ id: 'retained-name-mapper', name: 'retained-name-mapper',
-      protocol: 'openid-connect', protocolMapper: 'oidc-full-name-mapper', config: {} }] }));
-  fixture.state.scopes.push(...custom);
-  console.defaultClientScopes = [custom[0].name];
-  console.optionalClientScopes = [custom[1].name];
-  fixture.state.scopeMappings[`client-scopes/${custom[0].id}`] = fixture.state.scopeMappings[`clients/${console.id}`];
-  fixture.state.scopeMappings[`clients/${console.id}`] = {};
-  fixture.state.scopeMappings[`client-scopes/${custom[1].id}`] = { clientMappings: {
-    account: { id: account.id, client: 'account', mappings: [fixture.state.accountRoles.find(role => role.name === 'view-groups')] },
-  } };
-  for (const kind of ['default', 'optional']) {
-    const summaries = await fixture.admin.get(`clients/${console.id}/${kind}-client-scopes`);
-    assert.deepEqual(summaries, [{ id: `retained-${kind}`, name: `retained-${kind}` }]);
-  }
-  const original = clone(fixture.state);
-  const change = await plan(fixture);
-  assert.deepEqual(change.actions.map(action => action.label), ['update_lifespan']);
-  assert.equal(fixture.writes.length, 0);
+  assert.deepEqual(change.actions.map(action => action.label), ['disable_account_client', 'disable_account_client',
+    'detach_default_account_grant', ...fixture.state.users.map(() => 'detach_persona_account_grant')]);
+  assert.deepEqual(fixture.writes, [], 'planning is read only');
   await apply(change);
-  original.realm.accessTokenLifespan = 900;
-  assert.deepEqual(fixture.state, original);
-  for (const scope of custom) assert.equal(fixture.reads.filter(path => path === `client-scopes/${scope.id}`).length, 2,
-    'preflight and independent readback each resolve the full scope');
   assert.equal((await plan(fixture)).actions.length, 0);
+  for (const user of fixture.state.users) assert.deepEqual(user.roles.clientMappings.account.mappings, []);
 });
 
-test('account scope qualification independently binds full representation id, name and protocol before pending writes', async () => {
-  for (const kind of ['default', 'optional']) for (const replacement of [
-    null, { id: undefined }, { name: undefined }, { id: 'foreign-scope' }, { name: 'foreign-scope' },
-    { protocol: 'saml' }, { protocol: undefined },
-  ]) {
-    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
-    console.defaultClientScopes = kind === 'default' ? [scope.name] : [];
-    console.optionalClientScopes = kind === 'optional' ? [scope.name] : [];
-    const originalGet = fixture.admin.get;
-    fixture.admin.get = async path => {
-      const value = await originalGet(path);
-      return path === `client-scopes/${scope.id}` ? replacement === null ? null : { ...value, ...replacement } : value;
-    };
-    const original = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
-    assert.equal(fixture.writes.length, 0);
-    assert.deepEqual(fixture.state, original);
-  }
-});
-
-test('account scope summary names, duplicate ids and per-assignment count bounds refuse before full scope reads', async () => {
-  for (const kind of ['default', 'optional']) for (const variant of ['missing_name', 'empty_name', 'numeric_name', 'duplicate_id', 'over_count', 'shared_id']) {
-    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
-    console.defaultClientScopes = [];
-    console.optionalClientScopes = [];
-    const summary = { id: scope.id, name: scope.name };
-    const originalGet = fixture.admin.get;
-    fixture.admin.get = async path => {
-      const value = await originalGet(path);
-      if (path === `clients/${console.id}/${kind}-client-scopes`) {
-        if (variant === 'missing_name') return [omit(summary, ['name'])];
-        if (variant === 'empty_name') return [{ ...summary, name: '' }];
-        if (variant === 'numeric_name') return [{ ...summary, name: 3 }];
-        if (variant === 'duplicate_id') return [summary, { ...summary, name: 'other' }];
-        if (variant === 'over_count') return Array.from({ length: 201 }, (_, index) => ({ id: `scope-${index}`, name: `scope-${index}` }));
-      }
-      return variant === 'shared_id' && path.startsWith(`clients/${console.id}/`)
-        && path.endsWith('-client-scopes') ? [summary] : value;
-    };
-    const original = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'unsupported');
-    assert.equal(fixture.reads.some(path => path === `client-scopes/${scope.id}`), false);
-    assert.equal(fixture.writes.length, 0);
-    assert.deepEqual(fixture.state, original);
-  }
-});
-
-test('independent account scope readback resolves and requalifies each full representation', async () => {
-  for (const kind of ['default', 'optional']) for (const replacement of [
-    { id: 'foreign-scope' }, { name: 'foreign-scope' }, { protocol: 'saml' },
-  ]) {
-    const fixture = provider();
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
-    console.defaultClientScopes = kind === 'default' ? [scope.name] : [];
-    console.optionalClientScopes = kind === 'optional' ? [scope.name] : [];
-    const change = await plan(fixture);
-    assert.equal(change.actions.length, 0);
-    const originalGet = fixture.admin.get;
-    fixture.admin.get = async path => {
-      const value = await originalGet(path);
-      return path === `client-scopes/${scope.id}` ? { ...value, ...replacement } : value;
-    };
-    await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'unsupported');
-    assert.equal(fixture.reads.filter(path => path === `client-scopes/${scope.id}`).length, 2);
-    assert.equal(fixture.writes.length, 0);
-  }
-});
-
-test('unsafe direct console mappers retain mapper_conflict before stock-assignment qualification', async () => {
-  const clean = provider();
-  clean.state.realm.accessTokenLifespan = 1800;
-  await apply(await plan(clean));
-  assert.equal((await plan(clean)).actions.length, 0);
-  for (const [protocolMapper, config] of [
-    ['oidc-usermodel-realm-role-mapper', { 'claim.name': 'realm_access.roles', 'jsonType.label': 'String', multivalued: 'true', 'access.token.claim': 'true' }],
-    ['oidc-hardcoded-role-mapper', { role: 'account.view-profile' }],
-  ]) {
-    const fixture = provider();
-    fixture.state.realm.accessTokenLifespan = 1800;
-    fixture.state.clients.find(client => client.clientId === 'account-console').protocolMappers.push({
-      id: 'unsafe-direct', name: 'unsafe-direct', protocol: 'openid-connect', protocolMapper, config,
-    });
-    const original = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan' && error.reason === 'mapper_conflict');
-    assert.deepEqual(fixture.state, original);
-    assert.deepEqual(fixture.writes, []);
-  }
-});
-
-test('a compatible console can inherit its sole resolver while the complete graph still rejects duplicate resolvers', async () => {
+test('independent retirement readback rejects a re-granted capability', async () => {
   const fixture = provider();
-  const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-  const resolver = console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-audience-resolve-mapper');
-  console.protocolMappers = console.protocolMappers.filter(mapper => mapper !== resolver);
-  const scope = { id: 'console-resolver-scope', name: 'console-resolver-scope',
-    protocol: 'openid-connect', protocolMappers: [resolver] };
-  fixture.state.scopes.push(scope);
-  console.defaultClientScopes = [scope.name];
-  const original = clone(fixture.state);
+  const role = clone(fixture.state.accountRoles.find(value => value.name === 'manage-account'));
+  fixture.state.users[0].roles.clientMappings = { account: { id: role.containerId, client: 'account', mappings: [clone(role)] } };
   const change = await plan(fixture);
-  assert.deepEqual(change.actions, []);
-  await change.verify();
-  assert.deepEqual(fixture.state, original);
-  console.protocolMappers.push({ ...clone(resolver), id: 'duplicate-resolver' });
-  await assert.rejects(plan(fixture), error => error.stage === 'plan');
-  assert.deepEqual(fixture.writes, []);
-});
-
-test('unsafe account composites, direct/default/optional scope allowances and implicit mappers refuse before pending writes', async () => {
-  const variants = [
-    fixture => { fixture.state.accountRoles.find(role => role.name === 'manage-account').containerId = 'foreign'; },
-    fixture => { fixture.state.accountRoles.find(role => role.name === 'manage-account-links').composite = true; },
-    fixture => { fixture.state.roleChildren[fixture.state.accountRoles.find(role => role.name === 'manage-account').id].push(fixture.state.roles[0]); },
-    fixture => { fixture.state.roleChildren[fixture.state.accountRoles.find(role => role.name === 'manage-account-links').id].push(fixture.state.roles[0]); },
-    fixture => { fixture.state.clients.find(client => client.clientId === 'account-console').fullScopeAllowed = true; },
-    fixture => { fixture.state.clients.find(client => client.clientId === 'account-console').attributes['pkce.code.challenge.method'] = 'plain'; },
-  ];
-  for (const location of ['direct', 'default', 'optional']) for (const unsafe of ['realm', 'foreign', 'wider', 'realm-emitter', 'audience', 'transform', 'dynamic-client', 'claim-prefix'])
-    variants.push(fixture => {
-      const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-      const scope = fixture.state.scopes.find(scope => scope.name === 'phone');
-      if (location !== 'direct') console[location === 'default' ? 'defaultClientScopes' : 'optionalClientScopes'] = [scope.name];
-      const path = location === 'direct' ? `clients/${console.id}` : `client-scopes/${scope.id}`;
-      if (['realm', 'foreign', 'wider'].includes(unsafe)) {
-        fixture.state.scopeMappings[path] ??= {};
-        const mappings = fixture.state.scopeMappings[path];
-        if (unsafe === 'realm') mappings.realmMappings = [fixture.state.roles[0]];
-        else if (unsafe === 'foreign') mappings.clientMappings = { foreign: { id: 'foreign', client: 'foreign', mappings: [] } };
-        else mappings.clientMappings = { account: { id: fixture.state.clients.find(client => client.clientId === 'account').id,
-          client: 'account', mappings: [fixture.state.accountRoles.find(role => role.name === 'view-profile')] } };
-      } else {
-        const mapper = clone(console.protocolMappers.find(mapper => mapper.protocolMapper === 'oidc-usermodel-client-role-mapper'));
-        mapper.id = 'unsafe-mapper'; mapper.name = 'retained-unsafe-mapper';
-        if (unsafe === 'realm-emitter') mapper.protocolMapper = 'oidc-usermodel-realm-role-mapper';
-        if (unsafe === 'audience') { mapper.protocolMapper = 'oidc-audience-mapper'; mapper.config = { 'included.client.audience': 'other' }; }
-        if (unsafe === 'transform') { mapper.protocolMapper = 'oidc-hardcoded-role-mapper'; mapper.config = { role: 'account.manage-account' }; }
-        if (unsafe === 'dynamic-client') delete mapper.config['usermodel.clientRoleMapping.clientId'];
-        if (unsafe === 'claim-prefix') mapper.config['usermodel.clientRoleMapping.rolePrefix'] = 'wider-';
-        (location === 'direct' ? console : scope).protocolMappers.push(mapper);
-      }
-    });
-  for (const mutate of variants) {
-    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
-    mutate(fixture);
-    const original = clone(fixture.state);
-    await assert.rejects(plan(fixture), error => error.stage === 'plan'
-      && ['unsupported', 'mapper_conflict'].includes(error.reason));
-    assert.equal(fixture.writes.length, 0);
-    assert.deepEqual(fixture.state, original);
-  }
-  const clean = provider(); clean.state.realm.accessTokenLifespan = 1800;
-  await apply(await plan(clean));
-  assert.equal((await plan(clean)).actions.length, 0);
-});
-
-test('account additions preserve all prior mappings and mapper IDs; independent readback rejects corruption', async () => {
-  for (const tamper of [null, 'mapper_id', 'extra_grant', 'missing_prior_role', 'console_setting', 'effective']) {
-    const fixture = provider();
-    const user = fixture.state.users[0];
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    delete user.roles.clientMappings;
-    console.protocolMappers = console.protocolMappers.filter(mapper => mapper.protocolMapper !== 'oidc-usermodel-client-role-mapper');
-    const originalMapper = clone(console.protocolMappers[0]);
-    const originalRoles = clone(user.roles.realmMappings);
-    const change = await plan(fixture);
-    assert.deepEqual(change.actions.map(action => action.label), ['create_account_mapper', 'grant_account_self_service']);
-    for (const action of change.actions) await action.apply();
-    if (tamper === 'mapper_id') console.protocolMappers[0].id = 'replaced';
-    if (tamper === 'extra_grant') user.roles.clientMappings.account.mappings.push(fixture.state.accountRoles.find(role => role.name === 'view-profile'));
-    if (tamper === 'missing_prior_role') user.roles.realmMappings = [];
-    if (tamper === 'console_setting') console.redirectUris = ['https://changed.invalid/*'];
-    if (tamper === 'effective') {
-      const originalGet = fixture.admin.get;
-      fixture.admin.get = async path => path.includes('/composite?') ? [] : originalGet(path);
-    }
-    if (tamper) await assert.rejects(change.verify(), error => error.stage === 'readback');
-    else {
-      await change.verify();
-      assert.deepEqual(console.protocolMappers[0], originalMapper);
-      assert.deepEqual(user.roles.realmMappings, originalRoles);
-      assert.equal((await plan(fixture)).actions.length, 0);
-      assert.ok(fixture.writes.every(write => write.method === 'POST'));
-    }
-  }
-});
-
-test('account mapper additions preflight response counts and bytes before any earlier pending write', async () => {
-  for (const oversized of ['count', 'bytes']) {
-    const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
-    const console = fixture.state.clients.find(client => client.clientId === 'account-console');
-    console.protocolMappers = console.protocolMappers.filter(mapper => mapper.protocolMapper !== 'oidc-usermodel-client-role-mapper');
-    const safe = { name: 'retained', id: 'retained', protocol: 'openid-connect', protocolMapper: 'oidc-full-name-mapper', config: {} };
-    if (oversized === 'count') for (let index = 0; index < 199; index++) console.protocolMappers.push({ ...safe, id: `safe-${index}`, name: `safe-${index}` });
-    else console.protocolMappers.push({ ...safe, retained: 'x'.repeat(256 * 1024) });
-    await assert.rejects(plan(fixture), error => error.stage === 'plan'
-      && error.reason === (oversized === 'count' ? 'unsupported' : 'body_limit'));
-    assert.equal(fixture.writes.length, 0);
-  }
+  for (const action of change.actions) await action.apply();
+  fixture.state.users[0].roles.clientMappings.account.mappings.push(clone(role));
+  await assert.rejects(change.verify(), error => error.stage === 'readback' && error.reason === 'readback_conflict');
 });
 
 test('warm realm preflight is read only; merge preserves accounts, credentials, IDs and unrelated state', async () => {
@@ -778,8 +435,8 @@ test('warm realm preflight is read only; merge preserves accounts, credentials, 
   assert.equal((await plan(fixture)).actions.length, 0);
   assert.equal(fixture.state.users[0].id, original.users[0].id);
   assert.deepEqual(fixture.state.users[0].credentials, original.users[0].credentials);
-  assert.deepEqual(omit(fixture.state.users[0].roles, ['clientMappings']), original.users[0].roles);
-  assert.deepEqual(fixture.state.users[0].roles.clientMappings.account.mappings.map(role => role.name), ['manage-account']);
+  assert.deepEqual(omit(fixture.state.users[0].roles, ['clientMappings']), omit(original.users[0].roles, ['clientMappings']));
+  assert.deepEqual(fixture.state.users[0].roles.clientMappings?.account?.mappings ?? [], [], 'the retired capability is not granted');
   assert.equal(fixture.state.users[0].enabled, false);
   assert.equal(fixture.state.users[0].firstName, 'Retained');
   assert.deepEqual(fixture.state.users[0].requiredActions, ['UPDATE_PASSWORD']);
@@ -1109,12 +766,14 @@ test('largest compatible assignments and exact profile-group boundaries remain s
   const web = assigned.state.clients.find(client => client.clientId === 'learnstack-web');
   assigned.state.scopes = assigned.state.scopes.filter(scope => scope.protocol === 'openid-connect');
   fillScopes(assigned, 200);
-  web.defaultClientScopes = assigned.state.scopes.filter(scope => !['learnstack-tenant-api', 'offline_access'].includes(scope.name)).map(scope => scope.name);
-  web.optionalClientScopes = [];
+  web.defaultClientScopes = assigned.state.scopes.filter(scope => !['learnstack-tenant-api', 'offline_access', 'federation.test_record'].includes(scope.name)).map(scope => scope.name);
+  web.optionalClientScopes = ['federation.test_record'];
   await apply(await plan(assigned));
-  // Both fixed scopes exist inside the 200-scope inventory, but the native
-  // client cannot attach the scoped API declaration or default offline access.
-  assert.equal(web.defaultClientScopes.length, 198);
+  // The fixed scopes exist inside the 200-scope inventory, but the native client
+  // cannot attach the scoped API declaration, default offline access or a default
+  // test-record scope (ADR-0099 Amendment 6: optional only).
+  assert.equal(web.defaultClientScopes.length, 197);
+  assert.ok(web.optionalClientScopes.includes('federation.test_record'));
   assert.equal((await plan(assigned)).actions.length, 0);
   for (const count of [200, 201]) {
     const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;
@@ -1306,7 +965,7 @@ test('one named-user import atomically carries credential and inert role; lost r
   assert.equal(write.path, 'partialImport');
   assert.equal(write.body.users[0].credentials[0].type, 'password');
   assert.deepEqual(write.body.users[0].realmRoles, [manifest.users.at(-1).realmRole]);
-  assert.deepEqual(write.body.users[0].clientRoles, { account: ['manage-account'] });
+  assert.equal(Object.hasOwn(write.body.users[0], 'clientRoles'), false, 'a created persona carries no account capability');
   assert.equal(Object.hasOwn(await fixture.admin.get(`users/${fixture.state.users.at(-1).id}`), 'clientRoles'), false);
   assert.equal((await plan(fixture)).actions.length, 0);
   assert.equal(fixture.writes.length, 1);

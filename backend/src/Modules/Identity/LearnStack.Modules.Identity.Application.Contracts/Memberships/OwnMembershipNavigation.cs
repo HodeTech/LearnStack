@@ -24,4 +24,5 @@ public sealed record GetOwnCapabilitiesQuery() : IRequest<Result<OwnCapabilities
 /// <summary>Advisory current-self flags, never reusable authorization or an aggregate representation.</summary>
 public sealed record OwnCapabilitiesDto(bool CanReadTenantMembers, bool CanReadOrganizationMembers,
     bool CanWriteMemberProfiles, bool CanManageMemberships, bool CanReadRoles, bool CanChangeRoleGrants,
-    bool CanAdoptRoleRelease, bool CanWriteOwnProfile, bool CanManageOrganizations, bool CanManageCustomFields = false);
+    bool CanAdoptRoleRelease, bool CanWriteOwnProfile, bool CanManageOrganizations, bool CanManageCustomFields = false,
+    bool CanManageFederation = false);

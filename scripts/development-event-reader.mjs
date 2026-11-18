@@ -1,19 +1,27 @@
 import { isDeepStrictEqual as equal } from 'node:util';
 import { refuse } from './development-realm-errors.mjs';
 
-const name = 'learnstack-event-reader';
 const encode = encodeURIComponent;
-const mapper = Object.freeze({ name: 'learnstack-event-reader-roles', protocol: 'openid-connect', consentRequired: false,
-  protocolMapper: 'oidc-usermodel-client-role-mapper', config: {
-    'usermodel.clientRoleMapping.clientId': 'realm-management', 'claim.name': 'resource_access.realm-management.roles',
-    'jsonType.label': 'String', multivalued: 'true', 'access.token.claim': 'true',
-    'id.token.claim': 'false', 'userinfo.token.claim': 'false', 'introspection.token.claim': 'false',
-  } });
-const fields = Object.freeze({ clientId: name, enabled: true, protocol: 'openid-connect',
-  clientAuthenticatorType: 'client-secret', publicClient: false, bearerOnly: false,
-  standardFlowEnabled: false, implicitFlowEnabled: false, directAccessGrantsEnabled: false,
-  serviceAccountsEnabled: true, fullScopeAllowed: false, redirectUris: [], webOrigins: [],
-  defaultClientScopes: [], optionalClientScopes: [] });
+// A realm-management service client: a confidential client with no browser, password,
+// implicit or full-scope flow, no inherited scopes, one local role mapper and exactly one
+// realm-management role as its role and scope binding.
+function serviceClient(name, role, mapperName) {
+  return Object.freeze({ name, role,
+    mapper: Object.freeze({ name: mapperName, protocol: 'openid-connect', consentRequired: false,
+      protocolMapper: 'oidc-usermodel-client-role-mapper', config: {
+        'usermodel.clientRoleMapping.clientId': 'realm-management', 'claim.name': 'resource_access.realm-management.roles',
+        'jsonType.label': 'String', multivalued: 'true', 'access.token.claim': 'true',
+        'id.token.claim': 'false', 'userinfo.token.claim': 'false', 'introspection.token.claim': 'false',
+      } }),
+    fields: Object.freeze({ clientId: name, enabled: true, protocol: 'openid-connect',
+      clientAuthenticatorType: 'client-secret', publicClient: false, bearerOnly: false,
+      standardFlowEnabled: false, implicitFlowEnabled: false, directAccessGrantsEnabled: false,
+      serviceAccountsEnabled: true, fullScopeAllowed: false, redirectUris: [], webOrigins: [],
+      defaultClientScopes: [], optionalClientScopes: [] }) });
+}
+export const eventReaderClient = serviceClient('learnstack-event-reader', 'view-events', 'learnstack-event-reader-roles');
+export const federationAdminClient = serviceClient('learnstack-federation-admin', 'manage-identity-providers',
+  'learnstack-federation-admin-roles');
 const list = value => { if (!Array.isArray(value) || value.length > 256) refuse('plan', 'unsupported'); return value; };
 const plain = value => Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'id'));
 const sameRole = (a, b) => a.id === b.id && a.name === b.name && a.containerId === b.containerId && a.clientRole === true;
@@ -26,13 +34,22 @@ export function eventReaderDefaultRoleDetachment(binding) {
 }
 
 /** Separate machine identity. Existing secrets, excess roles, scopes or mappers are never silently adopted. */
-export async function planEventReader(admin, secret) {
+export function planEventReader(admin, secret) {
+  return planServiceClient(admin, secret, eventReaderClient);
+}
+
+/** ADR-0099's federation admin client: manage-identity-providers only, the same refusal rules. */
+export function planFederationAdmin(admin, secret) {
+  return planServiceClient(admin, secret, federationAdminClient);
+}
+
+async function planServiceClient(admin, secret, { name, role: roleName, mapper, fields }) {
   if (typeof secret !== 'string' || secret.length < 16 || /[\r\n]/.test(secret)) refuse('plan', 'configuration');
   const management = list(await admin.get('clients?clientId=realm-management&max=2'));
   if (management.length !== 1 || !management[0].id) refuse('plan', 'unsupported');
   const managementId = management[0].id;
-  const role = await admin.get(`clients/${encode(managementId)}/roles/view-events`);
-  if (!role?.id || role.name !== 'view-events' || role.containerId !== managementId || role.clientRole !== true || role.composite !== false)
+  const role = await admin.get(`clients/${encode(managementId)}/roles/${encode(roleName)}`);
+  if (!role?.id || role.name !== roleName || role.containerId !== managementId || role.clientRole !== true || role.composite !== false)
     refuse('plan', 'unsupported');
   const found = list(await admin.get(`clients?clientId=${name}&max=2`));
   if (found.length > 1) refuse('plan', 'unsupported');
@@ -97,6 +114,15 @@ export async function planEventReader(admin, secret) {
       if (defaults.length) {
         const binding = Object.freeze({});
         detachments.set(binding, Object.freeze({ path: `users/${encode(user.id)}/role-mappings/realm`, body: structuredClone(defaults) }));
+        await admin.detachNewEventReaderDefault(binding);
+      }
+      // A realm's configured default groups join a newly created service account too. Those automatic
+      // memberships are removed from this new account only; an existing account's groups always refuse.
+      const joined = list(await admin.get(`users/${encode(user.id)}/groups?first=0&max=100`));
+      for (const group of joined) {
+        if (typeof group?.id !== 'string' || !group.id) refuse('apply', 'unsupported');
+        const binding = Object.freeze({});
+        detachments.set(binding, Object.freeze({ path: `users/${encode(user.id)}/groups/${encode(group.id)}` }));
         await admin.detachNewEventReaderDefault(binding);
       }
       accepted(await admin.post(`users/${encode(user.id)}/role-mappings/clients/${encode(managementId)}`, [role]));

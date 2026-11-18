@@ -275,9 +275,11 @@ public sealed partial class PersistenceConventionTests
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedStateReader::ReadMembershipCoreAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.FixedSeedIdentityPrerequisiteReader::ReadAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.FixedSeedIdentityCompletionReader::ReadAsync",
-                "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader::HasNoRoleHistoryAsync" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader::HasNoRoleHistoryAsync",
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationConnectionStore::ReadLiveAsync",
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.FederationConnectionStore::Writable" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
-            errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role and native admission readers may reenroll the same tenant owner");
+            errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role, native admission and federation registry readers may reenroll the same tenant owner");
         return errors;
     }
 

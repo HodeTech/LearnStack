@@ -26,6 +26,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         ["/api/v1/public/courses"] = ["GetPublicCourses", "HeadPublicCourses"],
         ["/api/v1/public/courses/{slug}"] = ["GetPublicCourse", "HeadPublicCourse"],
         ["/api/v1/public/courses/{slug}/lessons/{lessonSlug}"] = ["GetPublicLesson", "HeadPublicLesson"],
+        ["/api/v1/public/sign-in"] = ["GetPublicSignIn", "HeadPublicSignIn"],
         ["/api/v1/account/site"] = ["GetAccountSite"],
         ["/api/v1/identity/memberships"] = ["ListMemberships"],
     };
@@ -181,11 +182,12 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var errors = new List<string>();
         var paths = document["paths"]!.AsObject();
         if (!paths.Select(path => path.Key).ToHashSet(StringComparer.Ordinal)
-            .SetEquals(Operations.Keys.Concat(NativeOperations.Keys).Concat(InvitationEntryOperations.Keys).Concat(AdministrationOperations.Select(operation => operation.Path)).Concat(CustomFieldOperations.Select(operation => operation.Path)))) errors.Add("operations");
+            .SetEquals(Operations.Keys.Concat(NativeOperations.Keys).Concat(InvitationEntryOperations.Keys).Concat(AdministrationOperations.Select(operation => operation.Path)).Concat(CustomFieldOperations.Select(operation => operation.Path)).Concat(FederationOperations.Select(operation => operation.Path)))) errors.Add("operations");
         errors.AddRange(NativeContractErrors(document));
         errors.AddRange(InvitationEntryContractErrors(document));
         errors.AddRange(AdministrationContractErrors(document));
         errors.AddRange(CustomFieldContractErrors(document));
+        errors.AddRange(FederationContractErrors(document));
         var count = 0;
         foreach (var (path, ids) in Operations)
         {
@@ -207,7 +209,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                 }
                 else if (operation["security"] is JsonArray { Count: > 0 }) errors.Add("public-security");
                 var expected = directory ? ["cursor", "limit"]
-                    : path.EndsWith("/site", StringComparison.Ordinal) ? Array.Empty<string>()
+                    : path.EndsWith("/site", StringComparison.Ordinal) || path.EndsWith("/sign-in", StringComparison.Ordinal) ? Array.Empty<string>()
                     : path.EndsWith("/lessons/{lessonSlug}", StringComparison.Ordinal) ? new[] { "slug", "lessonSlug", "locale" }
                     : path.EndsWith("/{slug}", StringComparison.Ordinal) ? new[] { "slug", "locale", "lessonCursor", "lessonLimit" }
                     : ["locale", "cursor", "limit"];
@@ -249,6 +251,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                     else if (status == "200")
                     {
                         var root = directory ? DirectoryPageSchema : authenticated ? "AccountSite" : path.EndsWith("/site", StringComparison.Ordinal) ? "PublicSite"
+                            : path.EndsWith("/sign-in", StringComparison.Ordinal) ? "PublicSignIn"
                             : path.EndsWith("/lessons/{lessonSlug}", StringComparison.Ordinal) ? "PublicLessonDetail"
                             : path.EndsWith("/{slug}", StringComparison.Ordinal) ? "PublicCourseDetail" : "PublicCourseCatalog";
                         if (response["content"]!.AsObject().Count != 1
@@ -257,7 +260,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                 }
             }
         }
-        if (count != 10) errors.Add("operations");
+        if (count != 12) errors.Add("operations");
         if (document["security"] is JsonArray { Count: > 0 }) errors.Add("security");
         var schemes = document["components"]?["securitySchemes"]?.AsObject();
         if (schemes is not { Count: 2 } || schemes["TenantBearer"]?["type"]?.GetValue<string>() != "http"
@@ -367,7 +370,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal)
             .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames)
                 .Concat(["IdentitySelfActive", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"])
-                .Concat(AdministrationSchemas.Keys).Concat(InvitationEntrySchemas.Keys).Concat(CustomFieldSchemaNames).Append("AdministrationGrantResponse"))) errors.Add("schema-census");
+                .Concat(AdministrationSchemas.Keys).Concat(InvitationEntrySchemas.Keys).Concat(CustomFieldSchemaNames).Concat(FederationSchemaNames).Append("AdministrationGrantResponse"))) errors.Add("schema-census");
         errors.AddRange(AdministrationSchemaErrors(document));
         errors.AddRange(CustomFieldSchemaErrors(document));
         foreach (var (name, descriptor) in Dtos)

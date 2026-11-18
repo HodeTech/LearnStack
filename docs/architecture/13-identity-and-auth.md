@@ -422,19 +422,27 @@ Membership result and required audit; native session admission is a separate act
 
 Tenant-specific SSO is enabled per tenant. Implementation:
 
-- A tenant can configure a SAML or OIDC identity provider in Keycloak (admin API).
-- The tenant's public site shows "Sign in with {tenant}" on the login page.
+- A tenant configures a SAML or OIDC identity provider through a LearnStack-owned, confined adapter; the tenant never edits the shared realm broker directly ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
+- The tenant's sign-in page shows "Sign in with {displayName}" beside the local
+  action while the tenant's connection is Active and entitled; the BFF reads the
+  option and its alias server-side.
 - Users authenticating through a broker land in the LearnStack realm. Broker
   authentication or email equality alone grants no LearnStack membership, role or
-  global account link. Phase 03 G1/G8/G12 supply the trusted linking/admission
-  contract before any such writer.
+  global account link; the link-only first-broker flow links an existing account only
+  with that account's own credentials.
+- A brokered BFF session is host-bound: its ID token's `idp` must equal the host
+  tenant's Active alias at every publication and keep its recorded provenance
+  ([Security § Federation host binding](../standards/11-security.md#federation-host-binding)).
+- The administrator's test (`federation_test`) signs in through the IdP as the
+  administrator, records the result server-side with a test-only token scope, publishes
+  no session and signs the administrator out
+  ([Frontend Standards § Tenant federation](../standards/07-frontend-architecture.md#tenant-federation)).
 
-This does not require LearnStack code changes per tenant; it is a configuration in Keycloak that LearnStack exposes via a tenant-admin UI.
+This does not require LearnStack code changes per tenant; it is a configuration in Keycloak that LearnStack exposes through the Studio federation page (`/studio/federation`).
 
 The UI needs a confined runtime adapter: tenant ownership of broker resources,
 write-only secrets, bounded metadata/discovery egress, trusted verification/MFA,
-test/activate/rollback and last-login recovery. G12 owns those decisions and their
-real two-tenant provider proof; a realm-level Admin API credential is not tenant
+test/activate/rollback and last-login recovery. [ADR-0099](../decisions/0099-confined-tenant-federation.md) owns those decisions and their real two-tenant provider proof; a realm-level Admin API credential is not tenant
 authority.
 
 ## MFA
@@ -445,7 +453,7 @@ MFA is a Keycloak responsibility. Enforced for:
 - Tenant admin accounts (configurable, defaults to mandatory).
 - Other roles (tenant choice).
 
-LearnStack reads the `amr` claim to know whether MFA was used; sensitive operations can require a recent-MFA assertion.
+LearnStack does not read the `amr` claim today, and the access-token profile admits no assurance claim. A future MFA-gated operation needs an accepted decision that names its claim and source. Brokered sign-ins carry no LearnStack MFA assurance ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
 
 ## Logout
 
@@ -515,7 +523,11 @@ owns the account-preserving warm upgrade and its named account-console adjustmen
 [ADR-0068](../decisions/0068-development-warm-realm-qualification.md), Accepted —
 2026-10-22, adds bounded profile preparation and three qualified stock-console
 assignment detachments. This deletes named assignment edges, while preserving
-accounts and global definitions. Its [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
+accounts and global definitions. Since P03-8 Step 3,
+[ADR-0068 Amendment 2](../decisions/0068-development-warm-realm-qualification.md#amendment-2--account-clients-disabled-2026-11-13)
+and [ADR-0099](../decisions/0099-confined-tenant-federation.md) retire the account
+console instead: both account clients are disabled and the detachments are no longer
+applied ([realm runbook](../../infra/keycloak/README.md#account-self-service-retirement)). Its [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0068-acceptance-and-implementation-2026-10-22)
 tracks all three locally completed steps and their independent review rounds.
 The preparation owner reuses identity-independent qualifiers, verifies the exact
 profile and discards its projections before complete planning. A later identity

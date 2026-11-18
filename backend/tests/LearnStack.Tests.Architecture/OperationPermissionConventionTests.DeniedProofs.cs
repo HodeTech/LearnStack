@@ -14,6 +14,45 @@ public sealed partial class OperationPermissionConventionTests
     private const string PairMethod = "Every_assignable_pair_requires_a_legal_delegation_target_with_committed_denial_and_no_refused_mutation";
     private const string ReleasedPairMethod = "AssertReleasedAssignablePairAsync";
     private const string Version3PairMethod = "AssertVersion3AssignablePairAsync";
+    private const string Version4PairMethod = "AssertVersion4AssignablePairAsync";
+    private static readonly string[] ReleasedPairConditions =
+    [
+        "IdentityRoleRelease.Version2.TenantAdminDelta.Contains(pair)",
+        "IdentityRoleRelease.Version3.TenantAdminDelta.Contains(pair)",
+        "IdentityRoleRelease.Version4.TenantAdminDelta.Contains(pair)",
+    ];
+    private static readonly string[] Version4ProofStatements =
+    [
+        "await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Membership.Postgres)",
+        "await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString)",
+        "await InstallReleasedPairLifecycleAsync(database.AppConnectionString)",
+        "var release = IdentityRoleRelease.Version4",
+        "var v1 = await ReadReleasedRoleAsync(database.AppConnectionString, administrator)",
+        "var predecessor = await SendReleasedAsync(database.AppConnectionString, new AdoptRoleGrantManifestCommand(administrator, v1.Version, v2.Version, v2.Fingerprint)",
+        "Assert.True(predecessor.IsSuccess)",
+        "var skipped = await SendReleasedAsync(database.AppConnectionString, new AdoptRoleGrantManifestCommand(administrator, v2State.Version, release.Version, release.Fingerprint)",
+        "Assert.Equal(\"forbidden\", skipped.Error!.Code)",
+        "Assert.Equal(v2State.Version, afterSkip.Version)", "Assert.Equal(v2State.Grants, afterSkip.Grants)",
+        "var third = await SendReleasedAsync(database.AppConnectionString, new AdoptRoleGrantManifestCommand(administrator, v2State.Version, v3.Version, v3.Fingerprint)",
+        "Assert.True(third.IsSuccess)", "Assert.Equal(3, v3State.AdoptedVersion)", "Assert.Equal(v3.Fingerprint, v3State.Fingerprint)",
+        "var removal = await SendReleasedAsync(database.AppConnectionString, new ChangeRoleGrantsCommand(administrator, v3State.Version, retained)",
+        "Assert.True(removal.IsSuccess)",
+        "Assert.DoesNotContain(\"Tenant:\" + BoundedCustomFieldPermissions.Definition.Key, initial.Grants)",
+        "var forged = await SendReleasedAsync(database.AppConnectionString, new AdoptRoleGrantManifestCommand(administrator, initial.Version, release.Version, v3.Fingerprint)",
+        "Assert.Equal(\"forbidden\", forged.Error!.Code)", "Assert.Equal(initial.Version, afterForged.Version)",
+        "var adoption = await SendReleasedAsync(database.AppConnectionString, new AdoptRoleGrantManifestCommand(administrator, initial.Version, release.Version, release.Fingerprint)",
+        "Assert.True(adoption.IsSuccess)", "Assert.Equal(initial.Version + 1, adopted.Version)", "Assert.Equal(release.Version, adopted.AdoptedVersion)",
+        "Assert.Equal(release.Fingerprint, adopted.Fingerprint)",
+        "Assert.Equal(initial.Grants.Concat(release.TenantAdminDelta.Select(definition => definition.Scope + \":\" + definition.Key)).Order(StringComparer.Ordinal), adopted.Grants)",
+        "var adoptionAudit = await ReleasedPairAuditAsync(database.AppConnectionString, correlation + \"-adopt\", \"identity.role.adopt_manifest\")", "Assert.Equal(\"success\", adoptionAudit.Outcome)",
+        "var positive = await SendReleasedAsync(database.AppConnectionString, new ChangeRoleGrantsCommand(matchingRole, matchingBefore.Version, [pair]), correlation + \"-positive\")", "Assert.True(positive.IsSuccess)",
+        "Assert.Equal([pair.Scope + \":\" + pair.Key], matchingAfter.Grants)",
+        "var refused = await SendReleasedAsync(database.AppConnectionString, new ChangeRoleGrantsCommand(oppositeRole, before.Version, [pair])",
+        "Assert.Equal(\"forbidden\", refused.Error!.Code)",
+        "Assert.Equal(before.Version, after.Version)", "Assert.Equal(before.Grants, after.Grants)",
+        "var denial = await ReleasedPairAuditAsync(database.AppConnectionString, correlation, \"identity.authorization.deny\")", "Assert.Equal(\"denied\", denial.Outcome)",
+        "Assert.Equal(\"delegation\", metadata.RootElement.GetProperty(\"denial_reason\").GetString())",
+    ];
     private static readonly string[] Version3ProofStatements =
     [
         "await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Membership.Postgres)",
@@ -73,6 +112,8 @@ public sealed partial class OperationPermissionConventionTests
             "Course_draft_branch_foreign_and_unknown_are_uniformly_hidden", "fixture.ClientFor", "client.GetAsync", "HttpStatusCode.NotFound"),
         new("education.public_lesson.read", "LearnStack.Tests.Integration/Database/PublicEducationHttpTests.cs",
             "Lesson_masks_draft_parent_draft_restricted_scope_wrong_parent_and_foreign_rows", "fixture.ClientFor", "client.GetAsync", "HttpStatusCode.NotFound"),
+        new("identity.public_sign_in.read", "LearnStack.Tests.Integration/Database/PublicSignInHttpTests.cs",
+            "Unknown_and_platform_hosts_never_reach_the_sign_in_read", "fixture.ClientFor", "client.SendAsync", "HttpStatusCode.NotFound"),
     ];
     private static readonly DeniedProof[] OtherDeniedProofs =
     [
@@ -103,7 +144,7 @@ public sealed partial class OperationPermissionConventionTests
         catalog.TryGet(typeof(ChangeRoleGrantsCommand), out var consumer).Should().BeTrue();
         consumer.Kind.Should().Be(OperationPolicyKind.Protected);
         var registrations = catalog.Definitions.ToArray();
-        registrations.Should().HaveCount(12);
+        registrations.Should().HaveCount(14);
         var files = PublicDeniedProofs.Concat(OtherDeniedProofs).Select(proof => proof.File)
             .Append(PairFile).Append(HarnessFile).Distinct(StringComparer.Ordinal).ToDictionary(file => file,
                 file => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(RepositoryPaths.RepoRoot(), "backend/tests", file))).GetCompilationUnitRoot(),
@@ -136,7 +177,7 @@ public sealed partial class OperationPermissionConventionTests
         { [PairFile] = files[PairFile].RemoveNode(denialAssertion, SyntaxRemoveOptions.KeepNoTrivia)! };
         DeniedProofOffenders(registrations, withoutAssertion).Should().Contain("assignable consumer assertions");
 
-        foreach (var name in new[] { ReleasedPairMethod, Version3PairMethod, "SendReleasedAsync", "ReadReleasedRoleAsync",
+        foreach (var name in new[] { ReleasedPairMethod, Version3PairMethod, Version4PairMethod, "SendReleasedAsync", "ReadReleasedRoleAsync",
                      "ReleasedPairAuditAsync", "InstallReleasedPairLifecycleAsync" })
         {
             var method = FindDeniedProofHelper(files[PairFile], name)!;
@@ -184,10 +225,34 @@ public sealed partial class OperationPermissionConventionTests
             DeniedProofOffenders(registrations, dirty).Should().Contain("actual released pair evidence",
                 "v3 needs consecutive adoption, preserved removals and committed positive/denied outcomes");
         }
-        var version3Branch = pair.Body!.Statements.OfType<IfStatementSyntax>().Skip(1).Single();
+        var dispatch = pair.Body!.Statements.OfType<IfStatementSyntax>().ToArray();
+        dispatch.Should().HaveCount(3, "one dispatch branch per release delta: v2, v3 and v4");
+        dispatch.Count(branch => Tokens(branch.Condition) == Tokens(ReleasedPairConditions[1])).Should().Be(1, "exactly one v3 branch");
+        dispatch.Count(branch => Tokens(branch.Condition) == Tokens(ReleasedPairConditions[2])).Should().Be(1, "exactly one v4 branch");
+        var version3Branch = dispatch[1];
         var disabledVersion3 = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
         { [PairFile] = files[PairFile].ReplaceNode(version3Branch.Condition, SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)) };
         DeniedProofOffenders(registrations, disabledVersion3).Should().Contain("released pair dispatch");
+        var version4 = FindDeniedProofHelper(files[PairFile], Version4PairMethod)!;
+        foreach (var fragment in Version4ProofStatements)
+        {
+            var statement = version4.Body!.Statements.Single(statement => Has(statement, fragment));
+            var dirty = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
+            { [PairFile] = files[PairFile].RemoveNode(statement, SyntaxRemoveOptions.KeepNoTrivia)! };
+            DeniedProofOffenders(registrations, dirty).Should().Contain("actual released pair evidence",
+                "v4 needs v3-before-v4 ordering, a refused forged fingerprint, preserved removals and committed outcomes");
+        }
+        var version4Branch = dispatch[2];
+        var disabledVersion4 = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
+        { [PairFile] = files[PairFile].ReplaceNode(version4Branch.Condition, SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)) };
+        DeniedProofOffenders(registrations, disabledVersion4).Should().Contain("released pair dispatch");
+        foreach (var duplicated in new[] { version3Branch, version4Branch })
+        {
+            var twice = new Dictionary<string, CompilationUnitSyntax>(files, StringComparer.Ordinal)
+            { [PairFile] = files[PairFile].InsertNodesAfter(duplicated, [duplicated]) };
+            DeniedProofOffenders(registrations, twice).Should().Contain("released pair dispatch",
+                "a duplicated release branch is refused rather than silently shadowed");
+        }
         var adoptionStatement = released.Body!.Statements.Single(statement => Has(statement, "var adoption = await SendReleasedAsync"));
         var positiveStatement = released.Body.Statements.Single(statement => Has(statement, "var positive = await SendReleasedAsync"));
         var reorderedBody = released.Body.WithStatements(SyntaxFactory.List(released.Body.Statements.Select(statement =>
@@ -212,10 +277,10 @@ public sealed partial class OperationPermissionConventionTests
             .ToArray() ?? [];
         var actual = registrations.Where(item => item.Assignable)
             .Select(item => (Scope: item.Definition.Scope.ToString(), Key: item.Definition.Key)).ToArray();
-        if (declared.Length != 9 || declared.Distinct().Count() != declared.Length
+        if (declared.Length != 10 || declared.Distinct().Count() != declared.Length
             || !declared.ToHashSet().SetEquals(actual) || actual.Length != declared.Length) errors.Add("assignable pairs");
         var virtualPairs = registrations.Where(item => !item.Assignable).Select(item => item.Definition).ToArray();
-        if (virtualPairs.Length != 3 || !virtualPairs.Select(item => item.Key).ToHashSet(StringComparer.Ordinal)
+        if (virtualPairs.Length != 4 || !virtualPairs.Select(item => item.Key).ToHashSet(StringComparer.Ordinal)
                 .SetEquals(PublicDeniedProofs.Select(proof => proof.Kind))
             || virtualPairs.Any(item => item.Scope != PermissionScope.Tenant || !item.IsActive)) errors.Add("virtual public pairs");
         if (pair is null || !Has(pair,
@@ -233,15 +298,27 @@ public sealed partial class OperationPermissionConventionTests
                 "await using var harness = await CreateAsync(correlation)", "return await harness.Sender.Send(request)",
                 "new NpgsqlCommand", "ScopeAsync(app, transaction, SchemaFixture.TenantA)",
                 "Assert.False(await rows.ReadAsync())")) errors.Add("actual pair dispatch and committed evidence");
-        var releaseBranch = pair?.Body?.Statements.OfType<IfStatementSyntax>().FirstOrDefault();
+        // Exactly three dispatch branches, one per release delta, each condition exactly once: a duplicated
+        // branch would let a second copy of a release's dispatch hide behind the first.
+        var branches = pair?.Body?.Statements.OfType<IfStatementSyntax>().ToArray() ?? [];
+        if (branches.Length != 3 || ReleasedPairConditions.Any(condition =>
+                branches.Count(branch => Tokens(branch.Condition) == Tokens(condition)) != 1))
+            errors.Add("released pair dispatch");
+        var releaseBranch = branches.ElementAtOrDefault(0);
         if (releaseBranch is null || Tokens(releaseBranch.Condition) != Tokens("IdentityRoleRelease.Version2.TenantAdminDelta.Contains(pair)")
             || Tokens(releaseBranch.Statement) != Tokens("{ await AssertReleasedAssignablePairAsync(pair); return; }"))
             errors.Add("released pair dispatch");
-        var version3Branch = pair?.Body?.Statements.OfType<IfStatementSyntax>().Skip(1).SingleOrDefault();
+        var version3Branch = branches.ElementAtOrDefault(1);
         if (version3Branch is null || Tokens(version3Branch.Condition) != Tokens("IdentityRoleRelease.Version3.TenantAdminDelta.Contains(pair)")
             || Tokens(version3Branch.Statement) != Tokens("{ await AssertVersion3AssignablePairAsync(pair); return; }"))
             errors.Add("released pair dispatch");
+        var version4Branch = branches.ElementAtOrDefault(2);
+        if (version4Branch is null || Tokens(version4Branch.Condition) != Tokens("IdentityRoleRelease.Version4.TenantAdminDelta.Contains(pair)")
+            || Tokens(version4Branch.Statement) != Tokens("{ await AssertVersion4AssignablePairAsync(pair); return; }"))
+            errors.Add("released pair dispatch");
         if (!HasOrderedProofStatements(FindDeniedProofHelper(files[PairFile], Version3PairMethod), Version3ProofStatements))
+            errors.Add("actual released pair evidence");
+        if (!HasOrderedProofStatements(FindDeniedProofHelper(files[PairFile], Version4PairMethod), Version4ProofStatements))
             errors.Add("actual released pair evidence");
         if (!HasOrderedProofStatements(FindDeniedProofHelper(files[PairFile], ReleasedPairMethod),
                 "await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Membership.Postgres)",

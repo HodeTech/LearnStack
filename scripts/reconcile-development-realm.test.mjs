@@ -112,7 +112,7 @@ async function ownedEntryFixture(t, scenario) {
   for (const name of ['compose', 'demo-process', 'demo-database', 'reconcile-development-realm',
     'development-realm-owner', 'development-realm-errors', 'development-backchannel', 'development-realm-core', 'development-realm-plan',
     'development-realm-events', 'development-event-reader', 'development-event-reader-test-fixture',
-    'development-realm-account', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
+    'development-realm-account', 'development-realm-federation', 'development-realm-mappers', 'development-realm-groups', 'development-realm-test-fixture',
     'development-realm-stock-console', 'development-realm-stock-console-test-fixture'])
     await copyFile(new URL(`./${name}.mjs`, import.meta.url), join(root, `scripts/${name}.mjs`));
   await copyFile(new URL('./development-realm-stock-console-baseline.json', import.meta.url),
@@ -122,8 +122,9 @@ async function ownedEntryFixture(t, scenario) {
     join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'));
   await copyFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), join(root, 'infra/keycloak/realms/learnstack.json'));
   await writeFile(join(root, 'package.json'), '{"type":"module"}\n');
-  const { secret } = await import('./development-realm-test-fixture.mjs');
+  const { secret, federationSecret } = await import('./development-realm-test-fixture.mjs');
   const values = { KEYCLOAK_ADMIN: 'synthetic-admin', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: secret,
+    KEYCLOAK_FEDERATION_ADMIN_SECRET: federationSecret,
     IdentityEvents__ClientSecret: 'owned-event-reader-fixture-secret',
     ...(scenario.startsWith('foundation-') ? { ConnectionStrings__Default: canary,
       Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
@@ -159,7 +160,7 @@ export async function realmRequest(url, options) {
   let body;
   if (url.pathname.includes('/.well-known/')) body = { issuer: 'http://localhost:8080/realms/learnstack' };
   else if (url.pathname.endsWith('/token')) body = { access_token: 'synthetic-admin-token', expires_in: 300, refresh_token: 'synthetic-refresh' };
-  else if (url.pathname === '/admin/serverinfo') body = { systemInfo: { version: '26.6.2' } };
+  else if (url.pathname === '/admin/serverinfo') body = { systemInfo: { version: '26.7.5' } };
   else {
     const path = url.pathname.slice('/admin/realms/learnstack/'.length) + url.search;
     if (options.method === 'PUT') {
@@ -223,10 +224,10 @@ if (${JSON.stringify(command)} === 'dotnet') {
   if (args.length !== 2 || args[1] !== '--identity-manifest') process.exit(19);
   result = manifest;
 } else if (args[0] === 'context') result = [{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }];
-else if (args.includes('config')) result = { name: 'learnstack-dev', services: { keycloak: { image: 'quay.io/keycloak/keycloak:26.6.2', environment: values } } };
+else if (args.includes('config')) result = { name: 'learnstack-dev', services: { keycloak: { image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', environment: values } } };
 else if (args.includes('ps')) { process.stdout.write(${JSON.stringify(id)}); process.exit(0); }
 else if (args[0] === 'inspect') result = [{ Id: ${JSON.stringify(id)}, State: { Running: true },
- Config: { Image: 'quay.io/keycloak/keycloak:26.6.2', Labels: { 'com.docker.compose.project': 'learnstack-dev', 'com.docker.compose.service': 'keycloak' }, Env: Object.entries(values).map(([key, value]) => key + '=' + value) },
+ Config: { Image: 'quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85', Labels: { 'com.docker.compose.project': 'learnstack-dev', 'com.docker.compose.service': 'keycloak' }, Env: Object.entries(values).map(([key, value]) => key + '=' + value) },
  NetworkSettings: { Ports: { '8080/tcp': [{ HostIp: '127.0.0.1', HostPort: '8080' }] } } }];
 else process.exit(19);
 process.stdout.write(JSON.stringify(result));

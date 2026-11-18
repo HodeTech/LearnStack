@@ -222,6 +222,8 @@ async function fixture(options = {}) {
       export const createNativeAdministrationCaller = () => ({});
       export const createNativeRetainedConsentCaller = () => ({});
       export const createNativeInvitationApi = () => ({});
+      export const createNativeFederationTestApi = () => ({});
+      export const createPublicSignInReader = () => async () => null;
       export const nativeInvitationTarget = () => false;
       export const nativeConsentTarget = () => false;
       export function createNativeConsentHandler({catalogues, store, responseLease}) {
@@ -327,6 +329,7 @@ async function fixture(options = {}) {
     ['../.server/auth/native-invitation-client.js', './dependencies.mjs'],
     ['../.server/auth/native-invitation-http.js', './dependencies.mjs'],
     ['../.server/auth/native-consent-http.js', './dependencies.mjs'],
+    ['../.server/auth/native-federation-client.js', './dependencies.mjs'],
     ['../.server/auth/invitation-html.js', './dependencies.mjs'],
     ['../src/i18n/messages/en/invitation.json', './invitation-en.json'],
     ['../src/i18n/messages/tr/invitation.json', './invitation-tr.json'],

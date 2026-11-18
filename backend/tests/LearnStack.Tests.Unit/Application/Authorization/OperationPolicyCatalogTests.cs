@@ -36,10 +36,10 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(117, actual.Length);
-        Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
+        Assert.Equal(131, actual.Length);
+        Assert.Equal(5, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(48, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        Assert.Equal(61, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
         Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery), typeof(ReadOwnGrantedFieldConsentReceiptQuery),
             typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
@@ -69,8 +69,8 @@ public sealed class OperationPolicyCatalogTests
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);
         Assert.Equal(OperationReadScope.Scoped, admission.ReadScope);
-        Assert.Equal(9, catalog.Definitions.Count(definition => definition.Assignable));
-        Assert.Equal(3, catalog.Definitions.Count(definition => !definition.Assignable));
+        Assert.Equal(10, catalog.Definitions.Count(definition => definition.Assignable));
+        Assert.Equal(4, catalog.Definitions.Count(definition => !definition.Assignable));
         Assert.DoesNotContain(catalog.Definitions, definition => definition.Definition.Scope == PermissionScope.Platform);
         foreach (var policy in catalog.All)
         {

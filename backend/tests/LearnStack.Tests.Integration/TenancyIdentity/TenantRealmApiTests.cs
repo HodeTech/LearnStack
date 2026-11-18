@@ -196,7 +196,7 @@ public sealed partial class TenantRealmApiTests(TenantRealmApiFixture fixture, X
         {
             (await admin.PutAsync(mapperPath, differentAudience)).Should().Be(HttpStatusCode.NoContent);
             var wrongAudience = await TokensAsync(identity);
-            var access = await KeycloakTokenVerifier.ValidateAsync(_provider, wrongAudience.AccessToken, "account");
+            var access = await KeycloakTokenVerifier.ValidateAnyAudienceAsync(_provider, wrongAudience.AccessToken);
             HasAudience(access, "learnstack-api").Should().BeFalse();
             (access.GetProperty("typ").GetString() == "Bearer"
                 && access.GetProperty("azp").GetString() == "learnstack-web").Should().BeTrue();

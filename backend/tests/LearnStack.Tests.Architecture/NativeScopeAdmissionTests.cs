@@ -31,6 +31,8 @@ public sealed partial class NativeScopeAdmissionTests
         "LearnStack.Modules.Identity.Application.Contracts.Entry.IIdentitySelfBootstrapper",
         "LearnStack.Modules.Identity.Application.Contracts.Entry.IIdentitySelfDiscovery",
         "LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IOwnMembershipScopeLabels",
+        // ADR-0099 Amendment 6 (H): the host-only federation alias setter, read only for the self state.
+        "LearnStack.Modules.Identity.Application.Contracts.Entry.IFederationHostAliasReader",
     ];
 
     /// <summary>Security 11: native selectors are a distinct immutable source bound to the exact request and real host.</summary>
@@ -186,7 +188,8 @@ public sealed partial class NativeScopeAdmissionTests
         RequireCalls(census.Body(Entry, "InvokeAsync"), errors,
             (Auth + "GlobalSelfOperation", "ForPath"), (Auth + "HttpIdentitySelfEntryAdmission", "CurrentSubject"),
             ("LearnStack.Modules.Identity.Application.Contracts.Entry.IIdentitySelfStateReader", "ReadSelfAsync"),
-            ("LearnStack.Modules.Identity.Application.Contracts.Entry.IIdentitySelfBootstrapper", "BootstrapAsync"));
+            ("LearnStack.Modules.Identity.Application.Contracts.Entry.IIdentitySelfBootstrapper", "BootstrapAsync"),
+            ("LearnStack.Modules.Identity.Application.Contracts.Entry.IFederationHostAliasReader", "ReadActiveAliasAsync"));
         RequireCalls(census.Body(Entry, "ContextsAsync"), errors,
             ("LearnStack.Modules.Identity.Application.Contracts.Entry.IIdentitySelfDiscovery", "ReadScopesAsync"),
             ("LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IOwnMembershipScopeLabels", "ReadAsync"));

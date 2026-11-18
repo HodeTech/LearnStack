@@ -20,7 +20,7 @@ namespace LearnStack.Tests.Integration.Database;
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 public sealed class IdentityAdministrationReadTests(TenancyAdministrationFixture fixture) : IClassFixture<TenancyAdministrationFixture>
 {
-    private static readonly string[] OwnCapabilityNames = new[] { "CanAdoptRoleRelease", "CanChangeRoleGrants", "CanManageCustomFields", "CanManageMemberships",
+    private static readonly string[] OwnCapabilityNames = new[] { "CanAdoptRoleRelease", "CanChangeRoleGrants", "CanManageCustomFields", "CanManageFederation", "CanManageMemberships",
             "CanManageOrganizations", "CanReadOrganizationMembers", "CanReadRoles", "CanReadTenantMembers",
             "CanWriteMemberProfiles", "CanWriteOwnProfile" };
 
@@ -130,11 +130,13 @@ public sealed class IdentityAdministrationReadTests(TenancyAdministrationFixture
         Assert.False(branch.Value.CanAdoptRoleRelease);
         Assert.False(branch.Value.CanManageOrganizations);
         Assert.False(branch.Value.CanManageCustomFields);
+        Assert.False(branch.Value.CanManageFederation);
         Assert.False(branch.Value.CanWriteOwnProfile); // A NULL-org Membership is not the current branch's profile.
         var learner = await fixture.SendAsync(new GetOwnCapabilitiesQuery(), "capabilities-learner", PersonA, SchemaFixture.OrgA1);
         Assert.True(learner.IsSuccess);
         Assert.False(learner.Value.CanManageCustomFields);
-        Assert.Equal(new OwnCapabilitiesDto(false, false, false, false, false, false, false, true, false, false), learner.Value);
+        Assert.False(learner.Value.CanManageFederation);
+        Assert.Equal(new OwnCapabilitiesDto(false, false, false, false, false, false, false, true, false, false, false), learner.Value);
         Assert.Empty(await fixture.Membership.AuditAsync("capabilities-learner", "identity.authorization.deny", SchemaFixture.OrgA1));
         Assert.Empty(await fixture.Membership.AuditAsync("capabilities-learner", "identity.membership_profile.read", SchemaFixture.OrgA1));
     }

@@ -6,6 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.SharedKernel.Audit;
 
 namespace LearnStack.Modules.Identity.Application.Audit;
@@ -64,6 +65,23 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<ReplaceMembershipRoleAssignmentsCommand>(IdentityOperationPolicySource.MembershipAssignmentsOperation, OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<ChangeRoleGrantsCommand>("identity.role.change_grants", OperationType.SecurityEvent, typeof(Role));
         builder.MustAudit<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", OperationType.SecurityEvent, typeof(Role));
+        // ADR-0099: each Begin, Resume and Complete is its own request type; Reconcile records a detail load's
+        // readback drift or expiry as an apply outcome. No row carries a secret, assertion or token.
+        builder.MustAudit<BeginConfigureFederationCommand>("identity.federation.configure", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<BeginRotateFederationSecretCommand>("identity.federation.rotate_secret", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<BeginRenameFederationCommand>("identity.federation.rename", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<BeginFederationTestStartCommand>("identity.federation.test_start", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<BeginDisableFederationCommand>("identity.federation.disable", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<BeginDeleteFederationCommand>("identity.federation.delete", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<ResumeFederationOperationCommand>("identity.federation.resume", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<CompleteFederationOperationCommand>("identity.federation.apply", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<ReconcileFederationConnectionCommand>("identity.federation.apply", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<EnableFederationCommand>("identity.federation.enable", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<ActivateFederationCommand>("identity.federation.activate", OperationType.SecurityEvent, typeof(FederationConnection));
+        builder.MustAudit<RecordFederationTestResultCommand>("identity.federation.test_record", OperationType.SecurityEvent, typeof(FederationConnection));
+        // Off: the connection detail holds no personal data, and the anonymous sign-in read is a public read.
+        builder.Off<GetFederationConnectionQuery>();
+        builder.Off<GetPublicSignInQuery>();
         builder.DeclareOffPath("identity.user.create", OperationType.SecurityEvent, OperationClass.Must, typeof(User));
         builder.DeclareOffPath("identity.authorization.deny", OperationType.SecurityEvent, OperationClass.Must);
     }

@@ -23,6 +23,7 @@ const identity: ProviderIdentity = {
   tenantId: '10000000-0000-4000-8000-000000000001',
   organizationId: null,
   displayLabel: 'Confirmed account',
+  idp: null,
 };
 function deferred() {
   let resolve!: () => void;
@@ -69,6 +70,7 @@ function fixture() {
   const dependencies: SessionDependencies = {
     clock: { monotonic: () => now, utc: () => utcBase + now + utcOffset },
     provider: {
+      endSession: vi.fn(async () => undefined),
       begin: vi.fn(async (callbackUri) => ({
         transaction: {
           callbackUri,
@@ -91,7 +93,11 @@ function fixture() {
       logoutUrl: () => 'https://identity.example.test/logout',
     },
     native: {
-      self: async (token) => ({ state: 'active', association: association(token) }),
+      self: async (token) => ({
+        state: 'active',
+        association: association(token),
+        federationAlias: null,
+      }),
       bootstrap: async (token) => association(token),
       contexts: async (_token, binding) => ({
         items: [

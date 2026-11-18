@@ -102,11 +102,14 @@ internal static class AdministrationHttpInput
         return true;
     }
 
+    /// <summary>The registry's assignable pairs (release v4 holds ten); OpenAPI `maxItems` and Standard 19 state the same bound.</summary>
+    internal const int MaxGrants = 10;
+
     internal static bool TryGrants(JsonElement body, out ImmutableArray<PermissionDefinition> grants)
     {
         grants = [];
         var value = body.GetProperty("grants");
-        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 9) return false;
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MaxGrants) return false;
         var builder = ImmutableArray.CreateBuilder<PermissionDefinition>();
         foreach (var item in value.EnumerateArray())
         {
@@ -148,14 +151,21 @@ internal static class AdministrationHttpInput
     internal static string Version(long value) => value >= 0 ? value.ToString(CultureInfo.InvariantCulture)
         : throw new InvalidOperationException("The administration result version is invalid.");
 
-    private static bool TryString(JsonElement item, int maximum, out string? value)
+    /// <summary>
+    /// A JSON string, or false. <c>GetString()</c> throws on an unpaired-surrogate escape such as <c>"\ud800"</c>, which
+    /// would otherwise surface as a 500 and a Sentry event for a hostile request body.
+    /// </summary>
+    internal static bool TryGetString(JsonElement item, out string? value)
     {
         value = null;
         if (item.ValueKind != JsonValueKind.String) return false;
         try { value = item.GetString(); }
         catch (InvalidOperationException) { return false; }
-        return value is not null && value.Length <= maximum && JsonValue.IsStorableText(value);
+        return value is not null;
     }
+
+    private static bool TryString(JsonElement item, int maximum, out string? value) =>
+        TryGetString(item, out value) && value!.Length <= maximum && JsonValue.IsStorableText(value);
 
     private static BadHttpRequestException TooLarge() => new("Administration request body exceeds its limit.", StatusCodes.Status413PayloadTooLarge);
 }

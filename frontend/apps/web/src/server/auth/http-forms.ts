@@ -5,6 +5,7 @@ import {
 } from '@learnstack/sdk/administration-server';
 
 import { CUSTOM_FIELD_FORMS, customFieldForm } from './custom-field-forms.js';
+import { FEDERATION_FORMS, federationForm } from './federation-forms.js';
 import { BffInputError } from './input-error.js';
 import type { NativeScope } from './native-contract.js';
 import type { NativeOperation } from './native-operation-contract.js';
@@ -23,6 +24,7 @@ const pairs = new Set([
   'Tenant:tenancy.locale.write',
   'Tenant:tenancy.setting.write',
   'Tenant:customization.custom_field.admin',
+  'Tenant:identity.federation.admin',
 ]);
 function required(fields: URLSearchParams, key: string): string {
   const value = fields.get(key);
@@ -46,13 +48,17 @@ export function bffScope(fields: URLSearchParams): NativeScope {
 }
 
 /** A finite JSON grammar preserves duplicate keys, including escaped aliases, before projection. */
-function arrayField<T>(raw: string, item: (reader: JsonArrayReader) => T): readonly T[] {
+function arrayField<T>(
+  raw: string,
+  maximum: number,
+  item: (reader: JsonArrayReader) => T,
+): readonly T[] {
   const reader = new JsonArrayReader(raw);
   reader.take('[');
   const values: T[] = [];
   if (!reader.maybe(']')) {
     do {
-      if (values.length === 9) throw new BffInputError();
+      if (values.length === maximum) throw new BffInputError();
       values.push(item(reader));
     } while (reader.maybe(','));
     reader.take(']');
@@ -90,12 +96,13 @@ class JsonArrayReader {
   }
 }
 function roleIds(raw: string): readonly string[] {
-  const values = arrayField(raw, (reader) => id(reader.string()));
+  const values = arrayField(raw, 9, (reader) => id(reader.string()));
   if (new Set(values).size !== values.length) throw new BffInputError();
   return values;
 }
 function grants(raw: string): readonly GrantInput[] {
-  const values = arrayField(raw, (reader): GrantInput => {
+  // Role grants track the registry size, ten pairs at release v4 (Standard 19).
+  const values = arrayField(raw, 10, (reader): GrantInput => {
     reader.take('{');
     const fields = new Map<string, string>();
     do {
@@ -135,6 +142,7 @@ export class BffInvitationInputError extends BffInputError {
 }
 export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   ...CUSTOM_FIELD_FORMS,
+  ...FEDERATION_FORMS,
   '/api/studio/membership-profile': [...common, 'membershipId', 'displayName', 'preferredLocale'],
   '/api/studio/membership-roles': [...common, 'membershipId', 'roleIds'],
   '/api/studio/membership-status': [...common, 'membershipId', 'status'],
@@ -178,6 +186,8 @@ export function bffAdministrationForm(
   customFields?: MembershipCustomFields,
 ): Readonly<{ operation: NativeOperation; destination: string }> {
   if (Object.hasOwn(CUSTOM_FIELD_FORMS, path)) return customFieldForm(path, fields, customFields);
+  // ADR-0099: federation forms carry no idempotency key; the connection revision converges them.
+  if (Object.hasOwn(FEDERATION_FORMS, path)) return federationForm(path, fields);
   const allowed = BFF_ADMIN_FORMS[path];
   if (!allowed) throw new BffInputError();
   const names = [...fields.keys()];

@@ -86,6 +86,7 @@ const pairs = new Set([
   'Tenant:tenancy.locale.write',
   'Tenant:tenancy.setting.write',
   'Tenant:customization.custom_field.admin',
+  'Tenant:identity.federation.admin',
 ]);
 export function grant(value: unknown): value is { scope: 'Tenant' | 'Organization'; key: string } {
   return (
@@ -99,7 +100,7 @@ export function grant(value: unknown): value is { scope: 'Tenant' | 'Organizatio
 export function grants(value: unknown): boolean {
   return (
     Array.isArray(value) &&
-    value.length <= 9 &&
+    value.length <= 10 &&
     value.every(grant) &&
     new Set(value.map((item) => item.scope + ':' + item.key)).size === value.length
   );
@@ -251,7 +252,8 @@ function role(value: unknown, detail: boolean): boolean {
         Number.isInteger(value.adoptedReleaseVersion) &&
         (value.adoptedReleaseVersion === 1 ||
           value.adoptedReleaseVersion === 2 ||
-          value.adoptedReleaseVersion === 3) &&
+          value.adoptedReleaseVersion === 3 ||
+          value.adoptedReleaseVersion === 4) &&
         typeof value.adoptedReleaseFingerprint === 'string' &&
         /^[0-9a-f]{64}$/.test(value.adoptedReleaseFingerprint)))
   );
@@ -299,7 +301,7 @@ function permissions(value: unknown): boolean {
   if (
     !fields(value, ['items', 'release']) ||
     !Array.isArray(value.items) ||
-    ![8, 9].includes(value.items.length) ||
+    ![8, 9, 10].includes(value.items.length) ||
     !value.items.every(
       (item) =>
         fields(item, ['scope', 'key', 'labelKey', 'canGrant']) &&
@@ -313,8 +315,8 @@ function permissions(value: unknown): boolean {
   const release = value.release;
   return (
     fields(release, ['version', 'fingerprint', 'tenantAdminDelta']) &&
-    (release.version === 2 || release.version === 3) &&
-    value.items.length === (release.version === 2 ? 8 : 9) &&
+    (release.version === 2 || release.version === 3 || release.version === 4) &&
+    value.items.length === (release.version === 2 ? 8 : release.version === 3 ? 9 : 10) &&
     typeof release.fingerprint === 'string' &&
     /^[0-9a-f]{64}$/.test(release.fingerprint) &&
     grants(release.tenantAdminDelta) &&
@@ -324,7 +326,9 @@ function permissions(value: unknown): boolean {
         item.scope === 'Tenant' &&
         (release.version === 2
           ? item.key.startsWith('tenancy.')
-          : item.key === 'customization.custom_field.admin'),
+          : release.version === 3
+            ? item.key === 'customization.custom_field.admin'
+            : item.key === 'identity.federation.admin'),
     )
   );
 }
@@ -339,6 +343,7 @@ const flags = [
   'canWriteOwnProfile',
   'canManageOrganizations',
   'canManageCustomFields',
+  'canManageFederation',
 ] as const;
 
 export function isAdministrationSuccess(shape: AdministrationShape, value: unknown): boolean {

@@ -26,6 +26,7 @@ public sealed partial class RoleGrantCommandIntegrationTests
     [InlineData(PermissionScope.Tenant, "tenancy.locale.write")]
     [InlineData(PermissionScope.Tenant, "tenancy.setting.write")]
     [InlineData(PermissionScope.Tenant, "customization.custom_field.admin")]
+    [InlineData(PermissionScope.Tenant, "identity.federation.admin")]
     public async Task Every_assignable_pair_requires_a_legal_delegation_target_with_committed_denial_and_no_refused_mutation(
         PermissionScope permissionScope, string permissionKey)
     {
@@ -38,6 +39,11 @@ public sealed partial class RoleGrantCommandIntegrationTests
         if (IdentityRoleRelease.Version3.TenantAdminDelta.Contains(pair))
         {
             await AssertVersion3AssignablePairAsync(pair);
+            return;
+        }
+        if (IdentityRoleRelease.Version4.TenantAdminDelta.Contains(pair))
+        {
+            await AssertVersion4AssignablePairAsync(pair);
             return;
         }
         var roleAdministration = permissionKey == "identity.role.admin";
@@ -209,6 +215,97 @@ public sealed partial class RoleGrantCommandIntegrationTests
 
         // The real Role authoring consumer refuses a Tenant pair on an Organization
         // template. These cases do not claim a human Tenancy administration route.
+        var oppositeRole = RoleId(SchemaFixture.TenantA, BuiltInRoleKey.OrgInstructor, PermissionScope.Organization);
+        var before = await ReadReleasedRoleAsync(database.AppConnectionString, oppositeRole);
+        var refused = await SendReleasedAsync(database.AppConnectionString,
+            new ChangeRoleGrantsCommand(oppositeRole, before.Version, [pair]), correlation);
+        Assert.Equal("forbidden", refused.Error!.Code);
+        var after = await ReadReleasedRoleAsync(database.AppConnectionString, oppositeRole);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.AdoptedVersion, after.AdoptedVersion);
+        Assert.Equal(before.Fingerprint, after.Fingerprint);
+        Assert.Equal(before.Grants, after.Grants);
+        var denial = await ReleasedPairAuditAsync(database.AppConnectionString, correlation, "identity.authorization.deny");
+        Assert.Equal("denied", denial.Outcome);
+        Assert.Equal("Must:SecurityEvent::", denial.Classification);
+        using var metadata = JsonDocument.Parse(denial.Metadata);
+        Assert.Equal("delegation", metadata.RootElement.GetProperty("denial_reason").GetString());
+        var authority = metadata.RootElement.GetProperty("authorization");
+        Assert.Equal(AdminMembershipA.ToString("D"), Assert.Single(authority.GetProperty("memberships").EnumerateArray()).GetString());
+        Assert.Equal(administrator.ToString("D"), Assert.Single(authority.GetProperty("roles").EnumerateArray()).GetString());
+    }
+
+    private async Task AssertVersion4AssignablePairAsync(PermissionDefinition pair)
+    {
+        // v4 (ADR-0099) refuses skipping v3 and a wrong fingerprint, then adopts
+        // v2, v3 and v4 in order while preserving a deliberate v3 removal.
+        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Membership.Postgres);
+        await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
+        await InstallReleasedPairLifecycleAsync(database.AppConnectionString);
+        var release = IdentityRoleRelease.Version4;
+        var administrator = RoleId(SchemaFixture.TenantA, BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant);
+        var correlation = "registry-release-delegation-" + Guid.NewGuid().ToString("N");
+        var v1 = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        var v2 = IdentityRoleRelease.Version2;
+        var predecessor = await SendReleasedAsync(database.AppConnectionString,
+            new AdoptRoleGrantManifestCommand(administrator, v1.Version, v2.Version, v2.Fingerprint), correlation + "-v2");
+        Assert.True(predecessor.IsSuccess);
+        var v2State = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        var skipped = await SendReleasedAsync(database.AppConnectionString,
+            new AdoptRoleGrantManifestCommand(administrator, v2State.Version, release.Version, release.Fingerprint), correlation + "-skip");
+        Assert.Equal("forbidden", skipped.Error!.Code);
+        var afterSkip = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        Assert.Equal(v2State.Version, afterSkip.Version);
+        Assert.Equal(v2State.AdoptedVersion, afterSkip.AdoptedVersion);
+        Assert.Equal(v2State.Grants, afterSkip.Grants);
+        var v3 = IdentityRoleRelease.Version3;
+        var third = await SendReleasedAsync(database.AppConnectionString,
+            new AdoptRoleGrantManifestCommand(administrator, v2State.Version, v3.Version, v3.Fingerprint), correlation + "-v3");
+        Assert.True(third.IsSuccess);
+        var v3State = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        Assert.Equal(3, v3State.AdoptedVersion);
+        Assert.Equal(v3.Fingerprint, v3State.Fingerprint);
+        Assert.DoesNotContain(pair.Scope + ":" + pair.Key, v3State.Grants);
+        var retained = v3.Definitions.Where(definition => definition.Scope == PermissionScope.Tenant
+            && definition.Key != BoundedCustomFieldPermissions.Definition.Key).ToImmutableArray();
+        var removal = await SendReleasedAsync(database.AppConnectionString,
+            new ChangeRoleGrantsCommand(administrator, v3State.Version, retained), correlation + "-remove");
+        Assert.True(removal.IsSuccess);
+        var initial = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        Assert.Equal(3, initial.AdoptedVersion);
+        Assert.DoesNotContain("Tenant:" + BoundedCustomFieldPermissions.Definition.Key, initial.Grants);
+        var forged = await SendReleasedAsync(database.AppConnectionString,
+            new AdoptRoleGrantManifestCommand(administrator, initial.Version, release.Version, v3.Fingerprint), correlation + "-forged");
+        Assert.Equal("forbidden", forged.Error!.Code);
+        var afterForged = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        Assert.Equal(initial.Version, afterForged.Version);
+        Assert.Equal(initial.Grants, afterForged.Grants);
+        var adoption = await SendReleasedAsync(database.AppConnectionString,
+            new AdoptRoleGrantManifestCommand(administrator, initial.Version, release.Version, release.Fingerprint), correlation + "-adopt");
+        Assert.True(adoption.IsSuccess);
+        var adopted = await ReadReleasedRoleAsync(database.AppConnectionString, administrator);
+        Assert.Equal(initial.Version + 1, adopted.Version);
+        Assert.Equal(release.Version, adopted.AdoptedVersion);
+        Assert.Equal(release.Fingerprint, adopted.Fingerprint);
+        Assert.Equal(initial.Grants.Concat(release.TenantAdminDelta.Select(definition => definition.Scope + ":" + definition.Key))
+            .Order(StringComparer.Ordinal), adopted.Grants);
+        var adoptionAudit = await ReleasedPairAuditAsync(database.AppConnectionString, correlation + "-adopt", "identity.role.adopt_manifest");
+        Assert.Equal("success", adoptionAudit.Outcome);
+        Assert.Equal("Must:SecurityEvent:Role:" + administrator.ToString("D"), adoptionAudit.Classification);
+
+        var matchingRole = RoleId(SchemaFixture.TenantA, BuiltInRoleKey.Instructor, PermissionScope.Tenant);
+        var matchingBefore = await ReadReleasedRoleAsync(database.AppConnectionString, matchingRole);
+        var positive = await SendReleasedAsync(database.AppConnectionString,
+            new ChangeRoleGrantsCommand(matchingRole, matchingBefore.Version, [pair]), correlation + "-positive");
+        Assert.True(positive.IsSuccess);
+        var matchingAfter = await ReadReleasedRoleAsync(database.AppConnectionString, matchingRole);
+        Assert.Equal(matchingBefore.Version + 1, matchingAfter.Version);
+        Assert.Equal([pair.Scope + ":" + pair.Key], matchingAfter.Grants);
+        var success = await ReleasedPairAuditAsync(database.AppConnectionString, correlation + "-positive", "identity.role.change_grants");
+        Assert.Equal("success", success.Outcome);
+        Assert.Equal("Must:SecurityEvent:Role:" + matchingRole.ToString("D"), success.Classification);
+
+        // The real Role authoring consumer refuses a Tenant pair on an Organization template.
         var oppositeRole = RoleId(SchemaFixture.TenantA, BuiltInRoleKey.OrgInstructor, PermissionScope.Organization);
         var before = await ReadReleasedRoleAsync(database.AppConnectionString, oppositeRole);
         var refused = await SendReleasedAsync(database.AppConnectionString,

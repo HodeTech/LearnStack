@@ -284,6 +284,43 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   platform-admin / Hub-operator roles, refresh-token rotation. See
   [11-security.md](../standards/11-security.md). LearnStack does not implement any of
   these; configuration is reviewed in Keycloak.
+- Keycloak advisory review and pin cadence for both realms. The move from 26.6.2 to
+  26.7.5 is P03-8 Step 0 under [ADR-0099](../decisions/0099-confined-tenant-federation.md#advisory-baseline-of-the-pin);
+  this phase owns the recurring review of each later pin.
+- Keycloak production provisioning accounts under the 26.7 permission model. Assigning
+  a client scope needs manage permission on that scope, and `serverinfo` returns
+  `systemInfo` only to realm management. The 26.7.0 migrator adds `view-organizations`,
+  `manage-organizations` and `query-organizations` to `realm-management` and to the
+  master realm's admin client (`view-organizations` includes `query-organizations`);
+  production provisioning accounts must not inherit organization rights.
+- Operator realm email verification (Hub hardening). `learnstack-hub.json` sets
+  `verifyEmail: true` but declares only `CONFIGURE_TOTP` in `requiredActions`, so
+  `VERIFY_EMAIL` may be inert for that realm. Unverified; this phase verifies the
+  behaviour and decides the declaration.
+- Keycloak network egress policy for the identity provider process, covering the
+  outbound endpoints a tenant's brokered IdP can cause Keycloak to fetch (token, JWKS,
+  UserInfo, SAML SSO). Required deployment control under
+  [ADR-0099](../decisions/0099-confined-tenant-federation.md#bounded-egress); this phase
+  owns its production qualification.
+- Tenant brokered-account delegation: the controller of a linked tenant IdP can add local
+  credentials to the linked account inside Keycloak
+  ([ADR-0099 § Linking](../decisions/0099-confined-tenant-federation.md#linking-email-trust-and-mfa)).
+  This phase decides whether a Keycloak extension or another enforcement control is
+  built; if none is, the residual stays accepted and documented.
+- Production realm replication of the ADR-0099 realm invariants: the `idp` ID-token
+  mapper, the first-broker flow, the disabled `idp_link` action, the retired account
+  clients and the optional `federation.test_record` scope. The adapter cannot read them,
+  and without the mapper brokered tokens look local and the host binding opens. Trigger:
+  before any production tenant enables federation
+  ([ADR-0099 Amendment 9](../decisions/0099-confined-tenant-federation.md#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).
+- Pre-registered accounts and linking. Under open registration with `verifyEmail` false,
+  an address registered by someone else can be linked by that person's own IdP, and the
+  address owner's password reset does not remove the link. This phase decides, before a
+  production realm admits federation, whether linking requires a verified address or
+  registration is closed; the development realm keeps open registration by design.
+- Confirm-link page copy. The realm ships no localization text or theme, so the page
+  that confirms a link is Keycloak's own and does not state the delegation risk; this
+  phase owns the production realm theme that does.
 - Secret management: Vault rotation cadence (90 days for provider keys, yearly for
   Hub HMAC shared secret + mTLS client certs), no secrets in repo, no secrets in
   env files committed. The Vault adapter itself lands in this phase — see

@@ -132,7 +132,7 @@ public sealed class MembershipDirectoryTests
         Assert.Equal(OperationPolicyKind.Protected, policy.Kind);
         Assert.Equal(OperationReadScope.Tenant, policy.ReadScope);
         Assert.Equal(IdentityOperationPolicySource.MembershipAdministration, policy.RequiredPermission);
-        Assert.Equal(5, source.Definitions.Count());
+        Assert.Equal(7, source.Definitions.Count());
         Assert.Equal(6, source.Policies.Count(item => item.Kind == OperationPolicyKind.FiniteTrusted
             && item.AllowedSources.SequenceEqual([AuthorizationSourceKind.Seed])));
         var catalog = new AuditCatalog([new IdentityAuditCatalogSource()]);

@@ -84,6 +84,8 @@ internal static class IdentitySelfEntryRegistration
         services.AddScoped<Func<IIdentitySelfBootstrapper>>(provider => () => provider.GetRequiredService<IIdentitySelfBootstrapper>());
         services.AddScoped<Func<IIdentitySelfDiscovery>>(provider => () => provider.GetRequiredService<IIdentitySelfDiscovery>());
         services.AddScoped<Func<IOwnMembershipScopeLabels>>(provider => () => provider.GetRequiredService<IOwnMembershipScopeLabels>());
+        // ADR-0099 Amendment 6 (H): the host alias setter is constructed only when a self state read consults it.
+        services.AddScoped<Func<IFederationHostAliasReader>>(provider => () => provider.GetRequiredService<IFederationHostAliasReader>());
         services.Replace(ServiceDescriptor.Scoped<IIdentitySelfEntryAdmission>(provider => provider.GetRequiredService<HttpIdentitySelfEntryAdmission>()));
         services.Replace(ServiceDescriptor.Scoped<INativeSessionAssociationSource>(provider => provider.GetRequiredService<HttpIdentitySelfEntryAdmission>()));
         services.AddSingleton(provider => new NativeEntryOriginOptions(provider.GetRequiredService<IConfiguration>()));

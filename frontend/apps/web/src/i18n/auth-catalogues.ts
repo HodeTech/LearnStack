@@ -11,7 +11,7 @@ type Leaves<T> = {
   [K in keyof T & string]: T[K] extends string ? K : `${K}.${Leaves<T[K]>}`;
 }[keyof T & string];
 export type AuthKey = Leaves<typeof en>;
-export type AuthCopy = (key: AuthKey) => string;
+export type AuthCopy = (key: AuthKey, values?: Readonly<Record<string, string>>) => string;
 export function getAuthCatalogue(contentLocale: string) {
   const locale = selectUiLocale(contentLocale);
   return Object.freeze({ locale, direction: textDirection(locale), messages: catalogues[locale] });

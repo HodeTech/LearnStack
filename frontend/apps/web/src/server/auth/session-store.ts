@@ -8,6 +8,7 @@ import type { ProviderLogoutTarget } from './backchannel-state.js';
 import type { NativeConsentResponseLease } from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
+import { FEDERATION_ALIAS } from './federation-alias.js';
 import { bffActionDocumentTarget } from './http-paths.js';
 import { BffInputError } from './input-error.js';
 import type {
@@ -17,7 +18,7 @@ import type {
   InvitationCommand,
 } from './invitation-session.js';
 import { NativeApiError } from './native-contract.js';
-import type { NativeScope, SelfContexts } from './native-contract.js';
+import type { NativeScope, NativeSelf, SelfContexts } from './native-contract.js';
 import type {
   NativeInvitationInspection,
   NativeInvitationResult,
@@ -41,6 +42,9 @@ import { BffProviderError } from './provider-error.js';
 import type { LoginTransaction, ProviderCredentials } from './provider.js';
 import { BffSessionError } from './session-contract.js';
 import type {
+  FederationSignInOption,
+  FederationTestCompletion,
+  FederationTestOutcome,
   AccountWitness,
   BffSessionStore,
   LoginCompletion,
@@ -147,7 +151,40 @@ type Owner = {
   refresh?: Promise<void>;
   logoutState?: string;
   logoutProof?: string;
+  /**
+   * ADR-0099 § Host binding: the `idp` recorded when these credentials were redeemed (null for a local sign-in). A
+   * refresh or later publication whose provenance differs is a definitive mismatch.
+   */
+  provenance?: string | null;
+  /** The pending federation_test owner: it never publishes, reserves no subject and holds no credentials. */
+  federationTest?: Readonly<{
+    admin: Owner;
+    attemptId: string;
+    alias: string;
+    version: string;
+    subject: string;
+    issuer: string;
+    scope: NativeScope;
+    /** The test window's start (UTC milliseconds); the callback's `auth_time` must not precede it. */
+    startedAt: number;
+    /**
+     * ADR-0099 Amendment 8: the administrator's provider session (`sid`), ended server-side before the redirect. The
+     * callback's session must differ from it, so a re-authentication inside that session cannot pass.
+     */
+    replacedSid: string;
+  }>;
+  /** ADR-0099 Amendment 6 (S-B): the attempt this administrator's session started; never sent to the browser. */
+  heldTest?: Readonly<{
+    attemptId: string;
+    alias: string;
+    version: string;
+    expires: number;
+    startedAt: number;
+  }>;
 };
+
+/** A federation test window is ten minutes (ADR-0099 § Lifecycle and test); the BFF holds its attempt no longer. */
+const FEDERATION_TEST_WINDOW_MS = 10 * 60_000;
 
 /** One native owner. No request constructs it; no credential-returning API exists. */
 export class InMemoryBffSessionStore implements BffSessionStore {
@@ -251,6 +288,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.replacement = undefined;
     entry.invitation = undefined;
     entry.custody = undefined;
+    entry.federationTest = undefined;
+    entry.heldTest = undefined;
+    entry.provenance = undefined;
     entry.csrf = '';
     entry.group.members.delete(entry);
     if (entry.group.current === entry) entry.group.current = undefined;
@@ -285,6 +325,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.account = undefined;
     entry.identity = undefined;
     entry.proof = undefined;
+    entry.heldTest = undefined;
     entry.controller.abort();
     this.#release(entry);
   }
@@ -507,7 +548,14 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         supplied ??
         (reason === 'csrf'
           ? 403
-          : ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(reason)
+          : [
+                'identity',
+                'invalid_grant',
+                'reauthenticate',
+                'expired',
+                'revoked',
+                'host_binding',
+              ].includes(reason)
             ? 400
             : 503);
       return lease.publishEntry({
@@ -517,7 +565,14 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           kind: 'failure',
           reason:
             status === 401 ||
-            ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(reason)
+            [
+              'identity',
+              'invalid_grant',
+              'reauthenticate',
+              'expired',
+              'revoked',
+              'host_binding',
+            ].includes(reason)
               ? 'reauthenticate'
               : status === 403 && input.kind === 'create' && error instanceof NativeApiError
                 ? 'creation_disabled'
@@ -668,6 +723,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
                     : 'members',
               cursor,
             ),
+          this.#dependencies.federationIssuer,
         );
       });
       lease.track(work);
@@ -807,6 +863,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         tenantId: next.identity.tenantId,
         organizationId: next.identity.organizationId,
         displayLabel: previous ? null : next.identity.displayLabel,
+        // A provider adapter that omits the claim is local, never brokered.
+        idp: next.identity.idp ?? null,
+        ...(typeof next.identity.authTime === 'number' ? { authTime: next.identity.authTime } : {}),
       }),
       accessExpiresAt: next.accessExpiresAt,
       refreshExpiresAt: next.refreshExpiresAt,
@@ -1020,6 +1079,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       utcOffset: owner.utcOffset,
       csrf: opaque(),
       credentials: credentialOwner.credentials,
+      provenance: credentialOwner.provenance,
     };
     this.#reserveSubject(entry, entry.credentials!);
     entry.group.members.add(entry);
@@ -1035,6 +1095,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         custody.code = undefined;
         return completion;
       });
+    } catch (error) {
+      this.#refused(error, entry.credentials, old, entry, credentialOwner);
+      throw error;
     } finally {
       if (entry.phase !== 'active') this.#close(entry);
       if (entry.group.publishing === entry) entry.group.publishing = undefined;
@@ -1282,6 +1345,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           });
     if (input.verification && (!invitation?.subject || !invitation.custody?.credentialsOwner))
       throw new BffSessionError('transaction');
+    // The purposes are mutually exclusive; a federation sign-in's alias is read here, never taken from the request.
+    if (input.federation && (input.verification || invitation))
+      throw new BffSessionError('transaction');
+    const option = input.federation
+      ? await this.signInOption(input.host, input.source, input.signal)
+      : null;
+    if (input.federation && !option) throw new BffSessionError('provider_refused');
     this.sweep();
     const pending = [...this.#owners.values()].filter((entry) => entry.pending);
     const refusal =
@@ -1341,7 +1411,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         const callbackUri = 'https://' + input.host + '/api/auth/callback/keycloak';
         const start = await (input.verification
           ? this.#dependencies.provider.begin(callbackUri, entry.controller.signal, 'verify_email')
-          : this.#dependencies.provider.begin(callbackUri, entry.controller.signal));
+          : option
+            ? this.#dependencies.provider.begin(callbackUri, entry.controller.signal, {
+                kind: 'federation_signin',
+                alias: option.alias,
+              })
+            : this.#dependencies.provider.begin(callbackUri, entry.controller.signal));
         this.#assert(entry, 'starting');
         if (!isBffOpaque(start.transaction.state) || this.#states.has(start.transaction.state))
           throw new BffSessionError('response');
@@ -1368,7 +1443,171 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     });
   }
 
+  async signInOption(
+    host: string,
+    source: string,
+    signal?: AbortSignal,
+  ): Promise<FederationSignInOption | null> {
+    this.#checkSource(host, source);
+    const read = this.#dependencies.publicSignIn;
+    if (!read) return null;
+    try {
+      const option = await read(
+        { host, source },
+        signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+          : AbortSignal.timeout(10_000),
+      );
+      if (
+        !option ||
+        typeof option.alias !== 'string' ||
+        !FEDERATION_ALIAS.test(option.alias) ||
+        typeof option.displayName !== 'string' ||
+        !option.displayName ||
+        [...option.displayName].length > 80
+      )
+        return null;
+      return Object.freeze({ alias: option.alias, displayName: option.displayName });
+    } catch {
+      // A missing, slow or failed read hides only the federation option.
+      return null;
+    }
+  }
+
+  async startFederationTest(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<LoginStart> {
+    this.#checkSource(binding.host, source);
+    if (signal?.aborted) throw new BffSessionError('cancelled');
+    const admin = this.#find(binding);
+    if (!admin || !bffSecretEquals(csrf, admin.csrf)) throw new BffSessionError('csrf');
+    if (admin.transition || admin.group.publishing) throw new BffSessionError('transaction');
+    const api = this.#dependencies.federationTest;
+    if (!api) throw new BffSessionError('configuration');
+    this.#pendingCapacity(source);
+    // The attempt identifier reaches only this server-side owner; it is never sent to the browser.
+    const held = await this.#bounded(admin, signal, async (current) => {
+      await this.#ready(admin, binding, source, false, current);
+      this.#assert(admin, 'active');
+      if (admin.heldTest && admin.heldTest.expires > this.#now()) return admin.heldTest;
+      const started = await api.start(
+        admin.credentials!.accessToken,
+        this.#scoped(binding, source, admin.identity!),
+        current,
+      );
+      this.#assertSignal(current);
+      this.#assert(admin, 'active');
+      if (
+        !FEDERATION_ALIAS.test(started.alias) ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(started.attemptId) ||
+        !/^(0|[1-9][0-9]{0,18})$/.test(started.version)
+      )
+        throw new BffSessionError('response');
+      admin.heldTest = Object.freeze({
+        attemptId: started.attemptId,
+        alias: started.alias,
+        version: started.version,
+        expires: this.#now() + FEDERATION_TEST_WINDOW_MS,
+        startedAt: this.#utc(),
+      });
+      return admin.heldTest;
+    });
+    this.#assert(admin, 'active');
+    const credentials = admin.credentials!;
+    // ADR-0099 Amendment 8: the provider session this test replaces, and the refresh token that ends it; without
+    // either the test cannot prove a new session, so it does not start.
+    const replacedSid = credentials.identity.sid;
+    const replacedRefresh = credentials.refreshToken;
+    if (typeof replacedSid !== 'string' || !replacedSid || !replacedRefresh)
+      throw new BffSessionError('identity');
+    const now = this.#now();
+    const entry: Owner = {
+      id: opaque(),
+      admittedAt: now,
+      group: admin.group,
+      epoch: admin.group.epoch,
+      source,
+      phase: 'starting',
+      pending: true,
+      deadline: Math.min(now + BFF_LIMITS.transactionMs, held.expires),
+      controller: new AbortController(),
+      work: new Set(),
+      returnPath: '/studio',
+      federationTest: Object.freeze({
+        admin,
+        attemptId: held.attemptId,
+        alias: held.alias,
+        version: held.version,
+        subject: credentials.identity.subject,
+        issuer: credentials.identity.issuer,
+        scope: Object.freeze({
+          tenantId: admin.identity!.tenantId,
+          organizationId: admin.identity!.organizationId,
+        }),
+        startedAt: held.startedAt,
+        replacedSid,
+      }),
+      absolute: now + BFF_LIMITS.transactionMs,
+      activity: now,
+      utcOffset: this.#utc() - now,
+      csrf: opaque(),
+    };
+    entry.group.members.add(entry);
+    this.#owners.set(entry.id, entry);
+    return this.#exclusive(entry, signal, async () => {
+      try {
+        this.#assert(entry, 'starting');
+        // ADR-0099 Amendment 8: the administrator's provider session ends server-side, awaited, before the redirect,
+        // so the test authenticates in a new provider session; a stale brokered note on the old one cannot pass it.
+        // The request is bound to the test owner: the back-channel logout it causes closes the administrator's owner.
+        await this.#dependencies.provider.endSession(replacedRefresh, entry.controller.signal);
+        this.#assert(entry, 'starting');
+        const start = await this.#dependencies.provider.begin(
+          'https://' + binding.host + '/api/auth/callback/keycloak',
+          entry.controller.signal,
+          { kind: 'federation_test', alias: held.alias },
+        );
+        this.#assert(entry, 'starting');
+        if (!isBffOpaque(start.transaction.state) || this.#states.has(start.transaction.state))
+          throw new BffSessionError('response');
+        entry.transaction = Object.freeze({ ...start.transaction });
+        entry.proof = opaque();
+        entry.phase = 'pending';
+        this.#states.set(start.transaction.state, entry);
+        return Object.freeze({
+          state: start.transaction.state,
+          proof: entry.proof,
+          browser: entry.group.browser,
+          redirectUrl: start.redirectUrl,
+        });
+      } catch (error) {
+        const reason = this.#stopped
+          ? 'stopped'
+          : signal?.aborted
+            ? 'cancelled'
+            : this.#reason(error);
+        this.#close(entry);
+        this.#diagnostic(reason);
+        throw new BffSessionError(reason);
+      }
+    });
+  }
+
   async complete(input: Parameters<BffSessionStore['complete']>[0]): Promise<LoginCompletion> {
+    return (await this.#complete(input, false)) as LoginCompletion;
+  }
+  async completeCallback(
+    input: Parameters<BffSessionStore['complete']>[0],
+  ): Promise<LoginCompletion | FederationTestCompletion> {
+    return this.#complete(input, true);
+  }
+  async #complete(
+    input: Parameters<BffSessionStore['complete']>[0],
+    test: boolean,
+  ): Promise<LoginCompletion | FederationTestCompletion> {
     this.#checkSource(input.host, input.source);
     const entry = isBffOpaque(input.state) ? this.#states.get(input.state) : undefined;
     if (
@@ -1376,7 +1615,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       entry.phase !== 'pending' ||
       entry.group.host !== input.host ||
       !bffSecretEquals(input.browser, entry.group.browser) ||
-      !bffSecretEquals(input.proof, entry.proof)
+      !bffSecretEquals(input.proof, entry.proof) ||
+      (!!entry.federationTest && !test)
     )
       throw new BffSessionError('transaction');
     // Keycloak's finite action result belongs only to this owned VERIFY_EMAIL transaction.
@@ -1397,6 +1637,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.phase = 'exchange';
     this.#states.delete(input.state);
     return this.#exclusive(entry, input.signal, async () => {
+      let redeemed: ProviderCredentials | undefined;
       try {
         this.#assert(entry, 'exchange');
         const credentials = this.#bundle(
@@ -1404,7 +1645,26 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             entry.transaction!,
             input.responseUrl,
             entry.controller.signal,
+            // ADR-0099 Amendment 7: the test-record scope is admitted, and required, only for the test owner.
+            !!entry.federationTest,
           ),
+        );
+        redeemed = credentials;
+        this.#assert(entry, 'exchange');
+        // ADR-0099: the test callback never reaches subject reservation or credential assignment.
+        if (entry.federationTest) return await this.#completeTest(entry, credentials, input);
+        // ADR-0099 § Host binding at code redemption, before any subject or custody is touched.
+        await this.#hostBound(
+          credentials,
+          {
+            host: input.host,
+            browser: input.browser,
+            handle: entry.id,
+            traceparent: input.traceparent,
+          },
+          input.source,
+          entry.controller.signal,
+          undefined,
         );
         this.#assert(entry, 'exchange');
         this.#reserveSubject(entry, credentials);
@@ -1431,6 +1691,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         }
         entry.cursorKey = randomBytes(32);
         entry.credentials = credentials;
+        entry.provenance = credentials.identity.idp;
         entry.transaction = undefined;
         entry.verification = undefined;
         entry.proof = undefined;
@@ -1448,11 +1709,74 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           : input.signal?.aborted
             ? 'cancelled'
             : this.#reason(error);
+        if (reason === 'host_binding') this.#endProviderSession(redeemed);
         this.#close(entry);
         this.#diagnostic(reason);
         throw new BffSessionError(reason, input.state);
       }
     });
+  }
+  /**
+   * ADR-0099 § Lifecycle and test, the federation_test callback. The ID token was validated like any sign-in; the
+   * result passes only when its `idp` is the tested alias, its issuer and subject are the administrator's, its
+   * `auth_time` is at or after the test window's start (a fresh authentication, ADR-0099 Amendment 7) and its `sid`
+   * differs from the administrator's provider session ended at the start (a new session, Amendment 8). The BFF records
+   * it with the test-purpose access token, publishes nothing, discards every token, ends the provider session
+   * server-side with the test refresh token and signs the administrator out, because the shared provider session now
+   * carries the brokered note.
+   */
+  async #completeTest(
+    entry: Owner,
+    credentials: ProviderCredentials,
+    input: Parameters<BffSessionStore['complete']>[0],
+  ): Promise<FederationTestCompletion> {
+    const test = entry.federationTest!;
+    const authTime = credentials.identity.authTime;
+    const passed =
+      credentials.identity.idp === test.alias &&
+      credentials.identity.issuer === test.issuer &&
+      credentials.identity.subject === test.subject &&
+      credentials.identity.sid !== test.replacedSid &&
+      typeof authTime === 'number' &&
+      authTime >= Math.floor(test.startedAt / 1000);
+    let outcome: FederationTestOutcome = 'unrecorded';
+    const api = this.#dependencies.federationTest;
+    if (api) {
+      try {
+        await api.record(
+          credentials.accessToken,
+          {
+            host: input.host,
+            source: input.source,
+            ...(input.traceparent ? { traceparent: input.traceparent } : {}),
+            tenantId: test.scope.tenantId,
+            organizationId: test.scope.organizationId,
+          },
+          { version: test.version, attemptId: test.attemptId, passed },
+          entry.controller.signal,
+        );
+        outcome = passed ? 'passed' : 'failed';
+      } catch (error) {
+        this.#diagnostic(this.#reason(error));
+      }
+    }
+    this.#assert(entry, 'exchange');
+    // The attempt is spent whatever was recorded; a new test starts a new window.
+    if (test.admin.heldTest?.attemptId === test.attemptId) test.admin.heldTest = undefined;
+    const idToken = credentials.idToken;
+    const group = entry.group;
+    group.epoch = opaque();
+    if (group.current) group.current = undefined;
+    for (const other of [...group.members])
+      if (other !== entry && (other === test.admin || other.pending)) this.#close(other);
+    if (test.admin.phase !== 'closing') this.#close(test.admin);
+    entry.federationTest = undefined;
+    entry.transaction = undefined;
+    entry.proof = undefined;
+    // The browser redirect below may never be followed; the provider session ends server-side too (D4-1's helper).
+    this.#endProviderSession(credentials, null);
+    const logout = this.#logoutOwner(entry, input.host, idToken);
+    return Object.freeze({ kind: 'federation_test', outcome, browser: group.browser, logout });
   }
 
   #findEntry(binding: SessionBinding, allowSelecting = false) {
@@ -1603,6 +1927,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       );
       this.#assertSignal(current);
       this.#assert(owner, 'entry');
+      await this.#hostBound(credentials, binding, source, current, owner.provenance, self);
       const association =
         self.state === 'active'
           ? self.association
@@ -1626,6 +1951,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     owner.busy = work;
     try {
       return await work;
+    } catch (error) {
+      this.#refused(error, owner.credentials, owner);
+      throw error;
     } finally {
       if (owner.busy === work) owner.busy = undefined;
     }
@@ -1671,6 +1999,74 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     )
       throw new BffSessionError('identity');
   }
+  /** ADR-0099 § Host binding: only proven unavailability of the self read is indeterminate. */
+  #indeterminate(error: unknown) {
+    if (error instanceof NativeApiError && error.status !== undefined)
+      return error.status === 429 || error.status === 503;
+    return ['deadline', 'transport'].includes(this.#reason(error));
+  }
+  /**
+   * ADR-0099 § Host binding, at every credential publication. A local token (`idp` absent) follows the existing rules.
+   * A brokered token is admitted only when its `idp` equals the host tenant's Active alias from the authenticated self
+   * read and, when a provenance was recorded, equals it. A changed provenance or alias is `host_binding` (definitive);
+   * a self read that cannot decide is `host_unavailable` (indeterminate).
+   */
+  async #hostBound(
+    credentials: ProviderCredentials,
+    binding: SessionBinding,
+    source: string,
+    signal: AbortSignal,
+    recorded: string | null | undefined,
+    self?: NativeSelf,
+  ) {
+    const idp = credentials.identity.idp ?? null;
+    if (recorded !== undefined && idp !== recorded) throw new BffSessionError('host_binding');
+    if (idp === null) return;
+    let read = self;
+    if (!read) {
+      try {
+        read = await this.#dependencies.native.self(
+          credentials.accessToken,
+          this.#binding(binding, source),
+          signal,
+        );
+      } catch (error) {
+        if (this.#indeterminate(error)) throw new BffSessionError('host_unavailable');
+        throw error;
+      }
+      this.#assertSignal(signal);
+    }
+    if (!FEDERATION_ALIAS.test(idp) || read.federationAlias !== idp)
+      throw new BffSessionError('host_binding');
+  }
+  /**
+   * A definitive mismatch also ends the provider (SSO) session, server-side at the end-session endpoint, so the shared
+   * session carrying the brokered note cannot mint another publication. Best effort: the refusal never waits on it.
+   */
+  #endProviderSession(
+    credentials: ProviderCredentials | undefined,
+    ended: SessionFailure | null = 'host_binding',
+  ) {
+    const token = credentials?.refreshToken;
+    if (!token) return;
+    void this.#dependencies.provider.endSession(token).then(
+      () => {
+        if (ended) this.#diagnostic(ended);
+      },
+      () => this.#diagnostic('provider_refused'),
+    );
+  }
+  /** A definitive host-binding refusal ends the named BFF owners and the provider session. */
+  #refused(
+    error: unknown,
+    credentials: ProviderCredentials | undefined,
+    ...owners: (Owner | undefined)[]
+  ) {
+    if (!(error instanceof BffSessionError) || error.reason !== 'host_binding') return;
+    this.#endProviderSession(credentials);
+    for (const owner of owners)
+      if (owner && owner.phase !== 'logout' && owner.phase !== 'closing') this.#close(owner);
+  }
   async #chosen(
     entry: Owner,
     binding: SessionBinding,
@@ -1704,6 +2100,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#assert(entry, phase);
     const credentials = entry.credentials!;
     this.#validateProviderScope(credentials, scope);
+    // ADR-0099 § Host binding at selection, creation of a context and context switching.
+    await this.#hostBound(credentials, binding, source, signal, entry.provenance);
+    this.#assert(entry, phase);
     const witness = await this.#dependencies.native.admit(
       credentials.accessToken,
       this.#scoped(binding, source, scope),
@@ -1821,6 +2220,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         await this.#admission(entry, binding, source, scope, current, 'selecting');
         return this.#publish(entry, old, 'selecting', current);
       });
+    } catch (error) {
+      this.#refused(error, entry.credentials, old, entry);
+      throw error;
     } finally {
       if (entry.phase === 'selecting') entry.phase = 'entry';
       if (entry.group.publishing === entry) entry.group.publishing = undefined;
@@ -1885,6 +2287,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#assert(old, 'active');
       this.#assert(entry, 'switching');
       entry.credentials = old.credentials;
+      entry.provenance = old.provenance;
       const choice = await this.#dependencies.administration(
         entry.credentials!.accessToken,
         this.#scoped(binding, source, old.identity!),
@@ -1926,6 +2329,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     old.transition = work;
     try {
       return await work;
+    } catch (error) {
+      this.#refused(error, old.credentials, old, entry);
+      throw error;
     } finally {
       if (old.transition === work) old.transition = undefined;
       if (entry.phase !== 'active') this.#close(entry);
@@ -1966,6 +2372,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       'getInvitation',
       'listInvitableRoles',
       'getInvitationPolicy',
+      'getFederationConnection',
       'listOrganizations',
       'getOrganization',
       'listCustomFieldDefinitions',
@@ -2040,46 +2447,56 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     } catch {
       throw new BffSessionError('configuration');
     }
-    return this.#bounded(owner, signal, async (current) => {
-      this.#assert(owner, 'entry');
-      if (owner.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs) {
-        if (!owner.refresh) {
-          const previous = owner.credentials!;
-          const work = this.#tracked(owner, async () => {
-            const next = this.#bundle(
-              await this.#dependencies.provider.refresh(
-                previous.refreshToken!,
-                previous.identity,
-                current,
-              ),
-              previous,
-            );
-            this.#assertSignal(current);
-            this.#assert(owner, 'entry');
-            if (owner.credentials !== previous) throw new BffSessionError('transaction');
-            owner.credentials = next;
-          });
-          owner.refresh = work;
-          void work
-            .finally(() => {
-              if (owner.refresh === work) owner.refresh = undefined;
-            })
-            .catch(() => undefined);
+    let refreshed: ProviderCredentials | undefined;
+    try {
+      return await this.#bounded(owner, signal, async (current) => {
+        this.#assert(owner, 'entry');
+        if (owner.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs) {
+          if (!owner.refresh) {
+            const previous = owner.credentials!;
+            const work = this.#tracked(owner, async () => {
+              const next = this.#bundle(
+                await this.#dependencies.provider.refresh(
+                  previous.refreshToken!,
+                  previous.identity,
+                  current,
+                ),
+                previous,
+              );
+              this.#assertSignal(current);
+              this.#assert(owner, 'entry');
+              if (owner.credentials !== previous) throw new BffSessionError('transaction');
+              // ADR-0099 § Host binding at the consent refresh.
+              refreshed = next;
+              await this.#hostBound(next, binding, source, current, owner.provenance);
+              this.#assert(owner, 'entry');
+              owner.credentials = next;
+            });
+            owner.refresh = work;
+            void work
+              .finally(() => {
+                if (owner.refresh === work) owner.refresh = undefined;
+              })
+              .catch(() => undefined);
+          }
+          await this.#wait(owner.refresh, current);
         }
-        await this.#wait(owner.refresh, current);
-      }
-      const credentials = owner.credentials!;
-      const result = await this.#dependencies.retainedConsent!(
-        credentials.accessToken,
-        this.#binding(binding, source),
-        captured,
-        current,
-      );
-      this.#assertSignal(current);
-      this.#assert(owner, 'entry');
-      if (owner.credentials !== credentials) throw new BffSessionError('response');
-      return result;
-    });
+        const credentials = owner.credentials!;
+        const result = await this.#dependencies.retainedConsent!(
+          credentials.accessToken,
+          this.#binding(binding, source),
+          captured,
+          current,
+        );
+        this.#assertSignal(current);
+        this.#assert(owner, 'entry');
+        if (owner.credentials !== credentials) throw new BffSessionError('response');
+        return result;
+      });
+    } catch (error) {
+      this.#refused(error, refreshed, owner);
+      throw error;
+    }
   }
 
   peek(binding: SessionBinding): SessionProjection | null {
@@ -2125,6 +2542,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     ) {
       const previous = entry.credentials!;
       let failure: SessionFailure | undefined;
+      let refreshed: ProviderCredentials | undefined;
       const work = this.#bounded(entry, undefined, async (current) => {
         try {
           this.#assert(entry, 'active');
@@ -2136,17 +2554,34 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             ),
             previous,
           );
+          refreshed = next;
           this.#assert(entry, 'active');
           this.#assertSignal(current);
-          const self = await this.#dependencies.native.self(
-            next.accessToken,
-            this.#binding(binding, source),
-            current,
-          );
+          let self: NativeSelf;
+          try {
+            self = await this.#dependencies.native.self(
+              next.accessToken,
+              this.#binding(binding, source),
+              current,
+            );
+          } catch (error) {
+            // ADR-0099 § Host binding: an undecidable self read keeps a brokered session; local follows the old rule.
+            // The bounded timer aborting this read (the owner itself still live) is a timeout too, not a cancellation
+            // (Step 4 review S4-4): the native client's own deadline starts later, so the outer timer fires first.
+            if (
+              previous.identity.idp !== null &&
+              (this.#indeterminate(error) ||
+                (current.aborted && !entry.controller.signal.aborted && !this.#stopped))
+            )
+              throw new BffSessionError('host_unavailable');
+            throw error;
+          }
           this.#assert(entry, 'active');
           this.#assertSignal(current);
           if (self.state !== 'active') throw new BffSessionError('identity');
           this.#dependencies.native.verifyAssociation(next.identity, self.association);
+          // ADR-0099 § Host binding at the active refresh: provenance and the host tenant's Active alias.
+          await this.#hostBound(next, binding, source, current, entry.provenance, self);
           if (self.association.actorId !== entry.identity!.actorId)
             throw new BffSessionError('identity');
           const witnessed = await this.#dependencies.account(
@@ -2170,11 +2605,17 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         // Classify before owner closure can turn a specific failure into cancellation.
         const bounded = this.#reason(error);
         const reason =
-          failure === 'revoked' || failure === 'stopped'
+          failure === 'revoked' || failure === 'stopped' || failure === 'host_unavailable'
             ? failure
             : bounded === 'deadline'
               ? bounded
               : (failure ?? bounded);
+        // An indeterminate host read keeps the existing session and its idle deadline (ADR-0070 Amendment 1).
+        if (reason === 'host_unavailable') {
+          this.#diagnostic(reason);
+          throw new BffSessionError(reason);
+        }
+        if (reason === 'host_binding') this.#endProviderSession(refreshed ?? previous);
         if (entry.phase !== 'logout') this.#close(entry);
         this.#diagnostic(reason);
         throw new BffSessionError(reason);
@@ -2258,6 +2699,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.group.current = undefined;
     for (const pending of entry.group.members)
       if (pending !== entry && pending.pending) this.#close(pending);
+    const logout = this.#logoutOwner(entry, binding.host, idToken);
+    this.#diagnostic('revoked');
+    return logout;
+  }
+  /** The standard sign-out: the owner keeps only its logout proof; the browser goes to the provider end-session. */
+  #logoutOwner(entry: Owner, host: string, idToken: string): LogoutStart {
     this.#abortPages(entry);
     this.#clearPageCursorKey(entry);
     entry.phase = 'logout';
@@ -2272,7 +2719,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     try {
       redirectUrl = this.#dependencies.provider.logoutUrl(
         idToken,
-        'https://' + binding.host + '/',
+        'https://' + host + '/',
         entry.logoutState,
       );
     } catch (error) {
@@ -2283,7 +2730,6 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       entry.account = undefined;
       entry.identity = undefined;
     }
-    this.#diagnostic('revoked');
     return Object.freeze({ state: entry.logoutState, proof: entry.logoutProof, redirectUrl });
   }
 

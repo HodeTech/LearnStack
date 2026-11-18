@@ -24,6 +24,8 @@ export function bffFixture(
     account?: SessionDependencies['account'];
     invitations?: SessionDependencies['invitations'];
     retainedConsent?: SessionDependencies['retainedConsent'];
+    federationTest?: SessionDependencies['federationTest'];
+    publicSignIn?: SessionDependencies['publicSignIn'];
     unscopedProvider?: boolean;
   } = {},
 ) {
@@ -36,6 +38,7 @@ export function bffFixture(
     tenantId: '10000000-0000-4000-8000-000000000001',
     organizationId: null,
     displayLabel: 'Confirmed account',
+    idp: null,
   };
   const credentials = () => ({
     accessToken: 'private-access-canary',
@@ -48,6 +51,7 @@ export function bffFixture(
     refreshExpiresAt: now + 1800_000,
   });
   const provider = {
+    endSession: vi.fn(async () => undefined),
     begin: vi.fn(async (callbackUri: string) => ({
       transaction: { state: bffOpaque(), nonce: bffOpaque(), verifier: bffOpaque(), callbackUri },
       redirectUrl: 'https://identity.example.test/authorize',
@@ -71,7 +75,11 @@ export function bffFixture(
     actorId: identity.actorId!,
   };
   const native = {
-    self: vi.fn<NativeSessionApi['self']>(async () => ({ state: 'active', association })),
+    self: vi.fn<NativeSessionApi['self']>(async () => ({
+      state: 'active',
+      association,
+      federationAlias: null,
+    })),
     bootstrap: vi.fn<NativeSessionApi['bootstrap']>(async () => association),
     contexts: vi.fn<NativeSessionApi['contexts']>(async (_token, binding) => ({
       items: [
@@ -112,6 +120,7 @@ export function bffFixture(
           canWriteOwnProfile: true,
           canManageOrganizations: true,
           canManageCustomFields: true,
+          canManageFederation: false,
         },
       };
     if (operation.kind === 'getOwnProfile')
@@ -162,6 +171,8 @@ export function bffFixture(
       administration,
       invitations: options.invitations,
       retainedConsent: options.retainedConsent,
+      federationTest: options.federationTest,
+      publicSignIn: options.publicSignIn,
       account: options.account ?? account,
       clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
     },
@@ -239,9 +250,12 @@ export function bffFixture(
       return (args[0].method === 'GET' && path === '/api/auth/entry') ||
         (args[0].method === 'POST' &&
           path !== undefined &&
-          (['/api/auth/entry/create', '/api/auth/entry/select', '/api/auth/switch'].includes(
-            path,
-          ) ||
+          ([
+            '/api/auth/entry/create',
+            '/api/auth/entry/select',
+            '/api/auth/switch',
+            '/api/studio/federation-test',
+          ].includes(path) ||
             Object.hasOwn(BFF_ADMIN_FORMS, path)))
         ? request(args[0], action)
         : action();

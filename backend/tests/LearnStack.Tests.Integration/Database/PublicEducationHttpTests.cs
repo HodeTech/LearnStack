@@ -519,15 +519,17 @@ public sealed class PublicEducationHttpTests(PublicReadFixture fixture, ITestOut
     }
 
     [Fact]
-    public void Production_route_inventory_is_exactly_the_four_get_head_pairs()
+    public void Production_route_inventory_is_exactly_the_five_get_head_pairs()
     {
+        // The fifth pair is the ADR-0099 sign-in read, admitted by ADR-0052 Amendment 16.
         var endpoints = fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("api/v1/public/", StringComparison.OrdinalIgnoreCase) == true).ToArray();
-        endpoints.Should().HaveCount(8);
+        endpoints.Should().HaveCount(10);
         foreach (var route in endpoints.GroupBy(endpoint => endpoint.RoutePattern.RawText))
             route.SelectMany(endpoint => endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods).Should().BeEquivalentTo(["GET", "HEAD"]);
         endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Distinct().Should().BeEquivalentTo(
-            ["api/v1/public/site", "api/v1/public/courses", "api/v1/public/courses/{slug}", "api/v1/public/courses/{slug}/lessons/{lessonSlug}"]);
+            ["api/v1/public/site", "api/v1/public/courses", "api/v1/public/courses/{slug}", "api/v1/public/courses/{slug}/lessons/{lessonSlug}",
+             "api/v1/public/sign-in"]);
     }
 
     private static async Task<JsonElement> Json(HttpClient client, string path)

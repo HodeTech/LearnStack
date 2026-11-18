@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**353 test methods run in
+**377 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,8 +218,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**268 rules in this catalogue are Implemented, and 153 of them are in that assembly.**
-The other 115 are no less binding, and most could not live there. The table says where
+**282 rules in this catalogue are Implemented, and 164 of them are in that assembly.**
+The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -2989,7 +2989,7 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual internal member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests` and `MembershipAdministrationRaceTests` own their app-role proof. Existing deferred/MUST rollback and last-admin guarantees remain; later HTTP/native consumers retain separate qualification. |
 | `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
 | `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Actual entry/selection/switch owners, unchanged-context refresh with zero new admission-event delta, original absolute deadline, exact-subject live-destination replacement and actual cancellation/cleanup. |
-| `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, nine advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |
+| `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, eleven advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |
 
 #### `Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`
 
@@ -5516,9 +5516,12 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the production census closes the finite HTTP surface at 31 MVC
-  actions and 27 distinct `IRequest` roots, including the public and authenticated
-  reads, ten protected keyed writes and native session-scope admission. It also
+- **Asserts:** the production census closes the finite HTTP surface at 72 MVC
+  actions and 67 distinct `IRequest` roots (both totals asserted on the literal census
+  that the rule binds to production), including the public and authenticated
+  reads, the anonymous sign-in read, 23 protected keyed writes, native
+  session-scope admission and the eleven ADR-0099 federation actions, which reach
+  their requests only through `FederationOperationRunner`. It also
   checks the separate three exact GlobalSelf middleware routes. The canonical
   name is historical: administration includes writes, and sensitive reads can
   require a ReadWrite owner to commit MUST audit evidence. AccountSite and public
@@ -6003,22 +6006,27 @@ of structural detection.
 #### `PublicSurface_Contract_Matches_Served_OpenApi`
 
 - **Asserts:** production composition and committed snapshot have the same document
-  after object-key normalization, preserving array order; exactly eight public
-  operations and four public GET wrappers exist, alongside exact delivered
+  after object-key normalization, preserving array order; exactly ten public
+  operations and five public GET wrappers exist, alongside exact delivered
   authenticated/administration/retained-consent operation and SDK method censuses.
   Public, AccountSite and administration callers remain separate and closed.
   Drift and policy-breaking fixtures fail the pinned diff/generation checks.
-  ADR-0096 admits only its Accepted-decision-bound snapshots, full findings and
-  comparison identities after successful fresh controls; malformed or repointed
-  carriers, extra findings, changed tools/policy and file/fixture/bootstrap entry
-  cannot consume approval. Actual API/SDK behavior is separate evidence.
+  ADR-0096 and ADR-0100 each admit only their Accepted-decision-bound snapshots, full
+  findings and comparison identities after successful fresh controls. Every carrier is
+  checked for shape, name and a unique pair, and only the matching one is bound to its
+  decision; malformed, repointed or repeated carriers, extra findings, changed
+  tools/policy and file/fixture/bootstrap entry cannot consume approval. Actual API/SDK
+  behavior is separate evidence.
 - **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31;
-  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md).
+  [ADR-0096](../decisions/0096-p035-administration-contract-baseline.md);
+  [ADR-0100](../decisions/0100-p038-federation-contract-transition.md).
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); ten-operation, disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); twelve-operation (ten public, two authenticated), disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Extension boundary:** ADR-0096 acceptance does not establish delivery of its
-  admission extension. The original Implemented status above describes its
+  admission extension, and ADR-0100 acceptance likewise establishes no runtime or
+  hosted qualification; its generalized carrier rule is controlled in
+  `scripts/test-openapi-ci.py`. The original Implemented status above describes its
   recorded baseline; [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns
   P03-5 implementation, reviews, runtime and complete A/B evidence.
 - **Phase:** 02d (P02d-4 Step 4); 03 (P03-2/P03-5 contract extensions).
@@ -7476,3 +7484,273 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   [real provider mirror](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/ProviderEventAdapterTests.Mirror.cs),
   [typed central evidence](../../backend/tests/LearnStack.Tests.Unit/SharedKernel/Audit/ProviderEventAuditEvidenceTests.cs).
 - **Phase:** 03 (P03-6).
+
+## P03-8 tenant federation controls
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
+Canonical names for ADR-0099's new obligations are assigned with the step that
+introduces them. Step 1 introduces two, Step 2 five (the last two from its review
+rounds), Step 3 five and Step 4 two (the second from its review round 2); the existing Identity, permission, RLS, census and OpenAPI/SDK rules extend to
+the new subjects unchanged (Step 2 extends the authenticated HTTP census with a runner
+handoff for the federation controller and the public census with the Identity-owned
+sign-in read). The
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
+
+#### `Federation_Connection_Persists_No_Secret_Column`
+
+- **Asserts:** the mapped `federation_connections` column set is closed and contains
+  no secret, token, assertion, certificate, key, password or credential column; the
+  aggregate is `[TenantOwned]`, not organization-scoped, and carries the tenant EF
+  filter. A client secret exists only in memory for one provider call.
+- **Source:** [ADR-0099 § Authority, audit and storage](../decisions/0099-confined-tenant-federation.md#authority-audit-and-storage),
+  [Database](05-database.md#federation-connection-storage).
+- **Type:** EF model scan with planted secret-shaped column controls. **Kind:** structural.
+- **Status:** **Implemented** (`FederationConnectionConventionTests`).
+- **Test owner:** [FederationConnectionConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationConnectionConventionTests.cs);
+  storage behaviour in [FederationConnectionStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationConnectionStorageTests.cs).
+- **Phase:** 03 (P03-8 Step 1).
+
+#### `Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place`
+
+- **Asserts:** a connection's issuer or SAML entity identifier never changes in place.
+  The aggregate refuses a Configure or Rotate secret Begin with a different
+  identifier as a business rule, with no mutation; the storage guard refuses the
+  change for every writer, alone or riding an otherwise legal Configure Begin, from a
+  settled Draft and from Active, as the application role under the Identity tenant
+  fence. A same-identifier Configure Begin from both states is the positive control.
+- **Source:** [ADR-0099 § Lifecycle and test](../decisions/0099-confined-tenant-federation.md#lifecycle-and-test)
+  and § Architecture Tests, Amendment 1 item 2,
+  [Database](05-database.md#federation-connection-storage).
+- **Type:** **integration** test (Testcontainers + PostgreSQL), as `learnstack_app`,
+  plus the EF aggregate on the same transaction. **Kind:** behavioural.
+- **Status:** **Implemented** (`FederationConnectionStorageTests.Federation_Issuer_Or_Entity_Id_Cannot_Change_In_Place`).
+  It is not an architecture-assembly rule because the property is what a write does
+  against the applied guard, which a model or source scan cannot observe.
+- **Test owner:** [FederationConnectionStorageTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationConnectionStorageTests.cs);
+  the domain refusal also in [FederationConnectionTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/FederationConnectionTests.cs).
+- **Phase:** 03 (P03-8 Step 1, review round 1).
+
+#### `Federation_Provider_Port_Is_Held_Only_By_The_Runner`
+
+- **Asserts:** only the port declarations, `FederationOperationRunner`, the
+  fail-closed Identity registration and, since Step 3, the four files that implement,
+  return or select the real adapter and fetcher (`KeycloakFederationProvider`,
+  `FederationEgressFetcher`, `FederationAdapterFactory`, the API
+  `FederationComposition`) name `IFederationProvider` or `IFederationEgressFetcher` in
+  production source, and no production type other than the runner takes either port
+  by constructor injection. The adapter's own confinement is
+  `Federation_Client_Is_Held_Only_By_The_Adapter`.
+- **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
+  and § Architecture Tests.
+- **Type:** source scan plus reflection over production assemblies, with a planted
+  holder control. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2).
+
+#### `Federation_Controller_Dispatches_Only_Through_The_Runner`
+
+- **Asserts:** the federation controller's only dependency is
+  `FederationOperationRunner` (never `ISender` or a port); the runner is not a MediatR
+  handler and sends its steps through `ISender`. The authenticated HTTP census
+  additionally requires each federation action to call exactly one runner operation
+  and no `ISender`; planted actions that call the runner twice, beside `ISender` or not
+  at all fail that hand-off guard
+  (`AuthenticatedHttpSurfaceTests.The_federation_handoff_guard_refuses_a_second_runner_call_a_sender_or_no_runner_call`).
+- **Source:** [ADR-0099 § Intent-first operations](../decisions/0099-confined-tenant-federation.md#intent-first-operations).
+- **Type:** reflection with planted sender- and port-holding controllers. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2).
+
+#### `Every_Federation_Request_Has_An_Audit_Catalogue_Entry`
+
+- **Asserts:** each of the fourteen federation request types is classified: the two
+  reads are explicit Off, and every other request has exactly one MUST
+  `identity.federation.*` entry.
+- **Source:** [ADR-0099 § Authority, audit and storage](../decisions/0099-confined-tenant-federation.md#authority-audit-and-storage),
+  [Audit 18](18-audit-coverage.md#tenant-federation).
+- **Type:** catalogue reflection. **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2).
+
+#### `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate`
+
+- **Asserts:** `FederationConnectionReads.LiveSql` is exactly
+  `state <> 'Deleted' AND deleted_at IS NULL`; every production source, both Identity
+  projects included, that reads `federation_connections` (`FROM` or `JOIN`, any case or
+  whitespace, with or without the schema, quoted or through the mapped table-name
+  constant) is exactly `FederationConnectionStore`, `FederationHostAliasReader` or
+  `PublicSignInReader`; and each such statement, not merely its file, interpolates that
+  constant and spells no tombstone predicate of its own, so the three raw reads cannot
+  drift from each other or from the EF `Live` filter silently.
+- **Source:** [ADR-0099 Amendment 1](../decisions/0099-confined-tenant-federation.md#amendment-1--step-1-storage-deviations-2026-11-13)
+  (the tombstone) and the P03-8 Step 2 review round 1 (S-D).
+- **Type:** source scan with planted controls: an own predicate, a second statement
+  without the constant, an unlisted reader by `JOIN`, without the schema, with other
+  spacing, quoted or through the table-name constant, and a dropped reader.
+  **Kind:** structural.
+- **Status:** **Implemented** (`FederationApplicationConventionTests`).
+- **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 2, review rounds 1 and 2).
+
+#### `Federation_Secret_Never_Reaches_Audit_Log_Or_Dto`
+
+- **Asserts:** a federation client secret appears in no `audit_log` row, no response
+  or read schema, and no rendering of its type. Three existing assertions carry it:
+  `FederationHttpTests` counts zero `audit_log` rows whose text contains the
+  Configure secret (`The_lifecycle_commits_each_step_with_its_MUST_row_and_exposes_only_the_host_tenants_Active_alias`)
+  and the rotated secret (`Rotate_enable_and_delete_commit_with_their_MUST_rows_and_a_deleted_connection_is_never_offered`),
+  read as the owner over every column;
+  `OpenApiContractTests.Federation_census_refuses_an_idempotency_key_a_missing_precondition_and_a_readable_secret`
+  requires `clientSecret` to be `writeOnly` on both inputs that carry it and to be a
+  property of no other federation schema, with planted controls for each; and
+  `FederationOperationRunnerTests.A_client_secret_renders_and_serializes_as_nothing`
+  shows the redacting `FederationClientSecret` renders as `[redacted]` and refuses JSON
+  serialization. No test captures emitted log output: the log obligation rests on that
+  redacting type.
+- **Source:** [ADR-0099 § Architecture Tests](../decisions/0099-confined-tenant-federation.md#architecture-tests)
+  ("no secret in any audit, log, DTO"); the persisted-column part is
+  `Federation_Connection_Persists_No_Secret_Column`.
+- **Type:** integration, contract and unit assertions. **Kind:** behavioural.
+- **Status:** **Implemented** (`FederationHttpTests`, `OpenApiContractTests.Federation_census_refuses_an_idempotency_key_a_missing_precondition_and_a_readable_secret`,
+  `FederationOperationRunnerTests.A_client_secret_renders_and_serializes_as_nothing`).
+- **Test owners:** [FederationHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationHttpTests.cs),
+  [OpenApiContractTests.Federation.cs](../../backend/tests/LearnStack.Tests.Contract/OpenApiContractTests.Federation.cs),
+  [FederationOperationRunnerTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/FederationOperationRunnerTests.cs).
+- **Phase:** 03 (P03-8 Step 2, review round 2).
+
+#### `Federation_Client_Is_Held_Only_By_The_Adapter`
+
+- **Asserts:** the literal client identifier `learnstack-federation-admin` appears in
+  production source only in `KeycloakFederationRoutes`, and the secret key
+  `Federation:ClientSecret` only in `KeycloakFederationProvider`; every other caller
+  reaches the adapter through `FederationAdapterFactory`, so no other code holds the
+  federation admin client or its credential.
+- **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
+  and § Architecture Tests ("no other code holds a federation client").
+- **Type:** source scan with planted holders in the API and the Identity Application.
+  **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Adapter_Admits_Only_The_Enumerated_Routes`
+
+- **Asserts:** `KeycloakFederationRoutes` builds exactly four routes (token, the
+  identity-provider collection, one owned instance and its mappers), and no string
+  literal in the adapter namespace names another Admin, identity-provider,
+  authentication, user, client or role path. The unit test
+  `KeycloakFederationProviderTests.Every_admitted_request_targets_the_enumerated_routes_only`
+  checks the same set behaviourally against a scripted provider.
+- **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
+  ("the adapter admits only the enumerated calls and aliases").
+- **Type:** reflection plus source scan, with planted routes. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs);
+  [KeycloakFederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/KeycloakFederationProviderTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Adapter_Never_Sends_A_Remote_Url_Import`
+
+- **Asserts:** no production source spells `fromUrl` (any case or separator), so
+  Keycloak is never handed a URL to fetch through the JSON `import-config` form.
+- **Source:** [ADR-0099 § Bounded egress](../decisions/0099-confined-tenant-federation.md#bounded-egress)
+  and § Architecture Tests ("no `fromUrl`").
+- **Type:** source scan with planted controls. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Adapter_Does_Not_Read_DeploymentMode`
+
+- **Asserts:** no source in `LearnStack.Infrastructure.Identity.Federation` names
+  `DeploymentMode`, and no field or constructor parameter of its types has that type;
+  the composition root alone selects the adapter and the Development loopback rule.
+- **Source:** [ADR-0099 § Bounded egress](../decisions/0099-confined-tenant-federation.md#bounded-egress)
+  ("modules never read `DeploymentMode`"), [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
+- **Type:** source scan and reflection, with a planted read. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3).
+
+#### `Federation_Egress_Fetcher_Is_The_Only_Tenant_Url_Fetcher`
+
+- **Asserts:** every production source under `backend/src` that names a BCL HTTP or
+  socket primitive (`HttpClient`, `HttpClientHandler`, `SocketsHttpHandler`,
+  `HttpMessageInvoker`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `SslStream`,
+  `NetworkStream`, `ClientWebSocket`, `WebRequest`, `HttpWebRequest`, `WebClient`,
+  `IHttpClientFactory`, `AddHttpClient` or a `Dns.` call) or the MailKit SMTP client
+  (`SmtpClient`, the `MailKit` namespace) is on a named allow-list, each entry with its
+  reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied URL; four
+  clients of a fixed, composition-configured tenant-realm origin
+  (`KeycloakFederationProvider`, `KeycloakIdentityEventProvider`,
+  `TenantAuthenticationBackchannel`, `CurrentInvitationRecipientBackchannel`); and
+  `SmtpEmailProvider`, the operator-configured SMTP host for invitation mail. An entry
+  whose file no longer holds a transport fails as stale. Instrumentation, exception and
+  enum names (`AddHttpClientInstrumentation`, `SocketException`, `SocketType`) do not
+  match. Third-party HTTP clients beyond those names are not detected by this rule. The
+  rule is exact for "who may open a connection" through the named primitives; that the
+  fixed-origin clients never take a tenant URL rests on their own constructors and
+  tests.
+- **Source:** [ADR-0099 § Architecture Tests](../decisions/0099-confined-tenant-federation.md#architecture-tests)
+  ("the egress fetcher is the only tenant-URL fetcher").
+- **Type:** source scan of all production sources with planted fetchers in the API,
+  Infrastructure and two modules, and a clean control. **Kind:** structural.
+- **Status:** **Implemented** (`FederationAdapterConventionTests`). The egress rules
+  themselves are behavioural, in
+  [FederationEgressFetcherTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/FederationEgressFetcherTests.cs)
+  and the Docker suite
+  [FederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FederationProviderTests.cs).
+- **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 3; widened to every production source in review round 1).
+
+#### `Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`
+
+- **Asserts:** `FederationHostAliasReader`, the native self read's host-alias setter,
+  loads exactly three statements, each once: `SET TRANSACTION READ ONLY`, the
+  `app.tenant_id` announcement and the one read of the host tenant's live, Active
+  `federation_connections` alias and protocol. It announces no organization, scope,
+  host or identity GUC and issues no write. It is the only implementation of
+  `IFederationHostAliasReader`, and `GlobalSelfEntryMiddleware` is its only caller.
+  `Out_Of_Band_Setters_Open_Read_Only_Transactions` separately proves the read-only
+  statement precedes the announcement, and `Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate`
+  lists the reader in its closed raw-reader census.
+- **Source:** [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
+  (H), [Database Standards § the logical-setter census](05-database.md#invitation-entry-and-consumption).
+- **Type:** IL string scan of the reader and its state machines, implementation and
+  caller census over production assemblies; planted writes, widened announcements, a
+  second or an Active-less read, and a missing read-only statement; a planted second
+  implementation and a planted async caller, each found by the censuses (P03-8 Step 4
+  review round 1). **Kind:** structural.
+- **Status:** **Implemented** (`FederationHostAliasSetterConventionTests`).
+- **Test owner:** [FederationHostAliasSetterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationHostAliasSetterConventionTests.cs).
+- **Phase:** 03 (P03-8 Step 4).
+
+#### `Federation_Test_Record_Scope_Reaches_Only_The_Test_Record`
+
+- **Asserts:** a verified token whose `scope` names `federation.test_record` is refused
+  with the closed 403 (`lockey_forbidden`), the shape the test record answers without
+  the scope, on every authenticated endpoint except `FederationController.RecordTestResult`.
+  The one enforcement point is `TenantCredentialAdmissionMiddleware`, directly after
+  authentication and ahead of the global self entry, tenant resolution and
+  authorization; the exception is the matched action's identity, never its path. The
+  unit owner refuses the scoped token on other federation actions and on an unmatched
+  request, admits it on the test record, and admits an unscoped token everywhere. The
+  integration owners refuse it, through the actual pipeline, on the Studio detail read,
+  configure write, test start and capability read and on the native self read,
+  bootstrap and session-scope admission, admit the same subject's unscoped token on each,
+  and record a result with the scoped token.
+- **Source:** [ADR-0099 Amendment 8](../decisions/0099-confined-tenant-federation.md#amendment-8--step-4-review-round-2-test-session-replacement-and-scope-confinement-2026-11-15)
+  (item 2), extending [Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14) (S-B).
+- **Type:** unit middleware tests with a planted control (the test record's own path and
+  method served by another action is refused), and Docker-backed HTTP tests.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`FederationTestRecordAdmissionTests`,
+  `FederationHttpTests.A_test_record_token_reaches_only_the_test_record`,
+  `IdentitySelfEntryHttpTests.Actual_native_entries_refuse_a_federation_test_record_token`).
+- **Test owners:** [FederationTestRecordAdmissionTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/FederationTestRecordAdmissionTests.cs),
+  [FederationHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationHttpTests.cs),
+  [IdentitySelfEntryHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/IdentitySelfEntryHttpTests.cs).
+- **Phase:** 03 (P03-8 Step 4, review round 2).

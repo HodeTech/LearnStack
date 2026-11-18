@@ -2,12 +2,14 @@ import { isDeepStrictEqual } from 'node:util';
 import { refuse } from './development-realm-errors.mjs';
 import { identityClaims, mergeOwnedMappers, validateEffectiveMappers, validateNativeSessionMappers } from './development-realm-mappers.mjs';
 import { readRealmGroups, readUserGroupIds } from './development-realm-groups.mjs';
-import { exactCreatedAccountAccess, planAccountSelfService } from './development-realm-account.mjs';
+import { exactCreatedAccountAccess, planAccountRetirement } from './development-realm-account.mjs';
 import { planRealmEvents, requiredDevelopmentEvents, developmentEventRetentionSeconds } from './development-realm-events.mjs';
 import { developmentBackchannelUrl } from './development-backchannel.mjs';
 
 const managedScope = 'learnstack-tenant-api';
 const nativeScope = 'learnstack-native-session';
+// ADR-0099 Amendment 6: optional on learnstack-web only, requested by the federation_test authorization.
+export const federationTestScope = 'federation.test_record';
 const nativeDetachmentPaths = new WeakMap();
 const namedClients = ['learnstack-web', 'learnstack-api'];
 const pageSize = 100;
@@ -215,16 +217,22 @@ function identityAttributes(user, declaration, stage) {
   return merged;
 }
 
+// Service-account users in the export belong to their machine client, never to the manifest.
+const personaExports = desired => desired.users.filter(user => !Object.hasOwn(user, 'serviceAccountClientId'));
+
 function validateInputs(desired, manifest, webSecret) {
   if (!object(desired) || desired.realm !== 'learnstack' || desired.accessTokenLifespan !== 900
     || desired.eventsEnabled !== true || desired.eventsExpiration !== developmentEventRetentionSeconds
     || !Array.isArray(desired.enabledEventTypes)
     || !requiredDevelopmentEvents.every(type => desired.enabledEventTypes.includes(type))
-    || !Array.isArray(desired.users) || desired.users.length !== 4
+    || !Array.isArray(desired.users) || personaExports(desired).length !== 4
     || !object(manifest) || !Array.isArray(manifest.users) || manifest.users.length !== 4
     || typeof webSecret !== 'string' || !webSecret) refuse('plan', 'unsupported');
   unique(manifest.users, 'username', 'plan', 'identity_conflict');
   unique(desired.users, 'username', 'plan', 'identity_conflict');
+  for (const user of desired.users.filter(user => !personaExports(desired).includes(user)))
+    if (typeof user.serviceAccountClientId !== 'string' || !user.username.startsWith('service-account-')
+      || user.credentials !== undefined || user.realmRoles !== undefined) refuse('plan', 'unsupported');
   // SeedIdentityManifest qualifies the two historical personas by declaration.
   // Tooling validates its bounded, tenant-wide projection without branching on
   // institution names, hosts or persona usernames.
@@ -245,7 +253,8 @@ function validateInputs(desired, manifest, webSecret) {
       || actors.has(declaration.userId.toLowerCase())) refuse('plan', 'identity_conflict');
     actors.add(declaration.userId.toLowerCase());
     const exports = desired.users.filter(user => user.username === declaration.username);
-    if (!equal(declaration.accountCapability, { clientId: 'account', role: 'manage-account' })
+    // ADR-0099: personas hold no account-console capability; the manifest declares none.
+    if (Object.hasOwn(declaration, 'accountCapability')
       || exports.length !== 1 || exports[0].email !== declaration.email
       || exports[0].firstName !== declaration.firstName || exports[0].lastName !== declaration.lastName
       || !['tenant-admin', 'tenant-learner'].includes(declaration.realmRole)
@@ -255,7 +264,7 @@ function validateInputs(desired, manifest, webSecret) {
       || !object(exports[0].credentials[0])
       || exports[0].credentials[0].type !== 'password' || exports[0].credentials[0].temporary !== false
       || typeof exports[0].credentials[0].value !== 'string' || !exports[0].credentials[0].value
-      || !equal(exports[0].clientRoles, { account: ['manage-account'] })
+      || exports[0].clientRoles !== undefined
       || !equal(identityAttributes(exports[0], declaration, 'plan'), exports[0].attributes))
       refuse('plan', 'identity_conflict');
   }
@@ -456,9 +465,9 @@ async function exactNewUser(admin, declaration, wanted, stage) {
   return user;
 }
 
-function exactCreatedAccess(roles, credentials, roleId, account) {
+function exactCreatedAccess(roles, credentials, roleId) {
   return Array.isArray(roles.realmMappings) && roles.realmMappings.length === 1 && roles.realmMappings[0].id === roleId
-    && exactCreatedAccountAccess(roles, account.account, account.role)
+    && exactCreatedAccountAccess(roles)
     && credentials.length === 1 && credentials[0].type === 'password';
 }
 
@@ -542,8 +551,8 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
           (wanted.protocolMappers ?? []).map(mapper => omit(mapper, ['id'])).sort(byName))) refuse('apply', 'mapper_conflict');
         scopeIds.set(name, found[0].id);
       }, wanted);
-    } else if (name === nativeScope) {
-      // This newly reserved scope is created or exactly retained, never adopted
+    } else if (name === nativeScope || name === federationTestScope) {
+      // These newly reserved scopes are created or exactly retained, never adopted
       // by overwriting an administrator's conflicting mapper/configuration.
       if (!matchesFields(current, omit(wanted, ['protocolMappers']))
         || !equal((before.scopeMappers.get(name) ?? []).map(mapper => omit(mapper, ['id'])).sort(byName),
@@ -624,6 +633,9 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
       // remains requestable and is an administrator conflict, not a second
       // detachable route. Every other effective mapper is checked below.
       if (optional.has(managedScope) || optional.has(nativeScope)) refuse('plan', 'mapper_conflict');
+      // The test-record scope is never a default: an ordinary sign-in must not carry it.
+      if (defaults.has(federationTestScope) || wanted.defaultClientScopes.includes(federationTestScope)
+        || !wanted.optionalClientScopes.includes(federationTestScope)) refuse('plan', 'mapper_conflict');
       if (defaults.has(managedScope)) {
         const legacy = baseline.defaults.find(scope => scope.name === managedScope);
         defaults.delete(managedScope);
@@ -655,8 +667,8 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
   // Mapper qualification precedes inherited-source reads, so an unsafe
   // aggregation customization always refuses without being silently repaired.
   const beforeGroups = await readRealmGroups(admin, before.users, 'plan');
-  const account = await planAccountSelfService({ admin, desired, manifest, candidateUsers: before.candidates,
-    add, preflightResponse, changedScopeIds });
+  const account = await planAccountRetirement({ admin, realm: before.realm, manifest, candidateUsers: before.candidates,
+    add, preflightResponse });
   // A manifest actor may not already belong to a differently named account.
   for (const user of before.readableClaims.includes('user_id') ? before.users : []) {
     const values = user.attributes?.user_id;
@@ -697,7 +709,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
       expectedUsers.set(declaration.username, { ...existing.user, attributes });
       if (!equal(attributes, existing.user.attributes ?? {})) {
         validateAttributePreservation(before.profile);
-        // A supplied attribute map replaces profile values in 26.6.2. Include
+        // A supplied attribute map replaces profile values in 26.7.5. Include
         // unchanged ordinary profile fields, but no credentials/actions/enabled.
         const body = { attributes, ...Object.fromEntries(['username', 'email', 'firstName', 'lastName']
           .filter(key => key in existing.user).map(key => [key, existing.user[key]])) };
@@ -713,12 +725,12 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
         || !role.id || role.name !== declaration.realmRole || role.composite !== false || role.clientRole !== false)
         refuse('plan', 'unsupported');
       const representation = Object.fromEntries(['username', 'email', 'emailVerified', 'enabled',
-        'firstName', 'lastName', 'credentials', 'realmRoles', 'clientRoles', 'attributes'].map(key => [key, copy(wanted[key])]));
+        'firstName', 'lastName', 'credentials', 'realmRoles', 'attributes'].map(key => [key, copy(wanted[key])]));
       const body = { ifResourceExists: 'FAIL', users: [representation] };
       add('create_user', async () => {
         // Pinned RealmAdminResource.partialImport wraps one named user in its
         // own transaction. Unlike POST users, this creates credentials and the
-        // declared inert role and account capability atomically. FAIL never overwrites.
+        // declared inert role atomically. FAIL never overwrites.
         const result = await admin.post('partialImport', copy(body));
         // Only ADDED proves that this transaction installed the declared
         // credential. An exact-looking concurrent account cannot prove it.
@@ -737,7 +749,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
         const roles = requireObject(await admin.get(`users/${encode(created.id)}/role-mappings`), 'apply');
         const credentials = array(await admin.get(`users/${encode(created.id)}/credentials`), 'apply');
         const assigned = await readUserGroupIds(admin, created.id, 'apply');
-        if (!exactCreatedAccess(roles, credentials, role.id, account) || assigned.size !== 0) refuse('apply', 'identity_conflict');
+        if (!exactCreatedAccess(roles, credentials, role.id) || assigned.size !== 0) refuse('apply', 'identity_conflict');
         expectedUsers.set(declaration.username, created);
       }, body);
     }
@@ -772,7 +784,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
     verify: async () => {
     await events.verify();
     const after = await snapshot(admin, desired, manifest, 'readback');
-    await account.verify(after.candidates);
+    await account.verify(after.candidates, after.realm);
     const afterGroups = await readRealmGroups(admin, after.users, 'readback');
     const check = condition => { if (!condition) refuse('readback', 'readback_conflict'); };
     check(after.realm.accessTokenLifespan === 900
@@ -834,7 +846,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
         check(afterGroups.memberships.get(actual.user.id)?.size === 0);
         const role = actual.roles.realmMappings?.find(value => value.name === declaration.realmRole);
         check(Boolean(role) && role.composite === false && role.clientRole === false
-          && exactCreatedAccess(actual.roles, actual.credentials, role.id, account));
+          && exactCreatedAccess(actual.roles, actual.credentials, role.id));
       }
     }
   } };

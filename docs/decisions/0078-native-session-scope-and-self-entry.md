@@ -559,3 +559,7 @@ entry or application-scope publication. Shared SSO can close several independent
 application scopes; a different/new provider sid is not a subject-wide target.
 This navigation preserves this record's Decision, historical body and metadata.
 It grants no tenant source, permission or exception to actual-work retirement.
+
+### Amendment 5 — Brokered entry and federation alias (2026-11-13)
+
+Brokered sign-in creates no Keycloak account and no LearnStack binding. A brokered person enters through the existing global-self path, under the same opt-in and budgets as a first local entry. The native self response gains a nullable `federationAlias` field for the host tenant, read in the same authenticated call that publication already makes. Refresh performs no anonymous alias read. The statement that no Admin API adapter exists describes the state before [ADR-0099](../decisions/0099-confined-tenant-federation.md), which adds a confined one.

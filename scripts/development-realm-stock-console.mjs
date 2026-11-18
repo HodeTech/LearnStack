@@ -213,7 +213,7 @@ function canonicalize(graph, canonicalAccountMapper, stage) {
       check(equal(accountMapperRepresentation(omit(value, ['id'])), accountMapperRepresentation(canonicalAccountMapper)), stage);
     approvedMapperDelta = { stored: copy(approvedStored[0]), effective: copy(approvedEffective[0]) };
   }
-  const result = { schema: 1, providerVersion: '26.6.2', clients: {}, assignments: {}, scopes: {}, directConsoleMappings: {}, roles: {} };
+  const result = { schema: 1, providerVersion: '26.7.5', clients: {}, assignments: {}, scopes: {}, directConsoleMappings: {}, roles: {} };
   for (const [name, source] of [['account', graph.account], ['account-console', graph.console]]) {
     const current = { ...copy(source), id: `@client/${name}` };
     for (const category of categories) current[`${category}ClientScopes`] = [...source[`${category}ClientScopes`]].sort();

@@ -698,3 +698,24 @@ closing/index ownership retire only with actual settlement. This is no new
 durable session ledger, API JWT revocation or guaranteed provider retry. Existing
 expiry/refresh and ADR-0071 ordinary-read outcomes remain. This bounded extension
 leaves the historical body/metadata intact; Phase 03 owns delivery qualification.
+
+### Amendment 11 — Federation test purpose and host binding (2026-11-13)
+
+[ADR-0099](../decisions/0099-confined-tenant-federation.md) adds the `federation_test` callback purpose. It publishes no session, discards its tokens, and never reaches subject reservation or credential assignment. The admitted `purpose` set becomes `verify_email` and `federation_test`, with mutually exclusive callbacks. Brokered sessions are bound to their tenant's host at every credential publication: a brokered ID token's `idp` claim must equal the host tenant's Active connection alias, and on refresh its provenance must equal the value recorded at login. A definitive mismatch refuses the publication, ends the BFF session and ends the provider session through OIDC end-session. An indeterminate self-read outcome follows Amendment 1: it refuses the publication, keeps the existing session without advancing its idle deadline, and ends no provider session. Local sign-in follows the existing rules.
+
+### Amendment 12 — Federation sign-in purpose and server-side end-session (2026-11-15)
+
+[ADR-0099 Amendment 7](0099-confined-tenant-federation.md#amendment-7--step-4-review-purposes-test-freshness-and-detail-loads-2026-11-15)
+records the delivered P03-8 Step 4 shape; Amendment 11 remains the historical record.
+The admitted `purpose` set is `verify_email`, `federation_signin` and `federation_test`.
+`federation_signin` is an ordinary sign-in that starts at the host tenant's broker: the
+ordinary request plus `kc_idp_hint` set to the host tenant's Active alias, read
+server-side at submission; it forces no login, requests no extra scope and completes
+through the ordinary callback and publication rules, host binding included. Amendment
+11's "ends the provider session through OIDC end-session" is implemented, where no
+browser navigation exists (a refused redemption, refresh, selection, creation or
+switch), as a server-to-server request to the fixed end-session endpoint with this
+client's credentials and the session's refresh token (Keycloak's refresh-token logout
+form): best effort, never awaited by the refusal, returning and logging no token. The
+`federation_test` completion ends the provider session the same way, besides the
+browser end-session redirect it issues.

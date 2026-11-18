@@ -32,6 +32,8 @@ public sealed partial class AuthenticationAuthorityTests
     private const string ConsentSource = Authentication + "ConsentSubjectSource";
     private const string RecipientReader = Authentication + "CurrentInvitationRecipientReader";
     private const string SelfAdmission = Authentication + "HttpIdentitySelfEntryAdmission";
+    /// <summary>ADR-0099 Amendment 6 (S-B): the one reader of the test-record scope flag.</summary>
+    private const string TestRecordScope = Authentication + "FederationTestRecordScope";
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
     private static readonly Dictionary<string, Type> IdentityTypes = new(StringComparer.Ordinal)
@@ -143,6 +145,7 @@ public sealed partial class AuthenticationAuthorityTests
             Native + ".TryMint", NativeMiddleware + ".InvokeAsync");
         VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity",
             Native + ".TryMint", NativeMiddleware + ".InvokeAsync");
+        VerifiedConsumers("FederationTestRecord", TestRecordScope + ".IsPresent");
         Consumers("ActorUserId", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync", Resolver + ".InvokeAsync",
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",

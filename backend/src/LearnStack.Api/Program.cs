@@ -48,6 +48,9 @@ builder.AddLearnStackCrossCuttingFoundation(
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackProviderEventMirror(builder.Configuration);
+// ADR-0099: after persistence, so the confined federation adapter and guarded egress fetcher replace the
+// module's fail-closed defaults only when the federation admin client is configured.
+builder.Services.AddLearnStackFederationAdapter(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
 
 // Register and activate the entire closed HTTP boundary together. Minimal hosting

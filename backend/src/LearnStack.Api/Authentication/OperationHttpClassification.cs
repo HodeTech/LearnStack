@@ -12,6 +12,7 @@ using LearnStack.Api.Tenancy;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -154,6 +155,8 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.HeadCourse)) => (typeof(GetPublicCourseQuery), "HeadPublicCourse", "HEAD"),
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.Lesson)) => (typeof(GetPublicLessonQuery), "GetPublicLesson", "GET"),
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.HeadLesson)) => (typeof(GetPublicLessonQuery), "HeadPublicLesson", "HEAD"),
+        var pair when pair == (typeof(PublicSignInController), nameof(PublicSignInController.Get)) => (typeof(GetPublicSignInQuery), "GetPublicSignIn", "GET"),
+        var pair when pair == (typeof(PublicSignInController), nameof(PublicSignInController.Head)) => (typeof(GetPublicSignInQuery), "HeadPublicSignIn", "HEAD"),
         var pair when pair == (typeof(AccountController), nameof(AccountController.GetSite)) => (typeof(GetAccountSiteQuery), "GetAccountSite", "GET"),
         var pair when pair == (typeof(MembershipsController), nameof(MembershipsController.List)) => (typeof(ListMembershipsQuery), "ListMemberships", "GET"),
         var pair when pair == (typeof(MembershipsController), nameof(MembershipsController.Get)) => (typeof(GetMembershipDetailQuery), "GetMembershipDetail", "GET"),
@@ -192,6 +195,17 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(InvitableRolesController), nameof(InvitableRolesController.List)) => (typeof(ListInvitableRolesQuery), "ListInvitableRoles", "GET"),
         var pair when pair == (typeof(InvitationPolicyController), nameof(InvitationPolicyController.Get)) => (typeof(GetTenantInvitationPolicyQuery), "GetTenantInvitationPolicy", "GET"),
         var pair when pair == (typeof(InvitationPolicyController), nameof(InvitationPolicyController.Set)) => (typeof(SetTenantInvitationLifetimeCommand), "SetTenantInvitationLifetime", "PUT"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Get)) => (typeof(GetFederationConnectionQuery), "GetFederationConnection", "GET"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Configure)) => (typeof(BeginConfigureFederationCommand), "ConfigureFederation", "PUT"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.RotateSecret)) => (typeof(BeginRotateFederationSecretCommand), "RotateFederationSecret", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Rename)) => (typeof(BeginRenameFederationCommand), "RenameFederation", "PUT"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.StartTest)) => (typeof(BeginFederationTestStartCommand), "StartFederationTest", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.RecordTestResult)) => (typeof(RecordFederationTestResultCommand), "RecordFederationTestResult", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Activate)) => (typeof(ActivateFederationCommand), "ActivateFederation", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Disable)) => (typeof(BeginDisableFederationCommand), "DisableFederation", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Enable)) => (typeof(EnableFederationCommand), "EnableFederation", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Delete)) => (typeof(BeginDeleteFederationCommand), "DeleteFederation", "POST"),
+        var pair when pair == (typeof(FederationController), nameof(FederationController.Resume)) => (typeof(ResumeFederationOperationCommand), "ResumeFederationOperation", "POST"),
         _ => null,
     };
 }

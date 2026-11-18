@@ -19,6 +19,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -55,6 +56,8 @@ public sealed class OperationHttpClassificationTests
         new(typeof(PublicEducationController), "HeadCourse", "HeadPublicCourse", "HEAD", "public/courses/{slug}", typeof(GetPublicCourseQuery), "education.public_course.read", true),
         new(typeof(PublicEducationController), "Lesson", "GetPublicLesson", "GET", "public/courses/{slug}/lessons/{lessonSlug}", typeof(GetPublicLessonQuery), "education.public_lesson.read", true),
         new(typeof(PublicEducationController), "HeadLesson", "HeadPublicLesson", "HEAD", "public/courses/{slug}/lessons/{lessonSlug}", typeof(GetPublicLessonQuery), "education.public_lesson.read", true),
+        new(typeof(PublicSignInController), "Get", "GetPublicSignIn", "GET", "public/sign-in", typeof(GetPublicSignInQuery), "identity.public_sign_in.read", true),
+        new(typeof(PublicSignInController), "Head", "HeadPublicSignIn", "HEAD", "public/sign-in", typeof(GetPublicSignInQuery), "identity.public_sign_in.read", true),
         new(typeof(AccountController), "GetSite", "GetAccountSite", "GET", "account/site", typeof(GetAccountSiteQuery), "tenancy.account_site.read"),
         new(typeof(MembershipsController), "List", "ListMemberships", "GET", "identity/memberships", typeof(ListMembershipsQuery), "identity.membership.list"),
         new(typeof(NativeSessionAdmissionController), "Admit", "AdmitNativeSessionScope", "POST", "identity/session-scope/admissions", typeof(AdmitNativeSessionScopeCommand), "identity.membership.admit_session_scope"),
@@ -89,6 +92,17 @@ public sealed class OperationHttpClassificationTests
         new(typeof(InvitationEntryController), "Result", "GetOwnInvitationResult", "POST", "identity/invitation-entry/results", typeof(GetOwnInvitationResultQuery), "identity.invitation.read_own_result"),
         new(typeof(InvitationPolicyController), "Get", "GetTenantInvitationPolicy", "GET", "tenancy/settings/invitation-policy", typeof(GetTenantInvitationPolicyQuery), "tenancy.setting.read_invitation_policy"),
         new(typeof(InvitationPolicyController), "Set", "SetTenantInvitationLifetime", "PUT", "tenancy/settings/invitation-policy", typeof(SetTenantInvitationLifetimeCommand), "tenancy.setting.write_invitation_lifetime", Protected: ProtectedAdministrationOperation.SetTenantInvitationLifetime),
+        new(typeof(FederationController), "Get", "GetFederationConnection", "GET", "identity/federation", typeof(GetFederationConnectionQuery), "identity.federation.read"),
+        new(typeof(FederationController), "Configure", "ConfigureFederation", "PUT", "identity/federation/configuration", typeof(BeginConfigureFederationCommand), "identity.federation.configure"),
+        new(typeof(FederationController), "RotateSecret", "RotateFederationSecret", "POST", "identity/federation/secret-rotations", typeof(BeginRotateFederationSecretCommand), "identity.federation.rotate_secret"),
+        new(typeof(FederationController), "Rename", "RenameFederation", "PUT", "identity/federation/display-name", typeof(BeginRenameFederationCommand), "identity.federation.rename"),
+        new(typeof(FederationController), "StartTest", "StartFederationTest", "POST", "identity/federation/test-starts", typeof(BeginFederationTestStartCommand), "identity.federation.test_start"),
+        new(typeof(FederationController), "RecordTestResult", "RecordFederationTestResult", "POST", "identity/federation/test-results", typeof(RecordFederationTestResultCommand), "identity.federation.test_record"),
+        new(typeof(FederationController), "Activate", "ActivateFederation", "POST", "identity/federation/activation", typeof(ActivateFederationCommand), "identity.federation.activate"),
+        new(typeof(FederationController), "Disable", "DisableFederation", "POST", "identity/federation/disablement", typeof(BeginDisableFederationCommand), "identity.federation.disable"),
+        new(typeof(FederationController), "Enable", "EnableFederation", "POST", "identity/federation/enablement", typeof(EnableFederationCommand), "identity.federation.enable"),
+        new(typeof(FederationController), "Delete", "DeleteFederation", "POST", "identity/federation/deletion", typeof(BeginDeleteFederationCommand), "identity.federation.delete"),
+        new(typeof(FederationController), "Resume", "ResumeFederationOperation", "POST", "identity/federation/resumption", typeof(ResumeFederationOperationCommand), "identity.federation.resume"),
         new(typeof(CustomFieldDefinitionsController), "List", "ListCustomFieldDefinitions", "GET", "customization/custom-field-definitions", typeof(ListCustomFieldDefinitionsQuery), "customization.custom_field.list"),
         new(typeof(CustomFieldDefinitionsController), "Get", "GetCustomFieldDefinition", "GET", "customization/custom-field-definitions/{id}", typeof(GetCustomFieldDefinitionQuery), "customization.custom_field.read"),
         new(typeof(CustomFieldDefinitionsController), "Revisions", "ListCustomFieldDefinitionRevisions", "GET", "customization/custom-field-definitions/{id}/revisions", typeof(ListCustomFieldDefinitionRevisionsQuery), "customization.custom_field.list_revisions"),
@@ -116,7 +130,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app).Where(endpoint =>
             endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null
             && endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).ToArray();
-        Assert.Equal(8, endpoints.Length);
+        Assert.Equal(10, endpoints.Length);
         var dispatched = 0;
         var authorizations = 0;
         var middleware = new OperationClassificationMiddleware(_ => { dispatched++; return Task.CompletedTask; });
@@ -147,10 +161,10 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(59, ExpectedActions.Length);
+        Assert.Equal(72, ExpectedActions.Length);
         Assert.Equal(23, ExpectedActions.Count(expected => expected.Protected is not null));
         var actualActions = endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        Assert.Equal(59, actualActions.Length);
+        Assert.Equal(72, actualActions.Length);
         Assert.Equal(ExpectedActions.Select(expected => expected.Name).Order(StringComparer.Ordinal), actualActions
             .Select(endpoint => endpoint.Metadata.GetRequiredMetadata<IEndpointNameMetadata>().EndpointName).Order(StringComparer.Ordinal));
         foreach (var endpoint in endpoints)
@@ -316,7 +330,7 @@ public sealed class OperationHttpClassificationTests
             Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
         var unkeyedActions = ExpectedActions.Where(expected => expected.Protected is null).ToArray();
-        Assert.Equal(36, unkeyedActions.Length);
+        Assert.Equal(49, unkeyedActions.Length);
         foreach (var expected in unkeyedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);

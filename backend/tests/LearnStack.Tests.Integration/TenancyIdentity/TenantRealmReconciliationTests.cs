@@ -48,9 +48,15 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         var attributes = Object(web.GetProperty("attributes"));
         attributes["backchannel.logout.url"] = "https://foreign.invalid/api/auth/backchannel/keycloak";
         var path = "clients/" + Id(web);
+        // A client PUT that omits webOrigins makes Keycloak derive them from the
+        // redirect URIs, so the original (empty) set travels with each attribute PUT.
+        // Resolve it before the try so a missing property fails here, not in finally.
+        (web.TryGetProperty("webOrigins", out var webOrigins) && webOrigins.ValueKind == JsonValueKind.Array)
+            .Should().BeTrue("the learnstack-web client representation must carry its webOrigins array");
         try
         {
-            (await admin.PutAsync(path, new { attributes })).Should().Be(HttpStatusCode.NoContent);
+            (await admin.PutAsync(path, new { attributes, webOrigins }))
+                .Should().Be(HttpStatusCode.NoContent);
             var conflicted = await StateAsync(admin);
             var conflict = await KeycloakReconciliationDriver.RunAsync(fresh,
                 backchannelUrl: "https://host.docker.internal:3443/api/auth/backchannel/keycloak");
@@ -60,7 +66,7 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         }
         finally
         {
-            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes") }))
+            (await admin.PutAsync(path, new { attributes = web.GetProperty("attributes"), webOrigins }))
                 .Should().Be(HttpStatusCode.NoContent);
         }
     }
@@ -742,22 +748,26 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         }
     }
 
+    /// <summary>ADR-0099: no account self-service grant remains, and every other prior mapping is unchanged.</summary>
     private static async Task AssertOnlyAccountGrantAddedAsync(KeycloakAdminClient admin, string userId, JsonElement before)
     {
         var account = await admin.ClientAsync("account");
+        account.GetProperty("enabled").GetBoolean().Should().BeFalse("the account client is retired");
         var basePath = "users/" + userId + "/role-mappings/clients/" + Id(account);
-        var direct = await admin.GetAsync(basePath);
-        direct.EnumerateArray().Select(role => role.GetProperty("name").GetString()).Should().Equal("manage-account");
-        var role = await admin.GetAsync("clients/" + Id(account) + "/roles/manage-account");
-        (Id(direct[0]) == Id(role)).Should().BeTrue("only the qualified built-in capability is added");
         var effective = await admin.GetAsync(basePath + "/composite");
         effective.EnumerateArray().Select(value => value.GetProperty("name").GetString()).Should()
-            .BeEquivalentTo(AccountSelfServiceRoles);
+            .NotContain(AccountSelfServiceRoles, "the retired self-service capability is detached");
         var after = Object(await admin.GetAsync("users/" + userId + "/role-mappings"));
-        after["clientMappings"]!.AsObject().Remove("account");
-        if (after["clientMappings"]!.AsObject().Count == 0) after.Remove("clientMappings");
-        JsonNode.DeepEquals(JsonNode.Parse(before.GetRawText()), after).Should().BeTrue(
-            "every prior realm and client mapping survives the single approved addition");
+        var expected = JsonNode.Parse(before.GetRawText())!.AsObject();
+        foreach (var mappings in new[] { after, expected })
+        {
+            if (mappings["clientMappings"] is JsonObject clients)
+            {
+                clients.Remove("account");
+                if (clients.Count == 0) mappings.Remove("clientMappings");
+            }
+        }
+        JsonNode.DeepEquals(expected, after).Should().BeTrue("every prior non-account realm and client mapping survives retirement");
     }
 
     private static void AssertSamePreservedUser(JsonElement before, JsonElement after)
@@ -842,6 +852,7 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
     private static async Task<string> LegacyRealmAsync(bool registrationEmailAsUsername = false)
     {
         var realm = JsonNode.Parse(await File.ReadAllTextAsync(KeycloakFixture.RealmPath("learnstack")))!.AsObject();
+        KeycloakFixture.ToPreStepThree(realm);
         realm["accessTokenLifespan"] = 1800;
         realm["registrationEmailAsUsername"] = registrationEmailAsUsername;
         realm["displayName"] = "Preserved warm-realm name";

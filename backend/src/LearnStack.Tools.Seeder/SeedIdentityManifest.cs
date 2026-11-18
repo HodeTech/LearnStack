@@ -20,8 +20,7 @@ public sealed record SeedIdentityManifest(IReadOnlyList<IdentityManifestUser> Us
                 || user.LegacyTenantAttribute is not null && !SeedData.IdentityUsers.Any(declared =>
                     declared.LegacyTenantAttribute is not null && declared.UserId == user.UserId
                     && declared.Tenant == user.Tenant && declared.Username == user.Username
-                    && declared.LegacyTenantAttribute == user.LegacyTenantAttribute)
-                || user.AccountCapability != new SeedAccountCapability("account", "manage-account")))
+                    && declared.LegacyTenantAttribute == user.LegacyTenantAttribute)))
         {
             throw new InvalidOperationException("Development identity declaration is inconsistent.");
         }
@@ -30,11 +29,11 @@ public sealed record SeedIdentityManifest(IReadOnlyList<IdentityManifestUser> Us
             user.Tenant.TenantId.Value,
             user.Tenant.MapHostToDefaultOrganization ? user.Tenant.DefaultOrganization.OrganizationId.Value : null,
             user.Tenant.Host, user.Username, user.Username, user.FirstName, user.LastName,
-            user.RealmRole, user.AccountCapability, user.LegacyTenantAttribute)).ToArray());
+            user.RealmRole, user.LegacyTenantAttribute)).ToArray());
     }
 }
 
 /// <summary>The credential-free wire projection consumed by development realm tooling.</summary>
 public sealed record IdentityManifestUser(Guid UserId, Guid TenantId, Guid? OrganizationId,
     string Host, string Username, string Email, string FirstName, string LastName,
-    string RealmRole, SeedAccountCapability AccountCapability, string? LegacyTenantAttribute);
+    string RealmRole, string? LegacyTenantAttribute);

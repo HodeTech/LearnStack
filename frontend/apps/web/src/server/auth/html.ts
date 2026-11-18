@@ -10,6 +10,7 @@ import { customFieldMutationContent } from '@/components/auth/custom-field-recov
 import { BFF_HISTORY_SOURCE } from '@/components/auth/history';
 import { publicThemeCss } from '@/components/public/theme';
 import { createAdministrationTranslator } from '@/i18n/administration-catalogues';
+import type { AdminCopy } from '@/i18n/administration-catalogues';
 import type { AuthCopy } from '@/i18n/auth-catalogues';
 import { createAuthTranslator } from '@/i18n/auth-catalogues';
 import { createPublicTranslator } from '@/i18n/catalogues';
@@ -193,12 +194,88 @@ function invitationValidationContent(
   }
   return `<p role="alert">${escape(copy('mutation.invitation_refused'))}</p>${back}`;
 }
+/** The labels of the fields `federation-forms.ts` can report; any other name renders no label (Step 4 review C4-10). */
+function federationFieldLabel(name: string, admin: AdminCopy): string | null {
+  switch (name) {
+    case 'displayName':
+      return admin('federation.display_name');
+    case 'documentUrl':
+      return admin('federation.document_url');
+    case 'issuerOrEntityId':
+      return admin('federation.issuer_input');
+    case 'authorizationEndpoint':
+      return admin('federation.authorization_endpoint');
+    case 'tokenEndpoint':
+      return admin('federation.token_endpoint');
+    case 'jwksEndpoint':
+      return admin('federation.jwks_endpoint');
+    case 'userInfoEndpoint':
+      return admin('federation.userinfo_endpoint');
+    case 'singleSignOnEndpoint':
+      return admin('federation.sso_endpoint');
+    case 'signingCertificate1':
+      return admin('federation.certificate_1');
+    case 'signingCertificate2':
+      return admin('federation.certificate_2');
+    case 'clientId':
+      return admin('federation.client_id');
+    case 'clientSecret':
+      return admin('federation.client_secret');
+    default:
+      return null;
+  }
+}
+/**
+ * ADR-0099: a federation refusal or unsettled outcome. No submitted value, secret or provider text is echoed and
+ * nothing is resubmitted; the page itself shows the current state and offers Resume.
+ */
+function federationMutationContent(
+  page: Extract<BffPage, { kind: 'mutation_error' }>,
+  copy: AuthCopy,
+  locale: string,
+): string {
+  const { admin } = createAdministrationTranslator(locale);
+  const outcome = page.federation?.outcome ?? null;
+  const labels = (page.federation?.invalid ?? [])
+    .map((name) =>
+      name === 'confirm'
+        ? page.action.endsWith('-delete')
+          ? admin('federation.confirm_delete')
+          : admin('federation.confirm_disable')
+        : federationFieldLabel(name, admin),
+    )
+    .filter((label): label is string => label !== null);
+  const message =
+    page.reason === 'validation'
+      ? labels.length
+        ? copy('mutation.federation_validation', { fields: labels.join(', ') })
+        : copy('mutation.federation_failed')
+      : outcome === 'failed'
+        ? copy('mutation.federation_failed')
+        : outcome === 'drift'
+          ? copy('mutation.federation_drift')
+          : outcome === 'expired'
+            ? copy('mutation.federation_expired')
+            : outcome === 'superseded'
+              ? copy('mutation.federation_superseded')
+              : outcome === 'uncertain' || outcome === 'pending'
+                ? copy('mutation.federation_uncertain')
+                : page.reason === 'stale'
+                  ? copy('mutation.stale')
+                  : page.reason === 'denied'
+                    ? copy('mutation.denied')
+                    : copy('mutation.unavailable');
+  return `<p role="alert">${escape(message)}</p><p><a href="/studio/federation">${escape(copy('mutation.federation_back'))}</a></p>`;
+}
+
 function mutationContent(
   page: Extract<BffPage, { kind: 'mutation_error' }>,
   copy: AuthCopy,
   locale: string,
   site: PageSite,
 ): string {
+  if (page.action.startsWith('/api/studio/federation-'))
+    return federationMutationContent(page, copy, locale);
   const customField = customFieldMutationContent(page, locale, site);
   if (customField !== null) return customField;
   if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-'))
@@ -296,7 +373,17 @@ export function renderBffDocument(
       <input type="hidden" name="csrfToken" value="${escape(page.csrfToken)}">
       <input type="hidden" name="returnTo" value="${escape(page.returnPath)}">
       ${page.contextHint === undefined ? '' : hidden('contextHint', page.contextHint)}
-      <button type="submit">${escape(copy('signin.continue'))}</button></form>`
+      <button type="submit">${escape(copy('signin.continue'))}</button></form>${
+        page.federation === undefined
+          ? ''
+          : `
+      <form action="/api/auth/signin/keycloak" method="post">
+      <input type="hidden" name="csrfToken" value="${escape(page.csrfToken)}">
+      <input type="hidden" name="returnTo" value="${escape(page.returnPath)}">
+      ${page.contextHint === undefined ? '' : hidden('contextHint', page.contextHint)}
+      <input type="hidden" name="federation" value="1">
+      <button type="submit">${escape(copy('signin.federation', { name: page.federation }))}</button></form>`
+      }`
                 : `<p>${escape(
                     page.kind === 'busy'
                       ? copy('error.busy')

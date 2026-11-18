@@ -1,10 +1,12 @@
 # Identity — Provider Adapters
 
-**Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
-and [ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
-These are the bounded invitation and retained-event provider contracts; the
-[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
-and qualification. Acceptance is not evidence of a configured production sender.
+**Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
+and [ADR-0099](../../decisions/0099-confined-tenant-federation.md).
+These are the bounded invitation, retained-event and tenant-federation provider
+contracts; the [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns
+implementation and qualification. Acceptance is not evidence of a configured production
+sender.
 
 ## Current recipient UserInfo
 
@@ -46,6 +48,140 @@ credential rotation and operational recovery. Session revocation uses the
 separate signed native path in
 [ADR-0098](../../decisions/0098-session-targeted-back-channel-logout.md);
 retained provider facts confer no revocation authority.
+
+## Tenant federation adapter
+
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) § Ownership, § Fixed broker
+profile and § Bounded egress decide this boundary; this section is its exhaustive
+specification.
+
+| Boundary | Contract |
+|---|---|
+| Ports | SharedKernel `IFederationProvider` and `IFederationEgressFetcher`; held only by `FederationOperationRunner` |
+| Adapter | Internal sealed `KeycloakFederationProvider` in `LearnStack.Infrastructure.Identity.Federation`; direct HTTP, no SDK |
+| Fetcher | Internal sealed `FederationEgressFetcher` in the same namespace; the only fetcher of a tenant-supplied URL |
+| Selection | API `FederationComposition` replaces the fail-closed defaults only when `Federation:ClientSecret` is configured; `FederationAdapterFactory` is the only entry. The choice is made when the port is first resolved (it follows `ISecretProvider`), so an empty or invalid `Authentication:Tenant:Issuer` with the secret present refuses at that first resolution, not at host startup |
+| Credentials | Client `learnstack-federation-admin`; secret through `ISecretProvider` key `Federation:ClientSecret`; a fresh client-credentials token per port call |
+| Resilience | `IProviderResilience<IFederationProvider>`, configuration `Resilience:federation`: retry disabled, a 2.5 s timeout, circuit breaker on, a bulkhead of exactly 4 with no queue; these are fixed values, and composition refuses any other value at startup. The enabled breaker's parameters are bounded: failure ratio in (0, 1], minimum throughput 2 to 100, sampling duration 1 to 60 s, break duration 1 to 300 s (defaults 0.5, 10, 30 s, 30 s); a value outside a range refuses at startup |
+| Failures | Transport faults, 5xx and 429 are `FederationProviderException` (a `ProviderException`) inside the pipeline and leave as `Unavailable`; no provider text crosses the port |
+
+### Admitted calls
+
+The adapter builds every route in `KeycloakFederationRoutes`, and only these:
+
+| Call | Use |
+|---|---|
+| `POST {realm}/protocol/openid-connect/token` | Client credentials for `learnstack-federation-admin`; the token must carry `azp` of that client, the tenant issuer and exactly the `realm-management` role `manage-identity-providers`, or nothing else is sent |
+| `GET admin/realms/learnstack/identity-provider/instances/{alias}` | Owned readback; precedes every write and delete |
+| `POST admin/realms/learnstack/identity-provider/instances` | Create, only when the owned alias is absent |
+| `PUT admin/realms/learnstack/identity-provider/instances/{alias}` | Full-state replace of an owned broker. Refused without a call when it would change the stored issuer or SAML entity identifier, or, without a fresh secret, the token endpoint, client identifier or client authentication ([ADR-0099 Amendment 5](../../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)) |
+| `DELETE admin/realms/learnstack/identity-provider/instances/{alias}` | Delete of an owned broker; an absent alias is already deleted |
+| `GET admin/realms/learnstack/identity-provider/instances/{alias}/mappers` | Mapper count for the readback; any mapper is drift |
+
+The `{alias}` is only `lsf-` and the connection identifier's 32 lowercase hexadecimal
+characters, from `FederationBrokerOwner`. No other alias, user, flow, realm, client or
+required-action route exists, and the JSON `import-config` `fromUrl` form is never sent.
+ADR-0099 also admits the multipart `file` form of `import-config`; Step 3 does not call
+it, because the egress fetcher's own hardened parser already produces the three SAML
+values the profile consumes and the port carries no metadata document (the delivery log
+records the decision). The pinned 26.7.5 parser was observed to return
+`validateSignature=true` for metadata whose `WantAuthnRequestsSigned` is false; the
+adapter never forwards its output either way.
+
+### Ownership and readback
+
+- Every write carries `config.learnstackOwner` = `{tenantId}:{connectionId}`. The
+  adapter reads the alias first; a marker naming another tenant or connection, or an
+  owned alias that no longer reads as an admitted protocol, is `Foreign` and is never
+  written, read further or deleted.
+- An OIDC create without a fresh secret is refused: no secretless broker is created. A
+  write without a fresh secret sends the provider's mask literal, which keeps the stored
+  secret; omitting the member would erase it. The secret is never read back: the
+  readback requires the mask literal and returns no secret.
+- A readback conforms only when its top-level members and its configuration key set and
+  values equal the representation below exactly (`internalId` and `types` are
+  provider-computed and ignored). Any extra, missing or differing key is drift.
+
+### Fixed broker profile
+
+Top level, both protocols: `alias`, `displayName` (the connection's display name),
+`providerId` (`oidc` or `saml`), `enabled`, `trustEmail=false`, `storeToken=false`,
+`addReadTokenRoleOnCreate=false`, `authenticateByDefault=false`, `linkOnly=false`,
+`hideOnLogin=true`, `firstBrokerLoginFlowAlias=learnstack-first-broker-login`.
+`postBrokerLoginFlowAlias`, `organizationId` and `updateProfileFirstLoginMode` are absent.
+
+Configuration, both protocols: `learnstackOwner`, `showInAccountConsole=NEVER`,
+`syncMode=IMPORT`, `doNotStoreUsers=false`, `passMaxAge=false`, `loginHint=false`,
+`allowedClockSkew=0`, `caseSensitiveOriginalUsername=false`, `sendClientIdOnLogout=false`,
+`sendIdTokenOnLogout=false`, `backchannelSupported=false`.
+
+OIDC adds exactly: `issuer`, `clientId`, `clientSecret` (written; reads back as the
+mask), `clientAuthMethod` (`client_secret_post` or `client_secret_basic`),
+`authorizationUrl`, `tokenUrl`, `jwksUrl`, `userInfoUrl` (only when configured),
+`disableUserInfo` (`true` exactly when no UserInfo endpoint), `useJwksUrl=true`,
+`validateSignature=true`, `pkceEnabled=true`, `pkceMethod=S256`, `disableNonce=false`,
+`disableTypeClaimCheck=false`, `defaultScope=openid email profile`,
+`supportsClientAssertions=false`, `jwtAuthorizationGrantEnabled=false`,
+`acceptsPromptNoneForwardFromClient=false`, `filteredByClaim=false`,
+`isAccessTokenJWT=false`, `uiLocales=false`. `forwardParameters`, `prompt`, `logoutUrl`,
+`tokenIntrospectionUrl` and every client-assertion key are absent.
+
+SAML adds exactly: `idpEntityId`, `singleSignOnServiceUrl`, `signingCertificate` (one or
+two base64 DER certificates, comma-separated), `validateSignature=true`,
+`wantAssertionsSigned=true`, `wantAssertionsEncrypted=false`,
+`wantAuthnRequestsSigned=false`,
+`nameIDPolicyFormat=urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`,
+`principalType=SUBJECT`, `postBindingResponse=true`, `postBindingAuthnRequest=true`,
+`postBindingLogout=false`, `artifactBindingResponse=false`,
+`useMetadataDescriptorUrl=false`, `forceAuthn=false`, `allowCreate=true`,
+`addExtensionsElementWithKeyInfo=false`, `signSpMetadata=false`,
+`xmlSigKeyInfoKeyNameTransformer=KEY_ID`. `metadataDescriptorUrl`,
+`singleLogoutServiceUrl`, `artifactResolutionServiceUrl` and `entityId` (the SP
+identifier stays the realm default) are absent. No realm client carries an IdP-initiated
+SSO URL name, so no unsolicited SAML response has a target.
+
+### Bounded egress
+
+`FederationEgressFetcher` fetches OIDC discovery and JWKS and SAML metadata, and checks
+every endpoint the provider later contacts (authorization, token, JWKS, UserInfo, SAML
+SSO) without fetching it:
+
+- HTTPS only; an ASCII DNS host (no IP literal, no internationalized name: enter its
+  punycode form), no userinfo or fragment, at most 2,048 characters; port 443 unless
+  the operator allow-list names the port.
+- The host is resolved once. Every answer must be globally routable: loopback,
+  link-local (169.254.0.0/16 cloud metadata included), private, CGNAT, documentation,
+  benchmarking, multicast, reserved, unspecified and every IPv4-embedding IPv6 form
+  (mapped, compatible, NAT64, 6to4, Teredo), unique-local and site-local IPv6 refuse;
+  IPv6 must be global unicast. One refused answer refuses the host.
+- The connection dials only a validated address; TLS then verifies the certificate and
+  SNI for the original host, so a DNS change between check and connect cannot redirect
+  it. One handler per fetch, no connection reuse across validations.
+- No redirect is followed (anything but 200 refuses), and no cookie, credential or proxy
+  is used; `Accept-Encoding: identity`, and any `Content-Encoding` refuses.
+- Bodies at most 64 KiB (discovery) or 256 KiB (JWKS, metadata), one byte over refuses;
+  content types `application/json` (discovery), `application/json` or
+  `application/jwk-set+json` (JWKS), `application/samlmetadata+xml`, `application/xml`
+  or `text/xml` (metadata).
+- Discovery's `issuer` must be the document URL's prefix; a JWKS with private key
+  members refuses; SAML metadata is one `EntityDescriptor` with one SAML 2.0
+  `IDPSSODescriptor`, its single HTTP-POST SSO location and one or two signing
+  certificates, parsed with DTDs prohibited and no resolver.
+- One fetch, its DNS resolution included, is bounded by 3 seconds (a resolver that does
+  not answer cannot hold it longer), and the runner's 3-second egress budget bounds the
+  whole phase. A timeout, connection failure, 5xx or 429 is `Unavailable`; a TLS
+  validation failure and every rule above are `Refused`.
+
+`Federation:Egress:AllowedHosts` is the operator allow-list: exact `host` (port 443) or
+`host:port` entries, no wildcard, scheme, path or IP literal, at most 64, empty by
+default. A listed host may use the named port and may resolve to a private address
+(RFC 1918 IPv4 or unique-local IPv6) besides a global one; nothing else widens.
+Loopback, link-local and cloud metadata (169.254.0.0/16, `fe80::/10`, and the AWS
+IPv6 metadata range `fd00:ec2::/32` inside unique-local), CGNAT, documentation,
+reserved, multicast, unspecified, scoped and IPv4-embedding IPv6 answers still refuse.
+An entry admits the host for every tenant. It is composition configuration read once
+at startup; tenant input never extends it. Keycloak's own later fetches follow DNS;
+only deployment egress policy bounds them (Phase 11).
 
 ## Invitation SMTP
 

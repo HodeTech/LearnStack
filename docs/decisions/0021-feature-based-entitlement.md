@@ -131,6 +131,11 @@ Adopt **Option A**: feature-based entitlements.
 
 ### Typed key registries
 
+> **Erratum (2026-11-13, [ADR-0099](0099-confined-tenant-federation.md)).** The SSO
+> keys in this block are spelled `sso.saml.enabled` and `sso.oidc.enabled`; the
+> implemented keys are `identity.sso.saml` and `identity.sso.oidc`. See
+> [the dated amendment below](#2026-11-13--sso-key-names).
+
 ```csharp
 namespace LearnStack.SharedKernel.FeatureFlags;
 
@@ -149,6 +154,7 @@ public static class FeatureKeys
     // Identity / SSO
     public const string SsoSaml = "sso.saml.enabled";
     public const string SsoOidc = "sso.oidc.enabled";
+    // Erratum (2026-11-13, ADR-0099): the implemented keys are identity.sso.saml and identity.sso.oidc. See FeatureKeys.cs.
     public const string Scim = "identity.scim.enabled";
 
     // Analytics / API
@@ -214,6 +220,9 @@ refreshed on `tenant.entitlement.updated` integration event.
 ### Plan definition (Hub side)
 
 A `Plan` row in Hub's database carries:
+
+> **Erratum (2026-11-13, [ADR-0099](0099-confined-tenant-federation.md)).** The `sso.saml.enabled` key in this example is
+> `identity.sso.saml` in the implemented registry. See [the dated amendment below](#2026-11-13--sso-key-names).
 
 ```json
 {
@@ -535,3 +544,7 @@ consumer is **enforcement**: each gate ships with the feature it gates, never
 speculatively. No key is invented, and a key the contract does not name is not added.
 [ADR-0045 Amendment 2](0045-entitlement-and-feature-flag-socket.md) says the same of
 `FeatureKeys` and `KillswitchKeys`.
+
+### 2026-11-13 — SSO key names
+
+The SSO feature keys are `identity.sso.saml` and `identity.sso.oidc`. Both are plan-projected, default false and fail-closed in both repositories. The `sso.saml.enabled` and `sso.oidc.enabled` spellings in the sketch above were never the implemented names; the inline erratum records that. [ADR-0099](../decisions/0099-confined-tenant-federation.md) gates OIDC connections on `identity.sso.oidc`, and no Hub plan row carries that key yet.

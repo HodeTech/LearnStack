@@ -470,6 +470,29 @@ owns adapter configuration; [Database Standards](05-database.md#provider-event-i
 owns source qualification and SQL; the [realm runbook](../../infra/keycloak/README.md)
 owns installation and recovery.
 
+### Confined tenant federation adapter
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md).
+
+`IFederationProvider` / internal `KeycloakFederationProvider` is the first runtime adapter
+that writes to the Keycloak Admin REST API, and `IFederationEgressFetcher` / internal
+`FederationEgressFetcher` is the only fetcher of a tenant-supplied URL. Both live in
+`LearnStack.Infrastructure.Identity.Federation`, introduce no SDK, and are selected by the
+API composition root only when the `learnstack-federation-admin` secret
+(`Federation:ClientSecret`) is configured; otherwise the Identity fail-closed defaults stay
+registered. The adapter's resilience is `IProviderResilience<IFederationProvider>` from
+`Resilience:federation` with retry disabled, because a retried provider write can land
+after its outcome settled; the timeout is 2.5 s, the circuit breaker on, and the
+bulkhead exactly 4 without a queue. These values are fixed: the composition root
+refuses any other value at startup, and refuses breaker parameters outside the ranges
+the provider specification states.
+The operator egress allow-list `Federation:Egress:AllowedHosts` is composition
+configuration, never tenant input. The
+[provider specification](../modules/identity/providers.md#tenant-federation-adapter) owns
+the admitted calls, profile and egress rules; the
+[realm runbook](../../infra/keycloak/README.md#federation-administration-client) owns the
+client, the realm invariants and recovery.
+
 ## APISIX Gateway
 
 - APISIX runs in **standalone mode** (YAML hot-reload, no etcd) per ADR-0015.

@@ -38,7 +38,7 @@ public sealed partial class TenantRealmReconciliationTests
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("the automatic historical path reports {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(19, "one preparation, sixteen prior stock-upgrade writes, one event-policy PUT and the additional native scope");
+            first.Mutations.Should().Be(39, "one preparation, sixteen prior stock-upgrade writes, one event-policy PUT and the additional native scope; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             AssertPreparationProfile(expectedProfile, await admin.GetAsync("users/profile"));
             foreach (var identity in SeedData.IdentityUsers) await AssertStoredIdentityAsync(admin, identity);
             foreach (var (username, original) in originalUsers)
@@ -50,8 +50,11 @@ public sealed partial class TenantRealmReconciliationTests
                     "the actual historical password credential DTO remains unchanged");
                 await AssertOnlyAccountGrantAddedAsync(admin, Id(after), grants[Id(original)]);
             }
-            (await admin.GetAsync("clients")).EnumerateArray().Select(Id).Order(StringComparer.Ordinal).Should().Equal(
-                clientsBefore.EnumerateArray().Select(Id).Order(StringComparer.Ordinal), "all existing clients retain their provider IDs");
+            var clientsAfter = await admin.GetAsync("clients");
+            var priorClients = clientsBefore.EnumerateArray().Select(Id).ToHashSet(StringComparer.Ordinal);
+            priorClients.IsSubsetOf(clientsAfter.EnumerateArray().Select(Id)).Should().BeTrue("all existing clients retain their provider IDs");
+            clientsAfter.EnumerateArray().Where(client => !priorClients.Contains(Id(client))).Select(client => client.GetProperty("clientId").GetString())
+                .Should().Equal(["learnstack-federation-admin"], "the only new client is ADR-0099's federation admin client");
             foreach (var (path, before) in scopesBefore)
                 AssertSame(before, await admin.GetAsync(path), "preparation and normalization preserve each preexisting global scope definition");
             AssertSame(apiSecret, await admin.GetAsync("clients/" + Id(api) + "/client-secret"), "the API credential survives the automatic path");
@@ -114,14 +117,18 @@ public sealed partial class TenantRealmReconciliationTests
         });
 
     [Fact]
-    public Task Missing_protected_definitions_do_not_allow_preparation_for_a_customized_stock_scope_lookalike() =>
+    public Task A_customized_stock_scope_lookalike_is_preserved_because_the_retired_console_graph_is_not_normalized() =>
         WithHistoricalPreparationAsync(async (fixture, admin) =>
         {
+            // Before ADR-0099 this customization refused the console-graph normalization. The console is now retired
+            // and its graph is never qualified or normalized, so the customization is simply preserved.
             var roles = Object(await ScopeAsync(admin, "roles"));
             roles["attributes"]!["fixture.customized"] = "true";
             (await admin.PutAsync("client-scopes/" + roles["id"]!.GetValue<string>(), roles)).Should().Be(HttpStatusCode.NoContent);
+            var outcome = await KeycloakReconciliationDriver.RunAsync(fixture);
+            outcome.Success.Should().BeTrue("closed outcome: {0}/{1}", outcome.Stage, outcome.Reason);
             (await ScopeAsync(admin, "roles")).GetProperty("attributes").GetProperty("fixture.customized").GetString().Should().Be("true");
-            await AssertPreparationRefusesWithoutWriteAsync(fixture, admin, "unsupported");
+            (await KeycloakReconciliationDriver.RunAsync(fixture)).Mutations.Should().Be(0);
         });
 
     [Theory]
@@ -141,7 +148,7 @@ public sealed partial class TenantRealmReconciliationTests
 
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("an explicit fresh invocation reports {0}/{1}", resumed.Stage, resumed.Reason);
-            resumed.Mutations.Should().Be(18, "the durable preparation is reused; sixteen prior stock writes, one event-policy PUT and the additional native scope remain");
+            resumed.Mutations.Should().Be(38, "the durable preparation is reused; sixteen prior stock writes, one event-policy PUT and the additional native scope remain; plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             resumed.PreparationDispatched.Should().BeFalse();
             var completed = await KeycloakReconciliationDriver.RunAsync(fixture);
             completed.Success.Should().BeTrue();
@@ -177,7 +184,8 @@ public sealed partial class TenantRealmReconciliationTests
             var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
             resumed.Success.Should().BeTrue("the separate ordinary plan reports {0}/{1}", resumed.Stage, resumed.Reason);
             resumed.PreparationDispatched.Should().BeFalse();
-            resumed.Mutations.Should().Be(19, "sixteen prior stock writes, separate profile normalization, one event-policy PUT and the additional native scope");
+            resumed.Mutations.Should().Be(39, "sixteen prior stock writes, separate profile normalization, one event-policy PUT and the additional native scope; "
+                + "plus eighteen ADR-0099 writes (twenty-one federation-invariant writes and three console-retirement edges, less the retired console normalization and grant), plus the two ADR-0099 Amendment 6 writes (the test-record scope and its optional attachment)");
             var expectedFinal = expectedPreparation.DeepClone();
             var definitions = expectedFinal["attributes"]!.AsArray();
             var index = definitions.IndexOf(definitions.Single(value => value!["name"]!.GetValue<string>() == "user_id"));
@@ -197,7 +205,7 @@ public sealed partial class TenantRealmReconciliationTests
         try
         {
             resources = await fixture.StockProviderResourcesAsync();
-            (await fixture.StockProviderVersionAsync()).Should().Be("26.6.2");
+            (await fixture.StockProviderVersionAsync()).Should().Be("26.7.5");
             using var admin = await fixture.CreateAdminClientAsync();
             await proof(fixture, admin);
         }
@@ -285,18 +293,20 @@ public sealed partial class TenantRealmReconciliationTests
         return result;
     }
 
+    /// <summary>ADR-0099 retires the console: it is disabled and its stock assignments are no longer normalized.</summary>
     private static async Task AssertPreparedConsoleAssignmentsAsync(KeycloakAdminClient admin)
     {
         var console = await admin.ClientAsync("account-console");
+        console.GetProperty("enabled").GetBoolean().Should().BeFalse("the account console is retired");
         foreach (var (category, expected) in new[]
         {
-            ("default", new[] { "acr", "basic", "email", "profile", "web-origins" }),
-            ("optional", new[] { "address", "organization", "phone" }),
+            ("default", new[] { "acr", "basic", "email", "profile", "roles", "web-origins" }),
+            ("optional", new[] { "address", "microprofile-jwt", "offline_access", "organization", "phone" }),
         })
         {
             var assigned = await admin.GetAsync("clients/" + Id(console) + "/" + category + "-client-scopes");
             assigned.EnumerateArray().Select(value => value.GetProperty("name").GetString()).Order(StringComparer.Ordinal)
-                .Should().Equal(expected, "only the three incompatible console assignment edges are detached");
+                .Should().Equal(expected, "the retired console's stock assignments are not detached");
         }
     }
 

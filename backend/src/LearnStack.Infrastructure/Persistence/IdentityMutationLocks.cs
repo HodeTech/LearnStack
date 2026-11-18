@@ -19,8 +19,13 @@ public sealed class IdentityMutationLocks(IUnitOfWork unit) : IIdentityMutationL
     public async Task AcquireAsync(IdentityMutationLockPlan plan, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        if (_attempted || !IsAdmitted(plan)) Refuse();
+        // One plan per physical transaction. A later transaction of the same scope (ADR-0099's runner sends Begin and
+        // Complete as separate top-level requests) starts a new plan; the earlier one ended with its own COMMIT.
+        // Npgsql reuses its transaction object, so the announcement generation, not the reference, names the transaction.
+        var current = unit.GetTenantContextAnnouncement(unit.Transaction)?.Generation;
+        if (_attempted && (current is null || current == _generation) || !IsAdmitted(plan)) Refuse();
         _attempted = true;
+        _plan = null;
         _connection = unit.Connection;
         _transaction = unit.Transaction;
         _generation = unit.GetTenantContextAnnouncement(_transaction)!.Generation;

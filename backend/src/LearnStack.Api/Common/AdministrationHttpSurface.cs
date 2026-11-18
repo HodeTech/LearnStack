@@ -17,6 +17,9 @@ internal static class AdministrationHttpSurface
             ("tenancy", "membership-field-consents", 6) => parts[5].ToLowerInvariant() is "own" or "grants" or "withdrawals",
             ("tenancy", "membership-field-consents", 7) => parts[5].Equals("own", StringComparison.OrdinalIgnoreCase)
                 && parts[6].ToLowerInvariant() is "scopes" or "history",
+            ("identity", "federation", 5) => true,
+            ("identity", "federation", 6) => parts[5].ToLowerInvariant() is "configuration" or "secret-rotations" or "display-name"
+                or "test-starts" or "test-results" or "activation" or "disablement" or "enablement" or "deletion" or "resumption",
             ("identity", "invitations" or "invitable-roles", 5) => true,
             ("identity", "invitations", 6) => true,
             ("identity", "invitation-entry", 6) => parts[5].ToLowerInvariant() is "inspections" or "acceptances" or "results",

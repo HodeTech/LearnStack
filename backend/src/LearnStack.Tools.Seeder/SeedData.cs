@@ -33,13 +33,13 @@ public static class SeedData
     public static readonly ImmutableArray<SeedIdentity> IdentityUsers =
     [
         new(UserId.From(Id("01930000-0000-7000-8000-00000000a001")), English,
-            "demo-admin@tenant-a.test", "Demo", "Admin", "tenant-admin", new("account", "manage-account"), "tenant-a"),
+            "demo-admin@tenant-a.test", "Demo", "Admin", "tenant-admin", "tenant-a"),
         new(UserId.From(Id("01930000-0000-7000-8000-00000000a002")), English,
-            "demo-learner@tenant-a.test", "Demo", "Learner", "tenant-learner", new("account", "manage-account"), "tenant-a"),
+            "demo-learner@tenant-a.test", "Demo", "Learner", "tenant-learner", "tenant-a"),
         new(UserId.From(Id("01930000-0000-7000-8000-00000000b001")), Yoga,
-            "demo-admin@tenant-b.test", "Demo", "Admin", "tenant-admin", new("account", "manage-account")),
+            "demo-admin@tenant-b.test", "Demo", "Admin", "tenant-admin"),
         new(UserId.From(Id("01930000-0000-7000-8000-00000000b002")), Yoga,
-            "demo-learner@tenant-b.test", "Demo", "Learner", "tenant-learner", new("account", "manage-account")),
+            "demo-learner@tenant-b.test", "Demo", "Learner", "tenant-learner"),
     ];
 
     public static readonly ImmutableArray<SeedFoundationRole> IdentityRoles =
@@ -217,9 +217,8 @@ public sealed record SeedTenant(TenantId TenantId, string Slug, string DisplayNa
     SeedCurriculum? Curriculum = null);
 public sealed record SeedOrganization(OrganizationId OrganizationId, string Slug, string DisplayName);
 public sealed record SeedIdentity(UserId UserId, SeedTenant Tenant, string Username,
-    string FirstName, string LastName, string RealmRole, SeedAccountCapability AccountCapability,
+    string FirstName, string LastName, string RealmRole,
     string? LegacyTenantAttribute = null);
-public sealed record SeedAccountCapability(string ClientId, string Role);
 public sealed record SeedFoundationRole(SeedTenant Tenant, Guid RoleId, BuiltInRoleKey BuiltInKey, PermissionScope Scope);
 public sealed record SeedFoundationMembership(SeedIdentity Identity, Guid MembershipId, OrganizationId? OrganizationId,
     SeedFoundationRole Role, string DisplayName, string PreferredLocale, bool IsFirstAdmin)

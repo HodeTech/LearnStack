@@ -95,6 +95,8 @@
     "LearnStack.Tests.Integration.Database.EntitlementExpiryReversalTests",
     "LearnStack.Tests.Integration.Database.EventDeliveryMigrationTests",
     "LearnStack.Tests.Integration.Database.FeatureFlagsTests",
+    "LearnStack.Tests.Integration.Database.FederationConnectionStorageTests",
+    "LearnStack.Tests.Integration.Database.FederationHttpTests",
     "LearnStack.Tests.Integration.Database.FixedSeedPrerequisiteReadTests",
     "LearnStack.Tests.Integration.Database.GlobalIdentityAuthorityToolTests",
     "LearnStack.Tests.Integration.Database.GlobalIdentityBootstrapTests",
@@ -164,6 +166,7 @@
     "LearnStack.Tests.Integration.Database.PublicLocaleEvolutionHttpTests",
     "LearnStack.Tests.Integration.Database.PublicReadTransactionTests",
     "LearnStack.Tests.Integration.Database.PublicServerRenderingTests",
+    "LearnStack.Tests.Integration.Database.PublicSignInHttpTests",
     "LearnStack.Tests.Integration.Database.PublicSiteHttpTests",
     "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests",
     "LearnStack.Tests.Integration.Database.RoleReleaseIntegrationTests",
@@ -207,6 +210,7 @@
     "LearnStack.Tests.Integration.RateLimitForwardedForTests",
     "LearnStack.Tests.Integration.RateLimitingHttpTests",
     "LearnStack.Tests.Integration.SmokeTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.FederationProviderTests",
     "LearnStack.Tests.Integration.TenancyIdentity.ProviderEventAdapterTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
@@ -214,7 +218,6 @@
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests",
     "LearnStack.Tests.Integration.TenantAssertionDimensionTests",
     "LearnStack.Tests.Integration.TenantAssertionHttpTests",
     "LearnStack.Tests.Integration.TenantWideOrganizationAssertionTests",
@@ -10293,7 +10296,7 @@
     },
     {
       "assembly": "learnstack.tests.integration",
-      "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Production_route_inventory_is_exactly_the_four_get_head_pairs",
+      "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Production_route_inventory_is_exactly_the_five_get_head_pairs",
       "milliseconds": 39,
       "source": "p033-77f62-a1-ordinary-9"
     },
@@ -12561,7 +12564,7 @@
     },
     {
       "assembly": "learnstack.tests.integration",
-      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_24705a7a_bootstrap_matches_the_fixed_26_6_2_scope_role_and_mapper_baseline",
+      "method": "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmStockBaselineTests.Historical_24705a7a_bootstrap_matches_the_fixed_pinned_scope_role_and_mapper_baseline",
       "milliseconds": 90800,
       "source": "p033-e0-a1-ordinary-4"
     },

@@ -241,3 +241,33 @@ and qualification are recorded in the Phase 03 Status block.
 | Membership custom values | `identity.membership.custom_fields_read` | **MUST** (`read-sensitive`) | `GetMembershipCustomFieldsQuery` |
 
 `GetOwnMembershipCustomFieldsQuery` is an explicit Off binding.
+
+## Tenant federation
+
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) classifies eleven
+`identity.federation.*` operations MUST (`security-event`) on `FederationConnection`.
+Each Begin, Resume and Complete is its own request type and its own catalogue entry;
+the Begin row commits with the pending operation and the Complete (`apply`) row
+commits with its settled outcome, both carrying the operation identifier in the
+captured row. Rows hold nonsecret fields and digests only: no client secret,
+assertion or token reaches a request type, a row or a snapshot. Standard 18's
+baseline provider-credential-rotation row covers `rotate_secret`.
+
+| Resource | Operation | Class | Why |
+|---|---|---|---|
+| FederationConnection | `identity.federation.configure` | **MUST** (`security-event`) | `BeginConfigureFederationCommand`; creates or reconfigures the realm broker's desired state and clears any test. |
+| FederationConnection | `identity.federation.rotate_secret` | **MUST** (`security-event`) | `BeginRotateFederationSecretCommand`; a credential change returns the connection to Draft. |
+| FederationConnection | `identity.federation.rename` | **MUST** (`security-event`) | `BeginRenameFederationCommand`; the name a tenant's users see on sign-in. |
+| FederationConnection | `identity.federation.test_start` | **MUST** (`security-event`) | `BeginFederationTestStartCommand`; enables the broker at the provider for a 10-minute window. |
+| FederationConnection | `identity.federation.disable` | **MUST** (`security-event`) | `BeginDisableFederationCommand`; stops brokered admission before the provider write. |
+| FederationConnection | `identity.federation.delete` | **MUST** (`security-event`) | `BeginDeleteFederationCommand`; removes the broker and records the tombstone after confirmed absence. |
+| FederationConnection | `identity.federation.resume` | **MUST** (`security-event`) | `ResumeFederationOperationCommand`; another administrator may settle a pending write after its quiet window. |
+| FederationConnection | `identity.federation.apply` | **MUST** (`security-event`) | `CompleteFederationOperationCommand` (the Complete outcome: applied, failed or uncertain) and `ReconcileFederationConnectionCommand` (a detail load's drift or expired window). |
+| FederationConnection | `identity.federation.enable` | **MUST** (`security-event`) | `EnableFederationCommand`; Disabled to Draft with no provider write. |
+| FederationConnection | `identity.federation.activate` | **MUST** (`security-event`) | `ActivateFederationCommand`; the connection becomes advertised and admits brokered sessions. |
+| FederationConnection | `identity.federation.test_record` | **MUST** (`security-event`) | `RecordFederationTestResultCommand`; the BFF's server-side test result, never browser-invocable: the route requires the `federation.test_record` token scope ([ADR-0099 Amendment 6](../../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)). |
+
+`GetFederationConnectionQuery` is an explicit Off binding: the connection detail holds
+no personal data. `GetPublicSignInQuery` is an explicit Off public read: it is
+anonymous and returns only the host tenant's Active alias and display name
+([Standard 18](../../standards/18-audit-coverage.md)).

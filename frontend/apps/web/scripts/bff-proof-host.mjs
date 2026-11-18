@@ -248,7 +248,7 @@ export function instrumentCopiedBffRuntime(
       const custom = customFieldBrowser.call(operation, binding);
       if (custom !== undefined) return custom;
       switch (operation.kind) {
-        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: !customFieldBrowser.profileReadOnly, canManageOrganizations: true, canManageCustomFields: true});
+        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: !customFieldBrowser.profileReadOnly, canManageOrganizations: true, canManageCustomFields: true, canManageFederation: false});
         case 'getOwnProfile': return success(ownProfile, true);
         case 'listMemberships':
         case 'listOrganizationMemberships': { if (${mutation === 'unavailable-pages'}) return {kind: 'transport-error'}; const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
@@ -591,6 +591,7 @@ export async function prepareBffProof({
     'native-invitation-client',
     'native-invitation-http',
     'native-consent-http',
+    'native-federation-client',
     'consent-response-contract',
     'custom-field-forms',
     'invitation-session',
@@ -599,6 +600,8 @@ export async function prepareBffProof({
     'entry-cursor',
     'native-administration-client',
     'http-forms',
+    'federation-forms',
+    'federation-alias',
     'input-error',
     'page-query',
     'session-projection',
@@ -925,8 +928,17 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   if (!external) {
     backend = owner.ownServer(
       createServer((request, response) => {
-        assert.equal(request.url, '/api/v1/public/site');
         assert.equal(request.headers.authorization, undefined);
+        // ADR-0099: the sign-in page reads the anonymous sign-in option; this fixture has no federation.
+        if (request.url === '/api/v1/public/sign-in') {
+          response.writeHead(200, {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          });
+          response.end(JSON.stringify({ federation: null }));
+          return;
+        }
+        assert.equal(request.url, '/api/v1/public/site');
         if (!sites.some((site) => site.host === request.headers['x-learnstack-host'])) {
           response.writeHead(404, { 'content-type': 'application/problem+json' });
           response.end(
