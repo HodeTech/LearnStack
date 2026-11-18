@@ -99,7 +99,8 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
 
     /// <summary>
     /// Any current administrator settles a pending operation by readback. Configure completes only when the nonsecret
-    /// readback equals the stored desired digest; an interrupted Rotate cannot be verified and asks for a resubmit.
+    /// readback equals the stored desired digest; an interrupted Rotate cannot be verified and asks for a resubmit, and so
+    /// does a test start, which cannot be resumed into an open test.
     /// </summary>
     public async Task<Result<FederationRun>> ResumeAsync(long expectedVersion, CancellationToken cancellationToken)
     {
@@ -122,7 +123,11 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             FederationPendingKind.Configure when !matches => await CompleteAsync(pending, FederationApplyOutcome.Failed, observed, null,
                 FederationFailureReason.ResubmitRequired),
             _ when !matches => await CompleteAsync(pending, FederationApplyOutcome.Failed, observed, null, FederationFailureReason.Drift),
-            FederationPendingKind.TestStart => await CompleteAsync(pending, FederationApplyOutcome.Applied, observed, ids.NewUuidV7(), null),
+            // The test attempt belongs only to the server-side owner that started the test (ADR-0099 Amendment 6), and a
+            // browser-driven Resume is not that owner. A lost start therefore settles as a failure: the connection stays in
+            // Draft, the administrator starts again, and the next readback disables a broker found enabled.
+            FederationPendingKind.TestStart => await CompleteAsync(pending, FederationApplyOutcome.Failed, observed, null,
+                FederationFailureReason.ResubmitRequired),
             _ => await CompleteAsync(pending, FederationApplyOutcome.Applied, observed, null, null),
         };
     }
@@ -173,6 +178,17 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
     {
         var read = await StepAsync(new GetFederationConnectionQuery(), cancellationToken);
         if (read.IsFailure) return Result<FederationConnectionDetail>.Fail(read.Error!);
+        // ADR-0099 § Lifecycle: an entitlement lapse refuses sessions and hides the option at once, and the provider broker is
+        // disabled by the next operation or readback. This is that readback: the ordinary Disable, with its own MUST audit row,
+        // attributed to the administrator whose read found the lapse. Only an Active connection is disabled: a Draft or Disabled
+        // one advertises nothing, and a test window ends on its own.
+        if (read.Value!.Connection is { Pending: null, Status: FederationConnectionStatus.Active } lapsed
+            && !await EntitledAsync(lapsed.Protocol, cancellationToken))
+        {
+            await BeginThenWriteAsync(new BeginDisableFederationCommand(lapsed.Version), cancellationToken);
+            read = await StepAsync(new GetFederationConnectionQuery(), cancellationToken);
+            if (read.IsFailure) return Result<FederationConnectionDetail>.Fail(read.Error!);
+        }
         if (read.Value!.Connection is not { Pending: null } view)
             return Result.Ok(new FederationConnectionDetail(read.Value.Connection, FederationProviderObservation.NotRead));
         var owner = new FederationBrokerOwner(context.TenantId, view.ConnectionId, view.Alias);
@@ -183,7 +199,9 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
             : FederationProviderObservation.Drift;
         var expired = view.Status is FederationConnectionStatus.TestOpen or FederationConnectionStatus.TestPassed
             && view.TestExpiresAt is { } expires && clock.UtcNow >= expires;
-        var newDrift = status == FederationProviderObservation.Drift && !string.Equals(observed, view.LastProviderDigest, StringComparison.Ordinal);
+        // The same rule as the handler's IsNewDrift: only a Draft connection can already have recorded this state.
+        var newDrift = status == FederationProviderObservation.Drift
+            && (view.Status != FederationConnectionStatus.Draft || !string.Equals(observed, view.LastProviderDigest, StringComparison.Ordinal));
         // Only a broker the corrective write can rewrite counts, so a drifted one is recorded once, never rewritten per load.
         // Its configuration is the provider's, not the row's: a refused or uncertain Configure of a changed configuration
         // begun from an enabled state leaves the old one enabled, and only the enabled flag is rewritten.
@@ -335,6 +353,7 @@ public sealed class FederationOperationRunner(ISender sender, IFederationProvide
         if (step.IsFailure) return Result<FederationRun>.Fail(step.Error!);
         var receipt = step.Value!;
         if (receipt.Corrective is not { } corrective) return Result.Ok(new FederationRun(receipt));
+        // CompleteAsync turns every refusal into a Pending receipt and never returns a failure, so the value is always present.
         var written = await ProviderThenCompleteAsync(corrective, null, null, cancellationToken);
         return Result.Ok(new FederationRun(receipt with { Version = written.Value!.Receipt.Version, Corrective = null }));
     }

@@ -547,6 +547,55 @@ public sealed class FederationConnectionTests
         Assert.Equal(FederationConnectionState.Active, connection.State);
     }
 
+    [Fact]
+    public void No_transition_advances_a_row_version_that_is_already_at_its_limit()
+    {
+        // Version++ would wrap silently. Begin and Complete already refuse at the limit; so must every other transition.
+        var setVersion = typeof(FederationConnection).GetProperty(nameof(FederationConnection.Version))!.GetSetMethod(true)!;
+        var transitions = new (FederationConnectionState State, Func<FederationConnection, bool> Act)[]
+        {
+            (FederationConnectionState.TestOpen, c => c.RecordTestResult(c.TestAttemptId!.Value, true, At.AddMinutes(3), Actor).IsSuccess),
+            (FederationConnectionState.TestOpen, c => c.ExpireTest(At.AddHours(1), Actor).IsSuccess),
+            (FederationConnectionState.TestPassed, c => c.Activate(Digest('b'), At.AddMinutes(4), Actor).IsSuccess),
+            (FederationConnectionState.Disabled, c => c.Enable(At.AddMinutes(7), Actor).IsSuccess),
+            (FederationConnectionState.Active, c => c.RecordDrift(Digest('d'), At.AddMinutes(5), Actor).IsSuccess),
+        };
+        foreach (var (state, act) in transitions)
+        {
+            // Dirty control: the same transition succeeds below the limit, so the refusal is the limit and nothing else.
+            Assert.True(act(InState(state)), state + " transition succeeds below the limit");
+            var connection = InState(state);
+            setVersion.Invoke(connection, [long.MaxValue]);
+            Assert.False(act(connection), state + " transition refuses at the limit");
+            Assert.Equal(long.MaxValue, connection.Version);
+        }
+    }
+
+    [Fact]
+    public void RecordTestResult_Activate_and_Enable_refuse_while_a_provider_write_is_pending()
+    {
+        // ADR-0099 § Provider writes: one provider write at a time. A pending Rename leaves the state where it was, so only the
+        // pending-operation guard stands between these transitions and a second write racing the first.
+        var transitions = new (FederationConnectionState State, Func<FederationConnection, bool> Act)[]
+        {
+            (FederationConnectionState.TestOpen, c => c.RecordTestResult(c.TestAttemptId!.Value, true, At.AddMinutes(9), Actor).IsSuccess),
+            (FederationConnectionState.TestPassed, c => c.Activate(Digest('b'), At.AddMinutes(9), Actor).IsSuccess),
+            (FederationConnectionState.Disabled, c => c.Enable(At.AddMinutes(9), Actor).IsSuccess),
+        };
+        foreach (var (state, act) in transitions)
+        {
+            Assert.True(act(InState(state)), state + " transition succeeds with nothing pending");
+            var connection = InState(state);
+            Assert.True(connection.BeginRename("Acme SSO renamed", Digest(state == FederationConnectionState.Disabled ? 'c' : 'b'),
+                Operation(), At.AddMinutes(8), Actor).IsSuccess);
+            Assert.True(connection.HasPendingOperation);
+            var version = connection.Version;
+            Assert.False(act(connection), state + " transition refuses while an operation is pending");
+            Assert.Equal(state, connection.State);
+            Assert.Equal(version, connection.Version);
+        }
+    }
+
     private static FederationConnection InState(FederationConnectionState state)
     {
         var connection = Applied();

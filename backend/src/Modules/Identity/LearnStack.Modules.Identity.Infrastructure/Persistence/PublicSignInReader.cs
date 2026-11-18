@@ -29,8 +29,14 @@ public sealed class PublicSignInReader(ITenantContext context, IUnitOfWork unit)
         command.Parameters.AddWithValue("tenant", context.TenantId.Value);
         await using var rows = await command.ExecuteReaderAsync(cancellationToken);
         if (!await rows.ReadAsync(cancellationToken)) return null;
-        var option = new PublicSignInOption(rows.GetString(0), rows.GetString(1),
-            rows.GetString(2) == "Oidc" ? FederationBrokerProtocol.Oidc : FederationBrokerProtocol.Saml);
+        // The column is CHECK-constrained to these two values; a third is storage corruption, never read as SAML.
+        var protocol = rows.GetString(2) switch
+        {
+            "Saml" => FederationBrokerProtocol.Saml,
+            "Oidc" => FederationBrokerProtocol.Oidc,
+            _ => throw new InfrastructureException("Federation sign-in storage is inconsistent."),
+        };
+        var option = new PublicSignInOption(rows.GetString(0), rows.GetString(1), protocol);
         if (await rows.ReadAsync(cancellationToken)) throw new InfrastructureException("Federation sign-in storage is inconsistent.");
         return option;
     }

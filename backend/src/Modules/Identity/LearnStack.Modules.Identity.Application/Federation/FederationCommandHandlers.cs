@@ -195,10 +195,16 @@ public sealed class FederationCommandHandlers(IFederationConnectionStore store, 
                 : Result.Ok(new FederationOperationReceipt(connection.Id.Value, connection.Version, outcome, drift ? FederationFailureReason.Drift : null));
         }, cancellationToken);
 
-    /// <summary>The provider holds a definitive state other than the desired one, not already recorded.</summary>
+    /// <summary>
+    /// The provider holds a definitive state other than the desired one, not already recorded. Recording returns the
+    /// connection to Draft, so a connection in any other state has not recorded it. A Draft one has recorded it when the
+    /// provider still holds the state recorded last: that keeps one drift from being written on every load, and it
+    /// catches a refused rename, which leaves the provider at its old, previously confirmed state.
+    /// </summary>
     internal static bool IsNewDrift(FederationConnection connection, string observed) =>
         FederationConnection.IsDigest(observed) && !string.Equals(observed, connection.DesiredDigest, StringComparison.Ordinal)
-        && !string.Equals(observed, connection.LastProviderDigest, StringComparison.Ordinal);
+        && (connection.State != FederationConnectionState.Draft
+            || !string.Equals(observed, connection.LastProviderDigest, StringComparison.Ordinal));
 
     internal static FederationPendingOperation Pending(FederationConnection connection) => new(connection.Id.Value,
         connection.PendingOperationId!.Value.Value, (FederationPendingKind)(int)connection.PendingOperationKind!.Value, FederationMapping.Map(connection.Protocol),

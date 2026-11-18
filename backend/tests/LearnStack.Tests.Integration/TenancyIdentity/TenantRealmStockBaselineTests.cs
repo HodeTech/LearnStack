@@ -274,7 +274,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var rerun = await KeycloakReconciliationDriver.RunAsync(fixture);
             rerun.Success.Should().BeTrue("closed rerun outcome: {0}/{1}", rerun.Stage, rerun.Reason);
             rerun.Mutations.Should().Be(0);
-            output.WriteLine("Historical ordinary stock path: 36 mutations including event policy, native scope creation and the ADR-0099 invariants, then zero; retired console keeps six default/five optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
+            output.WriteLine("Historical ordinary stock path: {0} mutations including event policy, native scope creation and the ADR-0099 invariants, then zero; retired console keeps six default/five optional edges; elapsed={1:F3}s.", first.Mutations, watch.Elapsed.TotalSeconds);
         }
         finally
         {

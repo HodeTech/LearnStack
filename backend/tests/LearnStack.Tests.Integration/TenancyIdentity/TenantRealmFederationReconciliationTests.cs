@@ -151,5 +151,19 @@ public sealed class TenantRealmFederationReconciliationTests
         idp.GetProperty("config").GetProperty("user.session.note").GetString().Should().Be("identity_provider");
         idp.GetProperty("config").GetProperty("claim.name").GetString().Should().Be("idp");
         idp.GetProperty("config").GetProperty("access.token.claim").GetString().Should().Be("false");
+        // (6) the federation.test_record scope (Amendment 6): defined without mappers, optional on the web client, default nowhere,
+        // so the real provider issues it only on an explicit scope request and never as a side effect of a login.
+        var recorder = (await admin.GetAsync("client-scopes")).EnumerateArray()
+            .Single(scope => scope.GetProperty("name").GetString() == "federation.test_record");
+        recorder.GetProperty("protocol").GetString().Should().Be("openid-connect");
+        (recorder.TryGetProperty("protocolMappers", out var recorderMappers) ? recorderMappers.GetArrayLength() : 0)
+            .Should().Be(0, "the scope carries no claim of its own");
+        var webId = web.GetProperty("id").GetString();
+        (await admin.GetAsync("clients/" + webId + "/optional-client-scopes")).EnumerateArray()
+            .Select(scope => scope.GetProperty("name").GetString()).Should().Contain("federation.test_record");
+        foreach (var candidate in (await admin.GetAsync("clients")).EnumerateArray())
+            (await admin.GetAsync("clients/" + candidate.GetProperty("id").GetString() + "/default-client-scopes")).EnumerateArray()
+                .Select(scope => scope.GetProperty("name").GetString()).Should().NotContain("federation.test_record",
+                    candidate.GetProperty("clientId").GetString() + " must not default the test-record scope");
     }
 }

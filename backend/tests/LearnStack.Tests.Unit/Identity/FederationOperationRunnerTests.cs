@@ -66,6 +66,46 @@ public sealed class FederationOperationRunnerTests
     }
 
     [Fact]
+    public async Task A_refused_rename_of_an_Active_connection_is_drift_found_at_the_next_readback_not_a_silently_advertised_name()
+    {
+        using var harness = await ActiveAsync();
+        var before = harness.Connection!.DisplayName;
+        harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Refused);
+        var run = await harness.Runner().RenameAsync(harness.Connection.Version, "Renamed", CancellationToken.None);
+        Assert.Equal(FederationResultKind.Failed, run.Value!.Receipt.Outcome);
+        // The provider still holds the old name, so the row's unconfirmed name must not stay advertised.
+        Assert.Equal(FederationConnectionState.Active, harness.Connection.State);
+        Assert.NotEqual(before, harness.Connection.DisplayName);
+        harness.Provider.OnApply = null;
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
+        Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled, "the corrective write disabled the broker");
+        // Recorded once: a further load changes nothing.
+        var version = harness.Connection.Version;
+        await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(version, harness.Connection.Version);
+    }
+
+    [Fact]
+    public async Task An_entitlement_lapse_disables_an_Active_broker_at_the_next_readback_and_an_entitled_tenant_is_left_alone()
+    {
+        using var harness = await ActiveAsync();
+        var alias = harness.Connection!.Alias;
+        // Dirty control: entitled, the readback changes nothing.
+        var entitled = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Active, entitled.Value!.Connection!.Status);
+        Assert.True(harness.Provider.Find(alias)!.State.Enabled);
+        // ADR-0099 § Lifecycle: the lapse hides the option at once; the broker is disabled by the next readback.
+        harness.Entitled = false;
+        var lapsed = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Disabled, lapsed.Value!.Connection!.Status);
+        Assert.Equal(FederationConnectionState.Disabled, harness.Connection.State);
+        Assert.False(harness.Provider.Find(alias)!.State.Enabled, "the broker was disabled through the provider, not only in the row");
+        Assert.False(harness.Connection.HasPendingOperation);
+    }
+
+    [Fact]
     public async Task A_provider_refusal_settles_as_failed_and_clears_the_pending_operation()
     {
         using var harness = new FederationHarness();
@@ -108,6 +148,35 @@ public sealed class FederationOperationRunnerTests
         Assert.Equal(FederationResultKind.Applied, deleted.Value!.Receipt.Outcome);
         Assert.Equal(FederationConnectionState.Deleted, harness.Connection.State);
         Assert.Null(harness.Provider.Find(harness.Connection.Alias));
+    }
+
+    [Fact]
+    public async Task A_lost_test_start_is_resumed_into_a_failure_with_no_attempt_and_the_enabled_broker_is_disabled_at_the_next_readback()
+    {
+        using var harness = new FederationHarness();
+        await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
+        harness.Provider.OnApply = (write, _) =>
+        {
+            harness.Provider.Put(write.State.Owner.Alias, new(write.State, true));
+            return Task.FromResult<FederationProviderResult?>(FederationProviderResult.Unavailable);
+        };
+        var started = await harness.Runner().StartTestAsync(harness.Connection!.Version, CancellationToken.None);
+        Assert.Equal(FederationResultKind.Uncertain, started.Value!.Receipt.Outcome);
+        Assert.True(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled, "the enabling write landed");
+        harness.Clock.Advance(FederationConnection.QuietWindow);
+        harness.Provider.OnApply = null;
+        harness.Actor = AdminB;
+        var resumed = await harness.Runner().ResumeAsync(harness.Connection.Version, CancellationToken.None);
+        // The browser holds no owner for an attempt, so none may be handed out and no test may open.
+        Assert.Equal(FederationResultKind.Failed, resumed.Value!.Receipt.Outcome);
+        Assert.Equal(FederationFailureReason.ResubmitRequired, resumed.Value.Receipt.Reason);
+        Assert.Null(resumed.Value.TestAttemptId);
+        Assert.Equal(FederationConnectionState.Draft, harness.Connection.State);
+        Assert.Null(harness.Connection.TestAttemptId);
+        Assert.False(harness.Connection.HasPendingOperation);
+        var detail = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
+        Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled, "a broker left enabled is disabled at the next readback");
     }
 
     [Fact]
@@ -198,6 +267,34 @@ public sealed class FederationOperationRunnerTests
         var detail = await harness.Runner().ReadAsync(CancellationToken.None);
         Assert.Equal(FederationConnectionStatus.Draft, detail.Value!.Connection!.Status);
         Assert.False(harness.Provider.Find(harness.Connection.Alias)!.State.Enabled, "a broker left enabled is disabled at the next readback");
+    }
+
+    [Fact]
+    public async Task The_detail_read_does_not_read_through_a_missing_connection_or_a_pending_operation()
+    {
+        using var harness = new FederationHarness();
+        // No connection: nothing to read back.
+        var none = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.Null(none.Value!.Connection);
+        Assert.Equal(FederationProviderObservation.NotRead, none.Value.Provider);
+        Assert.DoesNotContain("provider:read", harness.Log);
+        // A pending operation owns the provider state: the read shows it as it is and never races its write.
+        harness.Provider.OnApply = (_, _) => Task.FromResult<FederationProviderResult?>(FederationProviderResult.Unavailable);
+        await harness.Runner().ConfigureAsync(OidcInput(), null, CancellationToken.None);
+        Assert.True(harness.Connection!.HasPendingOperation);
+        harness.Log.Clear();
+        var pending = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.NotNull(pending.Value!.Connection!.Pending);
+        Assert.Equal(FederationProviderObservation.NotRead, pending.Value.Provider);
+        Assert.Equal(["begin:GetFederationConnectionQuery"], harness.Log);
+        // Dirty control: once nothing is pending, the same read does read the provider.
+        harness.Provider.OnApply = null;
+        harness.Clock.Advance(FederationConnection.QuietWindow);
+        Assert.True((await harness.Runner().ResumeAsync(harness.Connection.Version, CancellationToken.None)).IsSuccess);
+        harness.Log.Clear();
+        var settled = await harness.Runner().ReadAsync(CancellationToken.None);
+        Assert.NotEqual(FederationProviderObservation.NotRead, settled.Value!.Provider);
+        Assert.Contains("provider:read", harness.Log);
     }
 
     [Fact]

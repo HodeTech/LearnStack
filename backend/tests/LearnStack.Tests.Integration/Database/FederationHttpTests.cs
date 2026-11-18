@@ -249,7 +249,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         using var disabled = await SendAsync(client, token, "/api/v1/identity/federation/disablement", "POST", "{}", active.GetProperty("version").GetString());
         Assert.Equal("applied", (await JsonAsync(disabled)).GetProperty("outcome").GetString());
         Assert.Equal(JsonValueKind.Null, (await SignInAsync(client, English)).GetProperty("federation").ValueKind);
-        Assert.Equal(0, await AuditCountAsync(proof, Secret));
+        Assert.Equal(0, await AuditCountAsync(proof, English, Secret));
         Assert.Equal(Secret, harness.Provider.LastSecret);
         Assert.Equal(0, harness.TransactionalProviderCalls);
     }
@@ -493,7 +493,7 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
                 (await proof.AuditAsync(rotated, English)).Select(row => row.Operation).Order(StringComparer.Ordinal));
         }
         Assert.Equal("rotated-s3cret-value", harness.Provider.LastSecret);
-        Assert.Equal(0, await AuditCountAsync(proof, "rotated-s3cret-value"));
+        Assert.Equal(0, await AuditCountAsync(proof, English, "rotated-s3cret-value"));
 
         version = await ActivateAsync(client, token, recorder, version);
         Assert.NotEqual(JsonValueKind.Null, (await SignInAsync(client, English)).GetProperty("federation").ValueKind);
@@ -909,13 +909,23 @@ public sealed class FederationHttpTests(PublicReadFixture parent)
         return row;
     }
 
-    private static async Task<long> AuditCountAsync(IdentityAuthorizationHttpProof proof, string needle)
+    /// <summary>
+    /// Counts the tenant's audit rows that mention a needle, as learnstack_app under that tenant's scope. audit_log is
+    /// FORCE row level security, so the table owner without app.tenant_id announced sees no row at all and a zero count would
+    /// prove nothing: the helper first asserts that its own scope can see the tenant's rows.
+    /// </summary>
+    private static async Task<long> AuditCountAsync(IdentityAuthorizationHttpProof proof, SeedTenant tenant, string needle)
     {
-        await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.Database.MigrationConnectionString);
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.Database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(app, transaction, tenant.TenantId.Value);
+        await using (var visible = new NpgsqlCommand("SELECT count(*) FROM public.audit_log", app, transaction))
+            Assert.True((long)(await visible.ExecuteScalarAsync())! > 0, "the reading scope sees no audit row, so a zero count is vacuous");
         await using var command = new NpgsqlCommand("""
             SELECT count(*) FROM public.audit_log audit
             WHERE audit::text LIKE '%' || @needle || '%'
-            """, owner);
+            """, app, transaction);
         command.Parameters.AddWithValue("needle", needle);
         return (long)(await command.ExecuteScalarAsync())!;
     }

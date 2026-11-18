@@ -243,7 +243,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     {
         if (State != FederationConnectionState.TestOpen || TestAttemptId != attempt || HasPendingOperation
             || TestRevision != ConfigurationRevision || !ValidActor(actor) || !ValidInstant(at) || !IsMonotonic(at)
-            || at >= TestExpiresAt)
+            || at >= TestExpiresAt || Version == long.MaxValue)
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         if (!passed)
@@ -263,7 +263,8 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     public Result<None> ExpireTest(DateTimeOffset at, UserId actor)
     {
         if (State is not (FederationConnectionState.TestOpen or FederationConnectionState.TestPassed)
-            || TestExpiresAt is not { } expires || at < expires || !ValidActor(actor) || !ValidInstant(at) || !IsMonotonic(at))
+            || TestExpiresAt is not { } expires || at < expires || !ValidActor(actor) || !ValidInstant(at) || !IsMonotonic(at)
+            || Version == long.MaxValue)
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         State = FederationConnectionState.Draft;
@@ -277,7 +278,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
         if (State != FederationConnectionState.TestPassed || HasPendingOperation || TestResult != FederationTestResult.Passed
             || TestRevision != ConfigurationRevision || TestExpiresAt is not { } expires || at >= expires
             || !string.Equals(providerDigest, DesiredDigest, StringComparison.Ordinal) || !ValidActor(actor) || !ValidInstant(at)
-            || !IsMonotonic(at))
+            || !IsMonotonic(at) || Version == long.MaxValue)
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         LastProviderDigest = providerDigest;
@@ -290,7 +291,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     public Result<None> Enable(DateTimeOffset at, UserId actor)
     {
         if (State != FederationConnectionState.Disabled || HasPendingOperation || !ValidActor(actor) || !ValidInstant(at)
-            || !IsMonotonic(at))
+            || !IsMonotonic(at) || Version == long.MaxValue)
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         State = FederationConnectionState.Draft;
@@ -305,7 +306,7 @@ public sealed class FederationConnection : AuditableEntity<FederationConnectionI
     {
         if (IsDeleted || State == FederationConnectionState.Deleted || !ValidDigest(providerDigest)
             || string.Equals(providerDigest, DesiredDigest, StringComparison.Ordinal) || !ValidActor(actor) || !ValidInstant(at)
-            || !IsMonotonic(at))
+            || !IsMonotonic(at) || Version == long.MaxValue)
             return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         LastProviderDigest = providerDigest;
