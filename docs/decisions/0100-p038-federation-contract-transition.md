@@ -173,13 +173,15 @@ ADR-0096's gate rules hold, with this one generalization.
 - A carrier is `backend/openapi/policy/transition-NNNN.json`, named for the Accepted
   `docs/decisions/NNNN-*.md` it restates. Its schema is ADR-0096's: exactly
   `schemaVersion`, `adr`, `baseSha256`, `headSha256`, `findings` and `inputs`.
-- Every committed carrier is validated on every run against the tables of the Accepted
-  decision it names. An invalid carrier, a missing, ambiguous or non-Accepted decision,
-  an unrecognized carrier file name or a repeated (base, head) pair refuses all
-  approval, including for another carrier's pair.
-- Only the carrier whose pair equals the actual Git snapshot bytes can approve. With no
-  match the comparison keeps its unapproved result. A carrier whose pair no longer
-  occurs is history and approves nothing else.
+- Every committed carrier is checked on every run for its shape, its file name (the ADR
+  number the record names) and a unique (base, head) pair. A malformed carrier, an
+  unrecognized `transition-*.json` name or a repeated pair refuses all approval,
+  including for another carrier's pair.
+- Only the carrier whose pair equals the actual Git snapshot bytes is bound to its
+  decision, exactly one `docs/decisions/NNNN-*.md` that is Accepted and whose tables
+  equal the carrier, and can approve. With no match the comparison keeps its unapproved
+  result. A retained decision is history: a later change to an old ADR's status or text
+  does not affect comparisons of other pairs.
 - For that carrier the execution identity, the three complete finding sets, the refusal
   summary and the freshly run 60 policy controls apply exactly as in ADR-0096.
 - Success identifies an approved incompatibility, not raw compatibility.
@@ -216,7 +218,8 @@ are the earliest packets that may. The candidates measured here are a transition
 record per release as this one, a standing registry-growth rule enforced by the gate,
 and an open-key grant contract. Appending new branches (registry order) removes the
 positional companion findings under any of them; the API layer reads no Identity release
-data today, so that needs its own contract.
+data today, so that needs its own contract. The gate also admits only non-empty finding
+rows today, so a transition whose companion findings are gone needs a gate change.
 
 ## Consequences
 
@@ -235,6 +238,12 @@ data today, so that needs its own contract.
 - Approval binds exact bytes; any later change to the served snapshot needs its own
   decision until the open decision above is resolved.
 - Each further assignable key costs a decision until then.
+- A second approved transition no longer needs an edit to the gate script. A pull
+  request that adds an Accepted ADR, its carrier and the snapshot passes the gate, and
+  the gate reads the decision's status from the head commit as ADR-0096's did. Review of
+  the ADR and carrier files is therefore the control. Making it mechanical, for example
+  with an owners rule over `backend/openapi/policy/transition-*.json`,
+  `scripts/openapi-*.py` and `docs/decisions/`, is not decided here.
 
 ### Neutral
 
@@ -248,10 +257,12 @@ data today, so that needs its own contract.
    log with the review disposition; reconcile Status and the decision register (G20).
    Append an ADR-0024 bounded-supersession Amendment and an ADR-0096 Amendment for the
    generalized carrier rule; their bodies and Accepted statuses remain.
-2. Generalize the confined admission helper and its controls (delivered in `bac20429`):
-   each carrier approves only its own pair; any invalid sibling refuses; duplicate
-   pairs, file name against ADR, unrecognized names and reviewed-contract rows are
-   controlled.
+2. Generalize the confined admission helper and its controls: each carrier approves
+   only its own pair; a malformed sibling or a repeated pair refuses; a sibling's
+   decision binds only when its own pair is compared; file name against ADR,
+   unrecognized, non-ASCII and non-JSON names, reviewed-contract rows (lettered phase
+   ids included), table sets, count grammar and chained pairs are controlled, and every
+   real carrier is bound to its real decision on each run of the controls.
 3. Add the carrier `transition-0100.json` and run the pinned comparison in CI. A local
    reproduction of ADR-0096's three finding hashes validated the method for the hashes
    above; the hosted pinned run is the authority.

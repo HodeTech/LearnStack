@@ -145,7 +145,10 @@ def main():
     if result not in (0, 1) or first_baseline:
         return result
     record = transition.candidate(ROOT, lambda path: committed_file(head_sha, path),
-        git('ls-tree', '-r', '--name-only', head_sha, '--', 'backend/openapi/policy', 'docs/decisions').stdout.decode().splitlines(),
+        # NUL-separated: `--name-only` otherwise C-quotes a non-ASCII name, which would then
+        # slip past the carrier-name check as an unrelated path.
+        [p for p in git('ls-tree', '-r', '-z', '--name-only', head_sha, '--', 'backend/openapi/policy',
+                        'docs/decisions').stdout.decode().split('\0') if p],
         base, head, args.tool.resolve(), comparison, identity)
     if record is None:
         return result

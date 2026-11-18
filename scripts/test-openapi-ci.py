@@ -290,8 +290,8 @@ class TransitionControls(unittest.TestCase):
         replacements = {self.record['baseSha256']: record['baseSha256'], self.record['headSha256']: record['headSha256']}
         for name in self.t.REPORTS:
             replacements[self.record['findings'][name]['sha256']] = record['findings'][name]['sha256']
-        for old, new in replacements.items():
-            decision = decision.replace(old, new)
+        # One pass, so a chained pair (the new prior is the old head) cannot rewrite its own output.
+        decision = re.sub('|'.join(re.escape(old) for old in replacements), lambda match: replacements[match.group(0)], decision)
         decision = decision.replace('# ADR-0096:', '# ADR-' + adr + ':', 1).replace('Reviewed P03-5 contract', label)
         decision_path = 'docs/decisions/' + adr + '-second-reviewed-transition.md'
         carrier_path = 'backend/openapi/policy/transition-' + adr + '.json'
@@ -560,27 +560,65 @@ class TransitionControls(unittest.TestCase):
             with self.subTest(pair=pair):
                 self.assertIsNone(self.t.candidate(self.root, self.committed.get, self.paths, *pair, self.tool, self.comparison, self.before))
 
-    def test_an_invalid_sibling_carrier_refuses_every_approval_even_for_the_other_pair(self):
-        record2, _, decision_path, carrier_path = self.add_transition('0100', b'prior', b'reviewed')
-        carrier, decision = self.committed[carrier_path], self.committed[decision_path]
+    def compare_second_pair(self, base2, head2, reports2):
+        self.write_comparison(self.comparison, reports2)
+        try:
+            return self.t.candidate(self.root, self.committed.get, self.paths, base2, head2, self.tool, self.comparison, self.before)
+        finally:
+            self.write_comparison(self.comparison)
+
+    def test_a_malformed_sibling_carrier_refuses_every_approval_even_for_the_other_pair(self):
+        record2, _, _, carrier_path = self.add_transition('0100', b'prior', b'reviewed')
+        digest = self.t.digest(b'elsewhere')
         variants = {
-            'unknown field': lambda: self.committed.__setitem__(carrier_path, json.dumps({**record2, 'unknown': True}).encode()),
-            'repointed digest': lambda: self.committed.__setitem__(carrier_path, json.dumps({**record2, 'baseSha256': self.t.digest(b'elsewhere')}).encode()),
-            'not accepted': lambda: self.committed.__setitem__(decision_path, decision.replace(b'\nAccepted\n', b'\nProposed\n', 1)),
+            'unknown field': {**record2, 'unknown': True},
+            'bad schema version': {**record2, 'schemaVersion': 2},
+            'bad digest': {**record2, 'baseSha256': 'zz'},
+            'record names another adr': {**record2, 'adr': '0099'},
+            'extra findings channel': {**record2, 'findings': {**record2['findings'], 'extra': record2['findings']['raw']}},
+            'extra finding key': {**record2, 'findings': {**record2['findings'], 'raw': {**record2['findings']['raw'], 'extra': 1}}},
+            'extra input': {**record2, 'inputs': {**record2['inputs'], 'extra': digest}},
+        }
+        for name, value in variants.items():
+            with self.subTest(variant=name):
+                self.committed[carrier_path] = json.dumps(value).encode()
+                with self.assertRaises(ValueError):
+                    self.candidate()
+        self.committed[carrier_path] = json.dumps(record2).encode()
+        self.assertEqual('0096', self.candidate()['adr'])
+
+    def test_a_siblings_decision_binds_only_when_its_own_pair_is_compared(self):
+        """A retained decision is history; a later change to it cannot stop unrelated comparisons."""
+        base2, head2 = b'prior', b'reviewed'
+        record2, reports2, decision_path, carrier_path = self.add_transition('0100', base2, head2)
+        carrier, decision = self.committed[carrier_path], self.committed[decision_path]
+        original_paths = list(self.paths)
+        variants = {
+            'not accepted': lambda: self.committed.__setitem__(decision_path, decision.replace(b'\nAccepted\n', b'\nSuperseded by ADR-0101\n', 1)),
             'wrong identity': lambda: self.committed.__setitem__(decision_path, decision.replace(b'# ADR-0100:', b'# ADR-0101:', 1)),
+            'repointed digest': lambda: self.committed.__setitem__(carrier_path, json.dumps({**record2, 'baseSha256': self.t.digest(b'elsewhere')}).encode()),
             'decision absent': lambda: self.paths.remove(decision_path),
             'decision ambiguous': lambda: self.paths.append('docs/decisions/0100-duplicate.md'),
+            # The bytes exist under the suffixed name too, so only the path grammar can refuse it.
+            'decision outside the slug grammar': lambda: (self.paths.__setitem__(self.paths.index(decision_path), decision_path + '.orig'),
+                                                          self.committed.__setitem__(decision_path + '.orig', decision)),
+            'decision in a folder': lambda: self.paths.__setitem__(self.paths.index(decision_path), 'docs/decisions/0100-a/b.md'),
+            'unicode digits': lambda: self.paths.__setitem__(self.paths.index(decision_path), 'docs/decisions/\uff10\uff11\uff10\uff10-second-reviewed-transition.md'),
         }
         for name, break_it in variants.items():
             with self.subTest(variant=name):
                 break_it()
-                with self.assertRaises(ValueError):
-                    self.candidate()
+                if name == 'repointed digest':
+                    # Its pair no longer matches the compared bytes, so it is inert for the other pair.
+                    self.assertEqual('0096', self.candidate()['adr'])
+                else:
+                    self.assertEqual('0096', self.candidate()['adr'])
+                    with self.assertRaises(ValueError):
+                        self.compare_second_pair(base2, head2, reports2)
                 self.committed[carrier_path], self.committed[decision_path] = carrier, decision
-                self.paths[:] = [p for p in self.paths if p != 'docs/decisions/0100-duplicate.md']
-                if decision_path not in self.paths:
-                    self.paths.append(decision_path)
-        self.assertEqual('0096', self.candidate()['adr'])
+                self.committed.pop(decision_path + '.orig', None)
+                self.paths[:] = original_paths
+        self.assertEqual('0100', self.compare_second_pair(base2, head2, reports2)['adr'])
 
     def test_one_pair_cannot_be_approved_by_two_carriers(self):
         self.add_transition('0100', self.base_bytes, self.head_bytes)
@@ -594,27 +632,97 @@ class TransitionControls(unittest.TestCase):
             self.candidate()
 
     def test_unrecognized_transition_carrier_names_refuse(self):
-        for name in ['transition-x.json', 'transition-12345.json', 'transition-0100-copy.json', 'sub/transition-0100.json']:
+        for name in ['transition-x.json', 'transition-12345.json', 'transition-0100-copy.json', 'sub/transition-0100.json',
+                     'transition-0100.json.json', 'transition-\uff10\uff11\uff10\uff10.json', 'transition-0100\u00e9.json']:
             with self.subTest(name=name):
                 self.paths.append('backend/openapi/policy/' + name)
                 with self.assertRaisesRegex(ValueError, 'unrecognized transition carrier name'):
                     self.candidate()
                 self.paths.pop()
 
+    def test_files_named_like_carriers_that_are_not_json_are_inert(self):
+        for name in ['transition-0100.json.bak', 'transition-notes.md', 'transition-0100.JSON']:
+            with self.subTest(name=name):
+                self.paths.append('backend/openapi/policy/' + name)
+                self.assertEqual('0096', self.candidate()['adr'])
+                self.paths.pop()
+
     def test_a_decision_must_name_exactly_one_reviewed_contract_row(self):
-        for label in ['Reviewed contract', 'Reviewed P3-8 contract', 'Reviewed P03-8 contract extra']:
+        for label in ['Reviewed contract', 'Reviewed P3-8 contract', 'Reviewed P03-8 contract extra', 'Reviewed P03-8 Contract']:
             with self.subTest(label=label):
-                self.add_transition('0100', b'prior', b'reviewed', label=label)
+                _, reports2, decision_path, carrier_path = self.add_transition('0100', b'prior', b'reviewed', label=label)
                 with self.assertRaisesRegex(ValueError, 'missing/extra decision identity'):
-                    self.candidate()
-                for path in ['docs/decisions/0100-second-reviewed-transition.md', 'backend/openapi/policy/transition-0100.json']:
+                    self.compare_second_pair(b'prior', b'reviewed', reports2)
+                for path in (decision_path, carrier_path):
                     del self.committed[path]
                     self.paths.remove(path)
-        record2, _, decision_path, _ = self.add_transition('0100', b'prior', b'reviewed')
+        for label in ['Reviewed P03-8 contract', 'Reviewed P02d-4 contract', 'Reviewed P09a-3 contract']:
+            with self.subTest(label=label):
+                _, reports2, decision_path, carrier_path = self.add_transition('0100', b'prior', b'reviewed', label=label)
+                self.assertEqual('0100', self.compare_second_pair(b'prior', b'reviewed', reports2)['adr'])
+                for path in (decision_path, carrier_path):
+                    del self.committed[path]
+                    self.paths.remove(path)
+        _, reports2, decision_path, _ = self.add_transition('0100', b'prior', b'reviewed')
         extra = '\n| Reviewed P03-9 contract | `abcdef12` | `' + self.t.digest(b'other') + '` |\n'
         self.committed[decision_path] += extra.encode()
         with self.assertRaisesRegex(ValueError, 'missing/extra decision identity'):
+            self.compare_second_pair(b'prior', b'reviewed', reports2)
+
+    def test_a_decision_with_an_unknown_hash_row_or_a_changed_input_row_refuses(self):
+        extra = '\n| Surprise | `abcdef12` | `' + self.t.digest(b'surprise') + '` |\n'
+        self.committed[ADR_PATH] = self.decision + extra.encode()
+        with self.assertRaisesRegex(ValueError, 'missing/extra decision identity'):
             self.candidate()
+        self.committed[ADR_PATH] = self.decision
+        # The carrier's inputs still equal the real execution identity; only the decision differs.
+        name = 'backend/openapi/policy/severity.txt'
+        changed = self.decision.replace(self.record['inputs'][name].encode(), self.t.digest(b'another severity').encode())
+        self.assertNotEqual(self.decision, changed)
+        self.committed[ADR_PATH] = changed
+        with self.assertRaisesRegex(ValueError, 'input declaration differs from decision'):
+            self.candidate()
+
+    def test_finding_counts_must_be_plain_positive_integers(self):
+        for old, new in [('| Raw tool | 5 |', '| Raw tool | 05 |'), ('| Raw tool | 5 |', '| Raw tool | 0 |'),
+                         ('| Companion policy | 54 |', '| Companion policy | 054 |'), ('| Raw tool | 5 |', '| Raw tool | +5 |')]:
+            with self.subTest(change=new):
+                self.assertIn(old.encode(), self.decision)
+                self.committed[ADR_PATH] = self.decision.replace(old.encode(), new.encode(), 1)
+                with self.assertRaises(ValueError):
+                    self.candidate()
+        self.committed[ADR_PATH] = self.decision
+
+    def test_a_repeated_pair_refuses_even_when_the_repetition_is_not_the_compared_pair(self):
+        self.add_transition('0100', b'prior', b'reviewed')
+        self.add_transition('0101', b'prior', b'reviewed')
+        with self.assertRaisesRegex(ValueError, 'duplicate transition pair'):
+            self.candidate()
+
+    def test_chained_transitions_each_approve_only_their_own_pair(self):
+        """The second transition starts where the first ended, as ADR-0100 follows ADR-0096."""
+        head2 = b'chained next snapshot'
+        _, reports2, _, _ = self.add_transition('0100', self.head_bytes, head2)
+        self.assertEqual('0096', self.candidate()['adr'])
+        self.assertEqual('0100', self.compare_second_pair(self.head_bytes, head2, reports2)['adr'])
+
+    def test_the_real_decisions_and_their_real_carriers_bind_together(self):
+        carriers = sorted((self.real / 'backend/openapi/policy').glob('transition-*.json'))
+        self.assertTrue(carriers)
+        for carrier in carriers:
+            adr = carrier.name[len('transition-'):-len('.json')]
+            with self.subTest(carrier=carrier.name):
+                decisions = sorted((self.real / 'docs/decisions').glob(adr + '-*.md'))
+                self.assertEqual(1, len(decisions))
+                record = self.t.load_carrier(adr, carrier.read_bytes())
+                self.t.bind(record, self.t.decision_tables(adr, decisions[0].read_bytes()))
+
+    def test_non_ascii_carrier_names_reach_the_name_check_through_real_git(self):
+        (self.root / 'backend/openapi/policy/transition-0100\u00e9.json').write_text('{}')
+        head = self.save()
+        with self.assertRaisesRegex(ValueError, 'unrecognized transition carrier name'):
+            self.run_ci(name='non-ascii-carrier', head=head)
+        self.assertFalse((self.root / 'non-ascii-carrier/approval.json').exists())
 
     def test_wrapper_records_the_adr_of_the_carrier_that_approved_the_pair(self):
         prior = {**CURRENT, 'info': {**CURRENT['info'], 'title': 'Second prior'}}

@@ -2,8 +2,8 @@
 
 Each approved transition has one carrier, `backend/openapi/policy/transition-NNNN.json`,
 bound to the Accepted `docs/decisions/NNNN-*.md` it names (ADR-0096, ADR-0100).
-Every carrier is validated on every run; only the one whose exact snapshot pair
-matches the comparison can approve it.
+Every carrier is checked for shape, name and pair uniqueness on every run; only the one
+whose exact snapshot pair matches the comparison is bound to its decision and can approve.
 """
 import hashlib
 import importlib.util
@@ -26,7 +26,7 @@ REPORTS = {'raw': ('Raw tool', 'raw-tool.json'),
 VERSION = 'oasdiff version 1.33.0'
 LIMIT = 2 * 1024 * 1024
 CARRIER = re.compile(re.escape(POLICY) + r'transition-([0-9]{4})\.json')
-REVIEWED = re.compile(r'Reviewed P[0-9]{2}-[0-9]+ contract')
+REVIEWED = re.compile(r'Reviewed P[0-9]{2}[a-z]?-[0-9]+ contract')
 status_spec = importlib.util.spec_from_file_location('transition_adr_status', Path(__file__).with_name('adr-status.py'))
 status_reader = importlib.util.module_from_spec(status_spec)
 status_spec.loader.exec_module(status_reader)
@@ -183,13 +183,11 @@ def candidate(root, read_committed, committed_paths, base, head, tool, output, b
     carriers = carrier_paths(committed_paths)
     if not carriers:
         return None
-    records = {}
-    for adr, path in sorted(carriers.items()):
-        record = load_carrier(adr, read_committed(path))
-        decision = read_committed(decision_path(adr, committed_paths))
-        require(decision is not None, 'missing decision')
-        bind(record, decision_tables(adr, decision))
-        records[adr] = record
+    # Every carrier is checked for shape, file name and pair uniqueness, so a malformed
+    # or ambiguous one refuses all approval. Only the carrier that matches the comparison
+    # is bound to its decision: a retained decision is history, and a later change to an
+    # old ADR's status must not stop unrelated comparisons.
+    records = {adr: load_carrier(adr, read_committed(path)) for adr, path in sorted(carriers.items())}
     pairs = [(record['baseSha256'], record['headSha256']) for record in records.values()]
     require(len(pairs) == len(set(pairs)), 'duplicate transition pair')
     matches = [record for record in records.values()
@@ -197,6 +195,9 @@ def candidate(root, read_committed, committed_paths, base, head, tool, output, b
     if not matches:
         return None
     record = matches[0]
+    decision = read_committed(decision_path(record['adr'], committed_paths))
+    require(decision is not None, 'missing decision')
+    bind(record, decision_tables(record['adr'], decision))
     require(before == record['inputs'] == execution_identity(root, tool), 'execution identity mismatch')
     for name in INPUTS:
         if name != TOOL:
