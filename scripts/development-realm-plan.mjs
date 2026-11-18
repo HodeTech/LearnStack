@@ -730,7 +730,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, backchannel, 
       add('create_user', async () => {
         // Pinned RealmAdminResource.partialImport wraps one named user in its
         // own transaction. Unlike POST users, this creates credentials and the
-        // declared inert role and account capability atomically. FAIL never overwrites.
+        // declared inert role atomically. FAIL never overwrites.
         const result = await admin.post('partialImport', copy(body));
         // Only ADDED proves that this transaction installed the declared
         // credential. An exact-looking concurrent account cannot prove it.

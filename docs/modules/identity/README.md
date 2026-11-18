@@ -624,6 +624,35 @@ exact columns, CHECKs, grants and guard; the application operations, provider ad
 and Studio page belong to Steps 2–4 and the
 [phase Status](../../roadmap/phase-03-identity-admin.md) owns their state.
 
+`FederationConnection` lifecycle (Delete is available from every live state):
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft: first Configure applied
+    Draft --> TestOpen: test start applied
+    TestOpen --> TestPassed: passed result recorded
+    TestOpen --> Draft: failed result, expiry or drift
+    TestPassed --> Active: Activate
+    TestPassed --> Draft: expiry or drift
+    Active --> Disabled: Disable, or an entitlement lapse at readback
+    Active --> Draft: drift
+    Disabled --> Draft: Enable (a new test is required) or drift
+    Draft --> Deleted: Delete
+    TestOpen --> Deleted: Delete
+    TestPassed --> Deleted: Delete
+    Active --> Deleted: Delete
+    Disabled --> Deleted: Delete
+    Deleted --> [*]
+```
+
+- A first configuration ends in `Draft`; only `Draft` starts a test.
+- `TestOpen` and `TestPassed` last 10 minutes and return to `Draft` when they expire.
+- The provider broker is enabled in `TestOpen`, `TestPassed` and `Active` only. `Active`
+  alone advertises the option and admits brokered sessions; `TestOpen` admits only the
+  test callback.
+- A drifted readback returns every live state, `Disabled` included, to `Draft`.
+- `Deleted` is the terminal tombstone; its alias stays reserved.
+
 ### Tenant federation operations (P03-8 Step 2)
 
 `FederationOperationRunner` is the one Identity application service around provider

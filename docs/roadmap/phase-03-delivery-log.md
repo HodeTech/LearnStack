@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,230 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,331 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -507,6 +507,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 PR CI triage corrections (2026-11-15)](#p03-8-pr-ci-triage-corrections-2026-11-15) — 39 lines
   - [ADR-0100 maintainer review disposition and acceptance (2026-11-18)](#adr-0100-maintainer-review-disposition-and-acceptance-2026-11-18) — 71 lines
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
+  - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -23990,3 +23991,104 @@ is unrelated.
   with the ADR; the maintainer may change it by Amendment.
 - Unchanged from earlier records: the manual accessibility checks, the commit-trailer
   model and final-head qualification.
+
+### P03-8 PR review disposition (2026-11-18)
+
+The maintainer supplied four consolidated reviews of PR #45 at head `cd71cb6d` (309
+files, 43 commits). The reviewers read the documents, not the process, and the
+maintainer asked for each claim to be verified before any change and for no backward
+compatibility, because the application is in development and has no consumer outside
+the coordinated bundle. Every claim was checked against the head. A claim that did not
+reproduce, or that proposed a change this record argues against, is listed under "Not
+changed" with its reason. Behavior changes that make the code do what the Accepted
+record says, and decisions the record was silent on, are in
+[ADR-0099 Amendment 9](../decisions/0099-confined-tenant-federation.md#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18).
+
+**Step 0 review round 2.** It was held before this record. Its findings and
+corrections are in `112796d2`: Amendment 2 overstated what 26.6.4 clears (it does not
+clear CVE-2026-16443 or CVE-2026-16442), two Step 0 residual lines still said the pin
+floats after the digest pin superseded them, and the recorded image identifier is the
+OCI index digest on any platform. The log had no section for it; this paragraph is
+that section, and no waiver was needed.
+
+**Corrected in code and tests.** Each new control was verified by breaking the code it
+protects and seeing the control fail, then restoring the code.
+
+| Finding | Change | Proof |
+|---|---|---|
+| B-1, A7 | Resume of a pending test start opens no window: it settles as `resubmit_required`, returns no attempt and the connection stays `Draft`; a broker found enabled is disabled at the next readback | runner test `A_lost_test_start_is_resumed_into_a_failure…` |
+| M-1 | A refused Rename of a non-`Draft` connection is recorded as drift at the next readback; the handler and the runner share one rule | runner test `A_refused_rename_of_an_Active_connection…` |
+| A5 | An entitlement lapse disables an Active broker at the next detail readback, as the reading administrator, with its own MUST row | runner test `An_entitlement_lapse_disables…` |
+| F-01 | `Version == long.MaxValue` refuses `RecordTestResult`, `ExpireTest`, `Activate`, `Enable` and `RecordDrift`, as `Begin` and `Complete` already did | domain test `No_transition_advances_a_row_version…` |
+| M-5 | The pending-operation guards of `RecordTestResult`, `Activate` and `Enable` | domain test `RecordTestResult_Activate_and_Enable_refuse…`; each of the three guards removed in turn fails it |
+| A1 | SAML metadata depth is bounded at 32 by a streaming pre-pass and certificate text is read without recursion; a 259,540-byte nested document had crashed a reviewer's process on a 1.5 MiB stack | `FederationDocumentReadersTests`, with both layers mutated |
+| A9 | U+FFFE in a display name, invalid UTF-8 or a lone surrogate in an IdP JSON document or request body are refused instead of throwing; the egress handler no longer forwards `traceparent`; the grant list bound is 10 as the contract says; `168.63.129.16/32` and `fd20:ce::/32` are refused | tests in the egress, connection, input and reader classes |
+| F3-04 | A signing certificate's PEM bound is 6144 characters in the Studio form, the form parser and the SDK, as the contract says | `federation-forms.test.ts`, `federation-server.test.ts` |
+| A7 copy | The test copy states the five-minute sign-in inside the ten-minute window and that an interrupted test ends when the window closes | catalogue entries in both locales |
+| F-R6-6 | The service-provider entity ID is not shown for an OIDC connection | component test, with the condition mutated |
+| M-7 | `native-federation-client.ts` had no test: exact paths, `If-Match`, receipt shape, Draft-only start, attempt only from an applied start, public reader | `native-federation-client.test.ts`; eight of nine mutants killed, the ninth is the reader's alias check, which the SDK's own validation duplicates |
+| M-6, F-R7-5 | A real Keycloak realm defines `federation.test_record` without mappers, optional on `learnstack-web` and default on no client | `AssertInvariantsAsync` item 6; the assertion inverted fails |
+| B5 (vacuous audit test) | "A secret never reaches `audit_log`" counted rows as the table owner, which sees none under FORCE row level security; it now reads as `learnstack_app` under the tenant and first asserts that it sees rows | `AuditCountAsync`; a legitimate needle counts above zero |
+| F-R9-8 | The detail read does not read through a missing connection or a pending operation, and does once nothing is pending | runner test `The_detail_read_does_not_read_through…` |
+| F-R2-1 | An unknown protocol value in the sign-in read is refused, not read as SAML | defensive; the column is CHECK-constrained, so no test reaches it |
+| F-R7-2, F-R7-6 | The printed mutation count comes from the measured value; a stale account-capability comment is removed | none needed |
+| B-2, B-3 | The OpenAPI job runs its four Python steps with `python3 -I`, the comparator subprocess too, and the wrapper reads Git objects with `--no-replace-objects` and without any `GIT_*` variable | `test-openapi-ci.py`: a planted `refs/replace` ref, a shadowing `json.py` and a `ci.yml` census |
+| M-8, M-9, M-10 | The head snapshot is read from the commit, never the tree; every carrier's counts and digests are validated each run; a carrier recorded at the base cannot be removed or rewritten | `test-openapi-ci.py` (64 tests); every mutant that survived was given a discriminating test |
+
+**Documentation corrected.** The decisions index row for ADR-0099 and the phase Status
+(M-12, M-14); eleven advisory capability flags in Standards 03, 07 and 21 and the
+identity permission matrix (M-13); the intent-first tier in Standard 01, the grant row
+in Standard 05, three raw readers in Standard 21, the `GET` exception in Standard 04
+and the mapper statement in Standard 11; ADR-0021's key-name correction as a dated
+blockquote and heading (F-R10-9); the glossary's `Deleted`; the identity module's
+state diagram (F-R10-8) and provider-contract intro; the Keycloak guide's launcher
+inventory, delegation and interrupted-creation notes (M-11); three Phase 11 items for
+the realm invariants, pre-registered accounts and the confirm-link copy; and the
+88-column rule on every added line. ADR-0099 carries two inline errata for the false
+mapper-readback statement and Amendment 9 for the rest.
+
+**Not changed, with the reason.**
+
+| Finding | Reason |
+|---|---|
+| H-1 revocation `NoCheck`; M-1 allow-list reach | Recorded decisions (Amendment 9 and Amendment 5): an OCSP or CRL fetch is an outbound request to a host the certificate names; the allow-list is operator configuration |
+| H-2 transport hardening by handler type | The constructor that takes another handler is `internal` and used only by tests; production builds its own `SocketsHttpHandler` |
+| M-2 `fullScopeAllowed` | The scope narrows what an endpoint accepts and grants no authority; the endpoint still requires `identity.federation.admin` |
+| M-3 absent `Sec-Fetch-Site` | An accepted residual of ADR-0099 and Standard 07, stated beside the code |
+| M-5 `linkOnly=false` | Keycloak's `linkOnly` removes the provider from login; the link-only behavior is the first-broker flow, which the realm invariants fix |
+| INT-01 timeout rejection | `ExecutionRejectedException` already covers the resilience timeout |
+| F-02 ordering, F-03 undefined protocol | No write precedes the entitlement check; the handler and runner already refuse an undefined value |
+| P-1, P-4, R2-5 tombstone DELETE guard | The application roles hold no DELETE grant, and tenant erasure in P03-10 must be able to remove the row; a guard now would need a later migration to lift |
+| R1-4 `SettleCorrectiveAsync` null | `CompleteAsync` turns every refusal into a Pending receipt and never fails; a guard would be an untestable branch, so a comment states the invariant |
+| F-R2-3 `UpdateAsync` write guard | `SaveAsync` already refuses a read-only unit through `RequireWriteAllowed`, as its sibling stores rely on |
+| A8 launcher inventory | The managed launcher passes a closed inventory with its own loader and census; it carries neither `Federation__*` nor `IdentityEvents__*`. Extending it is a design decision, so the Keycloak guide states the present behavior |
+| F-R9-10 stale shard-plan entries | The plan is measured timing data; re-measuring belongs to the final-head qualification |
+| All other Minor and Suggestion findings | Not changed in this round; none was needed to make the code match the record, and the next review round can take any of them |
+
+**Open, and owned.**
+
+- Contract changes. The served `v1.json` bytes are pinned to ADR-0100, so any change to
+  them needs a new transition decision. Held for one such decision:
+  `clientAuthentication` in the connection read model (M-4, A10), the status
+  descriptions of the federation operations (F-R3-2, F-R3-3, F-R11-7) and the bound
+  mismatches (R11-10).
+- Open registration and `verifyEmail` in a production realm decide how serious the
+  pre-registration residual is (Amendment 9 item 12); Phase 11 owns it.
+- Gate G20 stays Open. No owners file was added.
+- Manual accessibility checks were not run.
+- Hosted A/B qualification of the final head remains to be run.
+
+**Verification.** Local workstation (macOS), on the working tree for this record.
+
+| Command | Result |
+|---|---|
+| `CI=true dotnet build backend/LearnStack.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
+| Unit, full, Release | 4,173 passed, 0 failed |
+| Architecture, full, Release | 116 passed, 0 failed in the classes this change touches (federation, identity, persistence, permission, operation, corpus and layout); the full suite runs sharded in hosted CI and was not run locally |
+| Integration, `Federation` and `TenantRealm` classes against real Keycloak 26.7.5 (Docker) | 234 passed, 0 failed |
+| `dotnet format --verify-no-changes` | clean |
+| Frontend: web, SDK | web 4,399 passed, 0 failed; SDK 234 passed, the cold lint run included |
+| ESLint, `tsc --noEmit`, Prettier on every changed frontend file | clean |
+| `python3 scripts/run-realm-node-tests.py` | 13 files, 498 passing tests |
+| `python3 scripts/test-openapi-ci.py` | 64 tests OK; the other eleven suites in `scripts/` OK; `test-ci-native-provisioning.py` not run |
+| `make docs-index`, `make lint-docs` | index regenerated; 3,845 fragment links resolve; roadmap structure conforms; delivery log indexes current |

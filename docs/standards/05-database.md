@@ -1093,6 +1093,7 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
 | `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
 | `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
+| `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | — | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |

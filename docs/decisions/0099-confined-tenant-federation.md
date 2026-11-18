@@ -277,6 +277,14 @@ Realm reconciliation owns these, and the Step 3 tests assert them:
 The adapter cannot read these invariants. Phase 11's production identity provisioning must
 replicate them; this record does not assume that.
 
+> **Erratum (2026-11-18,
+> [Amendment 9](#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).**
+> The Realm invariants bullet above and the Residual in § Host binding say that
+> enablement requires a readback of the `idp` mapper. That was false when written: the
+> adapter holds `manage-identity-providers` only and cannot read a client's mappers, as
+> the paragraph above says. Realm reconciliation creates the mapper, verifies it and
+> refuses a second emitter; enablement checks nothing about it.
+
 ### Bounded egress
 
 `IFederationEgressFetcher` retrieves OIDC discovery and JWKS documents or SAML metadata.
@@ -382,6 +390,11 @@ Outcomes:
 **Residual.** Removing the `idp` mapper makes brokered tokens look local. Enablement requires a
 mapper readback, and startup reconciliation detects drift. Manual realm edits by an operator are
 outside this contract.
+
+> **Erratum (2026-11-18,
+> [Amendment 9](#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).**
+> Enablement requires no mapper readback; see the erratum in § Realm invariants. Realm
+> reconciliation, not the adapter, detects a missing or second `idp` emitter.
 
 ### Lifecycle and test
 
@@ -966,3 +979,101 @@ of Amendments 6 and 7 is unchanged. The Decision is unchanged.
 
 The [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) holds the review record
 and its proof.
+
+### Amendment 9 — PR review: behavior corrected to this record, and decisions recorded (2026-11-18)
+
+The independent reviews of PR #45 found three places where the code did not do what this
+record says, and several where this record was silent or its carrier list was stale. The
+Decision is unchanged.
+
+**Behavior now as this record says.**
+
+1. **Entitlement lapse.** § Lifecycle says the broker is disabled by the next operation
+   or readback after a lapse. The detail read now runs the ordinary Disable for an
+   Active connection whose protocol is no longer entitled, with its own MUST audit row
+   and the reading administrator as its actor. A Draft or Disabled connection advertises
+   nothing and a test window ends on its own, so nothing is written for them.
+
+2. **A lost test start.** Resume of a pending test start no longer opens a test. The
+   attempt belongs only to the server-side owner that started it (Amendment 6 item 2),
+   and a browser-driven Resume is not that owner. The start settles as
+   `resubmit_required`, the connection stays in Draft, and the next readback disables a
+   broker found enabled.
+
+3. **An unconfirmed desired state.** A refused Rename of an Active connection leaves the
+   provider at its old, confirmed state, which the "recorded once" rule counted as
+   already recorded. Recording drift returns a connection to Draft, so a connection that
+   is not in Draft and whose provider differs from the desired state has not recorded
+   it, and the next readback records the drift (§ Provider writes).
+
+**Decisions recorded.** None changes behavior.
+
+4. **Transport revocation.** Egress does not check certificate revocation, for
+   tenant-chosen and allow-listed hosts alike. That is the platform default, and an OCSP
+   or CRL fetch is an outbound request to a host the certificate names, a fetch surface
+   of its own. The address-class guard, SNI and chain validation stand.
+
+5. **A nonconforming broker.** One that holds an extra mapper or a changed fixed profile
+   is recorded as drift and left as found. No corrective write starts from a state the
+   adapter cannot prove, so the corrective disabling write of § Provider writes does
+   not apply to it. The P03-9 operator step repairs it, and Studio shows the drift.
+
+6. **A test no one finishes.** A test completed by a subject without administrator
+   authority cannot record its failure, and a test whose browser closes records nothing.
+   Both end when the window closes; that expiry is the abandonment path of § Lifecycle,
+   and Reconfigure or Delete is available meanwhile. The sign-in itself shares the BFF's
+   five-minute transaction ceiling, inside the ten-minute window.
+
+7. **Any exception after Begin settles uncertain.** The catch is broad on purpose. An
+   exception nobody foresaw still leaves the operation pending, never silently applied,
+   and Resume settles it by readback.
+
+8. **The detail read is a recorded exception to GET without side effects**, stated in
+   [API Standards](../standards/04-api-design.md) § Etiquette.
+
+9. **Carriers.** The carriers that landed with the steps are Standards 01 (the
+   intent-first tier, added by the review), 04, 05, 06, 07, 11, 12, 18, 19, 20 and 21,
+   the glossary and the module specifications. Standards 09 and 10 are unchanged:
+   federation adds no error-code family and no telemetry rule, and egress
+   instrumentation is suppressed because its destination is tenant-chosen.
+
+10. **Steps.** The record lists five steps, 0 to 4. The Status line's "four steps,
+    including the pin move" miscounts them.
+
+11. **The `idp` mapper is not read by the adapter.** The erratum in § Realm invariants
+    corrects the claim that enablement reads it. What holds is realm reconciliation: it
+    creates the mapper, verifies it and refuses a second emitter, and it runs with
+    `make seed` and `make demo`. A production realm that lacks the mapper makes brokered
+    tokens look local and opens the host binding, so
+    [Phase 11](../roadmap/phase-11-production-hardening.md) replicates and verifies
+    every realm invariant of this record before a production tenant enables federation.
+
+12. **A pre-registered account stays linked.** Under open registration with
+    `verifyEmail` false, a person can register another person's address with a password
+    they know. If their own IdP then asserts that address, the link-only flow links it,
+    since they hold the account's credentials. The address owner's later password reset
+    replaces the password but does not remove the link, so that IdP keeps a way into the
+    account and into a fresh credential action. Before federation a reset ended such a
+    registration. § Linking is right that federation does not create it and wrong that
+    nothing changes: the link makes it persistent. The residual stays accepted for the
+    development realm, whose registration is open by design.
+    [Phase 11](../roadmap/phase-11-production-hardening.md) decides, before a production
+    realm admits federation, whether linking requires a verified address or registration
+    is closed; removing a link is account review (Decision Q1).
+
+13. **The confirm-link copy is not delivered.** § Linking says that Studio, the runbook
+    and the confirm-link copy state the delegation risk. The realm ships no localization
+    text or theme, so the confirm-link page is Keycloak's own. Studio, beside the single
+    sign-on form, and the Keycloak guide carry the warning; a themed confirm-link page
+    belongs to the production realm theme that
+    [Phase 11](../roadmap/phase-11-production-hardening.md) owns.
+
+14. **A superseded Complete records no drift.** § Intent-first operations says it does;
+    the code does not and is right. A superseded identifier's Complete changes nothing
+    and its MUST audit row records that it arrived. Drift is recorded only by a readback
+    that finds it, and a connection whose state moved on is owned by the operation that
+    moved it.
+
+The
+[Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-pr-review-disposition-2026-11-18)
+holds the review record, each finding's disposition and its proof.

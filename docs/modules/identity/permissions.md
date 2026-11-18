@@ -100,7 +100,7 @@ new assignable definitions require their own approved finite manifest.
 | `ListOrganizationMembershipsQuery` | Tenant or exact-current-Organization membership-admin | Non-NULL current organization; both alternatives remain Scoped, with MUST sensitive-read audit before the bounded page. |
 | `ListRolesQuery`, `GetRoleDetailQuery`, `GetPermissionRegistryQuery` | Tenant `identity.role.admin` | Scoped current configuration reads; no orgless mutation/adoption predicate. MUST sensitive-read audit before disclosure. |
 | `GetOwnMembershipContextsQuery` | Current own Membership coverage | Off, physical ReadOnly; exact current Tenant navigation derives active branches only from fresh tenant-wide own coverage. Opaque continuation is actor/scope-bound. |
-| `GetOwnCapabilitiesQuery` | Current own Membership coverage | Off, physical ReadOnly; exactly nine advisory flags from current facts. False flags create no denial event and never authorize a later act. |
+| `GetOwnCapabilitiesQuery` | Current own Membership coverage | Off, physical ReadOnly; exactly eleven advisory flags from current facts (the tenth, `canManageCustomFields`, is registry v3; the eleventh, `canManageFederation`, v4). False flags create no denial event and never authorize a later act. |
 
 The historical v1 five-pair registry, eight templates and fixed initial seed
 remain; the finite v2 registry adds three Tenancy pairs with separately admitted

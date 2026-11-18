@@ -380,10 +380,11 @@ and context switching.
   readback or corrective write. A browser that sends no `Sec-Fetch-Site` header is
   not covered by this check.
 
-**Residuals.** Removing the `idp` mapper makes brokered tokens look local; enablement
-requires a mapper readback and reconciliation refuses a second emitter. Brokered
-tokens remain in the provider session (`storeTokenInSession`), unread by LearnStack.
-The delegation residual of ADR-0099 § Linking is unchanged.
+**Residuals.** Removing the `idp` mapper makes brokered tokens look local. The adapter
+cannot read it; realm reconciliation creates and verifies it and refuses a second
+emitter ([ADR-0099 Amendment 9](../decisions/0099-confined-tenant-federation.md#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).
+Brokered tokens remain in the provider session (`storeTokenInSession`), unread by
+LearnStack. The delegation residual of ADR-0099 § Linking is unchanged.
 
 ### Native back-channel logout
 

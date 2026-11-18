@@ -121,7 +121,7 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
   Protected P03-3 RSCs read their frozen page snapshot and passive `auth()` only;
   the native response owner alone performs credentialed SDK, refresh/idle/cookie
   work before output. [Frontend Architecture](07-frontend-architecture.md#native-entry-and-administration)
-  owns the exact routes, owner bounds and nine advisory action flags.
+  owns the exact routes, owner bounds and eleven advisory action flags.
 - Client Components receive safe typed props, never bearer tokens, provider/raw
   identity, grant graphs or a generic credentialed transport. Future Server Action
   consumers need explicit admission; none is implied by the coding convention.

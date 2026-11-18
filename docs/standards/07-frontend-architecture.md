@@ -412,10 +412,11 @@ new write credit: Node can discard such callbacks. Previously issued writes stil
 retain their credit until their actual callbacks settle. Original native
 backpressure and write callbacks remain intact.
 
-The own-capability read is Off/no-store/no-ETag and returns exactly nine advisory
+The own-capability read is Off/no-store/no-ETag and returns exactly eleven advisory
 flags: canReadTenantMembers, canReadOrganizationMembers, canWriteMemberProfiles,
 canManageMemberships, canReadRoles, canChangeRoleGrants, canAdoptRoleRelease,
-canWriteOwnProfile and canManageOrganizations. The canonical predicates are in
+canWriteOwnProfile, canManageOrganizations, canManageCustomFields (registry v3) and
+canManageFederation (registry v4). The canonical predicates are in
 [ADR-0079](../decisions/0079-bounded-identity-administration.md#nativeui-execution-and-failure)
 and Standard 19. Distinct Role read/change/adopt flags preserve readable but
 noneditable pages; target/release state further restricts adoption controls. False
@@ -1154,7 +1155,12 @@ the browser.
 starts the test window with the administrator's token through the BFF-only
 federation test client and holds the attempt identifier, alias and connection
 revision in the administrator's server-side owner for the ten-minute window; a
-repeated start inside the window reuses it. The identifier never reaches the
+repeated start inside the window reuses it, which serves a retry after a start that
+failed before the redirect. The test sign-in itself shares the five-minute transaction
+ceiling of every sign-in, so it must finish within five minutes of the start. Starting
+the test ends the administrator's provider session and closes the administrator's owner,
+so a later start from a new sign-in holds no attempt and cannot reuse it: an interrupted
+test ends when its window closes, and the page says so. The identifier never reaches the
 browser, a response or a log. Before the redirect the BFF records the administrator's
 provider session `sid` and ends that session server-side with its refresh token,
 awaited; without either, or when the provider refuses, the start is refused. The
@@ -1163,11 +1169,11 @@ the tested alias, the issuer and subject are the administrator's, `auth_time` is
 and at or after the window's start, and `sid` differs from the recorded one
 ([Security § Federation host binding](11-security.md#federation-host-binding)). The BFF
 records it through `POST identity/federation/test-results` with the test-purpose access
-token, publishes nothing, reserves no subject, assigns no credentials and discards
-every token. It then ends the provider session server-side with the test refresh
-token, ends the administrator's BFF session and redirects through the provider
-end-session. A callback without tokens (an IdP error or abandonment) records nothing;
-the window expires.
+token, publishes nothing, reserves no subject, assigns no credentials and discards every
+token. It then ends the provider session server-side with the test refresh token, ends
+the administrator's BFF session and redirects through the provider end-session. A
+callback without tokens (an IdP error or abandonment) records nothing; the window
+expires.
 
 **Host binding.** Every credential publication applies
 [Security § Federation host binding](11-security.md#federation-host-binding): code

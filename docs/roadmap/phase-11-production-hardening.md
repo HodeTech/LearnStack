@@ -307,6 +307,20 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   ([ADR-0099 § Linking](../decisions/0099-confined-tenant-federation.md#linking-email-trust-and-mfa)).
   This phase decides whether a Keycloak extension or another enforcement control is
   built; if none is, the residual stays accepted and documented.
+- Production realm replication of the ADR-0099 realm invariants: the `idp` ID-token
+  mapper, the first-broker flow, the disabled `idp_link` action, the retired account
+  clients and the optional `federation.test_record` scope. The adapter cannot read them,
+  and without the mapper brokered tokens look local and the host binding opens. Trigger:
+  before any production tenant enables federation
+  ([ADR-0099 Amendment 9](../decisions/0099-confined-tenant-federation.md#amendment-9--pr-review-behavior-corrected-to-this-record-and-decisions-recorded-2026-11-18)).
+- Pre-registered accounts and linking. Under open registration with `verifyEmail` false,
+  an address registered by someone else can be linked by that person's own IdP, and the
+  address owner's password reset does not remove the link. This phase decides, before a
+  production realm admits federation, whether linking requires a verified address or
+  registration is closed; the development realm keeps open registration by design.
+- Confirm-link page copy. The realm ships no localization text or theme, so the page
+  that confirms a link is Keycloak's own and does not state the delegation risk; this
+  phase owns the production realm theme that does.
 - Secret management: Vault rotation cadence (90 days for provider keys, yearly for
   Hub HMAC shared secret + mTLS client certs), no secrets in repo, no secrets in
   env files committed. The Vault adapter itself lands in this phase — see

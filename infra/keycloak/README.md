@@ -789,7 +789,10 @@ LearnStack's adapter confines it to owned aliases (the
 - **API.** The API reads the same value as `Federation__ClientSecret`. When the
   private file declares both, they must be identical. Without the API value the
   adapter is not selected and every federation operation reports the dependency
-  unavailable; nothing reaches the provider.
+  unavailable; nothing reaches the provider. The managed launcher behind
+  `make public-api` and `make demo` hands the API a closed inventory that carries
+  neither `Federation__*` nor `IdentityEvents__*`, so under it Studio federation
+  reads unavailable; the real-provider proof runs against the test fixtures.
 - **Continuity.** Reconciliation creates the client on a realm that lacks it and
   verifies an existing one exactly. An existing secret that differs refuses with
   `secret_conflict`; an extra role, scope, mapper or flow refuses too. Nothing is
@@ -833,6 +836,26 @@ Each is created when absent, verified exactly when present and never overwritten
 sign-in page offers "Sign in with {displayName}" and starts that sign-in with
 `kc_idp_hint` set server-side to the tenant's alias. The broker stays `hideOnLogin`,
 so the provider's own login page never lists it.
+
+**Delegation.** Whoever controls a tenant's identity provider can sign in as any
+account linked to it, and can then use Keycloak's credential and OTP actions to add
+local credentials to that account; link-only is not a boundary against that
+controller. A person with memberships in several tenants should link only an identity
+provider whose controller they trust with all of them, as Studio says beside the
+single sign-on form. There is no self-unlink; removal is account review
+([ADR-0099 § Linking](../../docs/decisions/0099-confined-tenant-federation.md#linking-email-trust-and-mfa)).
+
+**Interrupted creation.** The first-broker flow (a flow, its subflows and their
+requirements) and the federation admin client (the client, its service-account
+detachment and its mappings) are created in several requests, and reconciliation
+never overwrites what it finds. A fault in the middle leaves a partial flow or client
+that the next run refuses (`flow_conflict` or `readback_conflict`) and `make seed`
+and `make demo` stop. Recovery is deliberate and manual: delete only that partial
+flow or client in the Admin Console (or with `DELETE
+/admin/realms/learnstack/authentication/flows/{id}` and
+`DELETE /admin/realms/learnstack/clients/{id}`), then rerun reconciliation. A
+recreated client takes its secret from `KEYCLOAK_FEDERATION_ADMIN_SECRET`; nothing is
+rotated.
 
 The pinned names (`idp-detect-existing-broker-user`, `idp-confirm-link`,
 `idp-username-password-form`, `conditional-user-configured`, `auth-otp-form`, the

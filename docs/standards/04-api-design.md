@@ -891,7 +891,14 @@ Public but rate-limited.
 - `POST /resources` returns the created resource with `201` + `Location`.
 - `PATCH` accepts partial JSON; unknown fields → `400`.
 - `DELETE` is idempotent; deleting a missing resource → `204`.
-- `GET` is safe and idempotent; never has side effects.
+- `GET` is safe and idempotent; never has side effects. One exception is recorded: the
+  federation connection detail read (`GET /api/v1/identity/federation`) reconciles the
+  broker, so it can record drift, apply the corrective disabling write and disable an
+  Active broker whose protocol is no longer entitled. Each of those is the ordinary
+  operation, with its own MUST audit row and the reading administrator as its actor, and
+  a repeated read changes nothing once the state holds
+  ([ADR-0099](../decisions/0099-confined-tenant-federation.md) § Provider writes,
+  Amendment 9).
 - Sort parameters never affect filtering.
 
 ## Forbidden

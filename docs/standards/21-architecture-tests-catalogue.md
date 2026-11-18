@@ -2989,7 +2989,7 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual internal member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests` and `MembershipAdministrationRaceTests` own their app-role proof. Existing deferred/MUST rollback and last-admin guarantees remain; later HTTP/native consumers retain separate qualification. |
 | `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
 | `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Actual entry/selection/switch owners, unchanged-context refresh with zero new admission-event delta, original absolute deadline, exact-subject live-destination replacement and actual cancellation/cleanup. |
-| `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, nine advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |
+| `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, eleven advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |
 
 #### `Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`
 
@@ -7581,10 +7581,10 @@ sign-in read). The
   `state <> 'Deleted' AND deleted_at IS NULL`; every production source, both Identity
   projects included, that reads `federation_connections` (`FROM` or `JOIN`, any case or
   whitespace, with or without the schema, quoted or through the mapped table-name
-  constant) is exactly `FederationConnectionStore` or `PublicSignInReader`; and each
-  such statement, not merely its file, interpolates that constant and spells no
-  tombstone predicate of its own, so the two raw reads cannot drift from each other or
-  from the EF `Live` filter silently.
+  constant) is exactly `FederationConnectionStore`, `FederationHostAliasReader` or
+  `PublicSignInReader`; and each such statement, not merely its file, interpolates that
+  constant and spells no tombstone predicate of its own, so the three raw reads cannot
+  drift from each other or from the EF `Live` filter silently.
 - **Source:** [ADR-0099 Amendment 1](../decisions/0099-confined-tenant-federation.md#amendment-1--step-1-storage-deviations-2026-11-13)
   (the tombstone) and the P03-8 Step 2 review round 1 (S-D).
 - **Type:** source scan with planted controls: an own predicate, a second statement

@@ -3,9 +3,10 @@
 **Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md),
 [ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
 and [ADR-0099](../../decisions/0099-confined-tenant-federation.md).
-These are the bounded invitation and retained-event provider contracts; the
-[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
-and qualification. Acceptance is not evidence of a configured production sender.
+These are the bounded invitation, retained-event and tenant-federation provider
+contracts; the [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns
+implementation and qualification. Acceptance is not evidence of a configured production
+sender.
 
 ## Current recipient UserInfo
 

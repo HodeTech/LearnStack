@@ -289,12 +289,14 @@ When a use case writes to PostgreSQL and also calls an external system (LiveKit,
 | **2A** | DB-first, then external. External is a *mirror* of DB state. | Search indexing, analytics fan-out, "send a notification after success." | If the external call fails, retry via outbox; the DB state is still correct. Never roll back the DB because the side effect failed. |
 | **2B** | External-first, then DB. The external system returns an id the DB must store. | Provisioning a LiveKit room, creating a Keycloak user, opening a Stripe customer. | If the DB write fails, run a **compensating delete** against the external system. Idempotency keys on the external call are mandatory. |
 | **3** | Idempotency-key + pending state + webhook confirmation. | Payments, recordings, anything where the external system needs minutes to confirm and may call back. | Insert a `pending` row protected by the idempotency key. Confirm via webhook. Never assume sync success means the side effect completed. |
+| **4** | Intent-first pending write, settled by readback. | A write to an external system that offers no idempotency key, no compensating action and no callback, where a lost response must not be guessed (a tenant's Keycloak identity-provider broker, [ADR-0099](../decisions/0099-confined-tenant-federation.md)). | Begin commits the intent as a `pending` operation with its MUST audit row. The call runs under a budget with no database transaction open. Complete commits the outcome, on a token detached from the request, with its own audit row. An uncertain outcome stays pending, refuses a second write and is settled by a readback after a quiet window; a readback that differs from the desired state is drift. |
 
 Rules:
 
 - Every cross-boundary command states its tier in code (`// consistency-tier: 2B`) or in the handler XML doc when the tier is non-obvious.
 - Outbox dispatch handles tier 2A reliably; tier 2B requires the compensating delete to be testable end to end.
 - Tier 3 commands must have a webhook-side handler that closes the pending state idempotently.
+- Tier 4 commands are not one MediatR handler: a service sends the Begin and Complete requests, each in its own transaction, and calls the provider only between them. At most one operation is unsettled per aggregate, and a readback, never the request's own result, proves a lost response. [Infrastructure Stack Standards](20-infrastructure-stack.md) names the port and the budgets.
 - Provider SDK calls inside an EF transaction are forbidden (already a rule under [Database Standards](05-database.md) § Forbidden) — the tier framing makes the reason explicit.
 
 This is the decision rule every PR author runs before writing a handler that talks to an external system.
