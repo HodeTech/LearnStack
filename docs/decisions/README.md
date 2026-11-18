@@ -148,6 +148,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0100 | [P03-8 Federation Contract Transition](0100-p038-federation-contract-transition.md) | Proposed 2026-11-18: one exact snapshot-, finding- and comparator-bound OpenAPI transition for registry v4, federation administration and the self `federationAlias`; one carrier per ADR | Maintainer review before the merge of PR #45; the later growth of the closed grant contract is the open decision [G20](../roadmap/phase-03-identity-admin.md) |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
