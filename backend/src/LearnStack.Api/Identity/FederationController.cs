@@ -69,8 +69,8 @@ public sealed class FederationController(FederationOperationRunner runner) : Api
     {
         using var body = await BodyAsync("clientSecret");
         if (body is null || !ProtectedEntityTag.TryRead(Request, out var version)
-            || body.RootElement.GetProperty("clientSecret") is not { ValueKind: JsonValueKind.String } raw
-            || !FederationClientSecret.TryCreate(raw.GetString(), out var secret)) return AdministrationHttpInput.Invalid();
+            || !AdministrationHttpInput.TryGetString(body.RootElement.GetProperty("clientSecret"), out var raw)
+            || !FederationClientSecret.TryCreate(raw, out var secret)) return AdministrationHttpInput.Invalid();
         return FederationHttpModels.Receipt(await runner.RotateSecretAsync(version, secret!, cancellationToken));
     }
 
@@ -210,7 +210,7 @@ internal static class FederationHttpModels
             return false;
         FederationClientSecret? secret = null;
         var raw = body.GetProperty("clientSecret");
-        if (raw.ValueKind != JsonValueKind.Null && (raw.ValueKind != JsonValueKind.String || !FederationClientSecret.TryCreate(raw.GetString(), out secret)))
+        if (raw.ValueKind != JsonValueKind.Null && (!AdministrationHttpInput.TryGetString(raw, out var text) || !FederationClientSecret.TryCreate(text, out secret)))
             return false;
         if (protocol == FederationBrokerProtocol.Oidc != authentication is not null) return false;
         input = new FederationConfigureInput(protocol.Value, displayName, source.Value, document, issuer, authorization, token, jwks, userInfo,
@@ -244,7 +244,7 @@ internal static class FederationHttpModels
         var builder = ImmutableArray.CreateBuilder<string>();
         foreach (var item in value.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.String || item.GetString() is not { Length: > 0 and <= FederationCertificates.MaximumPemLength } pem)
+            if (!AdministrationHttpInput.TryGetString(item, out var pem) || pem is not { Length: > 0 and <= FederationCertificates.MaximumPemLength })
                 return false;
             builder.Add(pem);
         }

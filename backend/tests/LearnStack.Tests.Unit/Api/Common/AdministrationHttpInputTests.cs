@@ -116,6 +116,33 @@ public sealed class AdministrationHttpInputTests
         Assert.Equal(valid, AdministrationHttpInput.TryGrants(parsed.RootElement, out _));
     }
 
+    [Theory]
+    [InlineData("{\"v\":\"plain\"}", true)]
+    [InlineData("{\"v\":1}", false)]
+    [InlineData("{\"v\":null}", false)]
+    [InlineData("{\"v\":\"\\ud800\"}", false)]
+    [InlineData("{\"v\":\"\\udc00x\"}", false)]
+    public void A_string_with_an_unpaired_surrogate_escape_is_refused_not_thrown(string json, bool valid)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Equal(valid, AdministrationHttpInput.TryGetString(document.RootElement.GetProperty("v"), out var value));
+        if (valid) Assert.Equal("plain", value);
+    }
+
+    [Theory]
+    [InlineData(10, true)]
+    [InlineData(11, false)]
+    public async Task A_grant_replacement_may_name_every_assignable_pair_and_no_more(int count, bool valid)
+    {
+        // The ten pairs of registry release v4: the bound follows the registry, as the contract's maxItems does.
+        var pairs = Enumerable.Range(0, count).Select(index =>
+            "{\"scope\":\"Tenant\",\"key\":\"identity.resource_" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".read\"}");
+        using var parsed = await AdministrationHttpInput.ReadObjectAsync(Http("{\"grants\":[" + string.Join(',', pairs) + "]}"), "grants");
+        Assert.NotNull(parsed);
+        Assert.Equal(valid, AdministrationHttpInput.TryGrants(parsed.RootElement, out var grants));
+        if (valid) Assert.Equal(count, grants.Length);
+    }
+
     [Fact]
     public async Task Role_arrays_and_cursors_have_nonvacuous_upper_bounds()
     {

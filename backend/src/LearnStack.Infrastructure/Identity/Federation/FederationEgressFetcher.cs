@@ -202,6 +202,8 @@ internal sealed class FederationEgressFetcher : IFederationEgressFetcher
             Credentials = null,
             DefaultProxyCredentials = null,
             PreAuthenticate = false,
+            // No traceparent, tracestate or baggage: the destination is a tenant-chosen host.
+            ActivityHeadersPropagator = null,
             AutomaticDecompression = DecompressionMethods.None,
             ConnectTimeout = Ceiling,
             MaxConnectionsPerServer = 1,

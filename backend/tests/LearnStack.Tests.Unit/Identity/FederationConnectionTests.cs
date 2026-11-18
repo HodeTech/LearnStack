@@ -126,6 +126,19 @@ public sealed class FederationConnectionTests
     }
 
     [Fact]
+    public void Display_name_refuses_noncharacters_without_throwing()
+    {
+        // U+FFFE makes string.Normalize throw, which was a 500 on the request path. Vectors stay in code for the same
+        // reason as the surrogates below.
+        foreach (var input in new[] { "Acme\uFFFESSO", "\uFFFE", "Acme\uFFFFSSO", "Acme\uFDD0SSO", "Acme\uFDEFSSO",
+                     "Acme\U0001FFFESSO", "Acme\U0010FFFFSSO", "Acme\U0010FFFESSO" })
+        {
+            Assert.False(FederationDisplayName.TryNormalize(input, out var normalized));
+            Assert.Equal(string.Empty, normalized);
+        }
+    }
+
+    [Fact]
     public void Display_name_refuses_unpaired_surrogates_without_throwing()
     {
         // Theory data would serialize a lone surrogate to U+FFFD, so these vectors stay in code.

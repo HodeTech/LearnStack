@@ -21,6 +21,7 @@ public sealed class FederationEgressFetcherTests
     [InlineData("172.31.255.255")]
     [InlineData("192.168.1.1")]
     [InlineData("169.254.169.254")]
+    [InlineData("168.63.129.16")]
     [InlineData("100.64.0.1")]
     [InlineData("100.127.255.254")]
     [InlineData("0.0.0.0")]
@@ -55,6 +56,8 @@ public sealed class FederationEgressFetcherTests
     [InlineData("1.1.1.1")]
     [InlineData("93.184.216.34")]
     [InlineData("172.32.0.1")]
+    [InlineData("168.63.129.15")]
+    [InlineData("168.63.129.17")]
     [InlineData("100.128.0.1")]
     [InlineData("2606:4700:4700::1111")]
     [InlineData("2a00:1450:4001::200e")]
@@ -143,6 +146,9 @@ public sealed class FederationEgressFetcherTests
     [InlineData("fd00:ec2::254")]
     [InlineData("fd00:ec2::23")]
     [InlineData("fd00:ec2:ffff::1")]
+    [InlineData("fd20:ce::254")]
+    [InlineData("fd20:ce:1::1")]
+    [InlineData("168.63.129.16")]
     public async Task An_allow_listed_host_still_refuses_loopback_link_local_embedded_and_reserved_addresses(string address)
     {
         FederationAddressPolicy.IsAllowListable(IPAddress.Parse(address)).Should().BeFalse();
@@ -308,6 +314,25 @@ public sealed class FederationEgressFetcherTests
         var bomb = "<?xml version=\"1.0\"?><!DOCTYPE lolz [<!ENTITY lol \"lol\"><!ENTITY lol2 \"&lol;&lol;&lol;\">]>" + Metadata(certificate);
         server.Respond = _ => FederationTlsServer.Json(bomb, "application/xml");
         (await Fetcher(server).FetchSamlMetadataAsync(url)).Status.Should().Be(FederationEgressStatus.Refused);
+    }
+
+    [Fact]
+    public async Task The_fetch_sends_no_trace_context_to_the_tenant_chosen_host()
+    {
+        // A W3C traceparent, tracestate or baggage header would hand a tenant-chosen host this platform's trace identifiers.
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllData,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        using var source = new System.Diagnostics.ActivitySource("federation-egress-test");
+        using var caller = source.StartActivity("caller");
+        caller.Should().NotBeNull("the control needs a current activity to propagate");
+        await using var server = new FederationTlsServer(Host, _ => FederationTlsServer.Json("{\"keys\":[]}"));
+        await Fetcher(server).FetchJwksAsync(new Uri($"https://{Host}:{server.Port}/certs"));
+        var request = server.Requests.Should().ContainSingle().Which.ToLowerInvariant();
+        request.Should().Contain("get /certs").And.NotContain("traceparent").And.NotContain("tracestate").And.NotContain("baggage");
     }
 
     [Fact]

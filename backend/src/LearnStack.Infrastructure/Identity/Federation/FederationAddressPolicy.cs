@@ -19,6 +19,7 @@ internal static class FederationAddressPolicy
         ([127, 0, 0, 0], 8),        // loopback
         ([169, 254, 0, 0], 16),     // link-local, cloud metadata
         ([172, 16, 0, 0], 12),      // private
+        ([168, 63, 129, 16], 32),   // Azure WireServer: a public address that only a VM can reach
         ([192, 0, 0, 0], 24),       // IETF protocol assignments
         ([192, 0, 2, 0], 24),       // documentation TEST-NET-1
         ([192, 31, 196, 0], 24),    // AS112
@@ -74,17 +75,19 @@ internal static class FederationAddressPolicy
 
     /// <summary>
     /// Cloud instance-metadata addresses inside a range an allow-list entry otherwise admits: fd00:ec2::/32 holds the AWS
-    /// IPv6 metadata endpoint (fd00:ec2::254) and its other services. It refuses even for a listed host.
+    /// IPv6 metadata endpoint (fd00:ec2::254) and its other services, and fd20:ce::/32 the Google Compute Engine one
+    /// (fd20:ce::254). They refuse even for a listed host.
     /// </summary>
     private static readonly (byte[] Prefix, int Bits)[] MetadataV6 =
     [
         (Parse("fd00:ec2::"), 32),
+        (Parse("fd20:ce::"), 32),
     ];
 
     /// <summary>
     /// An operator allow-listed host may additionally resolve to a private address: RFC 1918 IPv4 or unique-local IPv6
     /// (fc00::/7) outside fd00:ec2::/32. Nothing else widens. Loopback, link-local and cloud metadata (169.254.0.0/16,
-    /// fe80::/10, fd00:ec2::/32), CGNAT, documentation, benchmarking, reserved, multicast, unspecified, scoped and every
+    /// fe80::/10, fd00:ec2::/32, fd20:ce::/32), CGNAT, documentation, benchmarking, reserved, multicast, unspecified, scoped and every
     /// IPv4-embedding IPv6 form (mapped, compatible, NAT64, 6to4, Teredo) still refuse, as for a tenant-supplied host
     /// (ADR-0099 Amendment 5).
     /// </summary>

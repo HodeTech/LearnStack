@@ -46,6 +46,8 @@ internal static class FederationDocumentReaders
             return new FederationOidcDiscovery(issuer, authorization!, token!, jwks!, userInfo);
         }
         catch (JsonException) { return null; }
+        // Invalid UTF-8 parses, then throws when a string is read.
+        catch (InvalidOperationException) { return null; }
     }
 
     /// <summary>A JWKS reduced to its public signing keys; any private key member makes the whole set unusable.</summary>
@@ -76,7 +78,12 @@ internal static class FederationDocumentReaders
             return new FederationJwksDocument(count);
         }
         catch (JsonException) { return null; }
+        // Invalid UTF-8 parses, then throws when a string is read.
+        catch (InvalidOperationException) { return null; }
     }
+
+    /// <summary>The deepest element nesting a metadata document may have; real metadata stays below ten.</summary>
+    private const int MaximumXmlDepth = 32;
 
     /// <summary>
     /// SAML identity-provider metadata: one EntityDescriptor (no aggregate), one IDPSSODescriptor for SAML 2.0, its
@@ -99,6 +106,11 @@ internal static class FederationDocumentReaders
         var document = new XmlDocument { XmlResolver = null, PreserveWhitespace = false };
         try
         {
+            // A streaming pass bounds the depth before any tree exists: the character cap alone admits tens of
+            // thousands of nested elements, and walking such a tree overflows the stack of the process.
+            using (var scan = XmlReader.Create(new MemoryStream(body, writable: false), settings))
+                while (scan.Read())
+                    if (scan.Depth > MaximumXmlDepth) return null;
             using var stream = new MemoryStream(body, writable: false);
             using var reader = XmlReader.Create(stream, settings);
             document.Load(reader);
@@ -127,7 +139,8 @@ internal static class FederationDocumentReaders
                 foreach (var data in Children(info, SignatureNamespace, "X509Data"))
                     foreach (var value in Children(data, SignatureNamespace, "X509Certificate"))
                     {
-                        var pem = Pem(value.InnerText);
+                        var text = PlainText(value);
+                        var pem = text is null ? null : Pem(text);
                         if (pem is null) return null;
                         if (fingerprints.Add(pem.Value.Fingerprint)) certificates.Add(pem.Value.Text);
                     }
@@ -167,6 +180,22 @@ internal static class FederationDocumentReaders
         }
         catch (CryptographicException) { return null; }
         return (PemEncoding.WriteString("CERTIFICATE", der), Convert.ToHexStringLower(SHA256.HashData(der)));
+    }
+
+    /// <summary>
+    /// The element's own text. Any child element refuses, so no subtree is ever walked recursively (<c>InnerText</c>
+    /// recurses) and a certificate is only ever text.
+    /// </summary>
+    private static string? PlainText(XmlElement element)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (XmlNode child in element.ChildNodes)
+        {
+            if (child.NodeType is not (XmlNodeType.Text or XmlNodeType.CDATA or XmlNodeType.Whitespace or XmlNodeType.SignificantWhitespace))
+                return null;
+            text.Append(child.Value);
+        }
+        return text.ToString();
     }
 
     private static IEnumerable<XmlElement> Children(XmlElement parent, string ns, string name) =>

@@ -19,7 +19,7 @@ public static class FederationDisplayName
     {
         normalized = string.Empty;
         if (value is null || value.Length == 0 || value.Length > MaximumLength * 4) return false;
-        // Unpaired surrogates are refused before normalization, which would otherwise throw.
+        // Unpaired surrogates and noncharacters (U+FFFE throws) are refused before normalization, which would otherwise throw.
         if (!HasOnlyValidScalars(value)) return false;
         var composed = value.Normalize(NormalizationForm.FormC).Trim(' ');
         if (composed.Length == 0) return false;
@@ -36,11 +36,14 @@ public static class FederationDisplayName
     private static bool IsMark(Rune rune) => Rune.GetUnicodeCategory(rune)
         is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark;
 
+    private static bool IsNoncharacter(Rune rune) => rune.Value is >= 0xFDD0 and <= 0xFDEF || (rune.Value & 0xFFFE) == 0xFFFE;
+
     private static bool HasOnlyValidScalars(string value)
     {
         for (var index = 0; index < value.Length; index++)
         {
-            if (Rune.DecodeFromUtf16(value.AsSpan(index), out _, out var consumed) != System.Buffers.OperationStatus.Done) return false;
+            if (Rune.DecodeFromUtf16(value.AsSpan(index), out var rune, out var consumed) != System.Buffers.OperationStatus.Done
+                || IsNoncharacter(rune)) return false;
             index += consumed - 1;
         }
         return true;
