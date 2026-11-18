@@ -91,12 +91,16 @@ def execution_identity(root, tool):
         raise ValueError('OpenAPI transition approval refused: execution identity unavailable') from None
 
 
+def is_carrier_path(path):
+    name = Path(path).name
+    return path.startswith(POLICY) and name.startswith('transition-') and Path(path).suffix == '.json'
+
+
 def carrier_paths(committed_paths):
     """Every committed `transition-*.json`, keyed by the ADR number its file name carries."""
     carriers = {}
     for path in committed_paths:
-        name = Path(path).name
-        if path.startswith(POLICY) and name.startswith('transition-') and Path(path).suffix == '.json':
+        if is_carrier_path(path):
             match = CARRIER.fullmatch(path)
             require(match is not None, 'unrecognized transition carrier name')
             carriers[match.group(1)] = path
@@ -164,7 +168,9 @@ def load_carrier(adr, source):
     fields(record['findings'], REPORTS)
     for item in record['findings'].values():
         fields(item, ('count', 'sha256'))
+        require(type(item['count']) is int and item['count'] > 0 and hex_digest(item['sha256']), 'invalid finding declaration')
     fields(record['inputs'], INPUTS)
+    require(all(hex_digest(value) for value in record['inputs'].values()), 'invalid input digest')
     return record
 
 
@@ -179,8 +185,12 @@ def bind(record, rows):
     require(record['inputs'] == {name: rows[name][0] for name in INPUTS}, 'input declaration differs from decision')
 
 
-def candidate(root, read_committed, committed_paths, base, head, tool, output, before):
+def candidate(root, read_committed, committed_paths, base, head, tool, output, before, base_carriers=None):
     """Only the verified Git wrapper supplies these committed bytes/callbacks."""
+    # A carrier is history: one the base already holds stays at the head, byte for byte. Deleting or rewriting one would let
+    # the same pair be approved again under another number.
+    for path, data in (base_carriers or {}).items():
+        require(read_committed(path) == data, 'a carrier recorded at the base is missing or changed')
     carriers = carrier_paths(committed_paths)
     if not carriers:
         return None

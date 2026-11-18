@@ -23,8 +23,13 @@ transition = importlib.util.module_from_spec(transition_spec)
 transition_spec.loader.exec_module(transition)
 
 
+# A pull request's own scripts run before this gate and can plant a `refs/replace/*` ref or a GIT_* variable that makes
+# `git show <real head>:path` return other bytes. The gate therefore reads objects as they are and ignores every GIT_* variable.
+GIT_ENVIRONMENT = {**{key: value for key, value in os.environ.items() if not key.startswith('GIT_')}, 'GIT_NO_REPLACE_OBJECTS': '1'}
+
+
 def git(*arguments):
-    return subprocess.run(['git', *arguments], cwd=ROOT, check=True, capture_output=True)
+    return subprocess.run(['git', '--no-replace-objects', *arguments], cwd=ROOT, check=True, capture_output=True, env=GIT_ENVIRONMENT)
 
 
 def commit(reference):
@@ -139,23 +144,27 @@ def main():
         'baseSpecSha256': hashlib.sha256(base).hexdigest(), 'headSpecSha256': hashlib.sha256(head).hexdigest()}, indent=2) + '\n')
     identity = transition.execution_identity(ROOT, args.tool.resolve())
     comparison = args.output / 'comparison'
-    result = subprocess.run([sys.executable, str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
+    # `-I`: no script directory on sys.path, so a pull request cannot shadow a standard-library module for the comparator.
+    result = subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
         '--base', str((args.output / 'base.json').resolve()), '--head', str((args.output / 'head.json').resolve()),
         '--output', str(comparison.resolve())], check=False).returncode
     if result not in (0, 1) or first_baseline:
         return result
+    base_carriers = {path: committed_file(base_sha, path) for path in
+                     [p for p in git('ls-tree', '-r', '-z', '--name-only', base_sha, '--', 'backend/openapi/policy').stdout.decode().split('\0') if p]
+                     if transition.is_carrier_path(path)}
     record = transition.candidate(ROOT, lambda path: committed_file(head_sha, path),
         # NUL-separated: `--name-only` otherwise C-quotes a non-ASCII name, which would then
         # slip past the carrier-name check as an unrelated path.
         [p for p in git('ls-tree', '-r', '-z', '--name-only', head_sha, '--', 'backend/openapi/policy',
                         'docs/decisions').stdout.decode().split('\0') if p],
-        base, head, args.tool.resolve(), comparison, identity)
+        base, head, args.tool.resolve(), comparison, identity, base_carriers)
     if record is None:
         return result
     if result != 1:
         raise ValueError('ADR-' + record['adr'] + ' comparison result disagrees with the reviewed incompatibility')
     controls = args.output / 'approval-fixtures'
-    result = subprocess.run([sys.executable, str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
+    result = subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/openapi-policy.py'), '--tool', str(args.tool.resolve()),
         '--fixtures', '--output', str(controls.resolve())], check=False).returncode
     if result != 0:
         return result

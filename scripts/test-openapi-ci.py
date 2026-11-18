@@ -791,6 +791,94 @@ class TransitionControls(unittest.TestCase):
         self.assertEqual(2, len(self.calls))
 
 
+    def test_a_git_replace_ref_cannot_substitute_other_bytes_for_the_real_head(self):
+        """A pull request's own scripts run before the gate; they can plant refs/replace/* to swap a tree."""
+        unreviewed = self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Unreviewed head'}})
+        # The replacement is the approved head: with replace refs honoured, git would serve its bytes for `unreviewed`.
+        self.git('replace', unreviewed, self.head)
+        self.comparison_code = 1
+        code, output = self.run_ci(name='replaced', head=unreviewed)
+        self.assertEqual(1, code)
+        self.assertFalse((output / 'approval.json').exists())
+        recorded = json.loads((output / 'commits.json').read_text())
+        self.assertNotEqual(self.t.digest(self.head_bytes), recorded['headSpecSha256'], 'the real head bytes were compared')
+
+    def test_the_head_snapshot_is_read_from_the_commit_not_the_working_tree(self):
+        approved = (self.root / ci.SNAPSHOT).read_bytes()
+        unreviewed = self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Unreviewed head'}})
+        (self.root / ci.SNAPSHOT).write_bytes(approved)  # the tree holds the approved bytes, the commit does not
+        self.comparison_code = 1
+        code, output = self.run_ci(name='tree-versus-commit', head=unreviewed)
+        self.assertEqual(1, code)
+        self.assertFalse((output / 'approval.json').exists())
+
+    def test_the_comparator_runs_isolated_so_a_pull_request_cannot_shadow_the_standard_library(self):
+        self.run_ci()
+        self.assertEqual(2, len(self.calls))
+        for command in self.calls:
+            self.assertEqual('-I', command[1], 'every comparator invocation is isolated')
+
+    def test_every_python_step_of_the_openapi_job_is_isolated(self):
+        workflow = (self.real / '.github/workflows/ci.yml').read_text()
+        job = re.search(r'(?ms)^  openapi-diff:\n.*?(?=^  public-demo:\n)', workflow)
+        self.assertIsNotNone(job)
+        invocations = re.findall(r'python3 (\S+) ?(\S*)', job.group(0))
+        self.assertGreaterEqual(len(invocations), 4)
+        for first, second in invocations:
+            self.assertEqual(('-I', 'scripts/'), (first, second[:8]), 'an unisolated script lets scripts/json.py shadow the standard library')
+
+    def test_the_isolation_flag_really_ignores_a_shadowing_module_beside_the_script(self):
+        with tempfile.TemporaryDirectory(prefix='learnstack-shadow-') as directory:
+            (Path(directory) / 'json.py').write_text('SHADOWED = True\n')
+            (Path(directory) / 'main.py').write_text('import json\nprint("shadowed" if hasattr(json, "SHADOWED") else "standard")\n')
+            plain = REAL_RUN([sys.executable, str(Path(directory) / 'main.py')], capture_output=True, text=True, cwd=directory)
+            isolated = REAL_RUN([sys.executable, '-I', str(Path(directory) / 'main.py')], capture_output=True, text=True, cwd=directory)
+        self.assertEqual('shadowed', plain.stdout.strip(), 'the premise: an unisolated run is shadowed')
+        self.assertEqual('standard', isolated.stdout.strip())
+
+    def test_a_sibling_carrier_with_invalid_values_refuses_every_approval(self):
+        record2, _, _, carrier_path = self.add_transition('0100', b'prior', b'reviewed')
+        raw = record2['findings']['raw']
+        variants = {
+            'negative count': {**record2, 'findings': {**record2['findings'], 'raw': {**raw, 'count': -1}}},
+            'zero count': {**record2, 'findings': {**record2['findings'], 'raw': {**raw, 'count': 0}}},
+            'string count': {**record2, 'findings': {**record2['findings'], 'raw': {**raw, 'count': '5'}}},
+            'bad sha256': {**record2, 'findings': {**record2['findings'], 'raw': {**raw, 'sha256': 'xyz'}}},
+            'non-hex input': {**record2, 'inputs': {**record2['inputs'], 'scripts/openapi-policy.py': 'xyz'}},
+            'non-string input': {**record2, 'inputs': {**record2['inputs'], 'scripts/openapi-policy.py': 5}},
+        }
+        for name, value in variants.items():
+            with self.subTest(variant=name):
+                self.committed[carrier_path] = json.dumps(value).encode()
+                with self.assertRaises(ValueError):
+                    self.candidate()
+        self.committed[carrier_path] = json.dumps(record2).encode()
+        self.assertEqual('0096', self.candidate()['adr'])
+
+    def test_a_carrier_recorded_at_the_base_cannot_be_removed_or_rewritten(self):
+        original = self.committed[CARRIER_PATH]
+        def approve(): return self.t.candidate(self.root, self.committed.get, self.paths, self.base_bytes, self.head_bytes,
+                                               self.tool, self.comparison, self.before, {CARRIER_PATH: original})
+        self.assertEqual('0096', approve()['adr'], 'unchanged, the carrier still approves its own pair')
+        self.committed[CARRIER_PATH] = original + b' '
+        with self.assertRaisesRegex(ValueError, 'recorded at the base is missing or changed'):
+            approve()
+        self.committed[CARRIER_PATH] = original
+        del self.committed[CARRIER_PATH]
+        self.paths.remove(CARRIER_PATH)
+        with self.assertRaisesRegex(ValueError, 'recorded at the base is missing or changed'):
+            approve()
+
+    def test_the_wrapper_refuses_a_head_that_deletes_a_carrier_the_base_holds(self):
+        (self.root / CARRIER_PATH).unlink()
+        removed = self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Head without the carrier'}})
+        self.comparison_code = 1
+        # The base is the commit that still holds the carrier; the pair would otherwise be approvable again elsewhere.
+        with self.assertRaisesRegex(ValueError, 'recorded at the base is missing or changed'):
+            self.run_ci(name='deleted-carrier', base=self.head, head=removed)
+        self.assertFalse((self.root / 'deleted-carrier/approval.json').exists())
+
+
 class CommandLineControls(unittest.TestCase):
     def test_a_gate_failure_exits_two_with_the_closed_message(self):
         with tempfile.TemporaryDirectory(prefix='learnstack-openapi-cli-') as output:
