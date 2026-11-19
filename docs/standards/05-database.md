@@ -6318,7 +6318,7 @@ that the act is live before they call it; no SQL-level binding is added.
 
 **Derives from:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) and its
 Amendment 1. The rebind changes one column of the one `identity_authority` row, from a
-sixth login role used by an offline tool. It adds a role, exact column grants, three
+sixth login role used by an offline tool. It adds a role, exact column grants, four
 policy changes, one trigger and one advisory-lock key, and **no** definer: the definer
 census stays at sixteen.
 
@@ -6327,10 +6327,17 @@ census stays at sixteen.
 `learnstack_identity_rebind` is `LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB
 NOCREATEROLE NOREPLICATION`, a member of nothing and with no member. Its credential is
 `ConnectionStrings__IdentityRebind`, read by the tool from its own environment with
-`Environment.GetEnvironmentVariable`, never by `GetConnectionString`, and confined to the
-one tool file that reads it by
+`Environment.GetEnvironmentVariable`, never by `GetConnectionString`, and confined to
+the one tool file that reads it by
 [`The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`](21-architecture-tests-catalogue.md#the_identity_rebind_credential_is_named_only_by_the_rebind_tool).
-No API, worker, seeder, web or compose service receives it.
+No API, worker, seeder, web or compose service receives it. The migration refuses with
+a readable message when the role does not exist, because the roles script is its only
+definition.
+
+A runtime role's membership in either confined role is not detected at runtime start,
+because the guard of a runtime connection asks about bypass attributes. The roles script
+revokes such a membership on every run, and the tool's own posture check refuses a role
+that has one.
 
 ### Grants, read from the column view
 
@@ -6353,14 +6360,19 @@ the absence of the rest, and each refusal as the role itself.
 One permissive policy per command is kept. `identity_authority_read` gains the role
 beside the application role and the owner; a third policy, `identity_authority_rebind`,
 admits `UPDATE` of the `id = 1` row to the role and nothing else; `users_isolation`
-gains the role in its `USING` and keeps its `WITH CHECK`, so the role sees every user and
-may write none. The `audit_log_isolation` policy gains one arm in its `WITH CHECK`,
-installed by the central audit installer because no module names the table: platform
-sentinel tenant, identity module, no organization, `Must` and `SecurityEvent`, entity
-type `IdentityAuthority`, reason `issuer_rebind`, no actor, mail, address or agent, an
-operator attribution in `metadata`, and exactly `identity.authority.rebind_attempt` with
-outcome `indeterminate` or `identity.authority.rebind` with outcome `success`. The role
-has no `SELECT` on the table, so it cannot read its own rows back.
+gains the role in its `USING` and keeps its `WITH CHECK`, so the role sees every user
+and may write none.
+
+The `audit_log_isolation` policy is restated in its `WITH CHECK`, by the central audit
+installer because no module names the table. The ordinary tenant arm now excludes this
+role: that arm admits whatever tenant a session announces, any session can announce one,
+and an arm that admitted the role there would let it write a row into any tenant's
+trail. The rebind arm admits only the platform sentinel tenant, the identity module, no
+organization, `Must` and `SecurityEvent`, entity type `IdentityAuthority`, reason
+`issuer_rebind`, no actor, mail, address or agent, an operator attribution in
+`metadata`, and exactly `identity.authority.rebind_attempt` with outcome
+`indeterminate` or `identity.authority.rebind` with outcome `success`. The role has no
+`SELECT` on the table, so it cannot read its own rows back.
 
 ### The key trigger
 
@@ -6368,52 +6380,61 @@ has no `SELECT` on the table, so it cannot read its own rows back.
 `learnstack_migration`, `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC`, on `BEFORE
 UPDATE` of `identity_authority`. It raises `23514` when `id` or `authority_id` changes,
 for every role, so the stable key the subject keys hash cannot move even where a grant
-would allow it. It is the thirtieth function and thirtieth trigger of the Identity chain
-census. The issuer grammar stays in the tool and in qualification, not in SQL.
+would allow it. It is the thirtieth function and thirtieth trigger of the Identity
+chain census. The issuer grammar stays in the tool and in qualification, not in SQL.
 
 ### The lock
 
-One bigint advisory key, `IdentityAdvisoryLockKey.ForAuthorityRebind()`, SHA-256 over the
-length-prefixed strings `learnstack.identity.lock.v1` and `authority-rebind`, the first
-eight bytes as a big-endian signed integer, with an independently computed vector pinned
-in `GlobalIdentityKeyTests`. The tool takes it **exclusive** (`pg_advisory_xact_lock`) as
-the first statement of one direct, never-pooled transaction. Authority qualification and
-the User-creation admission take the **shared** form first and always before the subject
-lock, so the order is fixed and the tool, which takes only this key, cannot form a cycle.
+One bigint advisory key, `IdentityAdvisoryLockKey.ForAuthorityRebind()`, SHA-256 over
+the length-prefixed strings `learnstack.identity.lock.v1` and `authority-rebind`, the
+first eight bytes as a big-endian signed integer, with an independently computed vector
+pinned in `GlobalIdentityKeyTests`. The tool takes it **exclusive**
+(`pg_advisory_xact_lock`) as the first statement of one direct, never-pooled
+transaction. Authority qualification and the User-creation admission take the **shared**
+form first and always before the subject lock, so the order is fixed and the tool,
+which takes only this key, cannot form a cycle.
 
 - **Qualification** takes it after `SET TRANSACTION READ ONLY` and before its read; under
   `READ COMMITTED` the next statement sees the rebind it waited for and compares against
-  the new issuer.
-- **The creation admission** takes it under its two-second `lock_timeout` and then reads the
-  stored authority and issuer, refusing with `IdentityAuthorityChangedException` when they
-  are not the facts the process qualified with. A lock alone would only delay a
+  the new issuer. It sets no `lock_timeout`, so a start that overlaps a rebind waits
+  until the command timeout (thirty seconds) and then fails with the fixed
+  qualification message, which stays failed until the process restarts.
+- **The creation admission** takes it under its two-second `lock_timeout` and then reads
+  the stored authority and issuer, refusing with `IdentityAuthorityChangedException`
+  when they are not the facts the process qualified with. A creation during a rebind is
+  therefore refused after two seconds, not held. A lock alone would only delay a
   creation from a process that qualified before the rebind; the comparison is what
-  refuses it. The refusal answers as the sibling storage failures do and is counted in
-  `learnstack_identity_lock_refusals_total{lock_kind="authority",reason="mismatch"}`.
+  refuses it. The refusal answers as the sibling storage failures do and is counted
+  in `learnstack_identity_lock_refusals_total{lock_kind="authority",reason="mismatch"}`.
+- **The tool's reconciliation** of an unknown `COMMIT` takes the shared form too, so it
+  reads the issuer only once the original transaction has ended.
 - [`Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock`](21-architecture-tests-catalogue.md#only_the_rebind_run_and_the_two_freeze_readers_take_the_rebind_lock)
-  pins the three takers.
+  pins the takers.
 
 ### What the tool checks before it uses the role
 
 Server-side, as the role: `session_user` and `current_user` are the role; it is not
 `INHERIT`, `BYPASSRLS`, superuser, `CREATEDB`, `CREATEROLE` or `REPLICATION`; it has no
-membership either way and no schema or database `CREATE`; it holds no privilege on any
-other table; and it holds exactly the declared grants on the three it uses. Any other
-posture refuses the run before the lock. The freeze check counts sessions of the
-application, outbox, ingress and platform roles in the database other than its own, from
-`pg_stat_activity`, which shows another role's session with its role and database even
-where the statement is hidden.
+membership either way and no schema or database `CREATE`; it holds no privilege, table
+or column, on any other relation; and on the three it uses it holds exactly the declared
+grants, compared column by column in both directions, so an extra column privilege and a
+missing declared one both refuse. Any other posture refuses the run before the lock. The
+freeze check counts sessions of the application, outbox, ingress and platform roles in
+the database other than its own, from `pg_stat_activity`, which shows another role's
+session with its role and database even where the statement is hidden. It runs before
+the new realm is read and again immediately before the change.
 
 ### Proof
 
 Real PostgreSQL as the role itself and as each other role:
-`IdentityAuthorityRebindStorageTests` (column privileges, the one admitted `UPDATE`, the
-key trigger with the grant present, the `users` read, the two audit rows and every
-refused variant), `IdentityAuthorityRebindLockTests` (a start that waits for a rebind and
-then fails or passes on the value it left, a creation refused within its timeout, a
-straggler refused after the change), `IdentityAuthorityRebindTests` (the run end to end,
-every refusal class, the continuity rules, an audit failure rolling the change back, a
-killed session and a lost commit acknowledgement) and `IdentityAuthorityRebindToolTests`
-(the offline tool as a child process). The census counts are in
-`GlobalIdentitySchemaTests` (thirty functions, sixteen definers, thirty triggers) and
-the head pin in `MigrationRollbackTests`.
+`IdentityAuthorityRebindStorageTests` (column privileges, the one admitted `UPDATE`,
+the key trigger with the grant present, the `users` read, the two audit rows, every
+refused variant, and the rows a role cannot widen by announcing a tenant),
+`IdentityAuthorityRebindLockTests` (a start that waits for a rebind and then fails or
+passes on the value it left, a creation refused within its timeout, a straggler refused
+after the change), `IdentityAuthorityRebindTests` (the run end to end, every refusal
+class and posture drift, the continuity rules, an audit failure rolling the change back,
+a killed session, a lost commit acknowledgement and a reconciliation that waits) and
+`IdentityAuthorityRebindToolTests` (the offline tool as a child process). The census
+counts are in `GlobalIdentitySchemaTests` (thirty functions, sixteen definers, thirty
+triggers) and the head pin in `MigrationRollbackTests`.

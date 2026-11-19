@@ -112,6 +112,29 @@ public sealed class IdentityRebindContinuityTests
     }
 
     [Fact]
+    public void Every_Refusal_Class_Has_Its_Own_Closed_Outcome_Label()
+    {
+        var labels = Enum.GetValues<IdentityRebindRefusal>().Where(refusal => refusal != IdentityRebindRefusal.None)
+            .Select(refusal => IdentityRebindMetrics.Label(new IdentityRebindOutcome(IdentityRebindResult.Refused, refusal)))
+            .ToList();
+
+        labels.Should().OnlyHaveUniqueItems().And.NotContain("refused", "no class falls through to the default label");
+        labels.Should().OnlyContain(label => label.StartsWith("refused_", StringComparison.Ordinal));
+        IdentityRebindMetrics.Label(new IdentityRebindOutcome(IdentityRebindResult.Applied)).Should().Be("applied");
+        IdentityRebindMetrics.Label(new IdentityRebindOutcome(IdentityRebindResult.AlreadyApplied)).Should().Be("already_applied");
+        IdentityRebindMetrics.Label(new IdentityRebindOutcome(IdentityRebindResult.Unknown)).Should().Be("unknown");
+    }
+
+    [Fact]
+    public void A_Subject_Containing_Text_That_Cannot_Be_Stored_Is_Counted_Unkeyable()
+    {
+        var result = IdentityRebindContinuity.Evaluate(Authority, [], ["ok", "nul\0inside", "\ud800lone-surrogate"]);
+
+        result.Unkeyable.Should().Be(2);
+        result.Unbootstrapped.Should().Be(1);
+    }
+
+    [Fact]
     public void Duplicate_Reported_Subjects_Are_One_Subject()
     {
         IdentityRebindContinuity.Evaluate(Authority, [Active("a")], ["a", "a", "a"]).Enumerated.Should().Be(1);

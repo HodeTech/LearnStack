@@ -35,8 +35,8 @@ public sealed class KeycloakRealmContinuitySourceTests
         snapshot.DiscoveredIssuer.Should().Be(realm.Issuer);
         snapshot.SigningKeyCount.Should().Be(2, "only signature keys count, an encryption key does not");
         snapshot.Subjects.Should().BeEquivalentTo(realm.Users);
-        realm.Pages.Should().Be(users / KeycloakRealmContinuitySource.PageSize + 1,
-            "a page shorter than the page size ends the enumeration, and an exact multiple needs one empty page");
+        realm.Pages.Should().Be(2 * (users / KeycloakRealmContinuitySource.PageSize + 1),
+            "two full passes, each ended by a page shorter than the page size, an exact multiple needing one empty page");
     }
 
     [Fact]
@@ -67,6 +67,60 @@ public sealed class KeycloakRealmContinuitySourceTests
     }
 
     [Fact]
+    public async Task A_User_Served_Twice_And_Another_Never_Is_Not_Complete_Although_The_Count_Matches()
+    {
+        await using var realm = await FakeKeycloakRealm.StartAsync(5);
+        realm.Fail("duplicate-user");
+
+        (await realm.ReadAsync()).Complete.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_Realm_That_Reports_Another_Set_On_The_Second_Pass_Is_Not_Complete()
+    {
+        await using var realm = await FakeKeycloakRealm.StartAsync(5);
+        realm.Fail("second-pass-differs");
+
+        (await realm.ReadAsync()).Complete.Should().BeFalse("a user deleted and another created between the passes keeps the count");
+    }
+
+    [Fact]
+    public async Task A_Token_That_Expires_During_The_Enumeration_Is_Obtained_Again_Once_And_The_Read_Completes()
+    {
+        await using var realm = await FakeKeycloakRealm.StartAsync(250);
+        realm.Fail("token-expires");
+
+        var snapshot = await realm.ReadAsync();
+
+        snapshot.Complete.Should().BeTrue();
+        realm.TokenRequests.Should().HaveCount(2, "one more token, not one per request");
+        realm.AdminAuthorization.Should().Contain("Bearer realm-token-2");
+    }
+
+    [Fact]
+    public async Task A_Credential_That_Is_Refused_Even_With_A_New_Token_Is_A_Refusal_After_One_Retry()
+    {
+        await using var realm = await FakeKeycloakRealm.StartAsync(5);
+        realm.Fail("always-unauthorized");
+
+        var act = async () => await realm.ReadAsync();
+
+        await act.Should().ThrowAsync<NewRealmUnavailableException>();
+        realm.TokenRequests.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task A_Path_Prefixed_Issuer_Reads_Its_Own_Administration_Path()
+    {
+        await using var realm = await FakeKeycloakRealm.StartAsync(3, prefix: "/auth");
+
+        var snapshot = await realm.ReadAsync();
+
+        snapshot.Complete.Should().BeTrue();
+        snapshot.Subjects.Should().BeEquivalentTo(realm.Users);
+    }
+
+    [Fact]
     public async Task A_Reported_Count_That_The_Pages_Do_Not_Add_Up_To_Is_Not_Complete()
     {
         await using var realm = await FakeKeycloakRealm.StartAsync(5);
@@ -76,12 +130,16 @@ public sealed class KeycloakRealmContinuitySourceTests
     }
 
     [Fact]
-    public async Task A_Discovery_Issuer_That_Differs_Is_Reported_As_It_Is_For_The_Proof_To_Refuse()
+    public async Task A_Discovery_Issuer_That_Differs_Is_Reported_As_It_Is_And_No_Credential_Is_Sent_To_That_Realm()
     {
         await using var realm = await FakeKeycloakRealm.StartAsync(1);
         realm.DiscoveryIssuer = "https://elsewhere.example.test/realms/learnstack";
 
-        (await realm.ReadAsync()).DiscoveredIssuer.Should().Be("https://elsewhere.example.test/realms/learnstack");
+        var snapshot = await realm.ReadAsync();
+
+        snapshot.DiscoveredIssuer.Should().Be("https://elsewhere.example.test/realms/learnstack");
+        realm.TokenRequests.Should().BeEmpty("a realm that is not the target never receives the client secret");
+        realm.Pages.Should().Be(0);
     }
 
     [Theory]
@@ -126,7 +184,7 @@ public sealed class KeycloakRealmContinuitySourceTests
     }
 
     [Fact]
-    public async Task A_Credential_Replacing_The_Certificate_Check_Is_Refused()
+    public void A_Credential_Replacing_The_Certificate_Check_Is_Refused()
     {
         var handler = new SocketsHttpHandler();
 #pragma warning disable CA5359 // The case proves that a replaced certificate check is refused; it is never used.
@@ -136,6 +194,5 @@ public sealed class KeycloakRealmContinuitySourceTests
         var act = () => KeycloakRealmContinuitySource.CreateClient(handler);
 
         act.Should().Throw<InvalidOperationException>();
-        await Task.CompletedTask;
     }
 }

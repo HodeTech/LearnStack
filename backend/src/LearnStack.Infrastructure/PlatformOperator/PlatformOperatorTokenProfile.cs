@@ -106,6 +106,12 @@ public static class PlatformOperatorTokenProfile
         witness = null;
         cause = default;
 
+        // Two executors exist and each is a constant: a caller cannot name another in an audit row's attribution.
+        if (executor is not (PlatformOperatorSettings.Executor or PlatformOperatorSettings.RebindToolExecutor))
+        {
+            throw new ArgumentException("The executor is not a registered operator executor.", nameof(executor));
+        }
+
         // Stock validation already pinned the issuer; this restates it so the profile is
         // correct for any caller, including one that validated with other parameters.
         if (!string.Equals(token.Issuer, settings.Issuer, StringComparison.Ordinal))

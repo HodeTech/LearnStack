@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**385 test methods run in
+**386 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**289 rules in this catalogue are Implemented, and 171 of them are in that assembly.**
+**290 rules in this catalogue are Implemented, and 172 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -5931,6 +5931,24 @@ structural test proves — and what it does not.
   review; widened to the second caller by P03-9 Step 3).
 - **Phase:** P03-9.
 
+#### `The_Operator_Token_Validator_Has_Two_Callers_Of_The_Profile_And_One_Of_Its_Own`
+
+- **Asserts:** by IL, the callers of `PlatformOperatorTokenProfile.TryRead` in every
+  production assembly are exactly the API scheme's validated event
+  (`PlatformOperatorEvents.TokenValidated`) and `PlatformOperatorTokenValidator.ValidateAsync`,
+  and the callers of the offline validator's constructor and `ValidateAsync` are exactly
+  the rebind tool's `RebindTool.RunAdmittedAsync`. `TryRead` and the validator accept the
+  two executor constants and refuse any other.
+- **Why it matters:** the validator and the profile are public so that the API scheme and the
+  tool share one definition, and the witness they mint is evidence that a token passed
+  the closed profile. Pinning the callers keeps a second public door from becoming a
+  second place a witness can be made ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 7).
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and
+  [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 3.
+- **Type:** xUnit + IL scan. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3 review).
+- **Phase:** P03-9.
+
 #### `The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`
 
 - **Asserts:** in code under `backend/src`, comments stripped, none of the spellings
@@ -5953,10 +5971,11 @@ structural test proves — and what it does not.
 
 - **Asserts:** by IL, the callers of `IdentityAdvisoryLockKey.ForAuthorityRebind` in every
   production assembly are exactly `NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync`,
-  `IdentityAuthorityQualification.QualifyCoreAsync` and
-  `IdentityIssuerRebind.RunCoreAsync`.
+  `IdentityAuthorityQualification.QualifyCoreAsync`, `IdentityIssuerRebind.CommitAsync`
+  (the reconciliation of an unknown COMMIT, which waits behind the original
+  transaction) and `IdentityIssuerRebind.RunCoreAsync`.
 - **Why it matters:** the exclusive form is the freeze and the shared form is what a start or a
-  creation waits behind; a fourth taker is a fourth party that can hold or wait on it.
+  creation waits behind; a further taker is a further party that can hold or wait on it.
 - **Source:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 5.
 - **Type:** xUnit + IL scan. **Kind:** structural.
 - **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3).

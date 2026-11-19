@@ -70,15 +70,15 @@ internal sealed class FixedRealm(Func<string, CancellationToken, Task<NewRealmSn
 /// <summary>The real store, with seams at the two points a crash or an outage would strike.</summary>
 internal sealed class FaultingAuditStore(IAuditStore inner) : IAuditStore
 {
-    internal Func<DbConnection, Task>? AfterIntent { get; set; }
     internal Func<DbConnection, Task>? AfterResult { get; set; }
+    internal bool FailIntent { get; set; }
     internal bool FailResult { get; set; }
 
     public async Task WriteIdentityRebindIntentAsync(AuditEntryDraft entry, PlatformAdmission admission,
         DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken = default)
     {
+        if (FailIntent) throw new AuditWriteFailedException("forced intent failure");
         await inner.WriteIdentityRebindIntentAsync(entry, admission, connection, transaction, cancellationToken);
-        if (AfterIntent is not null) await AfterIntent(connection);
     }
 
     public async Task WriteIdentityRebindResultAsync(AuditEntryDraft entry, PlatformAdmission admission,

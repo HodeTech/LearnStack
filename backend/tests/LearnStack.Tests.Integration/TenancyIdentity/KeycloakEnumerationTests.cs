@@ -4,7 +4,6 @@ using FluentAssertions;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Tests.Integration.Database;
 using LearnStack.Tools.IdentityAuthorityRebind;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Xunit;
 

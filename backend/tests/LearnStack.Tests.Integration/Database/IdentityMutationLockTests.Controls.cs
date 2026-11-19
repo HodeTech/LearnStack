@@ -159,8 +159,8 @@ public sealed partial class IdentityMutationLockTests
     [Fact]
     public async Task Actual_global_subject_acquisition_emits_a_positive_finite_measurement_and_releases_on_rollback()
     {
-        var subject = new GlobalIdentitySubject(IdentityAuthorityId.From(Guid.Parse("01930000-0000-7000-8000-00000000f001")),
-            "https://lock-metrics.invalid/realms/learnstack", "subject-canary-must-not-be-a-metric-tag");
+        var subject = new GlobalIdentitySubject(IdentityMembershipFixture.Authority.AuthorityId,
+            IdentityMembershipFixture.Authority.Issuer, "subject-canary-must-not-be-a-metric-tag");
         await using var source = ApplicationDataSource.Build(_schema.Postgres.AppConnectionString);
         await using var unit = Unit(source);
         var descriptor = SubjectSignalMint.Create(subject);
@@ -269,10 +269,10 @@ public sealed partial class IdentityMutationLockTests
                 signal.Instrument.Should().BeOneOf("learnstack_identity_lock_wait_seconds", "learnstack_identity_lock_refusals_total");
                 signal.Tags.Keys.Should().BeEquivalentTo(signal.Instrument == "learnstack_identity_lock_wait_seconds"
                     ? WaitTagNames : RefusalTagNames);
-                signal.Tags["lock_kind"].Should().BeOneOf("subject", "user", "tenant");
+                signal.Tags["lock_kind"].Should().BeOneOf("subject", "user", "tenant", "authority");
                 if (signal.Instrument == "learnstack_identity_lock_wait_seconds")
                     signal.Tags["outcome"].Should().BeOneOf("acquired", "timeout", "cancelled", "fault");
-                else signal.Tags["reason"].Should().BeOneOf("timeout", "cancelled", "fault");
+                else signal.Tags["reason"].Should().BeOneOf("timeout", "cancelled", "fault", "mismatch");
             }
         }
         private void Record(Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object?>> tags)

@@ -530,7 +530,11 @@ backend treat business rejections as system failures.
 
 Accepted ADR-0072/0073/0074 require `lock_kind` closed to `subject`, `user`, `tenant`;
 wait `outcome` closed to `acquired`, `timeout`, `cancelled`, `fault`; and refusal
-`reason` closed to `timeout`, `cancelled`, `fault`. No tenant, actor, subject,
+`reason` closed to `timeout`, `cancelled`, `fault`.
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md) adds `lock_kind=authority`
+for the shared rebind lock a User creation takes, and `reason=mismatch` for a creation
+that waited out a rebind and found the stored issuer was not the one its process
+qualified with. No tenant, actor, subject,
 digest, raw issuer, SQL, correlation or exception text is a label. Typed closed
 binding diagnostic reasons remain separate from public Problem Details and are
 not trusted identity-refusal witnesses. A contextual lock-plan fault increments

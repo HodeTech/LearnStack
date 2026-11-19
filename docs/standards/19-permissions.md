@@ -115,9 +115,10 @@ policies are `FiniteTrusted` with that single source, the business actor of ever
 they write is `UserId.SystemActor`, and the operator is recorded in audit only. The
 grant is evaluated by the gate on every act, never cached across acts. The rebind of
 [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) is not an act of that
-executor and not a route: its registered operation needs neither the platform role nor
-the pipeline, so neither the scope nor the executor can spend its admission, and the
-offline tool that consumes it validates the same token and evaluates the same grant.
+executor and not a route: the scope refuses an operation that needs no platform role, and the
+executor runs only the closed catalog of five onboarding acts, which refuses the rebind
+operation by construction (`PlatformOperatorActCatalog`). The offline tool that consumes
+the admission validates the same token and evaluates the same grant.
 
 Tenant permissions are only meaningful inside an admitted tenant scope.
 Organization grants require an eligible Membership for that exact organization.

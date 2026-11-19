@@ -62,10 +62,11 @@ platform-scoped, application-read-only `identity_authority` singleton owns the
 stable authority UUID and current exact issuer URI. The deployment installer
 creates it once with migration credentials before bootstrap; application code
 cannot insert, update or automatically replace it. Configuration issuer drift
-refuses identity admission. P03-9/G13 owns an approved issuer rebind before the
-first change, proving provider continuity and freezing bootstrap and old grants
-while preserving authority, keys, actors and closed tombstones. Until that owner
-is implemented, issuer renaming is unsupported; aliases and email matching supply
+refuses identity admission. The only change is the controlled issuer rebind of
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md), an offline tool on a
+confined role that proves provider continuity against the new realm and freezes starts
+and User creation while it runs, preserving authority, keys, actors and closed
+tombstones. Any other issuer change is unsupported; aliases and email matching supply
 no continuity proof.
 
 The subject key is SHA-256 over domain-separated, length-delimited stable

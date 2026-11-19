@@ -42,6 +42,8 @@ internal static class RebindTool
     internal static async Task<int> RunAsync(
         RebindToolInput input, INewRealmContinuitySource realm, TextWriter output, CancellationToken cancellationToken)
     {
+        // One handle for every outcome from here on, so an operator can quote it whatever the run answered.
+        var correlation = "rebind-" + Guid.NewGuid().ToString("N");
         PlatformOperatorSettings? settings;
         try
         {
@@ -49,16 +51,35 @@ internal static class RebindTool
         }
         catch (InvalidOperationException)
         {
-            return Refuse(output, "operator_configuration_invalid");
+            return Refuse(output, "operator_configuration_invalid", correlation);
         }
 
         if (settings is null)
         {
-            return Refuse(output, "operator_issuer_not_configured");
+            return Refuse(output, "operator_issuer_not_configured", correlation);
         }
 
+        try
+        {
+            return await RunAdmittedAsync(input, realm, output, settings, correlation, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The deadline or an interrupt ended the run before the database was touched, or the database half has
+            // already rolled back and reported it.
+            return Refuse(output, "cancelled", correlation);
+        }
+    }
+
+    private static async Task<int> RunAdmittedAsync(
+        RebindToolInput input,
+        INewRealmContinuitySource realm,
+        TextWriter output,
+        PlatformOperatorSettings settings,
+        string correlation,
+        CancellationToken cancellationToken)
+    {
         var clock = new SystemClock();
-        var correlation = "rebind-" + Guid.NewGuid().ToString("N");
         using var backchannel = new PlatformOperatorBackchannel();
         var health = new PlatformOperatorMetadataHealth(clock);
         var manager = PlatformOperatorValidation.CreateConfigurationManager(settings, backchannel, health, NullLogger.Instance);

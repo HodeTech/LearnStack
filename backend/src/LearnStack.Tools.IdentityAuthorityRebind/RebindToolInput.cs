@@ -55,9 +55,11 @@ internal sealed record RebindToolInput(
 
         // The mode is explicit, as it is for the API: it decides whether a loopback operator issuer and the demo
         // operator's grant are admitted, so a tool that guessed it could admit what the API refuses.
-        if (!Enum.TryParse<DeploymentMode>(environment("Deployment__Mode"), ignoreCase: false, out var mode)
-            || !Enum.IsDefined(mode))
+        var modeText = environment("Deployment__Mode");
+        if (string.IsNullOrEmpty(modeText) || !Enum.GetNames<DeploymentMode>().Contains(modeText, StringComparer.Ordinal)
+            || !Enum.TryParse<DeploymentMode>(modeText, ignoreCase: false, out var mode))
         {
+            // Declared names only: an ordinal ("0") or a list would parse to a mode the API itself refuses.
             return false;
         }
 
@@ -68,8 +70,15 @@ internal sealed record RebindToolInput(
                 return false;
             }
 
-            var target = new IdentityAuthorityRegistration(
-                IdentityAuthorityId.From(authority), environment("Authentication__Tenant__Issuer")!);
+            var newIssuer = environment("Authentication__Tenant__Issuer")!;
+            var target = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authority), newIssuer);
+            if (mode != DeploymentMode.Development && new Uri(newIssuer).Scheme != Uri.UriSchemeHttps)
+            {
+                // Loopback HTTP is a Development transport only: a stored issuer no other mode's API accepts would be
+                // an outage, and the realm credential would travel in clear.
+                return false;
+            }
+
             input = new RebindToolInput(
                 connection, target, token.Trim(), string.IsNullOrWhiteSpace(ticket) ? null : ticket,
                 clientId, clientSecret, mode, configuration, environment("OTEL_EXPORTER_OTLP_ENDPOINT"));

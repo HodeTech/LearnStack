@@ -86,7 +86,7 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
             return Refused(IdentityRebindRefusal.NotAdmitted);
         }
 
-        var connection = Normalize(connectionString, lockWait);
+        var connection = TryNormalize(connectionString, lockWait);
         if (connection is null)
         {
             return Refused(IdentityRebindRefusal.RoleInvalid);
@@ -154,6 +154,14 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
                     IdentityRebindResult.Refused, IdentityRebindRefusal.ContinuityBroken, continuity, sessions);
             }
 
+            // The freeze is asked again at the last moment: the proof may have run for minutes.
+            var late = await CountRuntimeSessionsAsync(main, transaction, cancellationToken);
+            if (late > 0)
+            {
+                return new IdentityRebindOutcome(
+                    IdentityRebindResult.Refused, IdentityRebindRefusal.LiveSessions, continuity, late);
+            }
+
             await ChangeIssuerAsync(main, transaction, storedIssuer, target.Issuer, cancellationToken);
             await audit.WriteIdentityRebindResultAsync(
                 Draft(admission, admission.Operation.AuditSlug, AuditOutcome.Success, storedAuthority,
@@ -180,16 +188,28 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         }
         finally
         {
-            // An uncommitted transaction rolls back here, and with it the lock.
-            if (transaction is not null)
-            {
-                await transaction.DisposeAsync();
-            }
+            // An uncommitted transaction rolls back here, and with it the lock. A failure to dispose never replaces
+            // the outcome of the run: an applied rebind must not be reported as an exception.
+            await DisposeQuietlyAsync(transaction);
+            await DisposeQuietlyAsync(main);
+        }
+    }
 
-            if (main is not null)
-            {
-                await main.DisposeAsync();
-            }
+    private static async ValueTask DisposeQuietlyAsync(IAsyncDisposable? resource)
+    {
+        if (resource is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await resource.DisposeAsync();
+        }
+#pragma warning disable CA1031 // Cleanup never replaces the outcome of the run.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
         }
     }
 
@@ -212,8 +232,14 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
             // the target means it applied, the old value means it did not, and anything else is not guessed at.
             try
             {
+                // The shared form of the lock, under the connection's own lock_timeout: it is granted only once the
+                // original transaction has ended, so the read cannot see the issuer before an in-flight COMMIT lands.
                 await using var reader = await OpenAsync(connection, CancellationToken.None);
-                await using var command = new NpgsqlCommand("SELECT issuer FROM public.identity_authority WHERE id = 1", reader);
+                await using var check = await reader.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken.None);
+                await ExecuteAsync(reader, check, "SELECT pg_catalog.pg_advisory_xact_lock_shared(@key)", CancellationToken.None,
+                    ("key", IdentityAdvisoryLockKey.ForAuthorityRebind()));
+                await using var command = new NpgsqlCommand(
+                    "SELECT issuer FROM public.identity_authority WHERE id = 1", reader, check);
                 var current = (string?)await command.ExecuteScalarAsync(CancellationToken.None);
                 if (string.Equals(current, newIssuer, StringComparison.Ordinal))
                 {
@@ -231,10 +257,19 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         }
     }
 
-    /// <summary>Normalizes the connection string, or null when it is not the rebind role's.</summary>
-    private static string? Normalize(string connectionString, TimeSpan lockWait)
+    /// <summary>Normalizes the connection string, or null when it is malformed or not the rebind role's.</summary>
+    private static string? TryNormalize(string connectionString, TimeSpan lockWait)
     {
-        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        NpgsqlConnectionStringBuilder builder;
+        try
+        {
+            builder = new NpgsqlConnectionStringBuilder(connectionString);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
         if (!string.Equals(builder.Username, RoleName, StringComparison.Ordinal))
         {
             return null;
@@ -251,6 +286,11 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         builder.Timeout = 15;
         builder.CommandTimeout = 120;
         builder.ApplicationName = "learnstack-identity-rebind";
+
+        // The main connection sits idle in its transaction while the new realm is read, so keep it alive through
+        // middleboxes that cut a quiet connection.
+        builder.TcpKeepAlive = true;
+        builder.KeepAlive = 30;
         builder.Options = FormattableString.Invariant(
             $"-c lock_timeout={(int)Math.Max(1, lockWait.TotalMilliseconds)} -c statement_timeout=120000 -c idle_in_transaction_session_timeout=900000");
         return builder.ConnectionString;
@@ -273,31 +313,45 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
 
     /// <summary>
     /// The role is exactly what the migration granted: itself, no attribute that escalates, no membership either way,
-    /// no privilege on any other table, and the one column it may change.
+    /// no privilege on any other relation, and on the three it uses exactly the declared table and column grants.
     /// </summary>
     private static async Task<bool> HasExactPostureAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(
             """
-            SELECT session_user::text, current_user::text, r.rolcanlogin, r.rolinherit, r.rolbypassrls, r.rolsuper,
-                   r.rolcreatedb, r.rolcreaterole, r.rolreplication,
-                   EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid),
-                   has_schema_privilege(r.oid, 'public', 'CREATE'),
-                   has_database_privilege(r.oid, current_database(), 'CREATE'),
+            SELECT (session_user::text = current_user::text AND current_user::text = @role) AS session_ok,
+                   (r.rolcanlogin AND NOT r.rolinherit AND NOT r.rolbypassrls AND NOT r.rolsuper
+                    AND NOT r.rolcreatedb AND NOT r.rolcreaterole AND NOT r.rolreplication) AS attributes_ok,
+                   NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid) AS no_membership,
+                   NOT (has_schema_privilege(r.oid, 'public', 'CREATE')
+                        OR has_database_privilege(r.oid, current_database(), 'CREATE')) AS no_creation,
                    (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
                       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
                         AND c.relname NOT IN ('identity_authority', 'users', @audit)
-                        AND has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')),
-                   has_table_privilege(r.oid, 'public.users', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES'),
-                   has_column_privilege(r.oid, 'public.users', 'id', 'SELECT,UPDATE,REFERENCES'),
-                   has_table_privilege(r.oid, 'public.identity_authority', 'INSERT,DELETE,TRUNCATE,TRIGGER,REFERENCES'),
-                   has_column_privilege(r.oid, 'public.identity_authority', 'authority_id', 'UPDATE,INSERT,REFERENCES'),
-                   has_column_privilege(r.oid, 'public.identity_authority', 'id', 'UPDATE,INSERT,REFERENCES'),
-                   has_column_privilege(r.oid, 'public.identity_authority', 'issuer', 'UPDATE'),
-                   has_table_privilege(r.oid, to_regclass('public.' || quote_ident(@audit)), 'SELECT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES'),
-                   has_table_privilege(r.oid, to_regclass('public.' || quote_ident(@audit)), 'INSERT')
+                        AND (has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+                             OR has_table_privilege(r.oid, c.oid, 'DELETE,TRUNCATE,TRIGGER'))) AS stray_relations,
+                   (SELECT count(*) FROM pg_catalog.pg_attribute a
+                      JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+                      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                      WHERE n.nspname = 'public' AND a.attnum > 0 AND NOT a.attisdropped AND (
+                            (c.relname = 'users'
+                             AND (has_column_privilege(r.oid, c.oid, a.attnum, 'INSERT,UPDATE,REFERENCES')
+                                  OR has_column_privilege(r.oid, c.oid, a.attnum, 'SELECT')
+                                     <> (a.attname IN ('authority_id', 'subject_key', 'provider_subject', 'status'))))
+                         OR (c.relname = 'identity_authority'
+                             AND (has_column_privilege(r.oid, c.oid, a.attnum, 'INSERT,REFERENCES')
+                                  OR NOT has_column_privilege(r.oid, c.oid, a.attnum, 'SELECT')
+                                  OR has_column_privilege(r.oid, c.oid, a.attnum, 'UPDATE') <> (a.attname = 'issuer')))
+                         OR (c.relname = @audit
+                             AND (has_column_privilege(r.oid, c.oid, a.attnum, 'SELECT,UPDATE,REFERENCES')
+                                  OR NOT has_column_privilege(r.oid, c.oid, a.attnum, 'INSERT'))))) AS column_drift,
+                   NOT (has_table_privilege(r.oid, 'public.users', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
+                        OR has_table_privilege(r.oid, 'public.identity_authority', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
+                        OR has_table_privilege(r.oid, to_regclass('public.' || quote_ident(@audit)),
+                                               'SELECT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')) AS no_table_grants
             FROM pg_catalog.pg_roles r WHERE r.rolname = current_user
             """, connection);
+        command.Parameters.AddWithValue("role", RoleName);
         command.Parameters.AddWithValue("audit", IdentityRebindAuditInstaller.Table);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -305,16 +359,10 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
             return false;
         }
 
-        return reader.GetString(0) == RoleName && reader.GetString(1) == RoleName
-            && reader.GetBoolean(2)
-            && !reader.GetBoolean(3) && !reader.GetBoolean(4) && !reader.GetBoolean(5)
-            && !reader.GetBoolean(6) && !reader.GetBoolean(7) && !reader.GetBoolean(8)
-            && !reader.GetBoolean(9) && !reader.GetBoolean(10) && !reader.GetBoolean(11)
-            && reader.GetInt64(12) == 0
-            && !reader.GetBoolean(13) && !reader.GetBoolean(14)
-            && !reader.GetBoolean(15) && !reader.GetBoolean(16) && !reader.GetBoolean(17)
-            && reader.GetBoolean(18)
-            && !reader.GetBoolean(19) && reader.GetBoolean(20);
+        bool Flag(string column) => reader.GetBoolean(reader.GetOrdinal(column));
+        long Count(string column) => reader.GetInt64(reader.GetOrdinal(column));
+        return Flag("session_ok") && Flag("attributes_ok") && Flag("no_membership") && Flag("no_creation")
+            && Count("stray_relations") == 0 && Count("column_drift") == 0 && Flag("no_table_grants");
     }
 
     private static async Task<(Guid Authority, string Issuer)> ReadAuthorityAsync(
@@ -400,7 +448,7 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         var users = new List<IdentityRebindStoredUser>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            if (!Enum.TryParse<UserStatus>(reader.GetString(2), ignoreCase: false, out var status))
+            if (!Enum.TryParse<UserStatus>(reader.GetString(2), ignoreCase: false, out var status) || !Enum.IsDefined(status))
             {
                 throw new InvalidOperationException("A stored user has a status this rebind does not know.");
             }

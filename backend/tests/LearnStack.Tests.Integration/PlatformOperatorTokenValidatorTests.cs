@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Hosting;
@@ -123,8 +124,10 @@ public sealed class PlatformOperatorTokenValidatorTests : IAsyncLifetime
     public async Task A_Discovery_Document_That_Names_Another_Issuer_Is_Refused()
     {
         await using var misbehaving = await TenantAuthenticationIssuer.StartAsync();
-        misbehaving.DiscoveryResponse = misbehaving.DiscoveryDocument.Replace(
-            misbehaving.Issuer, "https://elsewhere.example.test/realms/x", StringComparison.Ordinal);
+        // Only the document's own issuer property differs: the key set and the endpoints stay at the issuer's origin.
+        var document = JsonNode.Parse(misbehaving.DiscoveryDocument)!.AsObject();
+        document["issuer"] = "https://elsewhere.example.test/realms/x";
+        misbehaving.DiscoveryResponse = document.ToJsonString();
         using var backchannel = new PlatformOperatorBackchannel();
         var validator = ValidatorFor(misbehaving, backchannel);
 
@@ -132,14 +135,18 @@ public sealed class PlatformOperatorTokenValidatorTests : IAsyncLifetime
             misbehaving.Token(Payload([], misbehaving)), PlatformOperatorSettings.RebindToolExecutor, Correlation);
 
         result.IsValid.Should().BeFalse("a discovery issuer other than the pinned one is never trusted");
+        result.Cause.Should().Be("metadata_unavailable", "the configuration validator refuses it, not a missing key");
     }
 
     [Fact]
     public async Task A_Key_Set_At_Another_Origin_Is_Refused()
     {
+        await using var foreign = await TenantAuthenticationIssuer.StartAsync();
         await using var misbehaving = await TenantAuthenticationIssuer.StartAsync();
-        misbehaving.DiscoveryResponse = misbehaving.DiscoveryDocument.Replace(
-            misbehaving.Issuer + "/keys", "http://127.0.0.1:1/keys", StringComparison.Ordinal);
+        // A live key set at another origin: a reader that followed it would succeed, so refusing is the control.
+        var document = JsonNode.Parse(misbehaving.DiscoveryDocument)!.AsObject();
+        document["jwks_uri"] = foreign.Issuer + "/keys";
+        misbehaving.DiscoveryResponse = document.ToJsonString();
         using var backchannel = new PlatformOperatorBackchannel();
         var validator = ValidatorFor(misbehaving, backchannel);
 
@@ -147,6 +154,18 @@ public sealed class PlatformOperatorTokenValidatorTests : IAsyncLifetime
             misbehaving.Token(Payload([], misbehaving)), PlatformOperatorSettings.RebindToolExecutor, Correlation);
 
         result.IsValid.Should().BeFalse();
+        foreign.JwksRequests.Should().Be(0, "the other origin is never called");
+    }
+
+    [Theory]
+    [InlineData("operator.other")]
+    [InlineData("")]
+    [InlineData("operator.api ")]
+    public async Task An_Executor_That_Is_Not_One_Of_The_Two_Registered_Constants_Is_Refused_Before_Any_Token_Is_Read(string executor)
+    {
+        var act = async () => await _validator.ValidateAsync(Sign(), executor, Correlation);
+
+        await act.Should().ThrowAsync<ArgumentException>();
     }
 
     [Fact]

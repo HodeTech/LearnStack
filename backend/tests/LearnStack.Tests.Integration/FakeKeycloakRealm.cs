@@ -22,6 +22,8 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
     private readonly HttpClient _client;
     private string? _failure;
     private int _pages;
+    private int _firstPageRequests;
+    private string _prefix = string.Empty;
 
     private FakeKeycloakRealm(WebApplication app, List<string> users)
     {
@@ -52,20 +54,21 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
 
     internal List<string?> AdminAuthorization { get; } = [];
 
-    internal static Task<FakeKeycloakRealm> StartAsync(int users) =>
-        StartAsync(Enumerable.Range(0, users).Select(_ => Guid.NewGuid().ToString("D")));
+    internal static Task<FakeKeycloakRealm> StartAsync(int users, string prefix = "") =>
+        StartAsync(Enumerable.Range(0, users).Select(_ => Guid.NewGuid().ToString("D")), prefix);
 
-    internal static async Task<FakeKeycloakRealm> StartAsync(IEnumerable<string> users)
+    /// <summary>Starts the realm; <paramref name="prefix"/> puts it behind a path such as <c>/auth</c>, as older Keycloaks were.</summary>
+    internal static async Task<FakeKeycloakRealm> StartAsync(IEnumerable<string> users, string prefix = "")
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
         var app = builder.Build();
-        var realm = new FakeKeycloakRealm(app, users.ToList());
+        var realm = new FakeKeycloakRealm(app, users.ToList()) { _prefix = prefix };
         realm.Map(app);
         await app.StartAsync();
         var origin = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-        realm.Issuer = origin + "/realms/learnstack";
+        realm.Issuer = origin + prefix + "/realms/learnstack";
         return realm;
     }
 
@@ -76,7 +79,7 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
 
     private void Map(WebApplication app)
     {
-        app.MapGet("/realms/learnstack/.well-known/openid-configuration", context =>
+        app.MapGet(_prefix + "/realms/learnstack/.well-known/openid-configuration", context =>
         {
             if (_failure == "discovery-redirect")
             {
@@ -98,13 +101,13 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
                 token_endpoint = token,
             }));
         });
-        app.MapGet("/realms/learnstack/keys", context =>
+        app.MapGet(_prefix + "/realms/learnstack/keys", context =>
         {
             context.Response.ContentType = "application/json";
             return context.Response.WriteAsync(
                 """{"keys":[{"kty":"RSA","kid":"a","use":"sig"},{"kty":"RSA","kid":"b"},{"kty":"RSA","kid":"c","use":"enc"}]}""");
         });
-        app.MapPost("/realms/learnstack/protocol/openid-connect/token", async context =>
+        app.MapPost(_prefix + "/realms/learnstack/protocol/openid-connect/token", async context =>
         {
             var form = await context.Request.ReadFormAsync();
             TokenRequests.Add(form.ToDictionary(pair => pair.Key, pair => pair.Value.ToString()));
@@ -115,13 +118,21 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
             }
 
             context.Response.ContentType = "application/json";
+            // The first token is the one an enumeration outlives when "token-expires" is set; the second is accepted.
+            var issued = TokenRequests.Count;
             await context.Response.WriteAsync(_failure == "oversized-token-answer"
                 ? "{\"access_token\":\"" + new string('x', 300 * 1024) + "\"}"
-                : """{"access_token":"realm-token"}""");
+                : "{\"access_token\":\"" + (issued >= 2 && _failure == "token-expires" ? "realm-token-2" : "realm-token") + "\"}");
         });
-        app.MapGet("/admin/realms/learnstack/users/count", context =>
+        app.MapGet(_prefix + "/admin/realms/learnstack/users/count", context =>
         {
             AdminAuthorization.Add(context.Request.Headers.Authorization);
+            if (Unauthorized(context))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
             if (_failure == "admin-denied")
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -136,9 +147,15 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
             var count = Pages > 0 && CountAfterRead is { } later ? later : ReportedCount ?? Users.Count;
             return context.Response.WriteAsync(count.ToString(System.Globalization.CultureInfo.InvariantCulture));
         });
-        app.MapGet("/admin/realms/learnstack/users", context =>
+        app.MapGet(_prefix + "/admin/realms/learnstack/users", context =>
         {
             AdminAuthorization.Add(context.Request.Headers.Authorization);
+            if (Unauthorized(context))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
             Interlocked.Increment(ref _pages);
             if (_failure == "users-redirect")
             {
@@ -155,11 +172,38 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
 
             var first = int.Parse(context.Request.Query["first"]!, System.Globalization.CultureInfo.InvariantCulture);
             var max = int.Parse(context.Request.Query["max"]!, System.Globalization.CultureInfo.InvariantCulture);
-            var page = Users.Skip(first).Take(max).Select(id => _failure == "user-without-id"
+            if (first == 0)
+            {
+                Interlocked.Increment(ref _firstPageRequests);
+            }
+
+            var users = Users.ToList();
+            if (_failure == "duplicate-user" && users.Count > 1)
+            {
+                // A user is served twice and another never is, with the count unchanged.
+                users[^1] = users[0];
+            }
+
+            if (_failure == "second-pass-differs" && Volatile.Read(ref _firstPageRequests) >= 2 && users.Count > 0)
+            {
+                // A different user at the start of the second pass: the realm changed between the two reads.
+                users[0] = Guid.NewGuid().ToString("D");
+            }
+
+            var page = users.Skip(first).Take(max).Select(id => _failure == "user-without-id"
                 ? (object)new { username = id }
                 : new { id, username = "user-" + id });
             return context.Response.WriteAsync(JsonSerializer.Serialize(page));
         });
+    }
+
+    // "token-expires": the first token stops being accepted once any admin call has been made with it, as a short-lived
+    // one does mid-enumeration; "always-unauthorized": no token is ever accepted.
+    private bool Unauthorized(HttpContext context)
+    {
+        var header = context.Request.Headers.Authorization.ToString();
+        return _failure == "always-unauthorized"
+            || (_failure == "token-expires" && header == "Bearer realm-token" && AdminAuthorization.Count > 2);
     }
 
     public async ValueTask DisposeAsync()

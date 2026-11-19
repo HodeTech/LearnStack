@@ -107,14 +107,32 @@ public sealed partial class IdentityAuditConventionTests
     }
 
     [Fact]
+    public void The_Operator_Token_Validator_Has_Two_Callers_Of_The_Profile_And_One_Of_Its_Own()
+    {
+        // ADR-0101 § 7: the witness comes from one validator with two callers. The API scheme reads a token through the
+        // profile from its validated event; the offline validator reads one through the stock handler and then the
+        // profile; and the offline validator is constructed and called by the rebind tool alone, so no endpoint, job or
+        // module adapter can mint a witness by borrowing it.
+        const string Profile = "LearnStack.Infrastructure.PlatformOperator.PlatformOperatorTokenProfile";
+        const string Validator = "LearnStack.Infrastructure.PlatformOperator.PlatformOperatorTokenValidator";
+        Callers(Profile, "TryRead").Should().Equal(
+            "LearnStack.Api.Authentication.PlatformOperatorEvents.TokenValidated",
+            Validator + ".ValidateAsync");
+        Callers(Validator, "ValidateAsync").Should().Equal("LearnStack.Tools.IdentityAuthorityRebind.RebindTool.RunAdmittedAsync");
+        Callers(Validator, ".ctor").Should().Equal("LearnStack.Tools.IdentityAuthorityRebind.RebindTool.RunAdmittedAsync");
+    }
+
+    [Fact]
     public void Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock()
     {
-        // ADR-0104 § 5: the exclusive form belongs to the rebind run and the shared form to authority qualification and
-        // the User-creation admission. A fourth taker is a fourth party that can wait on, or hold, the freeze.
+        // ADR-0104 § 5: the exclusive form belongs to the rebind run, and the shared form to authority qualification, the
+        // User-creation admission and the run's own reconciliation of an unknown COMMIT, which waits for the original
+        // transaction behind it. A further taker is a further party that can wait on, or hold, the freeze.
         Callers(typeof(IdentityAdvisoryLockKey).FullName!, nameof(IdentityAdvisoryLockKey.ForAuthorityRebind))
             .Should().Equal(
                 "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityAuthorityQualification.QualifyCoreAsync",
+                RebindRun + ".CommitAsync",
                 RebindRun + ".RunCoreAsync");
     }
 

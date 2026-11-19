@@ -584,13 +584,24 @@ for the full strategy. Standards-side:
 
 ### Confined identity-rebind role
 
-`learnstack_identity_rebind` is the sixth login role and the only credential that can
-change `identity_authority.issuer`. It is `NOINHERIT` and `NOBYPASSRLS`, holds a handful
-of column grants and one policy arm, and is configured on no API, worker, seeder, web or
-compose service: [`The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`](21-architecture-tests-catalogue.md#the_identity_rebind_credential_is_named_only_by_the_rebind_tool)
+`learnstack_identity_rebind` is the sixth login role and the one login credential that
+can change `identity_authority.issuer`; the owner credential is deploy-only and can
+alter any policy. It is `NOINHERIT` and `NOBYPASSRLS`, holds a handful of column grants
+and one policy arm, and is configured on no API, worker, seeder, web or compose service:
+[`The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`](21-architecture-tests-catalogue.md#the_identity_rebind_credential_is_named_only_by_the_rebind_tool)
 confines the key to the one tool file that reads it, and the tool refuses to use a role
 whose posture is not exactly the declared one. A column grant to a runtime role guarded
-by a transaction setting was rejected, because any session can set the setting.
+by a transaction setting was rejected, because any session can set the setting. The
+role's `audit_log` access is bounded by a policy arm that excludes the role from the
+ordinary tenant arm, so the tenant a session announces does not widen its rows.
+
+**Residual.** The operator token, the grant and the attribution in the audit rows are
+checked by the tool, and the database does not force them: whoever holds the role's
+password can change the issuer without the tool and write a rebind row of the admitted
+shape. The role's password is therefore held apart from the operator's identity, and
+retired after the window ([runbook](../runbooks/identity-issuer-rebind.md#after-it)). A
+database-enforced pairing of the change and its result row would need a confined
+definer that reads `audit_log`, and is the maintainer's decision.
 [Database Standards](05-database.md#controlled-issuer-rebind-storage) owns the grants,
 policies, trigger and lock.
 

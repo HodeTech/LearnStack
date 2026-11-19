@@ -1,7 +1,7 @@
 # Identity issuer rebind
 
 Moving the identity authority from one issuer origin to another, under the same realm
-path, without re-keying a single person. Decided in
+name, without re-keying a single person. Decided in
 [ADR-0104](../decisions/0104-controlled-issuer-rebind.md); the storage contract of the
 confined role is in
 [Database Standards](../standards/05-database.md#controlled-issuer-rebind-storage).
@@ -12,13 +12,15 @@ needs it.
 
 Use it when the deployment's tenant identity provider keeps its realm and its users but
 changes address: a new host name, a new load balancer origin, a migration to another
-cluster that preserved every user's `sub` (a realm export and import does).
+cluster that preserved every user's `sub` (a realm export and import does). The path
+before `/realms/learnstack` may change, for example from `/auth/realms/learnstack` to
+`/realms/learnstack`; the realm name may not.
 
 It does **not** change the stable authority identifier, and it refuses a new realm that
-would lose or resurrect a person. It cannot rename the realm path (the issuer must keep
-ending in `/realms/learnstack`), re-key users, merge two providers or move a tenant
-between authorities. A new realm whose users have new `sub` values is a different
-authority and is not reachable here: escalate before doing anything.
+would lose or resurrect a person. It cannot rename the realm, re-key users, merge two
+providers or move a tenant between authorities. A new realm whose users have new `sub`
+values is a different authority and is not reachable here: escalate before doing
+anything.
 
 ## What it needs
 
@@ -27,15 +29,23 @@ authority and is not reachable here: escalate before doing anything.
 | An operator with a current token and the grant `platform.identity_authority.admin` | The same operator token and grant model as the other [operator acts](operator-access.md). The grant is read from configuration when the tool runs, never from a claim |
 | The sixth database role's connection string | `ConnectionStrings__IdentityRebind` for `learnstack_identity_rebind`. It exists only in the tool's environment for the minutes it runs: never in an API, worker, seeder or web configuration, and never in a file under version control |
 | A read-only credential for the **new** realm | A confidential client with the single role `realm-management/view-users`, created for this run and deleted after it. It is not a LearnStack credential and is not in the realm export |
-| The stable `Identity__AuthorityId` and the new `Authentication__Tenant__Issuer` | The same two values the deployment is about to run with. The authority must equal the stored one; the issuer is the target |
-| `Deployment__Mode` and the `PlatformOperator__*` settings | The same as the API's, so the tool validates the token against the same issuer, clients and assurance |
+| The stable `Identity__AuthorityId` and the new `Authentication__Tenant__Issuer` | The same two values the deployment is about to run with. The authority must equal the stored one; the issuer is the target. Outside Development the target must be HTTPS |
+| `Deployment__Mode` and the `PlatformOperator__*` settings | The same as the API's, so the tool validates the token against the same issuer, clients and assurance. The mode is a declared name exactly (`SaaS`, not `saas` or `1`) |
+
+**Keep the database password and the operator's identity apart.** The tool checks the
+operator token, the grant and the attribution of the audit rows; the database does not
+force them, so whoever holds the role's password could change the issuer without the
+tool. The person who runs the tool should not hold the password longer than the window,
+and the password is retired afterwards (see [After it](#after-it)).
 
 ## Before you start: freeze
 
-The tool takes a database lock that makes every API start and every new user binding
-wait, and it refuses to run while any session of the application, outbox, ingress or
-platform role is open on the database. It cannot see a process that holds no database
-connection, so the stop step below is the control for that case.
+The tool takes a database lock that every API start and every new user binding queues
+behind, and it refuses to run while any session of the application, outbox, ingress or
+platform role is open on the database. A start that overlaps the rebind waits for the
+lock for up to thirty seconds and then fails with the fixed qualification error, and a
+user creation waits two seconds and is refused. The tool cannot see a process that holds
+no database connection, so the stop step below is the control for that case.
 
 1. Announce the window and **stop every API and worker process** of the deployment,
    including the Hangfire server, the outbox dispatcher and the provider-event poller.
@@ -46,14 +56,16 @@ connection, so the stop step below is the control for that case.
 3. Keep the **old** configuration out of every restart script. A process that is started
    with the old issuer after the change fails its start on the mismatch, which is the
    safe outcome; a process that was running and idle is the one the tool cannot see.
+4. Do not create or delete users in the **new** realm while the tool runs. It reads the
+   realm twice and refuses a realm whose users changed between the reads.
 
 ## Get the access token
 
 Follow [Getting a token](operator-access.md#getting-a-token) for the operator issuer. The
 token lasts at most 15 minutes and its `auth_time` must be recent, so sign in just
 before the run. Give it to the tool in `LEARNSTACK_OPERATOR_TOKEN`, or pipe it on
-standard input so it does not sit in the environment. **Never pass it as an argument**:
-the tool refuses any argument.
+standard input within thirty seconds so it does not sit in the environment. **Never
+pass it as an argument**: the tool refuses any argument.
 
 ## Create the read-only realm credential
 
@@ -77,11 +89,14 @@ export PlatformOperator__Issuer=... PlatformOperator__AuthorizedParties__0=... P
 export PlatformOperator__Grants__0__Subject=<your sub>
 export PlatformOperator__Grants__0__Permissions__0=platform.identity_authority.admin
 export LEARNSTACK_REBIND_REALM_CLIENT_ID=... LEARNSTACK_REBIND_REALM_CLIENT_SECRET=...
-export LEARNSTACK_REBIND_TICKET=CHG-123            # optional, 1 to 64 characters
+export LEARNSTACK_REBIND_TICKET=CHG-123            # optional but recommended
 printf %s "$TOKEN" | dotnet LearnStack.Tools.IdentityAuthorityRebind.dll
 ```
 
-It prints exactly one line and exits:
+The ticket is 1 to 64 characters of `A-Z a-z 0-9 . _ : / # -`; a ticket outside that
+grammar is refused. It is recorded on the two audit rows, which no tenant can read.
+
+It prints exactly one line to standard output and exits:
 
 | Exit | Meaning |
 |---|---|
@@ -89,28 +104,41 @@ It prints exactly one line and exits:
 | `2` | Refused. **The state is unchanged**; fix the cause and run it again |
 | `3` | `outcome=unknown`: the commit's answer was lost and the stored issuer could not be read back. Read `identity_authority.issuer` before anything else |
 
-Every line carries `correlation=<id>`, which finds the audit rows, and counts where the
-proof ran: `active`, `closing`, `closed`, `reported`, `unkeyable`, `missing_active`,
-`reappearing_closed` and `unbootstrapped`. It never prints a subject, a key, an issuer,
-an address or a credential.
+Every line that follows a successful reading of the input carries `correlation=<id>`,
+which finds the audit rows, and a line where the proof ran carries counts: `active`,
+`closing`, `closed`, `reported`, `unkeyable`, `missing_active`, `reappearing_closed` and
+`unbootstrapped`. `refused_input` and `refused_unexpected` carry neither, because they
+happen before a handle exists or when none can be trusted. The line never contains a
+subject, a key, an issuer, an address or a credential.
+
+An interrupt (Ctrl-C) or a termination signal ends the run as the ten-minute deadline
+does: the run rolls back, an unknown commit is still reconciled, and the line says
+`refused_cancelled` or its true outcome.
 
 ## What the tool does, in order
 
 1. Validates the token with the operator validator and admits the act against the
    grant. A refusal here (`refused_operator_...`) writes nothing, not even a row.
-2. Opens one direct, never-pooled connection as the rebind role, checks that the role is
-   exactly what it was granted, and takes the exclusive rebind lock as its first
-   statement. If another rebind holds it, the tool waits up to 30 seconds and refuses
-   with `refused_rebind_in_progress`.
+2. Opens one direct, never-pooled connection as the rebind role and checks that the role
+   is exactly what it was granted, table by table and column by column. It then takes
+   the exclusive rebind lock as its first statement. If another rebind holds it, the
+   tool waits up to 30 seconds and refuses with `refused_rebind_in_progress`.
 3. Reads the stored authority. If the stored issuer already equals the target it ends
    with `already_applied` and **writes nothing**.
-4. Otherwise commits an **intent** audit row on its own short transaction. From here on an
-   aborted attempt is on record.
+4. Otherwise commits an **intent** audit row on its own short transaction. From here on
+   an aborted attempt is on record.
 5. Refuses while a session of a runtime role is open (`refused_live_sessions`).
 6. Reads the new realm's discovery document, key set and users, and requires the realm's
-   own `issuer` to equal the target, at least one signing key and a complete enumeration.
-7. Proves continuity (below), changes the one column, writes the **result** row on the
-   same transaction and commits.
+   own `issuer` to equal the target, at least one signing key and a complete
+   enumeration. The credential is sent only to the realm's own token endpoint, and only
+   once the discovery document names the target.
+7. Proves continuity (below), asks the freeze question again, changes the one column,
+   writes the **result** row on the same transaction and commits.
+
+Limits that bound the run: statements time out at 120 seconds, a transaction that idles
+for 15 minutes is ended by the server, the whole run has a ten-minute deadline, and a
+realm of more than 200,000 users is refused because its proof cannot finish in that
+deadline.
 
 ## The continuity proof
 
@@ -122,8 +150,12 @@ an address or a credential.
   signed in yet.
 - A user that is **Closing** and still holds its subject is judged by neither rule,
   because closure owns that transition.
-- A `sub` that could not be a LearnStack subject (blank, over 255 characters) is counted as
-  `unkeyable` and cannot equal a stored one.
+- A `sub` that could not be a LearnStack subject (blank, over 255 characters or text
+  that cannot be stored) is counted as `unkeyable` and cannot equal a stored one.
+
+The realm is read in full twice and the two reads must report the same users, with no
+user repeated and the same count before and after. A realm that changes while it is read
+is refused as incomplete.
 
 `refused_continuity_broken` means the new realm is not the same population. Do not
 force it: find out why the users differ. The usual cause is an import that generated new
@@ -133,20 +165,24 @@ ids.
 
 | Outcome | What it means and what to do |
 |---|---|
-| `refused_input` | A required value is missing, malformed, or an argument was given. The tool says no more, so that a mistake cannot echo a secret. Check `Deployment__Mode`, the connection string's role, the authority id, the issuer, the token and the realm credential |
-| `refused_operator_token_<cause>` | The token failed validation: `token_missing`, `token_expired`, `token_audience`, `token_issuer`, `token_signature`, `token_algorithm`, `token_type`, `token_lifetime`, `metadata_unavailable`, `metadata_stale` or a `profile_*` cause. [The profile](operator-access.md#the-token-profile) says what each requires. Get a fresh token |
+| `refused_input` | A required value is missing, malformed, or an argument was given. The tool says no more, so that a mistake cannot echo a secret. Check `Deployment__Mode`, the connection string's role, the authority id, the issuer (HTTPS outside Development), the token and the realm credential |
+| `refused_operator_token_<cause>` | The token failed validation: `token_missing`, `token_invalid`, `token_expired`, `token_audience`, `token_issuer`, `token_signature`, `token_algorithm`, `token_type`, `token_lifetime`, `metadata_unavailable`, `metadata_stale` or a `profile_*` cause. [The profile](operator-access.md#the-token-profile) says what each requires. Get a fresh token |
 | `refused_operator_missing_permission` | The token is good and the operator holds no `platform.identity_authority.admin` grant |
+| `refused_operator_invalid_ticket` | The ticket is outside its grammar |
 | `refused_operator_issuer_not_configured` / `..._configuration_invalid` | The `PlatformOperator__*` settings are absent or unsafe |
-| `refused_role_invalid` | The connection string is not the rebind role's, or the role holds something beyond its grants. Re-run the roles script |
+| `refused_operator_invalid_witness` / `..._unknown_operation` / `..._not_admitted` | A defect in the tool's build, not an operator mistake. Escalate |
+| `refused_not_admitted` | The admission was stale, spent or not for this operation. Run the tool again |
+| `refused_role_invalid` | The connection string is malformed or not the rebind role's, or the role holds something beyond (or lacks something of) its grants. Re-run the roles script and migrate |
 | `refused_rebind_in_progress` | Another rebind holds the lock, or a previous run is still open. Wait and retry |
 | `refused_database_unavailable` | The database could not be reached or answered a failure. Nothing changed |
 | `refused_authority_mismatch` | The stored authority is not `Identity__AuthorityId`. A different authority would re-key every person: stop and escalate |
 | `refused_live_sessions` | A session of a runtime role is open (the count is printed). Stop what holds it and retry |
-| `refused_new_realm_unavailable` / `refused_new_realm_incomplete` / `refused_new_realm_issuer_mismatch` | The new realm could not be read completely, published no signing key, changed while it was read, or names another issuer. Check the credential's role and the realm's address |
+| `refused_new_realm_unavailable` / `refused_new_realm_incomplete` / `refused_new_realm_issuer_mismatch` | The new realm could not be read completely, published no signing key, changed while it was read, is too large, or names another issuer. Check the credential's role and the realm's address |
 | `refused_continuity_broken` | See above |
-| `refused_audit_failed` | The audit row could not be written, so the change was rolled back |
-| `refused_commit_failed` | The commit failed and the stored issuer was read back unchanged. Retry |
+| `refused_audit_failed` | The audit row could not be written, so the change was rolled back or never begun |
+| `refused_commit_failed` | The commit failed and the stored issuer was read back unchanged, after the original transaction had ended. Retry |
 | `refused_cancelled` | The ten-minute deadline or an interrupt ended the run |
+| `refused_unexpected` | A defect. Nothing is known to have changed: read the stored issuer, then escalate |
 
 Every refusal leaves the stored issuer where it was and the next run repeats the whole
 proof. The intent row stays, so the trail shows each attempt.
@@ -161,7 +197,11 @@ configuration is the unfreeze.**
    start with the fixed qualification error: that is the guard, not a bug.
 2. Delete the read-only realm client and remove `ConnectionStrings__IdentityRebind`
    from the tool's host.
-3. Confirm one sign-in per tenant host and look at the audit rows:
+3. Retire the role's credential: set a new password with
+   `ALTER ROLE learnstack_identity_rebind PASSWORD '<new>'` and discard it, or keep the
+   role `NOLOGIN` outside windows and `LOGIN` for the next one. The roles script
+   restores `LOGIN` every time it runs, so rotate or disable after any rerun of it.
+4. Confirm one sign-in per tenant host and look at the audit rows:
 
    ```sql
    -- as a role that can read audit_log, not the rebind role
@@ -181,18 +221,22 @@ configuration is the unfreeze.**
 is a short-lived process: it exports them only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
 in its environment, and the printed line and the audit rows are the record otherwise.
 `learnstack_identity_lock_refusals_total{lock_kind="authority"}` counts a user creation
-that waited out a rebind and found the issuer changed.
+that could not take the shared rebind lock in time (`reason` `timeout`, `cancelled` or
+`fault`) and, with `reason="mismatch"`, one that waited out a rebind and found the issuer
+changed. A burst of `timeout` is what a window looks like from the API side.
 
 ## Not recoverable here
 
 - **A change of the stable authority identifier.** It re-keys every person and can
   resurrect a closed tombstone. There is no tool for it; escalate.
-- **A realm rename or a different realm path.**
+- **A realm rename.**
 - **A running process that held no database connection** when the tool ran. It keeps the
   old issuer until it restarts, and then fails its start on the mismatch. The stop step
   is the control for it, not the database.
 - **A wrong rebind that was applied.** Run the tool again with the old issuer as the
   target; the same proof and the same rows apply.
+- **A realm of more than 200,000 users.** The proof cannot finish in the deadline;
+  escalate.
 
 ## What this does not do
 

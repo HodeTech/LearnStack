@@ -126,6 +126,11 @@ public sealed class PlatformOperatorTokenValidator(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executor);
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        if (executor is not (PlatformOperatorSettings.Executor or PlatformOperatorSettings.RebindToolExecutor))
+        {
+            throw new ArgumentException("The executor is not a registered operator executor.", nameof(executor));
+        }
+
         if (string.IsNullOrWhiteSpace(token))
         {
             return PlatformOperatorValidationResult.Refused("token_missing");

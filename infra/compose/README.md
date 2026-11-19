@@ -91,8 +91,8 @@ and the P03-9 Step 3 Identity migration requires the sixth. For a warm volume, s
 private environment, recreate the postgres container with the existing volume to pass
 the new environment values, then apply the roles script above before `make migrate`.
 Do not delete a volume to add a role. The sixth role's connection string is never a
-compose or host setting: it exists only in the environment of the offline rebind tool. No runtime process receives the migration
-password. The [database contract](../../docs/standards/05-database.md#provider-event-intake-storage)
+compose or host setting: it exists only in the environment of the offline rebind tool.
+No runtime process receives the migration password. The [database contract](../../docs/standards/05-database.md#provider-event-intake-storage)
 owns the private machine source and its bounds; installing storage alone does
 not activate provider polling.
 

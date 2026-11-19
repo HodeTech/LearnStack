@@ -17,9 +17,10 @@ namespace LearnStack.Tests.Integration.Database;
 [Collection(SharedSchema.Name)]
 public sealed class GlobalIdentityUnitOfWorkTests(SchemaFixture schema)
 {
+    // The authority the shared schema fixture installed: a creation owner reads the stored authority and issuer after the
+    // rebind lock (ADR-0104 § 5), so a subject under any other pair is a process that qualified against other facts.
     private static readonly GlobalIdentitySubject Subject = new(
-        IdentityAuthorityId.From(Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002501")),
-        "https://identity.example/realms/learnstack", "unit-owner-proof-subject");
+        IdentityMembershipFixture.Authority.AuthorityId, IdentityMembershipFixture.Authority.Issuer, "unit-owner-proof-subject");
 
     [Fact]
     public async Task Read_only_global_owner_announces_only_self_authority_and_clears_unrelated_session_values()

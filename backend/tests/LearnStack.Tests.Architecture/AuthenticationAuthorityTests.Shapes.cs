@@ -365,8 +365,13 @@ public sealed partial class AuthenticationAuthorityTests
     /// </summary>
     private static bool IsOperatorTokenProfileRead(Call call) =>
         call.Source.Owner.FullName == OperatorValidation + "PlatformOperatorTokenProfile" && call.Source.Name == "TryRead"
+        // Exact members, so a later edit that reads a claim, a role or an identity in the validator is still flagged:
+        // the stock handler's validation call and the three members of its result the decision needs.
         || call.Source.Owner.FullName == OperatorValidation + "PlatformOperatorTokenValidator"
-            && call.Source.Name is "ValidateAsync" or ".cctor";
+            && (call.Source.Name == "ValidateAsync"
+                && call.Target.Name is "ValidateTokenAsync" or "get_IsValid" or "get_Exception" or "get_SecurityToken"
+                || call.Source.Name == ".cctor"
+                && call.Target.Name is ".ctor" or "set_MapInboundClaims");
 
     private static bool IsClosedRolesAbsenceCheck(Call call)
     {

@@ -28,6 +28,27 @@ public sealed class PlatformOperatorAuthenticationTests
     private const string Issuer = "https://operator.example.test/realms/learnstack-hub";
     private static readonly DateTimeOffset Now = new(2026, 11, 19, 9, 0, 0, TimeSpan.Zero);
 
+    [Theory]
+    [InlineData("operator.other")]
+    [InlineData("")]
+    [InlineData("OPERATOR.API")]
+    public void Only_The_Two_Registered_Executors_Can_Be_Named_In_A_Witness(string executor)
+    {
+        var read = () => PlatformOperatorTokenProfile.TryRead(Token(), Settings(), Now, executor, "00-trace-01", out _, out _);
+
+        read.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void The_Offline_Tool_Executor_Is_Accepted_And_Recorded()
+    {
+        PlatformOperatorTokenProfile.TryRead(
+            Token(), Settings(), Now, PlatformOperatorSettings.RebindToolExecutor, "00-trace-01", out var witness, out _)
+            .Should().BeTrue();
+
+        witness!.Executor.Should().Be("operator.rebind");
+    }
+
     [Fact]
     public void A_Token_Meeting_The_Whole_Profile_Yields_A_Witness_For_The_Pinned_Issuer()
     {

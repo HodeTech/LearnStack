@@ -27,6 +27,12 @@ internal static class IdentityAuthorityRebindDdl
     internal static void Add(MigrationBuilder migration)
     {
         migration.Sql("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'learnstack_identity_rebind') THEN
+                RAISE EXCEPTION 'The issuer-rebind storage requires the learnstack_identity_rebind role; apply infra/compose/postgres-init/02-create-roles.sql with LEARNSTACK_IDENTITY_REBIND_PW set, then migrate again.' USING ERRCODE='23514';
+            END IF;
+        END $$;
+
         GRANT SELECT ON public.identity_authority TO learnstack_identity_rebind;
         GRANT UPDATE (issuer) ON public.identity_authority TO learnstack_identity_rebind;
         GRANT SELECT (authority_id, subject_key, provider_subject, status) ON public.users TO learnstack_identity_rebind;

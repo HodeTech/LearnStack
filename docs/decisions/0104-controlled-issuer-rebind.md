@@ -187,8 +187,10 @@ and the runbook follow.
 ## Amendment 1 — Implementation contract of the rebind tool (2026-11-20)
 
 Step 3 of the platform-authority packet implements the decision. Each item below fixes
-something the Decision left open or states where the code meets it; none changes the
-Decision, the role's grants or the proof's rules.
+something the Decision left open or states where the code meets it. Item 4 widens the
+freeze check beyond the roles § 5 lists and item 10 records a residual the Decision did
+not state; none of them changes the Decision's choice of option, the role's grants or
+the proof's rules.
 
 1. **Where the code lives.** The database half, `IdentityIssuerRebind`, lives in the
    Identity module's Infrastructure `Bindings` namespace so unit and integration
@@ -198,52 +200,76 @@ Decision, the role's grants or the proof's rules.
    and the tool take one definition of the parameters, the bounded metadata manager and
    the closed profile. The witness minter stays one class; the tool is a second caller
    of the profile, with the executor `operator.rebind`, which is the "second sanctioned
-   caller" of § 3.
+   caller" of § 3. An architecture rule pins the callers of the profile and of the
+   offline validator.
 2. **The order.** The exclusive lock is the first statement of the transaction, held
    by a server-side `lock_timeout` of 30 seconds, so the tool waits for another rebind
    and refuses with a class. Under the lock it reads the stored authority. A run whose
-   target already equals the stored issuer ends there, with no row. Otherwise the intent
-   row commits on a second connection before the freeze check, the proof or the change.
-   An authority that is not the configured one is a continuity refusal, so it follows
-   the intent row.
+   target already equals the stored issuer, under the same authority, ends there, with
+   no row. Otherwise the intent row commits on a second connection before the freeze
+   check, the proof or the change. An authority that is not the configured one is a
+   continuity refusal, so it follows the intent row. An unknown COMMIT is reconciled on
+   a fresh connection that first takes the shared lock, so it reads the issuer only
+   once the original transaction has ended.
 3. **The audit rows.** The two operations are `identity.authority.rebind_attempt`,
    outcome `indeterminate`, and `identity.authority.rebind`, outcome `success`, with the
    reason slug `issuer_rebind`, the entity type `IdentityAuthority` and the authority
    id as the entity. The policy arm admits exactly those two operation-and-outcome pairs
-   and no other row, and the central audit installer owns the `audit_log` SQL, as it
-   does for the creation witness. The result row carries counts and no subject.
+   and no other row, the ordinary tenant arm excludes the role so that an announced
+   tenant cannot widen it, and the central audit installer owns the `audit_log` SQL, as
+   it does for the creation witness. The result row carries counts and no subject.
 4. **The freeze check counts the platform role too.** The platform role runs in the same
    hosts as the application role, and an idle pooled connection of any of the four is
    still a session. The check reports a count and never a session's identity. A pooled
    connection stays a session until its idle lifetime ends, so the runbook's stop step
-   includes waiting for it.
-5. **"Reads the new value" needs a comparison.** A lock alone only makes a creation
-   wait. Authority qualification takes the shared lock and then reads under a fresh
-   snapshot, and the User-creation admission takes the shared lock, reads the stored
-   authority and issuer, and refuses the creation when they are not the facts its process
-   qualified with. The two auxiliary read sources of the authorization and evidence
-   lanes take no lock: they run under a five-second total startup deadline, and a start
-   that straddles the change already fails at the locking read or at their own
-   comparison.
+   includes waiting for it. The check runs before the realm is read and again just
+   before the change.
+5. **"Reads the new value" needs a comparison, and "waits" is bounded.** A lock alone
+   only makes a creation wait. Authority qualification takes the shared lock and then
+   reads under a fresh snapshot, and the User-creation admission takes the shared lock,
+   reads the stored authority and issuer, and refuses the creation when they are not
+   the facts its process qualified with. A creation waits for the lock for the two
+   seconds of its `lock_timeout` and is refused after that, and a start waits for the
+   command timeout, thirty seconds, and then fails its start with the fixed
+   qualification error. The two auxiliary read sources of the authorization and
+   evidence lanes take no lock: they run under a five-second total startup deadline,
+   and a start that straddles the change already fails at the locking read or at their
+   own comparison.
 6. **The role is checked before it is used.** The tool refuses unless the session is the
    rebind role, it holds no inherited, bypass, superuser, creation or replication
-   attribute and no membership, no privilege on any other table, and exactly the
-   declared column grants.
+   attribute and no membership, no privilege on any other relation, and exactly the
+   declared grants on the three it uses, compared column by column in both directions.
 7. **Continuity details the Decision left open.** A Closing user that still holds its
    subject is judged by neither rule, because closure owns that transition; a Closing
    user that holds only its key is judged like a Closed one. A reported subject that
    cannot be a LearnStack subject is counted and cannot equal any stored one. Presence is
-   the exact ordinal subject.
+   the exact ordinal subject. The new realm is read in full twice and the reads must
+   report the same users with none repeated, so a realm that changes while it is read is
+   refused; a realm above 200,000 users is refused because the proof cannot finish in
+   the tool's ten-minute deadline; a token that expires mid-enumeration is acquired
+   again once per request; and the credential is sent only after the realm's discovery
+   document names the target issuer.
 8. **Inputs and exit codes.** The operator token comes from the environment or one line of
    standard input and the ticket, the realm client and its secret from the environment;
-   an argument is refused. The deployment mode is explicit, because it decides whether
-   a loopback operator issuer and the demo operator's grant are admitted. The tool
-   prints one line of classes and counts, with the correlation id that finds the rows,
+   an argument is refused. The deployment mode is a declared name exactly, because it
+   decides whether a loopback operator issuer and the demo operator's grant are admitted,
+   and outside Development the target issuer must be HTTPS. The tool prints one line of
+   classes and counts to standard output, with the correlation id that finds the rows,
    and exits `0` for applied or already applied, `2` for a refusal that left the state
-   unchanged and `3` when the commit's outcome could not be read back.
+   unchanged and `3` when the commit's outcome could not be read back. An interrupt or a
+   termination signal ends the run as the deadline does.
 9. **Signals in a short-lived process.** The counters are defined in the library and
    exported by the tool only when an OTLP endpoint is configured in its environment;
    the printed line and the audit rows are the record otherwise.
+10. **What the credential holder can do, and "the same realm path".** The tool checks the
+    operator's token, grant and attribution; the database does not force them. The role
+    holds `UPDATE (issuer)` and can insert a row of the admitted shape, so whoever holds
+    its password can change the issuer, or record a rebind that did not happen, without
+    the tool. The runbook therefore keeps the password apart from the operator's
+    identity and retires it after the window. A database-enforced pairing of the change
+    and its result row would need a confined definer that reads `audit_log`, and is the
+    maintainer's decision. "The same realm path" means the realm name: the issuer must
+    still end in `/realms/learnstack`, and the path before it may change.
 
 The Decision, Status, Date and prior amendments of this record are unchanged.
 Acceptance of the linked records is not proof that anything they decide is implemented.

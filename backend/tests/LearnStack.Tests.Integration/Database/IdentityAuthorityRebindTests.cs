@@ -114,6 +114,23 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
     [InlineData(false, "GRANT SELECT (id) ON public.users TO learnstack_identity_rebind", "REVOKE SELECT (id) ON public.users FROM learnstack_identity_rebind")]
     [InlineData(false, "GRANT SELECT ON public.audit_log TO learnstack_identity_rebind", "REVOKE SELECT ON public.audit_log FROM learnstack_identity_rebind")]
     [InlineData(false, "GRANT CREATE ON SCHEMA public TO learnstack_identity_rebind", "REVOKE CREATE ON SCHEMA public FROM learnstack_identity_rebind")]
+    [InlineData(true, "ALTER ROLE learnstack_identity_rebind CREATEROLE", "ALTER ROLE learnstack_identity_rebind NOCREATEROLE")]
+    [InlineData(true, "ALTER ROLE learnstack_identity_rebind REPLICATION", "ALTER ROLE learnstack_identity_rebind NOREPLICATION")]
+    [InlineData(true, "ALTER ROLE learnstack_identity_rebind BYPASSRLS", "ALTER ROLE learnstack_identity_rebind NOBYPASSRLS")]
+    [InlineData(true, "ALTER ROLE learnstack_identity_rebind SUPERUSER", "ALTER ROLE learnstack_identity_rebind NOSUPERUSER")]
+    [InlineData(true, "GRANT learnstack_identity_rebind TO learnstack_app", "REVOKE learnstack_identity_rebind FROM learnstack_app")]
+    [InlineData(false, "GRANT UPDATE (status) ON public.users TO learnstack_identity_rebind", "REVOKE UPDATE (status) ON public.users FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT SELECT (deleted_by) ON public.users TO learnstack_identity_rebind", "REVOKE SELECT (deleted_by) ON public.users FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT UPDATE (id) ON public.identity_authority TO learnstack_identity_rebind", "REVOKE UPDATE (id) ON public.identity_authority FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT INSERT ON public.identity_authority TO learnstack_identity_rebind", "REVOKE INSERT ON public.identity_authority FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT SELECT (before_state) ON public.audit_log TO learnstack_identity_rebind", "REVOKE SELECT (before_state) ON public.audit_log FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT UPDATE (outcome) ON public.audit_log TO learnstack_identity_rebind", "REVOKE UPDATE (outcome) ON public.audit_log FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT DELETE ON public.tenants TO learnstack_identity_rebind", "REVOKE DELETE ON public.tenants FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT TRUNCATE ON public.tenants TO learnstack_identity_rebind", "REVOKE TRUNCATE ON public.tenants FROM learnstack_identity_rebind")]
+    // A declared grant that is missing is drift too: the proof reads users through four columns and changes one.
+    [InlineData(false, "REVOKE UPDATE (issuer) ON public.identity_authority FROM learnstack_identity_rebind", "GRANT UPDATE (issuer) ON public.identity_authority TO learnstack_identity_rebind")]
+    [InlineData(false, "REVOKE INSERT ON public.audit_log FROM learnstack_identity_rebind", "GRANT INSERT ON public.audit_log TO learnstack_identity_rebind")]
+    [InlineData(false, "REVOKE SELECT (status) ON public.users FROM learnstack_identity_rebind", "GRANT SELECT (status) ON public.users TO learnstack_identity_rebind")]
     public async Task A_Role_That_Holds_Anything_Beyond_Its_Grants_Is_Refused_Before_The_Lock(bool clusterWide, string escalate, string restore)
     {
         await using var proof = await Proof.CreateAsync(parent, active: 1);
@@ -202,7 +219,7 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
         int? seen;
         await using (var session = await proof.OpenSessionAsync(role))
         {
-            var refused = await proof.RunAsync(admission, realm);
+            var refused = await proof.RunAsync(admission, realm, settle: false);
             refused.Refusal.Should().Be(IdentityRebindRefusal.LiveSessions);
             seen = refused.LiveSessions;
         }
@@ -306,7 +323,7 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
     }
 
     [Fact]
-    public async Task A_Run_Killed_Between_The_Intent_Row_And_The_Main_Transaction_Leaves_The_Intent_And_No_Change()
+    public async Task A_Run_Cancelled_During_The_Realm_Read_Leaves_The_Intent_Row_And_No_Change()
     {
         await using var proof = await Proof.CreateAsync(parent, active: 1);
         var admission = RebindProofSupport.Admit();
@@ -323,6 +340,61 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
         outcome.Refusal.Should().Be(IdentityRebindRefusal.Cancelled);
         (await proof.IssuerAsync()).Should().Be(proof.OldIssuer);
         (await proof.AuditRowsAsync(admission)).Should().ContainSingle().Which.Operation.Should().Be("identity.authority.rebind_attempt");
+    }
+
+    [Fact]
+    public async Task An_Intent_Row_That_Cannot_Be_Written_Refuses_The_Run_Before_Any_Proof()
+    {
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        var admission = RebindProofSupport.Admit();
+        var realm = FixedRealm.Reporting(proof.Subjects);
+
+        var outcome = await proof.RunAsync(admission, realm, configure: store => store.FailIntent = true);
+
+        outcome.Refusal.Should().Be(IdentityRebindRefusal.AuditFailed);
+        realm.Reads.Should().Be(0, "an attempt that cannot be recorded is not made");
+        (await proof.IssuerAsync()).Should().Be(proof.OldIssuer);
+        (await proof.AuditRowsAsync(admission)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Database_That_Cannot_Be_Reached_And_A_Malformed_Connection_String_Are_Refused_Without_A_Throw()
+    {
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        var closedPort = new NpgsqlConnectionStringBuilder(proof.RebindConnection) { Host = "127.0.0.1", Port = 1, Timeout = 2 }.ConnectionString;
+
+        (await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: closedPort))
+            .Refusal.Should().Be(IdentityRebindRefusal.DatabaseUnavailable);
+        (await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: "Host=;;=Username"))
+            .Refusal.Should().Be(IdentityRebindRefusal.RoleInvalid);
+    }
+
+    [Fact]
+    public async Task A_Commit_Reconciliation_Waits_For_The_Original_Transaction_And_Never_Reports_A_False_Unchanged()
+    {
+        // The session dies at COMMIT and something still holds the rebind lock when the run asks what became of it: the
+        // answer is not knowable yet, so the run says so instead of reading the old issuer and claiming "unchanged".
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        var admission = RebindProofSupport.Admit();
+        IAsyncDisposable? held = null;
+        try
+        {
+            var outcome = await proof.RunAsync(admission, FixedRealm.Reporting(proof.Subjects), lockWait: TimeSpan.FromSeconds(1),
+                configure: store => store.AfterResult = async connection =>
+                {
+                    await parent.Postgres.ExecuteAsSuperuserAsync(
+                        $"SELECT pg_terminate_backend({((NpgsqlConnection)connection).ProcessID})");
+                    held = await proof.HoldRebindLockAsync();
+                });
+
+            outcome.Result.Should().Be(IdentityRebindResult.Unknown);
+        }
+        finally
+        {
+            if (held is not null) await held.DisposeAsync();
+        }
+
+        (await proof.IssuerAsync()).Should().Be(proof.OldIssuer);
     }
 
     [Fact]
@@ -443,8 +515,12 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
             IdentityAuthorityRegistration? target = null,
             TimeSpan? lockWait = null,
             Action<FaultingAuditStore>? configure = null,
+            bool settle = true,
             CancellationToken cancellation = default)
         {
+            // A session this test's own reads opened is gone before the next run asks the freeze question, unless the
+            // test keeps one open on purpose and says so.
+            if (settle) await SettleAsync();
             await using var scope = RebindProofSupport.Store();
             var store = new FaultingAuditStore(scope.ServiceProvider.GetRequiredService<IAuditStore>());
             configure?.Invoke(store);
@@ -458,11 +534,30 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
 
         internal async Task<Guid> AuthorityAsync() => await ReadAsync<Guid>("SELECT authority_id FROM public.identity_authority");
 
+        // Read as the owner: the owner is not a runtime role, so a read between two runs is never a session the freeze counts.
         private async Task<T> ReadAsync<T>(string sql)
         {
-            await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database.AppConnectionString);
+            await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(OwnerConnection);
             await using var command = new NpgsqlCommand(sql, connection);
             return (T)(await command.ExecuteScalarAsync())!;
+        }
+
+        /// <summary>Waits until no session of a runtime role is left on the database, as a stopped fleet leaves none.</summary>
+        internal async Task SettleAsync()
+        {
+            await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(OwnerConnection);
+            var deadline = System.Diagnostics.Stopwatch.StartNew();
+            while (deadline.Elapsed < TimeSpan.FromSeconds(15))
+            {
+                var remaining = await IdentityMembershipFixture.ScalarAsync<long>(owner, null,
+                    """
+                    SELECT count(*) FROM pg_catalog.pg_stat_activity
+                    WHERE datname = current_database() AND pid <> pg_catalog.pg_backend_pid()
+                      AND usename IN ('learnstack_app', 'learnstack_outbox_admin', 'learnstack_identity_ingress', 'learnstack_platform')
+                    """);
+                if (remaining == 0) return;
+                await Task.Delay(50);
+            }
         }
 
         internal async Task<List<StoredUser>> UsersAsync()

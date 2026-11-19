@@ -14,7 +14,9 @@ namespace LearnStack.Infrastructure.Audit;
 /// them, because a second permissive policy would combine with <c>OR</c> and widen every row.
 /// </para>
 /// <para>
-/// The arm admits exactly the two rebind operations with their one outcome each, the platform sentinel tenant, the
+/// The existing tenant arm is restated with the rebind role excluded from it: that arm admits whatever tenant a
+/// session announces, any session can announce one, and a role whose row the policy is meant to bound must not be able
+/// to widen it. The rebind arm admits exactly the two rebind operations with their one outcome each, the platform sentinel tenant, the
 /// identity module, no organization, no actor and no network or mail attribution, and an operator attribution in
 /// <c>metadata</c>. The role holds no <c>SELECT</c>, <c>UPDATE</c> or <c>DELETE</c> on the table, and the append-only
 /// guards are unchanged.
@@ -40,7 +42,8 @@ public static class IdentityRebindAuditInstaller
 
         ALTER POLICY audit_log_isolation ON public.audit_log
             WITH CHECK (
-                (tenant_id = NULLIF(current_setting('app.tenant_id',true),'')::uuid
+                (current_user <> 'learnstack_identity_rebind'
+                 AND tenant_id = NULLIF(current_setting('app.tenant_id',true),'')::uuid
                  AND ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id',true),'') IS NULL)
                       OR organization_id = NULLIF(current_setting('app.organization_id',true),'')::uuid))
                 OR (current_user='learnstack_app'

@@ -207,6 +207,8 @@ public sealed class IdentityAuthorityRebindStorageTests(PublicReadFixture parent
             ("another reason", AuditInsert(Row(reason: "host_map"))),
             ("an actor", AuditInsert(Row(actor: Guid.CreateVersion7().ToString("D")))),
             ("a mail address", AuditInsert(Row(email: "operator@example.test"))),
+            ("a network address", AuditInsert(Row(ip: "203.0.113.7"))),
+            ("a user agent", AuditInsert(Row(agent: "rebind-tool"))),
             ("no operator attribution", AuditInsert(Row(metadata: "{}"))),
         };
         foreach (var (why, insert) in refused)
@@ -230,6 +232,42 @@ public sealed class IdentityAuthorityRebindStorageTests(PublicReadFixture parent
         {
             (await proof.Rebind.RefusalAsync(statement)).Should().Be("42501", statement);
         }
+    }
+
+    [Fact]
+    public async Task The_Role_Cannot_Widen_Its_Row_By_Announcing_A_Tenant_Of_Its_Own_Choosing()
+    {
+        // Any session can set the tenant setting the ordinary arm reads, so the arm must not admit this role at all:
+        // otherwise the policy that is meant to bound the role's rows would be whatever the role announced.
+        await using var proof = await Proof.CreateAsync(parent);
+        var victim = Guid.CreateVersion7().ToString("D");
+
+        foreach (var (why, tenant, operation, module) in new[]
+        {
+            ("a tenant's own trail", victim, "tenancy.tenant.suspend", "tenancy"),
+            ("the sentinel under another operation", Sentinel, "platform.killswitch.toggle", "platform"),
+            ("the sentinel under an identity operation", Sentinel, "identity.role.initialize", "identity"),
+        })
+        {
+            var announce = $"SELECT set_config('app.tenant_id', '{tenant}', true); ";
+            var insert = AuditInsert(Row(tenant: tenant, module: module, operation: operation, outcome: "success"));
+            (await proof.Rebind.RefusalAsync(announce + insert)).Should().Be("42501", why);
+        }
+    }
+
+    [Fact]
+    public async Task The_Rebind_Arm_Admits_The_Rebind_Role_And_No_Other_Role()
+    {
+        // The owner holds the privilege and no tenant or application arm applies to it, so only the role predicate of
+        // the rebind arm stands between it and a platform-sentinel row of exactly the admitted shape.
+        await using var proof = await Proof.CreateAsync(parent);
+        await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.MigrationConnectionString);
+        await using var transaction = await owner.BeginTransactionAsync();
+        await using var command = new NpgsqlCommand(AuditInsert(Row()), owner, transaction);
+
+        var act = async () => await command.ExecuteNonQueryAsync();
+
+        (await act.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
     }
 
     [Fact]
@@ -271,9 +309,11 @@ public sealed class IdentityAuthorityRebindStorageTests(PublicReadFixture parent
         string operation = "identity.authority.rebind_attempt", string operationType = "SecurityEvent",
         string operationClass = "Must", string entityType = "IdentityAuthority", string outcome = "indeterminate",
         string reason = "issuer_rebind", string? actor = null, string? email = null,
-        string metadata = """{"operator":{"issuer":"https://operator.example.test/realms/learnstack-hub"}}""") =>
+        string metadata = """{"operator":{"issuer":"https://operator.example.test/realms/learnstack-hub"}}""",
+        string? ip = null, string? agent = null) =>
         string.Join('\u001f', tenant, organization ?? string.Empty, module, operation, operationType, operationClass,
-            entityType, outcome, reason, actor ?? string.Empty, email ?? string.Empty, metadata);
+            entityType, outcome, reason, actor ?? string.Empty, email ?? string.Empty, metadata, ip ?? string.Empty,
+            agent ?? string.Empty);
 
     private static string AuditInsert(string row)
     {
@@ -282,9 +322,10 @@ public sealed class IdentityAuthorityRebindStorageTests(PublicReadFixture parent
         return $"""
             INSERT INTO public.audit_log
                 (id, tenant_id, organization_id, actor_user_id, actor_email, module, operation, operation_type,
-                 operation_class, entity_type, entity_id, outcome, reason, metadata, timestamp)
+                 operation_class, entity_type, entity_id, outcome, reason, metadata, ip_address, user_agent, timestamp)
             VALUES (uuidv7(), '{f[0]}', {Nullable(f[1])}, {Nullable(f[9])}, {Nullable(f[10])}, '{f[2]}', '{f[3]}', '{f[4]}',
-                    '{f[5]}', '{f[6]}', 'authority', '{f[7]}', '{f[8]}', '{f[11]}'::jsonb, now())
+                    '{f[5]}', '{f[6]}', 'authority', '{f[7]}', '{f[8]}', '{f[11]}'::jsonb,
+                    {(f[12].Length == 0 ? "NULL" : $"'{f[12]}'::inet")}, {Nullable(f[13])}, now())
             """;
     }
 
