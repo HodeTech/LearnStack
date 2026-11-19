@@ -509,6 +509,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 138 lines
+  - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24166,3 +24168,141 @@ delegated-account review. G20 is decided no later than the first packet that add
 assignable permission key. P03-10 DSAR and global closure, which integrates
 `federation_connections` and its broker, and P03-11 exit enforcement remain unstarted.
 Phase 03 stays in progress; this closeout starts no next packet.
+
+## P03-9 — Platform authority and operational recovery
+
+### P03-9 proposed platform authority and recovery package (2026-11-19)
+
+**Status: Proposed.** The maintainer requests P03-9 through `implement-task` on
+`development`, with a review of every existing governing document before
+implementation, explicit approval of any new ADR before its dependent code, and every
+decision that needs the maintainer shown up front. Each implementation step takes a
+commit, a fresh independent review round one, verified fixes and a commit, then a
+different fresh review round two, verified fixes and a commit. The work continues
+between steps without an unnecessary stop. No Fable model is used.
+
+The baseline is clean `development` at `ed454f3a`. The request cites a
+`docs/roadmap/current.md` that does not exist; the scope below comes from the
+[Phase 03](phase-03-identity-admin.md) P03-9 row, gates G13 and G14, deliverables
+D12/D13 and criteria C14/C15/C19. This proposal changes no register status, claims no
+runtime behavior and authorizes no code.
+
+#### Problem, document review and decision boundary
+
+P03-9 delivers the first real Platform authority and the operational recovery that
+privileged execution has waited on since Phase 02a. The gate still refuses everyone, no
+operator is authenticated anywhere, and production has no tenant, first administrator,
+issuer-rebind or recovery path outside the development seed. G13 and G14 are Open.
+
+Four independent read-only reviews compared the P03-9 text with ADR-0004/0015/0033/
+0034/0035/0036/0044/0045/0046/0047/0058/0064/0070/0072/0073/0074/0076/0077/0093/0097/
+0099/0100, Standards 04/05/11/18/19/20/21, Architecture 13/15/23/28/30, the Identity and
+Tenancy module specifications, the realm exports, the Phase 02b/02c/11 text and the
+code at `HEAD`. The maintainer's session re-verified the headline findings: the gate
+and scope signatures, the null actor and correlation in the entry row, the absence of an
+HTTP mapping for `PlatformAdminScopeDeniedException`, the singleton registration, the
+absence of any production caller of `EnterAsync` and `ReplayAsync`, the missing
+`/admin/hangfire` mapping, the platform role's lack of any grant on
+`federation_connections`, and that the tenant OpenAPI document includes only `/api/v1`
+paths. The load-bearing findings are:
+
+| Finding at HEAD | Action |
+|---|---|
+| ADR-0036 routes operators through `/api/internal` under the Hub chain; ADR-0004 says that chain is independent of the operator JWT | ADR-0101 chooses a direct operator scheme; ADR-0004 and ADR-0036 disclosures |
+| Standard 04 writes `/api/v1/platform/...`; ADR-0036 leaves the URL space open | ADR-0101 fixes `/api/platform/v1`; Standard 04 edit |
+| Standard 11 says the hub realm serves only the Hub portal | Standard 11 edit under ADR-0101 |
+| "A real actor" is claimed for the scope row; the row carries null actor and correlation | ADR-0045 disclosure; matrix rewritten with Step 1 |
+| Standard 18 says the scope reason is shown to tenant admins; sentinel rows are tenant-invisible | ADR-0101 § 9 and a Standard 18 clarification |
+| The gate has no principal and is a singleton; its comments call permissions absent | ADR-0101 § 7 and § 8; comments corrected in Step 1 |
+| ADR-0015 still guides a realm-role dashboard gate | ADR-0103 and ADR-0015 Amendment 2 |
+| Phase 11 asserts producer replay and job requeue exist | Conditional rewrite at acceptance |
+| D13 says the dashboard is admitted; its safe admission conditions do not hold | ADR-0103 § 8; D13 reworded |
+| ADR-0099 defines an orphan as a missing row; delete keeps a tombstone | ADR-0099 Amendment 10 covers absent and `Deleted` rows |
+| ADR-0100 expects Platform keys to recur the OpenAPI refusal | A Platform key is non-assignable; disclosure at acceptance |
+| The `(planned)` matrix row fails coverage once its slug is registered | Row and registration change in one commit |
+| `docs/runbooks/` is a Phase 11 deliverable that does not exist; D12/D13 need runbooks | Created in Step 1; Standards 12 and 13 amended |
+| CODEOWNERS is cited as enforcing in four documents; the file is absent | Recorded for G20; not changed here |
+| The Seeder refuses no deployment mode | ADR-0102 § 11 |
+
+#### Choices presented together
+
+- **Operator authentication.** A separate strict scheme at a pinned issuer, by default
+  the `learnstack-hub` realm, audience `learnstack-platform`, MFA by `acr`, human
+  operators only, on `/api/platform/v1/*`. No Hub forwarding and no service operator.
+- **Grants.** A port with a configuration adapter, evaluated per act; a table adapter on
+  a named trigger. Keycloak roles carry no authority.
+- **Denied evidence.** A counter and a log, with no durable row, because a durable row
+  needs a bypass connection for a refused caller or a third sentinel class.
+- **Onboarding.** Operator-admitted acts on the app role through the ordinary pipeline:
+  provision a tenant and map its hosts, create Role templates, create the first
+  administrator, recover. The person is named by provider subject and must have signed
+  in once. The platform role is not used.
+- **Issuer rebind.** An offline operator act through the installer tool: stopped fleet
+  checked by a session test, a continuity proof over every stored subject key, a guarded
+  column and a result row. No HTTP rebind and no runtime freeze.
+- **Recovery.** Metadata-only inspection, targeted subscriber replay with a stale-state
+  fence, and a narrow producer reset limited to `retry_exhausted`, all on a confined
+  outbox-role owner with no new grant.
+- **Not admitted, with owners.** Job requeue and reservation release until a provider
+  can prove quiescence (Phase 08a, Phase 11); recurrence recovery (Phase 11); every
+  dashboard form.
+- **Federation operator steps.** Admitted as ADR-0099 Amendment 10, written at
+  acceptance: a separate operator port that lists marker-bearing brokers, reports each
+  class, removes an orphan or unreadable owned broker and disables a nonconforming
+  readable one at the provider only, with the row left to the tenant readback. The
+  platform role gains a column-limited `SELECT` on `federation_connections` (id, tenant,
+  state, deletion time). The delegated-account review is a runbook, because no
+  LearnStack credential may enumerate or remove realm users and the brokered link events
+  expire after seven days. The result rows of a disable or removal name the review as
+  owed.
+- **G20.** Not triggered. Every P03-9 key is a non-assignable Platform key, no tenant
+  field changes, and the tenant document stays byte-identical. G20 stays Open for the
+  first assignable key.
+- **Operator client.** The served operator document is the contract. This repository
+  ships no operator screen and no command-line client; the Hub operator portal, not
+  started, is the intended interface. Runbooks give the exact requests.
+
+#### Experience, performance and security confirmation
+
+- **Experience.** Every operator write has a report or inspection first. Responses use
+  closed Problem Details types with the next step named: stale fence (re-inspect),
+  bootstrap required (the person signs in first), audit unavailable (retry is safe),
+  forbidden (which permission). Writes accept an idempotency key. Runbooks carry exact
+  requests and the expected rows.
+- **Performance.** Operator routes are low volume and add nothing to tenant requests:
+  no admission read on the authentication hot path and no freeze flag. Grants are
+  in-memory. Inspections are cursor-paged on existing indexes with an enforced page
+  cap, and the federation listing is paged with a deadline.
+- **Security.** Two disjoint schemes and prefixes; admission before any privileged
+  credential; the platform role only for acts that need it; no raw provider connection
+  in the scope handle; every result row in the state's transaction; a Seeder mode
+  refusal. The hazards the reviews found map to the proofs in each ADR.
+
+#### Four implementation steps after approval
+
+1. **Operator authority and killswitch.** Realm client and audience, the scheme,
+   witness, Platform catalogue, grant source, gate, scope redesign, result seam, route
+   census, problem mapping, the killswitch writer, matrix and Standard 19 rows, and the
+   operator-access and killswitch runbooks.
+2. **Production onboarding and issuer rebind.** The operator source and its setter
+   call, the resolver, the four acts and routes, the rebind verb with its guard
+   migration and canonical SQL, the Seeder refusal and the onboarding runbook.
+3. **Operational recovery.** The confined owner, inspection, replay and reset with
+   fences, the two witness seams, census edits, the ADR-0015 and ADR-0046 disclosures
+   and the recovery runbook.
+4. **Federation operator steps.** ADR-0099 Amendment 10, the operator port, report,
+   removal and disable, the column grant, the adapter route census update and
+   the federation operator runbook.
+
+Closeout follows: Status, the register, Phase 11 rewrites and the delivery record. Each
+step ends with its own commit, review rounds and verified fixes before the next begins.
+
+#### Carriers owed at acceptance
+
+Accepting ADR-0101, ADR-0102 and ADR-0103 would close G13 and G14 and name this package
+as their record. Dated disclosures follow in ADR-0004, ADR-0015 (Amendment 2),
+ADR-0036, ADR-0040, ADR-0044, ADR-0045, ADR-0046, ADR-0047, ADR-0072, ADR-0073,
+ADR-0099 (Amendment 10) and ADR-0100; Standards 04, 05, 11, 12, 13, 18, 19, 20 and 21;
+Architecture 13, 28 and 30; the glossary; the Identity and Tenancy module
+specifications; and the Phase 03 and Phase 11 documents. This proposal edits none of
+them.
