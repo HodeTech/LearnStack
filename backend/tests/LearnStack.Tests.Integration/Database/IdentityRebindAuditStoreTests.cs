@@ -120,6 +120,19 @@ public sealed class IdentityRebindAuditStoreTests(PublicReadFixture parent)
             (await act.Should().ThrowAsync<ArgumentException>(attribute)).Which.Message.Should().Contain("admission");
         }
 
+        // Without a ticket the metadata check is silent about the tenant, so the tenant rule must stand on its own.
+        var untickedAdmission = Admit();
+        var unticked = Result(untickedAdmission, authority);
+        foreach (var (attribute, draft) in new Dictionary<string, AuditEntryDraft>
+        {
+            ["a real tenant, no ticket"] = unticked with { TenantId = TenantId.From(Guid.CreateVersion7()) },
+            ["the nil tenant, no ticket"] = unticked with { TenantId = TenantId.From(Guid.Empty) },
+        })
+        {
+            var act = async () => await audit.WriteIdentityRebindResultAsync(draft, untickedAdmission, connection, transaction);
+            (await act.Should().ThrowAsync<ArgumentException>(attribute)).Which.Message.Should().Contain("admission");
+        }
+
         // The intent method refuses the result's slug and outcome in turn.
         var intentOfResult = async () => await audit.WriteIdentityRebindIntentAsync(good, admission, connection, transaction);
         await intentOfResult.Should().ThrowAsync<ArgumentException>("the result slug is not the attempt slug");

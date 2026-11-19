@@ -33,6 +33,25 @@ public sealed partial class GlobalIdentityBootstrapTests
     }
 
     [Fact]
+    public async Task A_self_bootstrap_from_a_process_that_qualified_before_a_rebind_is_refused_and_creates_nothing()
+    {
+        // ADR-0104 § 5: the process qualified against the old issuer and kept running; the issuer then changed.
+        await using var provider = SelfProvider();
+        await QualifyAsync(provider);
+        await using (var rebind = await OpenConnectionAsync(_database.IdentityRebindConnectionString))
+        await using (var change = new NpgsqlCommand(
+            "UPDATE public.identity_authority SET issuer = 'https://after-the-rebind.example.test/realms/learnstack' WHERE id = 1", rebind))
+        {
+            (await change.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        var result = await BootstrapAsync(provider, Subject);
+
+        result.Refusal.Should().Be(IdentityCreationRefusal.Unavailable, "the debit transaction reads the issuer after the rebind lock");
+        (await CountsAsync()).Should().Be((0L, 0L));
+    }
+
+    [Fact]
     public async Task Unadmitted_self_bootstrap_is_denied_before_any_creation_owner()
     {
         await using var provider = BuildProvider(_database.AppConnectionString, Registration);

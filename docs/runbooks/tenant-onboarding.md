@@ -191,5 +191,6 @@ no audit row. The gate's counters and events 7101 to 7103, 7105 and 7106 are in
 It does not verify DNS, issue TLS, send an invitation, set a plan or an entitlement,
 create a Hub record, or deprovision a tenant. A tenant that needs an entitlement before
 it serves is waiting on the Hub's push or the operator-configured default, which is the
-Hub's runbook. Nothing here moves a tenant between identity issuers; that is a separate
-act ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md)).
+Hub's runbook. Nothing here moves the deployment between identity issuers; that is a
+separate offline act ([runbook](identity-issuer-rebind.md),
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md)).

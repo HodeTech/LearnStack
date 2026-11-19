@@ -36,6 +36,12 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
 
     internal string? DiscoveryIssuer { get; set; }
 
+    /// <summary>
+    /// A reachable origin other than the issuer's: when set, the discovery document names its key set and token endpoint
+    /// there, so a reader that followed them would send the credential to a host that is up.
+    /// </summary>
+    internal string? ForeignOrigin { get; set; }
+
     internal int? ReportedCount { get; set; }
 
     internal int? CountAfterRead { get; set; }
@@ -79,8 +85,11 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
                 return Task.CompletedTask;
             }
 
-            var jwks = _failure == "jwks-other-origin" ? "http://127.0.0.1:1/keys" : Issuer + "/keys";
-            var token = _failure == "token-other-origin" ? "http://127.0.0.1:1/token" : Issuer + "/protocol/openid-connect/token";
+            var foreign = ForeignOrigin ?? "http://127.0.0.1:1";
+            var jwks = _failure == "jwks-other-origin" ? foreign + "/realms/learnstack/keys" : Issuer + "/keys";
+            var token = _failure == "token-other-origin"
+                ? foreign + "/realms/learnstack/protocol/openid-connect/token"
+                : Issuer + "/protocol/openid-connect/token";
             context.Response.ContentType = "application/json";
             return context.Response.WriteAsync(JsonSerializer.Serialize(new
             {

@@ -108,6 +108,23 @@ public sealed class KeycloakRealmContinuitySourceTests
         thrown.InnerException.Should().BeNull("no transport exception is carried out");
     }
 
+    [Theory]
+    [InlineData("token-other-origin")]
+    [InlineData("jwks-other-origin")]
+    public async Task A_Reachable_Foreign_Origin_Named_By_Discovery_Is_Never_Called_And_Never_Gets_The_Credential(string failure)
+    {
+        await using var foreign = await FakeKeycloakRealm.StartAsync(3);
+        await using var realm = await FakeKeycloakRealm.StartAsync(3);
+        realm.ForeignOrigin = foreign.Issuer[..foreign.Issuer.IndexOf("/realms/", StringComparison.Ordinal)];
+        realm.Fail(failure);
+
+        var act = async () => await realm.ReadAsync();
+
+        await act.Should().ThrowAsync<NewRealmUnavailableException>();
+        foreign.TokenRequests.Should().BeEmpty("the client secret never leaves the issuer's own origin");
+        foreign.AdminAuthorization.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task A_Credential_Replacing_The_Certificate_Check_Is_Refused()
     {
