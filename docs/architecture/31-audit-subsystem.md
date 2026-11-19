@@ -1397,16 +1397,17 @@ guards are specified only in the Database standard:
 | Ordinary unresolved context, not provisioning/global identity | no row — there is no admitted attribution owner | — |
 
 **The third row has exactly one user in Packet 9**: entry into
-`EnterPlatformAdminScope(reason)` itself, which is not a MediatR request and writes its own
-row through the fourth write path. `tenancy.killswitch.toggle` — the operation
+`EnterPlatformAdminScope(reason)` itself, which is not a MediatR request and writes its
+own row through the fourth write path. `tenancy.killswitch.toggle` — the operation
 [ADR-0044 § 1](../decisions/0044-audit-write-path.md) names as the first to be performed
-*inside* that scope — shipped no writer in Packet 9; P03-9 Step 1 ships it as a service entered with an
-operator admission ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
+*inside* that scope — shipped no writer in Packet 9; P03-9 Step 1 ships it as a service
+entered with an operator admission
+([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
 [ADR-0045 Amendment 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 [The Tenancy matrix](../modules/tenancy/audit.md) classifies it MUST and marks it
 `(off-path)`: the scope is entered by a service method rather than by a MediatR request,
-so there is no request type to key a catalogue entry on (§ 13). It carried `(planned)` as
-well until its writer shipped; a cell carries every marker that applies.
+so there is no request type to key a catalogue entry on (§ 13). It carried `(planned)`
+as well until its writer shipped; a cell carries every marker that applies.
 
 The organization column is decided from the same source as the tenant and at the same
 moment, which is what keeps the two paths agreeing. On the in-transaction path the

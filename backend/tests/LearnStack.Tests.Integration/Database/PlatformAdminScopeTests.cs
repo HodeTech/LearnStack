@@ -750,6 +750,13 @@ public sealed class PlatformAdminScopeTests
         {
             var off = await toggle.ToggleAsync(
                 TestPlatformAdmissions.Admission(ticket: "INC-9", correlationId: correlation), key, false);
+            await using (var midway = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString))
+            {
+                (await ScalarAsync<object>(midway, null,
+                    "SELECT coalesce(reason, 'null') FROM platform_killswitches WHERE key = @k", ("k", key.Value)))
+                    .Should().Be("null", "the ticket stays out of a table the application role can read");
+            }
+
             var back = await toggle.ToggleAsync(
                 TestPlatformAdmissions.Admission(correlationId: correlation), key, true);
 
@@ -786,7 +793,7 @@ public sealed class PlatformAdminScopeTests
             (await ScalarAsync<System.DateTime>(read, null, "SELECT toggled_at FROM platform_killswitches WHERE key = @k", ("k", key.Value)))
                 .Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(30));
             (await ScalarAsync<object>(read, null, "SELECT coalesce(reason, 'null') FROM platform_killswitches WHERE key = @k", ("k", key.Value)))
-                .Should().Be("null", "the second flip carried no ticket, so the reason column is empty again");
+                .Should().Be("null");
         }
         finally
         {
@@ -954,6 +961,9 @@ public sealed class PlatformAdminScopeTests
     [InlineData("DO $$ BEGIN END $$")]
     [InlineData("-- comment\nSELECT 1")]
     [InlineData("   ")]
+    [InlineData("SELECT count(*) FROM audit_log")]
+    [InlineData("DELETE FROM audit_log")]
+    [InlineData("UPDATE public.\"Audit_Log\" SET reason = 'x'")]
     public async Task The_Facade_Refuses_Anything_But_One_Dml_Statement_And_Stays_Usable(string sql)
     {
         await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
@@ -978,6 +988,54 @@ public sealed class PlatformAdminScopeTests
         var rows = await handle.QueryAsync(sql, null, reader => reader.GetInt32(0), CancellationToken.None);
 
         rows.Should().Equal(1);
+    }
+
+    [Fact]
+    public async Task The_Result_Row_Is_The_Last_Write_Of_A_Scope()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var host = $"after-{Guid.NewGuid():N}.example.com";
+        await using var handle = await Build(dataSource).EnterAsync(Admission());
+        await handle.WriteResultAsync(new PlatformResult(TenantId.PlatformSentinel, null, null, null, null));
+
+        var write = async () => await InsertHostAsync(handle, host);
+        var read = async () => await ScalarAsync<int>(handle, "SELECT 1");
+
+        await write.Should().ThrowAsync<InvalidOperationException>().WithMessage("*last write*");
+        await read.Should().ThrowAsync<InvalidOperationException>("a statement after the row could change state it does not describe");
+        var commit = async () => await handle.CommitAsync();
+        await commit.Should().NotThrowAsync("the refused statements did not fault the scope");
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("not json")]
+    [InlineData("")]
+    public async Task A_Result_State_That_Is_Not_Json_Is_A_Programming_Error_Not_An_Audit_Outage(string state)
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var handle = await Build(dataSource).EnterAsync(Admission());
+
+        var bad = async () => await handle.WriteResultAsync(
+            new PlatformResult(TenantId.PlatformSentinel, "PlatformKillswitch", "k", null, state));
+
+        await bad.Should().ThrowAsync<ArgumentException>("not an AuditWriteFailedException, which the endpoint would report as a 503");
+        await handle.WriteResultAsync(new PlatformResult(TenantId.PlatformSentinel, "PlatformKillswitch", "k", null, "{\"ok\":true}"));
+        var commit = async () => await handle.CommitAsync();
+        await commit.Should().NotThrowAsync("a refused argument leaves the transaction intact");
+    }
+
+    [Fact]
+    public async Task An_Oversized_Result_State_Is_Refused_Before_It_Reaches_The_Database()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var handle = await Build(dataSource).EnterAsync(Admission());
+        var oversized = "{\"padding\":\"" + new string('x', 40 * 1024) + "\"}";
+
+        var bad = async () => await handle.WriteResultAsync(
+            new PlatformResult(TenantId.PlatformSentinel, "PlatformKillswitch", "k", oversized, null));
+
+        await bad.Should().ThrowAsync<ArgumentException>().WithMessage("*larger than*");
     }
 
     [Fact]

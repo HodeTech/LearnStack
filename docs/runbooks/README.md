@@ -1,9 +1,9 @@
 # Runbooks
 
 Operational procedures, one per failure or privileged act. Each names the signal, the
-diagnostic access, the safe recovery and what is not recoverable
-([Documentation Standards](../standards/13-documentation.md)). Phase 03 begins this
-directory with the platform operator runbooks;
+diagnostic access, the safe recovery and what is not recoverable. They live under
+`runbooks/` per [Documentation Standards](../standards/13-documentation.md). Phase 03
+begins this directory with the platform operator runbooks;
 [Phase 11](../roadmap/phase-11-production-hardening.md) completes the set.
 
 | Runbook | Use it when |

@@ -172,6 +172,7 @@ public static class ApiVersioningExtensions
             options.ShouldInclude = api =>
                 api.RelativePath?.StartsWith("api/platform/v1/", StringComparison.OrdinalIgnoreCase) == true;
             options.AddSchemaTransformer(new StronglyTypedIdSchemaTransformer());
+            options.AddDocumentTransformer(new Authentication.PlatformOperatorDocumentTransformer(documentName));
         });
         return services;
     }

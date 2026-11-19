@@ -60,8 +60,17 @@ public static class PlatformOperatorMetrics
     {
         Admissions.Add(1, new KeyValuePair<string, object?>("outcome", "refused"),
             new KeyValuePair<string, object?>("operation", operation?.AuditSlug ?? "unknown"));
-        Refusals.Add(1, new KeyValuePair<string, object?>("cause", refusal.ToString()));
+        Refusals.Add(1, new KeyValuePair<string, object?>("cause", Cause(refusal)));
     }
+
+    private static string Cause(PlatformRefusal refusal) => refusal switch
+    {
+        PlatformRefusal.InvalidWitness => "invalid_witness",
+        PlatformRefusal.UnknownOperation => "unknown_operation",
+        PlatformRefusal.InvalidTicket => "invalid_ticket",
+        PlatformRefusal.MissingPermission => "missing_permission",
+        _ => "unknown",
+    };
 
     /// <summary>Counts a pre-authentication refusal, which never reaches the gate.</summary>
     public static void Unauthenticated(string cause) =>

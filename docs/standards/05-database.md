@@ -958,8 +958,8 @@ Platform gate existed. P03-9 Step 1 ships the writer, a service entered with an 
 admission for `platform.killswitch.write`
 ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
 [ADR-0045 Amendment 5](../decisions/0045-entitlement-and-feature-flag-socket.md)); an
-architecture rule confines the table's write verbs to it. The `learnstack_platform` write
-grant in the matrix below is that writer's.
+architecture rule confines the table's write verbs to it. The `learnstack_platform`
+write grant in the matrix below is that writer's.
 
 The overlay is read through the L1 cache and invalidated on toggle, so the table itself
 is touched on a cache miss rather than on every request
@@ -1204,11 +1204,14 @@ composition root registers a keyed `PrivilegedDataSource` facade from
 `LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope`. The facade owns the
 separately credentialed lazy Npgsql pool without exposing it. Every synchronous or
 asynchronous acquisition checks the independent ordinary-job ceiling before pool
-creation or reuse, under [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
-`IPlatformAdminScope.EnterAsync(reason, …)` opens a **connection and a transaction** on
-that guarded source and returns an `IAsyncDisposable` handle carrying both;
-disposing without committing rolls back. Module code cannot resolve the data source;
-`Platform_DataSource_Resolved_Only_By_PlatformAdminScope` enforces that.
+creation or reuse, under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+`IPlatformAdminScope.EnterAsync(admission, …)` takes the `PlatformAdmission` the
+operator gate minted (there is no caller-supplied reason), opens a **connection and a
+transaction** on that guarded source and returns an `IAsyncDisposable` facade over both,
+which exposes neither; disposing without committing rolls back. Module code cannot
+resolve the data source; `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
+enforces that.
 
 An earlier wording here — and in the glossary — said the scope opens "a DI scope whose
 `DbContext` is built on that data source". A connection is what shipped, for a reason

@@ -43,6 +43,10 @@ public sealed class PlatformOperatorRealmTests : IAsyncLifetime
         var realm = JsonNode.Parse(await File.ReadAllTextAsync(KeycloakFixture.RealmPath("learnstack-hub")))!.AsObject();
         var user = realm["users"]!.AsArray()[0]!.AsObject();
         user["requiredActions"] = new JsonArray();
+        // An operator created in the realm's console receives the realm's default roles, which carry the
+        // account console's `manage-account`. The shipped demo user omits them, so the fixture adds them
+        // to make the account-console cases below represent a normal operator account.
+        user["realmRoles"]!.AsArray().Add("default-roles-learnstack-hub");
         user["credentials"]!.AsArray().Add(new JsonObject
         {
             ["type"] = "otp",
@@ -114,6 +118,65 @@ public sealed class PlatformOperatorRealmTests : IAsyncLifetime
         token.Audiences.Should().NotContain("learnstack-platform");
         PlatformOperatorTokenProfile.TryRead(token, Settings("mfa"), DateTimeOffset.UtcNow, null, out _, out _)
             .Should().BeFalse("a portal token carries neither the operator client nor the platform audience");
+    }
+
+    [Fact]
+    public async Task A_Password_Only_Session_Cannot_Remove_The_Second_Factor_Through_The_Account_Console()
+    {
+        // The realm's browser flow asks for the second factor only when a level of two is requested, and
+        // the account console asks for none, so a password alone opens a console session. If that session
+        // could delete the authenticator, anyone holding the password could remove it and then enrol their
+        // own at the next operator login. Pinned Keycloak refuses the removal; this keeps it that way.
+        using var browser = _keycloak.Browser("learnstack-hub");
+        var redirect = new Uri(_keycloak.BaseAddress, "realms/learnstack-hub/account/").AbsoluteUri;
+        var authorization = await browser.AuthorizeAsync(
+            "demo-operator@learnstack.test", KeycloakFixture.DemoPassword, redirect,
+            clientId: "account-console", scope: "openid", otpCode: null);
+        authorization.Authorized.Should().BeTrue(
+            "premise: the console accepts a password alone, so the removal below is what is being judged");
+
+        var exchange = await browser.RedeemAsync(authorization, secret: null);
+        exchange.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var client = KeycloakHttp.Create(_keycloak.BaseAddress, _keycloak.RootCertificate);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", exchange.AccessToken);
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        using var listing = await client.GetAsync("realms/learnstack-hub/account/credentials");
+        listing.StatusCode.Should().Be(System.Net.HttpStatusCode.OK, "premise: the session can manage credentials at all");
+        var otpIds = JsonNode.Parse(await listing.Content.ReadAsStringAsync())!.AsArray()
+            .SelectMany(group => group!["userCredentialMetadatas"]!.AsArray())
+            .Select(metadata => metadata!["credential"]!)
+            .Where(credential => credential["type"]!.GetValue<string>() == "otp")
+            .Select(credential => credential["id"]!.GetValue<string>())
+            .ToList();
+        otpIds.Should().NotBeEmpty("premise: the fixture user has an authenticator to try to remove");
+
+        foreach (var id in otpIds)
+        {
+            using var removal = await client.DeleteAsync("realms/learnstack-hub/account/credentials/" + id);
+            removal.StatusCode.Should().NotBe(System.Net.HttpStatusCode.NoContent,
+                "a password-only console session must not remove the authenticator");
+        }
+    }
+
+    [Fact]
+    public async Task A_Password_Only_Login_Is_Asked_For_The_Existing_Factor_Before_A_New_Authenticator_Is_Offered()
+    {
+        // The other way round the second factor: an account-console login that asks, in the same request,
+        // to set up an authenticator. For an operator who already has one, pinned Keycloak asks for the
+        // existing code first. If the password alone reached the set-up form, whoever holds the password
+        // could enrol a device of their own and obtain `mfa`.
+        using var browser = _keycloak.Browser("learnstack-hub");
+        var redirect = new Uri(_keycloak.BaseAddress, "realms/learnstack-hub/account/").AbsoluteUri;
+
+        var authorization = await browser.AuthorizeAsync(
+            "demo-operator@learnstack.test", KeycloakFixture.DemoPassword, redirect,
+            clientId: "account-console", scope: "openid", otpCode: null,
+            extraQuery: new Dictionary<string, string> { ["kc_action"] = "CONFIGURE_TOTP" });
+
+        authorization.Error.Should().NotBe("mfa_action_required", "the set-up form is not reachable with the password alone");
+        authorization.Authorized.Should().BeFalse();
+        authorization.MfaChallenged.Should().BeTrue("the existing authenticator is asked for first");
     }
 
     private async Task<JsonWebToken> OperatorTokenAsync()

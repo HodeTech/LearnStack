@@ -628,14 +628,23 @@ which records the mapping; and `EntitlementProjection`'s remarks in
 Accepted [ADR-0101](0101-platform-operator-authority.md) § 13 lifts the withholding of
 Amendment 1 § 4 once the writer ships. It is a service entered through the Platform
 gate, not a MediatR request. `toggled_by` stays NULL because an operator is not a
-`users` row, the bounded ticket goes in the `reason` column, the MUST result row commits
-on the work transaction, and the overlay cache entry is removed after the commit,
-including an indeterminate one. Section 5's statement that the scope gives the row a
-real actor is read as the `metadata.operator` attribution; the shipped scope writes a
-null actor.
+`users` row, the bounded ticket goes in the `reason` column (see Amendment 6), the MUST
+result row commits on the work transaction, and the overlay cache entry is removed after
+the commit, including an indeterminate one. Section 5's statement that the scope gives
+the row a real actor is read as the `metadata.operator` attribution; the shipped scope
+writes a null actor.
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
+
+## Amendment 6 — The ticket is not stored in `platform_killswitches` (2026-11-19)
+
+Amendment 5 repeated [ADR-0101](0101-platform-operator-authority.md) § 13, which put the
+bounded ticket in the `reason` column.
+[ADR-0101 Amendment 1](0101-platform-operator-authority.md) corrects that: the
+application role reads this table, and a ticket never appears in a row a tenant's
+connection can reach. The writer leaves `reason` NULL and the ticket is on the sentinel
+audit rows. Section 5's table definition is unchanged.
 
 ## References
 

@@ -37,8 +37,11 @@ namespace LearnStack.Api.Authentication;
 /// <para>
 /// <b>Bounded metadata.</b> The discovery document and key set come through a client of the
 /// scheme's own that follows no redirect, waits five seconds, reads at most 256 KB and fetches
-/// nothing outside the issuer's origin. The last known good configuration is off: an issuer
-/// that cannot be reached refuses every operator, which is the safe side of an outage.
+/// nothing outside the issuer's origin. A failed fetch makes the next one fail at once for 30
+/// seconds, and keys that a failed refresh could not renew for 15 minutes are no longer trusted
+/// (<see cref="PlatformOperatorMetadataHealth"/>): an issuer that stays unreachable refuses every
+/// operator, which is the safe side of an outage. The stock manager's own last-known-good fallback
+/// is off.
 /// </para>
 /// </remarks>
 internal static class PlatformOperatorAuthentication
@@ -65,12 +68,14 @@ internal static class PlatformOperatorAuthentication
         services.AddSingleton(settings);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<PlatformOperatorBackchannel>();
+        services.AddSingleton<PlatformOperatorMetadataHealth>();
         services.AddAuthentication().AddJwtBearer(Scheme, _ => { });
         services.AddAuthorization(options => options.AddPolicy(
             PolicyName, policy => policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()));
         services.AddOptions<JwtBearerOptions>(Scheme)
-            .Configure<PlatformOperatorBackchannel, IClock, ILogger<PlatformOperatorEvents>, ILogger<PlatformOperatorDocumentRetriever>>(
-                (options, backchannel, clock, logger, retrieverLogger) =>
+            .Configure<PlatformOperatorBackchannel, IClock, ILogger<PlatformOperatorEvents>, ILogger<PlatformOperatorDocumentRetriever>,
+                PlatformOperatorMetadataHealth>(
+                (options, backchannel, clock, logger, retrieverLogger, health) =>
             {
                 options.Authority = settings.Issuer;
                 options.MetadataAddress = settings.MetadataAddress;
@@ -85,7 +90,7 @@ internal static class PlatformOperatorAuthentication
                 options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
                     settings.MetadataAddress,
                     new OpenIdConnectConfigurationRetriever(),
-                    new PlatformOperatorDocumentRetriever(settings, backchannel, retrieverLogger),
+                    new PlatformOperatorDocumentRetriever(settings, backchannel, health, retrieverLogger),
                     new PlatformOperatorConfigurationValidator(settings))
                 {
                     AutomaticRefreshInterval = options.AutomaticRefreshInterval,
@@ -111,7 +116,7 @@ internal static class PlatformOperatorAuthentication
                     LogTokenId = false,
                     IncludeTokenOnFailedValidation = false,
                 };
-                options.Events = new PlatformOperatorEvents(settings, clock, logger);
+                options.Events = new PlatformOperatorEvents(settings, clock, health, logger);
             });
         return services;
     }
@@ -125,7 +130,10 @@ internal sealed class PlatformOperatorFeature(PlatformOperatorWitness witness)
 
 /// <summary>Scopes the scheme to its prefix and applies the closed token profile.</summary>
 internal sealed class PlatformOperatorEvents(
-    PlatformOperatorSettings settings, IClock clock, ILogger<PlatformOperatorEvents> logger) : JwtBearerEvents
+    PlatformOperatorSettings settings,
+    IClock clock,
+    PlatformOperatorMetadataHealth health,
+    ILogger<PlatformOperatorEvents> logger) : JwtBearerEvents
 {
     public override Task MessageReceived(MessageReceivedContext context)
     {
@@ -154,6 +162,12 @@ internal sealed class PlatformOperatorEvents(
         // The correlation id is the request's trace when one exists and the server's request
         // id otherwise, so a result row is never recorded without a handle an operator can use.
         var correlationId = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
+        if (health.IsStale())
+        {
+            context.Fail(new PlatformOperatorProfileException("metadata_stale"));
+            return Task.CompletedTask;
+        }
+
         if (context.SecurityToken is not JsonWebToken token)
         {
             context.Fail(new PlatformOperatorProfileException("token_invalid"));
@@ -183,7 +197,10 @@ internal sealed class PlatformOperatorEvents(
     {
         // One answer for a missing, malformed, expired or wrongly profiled credential: no
         // detail a probing caller could use, a counter and a log an operator can alert on.
-        var cause = PlatformOperatorFailure.Classify(context.AuthenticateFailure);
+        // A caller that hung up mid-validation is not an issuer fault, whatever exception the abort raised.
+        var cause = context.HttpContext.RequestAborted.IsCancellationRequested && context.AuthenticateFailure is not null
+            ? "request_aborted"
+            : PlatformOperatorFailure.Classify(context.AuthenticateFailure);
         PlatformOperatorMetrics.Unauthenticated(cause);
         LogUnauthenticated(logger, cause, context.AuthenticateFailure?.GetType().Name ?? "none", null);
         context.HandleResponse();
@@ -339,9 +356,15 @@ internal static class PlatformOperatorTokenProfile
             return false;
         }
 
-        if (!token.TryGetPayloadValue<long>("iat", out var iat) || !IsUnixSeconds(iat) || token.ValidTo == DateTime.MinValue)
+        if (!token.TryGetPayloadValue<long>("iat", out var iat) || !IsUnixSeconds(iat))
         {
             cause = PlatformOperatorTokenCause.IssuedAt;
+            return false;
+        }
+
+        if (token.ValidTo == DateTime.MinValue)
+        {
+            cause = PlatformOperatorTokenCause.Lifetime;
             return false;
         }
 

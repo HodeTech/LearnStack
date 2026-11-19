@@ -188,13 +188,15 @@ manual ledger deletion, history reset, reduced retention or tenant-copy purge.
 | `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader; `learnstack-federation-admin`: confined federation adapter ([below](#federation-administration-client)); `account` and `account-console`: retired, disabled |
 | `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE, the portal's; `learnstack-operator`: public PKCE for LearnStack's platform surface, audience `learnstack-platform`, 15-minute access tokens, MFA step-up |
 
-The `learnstack-hub` realm's browser flow is `browser-loa`: password at level 1, a one-time
-password at level 2, so a login through `learnstack-operator` (which asks for `acr` `mfa`) always
-ends in an `acr` that LearnStack accepts only for an operator who passed the second factor
-([ADR-0101](../../docs/decisions/0101-platform-operator-authority.md) § 3). The demo operator
-has a pinned subject and sets up an authenticator at its first login; production MFA enforcement
-for the realm stays [Phase 11](../../docs/roadmap/phase-11-production-hardening.md). A realm import
-into production never includes the demo user.
+The `learnstack-hub` realm's browser flow is `browser-loa`: password at level 1, a
+one-time password at level 2, so a login through `learnstack-operator` (which asks for
+`acr` `mfa`) always ends in an `acr` that LearnStack accepts only for an operator who
+passed the second factor
+([ADR-0101](../../docs/decisions/0101-platform-operator-authority.md) § 3). The demo
+operator has a pinned subject and sets up an authenticator at its first login;
+production MFA enforcement for the realm stays
+[Phase 11](../../docs/roadmap/phase-11-production-hardening.md). A realm import into
+production never includes the demo user.
 
 Three properties of the shared realm file that an operator of it should know:
 
@@ -202,6 +204,13 @@ Three properties of the shared realm file that an operator of it should know:
   login (`learnstack-hub-web`) goes through it too; the portal asks for no `acr`, so it
   is satisfied at level 1 and sees no change. The file is shared with the Hub
   repository, so a change to the flow is made in both.
+- **Credential changes need the existing second factor.** An account-console login needs
+  only the password, because the console asks for no `acr`. For an operator who already
+  has an authenticator, pinned Keycloak (26.7.5) then refuses to remove it, and asks for
+  the existing code before it offers to set up another; two realm tests pin both. The
+  window that remains is the first login, before any authenticator exists, which is why
+  a grant follows enrolment (see the
+  [operator access runbook](../../docs/runbooks/operator-access.md#giving-and-withdrawing-a-grant)).
 - **Password reset is off.** `resetPasswordAllowed` is `false`: the reset-credentials
   flow lets a user set a new password from an email link, which would be a second way to
   a password that does not pass through the second factor. Operator credentials are

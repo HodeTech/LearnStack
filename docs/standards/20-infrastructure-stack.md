@@ -259,9 +259,9 @@ adapter trigger.
   admits the two families by **enumeration**, so the overlay's own four-segment
   per-key spelling is refused rather than merely unused: one entry holds the whole
   switch set, because `ICacheService` has no `RemoveByPrefixAsync` for a toggle to
-  sweep a per-key family with. The toggle that invalidates it arrives with the
-  Platform-scope permission in [Phase 03](../roadmap/phase-03-identity-admin.md)
-  ([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+  sweep a per-key family with. The toggle that invalidates it is
+  `KillswitchToggle`, which drops the entry after its commit
+  ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)).
   Every `ICacheService` implementation calls `CacheKey.EnsureValid`, and none
   re-prefixes. There is no query filter and no RLS policy in front of a dictionary, so
   the key is the entire isolation boundary — which is why the shape is validated rather

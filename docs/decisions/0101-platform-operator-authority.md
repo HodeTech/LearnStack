@@ -198,6 +198,12 @@ permission.
     `platform_killswitches` are confined to it by an architecture rule; the overlay's
     reads are unaffected. The runbook states the 60-second cross-instance lag, the
     fail-open read, and that no production code reads a killswitch yet.
+
+    > **Erratum (2026-11-19, Amendment 1 below).** The text above puts the ticket in
+    > the `reason` column. That table is readable by the application role, which § 9
+    > forbids for a ticket, so the two sections disagreed when this record was accepted.
+    > § 9 governs: the writer leaves `reason` NULL and the ticket is on the sentinel
+    > audit rows only.
 14. **Signals.** Counters record admissions by outcome and operation, refusals by cause,
     and result rows by operation, so a monitoring owner can alert without a log search.
 
@@ -278,6 +284,19 @@ confined to its prefix), ADR-0077 (operator denials), ADR-0099 (Amendment 10) an
 ADR-0100 (a Platform key does not recur the refusal). Standards 04, 11, 12, 13, 18, 19,
 20 and 21, Architecture 13, 28 and 30, the glossary, the Tenancy and Identity module
 specifications, and the Phase 03 and Phase 11 documents follow.
+
+## Amendments
+
+### Amendment 1 — The ticket stays out of a table the application role reads (2026-11-19)
+
+Step 1 review found that § 13 stored the optional ticket in
+`platform_killswitches.reason` while § 9 promises that a row a tenant can read never
+carries it. The application role holds `SELECT` on that table under `USING (true)`, so
+the overlay can read it; a ticket there would be reachable by any future module query,
+including one an injection steered. The writer sets `reason` to NULL on every flip and
+the ticket is recorded on the sentinel-tenant audit rows, where § 9 puts it. The column
+stays for a future non-ticket explanation; nothing writes it. The Decision, Status, Date
+and every other section are unchanged.
 
 ## References
 

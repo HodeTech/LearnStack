@@ -509,11 +509,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 479 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 595 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
   - [P03-9 Step 1 — review round 1 and its fixes (2026-11-19)](#p03-9-step-1--review-round-1-and-its-fixes-2026-11-19) — 107 lines
+  - [P03-9 Step 1 — review round 2 and its fixes (2026-11-19)](#p03-9-step-1--review-round-2-and-its-fixes-2026-11-19) — 116 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24650,3 +24651,119 @@ The last row is the result the Step 1 record deferred to this entry. It is also 
 that found the withdrawn start-time credential check: a compiled census of
 connection-string readers failed on the new reader, which is why the check is recorded
 above and not shipped.
+
+### P03-9 Step 1 — review round 2 and its fixes (2026-11-19)
+
+Three further independent reviewers read the range from the accepted decisions to the
+round 1 fixes: an adversarial security review, a review of correctness and test
+validity, and a review of the operator experience and the documentation. None reported a
+Blocker. Each finding was checked against the code, and for the security question that
+could not be settled by reading, against the pinned Keycloak.
+
+#### Settled by running it: the second factor and the account console
+
+The security reviewer asked whether a password-only session on the operator realm could
+remove or add an authenticator through the account console, which asks for no `acr`.
+Both paths were run against Keycloak 26.7.5 with a normally-roled operator who has an
+authenticator: the console accepts the password alone, a credential listing succeeds,
+and removing the authenticator is refused ("Credential type cannot be removed"); a login
+that asks for `kc_action=CONFIGURE_TOTP` is sent to the existing-code form, not to
+set-up. Both are now realm tests, so a Keycloak upgrade that changed either fails them.
+The window that remains is the first login before any authenticator exists, which the
+runbook already closes by ordering enrolment before the grant.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Authentication | After one successful load, an issuer that stops answering left the last keys trusted indefinitely, so the claim "an outage refuses every operator" was false, and a withdrawn key stayed valid while egress was blocked | The scheme records when a fetch last succeeded and failed. Once a later fetch has failed and the last success is older than 15 minutes, tokens are refused (`metadata_stale`). The comment and runbook now say what an outage does |
+| Authentication | While the first configuration was unavailable, every waiting unauthenticated request fetched it in turn, each holding its request for the transport timeout | A failed fetch makes the next ones fail at once for 30 seconds |
+| Authentication | A caller who hung up during validation was counted as an issuer fault; a token with no `exp` was labelled as a bad `iat` | An `aborted` caller gets its own label; a missing `exp` is a lifetime cause |
+| Gate | The ticket grammar was judged before the grant, so an ungranted operator's probe was filed as `InvalidTicket`, and the endpoint comment said the opposite | The grant is read first. An ungranted operator is refused as such whatever the request carries, and the refusal causes are snake case like the others |
+| Endpoint | The framework bound the body before the handler ran, so a malformed body or a wrong content type was answered to an operator with no grant; outside Development it was a bare status | The handler reads the body after the gate has been asked, answers 415 and 400 as Problem Details, and caps the body at 4 KB. The response's correlation id is no longer optional in the contract |
+| Killswitch writer | The ticket was stored in `platform_killswitches.reason`, a table the application role can read, against ADR-0101 § 9 | `reason` is NULL on every flip; the ticket is on the sentinel audit rows. [ADR-0101](../decisions/0101-platform-operator-authority.md) § 13 carries an erratum and Amendment 1; ADR-0045 Amendment 6 follows |
+| Killswitch writer | The time was taken before the row lock; a toggle that waited stamped an earlier time than the one it followed. The lock result and the update count were trusted | The time is taken under the lock. A lock that finds no row, or an update that changes none, abandons the toggle before any result row exists |
+| Scope | The facade accepted statements after the result row and any text naming `audit_log` (the platform role holds audit maintenance rights); a caller's state JSON reached the database unchecked and would have been reported as an audit outage; the entry's failure path could strand the connection if disposing the transaction threw; a size cap on the entry metadata could have dropped the operator and made the store refuse the row for good | The result row is the last write. No statement may name the audit log. State is checked as JSON and capped at 32 KB, and a refused argument does not fault the scope. The connection is disposed in a `finally`. The cap is removed |
+| Credential | A connection string with `No Reset On Close` or `Multiplexing` would let session state outlive a scope on the pool that bypasses row level security | The platform credential is refused when either is on, as the sibling privileged sources pin them off |
+| Contract | The operator document had a default title, Host-derived servers, no security scheme and no request body or error statuses beyond the generator's | A document transformer sets the title, drops `servers`, declares the bearer scheme and its token profile, a requirement on every operation, the request body, and 400, 401, 403, 404, 415, 500 and 503 with their headers |
+| Operability | The overlay's two error events were numbered 1 and 2, which other components also use, so an operator could not search for them; the runbooks omitted events 7101, 7104 and two causes, did not define `API`, asked the operator to substitute variables by hand, and named a database administrator where the platform role is required | The events are 7107 and 7108 and the runbooks name every event, cause and role; the commands are runnable as written; the record-reading section names the role |
+| Docs | Seven documents still described a writer-less table or the removed `EnterAsync(reason, …)` signature | Corrected: the Tenancy README, Standards 05 and 20, the glossary, the Phase 03 decision register, the Keycloak and compose READMEs |
+
+New cases: the future-dated admission, the grant-before-ticket order in the gate
+(granted and ungranted operator, three malformed tickets) and over HTTP (three bodies,
+including one the framework would have refused first), the audit-failure counter, the
+415 and the malformed JSON as Problem Details, the operator document's title, servers,
+scheme, body and statuses, stale keys after a failed refresh with a clock the test moves
+(a blip within the window is bridged), twelve waiting requests answered from one failed
+fetch, the aborted caller, the metadata health rules (six cases), the platform
+credential's pool settings, the result row as the last write, three statements that name
+the audit log, three non-JSON states and one oversized one with the scope still
+committable afterwards, a lock that finds no row and an update that changes none, the
+unreadable ticket column at the midpoint of a real toggle, and the two account-console
+cases above.
+
+#### Recorded, not changed
+
+- **Pool settings in the builder.** `BuildPlatformDataSource` is inspected by a compiled
+  census of credential builders, so the platform source refuses a string that turns
+  session state on rather than rewriting it as its siblings do. Rewriting is a change to
+  that census and to every sibling at once, which belongs with Phase 11's credential
+  hardening.
+- **The Development relaxations.** The loopback issuer and the demo grant depend on
+  `Deployment:Mode` alone, which the shipped development settings set. A host started in
+  the Development environment in production would honour both. This is the gate every
+  Development relaxation uses
+  ([ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md)), a production
+  environment never loads that file, and the operator realm is not exposed by the
+  shipped compose; a second environment check would make this the one relaxation that
+  differs.
+- **The internal Hub scheme.** When `/api/internal` gets a bearer scheme on the same
+  issuer, it must pin its own client and audience and refuse `learnstack-platform`, and
+  this scheme's `azp` list must never name a service client. Owned by the Hub contract
+  packet that adds it.
+- **`IAuditStore.WritePlatformOperatorResultAsync` is a default interface method** that
+  throws, so a fake inherits a runtime failure and not a compile error. Making it
+  abstract touches ten test fakes for one production implementation; the architecture
+  census of store implementations is the guard, and a second production store would be a
+  decision of its own.
+- **`TryConsume` and the minters are public.** A holder of an admission can spend it,
+  which only harms the holder. Narrowing them needs `InternalsVisibleTo` across three
+  assemblies for no gain the censuses do not already give.
+- **Dead and decorative code.** `PlatformOperatorEvents.Forbidden` is unreachable under
+  the current policy and stays as the documented 403 mapping for the per-permission
+  policies the next operations add. The validation attributes on the request record
+  shape the contract and are not enforced by the framework; the gate and the handler
+  enforce the real rules.
+- **Splitting `PlatformOperatorAuthentication.cs`.** It holds nine types, and an
+  architecture rule pins it as the authentication boundary. The split belongs with Step
+  3, which adds the second caller of the profile and must edit that rule anyway.
+
+#### Mutation checks
+
+Twelve mutations of the round 2 guards, each applied, built, run and restored with the
+restored file touched. All were killed: statements allowed after the result row,
+statements that name the audit log, a result state that is not validated, an update row
+count and a lock row count left unchecked, stale keys still trusted, no backoff after a
+failed fetch, an aborted caller counted as an issuer fault, the ticket judged before the
+grant, the ticket stored in the killswitch row, the unsafe pool settings accepted, and
+the Host-derived `servers` left in the operator document.
+
+#### Proof run locally
+
+| Suite | Result |
+|---|---|
+| Unit | 4,242 passed |
+| Contract | 13 passed |
+| Integration, the whole suite (Release, 1 h 24 m) | 4,450 passed, 1 failed (below) |
+| Integration, the account-console credential cases against pinned Keycloak 26.7.5 | 2 passed |
+| Architecture (Release): platform scope, audit and API conventions | 31 passed |
+| Architecture (Release, 46 min): `AuthenticatedHttpSurfaceTests`, `BackgroundJobManifestBoundaryTests`, `AuthenticationAuthorityTests`, `OutboxDispatchConventionTests` | 178 passed |
+
+The one failure in the full integration run is
+`AuthenticatedHttpSurfaceRuntimeTests.Production_endpoint_union_has_exact_patterns_methods_handlers_and_requests`
+for the Development environment. Its message pattern names the asserted collection
+(`authorizations`), which FluentAssertions reads back from the call-site source; the run
+reported the generic wording instead, so the mutation control inside the case did not
+match. The case passed alone, the whole class passed twice more, and the same case
+passed in the earlier full run on the same code, so it is recorded as an inference flake
+in an unrelated control and not as a defect of this change.

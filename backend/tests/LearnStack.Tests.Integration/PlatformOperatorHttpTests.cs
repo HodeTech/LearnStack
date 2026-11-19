@@ -175,6 +175,82 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         counted.Causes.Should().Contain("token_missing");
     }
 
+    [Fact]
+    public async Task Keys_That_A_Failed_Refresh_Could_Not_Renew_Stop_Being_Trusted_After_Fifteen_Minutes()
+    {
+        // The stock manager keeps serving the keys it last fetched when a refresh fails. Right for a blip,
+        // wrong for a key the issuer has since withdrawn while an attacker holds the network down. So
+        // once a later fetch has failed and the last success is older than the window, operator tokens
+        // are refused, whatever key signed them.
+        var clock = new MovableClock(DateTimeOffset.UtcNow);
+        var toggle = new RecordingToggle();
+        await using var factory = new PlatformOperatorApiFactory(
+            _tenant, _operator, toggle, grantSubject: Subject,
+            services: registrations => registrations.AddSingleton(new PlatformOperatorMetadataHealth(clock)));
+        using var client = factory.CreateClient();
+        using var counted = Counted();
+
+        // 1. A good token loads the keys.
+        (await Send(client, Valid())).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 2. A token signed with a key the cache has never seen makes the scheme ask the issuer for a
+        //    refresh, and the issuer is down.
+        _operator.DiscoveryStatusCode = StatusCodes.Status503ServiceUnavailable;
+        try
+        {
+            var unknownKey = await Send(client, _operator.Token(Payload([]), key: _operator.NewKey()));
+            unknownKey.StatusCode.Should().Be(HttpStatusCode.Unauthorized, await unknownKey.Content.ReadAsStringAsync());
+            // The refresh the unknown key asked for runs in the background, after the response.
+            for (var attempt = 0; attempt < 100 && counted.MetadataFailures == 0; attempt++)
+            {
+                await Task.Delay(50);
+            }
+
+            counted.MetadataFailures.Should().BeGreaterThan(0);
+
+            // 3. Within the window the keys already held still serve.
+            clock.Advance(TimeSpan.FromMinutes(5));
+            (await Send(client, Valid())).StatusCode.Should().Be(HttpStatusCode.OK, "a blip is bridged");
+
+            // 4. Past the window they do not, and the cause says why.
+            clock.Advance(PlatformOperatorMetadataHealth.MaximumStaleness);
+            await AssertUnauthorized(await Send(client, Valid()));
+            counted.Causes.Should().Contain("metadata_stale");
+        }
+        finally
+        {
+            _operator.DiscoveryStatusCode = StatusCodes.Status200OK;
+        }
+    }
+
+    [Fact]
+    public async Task An_Issuer_That_Is_Down_At_Start_Is_Asked_Once_Not_Once_Per_Waiting_Request()
+    {
+        // Each caller waiting for the first configuration would otherwise fetch it in turn, holding an
+        // unauthenticated request for the whole transport timeout apiece. A failed fetch makes the next
+        // ones fail at once for a short while.
+        var down = await TenantAuthenticationIssuer.StartAsync();
+        down.DiscoveryStatusCode = StatusCodes.Status503ServiceUnavailable;
+        try
+        {
+            await using var factory = new PlatformOperatorApiFactory(_tenant, down, new RecordingToggle(), grantSubject: Subject);
+            using var client = factory.CreateClient();
+            var token = down.Token(down.Payload(
+                ("aud", "learnstack-platform"), ("azp", "learnstack-operator"), ("acr", "mfa"),
+                ("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 30), ("sub", Subject)));
+
+            var responses = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Send(client, token)));
+
+            responses.Should().OnlyContain(response => response.StatusCode == HttpStatusCode.Unauthorized);
+            down.MetadataRequests.Should().BeLessThanOrEqualTo(2,
+                "twelve waiting requests are answered from one failed fetch, not twelve");
+        }
+        finally
+        {
+            await down.DisposeAsync();
+        }
+    }
+
     [Theory]
     [InlineData("redirect")]
     [InlineData("oversized-keys")]
@@ -298,12 +374,56 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     public async Task A_Failed_Audit_Write_Is_A_Retryable_503_Not_A_Success()
     {
         _toggle.Failure = new AuditWriteFailedException("forced");
+        using var counted = Counted();
 
         var response = await Put(Valid(), """{"enabled":false}""");
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         await AssertProblem(response, "audit_unavailable");
         response.Headers.RetryAfter.Should().NotBeNull("every 503 the API answers carries Retry-After");
+        counted.AuditFailures.Should().Be(1, "a refused audit write is a signal an alert can watch");
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{"enabled":false,"ticket":"has space"}""")]
+    [InlineData("""{"enabled":"not-a-bool"}""")]
+    public async Task An_Operator_Without_The_Grant_Is_Refused_As_Such_Whatever_The_Body_Says(string body)
+    {
+        // Admission comes first: a malformed body or ticket never earns an ungranted operator a 400,
+        // so the refusal teaches them nothing about the request and is counted as a missing permission.
+        using var counted = Counted();
+
+        var response = await Put(Sign(("sub", "someone-else")), body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        await AssertProblem(response, "forbidden");
+        _toggle.Calls.Should().BeEmpty();
+        counted.Causes.Should().Contain("missing_permission");
+    }
+
+    [Fact]
+    public async Task A_Body_That_Is_Not_Json_Or_Not_Valid_Json_Is_Answered_As_A_Problem_Not_A_Bare_Status()
+    {
+        using var wrongType = new HttpRequestMessage(HttpMethod.Put, Path)
+        {
+            Headers = { { "Authorization", "Bearer " + Valid() } },
+            Content = new StringContent("""{"enabled":false}""", System.Text.Encoding.UTF8, "text/plain"),
+        };
+        using var malformed = new HttpRequestMessage(HttpMethod.Put, Path)
+        {
+            Headers = { { "Authorization", "Bearer " + Valid() } },
+            Content = new StringContent("{", System.Text.Encoding.UTF8, "application/json"),
+        };
+
+        var first = await _client.SendAsync(wrongType);
+        var second = await _client.SendAsync(malformed);
+
+        first.StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
+        second.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await first.Content.ReadAsStringAsync()).Should().Contain("\"code\"");
+        (await second.Content.ReadAsStringAsync()).Should().Contain("\"code\"");
+        _toggle.Calls.Should().BeEmpty();
     }
 
     [Fact]
@@ -314,6 +434,26 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         operatorDocument.Should().Contain("/api/platform/v1/killswitches/{key}");
         tenantDocument.Should().NotContain("/api/platform", "the tenant contract is pinned and untouched (ADR-0101 § 4)");
+
+        // What a client author needs: a title, no Host-derived servers, the bearer scheme and its token
+        // profile, a security requirement on the operation, and every status an operator can meet.
+        using var document = JsonDocument.Parse(operatorDocument);
+        var root = document.RootElement;
+        root.GetProperty("info").GetProperty("title").GetString().Should().Be("LearnStack Platform Operator API");
+        root.TryGetProperty("servers", out var servers).Should().BeFalse("servers would be derived from the caller's Host header");
+        _ = servers;
+        var scheme = root.GetProperty("components").GetProperty("securitySchemes").GetProperty("PlatformOperator");
+        scheme.GetProperty("scheme").GetString().Should().Be("bearer");
+        scheme.GetProperty("bearerFormat").GetString().Should().Be("JWT");
+        var put = root.GetProperty("paths").GetProperty("/api/platform/v1/killswitches/{key}").GetProperty("put");
+        put.GetProperty("security").GetArrayLength().Should().Be(1);
+        put.GetProperty("requestBody").GetProperty("content").TryGetProperty("application/json", out _).Should().BeTrue();
+        put.GetProperty("responses").EnumerateObject().Select(response => response.Name)
+            .Should().Contain(["200", "400", "401", "403", "404", "415", "500", "503"]);
+        put.GetProperty("responses").GetProperty("401").GetProperty("headers").TryGetProperty("WWW-Authenticate", out _)
+            .Should().BeTrue();
+        put.GetProperty("responses").GetProperty("503").GetProperty("headers").TryGetProperty("Retry-After", out _)
+            .Should().BeTrue();
     }
 
     [Fact]
@@ -396,13 +536,16 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         private readonly MeterListener _listener = new();
         private readonly ConcurrentBag<string> _causes = [];
         private long _metadataFailures;
+        private long _auditFailures;
 
         public CauseListener()
         {
             _listener.InstrumentPublished = (instrument, listener) =>
             {
                 if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName
-                    && instrument.Name is PlatformOperatorMetrics.RefusalCounterName or PlatformOperatorMetrics.MetadataFailureCounterName)
+                    && instrument.Name is PlatformOperatorMetrics.RefusalCounterName
+                        or PlatformOperatorMetrics.MetadataFailureCounterName
+                        or PlatformOperatorMetrics.AuditFailureCounterName)
                 {
                     listener.EnableMeasurementEvents(instrument);
                 }
@@ -412,6 +555,11 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 if (instrument.Name == PlatformOperatorMetrics.MetadataFailureCounterName)
                 {
                     Interlocked.Add(ref _metadataFailures, value);
+                }
+
+                if (instrument.Name == PlatformOperatorMetrics.AuditFailureCounterName)
+                {
+                    Interlocked.Add(ref _auditFailures, value);
                 }
 
                 foreach (var tag in tags)
@@ -428,6 +576,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         public IReadOnlyCollection<string> Causes => _causes;
 
         public long MetadataFailures => Interlocked.Read(ref _metadataFailures);
+
+        public long AuditFailures => Interlocked.Read(ref _auditFailures);
 
         public void Dispose() => _listener.Dispose();
     }
@@ -462,6 +612,23 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         }
 
         return JsonSerializer.Serialize(claims);
+    }
+
+    private static async Task<HttpResponseMessage> Send(HttpClient client, string token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, Path)
+        {
+            Headers = { { "Authorization", "Bearer " + token } },
+            Content = new StringContent("""{"enabled":false}""", System.Text.Encoding.UTF8, "application/json"),
+        };
+        return await client.SendAsync(request);
+    }
+
+    private sealed class MovableClock(DateTimeOffset start) : LearnStack.SharedKernel.Time.IClock
+    {
+        public DateTimeOffset UtcNow { get; private set; } = start;
+
+        public void Advance(TimeSpan by) => UtcNow += by;
     }
 
     private async Task<HttpResponseMessage> Put(string token, string json)
@@ -509,7 +676,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         TenantAuthenticationIssuer @operator,
         IKillswitchToggle toggle,
         string grantSubject = Subject,
-        bool configured = true) : ConstructionOnlyApiFactory
+        bool configured = true,
+        Action<IServiceCollection>? services = null) : ConstructionOnlyApiFactory
     {
         protected override void ConfigureTestHost(IWebHostBuilder builder)
         {
@@ -524,7 +692,11 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 builder.UseSetting("PlatformOperator:Grants:0:Permissions:0", PlatformPermissions.KillswitchWrite.Key);
             }
 
-            builder.ConfigureTestServices(services => services.AddScoped(_ => toggle));
+            builder.ConfigureTestServices(registrations =>
+            {
+                registrations.AddScoped(_ => toggle);
+                services?.Invoke(registrations);
+            });
         }
     }
 }

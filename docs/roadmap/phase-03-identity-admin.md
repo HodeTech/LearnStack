@@ -503,17 +503,18 @@ and provider token refresh alone cannot establish application permission freshne
   [Security Standards § Tenant Context](../standards/11-security.md).
   `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input` becomes non-vacuous here.
 
-- **The Platform-scope permission, and the writer it unlocks.** `EnterPlatformAdminScope`
-  is gated by `IPlatformAdminGate`, registered since
-  [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) as `DenyAllPlatformAdminGate`, which
-  refuses everyone — so every operation that needs the scope is unreachable, every
-  killswitch toggle included. This phase replaces it with a gate that reads a
-  Platform-scope permission, and ships with it the killswitch writer, its
-  permission key and its incident runbook: the writer Packet 9 withheld on purpose
+- **The Platform-scope permission, and the writer it unlocks.** The platform scope was
+  gated by a gate registered since [Phase 02a Packet 9](phase-02a-kernel-tenancy.md)
+  that refused everyone, so every operation that needs the scope, every killswitch
+  toggle included, was unreachable. This phase replaces it with the operator authority
+  of [ADR-0101](../decisions/0101-platform-operator-authority.md): an admission minted
+  for an authenticated operator who holds a Platform grant, and with it the killswitch
+  writer, its permission key and its incident runbook: the writer Packet 9 withheld on
+  purpose
   ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
-  [Permissions](../standards/19-permissions.md) reserves no killswitch or entitlement key
-  yet, so reserving them is part of the work. The toggle's row is already classified —
-  `tenancy.killswitch.toggle`, `(off-path)` `(planned)`, MUST, in the
+  [Permissions](../standards/19-permissions.md) registers `platform.killswitch.write`;
+  an entitlement key joins with the operation that uses it. The toggle's row is
+  classified — `tenancy.killswitch.toggle`, `(off-path)`, MUST, in the
   [Tenancy matrix](../modules/tenancy/audit.md).
 
 - **Audited job quarantine inspection and reconciliation.** ADR-0047 assigns this

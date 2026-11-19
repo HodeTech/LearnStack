@@ -419,11 +419,12 @@ CREATE TABLE platform_killswitches (
 **Packet 9 shipped the table and the read path, and no writer**
 ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 The reason was reachability rather than scheduling: every killswitch write runs inside
-`EnterPlatformAdminScope`, and no Platform gate existed. **P03-9 Step 1 ships the writer**
-as a service entered with an operator admission for `platform.killswitch.write`, with a
-MUST result row on the same transaction and the overlay cache entry dropped after the
-commit ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)). Other
-instances see the flip within the overlay's 60-second TTL; the
+`EnterPlatformAdminScope`, and no Platform gate existed. **P03-9 Step 1 ships the
+writer** as a service entered with an operator admission for
+`platform.killswitch.write`, with a MUST result row on the same transaction and the
+overlay cache entry dropped after the commit
+([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)). Other instances see
+the flip within the overlay's 60-second TTL; the
 [killswitch runbook](../runbooks/killswitch.md) says so, and that the read fails open.
 
 A flippable killswitch pairs with a runbook entry describing when to use it and how to

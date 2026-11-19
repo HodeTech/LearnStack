@@ -55,6 +55,32 @@ public sealed class KillswitchToggleOrderingTests
     }
 
     [Fact]
+    public async Task A_Row_That_Is_Not_There_To_Lock_Abandons_The_Toggle_Without_A_Result_Row()
+    {
+        var handle = new ScriptedHandle { LockedRows = 0 };
+        var cache = new CountingCache();
+
+        var act = async () => await Toggle(handle, cache).ToggleAsync(TestPlatformAdmissions.Admission(), Key, false);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not there to lock*");
+        handle.Steps.Should().NotContain("result").And.NotContain("commit");
+        cache.Removed.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task An_Update_That_Changes_No_Row_Never_Gets_A_Result_Row_Describing_It()
+    {
+        var handle = new ScriptedHandle { UpdatedRows = 0 };
+        var cache = new CountingCache();
+
+        var act = async () => await Toggle(handle, cache).ToggleAsync(TestPlatformAdmissions.Admission(), Key, false);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*changed no row*");
+        handle.Steps.Should().NotContain("result").And.NotContain("commit");
+        cache.Removed.Should().Be(0);
+    }
+
+    [Fact]
     public async Task The_Commit_Is_Not_Cancellable_By_The_Caller()
     {
         // Past the point where the caller's abort could matter, a cancelled commit would leave its
@@ -108,6 +134,8 @@ public sealed class KillswitchToggleOrderingTests
     {
         public Exception? CommitFailure { get; init; }
         public Exception? ResultFailure { get; init; }
+        public int LockedRows { get; init; } = 1;
+        public int UpdatedRows { get; init; } = 1;
         public List<string> Steps { get; } = [];
         public List<string> Statements { get; } = [];
         public int CommitCalls { get; private set; }
@@ -119,7 +147,7 @@ public sealed class KillswitchToggleOrderingTests
         {
             Steps.Add("exec:" + sql.Split(' ')[0]);
             Statements.Add(sql);
-            return Task.FromResult(1);
+            return Task.FromResult(sql.StartsWith("UPDATE", StringComparison.Ordinal) ? UpdatedRows : 1);
         }
 
         public Task<IReadOnlyList<T>> QueryAsync<T>(
@@ -128,7 +156,8 @@ public sealed class KillswitchToggleOrderingTests
         {
             Steps.Add("query:" + sql.Split(' ')[0]);
             Statements.Add(sql);
-            return Task.FromResult<IReadOnlyList<T>>((IReadOnlyList<T>)(object)new List<bool> { true });
+            return Task.FromResult<IReadOnlyList<T>>(
+                (IReadOnlyList<T>)(object)Enumerable.Repeat(true, LockedRows).ToList());
         }
 
         public Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)

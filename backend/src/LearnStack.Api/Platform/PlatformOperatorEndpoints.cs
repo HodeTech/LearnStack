@@ -1,5 +1,7 @@
 using LearnStack.Api.Authentication;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http.Features;
 using LearnStack.Api.Common;
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Audit;
@@ -20,7 +22,7 @@ internal sealed record KillswitchToggleRequest(
     string? Ticket);
 
 /// <summary>What a toggle changed, with the correlation id the operator records.</summary>
-internal sealed record KillswitchToggleResponse(string Key, bool Before, bool After, string? CorrelationId);
+internal sealed record KillswitchToggleResponse(string Key, bool Before, bool After, string CorrelationId);
 
 /// <summary>
 /// The platform operator surface: minimal endpoints under <c>/api/platform/v1</c>, present only
@@ -62,13 +64,52 @@ internal static class PlatformOperatorEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         return app;
     }
 
+    // The body is read by the handler and not bound by the framework, so that a body that cannot be
+    // read is answered only after admission: binding runs before any handler code, and an ungranted
+    // operator would otherwise learn from a 400 or 415 that their request was inspected.
+    private enum BodyState { Read, Missing, NotJson, Malformed }
+
+    private const int MaximumBodyBytes = 4096;
+
+    private static async Task<(KillswitchToggleRequest? Body, BodyState State)> ReadBodyAsync(
+        HttpRequest request, CancellationToken cancellationToken)
+    {
+        if (request.ContentLength is 0 || (request.ContentLength is null && !request.Headers.ContainsKey("Transfer-Encoding")))
+        {
+            return (null, BodyState.Missing);
+        }
+
+        if (!request.HasJsonContentType())
+        {
+            return (null, BodyState.NotJson);
+        }
+
+        var limit = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (limit is { IsReadOnly: false })
+        {
+            limit.MaxRequestBodySize = MaximumBodyBytes;
+        }
+
+        try
+        {
+            var body = await JsonSerializer.DeserializeAsync<KillswitchToggleRequest>(
+                request.Body, JsonSerializerOptions.Web, cancellationToken);
+            return body is null ? (null, BodyState.Malformed) : (body, BodyState.Read);
+        }
+        catch (JsonException)
+        {
+            return (null, BodyState.Malformed);
+        }
+    }
+
     private static async Task<IResult> ToggleKillswitchAsync(
         string key,
-        KillswitchToggleRequest? body,
         HttpContext http,
         IPlatformOperatorGate gate,
         IKillswitchToggle toggle,
@@ -81,8 +122,10 @@ internal static class PlatformOperatorEndpoints
             return Problem(http, StatusCodes.Status401Unauthorized, "lockey_unauthorized");
         }
 
-        // Admission first: an operator without the grant learns nothing about the body, so a
-        // malformed request is answered 400 only to someone who may act at all.
+        // Admission first: the gate checks the grant before the ticket, so an operator without
+        // the grant is answered 403 whatever the request carries, and a body that cannot be used is
+        // answered 400 or 415 only to someone who may act at all.
+        var (body, bodyState) = await ReadBodyAsync(http.Request, cancellationToken);
         var admission = await gate.AdmitAsync(witness, PlatformOperations.KillswitchToggle, body?.Ticket, cancellationToken);
         if (!admission.IsAdmitted)
         {
@@ -94,6 +137,11 @@ internal static class PlatformOperatorEndpoints
             };
         }
 
+        if (bodyState == BodyState.NotJson)
+        {
+            return Problem(http, StatusCodes.Status415UnsupportedMediaType, "lockey_unsupported_media_type");
+        }
+
         if (body?.Enabled is not { } enabled)
         {
             return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
@@ -103,7 +151,8 @@ internal static class PlatformOperatorEndpoints
         {
             var result = await toggle.ToggleAsync(admission.Admission!, new KillswitchKey(key), enabled, cancellationToken);
             return result.Outcome == KillswitchToggleOutcome.Applied
-                ? Results.Ok(new KillswitchToggleResponse(key, result.Before, result.After, admission.Admission!.Operator.CorrelationId))
+                ? Results.Ok(new KillswitchToggleResponse(
+                    key, result.Before, result.After, admission.Admission!.Operator.CorrelationId ?? http.TraceIdentifier))
                 : Problem(http, StatusCodes.Status404NotFound, "lockey_not_found");
         }
         catch (AuditWriteFailedException failure)

@@ -173,12 +173,12 @@ public sealed class KillswitchOverlay(
     private static readonly Action<ILogger, string, Exception?> LogReadFailed =
         LoggerMessage.Define<string>(
             LogLevel.Error,
-            new EventId(1, nameof(LogReadFailed)),
+            new EventId(7107, nameof(LogReadFailed)),
             "The killswitch overlay could not be read for {Key}; it resolved to the key's default, which is enabled. A cache or database outage must not disable every gated path platform-wide.");
 
     private static readonly Action<ILogger, string, Exception?> LogUndeclared =
         LoggerMessage.Define<string>(
             LogLevel.Error,
-            new EventId(2, nameof(LogUndeclared)),
+            new EventId(7108, nameof(LogUndeclared)),
             "'{Key}' is not in KillswitchKeys, so nothing can flip it and no gated path should be reading it. It resolved to enabled.");
 }

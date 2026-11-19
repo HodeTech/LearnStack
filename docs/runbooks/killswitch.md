@@ -39,14 +39,16 @@ it reads it.
 
 Two audit rows are written under the platform sentinel, which no tenant can read: the
 entry into the platform scope, and the result row `tenancy.killswitch.toggle` with the
-before and after state and the operator's digest. The ticket is on those rows and in the
-`reason` column of the switch's own row (empty again after a flip without one). Find the
-rows by the correlation id.
+before and after state and the operator's digest. The ticket is on those rows. Find the
+rows by the correlation id. The switch's own row keeps no ticket, because the
+application role can read that table.
 
 ## Reading the record
 
-The sentinel rows are visible only to the platform credential, so a database
-administrator reads them. By the correlation id the answer returned:
+The sentinel rows are visible only to the `learnstack_platform` role (the table owner is
+filtered too, because row level security is forced), so a database administrator
+connects with the `ConnectionStrings:PlatformAdmin` credential to read them. By the
+correlation id the answer returned:
 
 ```sql
 SELECT timestamp, operation, reason,
@@ -60,7 +62,8 @@ ORDER BY timestamp;
 ```
 
 The operator is recorded as a digest, never as the raw `sub`. To find every row one
-operator wrote, compute their digest from the issuer and the `sub` and filter on
+operator wrote, compute their digest from the issuer and the `sub` (`ISSUER` must equal
+`PlatformOperator:Issuer` byte for byte, a trailing slash included) and filter on
 `metadata->'operator'->>'subjectDigest'`:
 
 ```sh
@@ -71,19 +74,22 @@ printf 'learnstack.operator.subject.v1\n%s\n%s' "$ISSUER" "$SUB" \
 The current state of a switch is its own row, if it has one:
 
 ```sql
-SELECT key, is_enabled, reason, toggled_at
+SELECT key, is_enabled, toggled_at
 FROM platform_killswitches WHERE key = '<key>';
 ```
 
 ## When it takes effect
 
 Immediately on the instance that handled the request, which drops its cached copy after
-the commit. Every other instance refreshes within 60 seconds. Plan for that minute.
+the commit. Every other instance refreshes within 60 seconds. Plan for that minute. If
+the instance could not drop its copy it logs a Warning with event 7104, and then it too
+serves the old state for up to 60 seconds.
 
 **The read fails open.** If the overlay cannot read the table or the cache, it answers
 the key's default, which is enabled. A switch flipped off during a database or cache
 incident can therefore read as on again once its cached copy expires. Watch the log for
-the overlay's read-failure error, and repeat the flip if it appears.
+event 7107 (Error, "The killswitch overlay could not be read"), and repeat the flip if
+it appears. Event 7108 means a caller asked for a key that is not declared.
 
 ## Switching it back
 
@@ -94,9 +100,14 @@ Confirm by the response (`after` is `true`) and by the result row.
 
 | Answer | What happened | What to do |
 |---|---|---|
+| 400, 401, 403 | The body, the ticket, the token or the grant | See [operator access](operator-access.md#reading-a-refusal) |
+| 404 | The key is not one of the three in the table, or no operator issuer is configured | Check the spelling and the issuer setting |
 | 503 | The audit row could not be written, so the table was not changed | Repeat the request after `Retry-After` |
-| 500 | Something failed unexpectedly. If it was the final commit, its outcome is unknown and the flip may have landed; the instance still dropped its cached copy | Read the switch's row (above) before repeating |
-| 404 | The key is not one of the three in the table | Check the spelling |
+| 500 | Something failed unexpectedly: the platform credential is missing, or the final commit's outcome is unknown and the flip may have landed. The instance still dropped its cached copy | Read the switch's row (above) before repeating |
+
+An admission with neither a matching `results_total` increment nor an
+`audit_failures_total` increment is an act whose outcome is unknown; read the row for it
+too.
 
 ## Not recoverable here
 

@@ -199,12 +199,18 @@ public sealed class PlatformAdminScope(
             // back whatever is open on it. The connection disposal below is the one the
             // refused-entry case kills, and it is in the same catch because an entry that
             // threw must not keep the one connection that sees every tenant.
-            if (transaction is not null)
+            try
             {
-                await transaction.DisposeAsync();
+                if (transaction is not null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
+            finally
+            {
+                await connection.DisposeAsync();
             }
 
-            await connection.DisposeAsync();
             throw;
         }
     }
@@ -258,6 +264,11 @@ public sealed class PlatformAdminScope(
             throw new ArgumentException("A result row needs an assigned tenant.", nameof(result));
         }
 
+        // A caller's state is checked here, as a programming error, before it can reach the database
+        // and come back as a write failure the endpoint would report as an audit outage.
+        RequireJsonState(result.BeforeState, nameof(result.BeforeState));
+        RequireJsonState(result.AfterState, nameof(result.AfterState));
+
         // The ticket stays out of a row a tenant can read: it appears only under the sentinel.
         var isSentinel = result.TenantId == TenantId.PlatformSentinel;
         var draft = new AuditEntryDraft
@@ -290,6 +301,30 @@ public sealed class PlatformAdminScope(
         await services.ServiceProvider
             .GetRequiredService<IAuditStore>()
             .WritePlatformOperatorResultAsync(draft, admission, connection, transaction, cancellationToken);
+    }
+
+    private const int MaximumStateBytes = 32 * 1024;
+
+    private static void RequireJsonState(string? state, string name)
+    {
+        if (state is null)
+        {
+            return;
+        }
+
+        if (System.Text.Encoding.UTF8.GetByteCount(state) > MaximumStateBytes)
+        {
+            throw new ArgumentException($"The {name} of a result row is larger than {MaximumStateBytes} bytes.", name);
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(state);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            throw new ArgumentException($"The {name} of a result row is not well-formed JSON.", name);
+        }
     }
 
     /// <summary>
@@ -357,7 +392,7 @@ public sealed class PlatformAdminScope(
             + ",\"executor\":" + AuditJson.Quote(op.Executor)
             + (includeTicket && admission.Ticket is not null ? ",\"ticket\":" + AuditJson.Quote(admission.Ticket) : string.Empty)
             + "}}";
-        return AuditJson.CapObject(json);
+        return json;
     }
 
     private static string Provenance(string? callerMember, string? callerFile, int callerLine) =>
@@ -403,6 +438,16 @@ public sealed class PlatformAdminScope(
     /// statement that threw leaves PostgreSQL's transaction aborted, so a later commit would
     /// silently roll back. A read-only scope has nothing to commit and ends by disposal.
     /// </para>
+    /// <para>
+    /// <b>The result row is last.</b> A statement after it could change state the row does not
+    /// describe, so the facade refuses one. No statement may name <c>audit_log</c> either: the
+    /// platform role holds audit maintenance rights for retention, and a scope that rewrote the
+    /// record of its own act would defeat it.
+    /// </para>
+    /// <para>
+    /// <b>One owner.</b> A handle is used by the single call that entered it, on one logical
+    /// thread; it is not safe for concurrent use.
+    /// </para>
     /// </remarks>
     private sealed class Handle(
         NpgsqlConnection connection,
@@ -423,6 +468,7 @@ public sealed class PlatformAdminScope(
             string sql, IReadOnlyList<PlatformSqlParameter>? parameters = null, CancellationToken cancellationToken = default)
         {
             EnsureUsable();
+            EnsureStatementsAllowed();
             await using var command = Build(sql, parameters);
             try
             {
@@ -442,6 +488,7 @@ public sealed class PlatformAdminScope(
             CancellationToken cancellationToken = default)
         {
             EnsureUsable();
+            EnsureStatementsAllowed();
             ArgumentNullException.ThrowIfNull(map);
             await using var command = Build(sql, parameters);
             try
@@ -469,8 +516,10 @@ public sealed class PlatformAdminScope(
             {
                 await writeResult(result, cancellationToken);
             }
-            catch
+            catch (Exception failure) when (failure is not ArgumentException)
             {
+                // An argument the scope refused before it wrote anything leaves the transaction intact;
+                // anything else may have left it aborted.
                 _faulted = true;
                 throw;
             }
@@ -573,6 +622,21 @@ public sealed class PlatformAdminScope(
                 throw new ArgumentException(
                     "A platform scope statement is a single SELECT, INSERT, UPDATE, DELETE or WITH statement.",
                     nameof(sql));
+            }
+
+            if (text.Contains("audit_log", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("A platform scope statement cannot name the audit log.", nameof(sql));
+            }
+        }
+
+        private void EnsureStatementsAllowed()
+        {
+            if (_resultWritten)
+            {
+                throw new InvalidOperationException(
+                    "A platform scope's result row is its last write. A statement after it could change "
+                    + "state the row does not describe; run it before the row.");
             }
         }
 

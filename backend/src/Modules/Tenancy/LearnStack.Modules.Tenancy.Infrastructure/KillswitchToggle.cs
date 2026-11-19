@@ -46,8 +46,11 @@ public sealed partial class KillswitchToggle(
 
     private const string SelectBefore = "SELECT is_enabled FROM platform_killswitches WHERE key = @key FOR UPDATE";
 
+    // `reason` stays NULL: the application role can read this table, and the ticket never appears in
+    // a row a tenant's connection can reach (ADR-0101 § 9, as corrected in Amendment 1). The ticket is
+    // on the sentinel audit rows.
     private const string Update =
-        "UPDATE platform_killswitches SET is_enabled = @enabled, reason = @reason, "
+        "UPDATE platform_killswitches SET is_enabled = @enabled, reason = NULL, "
         + "toggled_at = @at, toggled_by = NULL WHERE key = @key";
 
     /// <inheritdoc />
@@ -70,13 +73,12 @@ public sealed partial class KillswitchToggle(
         {
             await using var handle = await scope.EnterAsync(admission, cancellationToken);
 
-            var at = clock.UtcNow;
             await handle.ExecuteAsync(
                 EnsureRow,
                 [
                     new PlatformSqlParameter("key", key.Value),
                     new PlatformSqlParameter("default", registryDefault),
-                    new PlatformSqlParameter("at", at),
+                    new PlatformSqlParameter("at", clock.UtcNow),
                 ],
                 cancellationToken);
 
@@ -85,17 +87,29 @@ public sealed partial class KillswitchToggle(
                 [new PlatformSqlParameter("key", key.Value)],
                 reader => reader.GetBoolean(0),
                 cancellationToken);
+            if (rows.Count != 1)
+            {
+                throw new InvalidOperationException(
+                    "The killswitch row was not there to lock after it was created; the toggle is abandoned.");
+            }
+
             var before = rows[0];
 
-            await handle.ExecuteAsync(
+            // The time is taken under the row lock, so a toggle that waited for another stamps the
+            // later time and the column agrees with the order of the result rows.
+            var updated = await handle.ExecuteAsync(
                 Update,
                 [
                     new PlatformSqlParameter("key", key.Value),
                     new PlatformSqlParameter("enabled", enabled),
-                    new PlatformSqlParameter("reason", admission.Ticket),
-                    new PlatformSqlParameter("at", at),
+                    new PlatformSqlParameter("at", clock.UtcNow),
                 ],
                 cancellationToken);
+            if (updated != 1)
+            {
+                throw new InvalidOperationException(
+                    "The killswitch update changed no row, so no result row describes it; the toggle is abandoned.");
+            }
 
             await handle.WriteResultAsync(
                 new PlatformResult(

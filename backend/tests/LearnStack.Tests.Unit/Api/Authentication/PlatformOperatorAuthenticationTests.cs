@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
@@ -56,6 +57,7 @@ public sealed class PlatformOperatorAuthenticationTests
     [InlineData("iat-out-of-range", "IssuedAt")]
     [InlineData("auth-time-missing", "AuthenticationTime")]
     [InlineData("auth-time-out-of-range", "AuthenticationTime")]
+    [InlineData("exp-missing", "Lifetime")]
     [InlineData("lifetime-too-long", "Lifetime")]
     [InlineData("lifetime-not-positive", "Lifetime")]
     [InlineData("auth-time-future", "AuthenticationAge")]
@@ -80,6 +82,7 @@ public sealed class PlatformOperatorAuthenticationTests
             case "iat-out-of-range": claims["iat"] = long.MaxValue; break;
             case "auth-time-missing": claims.Remove("auth_time"); break;
             case "auth-time-out-of-range": claims["auth_time"] = long.MinValue; break;
+            case "exp-missing": claims.Remove("exp"); break;
             case "lifetime-too-long": claims["exp"] = iat + 16 * 60; break;
             case "lifetime-not-positive": claims["exp"] = iat; break;
             case "auth-time-future": claims["auth_time"] = Now.ToUnixTimeSeconds() + 600; break;
@@ -188,6 +191,66 @@ public sealed class PlatformOperatorAuthenticationTests
             .Should().Be(HttpOperationClassification.Refused);
         Classify(classifier, "/api/platform/v1/killswitches/{key}", operatorMetadata, policy, new AllowAnonymousAttribute())
             .Should().Be(HttpOperationClassification.Refused);
+    }
+
+    [Fact]
+    public async Task A_Challenge_For_A_Caller_Who_Hung_Up_Is_Not_Counted_As_An_Issuer_Fault()
+    {
+        // The abort raises a cancellation that the failure mapping would read as a metadata fault, and a
+        // burst of aborted calls would then look like an outage on a dashboard.
+        var causes = new System.Collections.Concurrent.ConcurrentBag<string>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == LearnStack.Infrastructure.PlatformOperator.PlatformOperatorMetrics.MeterName
+                && instrument.Name == LearnStack.Infrastructure.PlatformOperator.PlatformOperatorMetrics.RefusalCounterName)
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag is { Key: "cause", Value: string cause })
+                {
+                    causes.Add(cause);
+                }
+            }
+        });
+        listener.Start();
+
+        using var aborted = new CancellationTokenSource();
+        await aborted.CancelAsync();
+        var http = new DefaultHttpContext
+        {
+            RequestAborted = aborted.Token,
+            RequestServices = new ServiceCollection().AddOptions().AddLogging().BuildServiceProvider(),
+        };
+        http.Response.Body = new MemoryStream();
+        var events = new PlatformOperatorEvents(
+            Settings(), new FixedClock(Now), new PlatformOperatorMetadataHealth(new FixedClock(Now)),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PlatformOperatorEvents>.Instance);
+        var challenge = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerChallengeContext(
+            http,
+            new Microsoft.AspNetCore.Authentication.AuthenticationScheme(
+                PlatformOperatorAuthentication.Scheme, null, typeof(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler)),
+            new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions(),
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties())
+        {
+            AuthenticateFailure = new TaskCanceledException(),
+        };
+
+        // Writing the 401 to a caller who has gone is itself cancelled; the counting precedes it.
+        await FluentActions.Awaiting(() => events.Challenge(challenge)).Should().ThrowAsync<OperationCanceledException>();
+
+        causes.Should().Contain("request_aborted");
+        causes.Should().NotContain("metadata_unavailable");
+    }
+
+    private sealed class FixedClock(DateTimeOffset instant) : LearnStack.SharedKernel.Time.IClock
+    {
+        public DateTimeOffset UtcNow => instant;
     }
 
     private static HttpOperationClassification Classify(

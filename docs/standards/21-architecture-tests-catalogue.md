@@ -180,21 +180,20 @@ not implemented is the failure mode this column exists to prevent.
 **379 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
-source-boundary, observation and production-manifest companions in Step 9.
-Its nineteen packet obligations are implemented with actual canonical owners and
-complementary structural, native-runtime and PostgreSQL controls. The
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
+Packet 7, Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3,
+P02b-1, P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
+source-boundary, observation and production-manifest companions in Step 9. Its nineteen
+packet obligations are implemented with actual canonical owners and complementary
+structural, native-runtime and PostgreSQL controls. The
 [P02b-4 merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
-owns its final review/CI qualification. Authentication, realm and BFF obligations
-have unit/integration/frontend/offline owners in their entries below; the
-[Phase 02b Status block](../roadmap/phase-02b-events-auth.md) links current delivery
-and qualification. The analyzer and asynchronous inventory controls also have
-actual owners; registration alone promotes none of these obligations.
-Methods are not rows:
-a `[Theory]` is one row and many cases,
-and most rows pair a rule with the companion assertion that stops it passing vacuously.
+owns its final review/CI qualification. Authentication, realm and BFF obligations have
+unit/integration/frontend/offline owners in their entries below; the
+[Phase 02b Status block](../roadmap/phase-02b-events-auth.md) links current delivery and
+qualification. The analyzer and asynchronous inventory controls also have actual owners;
+registration alone promotes none of these obligations. Methods are not rows: a
+`[Theory]` is one row and many cases, and most rows pair a rule with the companion
+assertion that stops it passing vacuously.
 
 **Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
 are a second copy of what the repository already knows, and the first version of this section
@@ -5886,20 +5885,21 @@ structural test proves — and what it does not.
   permissive default ships.
 - **Source:** ADR-0036 § The platform-admin override is not a resolution source;
   [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and § 8.
-- **Type:** xUnit — reflection over every production assembly, and behavioural cases without
-  Docker (`PlatformAdminGateTests`) and over HTTP with controlled signed tokens
+- **Type:** xUnit — reflection over every production assembly, and behavioural cases
+  without Docker (`PlatformAdminGateTests`) and over HTTP with controlled signed tokens
   (`PlatformOperatorHttpTests`). **Kind:** structural + behavioural.
-- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7; rewritten
-  against the real gate by P03-9 Step 1).
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7;
+  rewritten against the real gate by P03-9 Step 1).
 - **Phase:** 02a (Packet 7); P03-9.
-- **Note:** the rule was live in its mechanism and vacuous in its subject while the registered
-  gate refused everyone. It now has a subject: a Platform permission exists (`PlatformPermissions`),
-  an operator can hold it through a grant, and a permitted entry is exercised. The ordering —
-  admission before the credential is touched — is behavioural and asserted in
-  `PlatformAdminGateTests`; a structural rule cannot see it. The marker clause, that no
-  handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry, is now
-  structural as well: `Only_The_Operator_Services_Hold_The_Platform_Scope` lists every file
-  that may hold the scope, and no request handler is among them.
+- **Note:** the rule was live in its mechanism and vacuous in its subject while the
+  registered gate refused everyone. It now has a subject: a Platform permission exists
+  (`PlatformPermissions`), an operator can hold it through a grant, and a permitted
+  entry is exercised. The ordering — admission before the credential is touched — is
+  behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
+  The marker clause, that no handler carries both `[AllowsUnresolvedTenantContext]` and
+  a platform-scope entry, is now structural as well:
+  `Only_The_Operator_Services_Hold_The_Platform_Scope` lists every file that may hold
+  the scope, and no request handler is among them.
 
 #### `The_Operator_Token_Profile_Is_Called_From_The_Authentication_Boundary_Only`
 
@@ -5921,8 +5921,8 @@ structural test proves — and what it does not.
   `IPlatformAdminScope` are exactly the interface, the scope, the persistence
   composition and the operator services that perform an admitted act (today the
   killswitch toggle). Adding a service is a deliberate edit here, with its denied proof.
-- **Why it matters:** a request handler holding the scope would enter a cross-tenant scope from a
-  tenant request path.
+- **Why it matters:** a request handler holding the scope would enter a cross-tenant
+  scope from a tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).

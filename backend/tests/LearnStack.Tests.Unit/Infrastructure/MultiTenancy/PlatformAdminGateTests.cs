@@ -72,15 +72,52 @@ public sealed class PlatformAdminGateTests
     [InlineData("has space")]
     [InlineData("semi;colon")]
     [InlineData("this-ticket-is-far-too-long-to-be-a-ticket-reference-it-exceeds-sixty-four")]
-    public async Task A_Malformed_Ticket_Is_Refused_Before_The_Grant_Is_Read(string ticket)
+    public async Task A_Malformed_Ticket_Is_Refused_For_An_Operator_Who_Holds_The_Grant_And_Only_For_Them(string ticket)
     {
-        var grants = Grants("operator-1", PlatformPermissions.KillswitchWrite.Key);
-        var gate = Gate(grants);
+        // The grant is read first: an operator without it is refused as such whatever the request
+        // carries, so a malformed ticket tells them nothing and is counted under the cause an alert on
+        // ungranted operators watches.
+        var granted = Grants("operator-1", PlatformPermissions.KillswitchWrite.Key);
+        (await Gate(granted).AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, ticket))
+            .Refusal.Should().Be(PlatformRefusal.InvalidTicket);
+        granted.Reads.Should().Be(1);
 
-        var result = await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, ticket);
+        var ungranted = Grants("someone-else", PlatformPermissions.KillswitchWrite.Key);
+        (await Gate(ungranted).AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, ticket))
+            .Refusal.Should().Be(PlatformRefusal.MissingPermission);
+    }
 
-        result.Refusal.Should().Be(PlatformRefusal.InvalidTicket);
-        grants.Reads.Should().Be(0, "the ticket grammar is checked before any grant is evaluated");
+    [Fact]
+    public async Task Each_Refusal_Is_Counted_Under_A_Snake_Case_Cause()
+    {
+        var causes = new System.Collections.Concurrent.ConcurrentBag<string>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName
+                && instrument.Name == PlatformOperatorMetrics.RefusalCounterName)
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag is { Key: "cause", Value: string cause })
+                {
+                    causes.Add(cause);
+                }
+            }
+        });
+        listener.Start();
+        var gate = Gate(Grants("operator-1", PlatformPermissions.KillswitchWrite.Key));
+
+        await gate.AdmitAsync(TestPlatformAdmissions.Witness("someone-else"), PlatformOperations.KillswitchToggle, null);
+        await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, "has space");
+        await gate.AdmitAsync(null!, PlatformOperations.KillswitchToggle, null);
+
+        causes.Should().Contain(["missing_permission", "invalid_ticket", "invalid_witness"]);
     }
 
     [Fact]
@@ -160,6 +197,19 @@ public sealed class PlatformAdminGateTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*stale*");
         dataSource.IsValueCreated.Should().BeFalse("the age check precedes the credential");
         stale.TryConsume().Should().BeTrue("a refused-as-stale admission was never spent");
+    }
+
+    [Fact]
+    public async Task A_Future_Dated_Admission_Is_Refused_Like_A_Stale_One()
+    {
+        var scope = Build(out var dataSource);
+        var future = TestPlatformAdmissions.Admission(
+            issuedAt: DateTimeOffset.UtcNow + PlatformAdmission.MaximumAge + TimeSpan.FromHours(1));
+
+        var act = async () => await scope.EnterAsync(future, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*stale*");
+        dataSource.IsValueCreated.Should().BeFalse();
     }
 
     [Fact]

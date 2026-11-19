@@ -64,6 +64,9 @@ printf %s "$TOKEN" | cut -d. -f2 | tr '_-' '/+' \
 
 ## Getting a token
 
+You need `curl`, `openssl` and `jq`. In the local stack the API answers at
+`http://localhost:5080`; set `API` to the address of the deployment you are calling.
+
 The shipped realm provides the public client `learnstack-operator` (authorization code
 with PKCE, redirect `http://127.0.0.1:8765/*`). In the compose stack the issuer is
 `http://localhost:8080/realms/learnstack-hub`; the demo operator is
@@ -80,19 +83,19 @@ with any TOTP tool).
      | openssl base64 -A | tr '+/' '-_' | tr -d '=')
    ```
 
-2. Open this address in a browser. `prompt=login` makes the issuer ask again even when a
-   browser session exists; without it a stale `auth_time` is refused later:
+2. Open the address in a browser (`xdg-open` on Linux). `prompt=login` makes the issuer
+   ask again even when a browser session exists; without it a stale `auth_time` is
+   refused later. Sign in with the password and the one-time code:
 
-   ```text
-   $ISSUER/protocol/openid-connect/auth?client_id=learnstack-operator&response_type=code
-   &scope=openid&redirect_uri=http://127.0.0.1:8765/callback&prompt=login&state=x
-   &code_challenge=$challenge&code_challenge_method=S256
+   ```sh
+   URL="$ISSUER/protocol/openid-connect/auth?client_id=learnstack-operator"
+   URL="$URL&response_type=code&scope=openid&prompt=login&state=x"
+   URL="$URL&redirect_uri=http://127.0.0.1:8765/callback"
+   URL="$URL&code_challenge=$challenge&code_challenge_method=S256"
+   open "$URL"
    ```
-
-   (one line; substitute the variables first), and sign in with the password and the
-   one-time code.
 3. The browser lands on the callback address and shows a connection error. Copy `code`
-   from its address bar into `CODE`.
+   from its address bar and set `CODE` to it.
 4. Redeem it. The access token lasts at most 15 minutes:
 
    ```sh
@@ -106,10 +109,12 @@ with any TOTP tool).
 
 Send `Authorization: Bearer $TOKEN` and `Content-Type: application/json`. Every write
 may carry an optional `ticket` of 1 to 64 characters of `A-Z a-z 0-9 . _ : / # -`. The
-response carries a `correlationId`; record it against your own ticket, because the audit
-rows a tenant can read never hold the ticket.
+response carries a `correlationId`, the request's W3C trace identifier, which is also
+the trace id in the logs; record it against your own ticket, because the audit rows a
+tenant can read never hold the ticket.
 
 ```sh
+API=http://localhost:5080
 curl -sS -X PUT "$API/api/platform/v1/killswitches/killswitch.notifications.email" \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"enabled": false, "ticket": "INC-123"}'
@@ -146,7 +151,7 @@ production realm.
 
 | Answer | Meaning | What to do |
 |---|---|---|
-| 401, `Bearer` challenge | The token is missing, malformed, expired, signed by another issuer, for another audience or client, lacks an accepted `acr`, has no `auth_time`, was authenticated too long ago, or lives longer than 15 minutes. It also covers an issuer that cannot be reached | Decode the token and compare it with the profile; sign in again; check the issuer settings and the signals below |
+| 401, `Bearer` challenge | The token is missing, malformed, expired, signed by another issuer, for another audience or client, lacks an accepted `acr`, has no `auth_time`, was authenticated too long ago, or lives longer than 15 minutes. It also covers an issuer that cannot be reached: at start, or for more than 15 minutes after its keys were last fetched | Decode the token and compare it with the profile; sign in again; check the issuer settings and the signals below |
 | 403 | The token is good and this operator holds no grant for the act | Ask for the grant |
 | 400 | The ticket or the body is malformed | Fix the request |
 | 404 | Unknown killswitch key, or the surface is not configured | Check the key and the issuer setting |
@@ -161,16 +166,19 @@ the response.
 
 | Signal | Meaning |
 |---|---|
-| `learnstack_platform_operator_admissions_total{outcome,operation}` | Acts admitted or refused at the gate |
-| `learnstack_platform_operator_refusals_total{cause}` | Refusals, by cause: `token_missing`, `token_expired`, `token_lifetime`, `token_signature`, `token_issuer`, `token_audience`, `token_type`, `token_invalid`, `profile_issuer`, `profile_subject`, `profile_azp`, `profile_acr`, `profile_iat`, `profile_auth_time`, `profile_lifetime`, `profile_auth_age`, and at the gate `InvalidTicket`, `MissingPermission`, `UnknownOperation`, `InvalidWitness` |
+| `learnstack_platform_operator_admissions_total{outcome,operation}` | Acts admitted or refused at the gate; `operation` is the audit slug, for example `tenancy.killswitch.toggle` |
+| `learnstack_platform_operator_refusals_total{cause}` | Refusals, by cause: `request_aborted`, `metadata_stale`, `metadata_unavailable`, `token_missing`, `token_expired`, `token_lifetime`, `token_signature`, `token_issuer`, `token_audience`, `token_type`, `token_algorithm`, `token_invalid`, `profile_issuer`, `profile_subject`, `profile_azp`, `profile_acr`, `profile_iat`, `profile_auth_time`, `profile_lifetime`, `profile_auth_age`, and at the gate `invalid_ticket`, `missing_permission`, `unknown_operation`, `invalid_witness` |
 | `learnstack_platform_operator_results_total{operation}` | MUST result rows committed |
 | `learnstack_platform_operator_audit_failures_total{operation}` | Acts refused because the MUST row was not durable (the 503) |
-| `learnstack_platform_operator_metadata_failures_total` | The issuer's discovery document or key set could not be read, was refused, or named another origin. While it climbs every operator is refused |
+| `learnstack_platform_operator_metadata_failures_total` | The issuer's discovery document or key set could not be read, was refused, or named another origin. While it climbs, new keys are not learned; a fetch that failed is not retried for 30 seconds, and once the keys held are more than 15 minutes old with a later fetch failed, every operator is refused (`metadata_stale`) |
 
-A Warning log accompanies each: event 7102 for a refused act, 7103 for a refused
-credential (with the cause), 7106 for a metadata failure; event 7105 is the Error log of
-a refused audit write; and for every admitted platform act the Warning log of the
-platform scope (event 7001). A refused operator leaves no database row.
+A log line accompanies each. Search by event id: 7102 (Warning) a refused act, 7103
+(Warning) a refused credential with its cause, 7106 (Warning) a metadata failure, 7105
+(Error) a refused audit write, and 7101 (Error) a grant configuration that failed
+validation on reload; while 7101 appears every operator act is refused until the
+configuration is valid. Every admitted platform act logs a Warning with event 7001 and
+the text "Platform-admin scope entered" (other hosts reuse the number for unrelated
+lines, so match the text too). A refused operator leaves no database row.
 
 ## Not recoverable here
 

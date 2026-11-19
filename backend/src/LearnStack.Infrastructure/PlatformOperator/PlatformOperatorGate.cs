@@ -46,14 +46,17 @@ public sealed partial class PlatformOperatorGate(
             return Refuse(PlatformRefusal.UnknownOperation, null, operatorWitness);
         }
 
-        if (!PlatformTicket.IsValid(ticket))
-        {
-            return Refuse(PlatformRefusal.InvalidTicket, operation, operatorWitness);
-        }
-
+        // The grant first, then the ticket: an operator without the grant is refused as such whatever
+        // the request carries, so a malformed body teaches them nothing and their attempt is counted
+        // under the cause an alert on ungranted operators watches.
         if (!await _grants.IsGrantedAsync(operatorWitness.SubjectDigest, operation.Permission.Key, cancellationToken))
         {
             return Refuse(PlatformRefusal.MissingPermission, operation, operatorWitness);
+        }
+
+        if (!PlatformTicket.IsValid(ticket))
+        {
+            return Refuse(PlatformRefusal.InvalidTicket, operation, operatorWitness);
         }
 
         PlatformOperatorMetrics.Admitted(operation);

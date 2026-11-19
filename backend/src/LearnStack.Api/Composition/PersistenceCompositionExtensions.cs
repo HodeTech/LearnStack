@@ -504,6 +504,16 @@ public static class PersistenceCompositionExtensions
                 + "connection string. It must be key/value form, not a URI DSN.", failure);
         }
 
+        // Session state must not outlive a scope on a pool whose connections see every tenant: the
+        // sibling privileged sources pin these off, and this one refuses a string that turns them on.
+        if (parsed.NoResetOnClose || parsed.Multiplexing)
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} turns on 'No Reset On Close' or 'Multiplexing'. "
+                + "Either would let session state set in one platform scope reach the next on a connection "
+                + "that bypasses row level security, so the credential must leave both off.");
+        }
+
         if (!string.Equals(parsed.Username, PlatformRole, StringComparison.Ordinal))
         {
             var observed = string.IsNullOrEmpty(parsed.Username) ? "<none>" : parsed.Username;

@@ -47,9 +47,9 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 - `platform_killswitches` — one platform-wide switch per key. Platform-scoped and
   tenant-blind: the only table in the schema for which "no tenant context implies zero
   rows" is deliberately false, because a switch the application role cannot read is one
-  that fails open. Shipped read-only in Packet 9 — every toggle runs inside
-  `EnterPlatformAdminScope`, so [Phase 03](../../roadmap/phase-03-identity-admin.md)
-  owns the writer.
+  that fails open. Packet 9 shipped it read-only; its one writer is `KillswitchToggle`
+  (P03-9 Step 1, [ADR-0101 § 13](../../decisions/0101-platform-operator-authority.md),
+  [runbook](../../runbooks/killswitch.md)).
 
 **Two read paths it owns, over tables it does not read directly:**
 
