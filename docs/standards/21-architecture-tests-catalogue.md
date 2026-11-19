@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**379 test methods run in
+**381 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**284 rules in this catalogue are Implemented, and 166 of them are in that assembly.**
+**285 rules in this catalogue are Implemented, and 167 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -2792,10 +2792,13 @@ promotes an unrun proof.
   [source ledger](05-database.md#authorization-and-evidence-source-ledger).
 - **Type:** source/caller/role census plus real app-role PostgreSQL/PgBouncer
   progress and lifetime controls. **Kind:** behavioural and structural.
-- **Test owners:** `IdentityAuthorizationReaderTests`,
-  `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
-  `IdentityAuthorizationConventionTests`, `TrustedOperationSourceConventionTests`,
-  `OperationPolicyOwnershipTests`, `IdentityAuditConventionTests`.
+- **Test owners:** `IdentityAuthorizationReaderTests`, `AuthorizationReadSourceTests`,
+  `AuthorizationPoolProgressTests`, `IdentityAuthorizationConventionTests`,
+  `TrustedOperationSourceConventionTests`, `OperationPolicyOwnershipTests`,
+  `IdentityAuditConventionTests`. `TrustedOperationSourceConventionTests` pins four
+  minting sources, the seed, delivery, job and operator-act owners
+  ([ADR-0102](../decisions/0102-production-tenant-onboarding.md)), and the operator
+  source's one caller and its closed evidence lifetime.
 - **Status:** **Implemented** — `IdentityAuditConventionTests`; source/caller controls
   complement the real PostgreSQL/PgBouncer owners above.
 - **Coverage:** the confined reader/source, actual PostgreSQL/
@@ -5702,29 +5705,34 @@ structural test proves — and what it does not.
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
 
 - **Asserts:** `ITenantContextAccessor.Current` is **written** only by the HTTP,
-  internal Hub, job and integration-event boundaries. ADR-0047 names JobExecutor
-  as the sole job-path writer, replacing the unshipped Hangfire JobActivator.
-  `EnterPlatformAdminScope` opens a separate connection and writes no tenant
-  context. Reads are unconstrained; no new writer is admitted before it ships.
+  internal Hub, job, integration-event and operator-act boundaries. ADR-0047 names
+  JobExecutor as the sole job-path writer, replacing the unshipped Hangfire
+  JobActivator; `PlatformOperatorActExecutor` is the operator-act writer
+  ([ADR-0040 Amendment 25](../decisions/0040-ambient-unit-of-work.md)).
+  `EnterPlatformAdminScope` opens a separate connection and writes no tenant context.
+  Reads are unconstrained; no new writer is admitted before it ships.
 - **Source:** ADR-0036 § Rules, second bullet, as corrected by its erratum and
   [Amendments 2 and 12](../decisions/0036-tenant-resolution-trusted-inputs.md).
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a (Packet 7).
 - **Note:** the name predates the correction and is kept. `ITenantContextAccessor`
-  declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant`
-  this row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and
-  keeps the test's spelling, because § Canonical names makes a rename its own
-  liability and the name describes the caller set, which is what ADR-0036 decides.
+  declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant` this
+  row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and keeps the
+  test's spelling, because § Canonical names makes a rename its own liability and the
+  name describes the caller set, which is what ADR-0036 decides. The set is five logical
+  writers since the operator executor landed (ADR-0036 Amendment 22), and the name is
+  kept for the same reason.
 - **Note:** a source scan rather than NetArchTest: NetArchTest resolves *type*
   references and cannot see a write to a property, which is the whole assertion —
   the same reason `Effective_Host_Computed_In_One_Place` is a scan. The needle
   (`.Current =`) is receiver-agnostic, so an unrelated `Activity.Current =` would trip
   it; that is a false positive to exempt by path, never a reason to filter by folder.
-- **Note:** **three of the four logical boundaries exist** — TenantResolverMiddleware,
+- **Note:** **four of the five logical boundaries exist** — TenantResolverMiddleware,
   the integration-event acceptance/execution scope in InProcessEventBus and
-  DeliveryExecutor, and JobExecutor's framework/business partials. The two JobExecutor
-  files are one logical writer. HubCorrelationMiddleware belongs to Phase 02c.
+  DeliveryExecutor, JobExecutor's framework/business partials and the operator act
+  executor. The JobExecutor partials are one logical writer. HubCorrelationMiddleware
+  belongs to Phase 02c.
   The whole-source census also refuses every writer outside the exact file set.
   The first version of the test scanned only files whose path contained `Tenancy`,
   which deleted the `InProcessEventBus` writer from its own expectation *and* let a

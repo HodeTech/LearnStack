@@ -292,7 +292,10 @@ public sealed class PlatformAdminGateTests
         entry.OperationType.Should().Be(OperationType.SecurityEvent);
         entry.ModuleName.Should().Be("platform", "the scope belongs to no module's request path");
 
-        foreach (var operation in PlatformOperations.All)
+        // Only the operations that enter the platform scope write their result row off-path; the
+        // onboarding acts run through the pipeline, whose request-keyed catalogue the audit-coverage
+        // rules join to the matrices.
+        foreach (var operation in PlatformOperations.All.Where(operation => operation.NeedsPlatformRole))
         {
             catalogue.TryGetOffPath(operation.AuditSlug, out var declared)
                 .Should().BeTrue($"'{operation.AuditSlug}' must be declared so its result row can be recorded");
@@ -317,7 +320,7 @@ public sealed class PlatformAdminGateTests
     public void The_Grant_Validator_Refuses_Unregistered_Keys_And_The_Demo_Operator_Outside_Development()
     {
         var options = new PlatformOperatorGrantOptions { Issuer = TestPlatformAdmissions.Issuer };
-        options.Grants.Add(new PlatformOperatorGrant { Subject = "operator-1", Permissions = { "platform.tenant.write" } });
+        options.Grants.Add(new PlatformOperatorGrant { Subject = "operator-1", Permissions = { "platform.never.write" } });
         new PlatformOperatorGrantOptionsValidator(DeploymentMode.Development).Validate(null, options).Failed.Should().BeTrue(
             "a key no operation has registered is not a grant");
 

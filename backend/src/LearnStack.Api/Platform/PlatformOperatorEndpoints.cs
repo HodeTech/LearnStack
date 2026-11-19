@@ -40,7 +40,7 @@ internal sealed record KillswitchToggleResponse(string Key, bool Before, bool Af
 /// counter and a log (ADR-0101 § 11).
 /// </para>
 /// </remarks>
-internal static class PlatformOperatorEndpoints
+internal static partial class PlatformOperatorEndpoints
 {
     internal const string Prefix = "/api/platform/v1";
 
@@ -67,6 +67,7 @@ internal static class PlatformOperatorEndpoints
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
             .ProducesProblem(StatusCodes.Status500InternalServerError)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+        MapOnboarding(group);
         return app;
     }
 
@@ -77,8 +78,9 @@ internal static class PlatformOperatorEndpoints
 
     private const int MaximumBodyBytes = 4096;
 
-    private static async Task<(KillswitchToggleRequest? Body, BodyState State)> ReadBodyAsync(
+    private static async Task<(TBody? Body, BodyState State)> ReadBodyAsync<TBody>(
         HttpRequest request, CancellationToken cancellationToken)
+        where TBody : class
     {
         if (request.ContentLength is 0 || (request.ContentLength is null && !request.Headers.ContainsKey("Transfer-Encoding")))
         {
@@ -98,7 +100,7 @@ internal static class PlatformOperatorEndpoints
 
         try
         {
-            var body = await JsonSerializer.DeserializeAsync<KillswitchToggleRequest>(
+            var body = await JsonSerializer.DeserializeAsync<TBody>(
                 request.Body, JsonSerializerOptions.Web, cancellationToken);
             return body is null ? (null, BodyState.Malformed) : (body, BodyState.Read);
         }
@@ -125,7 +127,7 @@ internal static class PlatformOperatorEndpoints
         // Admission first: the gate checks the grant before the ticket, so an operator without
         // the grant is answered 403 whatever the request carries, and a body that cannot be used is
         // answered 400 or 415 only to someone who may act at all.
-        var (body, bodyState) = await ReadBodyAsync(http.Request, cancellationToken);
+        var (body, bodyState) = await ReadBodyAsync<KillswitchToggleRequest>(http.Request, cancellationToken);
         var admission = await gate.AdmitAsync(witness, PlatformOperations.KillswitchToggle, body?.Ticket, cancellationToken);
         if (!admission.IsAdmitted)
         {
@@ -147,9 +149,16 @@ internal static class PlatformOperatorEndpoints
             return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
         }
 
+        // The registry resolves the name; a switch it does not declare is answered as it always was,
+        // without a scope entered or a row written.
+        if (!KillswitchKeys.TryResolve(key, out var registryKey))
+        {
+            return Problem(http, StatusCodes.Status404NotFound, "lockey_not_found");
+        }
+
         try
         {
-            var result = await toggle.ToggleAsync(admission.Admission!, new KillswitchKey(key), enabled, cancellationToken);
+            var result = await toggle.ToggleAsync(admission.Admission!, registryKey, enabled, cancellationToken);
             return result.Outcome == KillswitchToggleOutcome.Applied
                 ? Results.Ok(new KillswitchToggleResponse(
                     key, result.Before, result.After, admission.Admission!.Operator.CorrelationId ?? http.TraceIdentifier))

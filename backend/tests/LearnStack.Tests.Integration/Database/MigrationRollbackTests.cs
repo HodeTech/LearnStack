@@ -103,8 +103,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(23L,
-            "current Identity also installs three provider definers, one target transition guard and the federation connection guard");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(24L,
+            "current Identity also installs three provider definers, one target transition guard, the federation connection guard and the operator subject resolver");
         await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);

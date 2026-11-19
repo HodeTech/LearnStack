@@ -5643,18 +5643,23 @@ rewriting the selected terminal status.
 
 ## Invitation entry and consumption
 
-**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
-Implemented P03-4 contract; the
-[phase Status](../roadmap/phase-03-identity-admin.md) owns qualification and follow-ups. This section extends the earlier global/contextual contracts;
-the earlier eight-function/ten-setter counts describe their historical slices.
-The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
-setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
-implements twelve definers/twelve logical setters. The
-[provider-event extension](#provider-event-intake-storage) brings the census to
-fifteen definers/thirteen logical setters, preserving those four physical
-writers; qualification remains source-bound in the phase Status. SMTP adds no tenant setter.
-The [federation host-alias read](#federation-host-alias-read) is the fourteenth logical
-setter; it adds no definer and no physical context writer.
+**Derives from:**
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md). Implemented
+P03-4 contract; the [phase Status](../roadmap/phase-03-identity-admin.md) owns
+qualification and follow-ups. This section extends the earlier global/contextual
+contracts; the earlier eight-function/ten-setter counts describe their historical
+slices. The delivered ADR-0093 baseline is eleven confined definers, eleven logical
+tenant setters and four physical context writers. The
+[P03-5 extension](#custom-field-and-consent-storage) implements twelve definers/twelve
+logical setters. The [provider-event extension](#provider-event-intake-storage) brings
+the census to fifteen definers/thirteen logical setters, preserving those four physical
+writers; qualification remains source-bound in the phase Status. SMTP adds no tenant
+setter. The [federation host-alias read](#federation-host-alias-read) is the fourteenth
+logical setter; it adds no definer and no physical context writer. The
+[operator subject resolution](#operator-subject-resolution) is the sixteenth definer; it
+adds no logical tenant setter. The operator act executor that installs an operator act's
+resolved context is the fifth writer of the context accessor
+([ADR-0040 Amendment 25](../decisions/0040-ambient-unit-of-work.md)).
 
 ### Invitation root and constrained transitions
 
@@ -6240,4 +6245,39 @@ for the self state and the bootstrap result (never the contexts read). [`Federat
 pins its statements, implementation and caller;
 `Out_Of_Band_Setters_Open_Read_Only_Transactions` lists it among the own-connection
 readers.
+
+## Operator onboarding storage
+
+**Derives from:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) and its
+Amendment 1. An operator onboarding act runs on the application role under the ordinary
+tenant announcement, so it adds no table, no policy and no grant. It adds one confined
+definer.
+
+### Operator subject resolution
+
+`users` is under forced row security keyed by identity settings that every tenant
+announcement blanks, so a tenant transaction cannot read it. The act that names a first
+administrator by provider subject needs the `UserId` of an Active user, so one definer
+answers exactly that:
+
+- **Function.**
+  `public.fn_identity_operator_resolve_user(selected_authority uuid, selected_subject_key bytea) RETURNS uuid`,
+  `LANGUAGE plpgsql STABLE SECURITY DEFINER`, owned by `learnstack_migration` (whose
+  policy branch sees `users`), fixed `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC`,
+  `EXECUTE` to `learnstack_app` only.
+- **Refusals.** Any session user but `learnstack_app`, an empty tenant announcement, a
+  read-only or non-`READ COMMITTED` transaction, a null argument, a key that is not 32
+  bytes, and any authority id other than the one stored in `identity_authority`. Each
+  raises `23514` and reveals nothing.
+- **Answer.** The `id` of the one `users` row with that authority and key whose `status`
+  is `Active` and whose `deleted_at` is null, otherwise null. It reads no other relation
+  and writes nothing.
+- **Caller.** `OperatorSubjectResolver`, which derives the key with the one
+  `IdentitySubjectKey` implementation under the deployment's qualified authority, so a
+  request supplies the provider subject and nothing else. The exact SQL, ACL, owner and
+  caller are pinned by the definer census (sixteen definers).
+
+A Membership written under that answer still passes the ordinary admission guard, which
+re-reads the User's eligibility under the user fence, so the resolver is a lookup and
+not an authority.
 

@@ -93,6 +93,16 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             .MustAudit<CreateOrganizationCommand>(
                 "tenancy.organization.create", OperationType.Create, typeof(Organization))
 
+            // The operator's production provisioning writes the same two rows under the same two slugs
+            // (ADR-0102 § 9); the act differs in its source and in the operator it records, not in what
+            // happened, so the matrix keeps one row per operation.
+            .MustAudit<OperatorProvisionTenantCommand>(
+                "tenancy.tenant.create", OperationType.Create, typeof(Domain.Tenant))
+            .MustAudit<OperatorProvisionTenantCommand>(
+                "tenancy.organization.create", OperationType.Create, typeof(Organization))
+            .MustAudit<OperatorMapHostCommand>(
+                "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
+
             .MustAudit<MapHostToTenantCommand>(
                 "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
             .MustAudit<AdoptSeedAdministrationOriginCommand>(

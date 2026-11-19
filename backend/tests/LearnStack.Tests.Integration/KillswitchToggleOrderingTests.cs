@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace LearnStack.Tests.Integration.Database;
+namespace LearnStack.Tests.Integration;
 
 /// <summary>
 /// The order of the killswitch writer's steps and the failure branches around its commit, decided
@@ -19,7 +19,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </summary>
 /// <remarks>
 /// No Docker. The real-database behaviour (row lock, both audit rows, rollback) is asserted in
-/// <see cref="PlatformAdminScopeTests"/>; what a stub can show and a database cannot is the writer's
+/// <see cref="Database.PlatformAdminScopeTests"/>; what a stub can show and a database cannot is the writer's
 /// reaction to a commit whose outcome is unknown.
 /// </remarks>
 public sealed class KillswitchToggleOrderingTests

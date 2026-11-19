@@ -322,16 +322,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         await JsonSerializer.SerializeAsync(destination, input, JsonSerializerOptions.Web, cancellationToken);
     }
 
-    internal static string RealmPath(string realm) => Path.Combine(RepositoryRoot(), "infra", "keycloak", "realms", realm + ".json");
+    internal static string RealmPath(string realm) => RealmFiles.RealmPath(realm);
 
-    internal static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !(File.Exists(Path.Combine(directory.FullName, "CLAUDE.md"))
-            && Directory.Exists(Path.Combine(directory.FullName, "infra", "keycloak", "realms"))))
-            directory = directory.Parent;
-        return directory?.FullName ?? throw new InvalidOperationException("Keycloak fixture repository root is missing.");
-    }
+    internal static string RepositoryRoot() => RealmFiles.RepositoryRoot();
 
     public async Task DisposeAsync()
     {

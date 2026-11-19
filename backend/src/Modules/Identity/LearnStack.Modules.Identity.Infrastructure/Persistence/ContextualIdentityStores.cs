@@ -2,6 +2,7 @@ using System.Data.Common;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Errors;
 using Microsoft.EntityFrameworkCore;
@@ -276,6 +277,24 @@ public sealed class MembershipWriteStore(IdentityDbContext db, ContextualIdentit
 
     public Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default) =>
         ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AnyAsync(cancellationToken));
+
+    public Task<bool> HasActiveTenantAdministratorAsync(CancellationToken cancellationToken = default) =>
+        ContextualIdentityStorageControl.ReadAsync(async () =>
+        {
+            // The administrator Roles first, judged by the domain's own definition (kernel grants
+            // included), then whether an Active tenant-wide Membership holds one of them.
+            var candidates = await db.Roles.Include(role => role.Grants)
+                .Where(role => role.BuiltInKey == BuiltInRoleKey.TenantAdmin && role.DeletedAt == null)
+                .ToListAsync(cancellationToken);
+            var administratorRoles = candidates.Where(role => role.IsTenantAdministrator).Select(role => role.Id).ToList();
+            return administratorRoles.Count != 0
+                && await db.Memberships.AnyAsync(
+                    membership => membership.Status == MembershipStatus.Active && membership.DeletedAt == null
+                        && membership.OrganizationId == null
+                        && membership.RoleAssignments.Any(assignment => administratorRoles.Contains(assignment.RoleId)),
+                    cancellationToken);
+        });
+
     public Task ValidateGraphAsync(CancellationToken cancellationToken = default) => control.ValidateGraphAsync(cancellationToken);
     public Task AddAsync(Membership aggregate, CancellationToken cancellationToken = default)
     {

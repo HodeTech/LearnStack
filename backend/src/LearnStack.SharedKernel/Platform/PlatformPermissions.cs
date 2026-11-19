@@ -24,8 +24,16 @@ public static class PlatformPermissions
     public static PermissionDefinition KillswitchWrite { get; } =
         new(PermissionScope.Platform, "platform.killswitch.write");
 
+    /// <summary>Provision a Tenant and map its hosts (ADR-0102).</summary>
+    public static PermissionDefinition TenantWrite { get; } =
+        new(PermissionScope.Platform, "platform.tenant.write");
+
+    /// <summary>Initialize Role templates, create the first administrator and recover an administrator (ADR-0102).</summary>
+    public static PermissionDefinition TenantBootstrapWrite { get; } =
+        new(PermissionScope.Platform, "platform.tenant_bootstrap.write");
+
     /// <summary>Every registered Platform permission.</summary>
-    public static IReadOnlyList<PermissionDefinition> All { get; } = [KillswitchWrite];
+    public static IReadOnlyList<PermissionDefinition> All { get; } = [KillswitchWrite, TenantWrite, TenantBootstrapWrite];
 
     /// <summary>Finds a registered Platform permission by its key.</summary>
     public static bool TryGet(string? key, out PermissionDefinition definition)

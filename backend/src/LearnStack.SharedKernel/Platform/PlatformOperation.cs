@@ -47,8 +47,29 @@ public static class PlatformOperations
     public static PlatformOperation KillswitchToggle { get; } = new(
         "tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true);
 
+    /// <summary>Provision a Tenant and its default Organization (ADR-0102 § 2).</summary>
+    public static PlatformOperation TenantProvision { get; } = new(
+        "tenancy.tenant.create", "tenant_provision", PlatformPermissions.TenantWrite, false);
+
+    /// <summary>Map a host to a Tenant (ADR-0102 § 2, § 4).</summary>
+    public static PlatformOperation HostMap { get; } = new(
+        "tenancy.hostmapping.write", "host_map", PlatformPermissions.TenantWrite, false);
+
+    /// <summary>Create one finite Role template (ADR-0102 § 2).</summary>
+    public static PlatformOperation RoleInitialize { get; } = new(
+        "identity.role.initialize", "role_initialize", PlatformPermissions.TenantBootstrapWrite, false);
+
+    /// <summary>Create the first tenant-wide administrator Membership (ADR-0102 § 7).</summary>
+    public static PlatformOperation FirstAdminCreate { get; } = new(
+        "identity.membership.create_first_admin", "first_admin_create", PlatformPermissions.TenantBootstrapWrite, false);
+
+    /// <summary>Create a replacement administrator for a Tenant that has none (ADR-0102 § 8).</summary>
+    public static PlatformOperation AdminRecover { get; } = new(
+        "identity.membership.recover_admin", "admin_recover", PlatformPermissions.TenantBootstrapWrite, false);
+
     /// <summary>Every registered operation.</summary>
-    public static IReadOnlyList<PlatformOperation> All { get; } = [KillswitchToggle];
+    public static IReadOnlyList<PlatformOperation> All { get; } =
+        [KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover];
 
     /// <summary>Whether <paramref name="operation"/> is one of the registered instances.</summary>
     public static bool IsRegistered(PlatformOperation? operation) =>

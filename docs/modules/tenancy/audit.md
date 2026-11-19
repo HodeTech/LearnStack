@@ -68,6 +68,13 @@ under [ADR-0033](../../decisions/0033-audit-durability-model.md). The branding w
 shares that guarantee; a failed MUST audit rolls its setting write back too.
 
 
+**Operator acts share the slugs.** The operator's production provisioning and host
+mapping ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)) register the
+same slugs as the seed commands, in the same classes, written on the act's own
+transaction under the target tenant with `actor_user_id` NULL, the closed reason slugs
+`tenant_provision` and `host_map`, and `metadata.operator`. Provisioning writes the two
+rows below, and a refused act writes the ordinary `failed` row.
+
 **One command, two rows.** An intent is parked per audited `(resource, operation)`
 and not per request ([ADR-0044 § 3](../../decisions/0044-audit-write-path.md)), so
 `ProvisionTenantCommand` declares `tenancy.tenant.create` **and**

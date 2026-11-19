@@ -2,6 +2,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
@@ -124,6 +125,9 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<SetSeedMembershipProfileCommand>("identity.membership_profile.set_seed_profile", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetRoleSeedStateQuery>("identity.role.verify_seed", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetMembershipSeedStateQuery>("identity.membership.verify_seed", AuthorizationSourceKind.Seed),
+        OperationPolicy.ForTrusted<OperatorInitializeRoleCommand>("identity.operator.initialize_role", AuthorizationSourceKind.PlatformOperator),
+        OperationPolicy.ForTrusted<OperatorCreateFirstAdminCommand>("identity.operator.create_first_admin", AuthorizationSourceKind.PlatformOperator),
+        OperationPolicy.ForTrusted<OperatorRecoverAdminCommand>("identity.operator.recover_admin", AuthorizationSourceKind.PlatformOperator),
     ];
 
     private static OperationPolicy Federation<TRequest>(string id) =>

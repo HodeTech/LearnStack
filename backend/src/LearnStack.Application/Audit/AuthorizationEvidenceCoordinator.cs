@@ -167,6 +167,8 @@ public sealed class AuthorizationEvidenceCoordinator(
     private void RecordDenial(OperationInvocation invocation, ProtectedOperationDecision? decision, AuthorizationRefusalReason reason,
         string errorKey = "lockey_forbidden", AuthorizationAuditContext? observedContext = null)
     {
+        // An operator's refused act leaves a counter and a log line and no durable row (ADR-0101 § 11).
+        if (invocation.TrustedSource is { SourceKind: AuthorizationSourceKind.PlatformOperator }) return;
         if (_entries.ContainsKey(invocation) || !HasAttribution(invocation)) return;
         try
         {
@@ -180,7 +182,7 @@ public sealed class AuthorizationEvidenceCoordinator(
     private void RecordObservedDenial(OperationInvocation invocation, AuthorizationAuditContext context,
         AuthorizationRefusalReason reason, string errorKey)
     {
-        if (_entries.ContainsKey(invocation)) return;
+        if (_entries.ContainsKey(invocation) || context.SourceKind == AuthorizationSourceKind.PlatformOperator) return;
         capture.AttachAuthorization(context);
         var metadata = "{\"authorization\":" + context.ToJson()
             + ",\"denial_reason\":" + AuditJson.Quote(reason switch

@@ -318,19 +318,24 @@ Rules:
   member name on the wire and in the column, which is why the example above reads `Create`
   and `Must` where the tables read `create` and **MUST**.
 - `outcome` is one of `success`, `denied`, `failed`, `indeterminate`
-  ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's `is_success boolean`
-  is superseded, because a boolean cannot carry `denied`). `denied` is used when an
-  authorisation check rejects the operation — these MUST be audited so we can detect
-  probing. A Platform operator admission refusal is tenantless and outside that
-  population: it leaves a counter and a Warning log
-  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 11). `indeterminate` is the commit whose server-side outcome is unknown: the
-  standalone re-write carries the **same** `id` as the in-transaction attempt, and the
-  pair is what a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies
-  `occurredAt` from `IClock` — the intent's declaration time in the transaction, a fresh
-  reading for a standalone re-write — which is what keeps that pair legal under the
-  composite primary key `(id, timestamp)`. This describes ordinary resource
-  reconciliation; [trusted denial occurrences](#trusted-authorization-evidence)
-  instead retain one fixed key, timestamp and draft.
+  ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's
+  `is_success boolean` is superseded, because a boolean cannot carry `denied`). `denied`
+  is used when an authorisation check rejects the operation — these MUST be audited so
+  we can detect probing. A Platform operator admission refusal is tenantless and outside
+  that population: it leaves a counter and a Warning log
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 11), and so does an
+  authorization refusal of an operator act inside the pipeline
+  ([ADR-0033 Amendment 14](../decisions/0033-audit-durability-model.md)). A business
+  refusal of an admitted operator act writes the ordinary `failed` row in the target
+  tenant, with `actor_user_id` NULL, the closed reason slug and `metadata.operator`.
+  `indeterminate` is the commit whose server-side outcome is unknown: the standalone
+  re-write carries the **same** `id` as the in-transaction attempt, and the pair is what
+  a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies `occurredAt`
+  from `IClock` — the intent's declaration time in the transaction, a fresh reading for
+  a standalone re-write — which is what keeps that pair legal under the composite
+  primary key `(id, timestamp)`. This describes ordinary resource reconciliation;
+  [trusted denial occurrences](#trusted-authorization-evidence) instead retain one fixed
+  key, timestamp and draft.
 - `reason` is required when the operator is a platform admin acting on a tenant they are
   not a member of. It is the closed reason slug of the registered operator operation
   (`PlatformOperation.ReasonSlug`) — never caller-supplied text — and it is surfaced in

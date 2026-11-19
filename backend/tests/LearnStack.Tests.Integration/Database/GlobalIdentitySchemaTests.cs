@@ -66,7 +66,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
             """, null);
         names.Should().Equal("fn_identity_admin_admission_state", "fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
             "fn_identity_creation_attempt_admission", "fn_identity_invitation_entry", "fn_identity_membership_admission_guard",
-            "fn_identity_provider_event_accept", "fn_identity_provider_event_claim", "fn_identity_provider_event_retire",
+            "fn_identity_operator_resolve_user", "fn_identity_provider_event_accept", "fn_identity_provider_event_claim", "fn_identity_provider_event_retire",
             "fn_identity_self_membership_scopes", "fn_identity_user_capacity_guard", "fn_identity_user_creation_audit_guard",
             "fn_invitation_smtp_claim_or_read", "fn_invitation_smtp_complete_attempt", "fn_tenancy_own_field_consent_scope");
         (await ScalarAsync<long>(owner, null, """
@@ -76,7 +76,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
               AND r.rolname='learnstack_migration' AND NOT r.rolbypassrls
               AND 'search_path=pg_catalog'=ANY(p.proconfig)
               AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) acl WHERE acl.grantee=0)
-            """)).Should().Be(15);
+            """)).Should().Be(16);
         (await ScalarAsync<long>(owner, null, """
             SELECT count(*) FROM pg_class WHERE oid IN ('public.users'::regclass,'public.identity_authority'::regclass)
               AND relrowsecurity AND relforcerowsecurity

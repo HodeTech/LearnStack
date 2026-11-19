@@ -10,3 +10,4 @@ begins this directory with the platform operator runbooks;
 |---|---|
 | [Platform operator access](operator-access.md) | An operator needs a token, a grant, or an answer to a 401, 403 or 503 |
 | [Killswitch](killswitch.md) | A capability must be switched off for every tenant during an incident |
+| [Tenant onboarding](tenant-onboarding.md) | A production tenant must be provisioned, mapped to a host and given its first administrator, or an administrator must be recovered |

@@ -307,7 +307,7 @@ public sealed partial class PlatformAdminScopeConventionTests
     public void The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable()
     {
         // Two closed sets it must stay outside of, both stated in Accepted ADRs. It is
-        // not one of the four writers of ITenantContextAccessor.Current — ADR-0036 names
+        // not one of the writers of ITenantContextAccessor.Current — ADR-0036 names
         // it as explicitly not one — and it is not a ninth setter of app.tenant_id beside
         // ADR-0040's eight, because the role bypasses policies and there is nothing to
         // announce to. SetTenant_Callers_Are_The_Enumerated_Four covers the first

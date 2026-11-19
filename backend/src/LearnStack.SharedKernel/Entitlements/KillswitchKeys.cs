@@ -59,4 +59,25 @@ public static class KillswitchKeys
             [EmailDispatchEnabled] = true,
             [AnalyticsIngestEnabled] = true,
         }.ToFrozenDictionary();
+
+    private static readonly FrozenDictionary<string, KillswitchKey> ByName =
+        All.Keys.ToFrozenDictionary(key => key.Value, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Resolves a switch the wire names to the registry's own member, so a caller reads a key from here
+    /// and never spells one.
+    /// </summary>
+    /// <param name="name">The key as an operator or a route carries it.</param>
+    /// <param name="key">The registry member when the name is one.</param>
+    /// <returns><c>false</c> for a name the registry does not declare.</returns>
+    public static bool TryResolve(string? name, out KillswitchKey key)
+    {
+        if (name is not null && ByName.TryGetValue(name, out key))
+        {
+            return true;
+        }
+
+        key = default;
+        return false;
+    }
 }

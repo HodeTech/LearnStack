@@ -1423,5 +1423,29 @@ work by one confined setter. The rule that no route resolves a tenant from a
 request-supplied override stands for every route that resolves context from a host or a
 claim.
 
+> **Erratum (2026-11-19, Amendment 22 below).** "One confined setter" is wrong: no
+> setter was added. The operator act executor installs a resolved ambient context for
+> the target and the ordinary transaction behavior announces it.
+
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 22 — The operator target is an executor-installed context (2026-11-19)
+
+Amendment 21 said the target tenant of an admitted operator act is announced by one
+confined setter. As built by [ADR-0102](0102-production-tenant-onboarding.md) there is
+no setter: `PlatformOperatorActExecutor` consumes the single-use admission, opens a
+fresh scope and installs an immutable resolved context with `Ambient` origin, no user,
+no organization and no host scope, for the tenant the operator named in the path of a
+`/api/platform/v1/tenants/{tenantId}` route. It is the fifth writer of
+`ITenantContextAccessor.Current`, alongside the four of Amendment 2, and
+`SetTenant_Callers_Are_The_Enumerated_Four` names its file. The target comes from that
+route's path and from nothing an ordinary route supplies; the rule that no route
+resolves a tenant from a request-supplied override stands for every route that resolves
+context from a host or a claim, and the operator surface resolves none. A request type
+outside the executor's closed catalog, an admission for another operation, the platform
+sentinel and an unassigned tenant are refused before the admission is spent.
+
+The Decision, Status, Date and prior amendments of this record are unchanged, apart from
+the inline erratum beside Amendment 21. Acceptance of the linked records is not proof
+that anything they decide is implemented.

@@ -29,6 +29,12 @@ public interface IMembershipWriteStore : IAggregateWriteStore<Membership, Member
     /// <summary>Retains the exact scoped root after the complete User/tenant plan; reread before mutation.</summary>
     Task LockAsync(MembershipId membershipId, CancellationToken cancellationToken = default);
     Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether the tenant has an Active, undeleted, tenant-wide Membership holding a tenant administrator
+    /// Role (ADR-0102 § 8). The recovery predicate; read under the ordered locks.
+    /// </summary>
+    Task<bool> HasActiveTenantAdministratorAsync(CancellationToken cancellationToken = default);
     Task ValidateGraphAsync(CancellationToken cancellationToken = default);
 }
 

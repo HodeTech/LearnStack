@@ -67,6 +67,16 @@ is not proof that anything is implemented.
    [ADR-0040](0040-ambient-unit-of-work.md) and
    [ADR-0036](0036-tenant-resolution-trusted-inputs.md) receive dated disclosures, and
    the four context writers do not change. The platform role is not used.
+
+   > **Erratum (2026-11-19, Amendment 1 below).** The mechanism above was not built and
+   > could not have been. No new tenant setter exists: the operator act executor
+   installs > an immutable resolved ambient context for the admitted target, and the
+   ordinary > transaction behavior announces it, so the setter census does not move. The
+   executor > is a fifth writer of the tenant context accessor, because the query
+   filters and the > transaction behavior read that accessor and an act that is not
+   installed in it is > invisible to row security. "The four context writers do not
+   change" and "the > eleventh logical tenant setter" were therefore false when this
+   record was accepted.
 2. **The commands.** `OperatorProvisionTenant` creates a Tenant and its default
    Organization. `OperatorMapHost` maps a host through the existing host-mapping store
    and its reserved-host and platform-host rules. `OperatorInitializeRole` creates one
@@ -184,6 +194,14 @@ naming.
   are the source check, the in-transaction predicates, the resolver's Active filter and
   the setter's operation binding.
 
+  > **Erratum (2026-11-19, Amendment 1 below).** "After the last one is revoked" names a
+  > state the database refuses: the deferred last-administrator guard rejects any commit
+  > that leaves a tenant without an available administrator, so no ordinary write
+  reaches > it. The proof reaches the state by an owner-level repair that steps around
+  that > guard, and shows the invariant intact after the recovery. "The setter's
+  operation > binding" reads as the executor's binding of the admitted operation to its
+  request > type.
+
 ## Carriers
 
 Dated disclosures in [ADR-0036](0036-tenant-resolution-trusted-inputs.md) (the target
@@ -194,6 +212,67 @@ audit-composition branch), [ADR-0072](0072-application-owned-identity-bootstrap.
 path), [ADR-0074](0074-membership-admission-under-ordered-locks.md) (the recovery
 predicate under its locks), Standards 05, 18 and 19, the Identity and Tenancy module
 specifications, and the Phase 03 Status.
+
+## Amendments
+
+### Amendment 1 — As built: an executor-installed context, no new setter (2026-11-19)
+
+Step 2 of the packet shipped the five acts and showed four statements of this record
+wrong or stale. Each is corrected inline above and recorded here.
+
+1. **No new setter; a fifth context writer.** § 1 promised one new confined tenant
+   setter and unchanged context writers. The operator act executor
+   (`LearnStack.Infrastructure/PlatformOperator/PlatformOperatorActExecutor.cs`)
+   consumes the single-use admission, opens a fresh scope, installs an immutable
+   resolved `Ambient` context for the admitted tenant (no user, no organization, no host
+   scope) and sends the command through the ordinary pipeline, which announces that
+   context as it does for seed, delivery and job acts. The logical setter census stays
+   at fourteen ([ADR-0040](0040-ambient-unit-of-work.md) Amendments 22 and 23), the
+   platform role is not used, and the executor is the fifth writer of the context
+   accessor ([ADR-0036](0036-tenant-resolution-trusted-inputs.md) Amendment 2). The one
+   source that may mint the operator descriptor is the fourth minting source, scoped to
+   the executor's frame and bound to the operation of the admission.
+2. **Provisioning on a resolved context.** The new tenant's id is the act's target, so
+   the executor installs a resolved context for an id that has no `tenants` row yet, and
+   the ordinary insert policy admits it. The operator provisioning command therefore
+   needs no provisioning announcement, and the seed command keeps its own.
+3. **The resolver is the sixteenth definer.** `fn_identity_operator_resolve_user(uuid,
+   bytea)` takes the stored authority id and the derived subject key. The application
+   derives the key with the one `IdentitySubjectKey` implementation under the
+   deployment's qualified authority, and the function refuses any other authority, any
+   session but the application role, any key that is not 32 bytes and any transaction
+   that is not an ordinary read-write tenant one, then answers an Active user's id or
+   null. [Database Standards](../standards/05-database.md) carries the contract.
+4. **Recovery is a break-glass for repaired states.** The last-administrator guard is
+   deferred to commit and rejects any write that leaves a tenant without an available
+   administrator, which means a Membership with an Active tenant-wide administrator Role
+   whose User is Active. Revoking or suspending the last administrator is therefore not
+   reachable through any ordinary path, and Users have no admitted update or removal
+   owner today. § 8's predicate is a Membership predicate, as accepted, and is
+   implemented as written: the act refuses while an Active tenant-wide administrator
+   Membership exists. A tenant whose only administrator Membership is nominally Active
+   but unusable is not a recoverable tenant under it, and a predicate that also reads
+   the User's eligibility would need a second confined definer. The maintainer decides
+   whether that is wanted.
+
+Two behaviors the record left open are fixed. The business actor of every written row is
+`UserId.SystemActor` and the audit actor is NULL, as § 3 and
+[ADR-0101](0101-platform-operator-authority.md) § 9 say. A refused operator act writes
+the ordinary `failed` MUST row in the target tenant, carrying the operator in
+`metadata.operator`, and an authorization refusal of an operator request writes no
+durable denial row ([ADR-0033](0033-audit-durability-model.md) Amendment 14).
+
+Carriers changed with this amendment: ADR-0033 Amendment 14, ADR-0036 Amendment 22 and
+ADR-0040 Amendment 25, each with an inline erratum beside the false text; Database
+Standards, Security Standards, Audit Coverage, Permission Standards and the
+Architecture-Tests Catalogue; the Identity and Tenancy module specifications; the
+glossary and the onboarding runbook.
+[ADR-0072](0072-application-owned-identity-bootstrap.md),
+[ADR-0073](0073-scoped-membership-and-identity-data-foundation.md) and
+[ADR-0074](0074-membership-admission-under-ordered-locks.md) are read and unchanged: no
+sentence of theirs is stale. The Decision, Status, Date and every other section are
+unchanged. Acceptance of the linked records is not proof that anything they decide is
+implemented.
 
 ## References
 

@@ -36,7 +36,7 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(131, actual.Length);
+        Assert.Equal(136, actual.Length);
         Assert.Equal(5, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
         Assert.Equal(61, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
@@ -64,7 +64,7 @@ public sealed class OperationPolicyCatalogTests
         Assert.Equal(new[] { typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal),
             catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnConsentEntry).Select(policy => policy.RequestType));
-        Assert.Equal(46, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        Assert.Equal(51, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
         var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);
@@ -104,6 +104,48 @@ public sealed class OperationPolicyCatalogTests
             case "platform": source.Definitions = [new(new(PermissionScope.Platform, "platform.example.read"), true)]; break;
         }
         Assert.Throws<InvalidOperationException>(() => new OperationPolicyCatalog([source]));
+    }
+
+    [Fact]
+    public void Operator_acts_accept_only_the_operator_source_and_seed_acts_never_accept_it()
+    {
+        // ADR-0102 § 1: neither source is sufficient for the other's request. The operator source is the
+        // single allowed source of each operator command, and no other policy in the catalogue lists it.
+        var catalog = ProductionCatalog();
+        Type[] operatorActs =
+        [
+            typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.OperatorProvisionTenantCommand),
+            typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.OperatorMapHostCommand),
+            typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.OperatorInitializeRoleCommand),
+            typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.OperatorCreateFirstAdminCommand),
+            typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.OperatorRecoverAdminCommand),
+        ];
+
+        foreach (var act in operatorActs)
+        {
+            Assert.True(catalog.TryGet(act, out var policy), act.Name);
+            Assert.Equal(OperationPolicyKind.FiniteTrusted, policy.Kind);
+            Assert.Equal(AuthorizationSourceKind.PlatformOperator, Assert.Single(policy.AllowedSources));
+        }
+
+        var withOperatorSource = catalog.All
+            .Where(policy => policy.AllowedSources.Contains(AuthorizationSourceKind.PlatformOperator))
+            .Select(policy => policy.RequestType)
+            .ToArray();
+        Assert.Equal(operatorActs.OrderBy(type => type.FullName, StringComparer.Ordinal), withOperatorSource);
+
+        Type[] seedCounterparts =
+        [
+            typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.ProvisionTenantCommand),
+            typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.MapHostToTenantCommand),
+            typeof(LearnStack.Modules.Identity.Application.Contracts.Seeding.InitializeSeedRoleCommand),
+            typeof(LearnStack.Modules.Identity.Application.Contracts.Seeding.CreateFirstSeedAdminMembershipCommand),
+        ];
+        foreach (var seed in seedCounterparts)
+        {
+            Assert.True(catalog.TryGet(seed, out var policy), seed.Name);
+            Assert.DoesNotContain(AuthorizationSourceKind.PlatformOperator, policy.AllowedSources);
+        }
     }
 
     [Fact]

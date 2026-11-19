@@ -1012,5 +1012,35 @@ four context writers do not change. The single-act resolver that maps a provider
 to a `UserId` is a ninth definer function; its signature, owner, body and ACL land in
 [Standard 05](../standards/05-database.md) with the packet that ships it.
 
+> **Erratum (2026-11-19, Amendment 25 below).** All three counts above were wrong when
+> this amendment was written: there is no new setter, the context writers are five, and
+> the resolver is the sixteenth definer.
+
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 25 — Operator acts: a fifth context writer, no new setter (2026-11-19)
+
+Amendment 24 recorded accepted [ADR-0102](0102-production-tenant-onboarding.md) as
+adding an eleventh logical tenant setter, leaving the four context writers unchanged and
+counting the subject resolver as the ninth definer. The packet that implements it shows
+all three counts wrong.
+
+- **No setter.** The operator act executor installs an immutable, resolved, ambient
+  context for the admitted target tenant, with no user, organization or host scope, and
+  the ordinary transaction behavior announces it as it announces a seed, delivery or job
+  context. The logical tenant setters stay at fourteen (Amendments 22 and 23). The
+  platform role is not used and the unit of work gains no method.
+- **A fifth context writer.** The executor is the fifth writer of
+  `ITenantContextAccessor.Current`, named by file in
+  `SetTenant_Callers_Are_The_Enumerated_Four`, which keeps its name because three
+  Accepted records and the catalogue cite it. The claim that the four writers do not
+  change was unachievable: the query filters and the transaction behavior read the
+  accessor.
+- **The sixteenth definer.** `fn_identity_operator_resolve_user(uuid, bytea)` follows
+  the fifteen the schema carried before it; [Standard 05](../standards/05-database.md)
+  carries its signature, owner, body and ACL.
+
+The Decision, Status, Date and prior amendments of this record are unchanged, apart from
+the inline erratum beside Amendment 24. Acceptance of the linked records is not proof
+that anything they decide is implemented.

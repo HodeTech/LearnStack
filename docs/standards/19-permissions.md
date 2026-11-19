@@ -92,7 +92,7 @@ nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.killswitch.write` (registered); `platform.tenant.write`, `platform.tenant_bootstrap.write` and the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue join with the step that ships the operation using them, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.killswitch.write`, `platform.tenant.write` and `platform.tenant_bootstrap.write` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 
@@ -104,6 +104,15 @@ not change when it grows ([ADR-0101](../decisions/0101-platform-operator-authori
 | Key | Operation | Packet |
 |---|---|---|
 | `platform.killswitch.write` | `tenancy.killswitch.toggle` | P03-9 Step 1 |
+| `platform.tenant.write` | `tenancy.tenant.create` (tenant provisioning), `tenancy.hostmapping.write` (host mapping) | P03-9 Step 2 |
+| `platform.tenant_bootstrap.write` | `identity.role.initialize`, `identity.membership.create_first_admin`, `identity.membership.recover_admin` | P03-9 Step 2 |
+
+The five onboarding acts of
+[ADR-0102](../decisions/0102-production-tenant-onboarding.md) run under the
+`PlatformOperator` authorization source, which is not a Membership candidate: their
+policies are `FiniteTrusted` with that single source, the business actor of every row
+they write is `UserId.SystemActor`, and the operator is recorded in audit only. The
+grant is evaluated by the gate on every act, never cached across acts.
 
 Tenant permissions are only meaningful inside an admitted tenant scope.
 Organization grants require an eligible Membership for that exact organization.

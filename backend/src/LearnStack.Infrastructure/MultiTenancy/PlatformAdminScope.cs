@@ -379,21 +379,12 @@ public sealed class PlatformAdminScope(
             Metadata = OperatorMetadata(admission, includeTicket: true, Provenance(callerMember, callerFile, callerLine)),
         };
 
-    private static string OperatorMetadata(PlatformAdmission admission, bool includeTicket, string? provenance)
-    {
-        var op = admission.Operator;
-        var json = "{"
-            + (provenance is null ? string.Empty : "\"caller\":" + provenance + ",")
-            + "\"operator\":{"
-            + "\"issuer\":" + AuditJson.Quote(op.Issuer)
-            + ",\"subjectDigest\":" + AuditJson.Quote(op.SubjectDigest)
-            + ",\"kind\":\"human\""
-            + ",\"acr\":" + AuditJson.Quote(op.Acr)
-            + ",\"executor\":" + AuditJson.Quote(op.Executor)
-            + (includeTicket && admission.Ticket is not null ? ",\"ticket\":" + AuditJson.Quote(admission.Ticket) : string.Empty)
-            + "}}";
-        return json;
-    }
+    private static string OperatorMetadata(PlatformAdmission admission, bool includeTicket, string? provenance) =>
+        "{"
+        + (provenance is null ? string.Empty : "\"caller\":" + provenance + ",")
+        + "\"operator\":"
+        + PlatformOperatorAttribution.From(admission).ToOperatorJson(includeTicket ? admission.Ticket : null)
+        + "}";
 
     private static string Provenance(string? callerMember, string? callerFile, int callerLine) =>
         "{"

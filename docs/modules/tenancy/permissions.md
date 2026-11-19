@@ -111,9 +111,16 @@ authority. Their named Phase 02c/P03-9 surfaces retain separate admission decisi
 the widening it needs is an ADR's to make, not a migration's.
 
 The Platform catalogue ([ADR-0101](../../decisions/0101-platform-operator-authority.md))
-is separate and never assignable to a Role. Tenancy owns one key in it today,
-`platform.killswitch.write`, which authorizes the operator surface to toggle
-`platform_killswitches`; operators hold it by configuration
+is separate and never assignable to a Role. Tenancy owns two keys in it today.
+`platform.killswitch.write` authorizes the operator surface to toggle
+`platform_killswitches`. `platform.tenant.write` authorizes the operator's production
+tenant provisioning and host mapping
+([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)):
+`OperatorProvisionTenantCommand` and `OperatorMapHostCommand` are `FiniteTrusted`
+operations whose one source is `PlatformOperator`, run on the application role under the
+target tenant's ordinary announcement, and share their audit slugs
+(`tenancy.tenant.create`, `tenancy.organization.create`, `tenancy.hostmapping.write`)
+with the seed commands they parallel. Operators hold the keys by configuration
 ([Standard 19](../../standards/19-permissions.md)).
 
 ## Bounded human administration contract

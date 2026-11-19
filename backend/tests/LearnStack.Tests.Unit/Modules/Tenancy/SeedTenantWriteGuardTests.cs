@@ -24,6 +24,7 @@ using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -392,6 +393,7 @@ public sealed class SeedTenantWriteGuardTests
             services.AddSingleton<IReservedHostRegistry>(NoReservedHosts.Instance);
             services.AddSingleton<IHostResolutionInvalidator>(NullHostResolutionInvalidator.Instance);
             services.AddSingleton(Guard);
+            services.AddSingleton(new OperatorActGuard(execution, context, Unit, Locks));
             _provider = services.BuildServiceProvider();
         }
         public ISeedCustomizationPrerequisiteReader Customization { get; } = Substitute.For<ISeedCustomizationPrerequisiteReader>();
@@ -493,6 +495,10 @@ internal sealed class TenancySeedHandlerOwner : IDisposable
         customization.IsCompleteAsync(Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>()).Returns(true);
         services.AddSingleton(customization);
         services.AddSingleton<SeedTenantWriteGuard>();
+        services.AddSingleton<OperatorActGuard>();
+        var existence = Substitute.For<ITenantExistenceReader>();
+        existence.ExistsAsync(Arg.Any<CancellationToken>()).Returns(true);
+        services.TryAddSingleton(existence);
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TenancySeedInvocationBehavior<,>));
     }
 

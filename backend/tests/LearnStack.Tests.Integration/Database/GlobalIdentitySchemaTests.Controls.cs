@@ -407,8 +407,8 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(28, "the closed set includes three provider definers, one target transition guard and the federation connection guard");
-        functions.Count(function => function.Definer).Should().Be(15);
+        functions.Should().HaveCount(29, "the closed set includes three provider definers, one target transition guard, the federation connection guard and the operator resolver");
+        functions.Count(function => function.Definer).Should().Be(16);
         functions.Single(function => function.Name == "fn_tenancy_own_field_consent_scope").Signature
             .Should().Be("public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)",
                 nameof(MembershipFieldConsentStorageTests.Definer_scope_is_subject_and_host_capped_with_a_closed_bounded_interface));

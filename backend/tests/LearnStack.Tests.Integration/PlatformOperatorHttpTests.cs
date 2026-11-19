@@ -432,7 +432,11 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         var operatorDocument = await _client.GetStringAsync("/openapi/platform-v1.json");
         var tenantDocument = await _client.GetStringAsync("/openapi/v1.json");
 
-        operatorDocument.Should().Contain("/api/platform/v1/killswitches/{key}");
+        foreach (var route in OperatorRoutes)
+        {
+            operatorDocument.Should().Contain(route, "the contract is the only client the operator surface has");
+        }
+
         tenantDocument.Should().NotContain("/api/platform", "the tenant contract is pinned and untouched (ADR-0101 § 4)");
 
         // What a client author needs: a title, no Host-derived servers, the bearer scheme and its token
@@ -454,7 +458,32 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             .Should().BeTrue();
         put.GetProperty("responses").GetProperty("503").GetProperty("headers").TryGetProperty("Retry-After", out _)
             .Should().BeTrue();
+        put.GetProperty("responses").TryGetProperty("409", out _).Should().BeFalse("a switch toggle never answers a refused state");
+
+        // Every onboarding act is a PUT with its own body, the same status set, and a 409 for the state it refuses.
+        foreach (var route in OperatorRoutes.Where(route => !route.Contains("killswitches", StringComparison.Ordinal)))
+        {
+            var act = root.GetProperty("paths").GetProperty(route).GetProperty("put");
+            act.GetProperty("security").GetArrayLength().Should().Be(1, route);
+            act.GetProperty("requestBody").GetProperty("content").GetProperty("application/json")
+                .GetProperty("schema").ValueKind.Should().NotBe(JsonValueKind.Undefined, route);
+            act.GetProperty("responses").EnumerateObject().Select(response => response.Name)
+                .Should().Contain(["200", "400", "401", "403", "404", "409", "415", "500", "503"], route);
+        }
+
+        root.GetProperty("paths").EnumerateObject().Select(path => path.Name).Should().BeEquivalentTo(OperatorRoutes,
+            "a route that is not in the closed list is an operator act nobody reviewed");
     }
+
+    private static readonly string[] OperatorRoutes =
+    [
+        "/api/platform/v1/killswitches/{key}",
+        "/api/platform/v1/tenants/{tenantId}",
+        "/api/platform/v1/tenants/{tenantId}/host-mappings/{host}",
+        "/api/platform/v1/tenants/{tenantId}/roles/{roleId}",
+        "/api/platform/v1/tenants/{tenantId}/first-administrator/{membershipId}",
+        "/api/platform/v1/tenants/{tenantId}/administrator-recovery/{membershipId}",
+    ];
 
     [Fact]
     public async Task Without_An_Issuer_The_Surface_And_Its_Document_Do_Not_Exist()
@@ -489,7 +518,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public void The_Operator_Surface_Is_Exactly_One_Authorized_Put_Endpoint_Under_Its_Prefix()
+    public void The_Operator_Surface_Is_Exactly_The_Six_Authorized_Put_Endpoints_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
         // its population is closed here instead: every routed endpoint under /api/platform (whatever
@@ -503,13 +532,19 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                     ?.Kind == InfrastructureOperationKind.PlatformOperator)
             .ToList();
 
-        var only = endpoints.Should().ContainSingle().Subject;
-        only.RoutePattern.RawText.Should().Be("/api/platform/v1/killswitches/{key}");
-        only.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()!.HttpMethods.Should().Equal("PUT");
-        only.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
-            .Select(data => data.Policy).Should().Contain(PlatformOperatorAuthentication.PolicyName,
-                "an operator endpoint without the authenticated-operator policy would admit an anonymous caller");
-        only.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>().Should().BeNull();
+        endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Should().BeEquivalentTo(
+            OperatorRoutes.Select(route => route.Replace("{tenantId}", "{tenantId:guid}").Replace("{roleId}", "{roleId:guid}")
+                .Replace("{membershipId}", "{membershipId:guid}")),
+            "the operator population is closed: a new route is a reviewed act with its own policy, grant and audit slug");
+        foreach (var endpoint in endpoints)
+        {
+            var route = endpoint.RoutePattern.RawText;
+            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()!.HttpMethods.Should().Equal(["PUT"], route);
+            endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
+                .Select(data => data.Policy).Should().Contain(PlatformOperatorAuthentication.PolicyName,
+                    "an operator endpoint without the authenticated-operator policy would admit an anonymous caller: " + route);
+            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>().Should().BeNull(route);
+        }
     }
 
     private string Header(string alg, string typ) => JsonSerializer.Serialize(new { alg, typ, kid = _operator.CurrentKey.Kid });

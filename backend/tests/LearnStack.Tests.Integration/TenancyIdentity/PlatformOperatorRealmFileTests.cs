@@ -14,7 +14,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed class PlatformOperatorRealmFileTests
 {
     private static JsonObject Realm() =>
-        JsonNode.Parse(File.ReadAllText(KeycloakFixture.RealmPath("learnstack-hub")))!.AsObject();
+        JsonNode.Parse(File.ReadAllText(RealmFiles.RealmPath("learnstack-hub")))!.AsObject();
 
     [Fact]
     public void Password_Reset_Is_Off_So_No_Second_Path_To_A_Password_Skips_The_Second_Factor() =>

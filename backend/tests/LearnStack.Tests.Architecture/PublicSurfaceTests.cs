@@ -305,7 +305,15 @@ public sealed class PublicSurfaceTests
         .Where(type => type.IsDefined(typeof(PublicSurfaceAttribute), false))
         .Select(type => type.FullName!).ToHashSet(StringComparer.Ordinal);
 
-    private static IEnumerable<string> MinimalBypasses(ModuleDefinition module) => Types([module]).Where(type =>
+    // The platform operator surface (ADR-0101 § 4) is its own closed surface with its own scheme: minimal
+    // endpoints in a group, one verb, one policy, one fixed metadata. It is excluded by exact type (and the
+    // compiler's nested types of it), so a mapping anywhere else is still a bypass; its own population is
+    // asserted in PlatformOperatorHttpTests.
+    private const string OperatorSurface = "LearnStack.Api.Platform.PlatformOperatorEndpoints";
+
+    private static IEnumerable<string> MinimalBypasses(ModuleDefinition module) => Types([module])
+        .Where(type => type.FullName != OperatorSurface && !type.FullName.StartsWith(OperatorSurface + "/", StringComparison.Ordinal))
+        .Where(type =>
     {
         var methods = Il.Methods(type).Where(method => method.Definition.HasBody).ToArray();
         var composition = methods.SelectMany(method => method.Definition.Body.Instructions

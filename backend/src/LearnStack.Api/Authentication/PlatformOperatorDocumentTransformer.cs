@@ -66,7 +66,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
                     // Declared here and not through `Accepts` on the endpoint: that metadata makes routing
                     // reject any other content type itself, before the handler can answer 415 as a problem.
                     var schema = await context.GetOrCreateSchemaAsync(
-                        typeof(Platform.KillswitchToggleRequest), null, cancellationToken);
+                        BodyFor(operation.OperationId), null, cancellationToken);
                     operation.RequestBody = new OpenApiRequestBody
                     {
                         Required = true,
@@ -77,11 +77,28 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         }
     }
 
+    /// <summary>The request body each operation reads, by the name its endpoint declares.</summary>
+    private static Type BodyFor(string? operationId) => operationId switch
+    {
+        "PlatformKillswitchToggle" => typeof(Platform.KillswitchToggleRequest),
+        "PlatformTenantProvision" => typeof(Platform.TenantProvisionRequest),
+        "PlatformHostMap" => typeof(Platform.HostMapRequest),
+        "PlatformRoleInitialize" => typeof(Platform.RoleInitializeRequest),
+        "PlatformFirstAdminCreate" or "PlatformAdminRecover" => typeof(Platform.AdministratorRequest),
+        _ => throw new InvalidOperationException("An operator operation declares no request body: " + operationId),
+    };
+
     private static void DescribeResponses(OpenApiDocument document, OpenApiOperation operation)
     {
         operation.Responses ??= [];
         foreach (var (status, description) in Statuses)
         {
+            // 409 belongs to the acts that can meet a state they refuse; a switch toggle never answers it.
+            if (status == "409" && !operation.Responses.ContainsKey("409"))
+            {
+                continue;
+            }
+
             operation.Responses[status] = new OpenApiResponse
             {
                 Description = description,
@@ -127,9 +144,10 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         ("400", "validation_failed: the body is malformed, the required state is missing, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -."),
         ("401", "unauthorized: the credential is missing or does not meet the token profile. One answer for every cause; the cause is in the operator's signals."),
         ("403", "forbidden: the credential is good and this operator holds no grant for the operation."),
-        ("404", "not_found: the key is not a declared killswitch."),
+        ("404", "not_found: the key is not a declared killswitch, or the tenant the route names does not exist."),
+        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (identifier taken, a person already bound, an administrator already exists, the tenant has history). The same request is safe to repeat once the state is as the reason says."),
         ("415", "unsupported_media_type: the body is not application/json."),
-        ("500", "internal_error: an unexpected failure. A toggle whose final commit's outcome is unknown may have landed; read the switch before repeating."),
-        ("503", "audit_unavailable: the audit row could not be written, so nothing changed."),
+        ("500", "internal_error: an unexpected failure. An act whose final commit's outcome is unknown may have landed; repeat the same request (every act is idempotent on its identifiers) or read the state before changing it."),
+        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written or a dependency could not answer, so nothing changed. Retry after the delay."),
     ];
 }

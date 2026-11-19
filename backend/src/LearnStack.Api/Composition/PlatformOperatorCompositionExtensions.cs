@@ -1,6 +1,8 @@
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Versioning;
 using LearnStack.Infrastructure.PlatformOperator;
+using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Platform;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -28,6 +30,17 @@ internal static class PlatformOperatorCompositionExtensions
         services.TryAddSingleton<IPlatformOperatorGrantSource, ConfigurationPlatformOperatorGrantSource>();
         services.TryAddSingleton<IPlatformOperatorGate, PlatformOperatorGate>();
 
+        // The five onboarding acts the operator may run through the ordinary pipeline on the application
+        // role (ADR-0102 § 2): the closed list the executor and the operator source both judge by.
+        services.AddPlatformOperatorActs(new PlatformOperatorActCatalog(
+        [
+            Act<OperatorProvisionTenantCommand>(PlatformOperations.TenantProvision),
+            Act<OperatorMapHostCommand>(PlatformOperations.HostMap),
+            Act<OperatorInitializeRoleCommand>(PlatformOperations.RoleInitialize),
+            Act<OperatorCreateFirstAdminCommand>(PlatformOperations.FirstAdminCreate),
+            Act<OperatorRecoverAdminCommand>(PlatformOperations.AdminRecover),
+        ]));
+
         var settings = PlatformOperatorSettings.FromConfiguration(configuration, deploymentMode);
         if (settings is not null)
         {
@@ -37,4 +50,7 @@ internal static class PlatformOperatorCompositionExtensions
 
         return services;
     }
+
+    private static KeyValuePair<Type, PlatformOperatorAct> Act<TRequest>(PlatformOperation operation) =>
+        new(typeof(TRequest), new PlatformOperatorAct(operation));
 }

@@ -13,6 +13,8 @@ public sealed class TrustedOperationSourceConventionTests
     private const string Seed = "LearnStack.Tools.Seeder.SeedOperationSource";
     private const string Delivery = "LearnStack.Infrastructure.Messaging.DeliveryOperationSource";
     private const string Job = "LearnStack.Application.Jobs.BackgroundJobOperationSource";
+    private const string Operator = "LearnStack.Infrastructure.PlatformOperator.PlatformOperatorOperationSource";
+    private const string OperatorExecutor = "LearnStack.Infrastructure.PlatformOperator.PlatformOperatorActExecutor";
     private const string Admission = "LearnStack.Application.Jobs.BackgroundJobExecutionAdmission";
     private const string JobOwner = "LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner";
 
@@ -20,7 +22,8 @@ public sealed class TrustedOperationSourceConventionTests
     public void Finite_operation_descriptors_have_exact_minters_private_construction_and_revocable_evidence()
     {
         using var census = Census.Read();
-        Offenders(census).Should().BeEmpty("Fix: preserve the exact owned seed/delivery/job source set and its closed lifetime (ADR-0076)");
+        Offenders(census).Should().BeEmpty(
+            "Fix: preserve the exact owned seed/delivery/job/operator source set and its closed lifetime (ADR-0076, ADR-0102)");
         var descriptor = census.Type(Descriptor);
         Dirty(census, () =>
         {
@@ -53,9 +56,11 @@ public sealed class TrustedOperationSourceConventionTests
             (Delivery, "IsEvidenceCurrent", "LearnStack.SharedKernel.Persistence.IUnitOfWork", "GetTenantContextAnnouncement"),
             (Admission, "IsOperationEvidenceCurrent", JobOwner, "get_IsCurrentBinding"),
             (Admission, "IsOperationEvidenceCurrent", Admission, "IsLive"),
+            (Operator, "IsEvidenceCurrent", "LearnStack.SharedKernel.Tenancy.ITenantContextAccessor", "get_Current"),
+            (Operator, "Capture", "LearnStack.Infrastructure.PlatformOperator.PlatformOperatorActCatalog", "TryGet"),
         }) Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
         foreach (var (typeName, methodName) in new[]
-                 { (Delivery, "Enter"), ("LearnStack.SharedKernel.Permissions.ITrustedOperationSource", "Capture") })
+                 { (Delivery, "Enter"), (Operator, "Enter"), ("LearnStack.SharedKernel.Permissions.ITrustedOperationSource", "Capture") })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn }) Dirty(census, () =>
             {
                 var module = census.Type(Seed).Module;
@@ -74,17 +79,18 @@ public sealed class TrustedOperationSourceConventionTests
         var descriptor = census.Type(Descriptor);
         var constructors = descriptor.Methods.Where(method => method.IsConstructor).ToArray();
         if (!descriptor.IsSealed || !descriptor.IsPublic || constructors.Length != 1 || !constructors[0].IsPrivate
-            || descriptor.Fields.Count != 5 || descriptor.Fields.Any(field => !field.IsPrivate || !field.IsInitOnly || field.IsStatic)
+            || descriptor.Fields.Count != 6 || descriptor.Fields.Any(field => !field.IsPrivate || !field.IsInitOnly || field.IsStatic)
             || descriptor.Properties.Any(property => property.SetMethod is not null)
             || !Same(descriptor.Fields.Select(field => field.Name), ["_source", "_context", "_evidence",
-                "<SourceKind>k__BackingField", "<RequestType>k__BackingField"]))
+                "<SourceKind>k__BackingField", "<RequestType>k__BackingField", "<Operator>k__BackingField"]))
             errors.Add("The immutable descriptor has only private closed construction and exact evidence fields");
-        if (!Same(census.Types.Where(type => type.BaseType?.FullName == Minter).Select(type => type.FullName), [Seed, Delivery, Job]))
-            errors.Add("Only the three enumerated owners derive the finite descriptor source");
+        if (!Same(census.Types.Where(type => type.BaseType?.FullName == Minter).Select(type => type.FullName), [Seed, Delivery, Job, Operator]))
+            errors.Add("Only the four enumerated owners derive the finite descriptor source");
         foreach (var instruction in census.Methods.SelectMany(method => method.Body.Instructions))
             if (instruction.Operand is MethodReference target && (target.DeclaringType.FullName == Descriptor && target.Name == ".ctor"
                     || target.DeclaringType.FullName == Minter && target.Name == "ForOperation"
                     || target.DeclaringType.FullName == Delivery && target.Name == "Enter"
+                    || target.DeclaringType.FullName == Operator && target.Name == "Enter"
                     || target.DeclaringType.FullName == Admission && target.Name == "CaptureOperationEvidence"
                     || target.DeclaringType.FullName == "LearnStack.SharedKernel.Permissions.ITrustedOperationSource" && target.Name == "Capture")
                 && instruction.OpCode.Code is not (Code.Call or Code.Callvirt or Code.Newobj))
@@ -93,7 +99,9 @@ public sealed class TrustedOperationSourceConventionTests
         Exact(Seed, ".ctor", ["LearnStack.Tools.Seeder.SeedComposition::Build"]);
         Exact(Delivery, ".ctor", []);
         Exact(Job, ".ctor", []);
-        Exact(Minter, "ForOperation", [Seed + "::Capture", Delivery + "::Capture", Job + "::Capture"]);
+        Exact(Operator, ".ctor", []);
+        Exact(Minter, "ForOperation", [Seed + "::Capture", Delivery + "::Capture", Job + "::Capture", Operator + "::Capture"]);
+        Exact(Operator, "Enter", [OperatorExecutor + "::ExecuteAsync"]);
         Exact(Delivery, "Enter", ["LearnStack.Infrastructure.Messaging.DeliveryExecutor::ExecuteOwnedAsync"]);
         Exact(Admission, "CaptureOperationEvidence", [Job + "::Capture"]);
         Exact(Admission, "IsOperationEvidenceCurrent", [Admission + "::CaptureOperationEvidence", Job + "::IsEvidenceCurrent"]);
@@ -106,6 +114,8 @@ public sealed class TrustedOperationSourceConventionTests
         Require(Delivery, "IsEvidenceCurrent", "LearnStack.SharedKernel.Persistence.IUnitOfWork", "GetTenantContextAnnouncement");
         Require(Admission, "IsOperationEvidenceCurrent", JobOwner, "get_IsCurrentBinding");
         Require(Admission, "IsOperationEvidenceCurrent", Admission, "IsLive");
+        Require(Operator, "IsEvidenceCurrent", "LearnStack.SharedKernel.Tenancy.ITenantContextAccessor", "get_Current");
+        Require(Operator, "Capture", "LearnStack.Infrastructure.PlatformOperator.PlatformOperatorActCatalog", "TryGet");
         if (Calls(census.Body(Admission, "CaptureOperationEvidence")).Any(target => target.DeclaringType.FullName == Admission
             && target.Name is "TryEnterRequest" or "PermitsRequest"))
             errors.Add("Capturing job evidence never repeats root or nested request admission");

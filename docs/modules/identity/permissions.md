@@ -26,6 +26,9 @@ permission admission. An attribute, realm role or SystemActor value grants no ro
 | `CreateSeedMembership` | Tenant or Organization `identity.membership.admin` | Exact declared learner tuple/target scope; no arbitrary actor/tenant/org/Role |
 | `SetSeedMembershipProfile` | Tenant or Organization `identity.membership_profile.write` | Declared Membership and bounded contextual fields, through the Membership root |
 | `InitializeSeedRole` | Tenant `identity.role.admin` | Exact tenant/template/v1 manifest, including Organization-capability templates; one Role root |
+| `OperatorInitializeRoleCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | One finite template of the target tenant, before any Membership exists; idempotent on the operator's Role id ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)) |
+| `OperatorCreateFirstAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | The first tenant-wide administrator of a tenant with no Membership history; the person is named by provider subject and must be an Active, bootstrapped User |
+| `OperatorRecoverAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | A replacement administrator while no Active tenant-wide administrator Membership exists; the last-administrator guard is the database's and is unchanged |
 
 Scope selection derives from immutable target Membership/validated declaration,
 never a claimed scope string. Finite metadata alternatives count the exact five

@@ -3,6 +3,8 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Application.Seeding;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -49,13 +51,22 @@ namespace LearnStack.Modules.Tenancy.Application.Tenant;
 /// <c>Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning</c> asserts. A combined
 /// port would hide the cross-aggregate write from the rule that exists to count it.
 /// </para>
+/// <para>
+/// <b>One class, two commands.</b> The operator's production provisioning
+/// (<see cref="OperatorProvisionTenantCommand"/>, ADR-0102) is handled here too, so the three-write
+/// order, the conflict mapping and the two-port exception exist once; the seed and operator paths
+/// differ only in their guard and in what they do when the tenant is already there. The operator act
+/// runs on a context the executor resolved for the tenant it names, so the tenant it creates is
+/// announced by the ordinary setter and row security admits the insert.
+/// </para>
 /// </remarks>
 internal sealed class ProvisionTenantCommandHandler(
     ITenantWriteStore tenants,
     IOrganizationWriteStore organizations,
     IClock clock,
-    IGuidFactory guids, SeedTenantWriteGuard seedGuard)
-    : IRequestHandler<ProvisionTenantCommand, Result<ProvisionedTenantDto>>
+    IGuidFactory guids, SeedTenantWriteGuard seedGuard, OperatorActGuard operatorGuard)
+    : IRequestHandler<ProvisionTenantCommand, Result<ProvisionedTenantDto>>,
+      IRequestHandler<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>
 {
     public async Task<Result<ProvisionedTenantDto>> Handle(
         ProvisionTenantCommand request, CancellationToken cancellationToken)
@@ -72,7 +83,7 @@ internal sealed class ProvisionTenantCommandHandler(
 
         try
         {
-            return await ProvisionAsync(request, actor, admission.Value, cancellationToken);
+            return await ProvisionAsync(request, actor, () => seedGuard.RequireCurrent(admission.Value, request), cancellationToken);
         }
         catch (AggregateConflictException conflict)
         {
@@ -96,11 +107,65 @@ internal sealed class ProvisionTenantCommandHandler(
         }
     }
 
+    /// <summary>
+    /// The operator's act: the same three writes, once the act is known to be the live admitted one and
+    /// no tenant already carries the operator's id.
+    /// </summary>
+    public async Task<Result<ProvisionedTenantDto>> Handle(
+        OperatorProvisionTenantCommand request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var admission = await operatorGuard.AdmitAsync(
+            request, new IdentityMutationLockPlan([], request.TenantId, IdentityTenantLockMode.Exclusive), cancellationToken);
+        if (admission.IsFailure) return Result<ProvisionedTenantDto>.Fail(admission.Error);
+
+        // The act is idempotent on the pair (id, slug), so a reply lost on the wire costs nothing: the
+        // tenant is already there and the same pair finds it. A known slug under another id is the
+        // database's own answer, below, because row security hides another tenant's row from this read.
+        var existing = await tenants.FindAsync(request.TenantId, cancellationToken);
+        if (existing is not null)
+        {
+            return existing.Slug == request.Slug && existing.DefaultOrganizationId == request.DefaultOrganizationId
+                ? Result.Ok(new ProvisionedTenantDto(
+                    request.TenantId, existing.Slug, request.DefaultOrganizationId, request.DefaultOrganizationSlug))
+                : Result.FailFor<Result<ProvisionedTenantDto>>(TakenFor(nameof(OperatorProvisionTenantCommand.TenantId)));
+        }
+
+        try
+        {
+            return await ProvisionAsync(
+                new ProvisionTenantCommand(
+                    request.TenantId, request.Slug, request.DisplayName, request.DefaultOrganizationId,
+                    request.DefaultOrganizationSlug, request.DefaultOrganizationDisplayName),
+                UserId.SystemActor,
+                () => operatorGuard.RequireCurrent(admission.Value),
+                cancellationToken);
+        }
+        catch (AggregateConflictException conflict)
+        {
+            var (field, reason) = ConflictFor(conflict.ConstraintName);
+            return Result.FailFor<Result<ProvisionedTenantDto>>(new Error(
+                new LocalizedMessage("lockey_business_rule_violation"),
+                new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+                {
+                    [field] = [new LocalizedMessage(reason)],
+                }));
+        }
+    }
+
+    private static Error TakenFor(string field) => new(
+        new LocalizedMessage("lockey_business_rule_violation"),
+        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+        {
+            [field] = [new LocalizedMessage("lockey_identifier_taken")],
+        });
+
     /// <summary>The three writes, in the one order the schema permits.</summary>
     private async Task<Result<ProvisionedTenantDto>> ProvisionAsync(
-        ProvisionTenantCommand request, UserId actor, SeedTenantWriteAdmission admission, CancellationToken cancellationToken)
+        ProvisionTenantCommand request, UserId actor, Func<Result<None>> requireCurrent, CancellationToken cancellationToken)
     {
-        if (seedGuard.RequireCurrent(admission, request) is { IsFailure: true } changed)
+        if (requireCurrent() is { IsFailure: true } changed)
             return Result<ProvisionedTenantDto>.Fail(changed.Error);
         var tenant = Domain.Tenant.Create(
             request.TenantId, request.Slug, request.DisplayName, clock, actor);
@@ -109,7 +174,7 @@ internal sealed class ProvisionTenantCommandHandler(
         // (tenant_id, id), so its row has nothing to reference until this one lands.
         await tenants.AddAsync(tenant, cancellationToken);
 
-        if (seedGuard.RequireCurrent(admission, request) is { IsFailure: true } changedAfterTenant)
+        if (requireCurrent() is { IsFailure: true } changedAfterTenant)
             return Result<ProvisionedTenantDto>.Fail(changedAfterTenant.Error);
         var organization = Organization.Create(
             request.DefaultOrganizationId,
@@ -125,7 +190,7 @@ internal sealed class ProvisionTenantCommandHandler(
         // at a row that does not exist when the tenant is inserted, and the foreign key
         // behind it is MATCH SIMPLE — which skips the check only while the column is
         // null. Setting it on the insert would defeat that and fail.
-        if (seedGuard.RequireCurrent(admission, request) is { IsFailure: true } changedAfterOrganization)
+        if (requireCurrent() is { IsFailure: true } changedAfterOrganization)
             return Result<ProvisionedTenantDto>.Fail(changedAfterOrganization.Error);
         tenant.AssignDefaultOrganization(request.DefaultOrganizationId, clock, guids, actor);
         await tenants.UpdateAsync(tenant, cancellationToken);

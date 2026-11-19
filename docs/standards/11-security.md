@@ -164,8 +164,14 @@ LearnStack runs **two Keycloak realms** per
   (`/api/platform/v1/*`, [ADR-0101](../decisions/0101-platform-operator-authority.md)).
   Tenant-facing apps and the tenant API **never** accept `learnstack-hub` tokens; the
   internal API (`/api/internal/*`) **only** accepts `learnstack-hub` tokens plus the
-  mTLS client certificate; and the platform operator prefix accepts operator tokens
-  of its pinned issuer only, for its own audience.
+  mTLS client certificate; and the platform operator prefix accepts operator tokens of
+  its pinned issuer only, for its own audience. The operator's onboarding acts
+  ([ADR-0102](../decisions/0102-production-tenant-onboarding.md)) run on the application
+  role, under row security, through the ordinary pipeline; the one `BYPASSRLS` use of
+  the operator surface remains the killswitch writer. The executor that installs an
+  act's tenant context accepts only an admission the gate minted for that act within the
+  last 30 seconds and spends it once, and the seeder refuses to run outside a
+  Development deployment.
 
 General rules:
 

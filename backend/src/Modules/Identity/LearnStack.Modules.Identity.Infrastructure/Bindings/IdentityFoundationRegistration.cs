@@ -43,6 +43,7 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IRoleWriteStore, RoleWriteStore>();
         services.TryAddScoped<IRoleReadStore, RoleReadStore>();
         services.TryAddScoped<IMembershipWriteStore, MembershipWriteStore>();
+        services.TryAddScoped<IOperatorSubjectResolver, OperatorSubjectResolver>();
         services.TryAddScoped<ISeedStateReader, SeedStateReader>();
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();
         services.TryAddScoped<IMembershipAdmissionReader, MembershipAdmissionReader>();
