@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Platform;
+using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Infrastructure.PlatformOperator;
@@ -21,9 +22,11 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 /// </remarks>
 public sealed partial class PlatformOperatorGate(
     IPlatformOperatorGrantSource grants,
+    IClock clock,
     ILogger<PlatformOperatorGate> logger) : PlatformAdmission.Minter, IPlatformOperatorGate
 {
     private readonly IPlatformOperatorGrantSource _grants = grants ?? throw new ArgumentNullException(nameof(grants));
+    private readonly IClock _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     private readonly ILogger<PlatformOperatorGate> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
@@ -54,7 +57,7 @@ public sealed partial class PlatformOperatorGate(
         }
 
         PlatformOperatorMetrics.Admitted(operation);
-        return PlatformAdmissionResult.Admit(Mint(operatorWitness, operation, ticket));
+        return PlatformAdmissionResult.Admit(Mint(operatorWitness, operation, ticket, _clock.UtcNow));
     }
 
     private PlatformAdmissionResult Refuse(

@@ -318,13 +318,13 @@ rules:
   `BYPASSRLS` moves. Killswitches live in the platform-scoped
   `platform_killswitches`
   ([ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
-  Packet 9 ships that table, its policies, the overlay and its cache family —
-  and **no writer**: every toggle runs inside `EnterPlatformAdminScope(reason)`,
-  whose registered gate is `DenyAllPlatformAdminGate`, so nothing can enter that
-  scope until the Platform-scope permission arrives, and
-  [Phase 03](docs/roadmap/phase-03-identity-admin.md) owns the toggle command,
-  its permission and its runbook
-  ([ADR-0045 Amendment 1](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Packet 9 shipped that table, its policies, the overlay and its cache family;
+  the single writer is `KillswitchToggle`, which enters the platform scope only
+  with a `PlatformAdmission` the operator gate minted for an authenticated
+  operator holding `platform.killswitch.write`
+  ([ADR-0101](docs/decisions/0101-platform-operator-authority.md),
+  [runbook](docs/runbooks/killswitch.md)), and the architecture rules pin that no
+  other file writes the table.
 - **Read `platform_entitlement_cache` from a module, `IFeatureFlags` included.**
   The only sanctioned reader *and* writer is an `IEntitlementProvider`
   implementation; `IFeatureFlags` composes over the port, which is what makes

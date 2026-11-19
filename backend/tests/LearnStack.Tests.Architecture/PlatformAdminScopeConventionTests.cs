@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
@@ -13,7 +14,7 @@ namespace LearnStack.Tests.Architecture;
 /// <summary>
 /// The rules that keep the one <c>BYPASSRLS</c> credential reachable from one place.
 /// </summary>
-public sealed class PlatformAdminScopeConventionTests
+public sealed partial class PlatformAdminScopeConventionTests
 {
     /// <summary>
     /// Every <c>LearnStack.*</c> assembly under <c>backend/src</c>, loaded without a
@@ -167,21 +168,42 @@ public sealed class PlatformAdminScopeConventionTests
         // assembly, not just the one declaring the types: a permissive minter or gate would
         // be registered somewhere else, for a demo, and that is exactly where a narrowed scan
         // would not look. Test assemblies are not scanned, so a test double does not widen it.
+        // Abstract subclasses count: a census that skipped them would let a permissive abstract minter
+        // stand in the assembly for a test or a later edit to complete. Full names, not simple ones,
+        // so a lookalike in another namespace is a different (and failing) entry.
         var types = ProductionAssemblies().SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type is { IsAbstract: false, IsInterface: false }).ToList();
+            .Where(type => !type.IsInterface).ToList();
 
-        Names(types, typeof(PlatformAdmission.Minter)).Should().BeEquivalentTo(
-            [nameof(PlatformOperatorGate)],
+        FullNames(types, typeof(PlatformAdmission.Minter)).Should().BeEquivalentTo(
+            ["LearnStack.Infrastructure.PlatformOperator.PlatformOperatorGate"],
             "only the gate mints an admission, after it has evaluated a grant");
-        Names(types, typeof(PlatformOperatorWitness.Minter)).Should().BeEquivalentTo(
-            ["PlatformOperatorWitnessMinter"],
-            "only the operator authentication boundary mints a witness; the rebind tool joins in "
-            + "Step 3 by an edit to this list, not by accident");
-        Names(types, typeof(IPlatformOperatorGate)).Should().BeEquivalentTo(
-            [nameof(PlatformOperatorGate)], "a second gate is how a permissive default ships");
-        Names(types, typeof(IPlatformOperatorGrantSource)).Should().BeEquivalentTo(
-            [nameof(ConfigurationPlatformOperatorGrantSource)],
+        FullNames(types, typeof(PlatformOperatorWitness.Minter)).Should().BeEquivalentTo(
+            ["LearnStack.Api.Authentication.PlatformOperatorTokenProfile+WitnessMinter"],
+            "only the operator token profile mints a witness, through a private nested minter; the rebind "
+            + "tool joins in Step 3 by an edit to this list, not by accident");
+        FullNames(types, typeof(IPlatformOperatorGate)).Should().BeEquivalentTo(
+            ["LearnStack.Infrastructure.PlatformOperator.PlatformOperatorGate"],
+            "a second gate is how a permissive default ships");
+        FullNames(types, typeof(IPlatformOperatorGrantSource)).Should().BeEquivalentTo(
+            ["LearnStack.Infrastructure.PlatformOperator.ConfigurationPlatformOperatorGrantSource"],
             "a second grant source is how a permissive grant ships; the table adapter joins on its trigger");
+    }
+
+    [Fact]
+    public void The_Operator_Token_Profile_Is_Called_From_The_Authentication_Boundary_Only()
+    {
+        // The witness is evidence that a token passed the profile. TryRead is the only door to the
+        // minter, so who may call it is the question: the scheme's TokenValidated event, which lives
+        // beside it, and nothing else in production code. The real-realm test and the offline rebind
+        // tool (Step 3) are the sanctioned further callers, the latter added here by name.
+        const string Boundary = "LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs";
+
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorTokenProfile", except: null)
+            .Should().Equal([Boundary], "no other source file may name the profile that mints a witness");
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorTokenProfile.TryRead(", except: null)
+            .Should().Equal([Boundary]);
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorWitness.Minter", except: null)
+            .Should().Equal([Boundary], "the witness minter base is named by its one nested subclass");
     }
 
     [Fact]
@@ -191,42 +213,95 @@ public sealed class PlatformAdminScopeConventionTests
         // from nowhere else. A request handler holding it would enter a cross-tenant scope
         // from a tenant request path, which the marker rules forbid for a platform entry.
         SourceScan.FilesContaining(SourceScan.SourceRoot, "IPlatformAdminScope", except: null)
-            .Select(Path.GetFileName)
             .Should().BeEquivalentTo(
                 [
-                    "IPlatformAdminScope.cs",
-                    "PlatformAdminScope.cs",
-                    "PersistenceCompositionExtensions.cs",
-                    "KillswitchToggle.cs",
+                    "LearnStack.SharedKernel/Tenancy/IPlatformAdminScope.cs",
+                    ScopeFile,
+                    CompositionFile,
+                    KillswitchWriterFile,
                 ],
                 "each new operator service is added here deliberately, with its denied proof");
     }
 
+    private const string KillswitchWriterFile =
+        "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchToggle.cs";
+
     [Fact]
     public void Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer()
     {
-        // ADR-0101 § 13: the overlay reads the table, so a rule on every mention would be
-        // wrong; the confinement is on the write verbs. The writer upserts, so INSERT is the
-        // literal that must be present and UPDATE/DELETE the ones that must stay absent.
-        var writers = KillswitchWriteVerbs
-            .SelectMany(verb => SourceScan.FilesContaining(SourceScan.SourceRoot, verb, except: null))
-            .Select(Path.GetFileName)
-            .Distinct()
-            .ToList();
+        // ADR-0101 § 13: the overlay reads the table, so a rule on every mention would be wrong; the
+        // confinement is on the write verbs, in any case, with an optional schema and quotes. The
+        // writer inserts the default row, locks it and updates it, so those two verbs must be present
+        // and DELETE and TRUNCATE must stay absent everywhere (the tests that clean up use the scope,
+        // outside backend/src).
+        var offenders = new List<string>();
+        var sawWriter = false;
+        foreach (var file in Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(SourceScan.SourceRoot, file).Replace(Path.DirectorySeparatorChar, '/');
+            if (relative.Split('/') is var segments && (segments.Contains("obj") || segments.Contains("bin")))
+            {
+                continue;
+            }
 
-        writers.Should().BeEquivalentTo(["KillswitchToggle.cs"], "the writer alone writes the table");
+            var code = SourceText.WithoutComments(File.ReadAllText(file));
+            if (KillswitchWrite().IsMatch(code))
+            {
+                offenders.Add(relative);
+                sawWriter |= relative == KillswitchWriterFile;
+            }
+        }
+
+        sawWriter.Should().BeTrue("the premise: the sweep read the writer's own statements");
+        offenders.Should().Equal([KillswitchWriterFile], "the writer alone writes the table");
+
+        var writer = SourceText.WithoutComments(File.ReadAllText(
+            Path.Combine(SourceScan.SourceRoot, KillswitchWriterFile.Replace('/', Path.DirectorySeparatorChar))));
+        KillswitchWrite().Matches(writer).Select(match => match.Groups["verb"].Value.ToUpperInvariant().Split(' ')[0])
+            .Distinct().Should().BeEquivalentTo(["INSERT", "UPDATE"], "the writer never deletes or truncates");
     }
 
-    private static readonly string[] KillswitchWriteVerbs =
-    [
-        "INSERT INTO platform_killswitches",
-        "UPDATE platform_killswitches",
-        "DELETE FROM platform_killswitches",
-        "TRUNCATE platform_killswitches",
-    ];
+    [Fact]
+    public void The_Killswitch_Write_Pattern_Can_Fail_And_Catches_The_Ordinary_Spellings()
+    {
+        // The rule above passes whether its pattern works or matches nothing, so the shapes it must
+        // catch and the ones it must not are checked against the pattern directly.
+        foreach (var caught in new[]
+        {
+            "INSERT INTO platform_killswitches (key) VALUES (@k)",
+            "insert  into   platform_killswitches",
+            "UPDATE platform_killswitches SET is_enabled = true",
+            "update only public.platform_killswitches set x = 1",
+            "UPDATE \"public\".\"platform_killswitches\" SET x = 1",
+            "DELETE FROM platform_killswitches",
+            "delete from only \"platform_killswitches\"",
+            "TRUNCATE platform_killswitches",
+            "truncate table public.platform_killswitches",
+        })
+        {
+            KillswitchWrite().IsMatch(caught).Should().BeTrue(caught);
+        }
 
-    private static List<string> Names(IEnumerable<Type> types, Type baseType) =>
-        types.Where(baseType.IsAssignableFrom).Select(type => type.Name).Distinct().ToList();
+        foreach (var ignored in new[]
+        {
+            "SELECT is_enabled FROM platform_killswitches WHERE key = @k FOR UPDATE",
+            "INSERT INTO platform_killswitches_archive (key) VALUES (@k)",
+            "UPDATE platform_killswitches2 SET x = 1",
+            "GRANT SELECT, INSERT, UPDATE ON platform_killswitches TO learnstack_platform",
+        })
+        {
+            KillswitchWrite().IsMatch(ignored).Should().BeFalse(ignored);
+        }
+    }
+
+    [GeneratedRegex(
+        @"\b(?<verb>INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)(?:\s+ONLY)?\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?platform_killswitches""?(?![A-Za-z0-9_])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex KillswitchWrite();
+
+    private static List<string> FullNames(IEnumerable<Type> types, Type baseType) =>
+        types.Where(type => type != baseType && baseType.IsAssignableFrom(type))
+            .Select(type => type.FullName!).Distinct().ToList();
 
     [Fact]
     public void The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable()

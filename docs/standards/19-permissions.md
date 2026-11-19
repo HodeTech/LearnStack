@@ -92,7 +92,7 @@ nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.killswitch.write`, `platform.tenant.write` (the registered catalogue of [ADR-0101](../decisions/0101-platform-operator-authority.md); other `platform.*` names are unregistered) | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.killswitch.write` (registered); `platform.tenant.write`, `platform.tenant_bootstrap.write` and the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue join with the step that ships the operation using them, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 

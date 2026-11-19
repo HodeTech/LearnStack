@@ -25,9 +25,8 @@ the socket; [ADR-0021](../../../docs/decisions/0021-feature-based-entitlement.md
   `platform_entitlement_cache` itself.
 - **Tenant-flag** keys read `tenant_feature_flags` (per-tenant rollout / opt-in).
 - **Killswitches** read `platform_killswitches`, a platform-scoped table with no
-  tenant column and no foreign key, through the L1 cache. Packet 9 ships that table
-  **unwritten** — read path only, no toggle — and Phase 03 owns the command that flips a
-  switch (Step 6).
+  tenant column and no foreign key, through the L1 cache. Their single writer is
+  `KillswitchToggle`, reached by the operator route (P03-9 Step 1).
 
 `IFeatureFlags` is the **only** module-facing read and it **composes** over the port
 rather than querying a table; the catalogue's `Source` descriptor says which half a key
@@ -331,9 +330,11 @@ role and no `BYPASSRLS` moves it. Killswitches ship as **`platform_killswitches`
 the Tenancy migration chain with role-qualified policies like
 `platform_host_to_tenant`'s: `ENABLE` **and** `FORCE`,
 `FOR SELECT TO learnstack_app USING (true)`, every write reserved to
-`learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path — which
-is what makes `tenancy.killswitch.toggle` a MUST-class audit row with a real actor
-([ADR-0045 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+`learnstack_platform` through the audited, admission-gated `IPlatformAdminScope` path —
+which is what makes `tenancy.killswitch.toggle` a MUST-class audit row that names the
+operator in `metadata.operator`
+([ADR-0045 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md),
+[ADR-0101](../../../docs/decisions/0101-platform-operator-authority.md)).
 
 The overlay is read through the **L1 cache** and invalidated on toggle, under a second
 allowed platform `CacheKey` family — `platform:tenancy:killswitch`. `EnsureValid` admits
@@ -343,31 +344,28 @@ the key's default (`true`, enabled) and logs at `Error`: a cache outage must not
 every gated path platform-wide. A flip is eventually consistent across instances,
 bounded by the TTL and the invalidation event.
 
-**Packet 9 ships the table unwritten, and nothing in it flips a switch**
+**The table has one writer: `KillswitchToggle`**
+([ADR-0101 § 13](../../../docs/decisions/0101-platform-operator-authority.md)). Packet 9
+shipped the table, the policies, the overlay, the cache family and the three
+`KillswitchKeys` with no writer, because every write needs an authenticated operator
+holding the Platform permission and none existed
 ([ADR-0045 Amendment 1 § 4](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08)).
-The table, the policies, the overlay, the cache family and the three `KillswitchKeys`
-ship; no writer does. The reason is reachability rather than scheduling: every killswitch
-write runs inside `EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate`
-is `DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope
-permission arrives with the registry in
-[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md). A toggle command shipped
-now would be unreachable code with a permission key nothing registers. **Phase 03 owns
-the toggle command, its permission and its runbook**; until it lands,
-`tenancy.killswitch.toggle` carries `(planned)` in the Tenancy matrix beside the
-`(off-path)` marker it keeps permanently
+P03-9 Step 1 added the operator scheme, the gate and the writer: the operator calls
+`PUT /api/platform/v1/killswitches/{key}`, the gate checks `platform.killswitch.write`,
+and the writer flips the row and records the MUST result row on one transaction. No
+other file may write the table (an architecture rule pins it), and a new key needs no
+new command: declaring it in `KillswitchKeys.All` makes it flippable through the same
+route. `tenancy.killswitch.toggle` keeps `(off-path)` in the Tenancy matrix permanently
 ([Audit Coverage § The join](../../../docs/standards/18-audit-coverage.md),
 [ADR-0044 Amendment 3](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
-Every gated read honours a flipped switch the day one exists; what is absent is the
-flipping.
+Every gated read honours a flipped switch.
 
-So a killswitch key added before Phase 03 is read-only, and its runbook lands with the
-command that makes it flippable. The runbook entry — in `docs/runbooks/`, a directory
-[Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) owns — describes:
+So a killswitch key added from now on is flippable the day it is declared, and its entry
+in `docs/runbooks/killswitch.md` lands in the same change. The entry describes:
 
 - When to use it (the incident shape).
-- How to flip it — the operator action through `EnterPlatformAdminScope(reason)`, never
-  a hand-written `UPDATE` as `learnstack_app`, which holds no write privilege on the
-  table.
+- How to flip it — the operator request, never a hand-written `UPDATE` as
+  `learnstack_app`, which holds no write privilege on the table.
 - How to restore (revert + observability check).
 
 A flippable killswitch without a runbook is incomplete.
@@ -482,11 +480,11 @@ public async Task RefreshAsync_AppliesAnEqualGenerationPush()
 - **Omitting the failure posture.** ADR-0034 puts it in the registry; a key that leaves
   it to the call site has no answer for the unresolved case, which is the one case the
   member exists for.
-- **A killswitch without a runbook, once one can be flipped.** The runbook belongs with
-  the command Phase 03 lands, not with the key Packet 9 registers. CI does not enforce
-  its presence; review must.
-- **Writing a killswitch toggle in Packet 9.** The table ships unwritten and
-  `DenyAllPlatformAdminGate` is registered, so the command would be unreachable code
-  gated by a permission nothing registers.
+- **A killswitch without a runbook entry.** The key is flippable the moment it is
+  declared, so its entry in `docs/runbooks/killswitch.md` belongs in the same change. CI
+  does not enforce its presence; review must.
+- **A second writer of `platform_killswitches`.** `KillswitchToggle` is the only one; an
+  architecture rule fails any other file that inserts, updates, deletes or truncates the
+  table.
 - **Removing a key without a deprecation cycle.** A rename / remove follows the
   same one-release-deprecation-warning rule as permissions.

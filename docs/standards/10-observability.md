@@ -475,6 +475,11 @@ backend treat business rejections as system failures.
 | `learnstack_tenant_assertion_unresolved_total` | counter | dimension, source |
 | `learnstack_tenant_subject_admission_rejected_total` | counter | reason (`quota`, `registry_capacity`, `registry_fault`) |
 | `learnstack_tenant_subject_cleanup_failed_total` | counter | none |
+| `learnstack_platform_operator_admissions_total` | counter | outcome (`admitted`, `refused`), operation (a registered slug or `unknown`) |
+| `learnstack_platform_operator_refusals_total` | counter | cause (a closed set: token, profile and gate causes; [runbook](../runbooks/operator-access.md#signals)) |
+| `learnstack_platform_operator_results_total` | counter | operation |
+| `learnstack_platform_operator_audit_failures_total` | counter | operation |
+| `learnstack_platform_operator_metadata_failures_total` | counter | none |
 | `learnstack_db_query_duration_seconds` | histogram | module, operation |
 | `learnstack_outbox_pending_count` | gauge | — |
 | `learnstack_outbox_dispatch_duration_seconds` | histogram | event_type |

@@ -138,6 +138,58 @@ public sealed class PlatformAdminGateTests
     }
 
     [Fact]
+    public async Task The_Gate_Stamps_The_Admission_With_Its_Own_Clock()
+    {
+        var instant = new DateTimeOffset(2026, 11, 19, 8, 0, 0, TimeSpan.Zero);
+        var gate = Gate(Grants("operator-1", PlatformPermissions.KillswitchWrite.Key), new FixedClock(instant));
+
+        var result = await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, null);
+
+        result.Admission!.IssuedAt.Should().Be(instant, "the scope bounds the admission's age from this stamp");
+    }
+
+    [Fact]
+    public async Task A_Stale_Admission_Never_Reaches_The_Credential_And_Is_Not_Spent()
+    {
+        var scope = Build(out var dataSource);
+        var stale = TestPlatformAdmissions.Admission(
+            issuedAt: DateTimeOffset.UtcNow - PlatformAdmission.MaximumAge - TimeSpan.FromSeconds(5));
+
+        var act = async () => await scope.EnterAsync(stale, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*stale*");
+        dataSource.IsValueCreated.Should().BeFalse("the age check precedes the credential");
+        stale.TryConsume().Should().BeTrue("a refused-as-stale admission was never spent");
+    }
+
+    [Fact]
+    public async Task An_Admission_Opens_One_Scope_Only()
+    {
+        // The first entry spends the admission and then fails at the absent credential; the
+        // second finds it spent and says so, rather than reaching for the credential again.
+        var scope = Build(out var dataSource);
+        var admission = TestPlatformAdmissions.Admission();
+
+        var first = async () => await scope.EnterAsync(admission, CancellationToken.None);
+        await first.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not configured*");
+
+        var second = async () => await scope.EnterAsync(admission, CancellationToken.None);
+        await second.Should().ThrowAsync<InvalidOperationException>().WithMessage("*already used*");
+        dataSource.IsValueCreated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void An_Admission_Is_Consumed_By_Exactly_One_Caller_Even_Concurrently()
+    {
+        var admission = TestPlatformAdmissions.Admission();
+
+        var winners = Enumerable.Range(0, 64).AsParallel().WithDegreeOfParallelism(16)
+            .Select(_ => admission.TryConsume()).Count(won => won);
+
+        winners.Should().Be(1);
+    }
+
+    [Fact]
     public async Task A_Permitted_Caller_Reaches_The_Credential_And_Fails_There_When_It_Is_Absent()
     {
         var scope = Build(out var dataSource);
@@ -163,6 +215,21 @@ public sealed class PlatformAdminGateTests
         (await act.Should().ThrowAsync<AuditWriteFailedException>())
             .Which.Message.Should().Contain(PlatformAdminScope.EnterOperation);
         dataSource.IsValueCreated.Should().BeFalse("the refusal precedes the credential");
+    }
+
+    [Fact]
+    public async Task A_Catalogue_That_Lost_Only_The_Operation_Slug_Never_Opens_A_Connection()
+    {
+        // The entry slug is declared, the operation's result slug is not: the scope must refuse before
+        // the credential rather than enter, run the act and discover that its MUST row cannot be
+        // classified (ADR-0044 § 10).
+        var scope = Build(out var dataSource, new AuditCatalog([new EntryOnlyCatalogSource()]));
+
+        var act = async () => await scope.EnterAsync(TestPlatformAdmissions.Admission(), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<AuditWriteFailedException>())
+            .Which.Message.Should().Contain(PlatformOperations.KillswitchToggle.AuditSlug);
+        dataSource.IsValueCreated.Should().BeFalse();
     }
 
     [Fact]
@@ -234,8 +301,47 @@ public sealed class PlatformAdminGateTests
         (await noIssuer.IsGrantedAsync(Digest, PlatformPermissions.KillswitchWrite.Key)).Should().BeFalse();
     }
 
-    private static PlatformOperatorGate Gate(IPlatformOperatorGrantSource grants) =>
-        new(grants, NullLogger<PlatformOperatorGate>.Instance);
+    [Fact]
+    public async Task A_Grant_Removed_From_A_Reloaded_Configuration_Is_Refused_On_The_Next_Act()
+    {
+        var options = new PlatformOperatorGrantOptions
+        {
+            Issuer = TestPlatformAdmissions.Issuer,
+            Grants = { new PlatformOperatorGrant { Subject = "operator-1", Permissions = { PlatformPermissions.KillswitchWrite.Key } } },
+        };
+        var monitor = new MutableMonitor(options);
+        var source = new ConfigurationPlatformOperatorGrantSource(monitor, NullLogger<ConfigurationPlatformOperatorGrantSource>.Instance);
+        var gate = Gate(source);
+
+        (await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, null)).IsAdmitted
+            .Should().BeTrue();
+
+        monitor.Replace(new PlatformOperatorGrantOptions { Issuer = TestPlatformAdmissions.Issuer });
+
+        (await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, null)).Refusal
+            .Should().Be(PlatformRefusal.MissingPermission, "withdrawal takes effect on the next act, not at token expiry");
+    }
+
+    [Fact]
+    public async Task A_Reload_That_Fails_Validation_Refuses_Every_Operator_Until_It_Is_Valid()
+    {
+        var monitor = new MutableMonitor(new PlatformOperatorGrantOptions
+        {
+            Issuer = TestPlatformAdmissions.Issuer,
+            Grants = { new PlatformOperatorGrant { Subject = "operator-1", Permissions = { PlatformPermissions.KillswitchWrite.Key } } },
+        });
+        var source = new ConfigurationPlatformOperatorGrantSource(monitor, NullLogger<ConfigurationPlatformOperatorGrantSource>.Instance);
+        (await source.IsGrantedAsync(Digest, PlatformPermissions.KillswitchWrite.Key)).Should().BeTrue();
+
+        monitor.FailWith(new OptionsValidationException(
+            nameof(PlatformOperatorGrantOptions), typeof(PlatformOperatorGrantOptions), ["a reload that is not valid"]));
+
+        (await source.IsGrantedAsync(Digest, PlatformPermissions.KillswitchWrite.Key)).Should().BeFalse(
+            "an invalid reload fails closed rather than keeping the last good grants");
+    }
+
+    private static PlatformOperatorGate Gate(IPlatformOperatorGrantSource grants, IClock? clock = null) =>
+        new(grants, clock ?? new SystemClock(), NullLogger<PlatformOperatorGate>.Instance);
 
     private static CountingGrants Grants(string subject, params string[] keys) =>
         new(TestPlatformAdmissions.Issuer, subject, keys);
@@ -259,6 +365,11 @@ public sealed class PlatformAdminGateTests
             NullLogger<PlatformAdminScope>.Instance);
     }
 
+    private sealed class FixedClock(DateTimeOffset instant) : IClock
+    {
+        public DateTimeOffset UtcNow => instant;
+    }
+
     private sealed class CountingGrants(string issuer, string subject, string[] keys) : IPlatformOperatorGrantSource
     {
         public int Reads { get; private set; }
@@ -269,6 +380,27 @@ public sealed class PlatformAdminGateTests
             return ValueTask.FromResult(
                 subjectDigest == PlatformOperatorSubject.Digest(issuer, subject) && keys.Contains(permissionKey));
         }
+    }
+
+    private sealed class MutableMonitor(PlatformOperatorGrantOptions initial) : IOptionsMonitor<PlatformOperatorGrantOptions>
+    {
+        private PlatformOperatorGrantOptions _value = initial;
+        private Exception? _failure;
+
+        public PlatformOperatorGrantOptions CurrentValue => _failure is null ? _value : throw _failure;
+        public void Replace(PlatformOperatorGrantOptions value) => _value = value;
+        public void FailWith(Exception failure) => _failure = failure;
+        public PlatformOperatorGrantOptions Get(string? name) => CurrentValue;
+        public IDisposable? OnChange(Action<PlatformOperatorGrantOptions, string?> listener) => null;
+    }
+
+    /// <summary>Declares the scope's entry slug and nothing else, as a deployment that lost a slug would.</summary>
+    private sealed class EntryOnlyCatalogSource : IAuditCatalogSource
+    {
+        public string ModuleName => "tenancy";
+
+        public void Describe(IAuditCatalogBuilder builder) =>
+            builder.DeclareOffPath("platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must);
     }
 
     private sealed class FixedMonitor(PlatformOperatorGrantOptions value) : IOptionsMonitor<PlatformOperatorGrantOptions>

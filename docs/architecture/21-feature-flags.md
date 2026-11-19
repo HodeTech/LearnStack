@@ -399,10 +399,11 @@ CREATE TABLE platform_killswitches (
 - **Policies** are role-qualified in the `platform_host_to_tenant` shape, with the read
   widened rather than keyed — a killswitch is global by construction, and hiding it from
   the role that must honour it would only fail open. Every write is reserved to
-  `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, which
-  is what gives `tenancy.killswitch.toggle` a real actor. The class and its policy DDL
-  live in [Database Standards § Table classes](../standards/05-database.md); the clauses
-  are deliberately not restated here.
+  `learnstack_platform` through the audited, admission-gated platform scope, which is
+  what gives `tenancy.killswitch.toggle` a MUST result row naming the operator. The
+  class and its policy DDL live in
+  [Database Standards § Table classes](../standards/05-database.md); the clauses are
+  deliberately not restated here.
 - **Reads go through the L1 cache**, not to the table per request, and are invalidated on
   toggle. Holding the answer needs a second allowed platform cache-key family,
   `platform:tenancy:killswitch`; `CacheKey.EnsureValid` admits that family and the host
@@ -455,12 +456,14 @@ Both surfaces are MUST-audit security-events (see
   the inbound Hub event carries `hub_event_id` and is mirrored into an audit entry
   (`tenancy.entitlement.refresh`) with `before` and `after` snapshots of the
   `features` / `limits` jsonb.
-- Killswitch flips are logged as `tenancy.killswitch.toggle` with the platform-admin
-  actor and a free-text reason field that the operator console makes required. The
-  classification is written ahead of the command: Packet 9 ships no writer, and
-  [Phase 03](../roadmap/phase-03-identity-admin.md) lands the toggle that raises the row
-  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
-  The operation is not a MediatR request, so its catalogue entry is registered by slug
+- Killswitch flips are logged as `tenancy.killswitch.toggle`, a MUST row written on the
+  flip's own transaction by the witness-bound result method. The row names the operator
+  in `metadata.operator` (issuer, subject digest, accepted `acr`, executor) and carries
+  the closed reason slug `killswitch_toggle`; the optional ticket is on the
+  sentinel-tenant row only
+  ([ADR-0101 § 9](../decisions/0101-platform-operator-authority.md),
+  [runbook](../runbooks/killswitch.md)). The operation is not a MediatR request, so its
+  catalogue entry is registered by slug
   ([ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md)).
 
 ## Risks

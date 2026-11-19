@@ -443,8 +443,8 @@ public sealed partial class PostgresAuditStore : IAuditStore
             || entry.ActorUserId is not null
             || entry.Outcome != AuditOutcome.Success
             || entry.OperationClass != OperationClass.Must
-            || entry.Metadata is null
-            || !entry.Metadata.Contains(admission.Operator.SubjectDigest, StringComparison.Ordinal))
+            || !string.Equals(entry.CorrelationId, admission.Operator.CorrelationId, StringComparison.Ordinal)
+            || !MetadataNamesAdmittedOperator(entry, admission))
         {
             throw new ArgumentException(
                 "The platform operator result row does not match its admission.", nameof(entry));
@@ -468,6 +468,54 @@ public sealed partial class PostgresAuditStore : IAuditStore
                 failure);
         }
     }
+
+    /// <summary>
+    /// Whether <c>metadata.operator</c> names exactly the admitted issuer and subject digest,
+    /// and carries a ticket only on a sentinel-tenant row, and only the admitted one.
+    /// </summary>
+    /// <remarks>
+    /// A substring search would accept a row whose digest appeared anywhere, in a field an
+    /// operator can influence; the parse reads the one place the attribution lives.
+    /// </remarks>
+    private static bool MetadataNamesAdmittedOperator(AuditEntryDraft entry, PlatformAdmission admission)
+    {
+        if (entry.Metadata is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(entry.Metadata);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("operator", out var op)
+                || op.ValueKind != JsonValueKind.Object
+                || !StringIs(op, "subjectDigest", admission.Operator.SubjectDigest)
+                || !StringIs(op, "issuer", admission.Operator.Issuer))
+            {
+                return false;
+            }
+
+            if (!op.TryGetProperty("ticket", out _))
+            {
+                return true;
+            }
+
+            // The ticket appears only in sentinel-tenant rows, which no tenant can read.
+            return entry.TenantId == TenantId.PlatformSentinel
+                && admission.Ticket is not null
+                && StringIs(op, "ticket", admission.Ticket);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool StringIs(JsonElement parent, string name, string expected) =>
+        parent.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+        && string.Equals(value.GetString(), expected, StringComparison.Ordinal);
 
     /// <inheritdoc />
     public async Task WriteEventTerminalAsync(

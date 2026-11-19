@@ -56,7 +56,12 @@ Two realms imported on first boot from `infra/keycloak/realms/`:
 - `learnstack` (tenant users) — confidential API and code/S256 web clients, with
   four declared tenant personas. The [realm guide](../keycloak/README.md) owns
   the exact identities, private secret source and callbacks.
-- `learnstack-hub` (operators) — client `learnstack-hub-web` (public PKCE); demo user `demo-operator@learnstack.test` (`demo-dev-secret`). `CONFIGURE_TOTP` required-action present so the MFA flow surfaces in dev.
+- `learnstack-hub` (operators) — clients `learnstack-hub-web` (the portal, public PKCE)
+  and `learnstack-operator` (LearnStack's platform surface, public PKCE with MFA
+  step-up); demo user `demo-operator@learnstack.test` (`demo-dev-secret`).
+  `CONFIGURE_TOTP` is a required action, so the first login sets up the authenticator
+  the step-up needs. A Keycloak volume from before the operator client keeps its old
+  realm; recreate it to import the new one.
 
 See [../keycloak/README.md](../keycloak/README.md) for the realm-isolation
 invariant, non-destructive reconciliation and the Phase 02b/03 wiring notes.

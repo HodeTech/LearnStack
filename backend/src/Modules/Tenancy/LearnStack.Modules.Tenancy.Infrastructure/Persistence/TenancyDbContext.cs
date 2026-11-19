@@ -75,9 +75,8 @@ public sealed class TenancyDbContext(
     public DbSet<PlatformHostMapping> PlatformHostMappings => Set<PlatformHostMapping>();
 
     /// <summary>
-    /// The killswitch overlay. Read-only in this packet — no writer exists, because every
-    /// toggle runs inside a scope whose registered gate refuses everyone (ADR-0045
-    /// Amendment 1 § 4).
+    /// The killswitch overlay. This context only reads it: the one writer is
+    /// <c>KillswitchToggle</c>, which runs inside an admitted platform scope (ADR-0101 § 13).
     /// </summary>
     public DbSet<PlatformKillswitch> PlatformKillswitches => Set<PlatformKillswitch>();
 

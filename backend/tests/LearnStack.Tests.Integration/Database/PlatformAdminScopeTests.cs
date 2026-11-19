@@ -16,6 +16,7 @@ using LearnStack.SharedKernel.Platform;
 using LearnStack.Tests.Fixtures;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.SharedKernel.Entitlements;
+using System.Diagnostics.Metrics;
 
 namespace LearnStack.Tests.Integration.Database;
 
@@ -245,7 +246,7 @@ public sealed class PlatformAdminScopeTests
         await using var handle = await Build(dataSource).EnterAsync(Admission(), CancellationToken.None);
         (await ScalarAsync<int>(handle, "SELECT pg_backend_pid()")).Should().BeGreaterThan(0);
 
-        await handle.CommitAsync(CancellationToken.None);
+        await CompleteAsync(handle);
 
         var execute = async () => await handle.ExecuteAsync("SELECT 1", null, CancellationToken.None);
         var query = async () => await ScalarAsync<int>(handle, "SELECT 1");
@@ -278,7 +279,7 @@ public sealed class PlatformAdminScopeTests
                 [new PlatformSqlParameter("host", host), new PlatformSqlParameter("tenant", SchemaFixture.TenantA)],
                 CancellationToken.None);
 
-                await handle.CommitAsync(CancellationToken.None);
+                await CompleteAsync(handle);
             }
 
             await using var check = await scope.EnterAsync(Admission(), CancellationToken.None);
@@ -292,7 +293,7 @@ public sealed class PlatformAdminScopeTests
             // The schema fixture is shared and other classes assert exact row counts.
             await using var cleanup = await scope.EnterAsync(Admission(), CancellationToken.None);
             await cleanup.ExecuteAsync("DELETE FROM platform_host_to_tenant WHERE host = @host", [new PlatformSqlParameter("host", host)], CancellationToken.None);
-            await cleanup.CommitAsync(CancellationToken.None);
+            await CompleteAsync(cleanup);
         }
     }
 
@@ -326,20 +327,16 @@ public sealed class PlatformAdminScopeTests
 
             await using (handle)
             {
-                var suicide = new Terminator(handle);
+                // The MUST row is written first so the commit is attempted, and the backend is
+                // ended from outside the facade, so the statement fault guard does not stop the
+                // commit short of the wire: this case is about a commit that itself faults.
+                var pid = await ScalarAsync<int>(handle, "SELECT pg_backend_pid()");
+                await handle.WriteResultAsync(
+                    new PlatformResult(TenantId.PlatformSentinel, "PlatformKillswitch", "k", null, null),
+                    CancellationToken.None);
+                await using (var killer = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString))
                 {
-
-                    try
-                    {
-                        await suicide.ExecuteNonQueryAsync(CancellationToken.None);
-                    }
-                    catch (PostgresException)
-                    {
-                        // The server hangs up mid-statement; that is the point.
-                    }
-                    catch (NpgsqlException)
-                    {
-                    }
+                    await ScalarAsync<bool>(killer, null, "SELECT pg_terminate_backend(@pid)", ("pid", pid));
                 }
 
                 var commit = async () => await handle.CommitAsync(CancellationToken.None);
@@ -585,7 +582,7 @@ public sealed class PlatformAdminScopeTests
                 case "read-then-throw":
                     throw new InvalidOperationException("the work failed after reading");
                 case "committed":
-                    await handle.CommitAsync();
+                    await CompleteAsync(handle);
                     break;
             }
         };
@@ -603,7 +600,9 @@ public sealed class PlatformAdminScopeTests
             _schema.Postgres.PlatformConnectionString);
 
         var survivors = await ScalarAsync<long>(
-            afterwards, null, "SELECT count(*) FROM audit_log WHERE correlation_id = @correlation", ("correlation", correlation));
+            afterwards, null,
+            "SELECT count(*) FROM audit_log WHERE correlation_id = @correlation AND operation = @entry",
+            ("correlation", correlation), ("entry", PlatformAdminScope.EnterOperation));
 
         survivors.Should().Be(1, "entry into a cross-tenant scope is recorded whatever the work then does");
     }
@@ -658,10 +657,14 @@ public sealed class PlatformAdminScopeTests
         var correlation = $"corr-{Guid.NewGuid():N}";
         var admission = TestPlatformAdmissions.Admission(ticket: "INC-7", correlationId: correlation);
 
+        // A throwaway tenant id: the shared fixture tenants must keep the audit rows other classes
+        // count, and audit_log keeps no foreign key to tenants.
+        var target = Guid.CreateVersion7();
+
         await using (var handle = await Build(dataSource).EnterAsync(admission))
         {
             await handle.WriteResultAsync(new PlatformResult(
-                TenantId.From(SchemaFixture.TenantA), "PlatformKillswitch", "key-1", "{\"isEnabled\":true}", "{\"isEnabled\":false}"));
+                TenantId.From(target), "PlatformKillswitch", "key-1", "{\"isEnabled\":true}", "{\"isEnabled\":false}"));
             await handle.CommitAsync();
         }
 
@@ -675,7 +678,7 @@ public sealed class PlatformAdminScopeTests
         entry.Actor.Should().BeNull("an operator is not a users row");
 
         var result = rows.Single(row => row.Operation == PlatformOperations.KillswitchToggle.AuditSlug);
-        result.Tenant.Should().Be(SchemaFixture.TenantA, "a tenant-targeted act is recorded under the real tenant");
+        result.Tenant.Should().Be(target, "a tenant-targeted act is recorded under the real tenant");
         result.Reason.Should().Be(PlatformOperations.KillswitchToggle.ReasonSlug);
         result.Actor.Should().BeNull();
         using var metadata = System.Text.Json.JsonDocument.Parse(result.Metadata);
@@ -718,8 +721,8 @@ public sealed class PlatformAdminScopeTests
         var before = await ScalarAsync<string>(read, null,
             "SELECT coalesce((SELECT is_enabled::text FROM platform_killswitches WHERE key = @k), 'absent')", ("k", key.Value));
 
-        var act = async () => await new KillswitchToggle(scope, removals, new SystemClock())
-            .ToggleAsync(TestPlatformAdmissions.Admission(), key, before != "false", CancellationToken.None);
+        var act = async () => await new KillswitchToggle(scope, removals, new SystemClock(), NullLogger<KillswitchToggle>.Instance)
+            .ToggleAsync(TestPlatformAdmissions.Admission(), key, before == "false", CancellationToken.None);
 
         await act.Should().ThrowAsync<AuditWriteFailedException>();
         removals.Removed.Should().Be(0, "nothing committed, so nothing is stale");
@@ -740,7 +743,7 @@ public sealed class PlatformAdminScopeTests
             return await ScalarAsync<string>(independent, null,
                 "SELECT is_enabled::text FROM platform_killswitches WHERE key = @k", ("k", key.Value));
         });
-        var toggle = new KillswitchToggle(scope, cache, new SystemClock());
+        var toggle = new KillswitchToggle(scope, cache, new SystemClock(), NullLogger<KillswitchToggle>.Instance);
         var correlation = $"corr-{Guid.NewGuid():N}";
 
         try
@@ -763,14 +766,33 @@ public sealed class PlatformAdminScopeTests
             (await ScalarAsync<long>(read, null,
                 "SELECT count(*) FROM platform_killswitches WHERE key = @k AND toggled_by IS NULL", ("k", key.Value)))
                 .Should().Be(1, "an operator is not a users row, so toggled_by stays NULL");
-            (await Rows(read, correlation)).Count(row => row.Operation == PlatformOperations.KillswitchToggle.AuditSlug)
-                .Should().Be(2, "one MUST result row per flip");
+            var results = (await Rows(read, correlation))
+                .Where(row => row.Operation == PlatformOperations.KillswitchToggle.AuditSlug).ToList();
+            results.Should().HaveCount(2, "one MUST result row per flip");
+            results.Should().OnlyContain(row => row.Tenant == TenantId.PlatformSentinel.Value && row.Actor == null);
+            results.Should().OnlyContain(row => row.Reason == PlatformOperations.KillswitchToggle.ReasonSlug);
+            results[0].Before.Should().Contain("true");
+            results[0].After.Should().Contain("false");
+            results[1].Before.Should().Contain("false");
+            results[1].After.Should().Contain("true");
+            using var firstMetadata = System.Text.Json.JsonDocument.Parse(results[0].Metadata);
+            var operatorNode = firstMetadata.RootElement.GetProperty("operator");
+            operatorNode.GetProperty("issuer").GetString().Should().Be(TestPlatformAdmissions.Issuer);
+            operatorNode.GetProperty("executor").GetString().Should().Be("operator.test");
+            operatorNode.GetProperty("ticket").GetString().Should().Be("INC-9",
+                "a sentinel-tenant row is unreadable to every tenant, so it carries the ticket");
+            using var secondMetadata = System.Text.Json.JsonDocument.Parse(results[1].Metadata);
+            secondMetadata.RootElement.GetProperty("operator").TryGetProperty("ticket", out _).Should().BeFalse();
+            (await ScalarAsync<System.DateTime>(read, null, "SELECT toggled_at FROM platform_killswitches WHERE key = @k", ("k", key.Value)))
+                .Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(30));
+            (await ScalarAsync<object>(read, null, "SELECT coalesce(reason, 'null') FROM platform_killswitches WHERE key = @k", ("k", key.Value)))
+                .Should().Be("null", "the second flip carried no ticket, so the reason column is empty again");
         }
         finally
         {
             await using var cleanup = await Build(dataSource).EnterAsync(TestPlatformAdmissions.Admission());
             await cleanup.ExecuteAsync("DELETE FROM platform_killswitches WHERE key = @k", [new PlatformSqlParameter("k", key.Value)]);
-            await cleanup.CommitAsync();
+            await CompleteAsync(cleanup);
         }
     }
 
@@ -781,7 +803,7 @@ public sealed class PlatformAdminScopeTests
         var correlation = $"corr-{Guid.NewGuid():N}";
         var cache = new RecordingCache();
 
-        var result = await new KillswitchToggle(Build(dataSource), cache, new SystemClock()).ToggleAsync(
+        var result = await new KillswitchToggle(Build(dataSource), cache, new SystemClock(), NullLogger<KillswitchToggle>.Instance).ToggleAsync(
             TestPlatformAdmissions.Admission(correlationId: correlation), new KillswitchKey("killswitch.not.declared"), false);
 
         result.Outcome.Should().Be(KillswitchToggleOutcome.UnknownKey);
@@ -791,26 +813,33 @@ public sealed class PlatformAdminScopeTests
     }
 
     [Fact]
-    public async Task A_Result_Row_Cannot_Name_A_Different_Operation_Than_Its_Admission()
+    public async Task A_Result_Row_Cannot_Differ_From_Its_Admission_In_Any_Bound_Attribute()
     {
-        // The audit seam is witness-bound: a draft for another operation, a non-null actor or a
-        // missing operator digest is refused, whatever the caller composed.
+        // The audit seam is witness-bound: the operation, the closed reason, the correlation id, the
+        // outcome and class, the module, the tenant, the actor and the operator attribution in
+        // metadata.operator are all checked against the admission, whatever the caller composed. The
+        // accepted control comes first so a refusal below is the attribute's, not a broken fixture.
         await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
         await using var store = AuditStoreScopeFactory().CreateAsyncScope();
         var audit = store.ServiceProvider.GetRequiredService<IAuditStore>();
-        var admission = TestPlatformAdmissions.Admission();
+        var admission = TestPlatformAdmissions.Admission(ticket: "INC-1");
+        var digest = admission.Operator.SubjectDigest;
         await using var connection = await dataSource.OpenConnectionAsync();
         await using var transaction = await connection.BeginTransactionAsync();
 
-        AuditEntryDraft Draft(string operation, UserId? actor, string metadata) => new()
+        string Metadata(string issuer, string? ticket = null) =>
+            "{\"operator\":{\"issuer\":\"" + issuer + "\",\"subjectDigest\":\"" + digest + "\",\"kind\":\"human\""
+            + (ticket is null ? string.Empty : ",\"ticket\":\"" + ticket + "\"") + "}}";
+
+        var good = new AuditEntryDraft
         {
             Id = AuditEntryId.From(Guid.CreateVersion7()),
             TenantId = TenantId.PlatformSentinel,
             OrganizationId = null,
-            ActorUserId = actor,
+            ActorUserId = null,
             ActorEmail = null,
             ModuleName = "tenancy",
-            Operation = operation,
+            Operation = admission.Operation.AuditSlug,
             OperationType = OperationType.SecurityEvent,
             OperationClass = OperationClass.Must,
             EntityType = null,
@@ -821,31 +850,234 @@ public sealed class PlatformAdminScopeTests
             BeforeState = null,
             AfterState = null,
             Changes = null,
-            CorrelationId = "c",
+            CorrelationId = admission.Operator.CorrelationId,
             IpAddress = null,
             UserAgent = null,
             Timestamp = DateTimeOffset.UtcNow,
-            Metadata = metadata,
+            Metadata = Metadata(admission.Operator.Issuer),
         };
 
-        var good = "{\"operator\":{\"subjectDigest\":\"" + admission.Operator.SubjectDigest + "\"}}";
-        foreach (var draft in new[]
+        await audit.WritePlatformOperatorResultAsync(good, admission, connection, transaction);
+        await audit.WritePlatformOperatorResultAsync(
+            good with { Id = AuditEntryId.From(Guid.CreateVersion7()), Metadata = Metadata(admission.Operator.Issuer, "INC-1") },
+            admission, connection, transaction);
+
+        var refused = new Dictionary<string, AuditEntryDraft>
         {
-            Draft("tenancy.other.operation", null, good),
-            Draft(admission.Operation.AuditSlug, UserId.From(Guid.CreateVersion7()), good),
-            Draft(admission.Operation.AuditSlug, null, "{}"),
-        })
+            ["another operation"] = good with { Operation = "tenancy.other.operation" },
+            ["a non-null actor"] = good with { ActorUserId = UserId.From(Guid.CreateVersion7()) },
+            ["no operator attribution"] = good with { Metadata = "{}" },
+            ["no metadata"] = good with { Metadata = null },
+            ["the digest in the wrong place"] = good with
+            {
+                Metadata = "{\"note\":\"" + digest + "\",\"operator\":{\"issuer\":\"" + admission.Operator.Issuer + "\"}}",
+            },
+            ["another issuer"] = good with { Metadata = Metadata("https://elsewhere.example.test/realms/x") },
+            ["an outcome of failure"] = good with { Outcome = AuditOutcome.Failed },
+            ["a SHOULD class"] = good with { OperationClass = OperationClass.Should },
+            ["another reason"] = good with { Reason = "other_reason" },
+            ["the identity module"] = good with { ModuleName = "identity" },
+            ["the nil tenant"] = good with { TenantId = TenantId.From(Guid.Empty) },
+            ["another correlation id"] = good with { CorrelationId = "another" },
+            ["a ticket on a tenant row"] = good with
+            {
+                TenantId = TenantId.From(Guid.CreateVersion7()),
+                Metadata = Metadata(admission.Operator.Issuer, "INC-1"),
+            },
+            ["a ticket the admission never held"] = good with { Metadata = Metadata(admission.Operator.Issuer, "INC-2") },
+        };
+
+        foreach (var (attribute, draft) in refused)
         {
             var act = async () => await audit.WritePlatformOperatorResultAsync(draft, admission, connection, transaction);
-            await act.Should().ThrowAsync<ArgumentException>();
+            (await act.Should().ThrowAsync<ArgumentException>(attribute)).Which.Message.Should().Contain("admission");
         }
     }
+
+    [Fact]
+    public async Task Commit_Without_A_Result_Row_Is_Refused_And_The_Work_Rolls_Back()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var host = $"norow-{Guid.NewGuid():N}.example.com";
+
+        await using (var handle = await Build(dataSource).EnterAsync(Admission()))
+        {
+            await InsertHostAsync(handle, host);
+
+            var commit = async () => await handle.CommitAsync();
+
+            await commit.Should().ThrowAsync<InvalidOperationException>().WithMessage("*MUST result row*");
+        }
+
+        await using var read = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        (await ScalarAsync<long>(read, null, "SELECT count(*) FROM platform_host_to_tenant WHERE host = @h", ("h", host)))
+            .Should().Be(0, "a state change with no MUST row never commits");
+    }
+
+    [Fact]
+    public async Task A_Failed_Statement_Leaves_The_Scope_Only_To_Be_Abandoned_And_The_Work_Rolls_Back()
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var host = $"faulted-{Guid.NewGuid():N}.example.com";
+
+        await using (var handle = await Build(dataSource).EnterAsync(Admission()))
+        {
+            await InsertHostAsync(handle, host);
+            var failing = async () => await handle.ExecuteAsync("SELECT 1/0", null, CancellationToken.None);
+            await failing.Should().ThrowAsync<PostgresException>();
+
+            // PostgreSQL would answer "current transaction is aborted"; the facade says what to do.
+            var next = async () => await ScalarAsync<int>(handle, "SELECT 1");
+            var result = async () => await handle.WriteResultAsync(
+                new PlatformResult(TenantId.PlatformSentinel, null, null, null, null), CancellationToken.None);
+            var commit = async () => await handle.CommitAsync();
+            await next.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Dispose the scope*");
+            await result.Should().ThrowAsync<InvalidOperationException>();
+            await commit.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        await using var read = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        (await ScalarAsync<long>(read, null, "SELECT count(*) FROM platform_host_to_tenant WHERE host = @h", ("h", host)))
+            .Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("COMMIT")]
+    [InlineData("ROLLBACK")]
+    [InlineData("BEGIN")]
+    [InlineData("SET app.tenant_id = 'x'")]
+    [InlineData("SELECT 1; COMMIT")]
+    [InlineData("SELECT 1; SELECT 2")]
+    [InlineData("DROP TABLE platform_killswitches")]
+    [InlineData("TRUNCATE platform_killswitches")]
+    [InlineData("COPY platform_killswitches TO STDOUT")]
+    [InlineData("DO $$ BEGIN END $$")]
+    [InlineData("-- comment\nSELECT 1")]
+    [InlineData("   ")]
+    public async Task The_Facade_Refuses_Anything_But_One_Dml_Statement_And_Stays_Usable(string sql)
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var handle = await Build(dataSource).EnterAsync(Admission());
+
+        var refused = async () => await handle.ExecuteAsync(sql, null, CancellationToken.None);
+
+        await refused.Should().ThrowAsync<ArgumentException>();
+        (await ScalarAsync<int>(handle, "SELECT 1")).Should().Be(1, "a statement refused before it ran does not fault the scope");
+    }
+
+    [Theory]
+    [InlineData("select 1")]
+    [InlineData("SELECT 1;")]
+    [InlineData("  SELECT\n1")]
+    [InlineData("WITH x AS (SELECT 1 AS n) SELECT n FROM x")]
+    public async Task The_Facade_Accepts_One_Statement_Whatever_Its_Case_Or_Spacing(string sql)
+    {
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var handle = await Build(dataSource).EnterAsync(Admission());
+
+        var rows = await handle.QueryAsync(sql, null, reader => reader.GetInt32(0), CancellationToken.None);
+
+        rows.Should().Equal(1);
+    }
+
+    [Fact]
+    public async Task The_Connection_Is_Returned_At_Commit_Not_At_Disposal()
+    {
+        // A pool of one: the second entry can only succeed if the first scope's commit already
+        // returned its connection. A handle that held it until disposal would block here.
+        var builder = new NpgsqlConnectionStringBuilder(_schema.Postgres.PlatformConnectionString)
+        {
+            MaxPoolSize = 1,
+            Timeout = 3,
+        };
+        await using var dataSource = PlatformSource(builder.ConnectionString);
+        var scope = Build(dataSource);
+
+        var first = await scope.EnterAsync(Admission(), CancellationToken.None);
+        await CompleteAsync(first);
+
+        await using var second = await scope.EnterAsync(Admission(), CancellationToken.None);
+        (await ScalarAsync<int>(second, "SELECT 1")).Should().Be(1);
+        await first.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task The_Result_Counter_Counts_A_Committed_Result_And_Not_A_Rolled_Back_One()
+    {
+        long total = 0;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == LearnStack.Infrastructure.PlatformOperator.PlatformOperatorMetrics.MeterName
+                && instrument.Name == LearnStack.Infrastructure.PlatformOperator.PlatformOperatorMetrics.ResultCounterName)
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) => Interlocked.Add(ref total, value));
+        listener.Start();
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var scope = Build(dataSource);
+
+        await using (var abandoned = await scope.EnterAsync(Admission()))
+        {
+            await abandoned.WriteResultAsync(new PlatformResult(TenantId.PlatformSentinel, null, null, null, null));
+        }
+
+        Interlocked.Read(ref total).Should().Be(0, "a result that rolled back is not a result");
+
+        await using (var completed = await scope.EnterAsync(Admission()))
+        {
+            await CompleteAsync(completed);
+        }
+
+        Interlocked.Read(ref total).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Two_First_Toggles_Of_One_Key_Serialise_On_The_Row_Lock()
+    {
+        // SELECT ... FOR UPDATE locks nothing when no row exists, so two first toggles used to read the
+        // registry default as their before state. The row is created first, so exactly one of two
+        // concurrent first toggles sees the default and the other sees the first one's result.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var key = KillswitchKeys.EmailDispatchEnabled;
+        var registryDefault = KillswitchKeys.All[key];
+        var toggle = new KillswitchToggle(
+            Build(dataSource), new RecordingCache(), new SystemClock(), NullLogger<KillswitchToggle>.Instance);
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var results = await Task.WhenAll(
+                    toggle.ToggleAsync(TestPlatformAdmissions.Admission(), key, !registryDefault),
+                    toggle.ToggleAsync(TestPlatformAdmissions.Admission(), key, !registryDefault));
+
+                results.Count(result => result.Before == registryDefault).Should().Be(1,
+                    "one toggle saw the default and the other saw the first one's committed state");
+                results.Count(result => result.Before == !registryDefault).Should().Be(1);
+            }
+            finally
+            {
+                await using var cleanup = await Build(dataSource).EnterAsync(Admission());
+                await cleanup.ExecuteAsync("DELETE FROM platform_killswitches WHERE key = @k", [new PlatformSqlParameter("k", key.Value)]);
+                await CompleteAsync(cleanup);
+            }
+        }
+    }
+
+    private static Task<int> InsertHostAsync(IPlatformAdminScopeHandle handle, string host) =>
+        handle.ExecuteAsync(
+            "INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, is_publicly_live) VALUES (@host, @tenant, true, true)",
+            [new PlatformSqlParameter("host", host), new PlatformSqlParameter("tenant", SchemaFixture.TenantA)],
+            CancellationToken.None);
 
     private static async Task<List<AuditRow>> Rows(System.Data.Common.DbConnection connection, string correlation)
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT tenant_id, operation, reason, actor_user_id, metadata::text, after_state::text "
+            "SELECT tenant_id, operation, reason, actor_user_id, metadata::text, after_state::text, before_state::text "
             + "FROM audit_log WHERE correlation_id = @c ORDER BY timestamp, id";
         command.Parameters.Add(new NpgsqlParameter("c", correlation));
         await using var reader = await command.ExecuteReaderAsync();
@@ -855,13 +1087,14 @@ public sealed class PlatformAdminScopeTests
             rows.Add(new AuditRow(
                 reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
-                reader.IsDBNull(5) ? string.Empty : reader.GetString(5)));
+                reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+                reader.IsDBNull(6) ? string.Empty : reader.GetString(6)));
         }
 
         return rows;
     }
 
-    private sealed record AuditRow(Guid Tenant, string Operation, string? Reason, Guid? Actor, string Metadata, string After);
+    private sealed record AuditRow(Guid Tenant, string Operation, string? Reason, Guid? Actor, string Metadata, string After, string Before);
 
     private sealed class RecordingCache(Func<Task<string>>? observe = null) : LearnStack.SharedKernel.Caching.ICacheService
     {
@@ -1060,6 +1293,14 @@ public sealed class PlatformAdminScopeTests
         }
 
         return (T)(await command.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>Writes a MUST result row under the sentinel and commits, as a completed act does.</summary>
+    private static async Task CompleteAsync(IPlatformAdminScopeHandle handle)
+    {
+        await handle.WriteResultAsync(
+            new PlatformResult(TenantId.PlatformSentinel, "PlatformKillswitch", "test", null, null), CancellationToken.None);
+        await handle.CommitAsync(CancellationToken.None);
     }
 
     private static PlatformAdmission Admission(string? correlation = null) =>

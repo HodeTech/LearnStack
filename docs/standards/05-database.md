@@ -925,9 +925,9 @@ CREATE POLICY platform_killswitches_read ON platform_killswitches
     USING (true);
 
 -- No write policy for learnstack_app, and no write privilege either — see the matrix
--- below. Every toggle runs as learnstack_platform inside
--- EnterPlatformAdminScope(reason), which is what gives tenancy.killswitch.toggle a real
--- actor and a MUST-class audit row. No such caller ships in Packet 9 — see below.
+-- below. Every toggle runs as learnstack_platform inside the admission-gated platform
+-- scope, which is what gives tenancy.killswitch.toggle a MUST-class audit row that names
+-- the operator. Its one writer shipped with P03-9 Step 1 — see below.
 ```
 
 `USING (true)` widens nothing: there is no tenant term to widen, and the `GRANT` is what

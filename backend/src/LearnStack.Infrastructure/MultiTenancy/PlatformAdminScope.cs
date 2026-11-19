@@ -126,6 +126,21 @@ public sealed class PlatformAdminScope(
 
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
 
+        // 0. The admission is short lived and single use. A stale one, or one already spent,
+        //    never reaches a connection: the grant was evaluated for a moment and an act, and
+        //    a kept or replayed proof would turn that into a standing capability.
+        if ((_clock.UtcNow - admission.IssuedAt).Duration() > PlatformAdmission.MaximumAge)
+        {
+            throw new InvalidOperationException(
+                "The platform admission is stale. An act asks the gate again rather than reusing a proof.");
+        }
+
+        if (!admission.TryConsume())
+        {
+            throw new InvalidOperationException(
+                "The platform admission was already used to enter a scope. One admission opens one scope.");
+        }
+
         // 1. The catalogue's own declarations, before the connection. They fix the tier and
         //    the operation type, so the rows and `docs/modules/tenancy/audit.md` cannot say
         //    different things, and an absent declaration is refused here rather than papered
@@ -174,6 +189,7 @@ public sealed class PlatformAdminScope(
                 connection,
                 current,
                 (result, token) => WriteResultAsync(admission, declaredResult, result, connection, current, token),
+                () => PlatformOperatorMetrics.Result(admission.Operation),
                 _logger);
         }
         catch
@@ -274,7 +290,6 @@ public sealed class PlatformAdminScope(
         await services.ServiceProvider
             .GetRequiredService<IAuditStore>()
             .WritePlatformOperatorResultAsync(draft, admission, connection, transaction, cancellationToken);
-        PlatformOperatorMetrics.Result(admission.Operation);
     }
 
     /// <summary>
@@ -370,22 +385,54 @@ public sealed class PlatformAdminScope(
             "Platform-admin scope entered: {Reason} (from {Member} at {File}:{Line}). "
             + "Cross-tenant access under learnstack_platform, audit row {AuditEntryId}.");
 
+    /// <summary>
+    /// The bounded facade over one work transaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One statement, a DML verb.</b> A statement must start with <c>SELECT</c>,
+    /// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c> or <c>WITH</c> and contain no further
+    /// statement, so a caller cannot send <c>COMMIT</c>, <c>SET</c> or <c>BEGIN</c> through the
+    /// facade and end or reshape the transaction the result row is bound to. This is a guard
+    /// against a mistake by trusted code, not a sandbox: the architecture rules decide who may
+    /// hold a handle at all.
+    /// </para>
+    /// <para>
+    /// <b>A result row, and no failed statement, before the commit.</b> A state change that
+    /// commits without its MUST row is the failure this scope exists to prevent, and a
+    /// statement that threw leaves PostgreSQL's transaction aborted, so a later commit would
+    /// silently roll back. A read-only scope has nothing to commit and ends by disposal.
+    /// </para>
+    /// </remarks>
     private sealed class Handle(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         Func<PlatformResult, CancellationToken, Task> writeResult,
+        Action onCommitted,
         ILogger logger)
         : IPlatformAdminScopeHandle
     {
+        private static readonly string[] StatementVerbs = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH"];
+
         private bool _resolved;
         private bool _disposed;
+        private bool _faulted;
+        private bool _resultWritten;
 
         public async Task<int> ExecuteAsync(
             string sql, IReadOnlyList<PlatformSqlParameter>? parameters = null, CancellationToken cancellationToken = default)
         {
             EnsureUsable();
             await using var command = Build(sql, parameters);
-            return await command.ExecuteNonQueryAsync(cancellationToken);
+            try
+            {
+                return await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch
+            {
+                _faulted = true;
+                throw;
+            }
         }
 
         public async Task<IReadOnlyList<T>> QueryAsync<T>(
@@ -397,28 +444,53 @@ public sealed class PlatformAdminScope(
             EnsureUsable();
             ArgumentNullException.ThrowIfNull(map);
             await using var command = Build(sql, parameters);
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            var rows = new List<T>();
-            while (await reader.ReadAsync(cancellationToken))
+            try
             {
-                rows.Add(map(reader));
-            }
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                var rows = new List<T>();
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    rows.Add(map(reader));
+                }
 
-            return rows;
+                return rows;
+            }
+            catch
+            {
+                _faulted = true;
+                throw;
+            }
         }
 
-        public Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
+        public async Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
         {
             EnsureUsable();
-            return writeResult(result, cancellationToken);
+            try
+            {
+                await writeResult(result, cancellationToken);
+            }
+            catch
+            {
+                _faulted = true;
+                throw;
+            }
+
+            _resultWritten = true;
         }
 
         public async Task CommitAsync(CancellationToken cancellationToken = default)
         {
             EnsureUsable();
+            if (!_resultWritten)
+            {
+                throw new InvalidOperationException(
+                    "A platform scope commits only after its MUST result row is written. An act with "
+                    + "nothing to record ends by disposal, which rolls back.");
+            }
 
             _resolved = true;
             await transaction.CommitAsync(cancellationToken);
+            onCommitted();
 
             // The connection closes at completion, not at disposal: nothing may run on a
             // connection that sees every tenant once its transaction is over.
@@ -472,7 +544,7 @@ public sealed class PlatformAdminScope(
 
         private NpgsqlCommand Build(string sql, IReadOnlyList<PlatformSqlParameter>? parameters)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(sql);
+            RequireOneStatement(sql);
             var command = new NpgsqlCommand(sql, connection, transaction);
             if (parameters is not null)
             {
@@ -485,6 +557,25 @@ public sealed class PlatformAdminScope(
             return command;
         }
 
+        private static void RequireOneStatement(string sql)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sql);
+            var text = sql.AsSpan().Trim();
+            if (text.EndsWith(";"))
+            {
+                text = text[..^1].TrimEnd();
+            }
+
+            var verbEnd = text.IndexOfAny(" \t\r\n(");
+            var verb = (verbEnd < 0 ? text : text[..verbEnd]).ToString();
+            if (text.Contains(';') || !StatementVerbs.Contains(verb, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    "A platform scope statement is a single SELECT, INSERT, UPDATE, DELETE or WITH statement.",
+                    nameof(sql));
+            }
+        }
+
         private void EnsureUsable()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -495,6 +586,13 @@ public sealed class PlatformAdminScope(
                     "This platform-admin scope has been resolved and is no longer usable. "
                     + "A caller needing further cross-tenant work takes a fresh scope: the "
                     + "connection bypasses Row Level Security and is closed at completion.");
+            }
+
+            if (_faulted)
+            {
+                throw new InvalidOperationException(
+                    "A statement of this platform-admin scope failed, so its transaction can only be abandoned. "
+                    + "Dispose the scope; the work rolls back.");
             }
         }
     }

@@ -196,10 +196,27 @@ has a pinned subject and sets up an authenticator at its first login; production
 for the realm stays [Phase 11](../../docs/roadmap/phase-11-production-hardening.md). A realm import
 into production never includes the demo user.
 
-`learnstack-hub-web` keeps `fullScopeAllowed: true` as a development posture, because the Hub
-operator portal maps the `hub-*` realm roles from its token. Narrowing it needs `scopeMappings` for
-those roles and is coordinated with the Hub's operator-portal packet (P02c-4), since the realm export
-is shared with the Hub repository. The `learnstack-operator` client is `false` and carries no realm
+Three properties of the shared realm file that an operator of it should know:
+
+- **`browser-loa` is realm-wide.** It is the realm's browser flow, so the Hub portal's
+  login (`learnstack-hub-web`) goes through it too; the portal asks for no `acr`, so it
+  is satisfied at level 1 and sees no change. The file is shared with the Hub
+  repository, so a change to the flow is made in both.
+- **Password reset is off.** `resetPasswordAllowed` is `false`: the reset-credentials
+  flow lets a user set a new password from an email link, which would be a second way to
+  a password that does not pass through the second factor. Operator credentials are
+  recovered by the realm administrator. The LearnStack scheme does not rely on this
+  alone: it accepts a token only when its `acr` is one the deployment lists, whatever
+  flow produced it.
+- **An existing Keycloak volume keeps its old realm.** The import runs on an empty realm
+  only. A developer with a volume from before this change removes the volume (or the
+  realm) and starts again to get the flow, the client and the pinned demo subject.
+
+`learnstack-hub-web` keeps `fullScopeAllowed: true` as a development posture, because
+the Hub operator portal maps the `hub-*` realm roles from its token. Narrowing it needs
+`scopeMappings` for those roles and is coordinated with the Hub's operator-portal packet
+(P02c-4), since the realm export is shared with the Hub repository. The
+`learnstack-operator` client sets `fullScopeAllowed` to `false` and carries no realm
 roles. The procedure for getting a token is the
 [operator access runbook](../../docs/runbooks/operator-access.md).
 
@@ -219,8 +236,10 @@ against it, including the host's default organization where applicable.
   [earlier adjustment](../../docs/roadmap/phase-02b-delivery-log.md#account-console-self-service-capability--proposal-2026-10-21)
   granted is retired by [ADR-0099](../../docs/decisions/0099-confined-tenant-federation.md):
   see [Account self-service retirement](#account-self-service-retirement).
-- The operator account remains `demo-operator@learnstack.test`; its separate
-  realm is untouched. Neither realm's token is accepted by the other surface.
+- The operator account remains `demo-operator@learnstack.test` in its separate realm,
+  which now also carries the `learnstack-operator` client and the `browser-loa` flow
+  ([above](#realms-and-accounts)). Neither realm's token is accepted by the other
+  surface.
 
 ## Local access and private sources
 

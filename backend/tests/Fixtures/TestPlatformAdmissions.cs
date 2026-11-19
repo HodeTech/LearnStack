@@ -19,8 +19,13 @@ internal static class TestPlatformAdmissions
         PlatformOperation? operation = null,
         string? ticket = null,
         string subject = "operator-1",
-        string? correlationId = "00-test-trace-01") =>
-        AdmissionMinter.Create(Witness(subject, correlationId), operation ?? PlatformOperations.KillswitchToggle, ticket);
+        string? correlationId = "00-test-trace-01",
+        DateTimeOffset? issuedAt = null) =>
+        AdmissionMinter.Create(
+            Witness(subject, correlationId),
+            operation ?? PlatformOperations.KillswitchToggle,
+            ticket,
+            issuedAt ?? DateTimeOffset.UtcNow);
 
     private sealed class WitnessMinter : PlatformOperatorWitness.Minter
     {
@@ -32,7 +37,7 @@ internal static class TestPlatformAdmissions
     private sealed class AdmissionMinter : PlatformAdmission.Minter
     {
         internal static PlatformAdmission Create(
-            PlatformOperatorWitness witness, PlatformOperation operation, string? ticket) =>
-            Mint(witness, operation, ticket);
+            PlatformOperatorWitness witness, PlatformOperation operation, string? ticket, DateTimeOffset issuedAt) =>
+            Mint(witness, operation, ticket, issuedAt);
     }
 }

@@ -1,12 +1,16 @@
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Platform;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -76,6 +80,27 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         admission.Operator.Acr.Should().Be("mfa");
         admission.Ticket.Should().Be("INC-42");
         admission.Operation.Should().BeSameAs(PlatformOperations.KillswitchToggle);
+        admission.Operator.CorrelationId.Should().NotBeNullOrWhiteSpace(
+            "a result row is never recorded without a handle the operator can quote");
+        body.GetProperty("correlationId").GetString().Should().Be(admission.Operator.CorrelationId);
+        admission.IssuedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
+    public async Task The_Bearer_Prefix_And_The_Route_Prefix_Are_Matched_Without_Regard_To_Case()
+    {
+        // Routing is case-insensitive, so the scheme's own prefix checks must be too: a request the
+        // router sends to the operator endpoint is a request the operator scheme authenticates.
+        using var request = new HttpRequestMessage(HttpMethod.Put, Path.ToUpperInvariant().Replace("KILLSWITCH.CLASSROOM.RECORDING", "killswitch.classroom.recording"))
+        {
+            Content = new StringContent("""{"enabled":false}""", System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.TryAddWithoutValidation("Authorization", "bearer " + Valid());
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _toggle.Calls.Should().ContainSingle();
     }
 
     [Fact]
@@ -92,22 +117,31 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("audience")]
-    [InlineData("azp")]
-    [InlineData("acr")]
-    [InlineData("acr-missing")]
-    [InlineData("auth-time-old")]
-    [InlineData("auth-time-missing")]
-    [InlineData("auth-time-future")]
-    [InlineData("lifetime")]
-    [InlineData("expired")]
-    [InlineData("subject-missing")]
-    public async Task A_Wrongly_Profiled_Token_Is_Refused_And_Nothing_Is_Called(string defect)
+    [InlineData("audience", "token_audience")]
+    [InlineData("issuer", "token_issuer")]
+    [InlineData("typ", "token_type")]
+    [InlineData("alg", "token_signature")] // the stock handler reports a disallowed algorithm as a signature failure
+    [InlineData("signature", "token_signature")]
+    [InlineData("azp", "profile_azp")]
+    [InlineData("acr", "profile_acr")]
+    [InlineData("acr-missing", "profile_acr")]
+    [InlineData("auth-time-old", "profile_auth_age")]
+    [InlineData("auth-time-missing", "profile_auth_time")]
+    [InlineData("auth-time-future", "profile_auth_age")]
+    [InlineData("lifetime", "profile_lifetime")]
+    [InlineData("expired", "token_expired")]
+    [InlineData("subject-missing", "profile_subject")]
+    public async Task A_Wrongly_Profiled_Token_Is_Refused_Counted_Under_Its_Cause_And_Nothing_Is_Called(
+        string defect, string expectedCause)
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var token = defect switch
         {
             "audience" => Sign(("aud", "learnstack-api")),
+            "issuer" => Sign(("iss", _tenant.Issuer)),
+            "typ" => _operator.Token(Payload([]), header: Header("RS256", "at+jwt")),
+            "alg" => SignWithSha384(),
+            "signature" => Sign()[..^4] + "AAAA",
             "azp" => Sign(("azp", "learnstack-web")),
             "acr" => Sign(("acr", "0")),
             "acr-missing" => SignWithout("acr"),
@@ -118,11 +152,88 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             "expired" => Sign(("iat", now - 7200), ("exp", now - 3600)),
             _ => SignWithout("sub"),
         };
+        using var counted = Counted();
 
         var response = await Put(token, """{"enabled":false}""");
 
         await AssertUnauthorized(response);
         _toggle.Calls.Should().BeEmpty("a refused credential reaches no operator service");
+        counted.Causes.Should().Contain(expectedCause, "the cause is a closed label an operator can alert on");
+    }
+
+    [Fact]
+    public async Task A_Missing_Credential_Is_Counted_As_Missing()
+    {
+        using var counted = Counted();
+        using var request = new HttpRequestMessage(HttpMethod.Put, Path)
+        {
+            Content = new StringContent("""{"enabled":false}""", System.Text.Encoding.UTF8, "application/json"),
+        };
+
+        await AssertUnauthorized(await _client.SendAsync(request));
+
+        counted.Causes.Should().Contain("token_missing");
+    }
+
+    [Theory]
+    [InlineData("redirect")]
+    [InlineData("oversized-keys")]
+    [InlineData("foreign-jwks-uri")]
+    public async Task Unsafe_Issuer_Metadata_Refuses_Every_Operator_And_Is_Counted(string fault)
+    {
+        // The scheme's own transport follows no redirect, reads at most 256 KB and fetches nothing
+        // outside the issuer's origin, so a hostile or broken metadata endpoint cannot choose the
+        // keys the operator scheme trusts. An unreachable issuer refuses everyone (no last known
+        // good), which is the safe side of an outage.
+        var misbehaving = await TenantAuthenticationIssuer.StartAsync();
+        var foreign = await TenantAuthenticationIssuer.StartAsync();
+        try
+        {
+            TenantAuthenticationSigningKey? signer = null;
+            switch (fault)
+            {
+                case "redirect":
+                    misbehaving.DiscoveryStatusCode = StatusCodes.Status302Found;
+                    misbehaving.DiscoveryRedirect = misbehaving.CanaryAddress;
+                    break;
+                case "oversized-keys":
+                    misbehaving.JwksResponse = new string(' ', 300 * 1024);
+                    break;
+                default:
+                    // A second, live origin that would happily serve a key set and so make a token
+                    // signed by its key valid, if the discovery document's address were followed.
+                    misbehaving.DiscoveryResponse = misbehaving.DiscoveryDocument.Replace(
+                        misbehaving.Issuer + "/keys", foreign.Issuer + "/keys", StringComparison.Ordinal);
+                    signer = foreign.CurrentKey;
+                    break;
+            }
+
+            var toggle = new RecordingToggle();
+            await using var factory = new PlatformOperatorApiFactory(_tenant, misbehaving, toggle, grantSubject: Subject);
+            using var client = factory.CreateClient();
+            using var counted = Counted();
+            using var request = new HttpRequestMessage(HttpMethod.Put, Path)
+            {
+                Headers = { { "Authorization", "Bearer " + misbehaving.Token(misbehaving.Payload(
+                    ("aud", "learnstack-platform"), ("azp", "learnstack-operator"), ("acr", "mfa"),
+                    ("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 30), ("sub", Subject)), key: signer) } },
+                Content = new StringContent("""{"enabled":false}""", System.Text.Encoding.UTF8, "application/json"),
+            };
+
+            var response = await client.SendAsync(request);
+
+            await AssertUnauthorized(response);
+            toggle.Calls.Should().BeEmpty();
+            counted.MetadataFailures.Should().BeGreaterThan(0,
+                "the transport refusal is counted where it happens; the request itself finds no key");
+            misbehaving.CanaryRequests.Should().Be(0, "no redirect target is ever dereferenced");
+            foreign.JwksRequests.Should().Be(0, "a key set at another origin is never fetched");
+        }
+        finally
+        {
+            await foreign.DisposeAsync();
+            await misbehaving.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -192,6 +303,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         await AssertProblem(response, "audit_unavailable");
+        response.Headers.RetryAfter.Should().NotBeNull("every 503 the API answers carries Retry-After");
     }
 
     [Fact]
@@ -240,11 +352,15 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     public void The_Operator_Surface_Is_Exactly_One_Authorized_Put_Endpoint_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
-        // its population is closed here instead: every routed endpoint under /api/platform, its verb,
-        // and the policy that guards it. A second endpoint, another verb or a missing policy fails.
+        // its population is closed here instead: every routed endpoint under /api/platform (whatever
+        // the case of its pattern) or carrying the operator metadata anywhere, its verb, and the
+        // policy that guards it. A second endpoint, another verb or a missing policy fails.
         var endpoints = _factory.Services.GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
             .SelectMany(source => source.Endpoints).OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
-            .Where(endpoint => endpoint.RoutePattern.RawText!.StartsWith("/api/platform", StringComparison.Ordinal))
+            .Where(endpoint => endpoint.RoutePattern.RawText!.TrimStart('/')
+                    .StartsWith("api/platform", StringComparison.OrdinalIgnoreCase)
+                || endpoint.Metadata.GetMetadata<InfrastructureOperationMetadata>()
+                    ?.Kind == InfrastructureOperationKind.PlatformOperator)
             .ToList();
 
         var only = endpoints.Should().ContainSingle().Subject;
@@ -256,7 +372,65 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         only.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>().Should().BeNull();
     }
 
+    private string Header(string alg, string typ) => JsonSerializer.Serialize(new { alg, typ, kid = _operator.CurrentKey.Kid });
+
+    // Correctly signed, with an algorithm the scheme does not allow: only the algorithm is wrong.
+    private string SignWithSha384()
+    {
+        var input = TenantAuthenticationIssuer.Base64Url(System.Text.Encoding.UTF8.GetBytes(Header("RS384", "JWT")))
+            + "." + TenantAuthenticationIssuer.Base64Url(System.Text.Encoding.UTF8.GetBytes(Payload([])));
+        var signature = _operator.CurrentKey.Rsa.SignData(
+            System.Text.Encoding.ASCII.GetBytes(input),
+            System.Security.Cryptography.HashAlgorithmName.SHA384,
+            System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        return input + "." + TenantAuthenticationIssuer.Base64Url(signature);
+    }
+
     private string Valid() => Sign();
+
+    private static CauseListener Counted() => new();
+
+    /// <summary>Captures the <c>cause</c> label of every refusal counted while it is alive.</summary>
+    private sealed class CauseListener : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        private readonly ConcurrentBag<string> _causes = [];
+        private long _metadataFailures;
+
+        public CauseListener()
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName
+                    && instrument.Name is PlatformOperatorMetrics.RefusalCounterName or PlatformOperatorMetrics.MetadataFailureCounterName)
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+            {
+                if (instrument.Name == PlatformOperatorMetrics.MetadataFailureCounterName)
+                {
+                    Interlocked.Add(ref _metadataFailures, value);
+                }
+
+                foreach (var tag in tags)
+                {
+                    if (tag is { Key: "cause", Value: string cause })
+                    {
+                        _causes.Add(cause);
+                    }
+                }
+            });
+            _listener.Start();
+        }
+
+        public IReadOnlyCollection<string> Causes => _causes;
+
+        public long MetadataFailures => Interlocked.Read(ref _metadataFailures);
+
+        public void Dispose() => _listener.Dispose();
+    }
 
     private string Sign(params (string Name, object? Value)[] replacements) => _operator.Token(Payload(replacements));
 

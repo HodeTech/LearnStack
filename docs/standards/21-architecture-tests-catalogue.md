@@ -5875,12 +5875,15 @@ structural test proves — and what it does not.
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
-- **Asserts:** entering the platform scope takes a `PlatformAdmission` and nothing else, and
-  the censuses that make an admission mean something are closed across every production
-  assembly: `PlatformAdmission.Minter` has exactly one subclass, the operator gate;
-  `PlatformOperatorWitness.Minter` has exactly one, the operator authentication boundary's;
-  `IPlatformOperatorGate` and `IPlatformOperatorGrantSource` each have exactly one
-  implementation. A second of any of them is how a permissive default ships.
+- **Asserts:** entering the platform scope takes a `PlatformAdmission` and nothing else,
+  and the censuses that make an admission mean something are closed across every
+  production assembly: `PlatformAdmission.Minter` has exactly one subclass, the operator
+  gate; `PlatformOperatorWitness.Minter` has exactly one, the private nested minter of
+  `PlatformOperatorTokenProfile`; `IPlatformOperatorGate` and
+  `IPlatformOperatorGrantSource` each have exactly one implementation. The census
+  compares full type names and counts abstract subclasses, so a lookalike in another
+  namespace or an abstract stand-in is a failure. A second of any of them is how a
+  permissive default ships.
 - **Source:** ADR-0036 § The platform-admin override is not a resolution source;
   [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and § 8.
 - **Type:** xUnit — reflection over every production assembly, and behavioural cases without
@@ -5898,11 +5901,26 @@ structural test proves — and what it does not.
   structural as well: `Only_The_Operator_Services_Hold_The_Platform_Scope` lists every file
   that may hold the scope, and no request handler is among them.
 
+#### `The_Operator_Token_Profile_Is_Called_From_The_Authentication_Boundary_Only`
+
+- **Asserts:** the only source file that names `PlatformOperatorTokenProfile`, calls its
+  `TryRead` or names `PlatformOperatorWitness.Minter` is
+  `LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs`. A further caller
+  joins by an edit here: the offline rebind tool, in P03-9 Step 3.
+- **Why it matters:** the witness is evidence that a token passed the closed profile,
+  and `TryRead` is the only door to the minter that makes one.
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1
+  review).
+- **Phase:** P03-9.
+
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
-- **Asserts:** the files that name `IPlatformAdminScope` are exactly the interface, the scope,
-  the persistence composition and the operator services that perform an admitted act
-  (today the killswitch toggle). Adding a service is a deliberate edit here, with its denied proof.
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `IPlatformAdminScope` are exactly the interface, the scope, the persistence
+  composition and the operator services that perform an admitted act (today the
+  killswitch toggle). Adding a service is a deliberate edit here, with its denied proof.
 - **Why it matters:** a request handler holding the scope would enter a cross-tenant scope from a
   tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
@@ -5912,8 +5930,14 @@ structural test proves — and what it does not.
 
 #### `Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer`
 
-- **Asserts:** the verbs `INSERT INTO`, `UPDATE`, `DELETE FROM` and `TRUNCATE` against
-  `platform_killswitches` appear only in `KillswitchToggle`. The overlay's reads are unaffected.
+- **Asserts:** the write verbs `INSERT INTO`, `UPDATE`, `DELETE FROM` and `TRUNCATE`
+  against `platform_killswitches` appear only in `KillswitchToggle`, matched in any case
+  with an optional schema, quotes and `ONLY`, and that file uses `INSERT` and `UPDATE`
+  and never the other two. The overlay's reads and a `SELECT … FOR UPDATE` are
+  unaffected. A companion case,
+  `The_Killswitch_Write_Pattern_Can_Fail_And_Catches_The_Ordinary_Spellings`, checks the
+  pattern against shapes it must and must not catch, so a pattern that matches nothing
+  cannot pass the rule.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 13.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).

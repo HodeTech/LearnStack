@@ -66,7 +66,27 @@ internal sealed class PlatformOperatorSettings
         {
             throw new InvalidOperationException(
                 "PlatformOperator needs at least one AcceptedAcr and one AuthorizedParties value when "
-                + "an Issuer is configured; assurance and client are never inferred.");
+                + "an Issuer is configured, as indexed keys such as PlatformOperator__AcceptedAcr__0. "
+                + "Assurance and client are never inferred.");
+        }
+
+        // OpenID Connect reserves 0 for authentication no stronger than a single factor, and
+        // many issuers emit 1 for a password: an accepted acr that is one of those is a
+        // misconfiguration that would turn the multi-factor requirement into a formality.
+        if (acr.Any(value => value is "0" or "1"))
+        {
+            throw new InvalidOperationException(
+                "PlatformOperator:AcceptedAcr must name a multi-factor assurance value the issuer emits; "
+                + "'0' and '1' are single-factor levels and are refused.");
+        }
+
+        var tenantIssuer = configuration[TenantAuthenticationOptions.IssuerConfigurationKey];
+        if (!string.IsNullOrWhiteSpace(tenantIssuer)
+            && string.Equals(tenantIssuer.TrimEnd('/'), issuer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "PlatformOperator:Issuer must not be the tenant issuer: operators authenticate at a "
+                + "deployment-controlled issuer that tenant administrators cannot influence.");
         }
 
         var ageText = section["MaxAuthenticationAge"];
@@ -74,7 +94,9 @@ internal sealed class PlatformOperatorSettings
         if (ageText is not null && (!TimeSpan.TryParse(ageText, System.Globalization.CultureInfo.InvariantCulture, out age)
             || age <= TimeSpan.Zero || age > TimeSpan.FromHours(1)))
         {
-            throw new InvalidOperationException("PlatformOperator:MaxAuthenticationAge must be between 0 and 1 hour.");
+            throw new InvalidOperationException(
+                "PlatformOperator:MaxAuthenticationAge must be a time span between 0 and 1 hour, "
+                + "for example 00:15:00.");
         }
 
         return new PlatformOperatorSettings(issuer, acr, parties, age);

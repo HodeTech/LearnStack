@@ -1,5 +1,7 @@
 using LearnStack.Api.Authentication;
+using System.ComponentModel.DataAnnotations;
 using LearnStack.Api.Common;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Localization;
@@ -11,7 +13,11 @@ namespace LearnStack.Api.Platform;
 /// <summary>The body of a killswitch toggle.</summary>
 /// <param name="Enabled">The state to set; required.</param>
 /// <param name="Ticket">An optional ticket reference, 1 to 64 characters of <c>[A-Za-z0-9._:/#-]</c>.</param>
-internal sealed record KillswitchToggleRequest(bool? Enabled, string? Ticket);
+internal sealed record KillswitchToggleRequest(
+    [property: Required] bool? Enabled,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(@"^[A-Za-z0-9._:/#-]{1,64}$")]
+    string? Ticket);
 
 /// <summary>What a toggle changed, with the correlation id the operator records.</summary>
 internal sealed record KillswitchToggleResponse(string Key, bool Before, bool After, string? CorrelationId);
@@ -66,6 +72,7 @@ internal static class PlatformOperatorEndpoints
         HttpContext http,
         IPlatformOperatorGate gate,
         IKillswitchToggle toggle,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         var witness = http.Features.Get<PlatformOperatorFeature>()?.Witness;
@@ -74,12 +81,9 @@ internal static class PlatformOperatorEndpoints
             return Problem(http, StatusCodes.Status401Unauthorized, "lockey_unauthorized");
         }
 
-        if (body?.Enabled is not { } enabled)
-        {
-            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
-        }
-
-        var admission = await gate.AdmitAsync(witness, PlatformOperations.KillswitchToggle, body.Ticket, cancellationToken);
+        // Admission first: an operator without the grant learns nothing about the body, so a
+        // malformed request is answered 400 only to someone who may act at all.
+        var admission = await gate.AdmitAsync(witness, PlatformOperations.KillswitchToggle, body?.Ticket, cancellationToken);
         if (!admission.IsAdmitted)
         {
             return admission.Refusal switch
@@ -90,6 +94,11 @@ internal static class PlatformOperatorEndpoints
             };
         }
 
+        if (body?.Enabled is not { } enabled)
+        {
+            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
+        }
+
         try
         {
             var result = await toggle.ToggleAsync(admission.Admission!, new KillswitchKey(key), enabled, cancellationToken);
@@ -97,11 +106,23 @@ internal static class PlatformOperatorEndpoints
                 ? Results.Ok(new KillswitchToggleResponse(key, result.Before, result.After, admission.Admission!.Operator.CorrelationId))
                 : Problem(http, StatusCodes.Status404NotFound, "lockey_not_found");
         }
-        catch (AuditWriteFailedException)
+        catch (AuditWriteFailedException failure)
         {
+            // A MUST row that cannot be written refuses the act, and the refusal is a signal:
+            // an error line and a counter an operator can alert on, and a Retry-After like
+            // every other 503 the API answers.
+            PlatformOperatorMetrics.AuditFailed(PlatformOperations.KillswitchToggle);
+            LogAuditRefused(loggerFactory.CreateLogger(typeof(PlatformOperatorEndpoints).FullName!), failure);
+            RetryAfter.Apply(http.Response, StatusCodes.Status503ServiceUnavailable);
             return Problem(http, StatusCodes.Status503ServiceUnavailable, "lockey_audit_unavailable");
         }
     }
+
+    private static readonly Action<ILogger, Exception?> LogAuditRefused =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(7105, nameof(LogAuditRefused)),
+            "A platform operator act was refused because its audit row could not be written.");
 
     private static IResult Problem(HttpContext http, int status, string key) =>
         Results.Json(

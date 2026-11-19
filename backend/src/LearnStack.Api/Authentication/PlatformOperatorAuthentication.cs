@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Logging;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 
 namespace LearnStack.Api.Authentication;
@@ -31,6 +33,12 @@ namespace LearnStack.Api.Authentication;
 /// <see cref="PlatformOperatorEvents.TokenValidated"/> then requires an allow-listed
 /// <c>azp</c>, a token lifetime of at most 15 minutes, an accepted <c>acr</c> and a recent
 /// <c>auth_time</c>. Roles and every other claim carry no authority.
+/// </para>
+/// <para>
+/// <b>Bounded metadata.</b> The discovery document and key set come through a client of the
+/// scheme's own that follows no redirect, waits five seconds, reads at most 256 KB and fetches
+/// nothing outside the issuer's origin. The last known good configuration is off: an issuer
+/// that cannot be reached refuses every operator, which is the safe side of an outage.
 /// </para>
 /// </remarks>
 internal static class PlatformOperatorAuthentication
@@ -56,11 +64,13 @@ internal static class PlatformOperatorAuthentication
         IdentityModelEventSource.LogCompleteSecurityArtifact = false;
         services.AddSingleton(settings);
         services.TryAddSingleton<IClock, SystemClock>();
+        services.AddSingleton<PlatformOperatorBackchannel>();
         services.AddAuthentication().AddJwtBearer(Scheme, _ => { });
         services.AddAuthorization(options => options.AddPolicy(
             PolicyName, policy => policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()));
         services.AddOptions<JwtBearerOptions>(Scheme)
-            .Configure<IClock, ILogger<PlatformOperatorEvents>>((options, clock, logger) =>
+            .Configure<PlatformOperatorBackchannel, IClock, ILogger<PlatformOperatorEvents>, ILogger<PlatformOperatorDocumentRetriever>>(
+                (options, backchannel, clock, logger, retrieverLogger) =>
             {
                 options.Authority = settings.Issuer;
                 options.MetadataAddress = settings.MetadataAddress;
@@ -68,11 +78,24 @@ internal static class PlatformOperatorAuthentication
                 options.MapInboundClaims = false;
                 options.SaveToken = false;
                 options.IncludeErrorDetails = false;
+                options.Backchannel = backchannel.Client;
+                options.BackchannelTimeout = PlatformOperatorBackchannel.Timeout;
                 options.AutomaticRefreshInterval = TimeSpan.FromMinutes(5);
                 options.RefreshInterval = TimeSpan.FromSeconds(30);
+                options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                    settings.MetadataAddress,
+                    new OpenIdConnectConfigurationRetriever(),
+                    new PlatformOperatorDocumentRetriever(settings, backchannel, retrieverLogger),
+                    new PlatformOperatorConfigurationValidator(settings))
+                {
+                    AutomaticRefreshInterval = options.AutomaticRefreshInterval,
+                    RefreshInterval = options.RefreshInterval,
+                    UseLastKnownGoodConfiguration = false,
+                };
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     RequireSignedTokens = true,
+                    TryAllIssuerSigningKeys = false,
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
                     ValidIssuer = settings.Issuer,
@@ -100,21 +123,13 @@ internal sealed class PlatformOperatorFeature(PlatformOperatorWitness witness)
     internal PlatformOperatorWitness Witness { get; } = witness;
 }
 
-/// <summary>The one minter the operator authentication boundary owns (ADR-0101 § 7).</summary>
-internal sealed class PlatformOperatorWitnessMinter : PlatformOperatorWitness.Minter
-{
-    internal static PlatformOperatorWitness Create(
-        string issuer, string subjectDigest, string acr, DateTimeOffset authenticatedAt, string? correlationId) =>
-        Mint(issuer, subjectDigest, acr, authenticatedAt, PlatformOperatorSettings.Executor, correlationId);
-}
-
 /// <summary>Scopes the scheme to its prefix and applies the closed token profile.</summary>
 internal sealed class PlatformOperatorEvents(
     PlatformOperatorSettings settings, IClock clock, ILogger<PlatformOperatorEvents> logger) : JwtBearerEvents
 {
     public override Task MessageReceived(MessageReceivedContext context)
     {
-        if (!context.Request.Path.StartsWithSegments(PlatformOperatorSettings.RoutePrefix, StringComparison.Ordinal))
+        if (!context.Request.Path.StartsWithSegments(PlatformOperatorSettings.RoutePrefix, StringComparison.OrdinalIgnoreCase))
         {
             context.NoResult();
             return Task.CompletedTask;
@@ -123,7 +138,7 @@ internal sealed class PlatformOperatorEvents(
         var values = context.Request.Headers.Authorization;
         if (values.Count != 1
             || values[0] is not { } header
-            || !header.StartsWith("Bearer ", StringComparison.Ordinal)
+            || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
             || header.Length <= "Bearer ".Length)
         {
             context.NoResult();
@@ -136,10 +151,18 @@ internal sealed class PlatformOperatorEvents(
 
     public override Task TokenValidated(TokenValidatedContext context)
     {
-        if (context.SecurityToken is not JsonWebToken token
-            || !PlatformOperatorTokenProfile.TryRead(token, settings, clock.UtcNow, Activity.Current?.Id, out var witness))
+        // The correlation id is the request's trace when one exists and the server's request
+        // id otherwise, so a result row is never recorded without a handle an operator can use.
+        var correlationId = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
+        if (context.SecurityToken is not JsonWebToken token)
         {
-            context.Fail("Operator credential refused.");
+            context.Fail(new PlatformOperatorProfileException("token_invalid"));
+            return Task.CompletedTask;
+        }
+
+        if (!PlatformOperatorTokenProfile.TryRead(token, settings, clock.UtcNow, correlationId, out var witness, out var cause))
+        {
+            context.Fail(new PlatformOperatorProfileException(cause.Label()));
             return Task.CompletedTask;
         }
 
@@ -147,13 +170,22 @@ internal sealed class PlatformOperatorEvents(
         return Task.CompletedTask;
     }
 
+    public override Task AuthenticationFailed(AuthenticationFailedContext context)
+    {
+        // The stock handler rethrows what it did not classify, an unreachable issuer included,
+        // which would answer 500 and hide the cause. Failing here keeps one answer and lets
+        // the challenge below name the cause on the counter and the log.
+        context.Fail(context.Exception);
+        return Task.CompletedTask;
+    }
+
     public override Task Challenge(JwtBearerChallengeContext context)
     {
         // One answer for a missing, malformed, expired or wrongly profiled credential: no
         // detail a probing caller could use, a counter and a log an operator can alert on.
-        var cause = context.AuthenticateFailure is null ? "token_missing" : "token_invalid";
+        var cause = PlatformOperatorFailure.Classify(context.AuthenticateFailure);
         PlatformOperatorMetrics.Unauthenticated(cause);
-        LogUnauthenticated(logger, cause, null);
+        LogUnauthenticated(logger, cause, context.AuthenticateFailure?.GetType().Name ?? "none", null);
         context.HandleResponse();
         context.Response.Headers.WWWAuthenticate = "Bearer";
         return Respond(context.HttpContext, StatusCodes.Status401Unauthorized, "lockey_unauthorized");
@@ -173,21 +205,100 @@ internal sealed class PlatformOperatorEvents(
             cancellationToken: http.RequestAborted);
     }
 
-    private static readonly Action<ILogger, string, Exception?> LogUnauthenticated =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, string, string, Exception?> LogUnauthenticated =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(7103, nameof(LogUnauthenticated)),
-            "Platform operator credential refused: {Cause}.");
+            "Platform operator credential refused: {Cause} ({FailureType}).");
+}
+
+/// <summary>Why a cryptographically valid operator token failed the closed profile.</summary>
+internal enum PlatformOperatorTokenCause
+{
+    Subject = 0,
+    Issuer,
+    AuthorizedParty,
+    AuthenticationContext,
+    IssuedAt,
+    AuthenticationTime,
+    Lifetime,
+    AuthenticationAge,
+}
+
+/// <summary>The bounded label set a counter carries; nothing a caller wrote reaches it.</summary>
+internal static class PlatformOperatorTokenCauseLabels
+{
+    internal static string Label(this PlatformOperatorTokenCause cause) => cause switch
+    {
+        PlatformOperatorTokenCause.Subject => "profile_subject",
+        PlatformOperatorTokenCause.Issuer => "profile_issuer",
+        PlatformOperatorTokenCause.AuthorizedParty => "profile_azp",
+        PlatformOperatorTokenCause.AuthenticationContext => "profile_acr",
+        PlatformOperatorTokenCause.IssuedAt => "profile_iat",
+        PlatformOperatorTokenCause.AuthenticationTime => "profile_auth_time",
+        PlatformOperatorTokenCause.Lifetime => "profile_lifetime",
+        PlatformOperatorTokenCause.AuthenticationAge => "profile_auth_age",
+        _ => "profile_invalid",
+    };
+}
+
+/// <summary>Carries a closed profile label from <c>TokenValidated</c> to the challenge.</summary>
+internal sealed class PlatformOperatorProfileException(string label) : Exception("Operator credential refused.")
+{
+    internal string Label { get; } = label;
+}
+
+/// <summary>Maps an authentication failure to a closed label; the response never varies.</summary>
+internal static class PlatformOperatorFailure
+{
+    internal static string Classify(Exception? failure) => failure switch
+    {
+        null => "token_missing",
+        PlatformOperatorProfileException profile => profile.Label,
+        AggregateException { InnerExceptions.Count: > 0 } aggregate => Classify(aggregate.InnerExceptions[0]),
+        SecurityTokenExpiredException => "token_expired",
+        SecurityTokenNotYetValidException or SecurityTokenNoExpirationException or SecurityTokenInvalidLifetimeException
+            => "token_lifetime",
+        SecurityTokenInvalidSignatureException or SecurityTokenSignatureKeyNotFoundException => "token_signature",
+        SecurityTokenInvalidIssuerException => "token_issuer",
+        SecurityTokenInvalidAudienceException => "token_audience",
+        SecurityTokenInvalidAlgorithmException => "token_algorithm",
+        SecurityTokenInvalidTypeException => "token_type",
+        _ when IsMetadataFailure(failure) => "metadata_unavailable",
+        _ => "token_invalid",
+    };
+
+    // The stock manager wraps every retrieval failure in an InvalidOperationException (IDX20803)
+    // whose cause is the transport or the retriever's own refusal.
+    private static bool IsMetadataFailure(Exception failure)
+    {
+        for (var current = failure; current is not null; current = current.InnerException)
+        {
+            if (current is IOException or HttpRequestException or TaskCanceledException)
+            {
+                return true;
+            }
+        }
+
+        return failure is InvalidOperationException && failure.Message.Contains("IDX20803", StringComparison.Ordinal);
+    }
 }
 
 /// <summary>
 /// The closed profile a cryptographically valid operator token must also meet (ADR-0101 § 2, § 3).
 /// </summary>
 /// <remarks>
+/// <para>
 /// A pure function of the validated token, the settings and the clock, so the scheme, the real-realm
-/// proof and the offline rebind tool judge one definition. It admits an allow-listed <c>azp</c>, an
-/// accepted <c>acr</c>, a lifetime of at most 15 minutes, and an <c>auth_time</c> that is neither in
-/// the future nor older than the configured age. Nothing else in the token carries authority.
+/// proof and the offline rebind tool judge one definition. It admits the pinned <c>iss</c>, an
+/// allow-listed <c>azp</c>, an accepted <c>acr</c>, a lifetime of at most 15 minutes, and an
+/// <c>auth_time</c> that is neither in the future nor older than the configured age. Nothing else
+/// in the token carries authority.
+/// </para>
+/// <para>
+/// <b>It owns the witness minter.</b> The minter is nested and private, so no other type in the
+/// assembly can mint a witness, and a source census pins who may call <see cref="TryRead"/>.
+/// </para>
 /// </remarks>
 internal static class PlatformOperatorTokenProfile
 {
@@ -196,35 +307,83 @@ internal static class PlatformOperatorTokenProfile
         PlatformOperatorSettings settings,
         DateTimeOffset now,
         string? correlationId,
-        out PlatformOperatorWitness? witness)
+        out PlatformOperatorWitness? witness,
+        out PlatformOperatorTokenCause cause)
     {
         witness = null;
-        if (string.IsNullOrWhiteSpace(token.Subject)
-            || !token.TryGetPayloadValue<string>("azp", out var azp) || !settings.AuthorizedParties.Contains(azp)
-            || !token.TryGetPayloadValue<string>("acr", out var acr) || !settings.AcceptedAcr.Contains(acr)
-            || !token.TryGetPayloadValue<long>("iat", out var iat)
-            || !token.TryGetPayloadValue<long>("auth_time", out var authTime)
-            || token.ValidTo == DateTime.MinValue)
+        cause = default;
+
+        // Stock validation already pinned the issuer; this restates it so the profile is
+        // correct for any caller, including one that validated with other parameters.
+        if (!string.Equals(token.Issuer, settings.Issuer, StringComparison.Ordinal))
         {
+            cause = PlatformOperatorTokenCause.Issuer;
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(token.Subject))
+        {
+            cause = PlatformOperatorTokenCause.Subject;
+            return false;
+        }
+
+        if (!token.TryGetPayloadValue<string>("azp", out var azp) || !settings.AuthorizedParties.Contains(azp))
+        {
+            cause = PlatformOperatorTokenCause.AuthorizedParty;
+            return false;
+        }
+
+        if (!token.TryGetPayloadValue<string>("acr", out var acr) || !settings.AcceptedAcr.Contains(acr))
+        {
+            cause = PlatformOperatorTokenCause.AuthenticationContext;
+            return false;
+        }
+
+        if (!token.TryGetPayloadValue<long>("iat", out var iat) || !IsUnixSeconds(iat) || token.ValidTo == DateTime.MinValue)
+        {
+            cause = PlatformOperatorTokenCause.IssuedAt;
+            return false;
+        }
+
+        if (!token.TryGetPayloadValue<long>("auth_time", out var authTime) || !IsUnixSeconds(authTime))
+        {
+            cause = PlatformOperatorTokenCause.AuthenticationTime;
             return false;
         }
 
         var issuedAt = DateTimeOffset.FromUnixTimeSeconds(iat);
         var authenticatedAt = DateTimeOffset.FromUnixTimeSeconds(authTime);
         var lifetime = new DateTimeOffset(token.ValidTo, TimeSpan.Zero) - issuedAt;
-        if (lifetime <= TimeSpan.Zero || lifetime > PlatformOperatorSettings.MaxTokenLifetime
-            || authenticatedAt > now + PlatformOperatorSettings.ClockSkew
-            || now - authenticatedAt > settings.MaxAuthenticationAge)
+        if (lifetime <= TimeSpan.Zero || lifetime > PlatformOperatorSettings.MaxTokenLifetime)
         {
+            cause = PlatformOperatorTokenCause.Lifetime;
             return false;
         }
 
-        witness = PlatformOperatorWitnessMinter.Create(
+        if (authenticatedAt > now + PlatformOperatorSettings.ClockSkew || now - authenticatedAt > settings.MaxAuthenticationAge)
+        {
+            cause = PlatformOperatorTokenCause.AuthenticationAge;
+            return false;
+        }
+
+        witness = WitnessMinter.Create(
             settings.Issuer,
             PlatformOperatorSubject.Digest(settings.Issuer, token.Subject),
             acr,
             authenticatedAt,
             correlationId);
         return true;
+    }
+
+    // DateTimeOffset.FromUnixTimeSeconds throws outside year 1..9999; a claim an issuer signed
+    // is still not trusted to be in range.
+    private static bool IsUnixSeconds(long value) => value is >= -62135596800L and <= 253402300799L;
+
+    /// <summary>The one minter the operator authentication boundary owns (ADR-0101 § 7).</summary>
+    private sealed class WitnessMinter : PlatformOperatorWitness.Minter
+    {
+        internal static PlatformOperatorWitness Create(
+            string issuer, string subjectDigest, string acr, DateTimeOffset authenticatedAt, string? correlationId) =>
+            Mint(issuer, subjectDigest, acr, authenticatedAt, PlatformOperatorSettings.Executor, correlationId);
     }
 }

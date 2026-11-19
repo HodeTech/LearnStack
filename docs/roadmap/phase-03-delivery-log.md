@@ -509,10 +509,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 372 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 479 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
+  - [P03-9 Step 1 — review round 1 and its fixes (2026-11-19)](#p03-9-step-1--review-round-1-and-its-fixes-2026-11-19) — 107 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24542,3 +24543,110 @@ Not done here and owned elsewhere: manual accessibility needs no screen in this 
 the runbooks were written and their requests are the ones the tests make, but no person
 ran them end to end; gateway exposure, production realm MFA enforcement and the grant
 table adapter are in Phase 11's list.
+
+### P03-9 Step 1 — review round 1 and its fixes (2026-11-19)
+
+Three independent reviewers read commit `bfba1228` with no knowledge of the process:
+security and authentication, data and audit durability, and conformance and operability.
+None reported a Blocker. Each finding was checked against the code before it was acted
+on; the ones below changed the code, and the decisions that were recorded instead are
+listed after them.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Authentication | The scheme fetched issuer metadata with the stock transport: redirects, no size cap, any origin named by the discovery document | Its own client: no redirect, five seconds, 256 KB, nothing outside the issuer's origin, no last known good, `TryAllIssuerSigningKeys` off. The tenant scheme's reader is now a shared helper (`BoundedMetadataReader`) with no behavior change |
+| Authentication | `TryRead` was a public door to the witness minter, and the minter was an assembly-wide type | The minter is a private nested class of the profile, and a source census pins that only the authentication boundary names the profile, calls `TryRead` or names the minter base |
+| Authentication | The profile relied on stock validation for `iss`; `iat` and `auth_time` were converted without a range check; path and `Bearer` matching were case-sensitive while routing is not | The profile restates the exact issuer, range-checks both claims, and both matches ignore case |
+| Authentication | Accepted `acr` of `0` or `1`, or an operator issuer equal to the tenant issuer, would have started | Both are refused at start with a message that says why |
+| Authentication | Every refusal was labelled `token_invalid` | A closed cause set from the profile and from the exception type, on the counter and in the Warning log; the response is unchanged |
+| Classifier | The operator metadata alone made an endpoint infrastructure, which the tenant admission middlewares leave alone | Honoured only on a route under `api/platform/v1/`, behind exactly the operator policy and never anonymous |
+| Scope | An admission could be kept and replayed, and a handle could commit a state change with no result row, run `COMMIT` or `SET` through the facade, or commit after a failed statement | The gate stamps the admission; the scope refuses one older than 30 seconds and spends it on entry. The facade takes one `SELECT`, `INSERT`, `UPDATE`, `DELETE` or `WITH` statement, refuses a commit with no result row, and is abandon-only after a failed statement. The result counter moves to the committed result |
+| Audit store | The result row was bound to its admission by a substring search of `metadata` | `metadata.operator.issuer` and `subjectDigest` are parsed and compared, a ticket is accepted only on a sentinel row and only the admitted one, and the correlation id must match |
+| Killswitch writer | Two first toggles of one key both read the registry default, because `FOR UPDATE` locks nothing when no row exists | The row is created at its default with `ON CONFLICT DO NOTHING`, then locked, read and updated. A cache removal failure is logged, and the commit no longer takes the caller's cancellation token |
+| Operator endpoint | A missing `enabled` was answered before admission; a refused audit write left no signal | Admission first. The refusal logs at Error, counts `audit_failures` and carries `Retry-After`. The correlation id falls back to the request id, so a result row always has a handle |
+| Operability | Counters used dotted names and had no row in Standard 10 | `learnstack_platform_operator_*_total`, five rows in Standard 10, and a new counter for failed metadata fetches |
+| Realm | Password reset was on in the operator realm, a second path to a password that does not pass the second factor | `resetPasswordAllowed` is `false`; the README and runbook say so and give the order for a new operator: enrol the authenticator, confirm it, then grant |
+| Tests | A result-row test wrote under a shared fixture tenant; assertions on `reason`, before and after state, `toggled_at`, the sentinel ticket, `issuer` and `executor` were missing; one expectation was inverted | Throwaway tenant id; the missing assertions; the inversion corrected |
+| Docs | Runbooks omitted the full token profile, a decode recipe, executable commands, the audit query and the digest recipe; stale statements said the table had no writer | Runbooks rewritten; the statements corrected in CLAUDE.md, the Tenancy matrix, Standards 05, 18, 19 and 21, Architecture 21, the feature-key skill, the glossary and the compose and Keycloak READMEs |
+
+New cases: the admission age and single use (including 64 racing consumers), a catalogue
+that lost only the operation slug, a grant withdrawn on reload and an invalid reload
+failing closed, the profile cause matrix and the failure labels, the settings guards,
+the classifier guard, redirect, oversized and foreign-origin metadata (the last with a
+second live origin that would validate a token if it were followed), wrong `iss`, `typ`,
+algorithm and signature isolated one at a time, case-insensitive matching,
+`Retry-After`, a commit with no result row, a failed statement, the statement guard
+(twelve refused forms, four accepted), the connection returned at commit with a pool of
+one, the counter on commit only, two racing first toggles, the scripted writer order, an
+indeterminate commit, a cache that cannot remove, and the store's refusal of fourteen
+bound attributes after an accepted control.
+
+#### Recorded, not changed
+
+- **A start-time check that an operator issuer comes with the platform credential.**
+  Added and withdrawn: the closed credential-reader census
+  (`OutboxDispatchConventionTests`) permits no further reader of a connection string,
+  and the existing first-use error already names the key. The runbook lists the
+  credential as required for any act.
+- **Requiring a platform host for `/api/platform`.** The surface is host-independent on
+  purpose (the target tenant is data of the act); the gateway that fronts it is Phase
+  11's.
+- **Keycloak `minimum.acr.value`.** Not adopted: the scheme refuses any `acr` outside
+  the accepted list whatever the flow produced, so a client that asked for a lower level
+  obtains a token that is refused, and an unverified realm attribute would add a second
+  control that nothing proves.
+- **An end-to-end real-Keycloak token through the actual scheme.** The real-realm cases
+  prove the profile on a real token and the controlled-issuer cases prove the scheme on
+  real RS256; the two are not joined. Recorded as a gap, to be closed in Phase 11's
+  gateway proof.
+- **A per-operation target kind** on `PlatformOperation`, so the store can also refuse a
+  tenant-targeted result for a platform-wide operation. Step 2 registers the first
+  tenant-targeted operation and adds it there.
+- **The stock handler reports a disallowed algorithm as a signature failure,** so the
+  `token_algorithm` label is reachable only through a path the handler does not take;
+  the mapping stays for a future handler version and is covered by a unit case.
+- **The marker clause.** The Standard 21 note that no handler carries both
+  `[AllowsUnresolvedTenantContext]` and a platform-scope entry is enforced as the holder
+  census (`Only_The_Operator_Services_Hold_The_Platform_Scope`), by path, because the
+  scope is a service and not a handler; the wording of the note says so.
+
+#### Mutation checks
+
+Eighteen mutations of the fix-pass guards, each applied, built, run and restored with
+the restored file touched so the next build cannot reuse the mutated binary. Seventeen
+were killed: the admission age unchecked, an admission reusable, a commit with no result
+row, a failed statement leaving the scope usable, the statement guard off, the
+connection kept past commit, the result counted when written, an unbound correlation id,
+an unlocked first toggle (killed by the writer-order case; the race case is a regression
+guard and is not deterministic against a plain read), a cancellable commit, an
+unrestated issuer, a classifier trusting the metadata alone, a single-factor `acr`
+allowed, a foreign origin followed, no `Retry-After`, and every cause reported as
+generic.
+
+One mutant survived its first test and was killed after the case was strengthened: a
+ticket accepted on a tenant row. The case's admission carried no ticket, so a second
+condition refused the row for another reason; the admission now carries the ticket, so
+only the sentinel rule can refuse it.
+
+One survives as an equivalent mutant: the scope's own refusal of a background-job frame.
+The privileged data source refuses the same frame when the connection is opened, so the
+property that matters, refusal before the credential is resolved, holds without it. The
+scope's call stays as the named first refusal.
+
+#### Proof run locally
+
+| Suite | Result |
+|---|---|
+| Unit | 4,229 passed |
+| Integration, the whole suite (Release, 1 h 33 m, real PostgreSQL and pinned Keycloak) | 4,433 passed |
+| Integration, operator subset rerun on the final tree (platform scope, operator HTTP, killswitch writer order, realm file, real-realm login, job admission) | 115 passed |
+| Contract | 13 passed |
+| Architecture (Release): platform scope, audit and API conventions | 31 passed |
+| Architecture (Release, 43 min): `AuthenticatedHttpSurfaceTests`, `BackgroundJobManifestBoundaryTests`, `AuthenticationAuthorityTests`, `OutboxDispatchConventionTests` | 178 passed |
+
+The last row is the result the Step 1 record deferred to this entry. It is also the run
+that found the withdrawn start-time credential check: a compiled census of
+connection-string readers failed on the new reader, which is why the check is recorded
+above and not shipped.

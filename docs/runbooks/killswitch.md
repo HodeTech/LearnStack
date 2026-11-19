@@ -28,14 +28,52 @@ An operator holding the Platform permission `platform.killswitch.write`, a curre
 ## Switching a key off
 
 `PUT /api/platform/v1/killswitches/{key}` with body
-`{"enabled": false, "ticket": "INC-123"}`. The answer is
+`{"enabled": false, "ticket": "INC-123"}`, as shown in the
+[operator access](operator-access.md#making-a-call) example. The answer is
 `{ "key", "before", "after", "correlationId" }`. `before` is `true` when no row existed,
 because absent and enabled mean the same.
+
+Concurrent flips of one key take turns on the row, so each answer's `before` is the
+previous flip's `after`, and a first flip of a key creates the row at the default before
+it reads it.
 
 Two audit rows are written under the platform sentinel, which no tenant can read: the
 entry into the platform scope, and the result row `tenancy.killswitch.toggle` with the
 before and after state and the operator's digest. The ticket is on those rows and in the
-`reason` column of the switch's own row. Find them by the correlation id.
+`reason` column of the switch's own row (empty again after a flip without one). Find the
+rows by the correlation id.
+
+## Reading the record
+
+The sentinel rows are visible only to the platform credential, so a database
+administrator reads them. By the correlation id the answer returned:
+
+```sql
+SELECT timestamp, operation, reason,
+       metadata->'operator'->>'subjectDigest' AS operator_digest,
+       metadata->'operator'->>'ticket' AS ticket,
+       before_state, after_state
+FROM audit_log
+WHERE tenant_id = '00000000-0000-7000-8000-000000000002'
+  AND correlation_id = '<correlationId>'
+ORDER BY timestamp;
+```
+
+The operator is recorded as a digest, never as the raw `sub`. To find every row one
+operator wrote, compute their digest from the issuer and the `sub` and filter on
+`metadata->'operator'->>'subjectDigest'`:
+
+```sh
+printf 'learnstack.operator.subject.v1\n%s\n%s' "$ISSUER" "$SUB" \
+  | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '='
+```
+
+The current state of a switch is its own row, if it has one:
+
+```sql
+SELECT key, is_enabled, reason, toggled_at
+FROM platform_killswitches WHERE key = '<key>';
+```
 
 ## When it takes effect
 
@@ -52,12 +90,16 @@ the overlay's read-failure error, and repeat the flip if it appears.
 Send the same request with `"enabled": true`. There is no other restore, and no delete.
 Confirm by the response (`after` is `true`) and by the result row.
 
-## If the answer is 503
+## If the answer is not 200
 
-The audit row could not be written, so the table was not changed. Repeat the request.
+| Answer | What happened | What to do |
+|---|---|---|
+| 503 | The audit row could not be written, so the table was not changed | Repeat the request after `Retry-After` |
+| 500 | Something failed unexpectedly. If it was the final commit, its outcome is unknown and the flip may have landed; the instance still dropped its cached copy | Read the switch's row (above) before repeating |
+| 404 | The key is not one of the three in the table | Check the spelling |
 
 ## Not recoverable here
 
 A flip is not undone by the audit log: the log records it, and only another flip
-reverses it. Two operators flipping the same key at once is last writer wins; the row
-has no version, and both flips are in the audit log.
+reverses it. Both flips of a pair are in the audit log with their true before and after
+states.

@@ -222,13 +222,13 @@ will raise them — which this standard requires it to do.
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**. `tenancy.killswitch.toggle` is
-  `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
-  than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
-  and the read path but no writer —
-  [Phase 03](../roadmap/phase-03-identity-admin.md) owns the toggle command, its
-  Platform-scope permission and its runbook
-  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+- **A row can carry both markers**. `tenancy.entitlement.refresh` is `(off-path)`
+  because its writer is a port method rather than a request, and `(planned)` because no
+  real provider exists yet. `tenancy.killswitch.toggle` carried both until P03-9 Step 1
+  shipped its writer
+  ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)); it keeps
+  `(off-path)` because the write runs inside the platform scope rather than through the
+  pipeline.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
@@ -331,9 +331,13 @@ Rules:
   composite primary key `(id, timestamp)`. This describes ordinary resource
   reconciliation; [trusted denial occurrences](#trusted-authorization-evidence)
   instead retain one fixed key, timestamp and draft.
-- `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. It is `EnterPlatformAdminScope(reason)`'s short operator-authored slug naming the operation — never caller-supplied text — and it is surfaced in the tenant admin's audit view when the row targets that tenant.
-  Rows under the platform sentinel are visible to no tenant
-  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 9, § 10). A refusal's cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
+- `reason` is required when the operator is a platform admin acting on a tenant they are
+  not a member of. It is the closed reason slug of the registered operator operation
+  (`PlatformOperation.ReasonSlug`) — never caller-supplied text — and it is surfaced in
+  the tenant admin's audit view when the row targets that tenant. Rows under the
+  platform sentinel are visible to no tenant
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 9, § 10). A refusal's
+  cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
 - `changes` is always a JSON **array** of `{ path, before, after }`, never the polymorphic
   object-or-array shape ADR-0016 described. A reader that has to branch on the shape gets
