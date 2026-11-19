@@ -159,10 +159,13 @@ LearnStack runs **two Keycloak realms** per
 - `learnstack` — the tenant-facing realm. All tenant admins, instructors, and learners
   authenticate here. The realm includes the tenant id in token claims; the API
   re-validates against the resolved tenant context.
-- `learnstack-hub` — the **operator realm**, used **only** by the Hub operator portal
-  (`hub.learnstack.dev`). Tenant-facing apps **never** accept `learnstack-hub` tokens;
-  the internal API (`/api/internal/*`) **only** accepts `learnstack-hub` tokens plus
-  the mTLS client certificate.
+- `learnstack-hub` — the **operator realm**, used by the Hub operator portal
+  (`hub.learnstack.dev`) and by LearnStack's platform operator surface
+  (`/api/platform/v1/*`, [ADR-0101](../decisions/0101-platform-operator-authority.md)).
+  Tenant-facing apps and the tenant API **never** accept `learnstack-hub` tokens; the
+  internal API (`/api/internal/*`) **only** accepts `learnstack-hub` tokens plus the
+  mTLS client certificate; and the platform operator prefix accepts operator tokens
+  of its pinned issuer only, for its own audience.
 
 General rules:
 

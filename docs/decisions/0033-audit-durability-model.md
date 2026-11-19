@@ -861,3 +861,15 @@ adds the separately attributed per-occurrence claim-context assertion record;
 ADR-0065's host allowance does not apply. P03-2 implements/proves this accepted
 extension before activation. Other durability rules and historical Accepted
 body/status/date remain unchanged.
+
+## Amendment 13 — Operator evidence in authorization audit composition (2026-11-19)
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) adds `PlatformOperator` as a
+source of the authorization audit context. For that source the composition admits a null
+actor, a closed reason slug and the fixed `metadata.operator` members of
+[ADR-0101](0101-platform-operator-authority.md), as it admits a null actor only for the
+seed source today. The in-transaction rule is unchanged: an operator act on the app role
+writes its MUST rows in its own transaction under the real target tenant.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

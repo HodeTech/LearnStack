@@ -244,3 +244,12 @@ or strongest-plan/no-upgrade rule.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 2 — Operator recovery predicate under the ordered locks (2026-11-19)
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) evaluates its recovery
+predicate, no active tenant-wide administrator, inside the transaction and under this
+record's ordered locks, not as a prior check. The lock order is unchanged.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

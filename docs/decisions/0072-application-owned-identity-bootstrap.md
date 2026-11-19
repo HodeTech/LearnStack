@@ -401,3 +401,14 @@ and qualification; acceptance alone installs no runtime subject.
 ### Amendment 5 — Federation adapter does not allocate identity (2026-11-13)
 
 Amendment 2 mentions no runtime provider administrator in the context of identity allocation. [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds a runtime provider adapter for tenant-brokered identity-provider configuration. It allocates no identity, reissues no subject and merges no email. The rejection of a provider allocator or runtime Admin API for identity allocation in Option 2 stands. A brokered person without a LearnStack binding enters through the existing global-self path and its opt-in budgets.
+
+### Amendment 6 — Production path and controlled rebind (2026-11-19)
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) supplies the production path
+for tenant, host, Role-template and first-administrator setup, and Accepted
+[ADR-0104](0104-controlled-issuer-rebind.md) supplies the controlled issuer rebind.
+Rename stays unsupported until the packet that ships the rebind merges. The seed stays a
+development tool, and the Seeder refuses to run outside Development.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

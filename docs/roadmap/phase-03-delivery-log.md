@@ -509,8 +509,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 138 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 264 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
+  - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24306,3 +24307,129 @@ ADR-0099 (Amendment 10) and ADR-0100; Standards 04, 05, 11, 12, 13, 18, 19, 20 a
 Architecture 13, 28 and 30; the glossary; the Identity and Tenancy module
 specifications; and the Phase 03 and Phase 11 documents. This proposal edits none of
 them.
+
+### P03-9 package review dispositions and acceptance (2026-11-19)
+
+**Status: Accepted.** This record closes gates G13 (human operator authority,
+production provisioning, first administrator, recovery and issuer rebind) and G14, and
+accepts [ADR-0101](../decisions/0101-platform-operator-authority.md),
+[ADR-0102](../decisions/0102-production-tenant-onboarding.md),
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md). Where it differs from the
+[proposed package](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19),
+this record governs: the proposal's single onboarding-and-rebind ADR is split, and its
+four-step plan becomes five.
+
+#### Maintainer decisions
+
+The maintainer chose, on the four forks the proposal presented: no dashboard (the
+inspection set replaces it, and D13's wording changes); the narrow producer reset is
+included; the operator client is the served operator document plus runbooks, with no
+screen and no command-line client in this repository; operator grants come from a
+configuration adapter behind a port, with the table adapter on a named trigger. The
+maintainer then supplied three independent reviews of the Proposed package, asked that
+each finding be analysed against the code and the corpus because the reviewers did not
+know the process, confirmed that the application is in development and not in use so
+no backward compatibility is owed, and asked for acceptance and continued
+implementation once the corrections were made.
+
+#### Verification of the findings
+
+The maintainer's session checked each claim that would change a decision against `HEAD`
+before acting. The following were confirmed: the seed guard demands a single `Seed`
+source, an exact trusted `Seed` source and the fixed declaration, and the API registers
+deny-all seed continuation and foundation admissions; the first-admin command refuses
+any Membership history; authority qualification reads once per process without a lock;
+the route convention exempts only `api/internal`, and the tenant document includes only
+`/api/v1` paths; ADR-0064 registers exactly one tenant bearer scheme; the platform role
+holds no grant on `federation_connections`; the outbox role holds table-wide `SELECT` on
+`outbox_messages` and a lifecycle-column `SELECT` on `tenants`; ADR-0093 says reissue
+does not reconcile the old effect; the stray fragment in Architecture 30 existed; and
+ADR-0040 counts ten logical tenant setters, four context writers and eight definers, not
+eight setters.
+
+#### Dispositions
+
+| Finding (review labels) | Disposition |
+|---|---|
+| Rebind guard is not a control: a platform-role grant plus a settable setting (R2 B1, R1) | Fixed. A dedicated rebind role replaces the platform grant (ADR-0104 § 2) |
+| Freeze window: qualification reads without a lock (R2 B2) | Fixed. Shared advisory lock on qualification and user creation (ADR-0104 § 5) |
+| Seed policies "stay Seed" versus "alongside Seed" (R2 B3, R3 B1) | Fixed. Separate operator commands; the seed guards are untouched (ADR-0102 § 1, § 2) |
+| Recovery is not the first-admin act (R3 B2, R2 M13) | Fixed. Two predicates, both under the ordered locks (ADR-0102 § 7, § 8) |
+| First-admin could escalate a tenant that has administrators (R3 B7) | Fixed. First-admin refuses any Membership history (ADR-0102 § 7) |
+| Target tenant contradicts the no-request-value rule (R3 B3, R2 M3) | Fixed. One confined eleventh setter, disclosed in ADR-0036 and ADR-0040 |
+| Ordinary pipeline cannot carry operator attribution (R3 B4) | Fixed. The audit-composition branch is named (ADR-0102 § 9, ADR-0033 and ADR-0044) |
+| Offline tool cannot mint the witness (R3 B5) | Fixed. One minter, two sanctioned callers (ADR-0101 § 7, ADR-0104 § 3) |
+| Rebind needs `SELECT` and a user-reading credential (R3 B6, R2 M12, M14) | Fixed. Table `SELECT`, a read of four `users` columns, a run-time realm credential, a separate tool project |
+| `/api/platform/v1` does not fit the route and OpenAPI mechanics (R3 B8, R2 M10) | Fixed. Prefix list, own document, census and classifier entries (ADR-0101 § 4); the gateway routes none |
+| Subscriber replay does not filter terminal reasons (R3 B9, R2 M19) | Fixed. `invalid_envelope` always refused (ADR-0103 § 2) |
+| Producer reset claim about every Active subscription is wrong (R3 B10) | Fixed. Only subscriptions with no delivery row are reached (ADR-0103 § 3) |
+| Operator denial versus ADR-0077 and Standard 18 (R3 B11, R2 M1, R1) | Kept the decision, added the disclosures (ADR-0077 Amendment 2, Standard 18) |
+| Ticket, reason, actor and `toggled_by` mapping (R3 B12, R2 M6) | Fixed. Ticket only in sentinel rows; business actor `SystemActor`; `toggled_by` NULL (ADR-0101 § 9) |
+| Issuer may be any OIDC provider (R2 M2) | Fixed. Always a deployment-controlled issuer (ADR-0101 § 1, § 3) |
+| Platform key set omits Standard 19's examples (R2 M4) | Examples stay unregistered; Standard 19 cites the catalogue |
+| Federation keys have no owning ADR (R2 M5) | Fixed. ADR-0099 Amendment 10 |
+| Sentinel class unnamed; "second caller" wrong (R2 M7, M8) | Fixed. The platform-scope class is extended by name; a new method, not a second caller (ADR-0044 Amendment 17) |
+| Demo operator grant reachable in production (R2 M9) | Fixed. Refused unless Development (ADR-0101 § 6) |
+| Tenant id is server-generated, so a lost reply loses it (R2 M11) | Fixed. The operator supplies a UUIDv7 and a slug; the act is idempotent on the pair |
+| Host mapping is not an existing command; DNS unverified (R2 M15) | Fixed. A new operator command; the operator asserts ownership (ADR-0102 § 4) |
+| Grant tests cannot see column privileges (R2 M16) | Fixed. Column-privilege tests are required (ADR-0103, ADR-0104) |
+| No actor identity for operator acts (R2 M17) | Fixed. `SystemActor` in business columns; operator in audit |
+| Inspection reads cross-tenant on a role with table-wide `SELECT` (R2 M18, M21) | Fixed. Inspection moves to the platform scope on named column grants |
+| "Reissue" is not a remedy (R2 M20) | Fixed. Stated as a limit (ADR-0103 § 6) |
+| Operations and routes missing in ADR-0103 (R2 M22) | Fixed. An operation table with permission, principal and audit |
+| Erasure guard is runbook-only (R2 M23) | Fixed. An Active-tenant test until P03-10 |
+| New outbox status writer versus CLAUDE.md (R2 M24) | Fixed. ADR-0046 Amendment 5 and the CLAUDE.md rule name the owner |
+| Carrier lists incomplete or inconsistent (R2 M25, R3, R1) | Fixed. Each ADR lists its full set; the amendments are applied in this commit |
+| ADR-0064 says exactly one scheme (R2 M26) | Fixed. Amendment 9 confines the second scheme |
+| Rebind retry, enumeration time and reload mechanism (R1) | Fixed (ADR-0104 § 9; ADR-0101 § 6) |
+| Permission table broken (R1, R2) | Fixed. My reflow script had wrapped an indented table; it now skips tables |
+| Counters for replay and operator acts (R1) | Fixed. ADR-0101 § 14, ADR-0103 § 10 |
+| Self-Hosted issuer must emit `acr` (R1) | Fixed. ADR-0101 § 3 and the runbook |
+| Producer reset admits only `retry_exhausted` (R2) | Kept; `unknown_type` rows are not recoverable by reset |
+| README placement of Proposed rows (R1) | Moot; all four are Accepted rows in the active table |
+| Review severity labels | Not adopted; each finding was judged on its effect |
+
+Minor wording findings (key names, undefined terms, glossary terms, the 400 versus 403
+for a malformed ticket, "its MUST rows", the "one new realm client" count, the SQL
+confinement wording, `OperationPolicyCatalog`, the dashboard-package wording, the rule
+name) were corrected in the ADRs. The catalogue's dashboard-absence rule and the code
+test that enforces it carry different names; Step 4 reconciles them.
+
+#### Accepted decisions
+
+- Operators authenticate at a deployment-controlled issuer through a second strict
+  scheme on `/api/platform/v1`, with MFA shown by `acr` and `auth_time`. Authority is a
+  LearnStack-held Platform grant evaluated per act. Admission is a witness, and results
+  commit with state.
+- Production onboarding is five operator commands on the app role, a confined operator
+  source and an eleventh logical setter. The seed stays development-only.
+- The issuer rebind is an offline operator act through a dedicated role, a lock, a
+  continuity proof, a guarded row and intent and result audit rows.
+- Recovery is inspection on column grants, fenced subscriber replay and a narrow
+  producer reset. Job recovery, recurrence recovery and every dashboard form stay
+  absent.
+- Federation operator steps are ADR-0099 Amendment 10. G20 is not triggered and stays
+  Open.
+
+#### Five implementation steps
+
+1. **Operator authority and killswitch** (ADR-0101).
+2. **Production onboarding** (ADR-0102).
+3. **Controlled issuer rebind** (ADR-0104).
+4. **Operational recovery** (ADR-0103).
+5. **Federation operator steps** (ADR-0099 Amendment 10).
+
+Each step ends with its own commit, a fresh independent review round and its verified
+fixes, then a different fresh round and its verified fixes, before the next begins.
+Closeout follows with Status, the register and the delivery record.
+
+#### Carriers applied in this commit
+
+Dated disclosures in ADR-0003, 0004, 0015, 0033, 0036, 0040, 0044, 0045, 0046, 0047,
+0064, 0072, 0073, 0074, 0077, 0099 and 0100. Corrections to Standards 04, 11, 12, 13, 18
+and 19, Architecture 13, 28 and 30, the glossary, the Tenancy audit matrix, Phase 03
+(Status, register, section and deliverables), Phase 11 and the CLAUDE.md outbox rule.
+Standard 05 grants and definers, Standard 19 key rows, Standard 21 rules, the permission
+and audit matrices and the runbooks land with the steps that use them. No gate other
+than G13 and G14 changes status, and no behavior is implemented by this record.

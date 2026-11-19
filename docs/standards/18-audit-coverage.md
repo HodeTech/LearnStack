@@ -321,7 +321,9 @@ Rules:
   ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's `is_success boolean`
   is superseded, because a boolean cannot carry `denied`). `denied` is used when an
   authorisation check rejects the operation — these MUST be audited so we can detect
-  probing. `indeterminate` is the commit whose server-side outcome is unknown: the
+  probing. A Platform operator admission refusal is tenantless and outside that
+  population: it leaves a counter and a Warning log
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 11). `indeterminate` is the commit whose server-side outcome is unknown: the
   standalone re-write carries the **same** `id` as the in-transaction attempt, and the
   pair is what a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies
   `occurredAt` from `IClock` — the intent's declaration time in the transaction, a fresh
@@ -329,7 +331,9 @@ Rules:
   composite primary key `(id, timestamp)`. This describes ordinary resource
   reconciliation; [trusted denial occurrences](#trusted-authorization-evidence)
   instead retain one fixed key, timestamp and draft.
-- `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. It is `EnterPlatformAdminScope(reason)`'s short operator-authored slug naming the operation — never caller-supplied text — and it is surfaced in the tenant admin's audit view. A refusal's cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
+- `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. It is `EnterPlatformAdminScope(reason)`'s short operator-authored slug naming the operation — never caller-supplied text — and it is surfaced in the tenant admin's audit view when the row targets that tenant.
+  Rows under the platform sentinel are visible to no tenant
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 9, § 10). A refusal's cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
 - `changes` is always a JSON **array** of `{ path, before, after }`, never the polymorphic
   object-or-array shape ADR-0016 described. A reader that has to branch on the shape gets

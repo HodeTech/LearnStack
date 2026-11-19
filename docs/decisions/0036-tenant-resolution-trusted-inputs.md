@@ -1406,3 +1406,22 @@ origin inferred from provider data.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 21 — Platform URL space and confined operator target (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) fixes the platform URL space
+this record left open: `/api/platform/v1/*`, unclassified by host like `/api/internal`
+and authenticated by the operator scheme. This record's sentence that operator
+cross-tenant work enters through `/api/internal/*` under the Hub chain is read as the
+Hub's machine chain only, which carries no human operator. A human operator act uses the
+platform prefix.
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) adds one announcement: the
+target tenant of an admitted operator act, declared by the operation and never taken
+from a header, query, cookie or body of an ordinary route, is announced to the unit of
+work by one confined setter. The rule that no route resolves a tenant from a
+request-supplied override stands for every route that resolves context from a host or a
+claim.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

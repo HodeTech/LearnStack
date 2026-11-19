@@ -370,6 +370,20 @@ or a failed comparison never creates success.
 `PublicSurface_Contract_Matches_Served_OpenApi` and the actual response and authority
 parsers are preserved.
 
+## Amendments
+
+### Amendment 1 — A Platform key does not recur the refusal (2026-11-19)
+
+The Decision Drivers expect the permission keys of later modules, Platform among them,
+to recur the refusal. Accepted [ADR-0101](0101-platform-operator-authority.md) registers
+Platform definitions as non-assignable in a separate catalogue. They never enter the
+administration grant union, so they change neither the tenant document nor this
+mechanism, and they do not trigger gate G20. G20 stays Open for the first assignable
+key.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
 ## References
 
 - [ADR-0024](0024-api-versioning-policy.md), [ADR-0040](0040-ambient-unit-of-work.md)

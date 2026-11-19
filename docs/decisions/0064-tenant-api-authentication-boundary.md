@@ -707,3 +707,14 @@ qualification; acceptance supplies no runtime proof.
 ### Amendment 8 — Federation adapter outside the API bearer boundary (2026-11-13)
 
 P02b-5 introduced no Keycloak admin adapter. [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds one, `IFederationProvider`, confined to tenant-brokered identity-provider configuration. It uses a dedicated confidential client with `manage-identity-providers` only, admits a closed list of calls, and grants no tenant authority. The tenant API bearer boundary and the closed access-token profile are unchanged. Brokered ID tokens carry an `idp` claim that the BFF reads only for provenance and host binding; it is not an API authorization input.
+
+### Amendment 9 — Second scheme confined to the operator prefix (2026-11-19)
+
+"Register exactly one bearer scheme for the tenant API" stands: the tenant scheme is the
+only scheme on `/api/v1`. Accepted [ADR-0101](0101-platform-operator-authority.md)
+registers a second scheme, `PlatformOperator`, confined to `/api/platform/v1`. It never
+authenticates a tenant route, and the tenant scheme still refuses the operator issuer
+and `scope=platform`. "Platform execution remains unavailable to this scheme" stands.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

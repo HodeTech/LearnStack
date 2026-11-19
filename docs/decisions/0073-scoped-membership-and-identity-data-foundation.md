@@ -406,3 +406,15 @@ owns persistence, isolation and commit-spanning fences.
 Historical Accepted body, Status, Date, Deciders and prior rationale remain
 unchanged. Acceptance registers the bounded contract; actual P03-5 implementation
 and source-bound proof remain owned by the [Phase 03 Status](../roadmap/phase-03-identity-admin.md).
+
+### Amendment 8 — Production first administrator and recovery (2026-11-19)
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) admits operator commands for
+the first tenant-wide administrator and for recovery. Separate transactions stay. The
+first-admin predicate, no Membership history, differs from the recovery predicate, no
+active tenant-wide administrator, and both run under the ordered locks of
+[ADR-0074](0074-membership-admission-under-ordered-locks.md). The statement that the
+fixed seed capability grants no operator or system bypass stands.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

@@ -58,8 +58,11 @@ flowchart TB
   LearnStack operators manage tenant lifecycle, plans, subscriptions, license issuance,
   custom domain admin, compliance caps.
 
-LearnStack operators authenticate against the `learnstack-hub` Keycloak realm. They do
-**not** have tenant data access; Hub holds tenant metadata only (ADR-0019).
+LearnStack operators authenticate against the `learnstack-hub` Keycloak realm. They have
+no tenant data access through the Hub, which holds tenant metadata only (ADR-0019).
+Platform operator acts on LearnStack itself are permissioned, attributed and audited
+([ADR-0101](../decisions/0101-platform-operator-authority.md)), and reach tenant data
+only through the operations ADR-0102 to ADR-0104 define.
 
 ### Layer 2 — Tenant (LearnStack's customer)
 
@@ -210,8 +213,8 @@ domain-specific shape comes from the tenant's customization data (ADR-0018).
 
 ## 5. Hub responsibilities (what LearnStack operators do)
 
-Operators (LearnStack staff) work through Hub. They do **not** access tenant data; they
-manage:
+Operators (LearnStack staff) work through Hub. The Hub does **not** access tenant data;
+they manage:
 
 - **Tenant lifecycle**: provision, suspend, archive, terminate.
 - **Plans & subscriptions**: define plans (features + limits + price), assign to tenants,

@@ -347,9 +347,11 @@ rules:
   branches once, modules never.
 - Write `audit_log`, `platform_entitlement_cache`, or producer `outbox_messages`
   rows directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`, `IOutbox`.
-  Only ADR-0046's confined dispatcher writes outbox status through fenced
-  parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
-  share one transaction.
+  Only ADR-0046's confined dispatcher and
+  [ADR-0103](docs/decisions/0103-operator-recovery-of-asynchronous-work.md)'s confined
+  operator recovery owner write outbox status through fenced parameterized SQL; each
+  terminal or recovery UPDATE and its narrow witness-bound audit INSERT share one
+  transaction.
 - Write `inbox_messages` or `event_deliveries` from a module or Seeder. ADR-0046's
   transport-owned acceptance, inbox/business owner and confined scheduler alone
   write their granted columns.

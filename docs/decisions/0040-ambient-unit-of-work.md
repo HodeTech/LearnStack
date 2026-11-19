@@ -1002,3 +1002,15 @@ reader, outside that connection and its announcement. That read is no setter sta
 and writes nothing. Amendment 22's text is unchanged; the P03-8 Step 4 review round 2
 (C5-4) in the [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md) records the
 finding.
+
+### Amendment 24 — Eleventh logical setter: operator target (2026-11-19)
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) adds the eleventh logical
+tenant setter, confined to the `PlatformOperator` source. It reads the target of an
+admitted operation, announces it once per unit of work and refuses any other caller. The
+four context writers do not change. The single-act resolver that maps a provider subject
+to a `UserId` is a ninth definer function; its signature, owner, body and ACL land in
+[Standard 05](../standards/05-database.md) with the packet that ships it.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

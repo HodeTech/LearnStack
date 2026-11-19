@@ -1309,3 +1309,23 @@ with SystemActor distinct from the affected subject and provider outcome.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+## Amendment 17 — Platform operator rows and witness-bound result writes (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md),
+[ADR-0103](0103-operator-recovery-of-asynchronous-work.md) and
+[ADR-0104](0104-controlled-issuer-rebind.md) extend the seams of Amendment 14 by name:
+
+- The platform-scope class of § 1 includes a platform-wide MUST result row written on
+  the scope's work transaction through a new witness-bound method.
+  `WritePlatformScopeAsync` keeps its single entry-row caller and the § 10 entry-row
+  rule.
+- Operator audit rows carry `actor_user_id` NULL, a closed reason slug, the correlation
+  id and `metadata.operator` with `issuer`, `subjectDigest`, `kind`, `acr` and
+  `executor`. The ticket appears only in sentinel-tenant rows. `AuditEntryDraft.Reason`
+  stays a closed slug.
+- Two outbox-role witness kinds for targeted replay and producer reset, distinct from
+  the terminal witness, and two rebind methods for `learnstack_identity_rebind`.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

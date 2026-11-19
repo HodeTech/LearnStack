@@ -623,6 +623,20 @@ against the `platform_entitlement_cache` columns Packet 6 created.
 which records the mapping; and `EntitlementProjection`'s remarks in
 `IEntitlementProvider.cs`. No other Accepted ADR's body changes.
 
+## Amendment 5 — Killswitch writer shape (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) § 13 lifts the withholding of
+Amendment 1 § 4 once the writer ships. It is a service entered through the Platform
+gate, not a MediatR request. `toggled_by` stays NULL because an operator is not a
+`users` row, the bounded ticket goes in the `reason` column, the MUST result row commits
+on the work transaction, and the overlay cache entry is removed after the commit,
+including an indeterminate one. Section 5's statement that the scope gives the row a
+real actor is read as the `metadata.operator` attribution; the shipped scope writes a
+null actor.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
 ## References
 
 - [ADR-0021 Feature-Based Entitlement Model](0021-feature-based-entitlement.md)

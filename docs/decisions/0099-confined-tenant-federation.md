@@ -1077,3 +1077,44 @@ Decision is unchanged.
 The
 [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-pr-review-disposition-2026-11-18)
 holds the review record, each finding's disposition and its proof.
+
+### Amendment 10 — Federation operator steps (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) admits the operator steps this
+record assigns to P03-9. The operator acts through a separate port,
+`IFederationOperator`, held only by the operator service and never by the tenant runner,
+so the rule that the provider port is held only by the runner stands. It uses the same
+`learnstack-federation-admin` client and adds no realm authority. The admitted routes
+grow from four to five by one paged listing of identity-provider instances.
+
+1. **Classes.** An alias that starts with `lsf-` and whose owner marker parses to a
+   tenant and connection is classified. An *orphan* has no live row: the row is absent
+   or a `Deleted` tombstone, so the text "its connection row was removed" is read that
+   way. An *unreadable owned* broker carries the marker but reads as foreign. A
+   *nonconforming* broker is readable and owned but has an extra mapper or a changed
+   profile (Amendment 9 item 5). An unmarked or marker-mismatched broker is never
+   touched.
+2. **Report.** `platform.federation.read` reads the realm list first, then the rows, and
+   writes nothing. Reading the rows first would manufacture false orphans.
+3. **Remove.** `platform.federation.admin` deletes an orphan or an unreadable owned
+   broker by its alias after re-reading its row immediately before the delete, and
+   refuses if a live row exists. Deleting an absent broker is applied. The provider's
+   deletion also removes the federated links, and the runbook says so.
+4. **Disable.** The same permission sets `enabled=false` on a nonconforming broker, or
+   on one the tenant cannot reach, at the provider only and marker-proven. The row is
+   left to the tenant's next readback, which corrects it; until then the sign-in option
+   fails closed.
+5. **Rows read.** `learnstack_platform` receives `SELECT` of `id`, `tenant_id`, `state`
+   and `deleted_at` on `federation_connections`, pinned by a column-privilege test.
+6. **Audit.** Each remove or disable writes a MUST intent row before the provider call
+   and a completion row after it, as Amendment 2 does for the tenant path, under the
+   real tenant, with a closed reason slug, `metadata.operator` and a follow-up note that
+   an account review is owed. A lost completion is found by the next report.
+7. **Account review.** It is a runbook step. No LearnStack credential may enumerate or
+   remove realm users (Decision Q1), Keycloak keeps link events for seven days and no
+   owner notification channel exists before Phase 08a.
+8. **Residual.** No provider-side fence exists, so a tenant create that lands after a
+   sweep produces a new orphan, which the next report finds.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

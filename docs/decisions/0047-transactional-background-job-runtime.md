@@ -1030,3 +1030,16 @@ source/operation/permission/audit/storage details live in Standards
 01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
 Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
 qualification; acceptance supplies no runtime proof.
+
+### Amendment 7 — Operator reconciliation is inspection only (2026-11-19)
+
+Accepted [ADR-0103](0103-operator-recovery-of-asynchronous-work.md) reads the "audited
+operator reconciliation" that Phase 03 owns as metadata inspection only. No job requeue,
+retry, probe re-arm or reservation release exists, quarantine stays nonterminal with
+retained reservations, and no dashboard is mapped. For inspection, `learnstack_platform`
+receives `SELECT` on named metadata columns of the job tables; this record's statement
+that the platform role has no job privileges is read as applying to every other column
+and to every write.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

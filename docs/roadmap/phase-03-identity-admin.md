@@ -24,7 +24,7 @@
 > [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19) records
 > final-head `5eeba2c3` layout A (27/27, attempt 3). Opposite-layout B/pair
 > qualification stays open before P03-11 exit; manual accessibility was not performed.
-> G12 is closed as Accepted; G20 stays Open. P03-9–11 remain unstarted.
+> G12 is closed as Accepted; G20 stays Open. P03-10 and P03-11 remain unstarted.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -37,7 +37,7 @@
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-8 | Tenant federation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19); final-head opposite-layout/pair qualification and manual accessibility evidence remain open; the contract-transition items, G20 and the Phase 11 realm items are owned in the closeout |
-> | P03-9 | Platform authority and operational recovery | Not started |
+> | P03-9 | Platform authority and operational recovery | Decisions Accepted — [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); implementation in progress |
 > | P03-10 | DSAR and global account closure | Not started |
 > | P03-11 | Exit enforcement | Not started |
 
@@ -110,7 +110,7 @@ activation is not the only decision boundary.
 | P03-6 | Authenticated durable provider ingress and attributed, deduplicated Audit mirror | P03-1–2 | G10; G13 before any privileged/global intake the chosen mechanism requires |
 | P03-7 | Registered, authenticated back-channel logout with bounded provider/session indexes | P03-3 | G11; provider event mirroring is a distinct contract, not a prerequisite by filename |
 | P03-8 | Usable tenant SAML/OIDC configuration with safe linking and recovery | P03-3 | G12; G1/G4/G5 still bound issued identity and authority |
-| P03-9 | Admitted Platform gate, production first-admin/issuer-rebind authority, killswitch, fenced recovery and dashboard | P03-2 | G13, G14; privileged execution remains closed until this contract ships; also owns the [ADR-0099](../decisions/0099-confined-tenant-federation.md) federation operator steps: the orphan-broker sweep, the operator disable of a broker the tenant cannot reach, and the delegated-account review |
+| P03-9 | Admitted Platform gate, production first-admin/issuer-rebind authority, killswitch, fenced recovery and inspection (no dashboard) | P03-2 | G13, G14; privileged execution remains closed until this contract ships; also owns the [ADR-0099](../decisions/0099-confined-tenant-federation.md) federation operator steps: the orphan-broker sweep, the operator disable of a broker the tenant cannot reach, and the delegated-account review |
 | P03-10 | Subject-scoped DSAR, usable export, tenant erasure and separately authorized global closure/redaction | P03-3, P03-5, P03-9 | G15, G16; G10 only if this workflow consumes provider ingress; integrate all applicable delivered stores, including `federation_connections` and its broker ([ADR-0099](../decisions/0099-confined-tenant-federation.md)) |
 | P03-11 | Complete source-bound evidence, gateway scaffold correction and analyzer escalation | All implementation packets | G17, G18; no pending mandatory deliverable or unqualified production subject |
 
@@ -150,14 +150,14 @@ named part, and the register links each explicit acceptance and vehicle.
 | G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Accepted — 2026-11-11, [ADR-0097 and corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11); [delivery and evidence record](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12) |
 | G11 | Which back-channel token profile, route and session targets are supported? | Separate OIDC purpose validation, signature/issuer/audience/time/events/no-nonce, replay retention, provider/session indexing and reachability; preserve late-work/accounting fences and unrelated/new session owners | P03-7 | ADR-0070 bounded extension; native route/provider configuration package | Accepted — 2026-11-12, [ADR-0098 and reviewed package](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12); implementation delivery is merged, with final-source evidence and the remaining pair qualification in the [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12) |
 | G12 | How is realm-level tenant federation confined and safely activated? | Provider ownership, write-only credentials, bounded egress, linking/verified-email trust, MFA assurance, test/activate/rollback and last-login recovery; email/broker claims alone grant no membership | P03-8 | Identity-provider contract under ADR-0004/0064; permission/audit matrices | Accepted — [ADR-0099](../decisions/0099-confined-tenant-federation.md), 2026-11-13, with the [package](phase-03-delivery-log.md#p03-8-proposed-tenant-federation-package-2026-11-13) records; implementation delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19) |
-| G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence, production first-admin/provisioning and exceptional recovery, controlled issuer rebind and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Open for human/operator authority; machine-ingress slice only Accepted — 2026-11-11 under [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md) and its [acceptance](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11) |
-| G14 | Which dashboard/replay/job-recovery transitions and grants are allowed? | Separate producer reset from targeted subscriber replay; exact permission, reason, stale fences, MUST result audit and runbook; immutable facts and uncertain external reservations survive; dated ADR-0015 disclosure before dashboard admission | P03-9 operational writer | ADR-0046/0047 recovery contract; ADR-0015 disclosure and bounded migrations | Open |
+| G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence, production first-admin/provisioning and exceptional recovery, controlled issuer rebind and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Accepted — 2026-11-19, [ADR-0101](../decisions/0101-platform-operator-authority.md), [ADR-0102](../decisions/0102-production-tenant-onboarding.md) and [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) with the [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); the machine-ingress slice was Accepted earlier under [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md); implementation pending |
+| G14 | Which dashboard/replay/job-recovery transitions and grants are allowed? | Separate producer reset from targeted subscriber replay; exact permission, reason, stale fences, MUST result audit and runbook; immutable facts and uncertain external reservations survive; dated ADR-0015 disclosure before dashboard admission | P03-9 operational writer | ADR-0046/0047 recovery contract; ADR-0015 disclosure and bounded migrations | Accepted — 2026-11-19, [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) with the [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); no dashboard is admitted; implementation pending |
 | G15 | Who may request which person's data in which tenant/org scope and for which recipient/purpose? | Separate self/admin/delegate authority, subject predicates and org boundaries; category is not disclosure authority; resolve third-party data, holds, eligibility and post-erasure status access | P03-10 request writer | Data Protection/Identity request contract and module matrices | Open |
 | G16 | How do exports, closure and privileged redaction finish durably? | Decide artifact delivery/reauthorization/expiry, job/storage prerequisites, participant inventory/write fence, last-membership case and provider finalization; exact erasure grants/order/immutable references, user-reference locators and result-audit/inbox reconciliation | P03-1 only for shared closure-fence invariants; P03-10 workflow | Data Protection and ADR-0044/0046 privileged contract; migrations, module participation and phase package | Accepted shared fence; P03-10 workflow Open |
 | G17 | Which real production subjects and product journeys prove complete phase exit? | All deliverables/criteria, inherited catalogue clauses, no skips/empty censuses, real provider/native/app-role paths, manual accessibility and complete source-bound CI; analyzer escalation stays at exit | P03-11; packets retain their own proof | Phase package, evidence index, catalogue and existing test owners | Open |
 | G18 | Which gateway scaffold corrections ship without activating the gateway? | Apply Architecture 30 Rules 1–3: explicit version paths/priorities and separated credentials; retain disabled OIDC; reviewed per-public-read allowlist, lint and activation stay Phase 11 | P03-11 config writer | Phase package and Architecture 30; ADR-0035 trigger unchanged | Open |
 | G19 | How is personal-data classification and diagnostic redaction established before the first identity writer? | Census current PII-bearing subjects and missing-annotation control; distinguish snapshot markers from logs/errors; fixed descriptors and value canaries, including arbitrary nested values; custom-field history remains G9 | P03-1 first personal-data writer; P03-5 extends it | Data Protection, ADR-0044/0057 boundaries and module PII/audit specs | Accepted; current/global/contextual model classification and actual Identity diagnostic sink controls implemented and reviewed; custom-field history remains G9 |
-| G20 | How does the closed administration grant contract grow after P03-8, when the pinned OpenAPI gate refuses every further assignable permission key? | [ADR-0100](../decisions/0100-p038-federation-contract-transition.md) measures the candidates: a transition record per release, a standing registry-growth rule enforced by the gate, or an open-key grant contract. Appending new union branches removes the positional companion findings under any of them and needs a registry-release contract the OpenAPI document builder does not have today. It also decides whether review of the carrier, decision and gate files becomes mechanical, for example with an owners rule | The first packet after P03-8 that adds an assignable permission key or alters the grant unions' bytes; P03-9 or P03-10 earliest | Maintainer decision: an ADR and, where it changes the gate, its controls | Open |
+| G20 | How does the closed administration grant contract grow after P03-8, when the pinned OpenAPI gate refuses every further assignable permission key? | [ADR-0100](../decisions/0100-p038-federation-contract-transition.md) measures the candidates: a transition record per release, a standing registry-growth rule enforced by the gate, or an open-key grant contract. Appending new union branches removes the positional companion findings under any of them and needs a registry-release contract the OpenAPI document builder does not have today. It also decides whether review of the carrier, decision and gate files becomes mechanical, for example with an owners rule | The first packet after P03-8 that adds an assignable permission key or alters the grant unions' bytes; P03-10 earliest, because P03-9 adds only non-assignable Platform keys | Maintainer decision: an ADR and, where it changes the gate, its controls | Open |
 
 ### Entry and activation boundaries
 
@@ -508,7 +508,7 @@ and provider token refresh alone cannot establish application permission freshne
   [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) as `DenyAllPlatformAdminGate`, which
   refuses everyone — so every operation that needs the scope is unreachable, every
   killswitch toggle included. This phase replaces it with a gate that reads a
-  Platform-scope permission, and ships with it the killswitch toggle command, its
+  Platform-scope permission, and ships with it the killswitch writer, its
   permission key and its incident runbook: the writer Packet 9 withheld on purpose
   ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
   [Permissions](../standards/19-permissions.md) reserves no killswitch or entitlement key
@@ -558,34 +558,32 @@ browser-supplied tenant/org authority is not admitted by adding an admin screen.
 
 ### Operator recovery and dashboard admission
 
-P03-9/G13 also owns the production first-admin and controlled issuer-rebind
-authority defined by ADR-0072/0073. Before production onboarding,
-qualify an admitted operator creating the finite Role templates in separate
-transactions, then the first tenant-wide admin Membership with MUST audit.
-Specify authorized retry after partial setup, wrong-tenant/operator denial,
-unknown-COMMIT reconciliation and recovery without the development seed
-capability. Tenancy provisioning remains its Tenant/default Organization pair.
-An issuer rebind needs proven provider continuity and frozen admission, preserving
-AuthorityId, actor IDs and tombstones; no production rename path exists before
-this contract is accepted and delivered. Seed-backed P03-3 journeys may be
-qualified earlier; they are not production onboarding proof.
+P03-9 delivers G13 and G14 under [ADR-0101](../decisions/0101-platform-operator-authority.md),
+[ADR-0102](../decisions/0102-production-tenant-onboarding.md),
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md); the
+[acceptance record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19) lists their dispositions.
 
-Phase 02b supplies internal targeted subscriber replay and no operator route.
-This phase owns the operator outbox/dead-letter/subscriber-replay and job-recovery
-surface. Before its first writer, settle the URL space under ADR-0036, exact
-Platform-scope permission, reason, fenced transition and MUST audit/runbook;
-producer reset is not an implied power of targeted subscriber replay.
+Production onboarding is operator-admitted commands on the app role: provision a Tenant
+with its default Organization and hosts, create the finite Role templates in separate
+transactions, create the first tenant-wide administrator Membership with MUST audit, and
+recover a tenant that has none, with authorized retry after partial setup, wrong-tenant
+denial and unknown-COMMIT reconciliation. The development seed capability is
+insufficient. The controlled issuer rebind is an offline operator act that preserves
+AuthorityId, actor IDs and tombstones; no other rename path exists. Seed-backed P03-3
+journeys may be qualified earlier; they are not production onboarding proof.
 
-This phase also owns the application `/admin/hangfire*` mapping and its
-Platform-scope permission. Append the dated ADR-0015 disclosure before replacing
-its historical realm-role gate. Keycloak roles are not LearnStack authority.
-Keep the route absent until the application gate and denied-route controls ship.
+Phase 02b supplied internal targeted subscriber replay and no operator route. ADR-0103
+admits metadata inspection, fenced targeted subscriber replay and a narrow producer
+reset that is not an implied power of subscriber replay. Job requeue, reservation
+release and recurrence recovery are not admitted, and no dashboard is mapped:
+`/admin/hangfire*` stays absent in every deployment mode, and ADR-0015 Amendment 2
+withdraws its realm-role gate guidance. Keycloak roles are not LearnStack authority.
 Phase 11 owns APISIX defense in depth and gateway activation.
 
-The first Platform-admin consumer must decide denied-entry evidence and enforce
-connection lifetime: a connection retained after scope completion must not permit
-an autocommit bypass. The current deny-all gate exposes no privileged consumer;
-an admitted scope's entry row is not evidence of a denied attempt.
+ADR-0101 decides denied-entry evidence, a counter and a log with no durable row, and the
+handle contract that stops a connection retained after scope completion from running an
+autocommit bypass. An admitted scope's entry row is not evidence of a denied attempt.
 
 ### Gateway Configuration Corrections
 
@@ -807,8 +805,8 @@ identifies observable proof; a later packet completes dependent end-to-end paths
 | D09 | Authenticated durable provider-event ingress, identifier-only outbox facts and deduplicated Audit mirror | P03-6 | C11, C19 |
 | D10 | Authenticated OIDC back-channel logout, provider/session indexes and fenced local revocation | P03-7 | C12 |
 | D11 | Confined tenant federation configuration, safe linking, test/activate/rollback and recovery | P03-8 | C13, C20 |
-| D12 | Platform-scope identity/permission gate, production first-admin/issuer rebind, attributed bypass, killswitch writer and runbook | P03-9 | C14, C19 |
-| D13 | Fenced operator recovery and application Hangfire dashboard admission, exact permissions/grants/audit/runbooks | P03-9 | C15, C19 |
+| D12 | Platform-scope identity/permission gate, production first-admin/issuer rebind, attributed bypass, killswitch writer, federation operator steps and runbooks | P03-9 | C14, C19 |
+| D13 | Fenced operator inspection, subscriber replay and narrow producer reset, with the Hangfire dashboard decided absent, exact permissions/grants/audit/runbooks | P03-9 | C15, C19 |
 | D14 | Self/admin tenant-scoped DSAR requests, usable export/erasure, separate person-authorized global closure and privileged redaction | P03-10 | C17, C18, C20 |
 | D15 | Trusted audit request/actor enrichment, sensitive-read/denied coverage and user-reference locators | P03-2; P03-10 locator/redaction completion | C19 |
 | D16 | Corrected inactive gateway scaffold, LS0001/LS0002 Error, complete catalogue and source-bound exit evidence | P03-11 | C21 |
