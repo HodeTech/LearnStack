@@ -19,7 +19,9 @@ tenant's own row security, through the same pipeline a request uses.
 You also need, before you start:
 
 - A tenant id, an organization id, a role id per template and a membership id, each a
-  **UUIDv7** that you generate. The ids are the acts' identity: sending an act again
+  **UUIDv7** that you generate (`psql -At -c 'SELECT uuidv7()'` against any PostgreSQL
+  18, including the local stack's; `uuidgen` makes a version 4, which is refused with a
+  `400` that names no field). The ids are the acts' identity: sending an act again
   with the same ids is a retry and never a second write.
 - A slug for the tenant and for its default organization, and the host the tenant will
   answer on.
@@ -74,7 +76,10 @@ act that has not been answered `200`.
    It refuses any tenant that has had a tenant-wide Membership, so it cannot add an
    administrator to a tenant that has members.
 
-The `ticket` in each body is optional, and is the operator's own reference. Every answer
+The `ticket` in each body is optional and is the operator's own reference: LearnStack
+validates its grammar and **does not record it** (it is kept only on the platform's
+tenantless rows, which these acts do not write), so keep it with the correlation id in
+your own change record. Every answer
 is `200 { "result": ..., "correlationId": "..." }`. Keep the correlation id.
 
 ## Recovering a tenant with no administrator
@@ -99,7 +104,7 @@ leaves the last-administrator guard as it found it.
 |---|---|---|
 | 400 | `validation_failed` | The body is malformed, a value is out of its grammar, an id is not a UUIDv7 (or is the platform sentinel), a host mapping omits a flag, the `providerSubject` is blank or over 255 characters, or the ticket is not 1 to 64 characters of `A-Z a-z 0-9 . _ : / # -` |
 | 401 | | The token does not meet the profile; there is one answer for every cause, and the cause is in the operator's signals |
-| 403 | | The token is good and the operator holds no grant for this act |
+| 403 | | The token is good and the operator holds no grant for this act. An admitted act the request pipeline itself refused as forbidden also answers `403`; that is a defect, not a grant, and logs event 7109 |
 | 404 | | The tenant does not exist, or the act can no longer see it. Provision first |
 | 409 | `lockey_slug_taken`, `lockey_identifier_taken` | Another tenant has the slug, or an id is already used by a different record. Use another value; an exact repeat of your own act is a `200` |
 | 409 | `lockey_bootstrap_required` | The named person has not signed in at the tenant's host (or is not Active). Ask them to sign in, then repeat |
@@ -110,8 +115,13 @@ leaves the last-administrator guard as it found it.
 | 409 | `lockey_host_taken` | The host is mapped to another tenant, or to this one with other flags; the answer never says which |
 | 409 | `lockey_host_reserved` | The host is a platform host and can never resolve to a tenant |
 | 409 | `lockey_organization_not_in_tenant` | The `organizationId` of a host mapping is not one of this tenant's |
-| 409 | `lockey_concurrency_conflict` | Another change won, or a lock timed out; repeat the same request. If it repeats, a second template of the same key and scope already exists |
-| 503 | | The audit row could not be written or a dependency could not answer, so nothing changed. Retry after a short delay |
+| 409 | `lockey_concurrency_conflict` | Another change won, or a statement's lock timed out; repeat the same request. If it repeats, a second template of the same key and scope already exists |
+| 503 | | The audit row could not be written, or the act could not take its ordered tenant lock (`lockey_dependency_unavailable`), so nothing changed. Retry after a short delay |
+
+The reason of a `409` is in the problem's `errors`, keyed by the body field it concerns,
+as `{"slug": [{"key": "lockey_slug_taken"}]}`, or by `$` when it concerns the tenant as
+a whole, as `{"$": [{"key": "lockey_tenant_has_memberships"}]}`. A `400` raised at the
+gate or by a route check carries no `errors`.
 
 A business refusal of an admitted act (a `409`) writes a `failed` audit row in the
 tenant, so the attempt is on the record. A refusal at the gate (`401`, `403`, or a `400`
@@ -159,8 +169,22 @@ The operator's digest is computed as in [Killswitch](killswitch.md#reading-the-r
 `applied`, `replayed`, `refused` or `failed`; a `replayed` count is a setup resumed at
 that step. Event 7109 (Warning) means an admitted act was refused as forbidden by the
 request pipeline itself, which is a defect and not an operator mistake, and which writes
-no audit row. The gate's counters and events 7101 to 7108 are in
-[operator access](operator-access.md).
+no audit row. The gate's counters and events 7101 to 7103, 7105 and 7106 are in
+[operator access](operator-access.md); 7104, 7107 and 7108 belong to the killswitch.
+
+## Not recoverable here
+
+- **A host mapping's flags and organization pin.** No act updates or removes a mapping,
+  and a repeat that changes a flag or the pin is refused as `lockey_host_taken`. A
+  mistaken mapping stays until the platform owner repairs it at the database; escalate.
+- **A wrong administrator.** A mistyped `sub` makes that person the administrator, and
+  this surface has no act to remove or replace them: the first administrator and
+  recovery both refuse once an administrator is active, and the database refuses to
+  revoke the last one. Confirm the `sub` before step 5, and escalate a mistake.
+- **A tenant.** Nothing here renames, suspends or deprovisions one, or moves it to
+  another issuer.
+- **Role templates after the first Membership.** They can no longer be created here;
+  the tenant's own administrators edit them.
 
 ## What this does not do
 

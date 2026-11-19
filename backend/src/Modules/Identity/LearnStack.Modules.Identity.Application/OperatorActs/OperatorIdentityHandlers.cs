@@ -135,7 +135,7 @@ internal static class OperatorAdministratorCreation
         CancellationToken cancellationToken)
     {
         if (!context.IsResolved || context.OrganizationId is not null || !SeedFoundationGate.ValidRoot(membershipId)
-            || !SeedFoundationGate.ValidRoot(roleId) || string.IsNullOrWhiteSpace(providerSubject) || providerSubject.Length > 255)
+            || !SeedFoundationGate.ValidRoot(roleId) || string.IsNullOrWhiteSpace(providerSubject) || providerSubject.Length > OperatorSubjectLimits.MaximumProviderSubjectLength)
             return OperatorIdentityFailures.Rule("MembershipId", "lockey_validation_failed");
         if (!await SeedFoundationGate.AllowsCurrentLifecycleAsync(context, lifecycle, cancellationToken))
             return OperatorIdentityFailures.NotFound();

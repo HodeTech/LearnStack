@@ -99,9 +99,13 @@ credential-free projection children receive process prerequisites without those
 runtime values. Proxy and trust prerequisites remain available; migration,
 platform, dispatcher and provider-admin credentials do not enter a Seeder child.
 
-The direct tool reads its process environment; it does not load `.env`. Supply
-`ConnectionStrings__Default`, `Identity__AuthorityId` and
-`Authentication__Tenant__Issuer` from the selected private configuration. The
+The direct tool reads its process environment; it does not load `.env`. It runs only
+with `Deployment__Mode=Development` and exits 2 before reading any credential
+otherwise: production tenants are onboarded through the operator surface
+([runbook](../../../docs/runbooks/tenant-onboarding.md), ADR-0102 § 10). Supply
+`Deployment__Mode=Development`, `ConnectionStrings__Default`,
+`Identity__AuthorityId` and `Authentication__Tenant__Issuer` from the selected private
+configuration. The
 authority must already be installed: `make seed` passes the stable pair through
 `make migrate`, whose deployment installer runs before content seeding. The
 Seeder never installs, rewrites or infers that anchor. A schema-only migration

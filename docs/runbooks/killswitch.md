@@ -105,9 +105,9 @@ Confirm by the response (`after` is `true`) and by the result row.
 | 503 | The audit row could not be written, so the table was not changed | Repeat the request after `Retry-After` |
 | 500 | Something failed unexpectedly: the platform credential is missing, or the final commit's outcome is unknown and the flip may have landed. The instance still dropped its cached copy | Read the switch's row (above) before repeating |
 
-An admission with neither a matching `results_total` increment nor an
-`audit_failures_total` increment is an act whose outcome is unknown; read the row for it
-too.
+For a killswitch act, an admission with neither a matching `results_total` increment nor
+an `audit_failures_total` increment is an act whose outcome is unknown; read the row for
+it too. The onboarding acts are counted by `acts_total` and are not judged this way.
 
 ## Not recoverable here
 

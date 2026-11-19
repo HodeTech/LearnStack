@@ -55,7 +55,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
     }
 
     [Fact]
-    public async Task Applied_census_has_sixty_six_tables_and_exactly_fifteen_confined_definers()
+    public async Task Applied_census_has_sixty_six_tables_and_exactly_sixteen_confined_definers()
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
         await SchemaTableClasses.AssertCompleteAsync(owner);

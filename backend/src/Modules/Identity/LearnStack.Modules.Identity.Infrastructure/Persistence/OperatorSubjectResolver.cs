@@ -21,8 +21,9 @@ public sealed class OperatorSubjectResolver(IdentityDbContext db, IdentityAuthor
     /// <inheritdoc />
     public async Task<UserId?> ResolveActiveUserAsync(string providerSubject, CancellationToken cancellationToken = default)
     {
-        var registration = qualification.Current
-            ?? throw new InvalidOperationException("Identity authority qualification is unavailable.");
+        // An authority that is not qualified is a dependency that is not there, the same answer the sibling stores
+        // give a provider that is unreachable, and not an unclassified exception.
+        var registration = qualification.Current ?? throw new IdentityStorageProviderException();
         IdentitySubjectKey key;
         try
         {
@@ -35,9 +36,11 @@ public sealed class OperatorSubjectResolver(IdentityDbContext db, IdentityAuthor
 
         var authority = registration.AuthorityId.Value;
         var bytes = key.ToByteArray();
-        var found = await db.Database
+        // A provider failure crosses the same boundary the sibling stores use, so it answers in the Identity
+        // vocabulary and not as an unclassified exception.
+        var found = await ContextualIdentityStorageControl.ReadAsync(() => db.Database
             .SqlQuery<Guid?>($"SELECT public.fn_identity_operator_resolve_user({authority}, {bytes}) AS \"Value\"")
-            .SingleAsync(cancellationToken);
+            .SingleAsync(cancellationToken));
         return found is { } id ? UserId.From(id) : null;
     }
 }

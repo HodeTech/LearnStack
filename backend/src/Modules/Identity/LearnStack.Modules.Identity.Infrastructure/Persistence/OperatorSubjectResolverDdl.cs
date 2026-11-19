@@ -19,19 +19,19 @@ internal static class OperatorSubjectResolverDdl
     internal static void Add(MigrationBuilder migration) => migration.Sql("""
         CREATE FUNCTION public.fn_identity_operator_resolve_user(selected_authority uuid, selected_subject_key bytea)
             RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $resolve$
-        DECLARE found uuid;
+        DECLARE resolved_user uuid;
         BEGIN
             IF session_user <> 'learnstack_app'
                 OR NULLIF(current_setting('app.tenant_id',true),'') IS NULL
                 OR current_setting('transaction_read_only') <> 'off'
                 OR current_setting('transaction_isolation') <> 'read committed'
-                OR selected_authority IS NULL OR selected_subject_key IS NULL OR length(selected_subject_key) <> 32
+                OR selected_authority IS NULL OR selected_subject_key IS NULL OR octet_length(selected_subject_key) <> 32
                 OR NOT EXISTS (SELECT FROM public.identity_authority a WHERE a.id=1 AND a.authority_id=selected_authority)
             THEN RAISE EXCEPTION 'Operator subject resolution refused.' USING ERRCODE='23514'; END IF;
-            SELECT u.id INTO found FROM public.users u
+            SELECT u.id INTO resolved_user FROM public.users u
                 WHERE u.authority_id=selected_authority AND u.subject_key=selected_subject_key
                     AND u.status='Active' AND u.deleted_at IS NULL;
-            RETURN found;
+            RETURN resolved_user;
         END $resolve$;
         REVOKE ALL ON FUNCTION public.fn_identity_operator_resolve_user(uuid,bytea) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.fn_identity_operator_resolve_user(uuid,bytea) TO learnstack_app;

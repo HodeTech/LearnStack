@@ -4,7 +4,7 @@ using LearnStack.SharedKernel.Tenancy;
 namespace LearnStack.Infrastructure.PlatformOperator;
 
 /// <summary>
-/// The immutable tenant context of one admitted operator act on an existing tenant (ADR-0102 § 1).
+/// The immutable tenant context of one admitted operator act, for the tenant it names, which may be the tenant the act is about to create (ADR-0102 § 1).
 /// </summary>
 /// <remarks>
 /// Resolved and ambient, as a seed, event or job context is, with no actor: the business columns of

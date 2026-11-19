@@ -135,12 +135,7 @@ internal static partial class PlatformOperatorEndpoints
         var admission = await gate.AdmitAsync(witness, PlatformOperations.KillswitchToggle, body?.Ticket, cancellationToken);
         if (!admission.IsAdmitted)
         {
-            return admission.Refusal switch
-            {
-                PlatformRefusal.InvalidTicket => Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed"),
-                PlatformRefusal.InvalidWitness => Problem(http, StatusCodes.Status401Unauthorized, "lockey_unauthorized"),
-                _ => Problem(http, StatusCodes.Status403Forbidden, "lockey_forbidden"),
-            };
+            return RefusalProblem(http, admission.Refusal);
         }
 
         if (bodyState == BodyState.NotJson)
@@ -170,13 +165,7 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (AuditWriteFailedException failure)
         {
-            // A MUST row that cannot be written refuses the act, and the refusal is a signal:
-            // an error line and a counter an operator can alert on, and a Retry-After like
-            // every other 503 the API answers.
-            PlatformOperatorMetrics.AuditFailed(PlatformOperations.KillswitchToggle);
-            LogAuditRefused(loggerFactory.CreateLogger(typeof(PlatformOperatorEndpoints).FullName!), failure);
-            RetryAfter.Apply(http.Response, StatusCodes.Status503ServiceUnavailable);
-            return Problem(http, StatusCodes.Status503ServiceUnavailable, "lockey_audit_unavailable");
+            return AuditUnavailableProblem(http, loggerFactory, PlatformOperations.KillswitchToggle, failure);
         }
     }
 

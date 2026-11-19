@@ -127,7 +127,9 @@ Continue with the manual HTTPS prerequisites below, then run `make demo`. It
 creates missing private configuration and restores dependencies without changing
 Git hooks. `make seed` converges application data and the development identity
 realm and its application-owned identity foundation without starting the API or
-web. The argument-free direct .NET Seeder remains data-only.
+web. The argument-free direct .NET Seeder remains data-only and runs only with
+`Deployment__Mode=Development`; production tenants are onboarded through the operator
+surface ([runbook](docs/runbooks/tenant-onboarding.md)).
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
 mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,

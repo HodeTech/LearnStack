@@ -473,6 +473,32 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         root.GetProperty("paths").EnumerateObject().Select(path => path.Name).Should().BeEquivalentTo(OperatorRoutes,
             "a route that is not in the closed list is an operator act nobody reviewed");
+
+        // What a generated client needs to know it must send, and the statuses it can meet beyond the common ones.
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        string[] RequiredOf(string route)
+        {
+            var schema = root.GetProperty("paths").GetProperty(route).GetProperty("put").GetProperty("requestBody")
+                .GetProperty("content").GetProperty("application/json").GetProperty("schema");
+            if (schema.TryGetProperty("$ref", out var reference))
+            {
+                schema = schemas.GetProperty(reference.GetString()!.Split('/')[^1]);
+            }
+
+            return schema.TryGetProperty("required", out var required)
+                ? [.. required.EnumerateArray().Select(name => name.GetString()!)] : [];
+        }
+
+        RequiredOf("/api/platform/v1/tenants/{tenantId}").Should().Contain(["slug", "displayName", "defaultOrganization"]);
+        RequiredOf("/api/platform/v1/tenants/{tenantId}/host-mappings/{host}").Should().Contain(["isActive", "isPubliclyLive"]);
+        RequiredOf("/api/platform/v1/tenants/{tenantId}/roles/{roleId}").Should().Contain(["builtInKey", "capabilityScope"]);
+        RequiredOf("/api/platform/v1/tenants/{tenantId}/first-administrator/{membershipId}").Should().Contain(["roleId", "providerSubject"]);
+        RequiredOf("/api/platform/v1/tenants/{tenantId}/administrator-recovery/{membershipId}").Should().Contain(["roleId", "providerSubject"]);
+        foreach (var route in OperatorRoutes)
+        {
+            root.GetProperty("paths").GetProperty(route).GetProperty("put").GetProperty("responses").EnumerateObject()
+                .Select(response => response.Name).Should().Contain(["413", "429"], route);
+        }
     }
 
     private static readonly string[] OperatorRoutes =

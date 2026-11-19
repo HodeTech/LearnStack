@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**382 test methods run in
+**383 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**286 rules in this catalogue are Implemented, and 168 of them are in that assembly.**
+**287 rules in this catalogue are Implemented, and 169 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -5949,6 +5949,23 @@ structural test proves — and what it does not.
 - **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2).
+- **Phase:** P03-9.
+
+#### `Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `fn_identity_operator_resolve_user` in code are exactly the adapter that calls it and
+  the migration helper that installs it, and the files that name
+  `IOperatorSubjectResolver` are exactly the port, the operator administrator core, the
+  registration and the adapter. A second caller is a second way to ask whether a
+  provider subject is an Active user; adding one is a deliberate edit here, with its
+  denied proof.
+- **Why it matters:** the definer is executable by the application role, so what may ask
+  it is what the code, and not the database, confines
+  ([Database Standards § Operator subject resolution](05-database.md#operator-subject-resolution)).
+- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 5.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityFoundationConventionTests`, P03-9 Step 2).
 - **Phase:** P03-9.
 
 #### `Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer`

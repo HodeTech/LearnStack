@@ -141,13 +141,15 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
 
     private static readonly (string Status, string Description)[] Statuses =
     [
-        ("400", "validation_failed: the body is malformed, the required state is missing, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -."),
+        ("400", "validation_failed: the body is malformed, a required field is missing, an identifier is not a UUIDv7, a provider subject is blank or over 255 characters, a template name is not one of the closed set, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -. A refusal at the gate or by a route check carries no per-field errors."),
         ("401", "unauthorized: the credential is missing or does not meet the token profile. One answer for every cause; the cause is in the operator's signals."),
         ("403", "forbidden: the credential is good and this operator holds no grant for the operation."),
-        ("404", "not_found: the key is not a declared killswitch, or the tenant the route names does not exist."),
-        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (identifier taken, a person already bound, an administrator already exists, the tenant has history). The same request is safe to repeat once the state is as the reason says."),
+        ("404", "not_found: the killswitch key is not declared, or the tenant the route names does not exist."),
+        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200."),
+        ("413", "payload_too_large: the body is over 4096 bytes."),
         ("415", "unsupported_media_type: the body is not application/json."),
+        ("429", "rate_limited: the caller exceeded the per-peer request budget."),
         ("500", "internal_error: an unexpected failure. An act whose final commit's outcome is unknown may have landed; repeat the same request (every act is idempotent on its identifiers) or read the state before changing it."),
-        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written or a dependency could not answer, so nothing changed. Retry after the delay."),
+        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written or an ordered lock could not be taken, so nothing changed. Retry after the delay."),
     ];
 }

@@ -6,6 +6,13 @@ using MediatR;
 
 namespace LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 
+/// <summary>The one limit the operator administrator acts and their routes share.</summary>
+public static class OperatorSubjectLimits
+{
+    /// <summary>The longest provider subject an operator may name.</summary>
+    public const int MaximumProviderSubjectLength = 255;
+}
+
 /// <summary>
 /// Creates one finite Role template in an operator-named Tenant (ADR-0102 § 2, § 6).
 /// </summary>

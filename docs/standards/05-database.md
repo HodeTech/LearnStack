@@ -5658,7 +5658,10 @@ setter. The [federation host-alias read](#federation-host-alias-read) is the fou
 logical setter; it adds no definer and no physical context writer. The
 [operator subject resolution](#operator-subject-resolution) is the sixteenth definer; it
 adds no logical tenant setter. The operator act executor that installs an operator act's
-resolved context is the fifth writer of the context accessor
+resolved context is a fifth logical writer of the context accessor, beside the four of
+[ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) (the Hub
+correlation writer is the one not yet built); the earlier counts in this section
+describe their own slices
 ([ADR-0040 Amendment 25](../decisions/0040-ambient-unit-of-work.md)).
 
 ### Invitation root and constrained transitions
@@ -6275,8 +6278,10 @@ answers exactly that:
   else, and it writes nothing.
 - **Caller.** `OperatorSubjectResolver`, which derives the key with the one
   `IdentitySubjectKey` implementation under the deployment's qualified authority, so a
-  request supplies the provider subject and nothing else. The exact SQL, ACL, owner and
-  caller are pinned by the definer census (sixteen definers).
+  request supplies the provider subject and nothing else. The body, ACL, owner and
+  volatility are pinned by the definer census (sixteen definers), and the callers of the
+  function and of its port by
+  [`Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`](21-architecture-tests-catalogue.md#only_the_operator_administrator_core_resolves_an_operator_subject).
 
 A Membership written under that answer still passes the ordinary admission guard, which
 re-reads the User's eligibility under the user fence, so the resolver is a lookup and

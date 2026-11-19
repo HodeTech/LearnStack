@@ -229,6 +229,30 @@ public sealed class IdentityFoundationConventionTests
         @"\bpg_(?:try_)?advisory_(?:lock|unlock)(?:_shared|_all)?\s*\(", RegexOptions.IgnoreCase)
         .Select(match => match.Value);
 
+    [Fact]
+    public void Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject()
+    {
+        // ADR-0102 § 5: the confined definer is reached through one adapter, and the port through the one core that
+        // names a person for an administrator act. A second caller would be a second way to ask whether a provider
+        // subject is an Active user, and is added here deliberately with its own denied proof.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "fn_identity_operator_resolve_user", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/OperatorSubjectResolver.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/OperatorSubjectResolverDdl.cs",
+                ],
+                "only the adapter calls the function and only its migration installs it");
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IOperatorSubjectResolver", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "Modules/Identity/LearnStack.Modules.Identity.Application/Abstractions/IOperatorSubjectResolver.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Application/OperatorActs/OperatorIdentityHandlers.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Bindings/IdentityFoundationRegistration.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/OperatorSubjectResolver.cs",
+                ],
+                "the port is declared, implemented, registered and used by the operator administrator core, and by nothing else");
+    }
+
     private static string[] Callers(string typeName, string methodName) => ProductionAssemblies.All().SelectMany(assembly =>
     {
         using var module = ModuleDefinition.ReadModule(assembly.Location);

@@ -283,7 +283,7 @@ public sealed class MembershipWriteStore(IdentityDbContext db, ContextualIdentit
         {
             // The administrator Roles first, judged by the domain's own definition (kernel grants
             // included), then whether an Active tenant-wide Membership holds one of them.
-            var candidates = await db.Roles.Include(role => role.Grants)
+            var candidates = await db.Roles.AsNoTracking().Include(role => role.Grants)
                 .Where(role => role.BuiltInKey == BuiltInRoleKey.TenantAdmin && role.DeletedAt == null)
                 .ToListAsync(cancellationToken);
             var administratorRoles = candidates.Where(role => role.IsTenantAdministrator).Select(role => role.Id).ToList();

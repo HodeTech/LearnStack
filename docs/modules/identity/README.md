@@ -81,8 +81,11 @@ The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented. The directory contract appears below; closure,
-production first-admin and issuer rebind retain their named later owners.
+implemented. The directory contract appears below; closure and issuer rebind
+retain their named later owners. Production first-admin, Role-template initialization
+and recovery are the operator acts of
+[ADR-0102](../../decisions/0102-production-tenant-onboarding.md)
+([runbook](../../runbooks/tenant-onboarding.md)).
 
 ### Retained provider-event storage
 
@@ -339,12 +342,19 @@ P03-1 admits only the fixed development-seed capability.
 in API composition. The external seed/demo owner supplies bounded canonical
 manifest facts and actual provider-adoption witnesses to the confined Seeder
 implementation. Email, a realm role or SystemActor alone supplies no admission.
-There is no HTTP entry, operator population or general bootstrap bypass.
+The seed capability has no HTTP entry, operator population or general bootstrap
+bypass.
 
-Production first-admin/provisioning admission is **P03-9/G13**, before a
-production provisioner uses it. Its authority/recovery cannot inherit the seed
-capability. Tenancy's current ProvisionTenant remains the ADR-0042 Tenant/default
-Organization pair; no cross-module transaction or further exception is admitted.
+Production first-admin, Role-template initialization and recovery are the operator
+acts of [ADR-0102](../../decisions/0102-production-tenant-onboarding.md) (P03-9 Step
+2): `OperatorInitializeRoleCommand`, `OperatorCreateFirstAdminCommand` and
+`OperatorRecoverAdminCommand`. They are admitted per act by the platform operator
+gate, run under the `PlatformOperator` authorization source on the application role
+and the ordered locks of ADR-0074, and name the person by provider subject through
+the confined resolver definer. They cannot inherit the seed capability: neither source
+is sufficient for the other's request. Tenancy's ProvisionTenant remains the ADR-0042
+Tenant/default Organization pair; the operator's provisioning is the same handler
+class, and no cross-module transaction or further exception is admitted.
 
 1. The external seed owner completes Tenancy acts and ADR-0072 trusted binding
    adoption, preserving all four actor/provider IDs, credentials and MFA.
@@ -884,13 +894,15 @@ permission cache/session grant cannot replace a fresh check.
 
 ## Risks and open questions
 
-Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own
-live delegation, default deny/revocation, reader handoff and trusted evidence.
-Those mechanisms and the bounded scope transitions/DTOs are implemented, as are the
-verified invitation writers of [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
-[Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification.
-P03-5 dynamic values, P03-9 production first-admin/recovery and P03-10
-closure/locators remain named later writers, not implicit foundation authority.
+Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own live
+delegation, default deny/revocation, reader handoff and trusted evidence. Those
+mechanisms and the bounded scope transitions/DTOs are implemented, as are the verified
+invitation writers of
+[ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
+[Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification. P03-5
+dynamic values and P03-10 closure/locators remain named later writers, not implicit
+foundation authority; P03-9's production first-admin and recovery are the operator acts
+above.
 
 | Subject/control | Current state | Owner / scope |
 |---|---|---|

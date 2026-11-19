@@ -154,10 +154,11 @@ production realm.
 | 401, `Bearer` challenge | The token is missing, malformed, expired, signed by another issuer, for another audience or client, lacks an accepted `acr`, has no `auth_time`, was authenticated too long ago, or lives longer than 15 minutes. It also covers an issuer that cannot be reached: at start, or for more than 15 minutes after its keys were last fetched | Decode the token and compare it with the profile; sign in again; check the issuer settings and the signals below |
 | 403 | The token is good and this operator holds no grant for the act | Ask for the grant |
 | 400 | The ticket or the body is malformed | Fix the request |
-| 404 | Unknown killswitch key, or the surface is not configured | Check the key and the issuer setting |
+| 404 | Unknown killswitch key, an onboarding route's tenant that does not exist, or the surface is not configured | Check the key or the tenant and the issuer setting |
+| 409 | An onboarding act refused the state it found (a `failed` audit row is written in the tenant) | See the [onboarding runbook](tenant-onboarding.md#when-an-act-answers-something-else) |
 | 415 | The body is not `application/json` | Send the header shown above |
 | 503 | The audit row could not be written, so nothing changed. `Retry-After` says when to try again | Retry; the act is safe to repeat |
-| 500 | Something unexpected failed. For a toggle, a commit whose outcome is unknown may have landed | Read the switch's state before repeating (see the [killswitch runbook](killswitch.md)) |
+| 500 | Something unexpected failed. For a toggle, a commit whose outcome is unknown may have landed | Read the switch's state before repeating (see the [killswitch runbook](killswitch.md)); an onboarding act is idempotent, so repeat the same request |
 
 The answer to a refused credential is always the same; the reason is in the signals, not
 the response.
@@ -168,7 +169,8 @@ the response.
 |---|---|
 | `learnstack_platform_operator_admissions_total{outcome,operation}` | Acts admitted or refused at the gate; `operation` is the audit slug, for example `tenancy.killswitch.toggle` |
 | `learnstack_platform_operator_refusals_total{cause}` | Refusals, by cause: `request_aborted`, `metadata_stale`, `metadata_unavailable`, `token_missing`, `token_expired`, `token_lifetime`, `token_signature`, `token_issuer`, `token_audience`, `token_type`, `token_algorithm`, `token_invalid`, `profile_issuer`, `profile_subject`, `profile_azp`, `profile_acr`, `profile_iat`, `profile_auth_time`, `profile_lifetime`, `profile_auth_age`, and at the gate `invalid_ticket`, `missing_permission`, `unknown_operation`, `invalid_witness` |
-| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed |
+| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by the platform scope, so the killswitch act only |
+| `learnstack_platform_operator_acts_total{operation,outcome}` | Onboarding acts by how they ended (`applied`, `replayed`, `refused`, `failed`); see the [onboarding runbook](tenant-onboarding.md#signals) |
 | `learnstack_platform_operator_audit_failures_total{operation}` | Acts refused because the MUST row was not durable (the 503) |
 | `learnstack_platform_operator_metadata_failures_total` | The issuer's discovery document or key set could not be read, was refused, or named another origin. While it climbs, new keys are not learned; a fetch that failed is not retried for 30 seconds, and once the keys held are more than 15 minutes old with a later fetch failed, every operator is refused (`metadata_stale`) |
 
@@ -176,12 +178,16 @@ A log line accompanies each. Search by event id: 7102 (Warning) a refused act, 7
 (Warning) a refused credential with its cause, 7106 (Warning) a metadata failure, 7105
 (Error) a refused audit write, and 7101 (Error) a grant configuration that failed
 validation on reload; while 7101 appears every operator act is refused until the
-configuration is valid. Every admitted platform act logs a Warning with event 7001 and
+configuration is valid. Every admitted killswitch act logs a Warning with event 7001 and
 the text "Platform-admin scope entered" (other hosts reuse the number for unrelated
-lines, so match the text too). A refused operator leaves no database row.
+lines, so match the text too); the onboarding acts do not enter the platform scope and
+log no 7001. Event 7109 (Warning) is an onboarding act the request pipeline itself
+refused as forbidden. A refused operator leaves no database row; the one exception is an
+onboarding act an admitted operator had refused for a business reason, which writes a
+`failed` row in the tenant.
 
 ## Not recoverable here
 
-A refusal leaves no record in the audit log, only the counter and the log line. An
-operator cannot grant themselves anything: grants are configuration, edited by whoever
-deploys it.
+A refusal at the gate leaves no record in the audit log, only the counter and the log
+line. An operator cannot grant themselves anything: grants are configuration, edited by
+whoever deploys it.

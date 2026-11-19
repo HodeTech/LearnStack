@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using LearnStack.Api.Authentication;
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
@@ -14,20 +15,59 @@ using LearnStack.Api.Common;
 namespace LearnStack.Api.Platform;
 
 /// <summary>The default organization of a tenant being provisioned.</summary>
-internal sealed record DefaultOrganizationBody(Guid Id, string? Slug, string? DisplayName);
+/// <param name="Id">The organization's identifier, a UUIDv7 the operator generates.</param>
+/// <param name="Slug">The organization's slug.</param>
+/// <param name="DisplayName">The organization's display name.</param>
+internal sealed record DefaultOrganizationBody(
+    [property: Required] Guid Id,
+    [property: Required] string? Slug,
+    [property: Required] string? DisplayName);
 
 /// <summary>The body of a tenant provisioning.</summary>
 internal sealed record TenantProvisionRequest(
-    string? Slug, string? DisplayName, DefaultOrganizationBody? DefaultOrganization, string? Ticket);
+    [property: Required] string? Slug,
+    [property: Required] string? DisplayName,
+    [property: Required] DefaultOrganizationBody? DefaultOrganization,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(TicketPattern.Value)]
+    string? Ticket);
 
-/// <summary>The body of a host mapping.</summary>
-internal sealed record HostMapRequest(Guid? OrganizationId, bool? IsActive, bool? IsPubliclyLive, string? Ticket);
+/// <summary>The body of a host mapping; both flags are required because no act unmaps a host.</summary>
+internal sealed record HostMapRequest(
+    Guid? OrganizationId,
+    [property: Required] bool? IsActive,
+    [property: Required] bool? IsPubliclyLive,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(TicketPattern.Value)]
+    string? Ticket);
 
 /// <summary>The body of a role template initialization.</summary>
-internal sealed record RoleInitializeRequest(string? BuiltInKey, string? CapabilityScope, string? Ticket);
+/// <param name="BuiltInKey">One of <c>TenantAdmin</c>, <c>Instructor</c>, <c>Learner</c>, <c>Guardian</c>, <c>Editor</c>, <c>OrgAdmin</c>, <c>OrgInstructor</c>.</param>
+/// <param name="CapabilityScope"><c>Tenant</c> or <c>Organization</c>.</param>
+/// <param name="Ticket">An optional reference of the operator's own; it is validated and not recorded.</param>
+internal sealed record RoleInitializeRequest(
+    [property: Required] string? BuiltInKey,
+    [property: Required] string? CapabilityScope,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(TicketPattern.Value)]
+    string? Ticket);
 
 /// <summary>The body of a first-administrator or recovery act.</summary>
-internal sealed record AdministratorRequest(Guid RoleId, string? ProviderSubject, string? Ticket);
+/// <param name="RoleId">The initialized tenant-wide administrator Role, a UUIDv7.</param>
+/// <param name="ProviderSubject">The person's <c>sub</c> at the identity authority's issuer, at most 255 characters.</param>
+/// <param name="Ticket">An optional reference of the operator's own; it is validated and not recorded.</param>
+internal sealed record AdministratorRequest(
+    [property: Required] Guid RoleId,
+    [property: Required][property: StringLength(OperatorSubjectLimits.MaximumProviderSubjectLength, MinimumLength = 1)] string? ProviderSubject,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(TicketPattern.Value)]
+    string? Ticket);
+
+/// <summary>The ticket grammar of ADR-0101 § 5, stated once for the request records.</summary>
+internal static class TicketPattern
+{
+    internal const string Value = @"^[A-Za-z0-9._:/#-]{1,64}$";
+}
 
 /// <summary>What an operator act answers: its result and the correlation id the operator records.</summary>
 internal sealed record OperatorActResponse<T>(T Result, string CorrelationId);
@@ -48,7 +88,7 @@ internal static partial class PlatformOperatorEndpoints
         Describe(
             group.MapPut("/tenants/{tenantId:guid}", ProvisionTenantAsync)
                 .WithName("PlatformTenantProvision")
-                .WithSummary("Provision a tenant and its default organization (idempotent on the id and slug)."),
+                .WithSummary("Provision a tenant and its default organization; an exact repeat answers from the stored record, a repeat that changes a value is refused."),
             typeof(OperatorActResponse<ProvisionedTenantDto>));
         Describe(
             group.MapPut("/tenants/{tenantId:guid}/host-mappings/{host}", MapHostAsync)
@@ -91,7 +131,7 @@ internal static partial class PlatformOperatorEndpoints
             body => body.Ticket,
             body => body.Slug is { } slug && body.DisplayName is { } name
                 && body.DefaultOrganization is { Slug: { } orgSlug, DisplayName: { } orgName } organization
-                && IsRoot(organization.Id)
+                && IsOperatorId(organization.Id)
                 ? new OperatorProvisionTenantCommand(
                     TenantId.From(tenantId), slug, name, OrganizationId.From(organization.Id), orgSlug, orgName)
                 : null,
@@ -117,10 +157,10 @@ internal static partial class PlatformOperatorEndpoints
         RunAsync<RoleInitializeRequest, Guid>(
             http, tenantId, PlatformOperations.RoleInitialize, gate, executor, loggers,
             body => body.Ticket,
-            body => Enum.TryParse<BuiltInRoleKey>(body.BuiltInKey, ignoreCase: true, out var key) && Enum.IsDefined(key)
-                && Enum.TryParse<PermissionScope>(body.CapabilityScope, ignoreCase: true, out var scope)
+            body => TryName<BuiltInRoleKey>(body.BuiltInKey, out var key)
+                && TryName<PermissionScope>(body.CapabilityScope, out var scope)
                 && scope is PermissionScope.Tenant or PermissionScope.Organization
-                && IsRoot(roleId)
+                && IsOperatorId(roleId)
                 ? new OperatorInitializeRoleCommand(roleId, key, scope)
                 : null,
             cancellationToken);
@@ -131,7 +171,7 @@ internal static partial class PlatformOperatorEndpoints
         RunAsync<AdministratorRequest, Guid>(
             http, tenantId, PlatformOperations.FirstAdminCreate, gate, executor, loggers,
             body => body.Ticket,
-            body => IsSubject(body.ProviderSubject) && IsRoot(membershipId) && IsRoot(body.RoleId)
+            body => IsSubject(body.ProviderSubject) && IsOperatorId(membershipId) && IsOperatorId(body.RoleId)
                 ? new OperatorCreateFirstAdminCommand(membershipId, body.RoleId, body.ProviderSubject!) : null,
             cancellationToken);
 
@@ -141,7 +181,7 @@ internal static partial class PlatformOperatorEndpoints
         RunAsync<AdministratorRequest, Guid>(
             http, tenantId, PlatformOperations.AdminRecover, gate, executor, loggers,
             body => body.Ticket,
-            body => IsSubject(body.ProviderSubject) && IsRoot(membershipId) && IsRoot(body.RoleId)
+            body => IsSubject(body.ProviderSubject) && IsOperatorId(membershipId) && IsOperatorId(body.RoleId)
                 ? new OperatorRecoverAdminCommand(membershipId, body.RoleId, body.ProviderSubject!) : null,
             cancellationToken);
 
@@ -181,7 +221,7 @@ internal static partial class PlatformOperatorEndpoints
             return Problem(http, StatusCodes.Status415UnsupportedMediaType, "lockey_unsupported_media_type");
         }
 
-        if (body is null || !IsRoot(tenantRoute) || build(body) is not { } request)
+        if (body is null || !IsOperatorId(tenantRoute) || build(body) is not { } request)
         {
             return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
         }
@@ -196,10 +236,7 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (AuditWriteFailedException failure)
         {
-            PlatformOperatorMetrics.AuditFailed(operation);
-            LogAuditRefused(loggers.CreateLogger(typeof(PlatformOperatorEndpoints).FullName!), failure);
-            RetryAfter.Apply(http.Response, StatusCodes.Status503ServiceUnavailable);
-            return Problem(http, StatusCodes.Status503ServiceUnavailable, "lockey_audit_unavailable");
+            return AuditUnavailableProblem(http, loggers, operation, failure);
         }
     }
 
@@ -207,12 +244,35 @@ internal static partial class PlatformOperatorEndpoints
     /// An identifier the operator generates: a UUIDv7, never the nil value and never the platform sentinel, which
     /// is the tenant the platform's own rows belong to and which no operator act may name.
     /// </summary>
-    private static bool IsRoot(Guid id) => id != Guid.Empty && id.Version == 7 && id != TenantId.PlatformSentinel.Value;
+    /// <summary>
+    /// A MUST row that cannot be written refuses the act: a counter an operator can alert on, an error line, and a 503 with
+    /// its delay. Nothing changed, so the act is safe to repeat.
+    /// </summary>
+    private static IResult AuditUnavailableProblem(
+        HttpContext http, ILoggerFactory loggers, PlatformOperation operation, AuditWriteFailedException failure)
+    {
+        PlatformOperatorMetrics.AuditFailed(operation);
+        LogAuditRefused(loggers.CreateLogger(typeof(PlatformOperatorEndpoints).FullName!), failure);
+        RetryAfter.Apply(http.Response, StatusCodes.Status503ServiceUnavailable);
+        return Problem(http, StatusCodes.Status503ServiceUnavailable, "lockey_audit_unavailable");
+    }
 
-    private const int MaximumSubjectLength = 255;
+    private static bool IsOperatorId(Guid id) => id != Guid.Empty && id.Version == 7 && id != TenantId.PlatformSentinel.Value;
+
+    /// <summary>
+    /// A member of the closed set by its exact name, case aside. <c>Enum.TryParse</c> is not that: it also takes
+    /// numerals, padded names and comma lists that OR into another member.
+    /// </summary>
+    private static bool TryName<TEnum>(string? value, out TEnum member) where TEnum : struct, Enum
+    {
+        member = default;
+        var name = Enum.GetNames<TEnum>().FirstOrDefault(
+            candidate => string.Equals(candidate, value, StringComparison.OrdinalIgnoreCase));
+        return name is not null && Enum.TryParse(name, out member);
+    }
 
     private static bool IsSubject(string? subject) =>
-        !string.IsNullOrWhiteSpace(subject) && subject.Length <= MaximumSubjectLength;
+        !string.IsNullOrWhiteSpace(subject) && subject.Length <= OperatorSubjectLimits.MaximumProviderSubjectLength;
 
     private static IResult RefusalProblem(HttpContext http, PlatformRefusal refusal) => refusal switch
     {
@@ -222,10 +282,17 @@ internal static partial class PlatformOperatorEndpoints
     };
 
     /// <summary>An act's own refusal, in the status and shape the API gives every other failed result.</summary>
-    private static IResult ResultProblem(HttpContext http, Error error) =>
-        Results.Json(
+    private static IResult ResultProblem(HttpContext http, Error error)
+    {
+        var status = HttpStatusMap.For(error);
+
+        // A refusal that is a lock the act could not take answers 503 as a result, and a 503 owes its delay like every
+        // other the API sends.
+        RetryAfter.Apply(http.Response, status);
+        return Results.Json(
             ProblemDetailsFactory.For(error, http),
             options: null,
             contentType: ProblemDetailsMediaType.Value,
-            statusCode: HttpStatusMap.For(error));
+            statusCode: status);
+    }
 }

@@ -33,9 +33,6 @@ public sealed class PlatformOperatorActCatalog
         _acts = list.ToFrozenDictionary();
     }
 
-    /// <summary>The request types in the catalog.</summary>
-    public IReadOnlyCollection<Type> RequestTypes => _acts.Keys;
-
     /// <summary>Finds the act a request type belongs to.</summary>
     public bool TryGet(Type requestType, out PlatformOperatorAct act)
     {

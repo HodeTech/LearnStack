@@ -616,6 +616,15 @@ inserts the default `organizations` row, updates
 `tenants.default_organization_id`, and returns; the behavior completes the scope,
 which commits. One transaction, one connection, one commit point.
 
+**The operator's production provisioning**
+([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)) is
+`OperatorProvisionTenantCommand`, handled by this same class. It carries no
+`IProvisionsTenant` announcement: the operator act executor installs a resolved ambient
+context for the new tenant's id, which the ordinary transaction behavior announces, and
+the self-keyed insert policy admits it the same way. The operator's host mapping
+(`OperatorMapHostCommand`) shares `MapHostToTenantCommandHandler` likewise. Both are
+idempotent on the operator's identifiers and refuse a repeat that changes a value.
+
 **The handler opens nothing and announces nothing.** Both belong to
 `TransactionBehavior`, and the distinction is not stylistic. A
 `BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)

@@ -6,7 +6,9 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
@@ -83,6 +85,14 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization, organizationSlug: "elsewhere")),
             HttpStatusCode.Conflict, "lockey_identifier_taken");
 
+        // The host mapping comes second, as the runbook orders the steps, and again on a repeat.
+        var mapped = await proof.PutAsync(Full, $"/tenants/{tenant}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":true}""");
+        await AssertOkAsync(mapped);
+        proof.Invalidations.Should().Equal([host], "the first run drops any cached answer for the host");
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":true}"""));
+        proof.Invalidations.Should().Equal([host, host], "the retry drops it again, which is the repair for a miss cached before the commit");
+        (await proof.HostMappingsAsync(host)).Should().Equal(tenant);
+
         // The first administrator needs the role and the person first; each refusal writes nothing.
         await AssertRuleAsync(
             await proof.PutAsync(Full, FirstAdminPath(tenant, membership), AdminBody(role, proof.PersonSubject)),
@@ -99,14 +109,6 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
         await AssertOkAsync(await proof.PutAsync(Full, FirstAdminPath(tenant, membership), AdminBody(role, proof.PersonSubject)));
         (await proof.CountAsync(tenant, "memberships")).Should().Be(1);
         (await proof.CountAsync(tenant, "membership_role_assignments")).Should().Be(1);
-
-        // The host mapping, then again.
-        var mapped = await proof.PutAsync(Full, $"/tenants/{tenant}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":true}""");
-        await AssertOkAsync(mapped);
-        proof.Invalidations.Should().Equal([host], "the first run drops any cached answer for the host");
-        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":true}"""));
-        proof.Invalidations.Should().Equal([host, host], "the retry drops it again, which is the repair for a miss cached before the commit");
-        (await proof.HostMappingsAsync(host)).Should().Equal(tenant);
 
         // How each act ended, as the monitoring owner sees it: four first runs, five repeats that found their own
         // earlier result (the provisioning twice and each of the others once) and four refusals.
@@ -286,6 +288,20 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
     }
 
     [Fact]
+    public async Task A_Lock_The_Act_Could_Not_Take_Answers_503_With_Its_Delay_Like_Every_Other_503()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        using var unavailable = proof.ClientWith(services => services.Insert(0, ServiceDescriptor.Scoped<
+            IPipelineBehavior<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>, ReportUnavailable>()));
+
+        using var refused = await proof.PutAsync(
+            Full, $"/tenants/{Ids.Next()}", ProvisionBody("busy-" + Ids.Short(), Ids.Next()), unavailable);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        refused.Headers.RetryAfter.Should().NotBeNull("the operator document declares the delay on every 503");
+    }
+
+    [Fact]
     public async Task The_Platform_Sentinel_And_A_Malformed_Request_Are_Refused_With_The_Status_An_Operator_Can_Act_On()
     {
         await using var proof = await Proof.CreateAsync(parent);
@@ -306,6 +322,15 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             .Should().Be(HttpStatusCode.BadRequest);
         (await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}", """{"builtInKey":"Nobody","capabilityScope":"Tenant"}""")).StatusCode
             .Should().Be(HttpStatusCode.BadRequest, "an unknown template key is refused before any act");
+        foreach (var lenient in new[] { "Instructor,Guardian", "1", " TenantAdmin", "tenantadmin,", "7" })
+        {
+            (await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}",
+                JsonSerializer.Serialize(new { builtInKey = lenient, capabilityScope = "Tenant" }))).StatusCode
+                .Should().Be(HttpStatusCode.BadRequest, $"'{lenient}' is not the exact name of a template");
+        }
+
+        (await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}", """{"builtInKey":"Learner","capabilityScope":"Tenant,Organization"}""")).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest, "nor of a scope");
         (await proof.SendAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}", new StringContent(RoleBody(), Encoding.UTF8, "text/plain"))).StatusCode
             .Should().Be(HttpStatusCode.UnsupportedMediaType);
         (await proof.CountAsync(tenant, "roles")).Should().Be(0);
@@ -895,6 +920,17 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             await next();
             throw new InvalidOperationException("The reply was lost after the commit.");
         }
+    }
+
+    /// <summary>A lock the act could not take, as the guard reports it: a failure result and no write.</summary>
+    private sealed class ReportUnavailable
+        : IPipelineBehavior<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>
+    {
+        public Task<Result<ProvisionedTenantDto>> Handle(
+            OperatorProvisionTenantCommand request,
+            RequestHandlerDelegate<Result<ProvisionedTenantDto>> next,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Result.FailFor<Result<ProvisionedTenantDto>>(new Error(new LocalizedMessage("lockey_dependency_unavailable"))));
     }
 
     /// <summary>The tenant store with its third write, the default-organization back-reference, failing.</summary>

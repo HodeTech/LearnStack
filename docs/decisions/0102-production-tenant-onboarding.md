@@ -139,6 +139,13 @@ is not proof that anything is implemented.
 
 ## Context
 
+> **Erratum — 2026-11-19.** The first paragraph below counts "one new confined setter"
+> among the costs. No setter was added and the context writers are five, not four;
+> shown by `SetTenant_Callers_Are_The_Enumerated_Four` and
+> `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`. The Decision is unchanged.
+> Current authority: [ADR-0040 Amendment 25](0040-ambient-unit-of-work.md). Recorded in
+> Amendment 1.
+
 Onboarding is not the platform scope's job. The scope exists to cross tenants and write
 platform tables, and the platform role bypasses row security. A first administrator is
 the opposite case: one tenant, ordinary tables, and the strongest invariants in the
@@ -174,6 +181,13 @@ naming.
 
 ### Negative
 
+> **Erratum — 2026-11-19.** The first bullet below counts "a new confined setter" among
+> the widened sets. No setter was added and the context writers are five, not four;
+> shown by `SetTenant_Callers_Are_The_Enumerated_Four` and
+> `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`. The Decision is unchanged.
+> Current authority: [ADR-0040 Amendment 25](0040-ambient-unit-of-work.md). Recorded in
+> Amendment 1.
+
 - A new authorization source kind, a new confined setter and a new resolver widen closed
   sets that tests pin, so each census is edited deliberately.
 - An operator needs the person's `sub`, and the person must sign in first at a mapped
@@ -186,6 +200,13 @@ naming.
 - Seeded Development tenants are unaffected.
 
 ## Implementation Notes
+
+> **Erratum — 2026-11-19.** The first bullet below says Step 2 delivers "the setter". No
+> setter was added and the context writers are five, not four; shown by
+> `SetTenant_Callers_Are_The_Enumerated_Four` and
+> `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`. The Decision is unchanged.
+> Current authority: [ADR-0040 Amendment 25](0040-ambient-unit-of-work.md). Recorded in
+> Amendment 1.
 
 - Step 2 delivers the source, setter, resolver, commands, routes, audit-composition
   branch, Seeder mode refusal and the onboarding runbook. It touches the source enum,
@@ -210,6 +231,13 @@ naming.
 
 ## Carriers
 
+> **Erratum — 2026-11-19.** The first paragraph below names "the eleventh logical
+> setter" as ADR-0040's disclosure. No setter was added and the context writers are
+> five, not four; shown by `SetTenant_Callers_Are_The_Enumerated_Four` and
+> `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`. The Decision is unchanged.
+> Current authority: [ADR-0040 Amendment 25](0040-ambient-unit-of-work.md). Recorded in
+> Amendment 1.
+
 Dated disclosures in [ADR-0036](0036-tenant-resolution-trusted-inputs.md) (the target
 announcement), [ADR-0040](0040-ambient-unit-of-work.md) (the eleventh logical setter),
 [ADR-0044](0044-audit-write-path.md) and [ADR-0033](0033-audit-durability-model.md) (the
@@ -225,8 +253,9 @@ specifications, and the Phase 03 Status.
 
 Step 2 of the packet shipped the five acts. Two statements of this record were false
 when it was accepted, and each carries an inline erratum above it: the new tenant setter
-and unchanged context writers of § 1, and the proof item that revokes the last
-administrator. Both were shown by the shipped code and its tests
+and unchanged context writers of § 1, repeated in Context, Consequences, Implementation
+Notes and Carriers, and the proof item that revokes the last administrator. Both were
+shown by the shipped code and its tests
 (`SetTenant_Callers_Are_The_Enumerated_Four`, `PlatformOperatorActExecutorTests`, and
 SQLSTATE `P0303` in `PlatformOperatorOnboardingTests`). The items below refine what the
 record left open or stated differently from what was built; they are history, not
@@ -295,12 +324,31 @@ errata.
    counts each act as `applied`, `replayed`, `refused` or `failed`; a `replayed` count
    by operation is a setup resumed at that step. Event 7109 (Warning) records an
    admitted act the pipeline itself refused as forbidden, which writes no durable row.
-9. **Request shape.** Every identifier is a UUIDv7 and the platform sentinel is refused
+9. **Shared cores.** § 2 and Consequences promise shared cores extracted from the seed
+   handlers so the domain logic exists once. Tenancy shares by handling the seed and
+   operator commands in the same classes. Identity does not extract a core: its operator
+   handlers compose the same aggregates and gates (`Role.Create`, `Membership.Create`,
+   `SeedFoundationGate`, `SeedMembershipCreation.IsDeclaredRole`) in their own
+   choreography, because the seed handlers' declaration, prerequisite and guard
+   plumbing is the part that differs. What is duplicated is the order of the steps, not
+   a domain rule.
+10. **The ticket is not recorded.** The gate validates the optional ticket's grammar and
+    the five acts record it nowhere, because
+    [ADR-0101](0101-platform-operator-authority.md) § 9 keeps it only on tenantless
+    sentinel rows and these acts write none; the audit rows carry the correlation id the
+    answer returns, and the operator keeps the ticket beside it.
+11. **Request shape.** Every identifier is a UUIDv7 and the platform sentinel is refused
    as a tenant (400). A host mapping must state both `isActive` and `isPubliclyLive`,
    because no act unmaps a host. A blank provider subject or one over 255 characters is
-   a 400, and a refused storage write answers in the vocabulary the sibling Identity
-   handlers use (`concurrency_conflict`, `dependency_unavailable`, or
-   `identity_foundation_refused`).
+   a 400, template and scope names are matched exactly and not parsed, and a refused
+   storage write answers in the vocabulary the sibling Identity handlers use
+   (`concurrency_conflict`, `dependency_unavailable`, or
+   `identity_foundation_refused`). An unqualified identity authority is
+   `dependency_unavailable`, and every 503 an act answers carries `Retry-After`. The Tenancy writes of the two Tenancy acts classify
+   only a unique violation: a lock timeout on a unique-index wait, as when two operators
+   map one host to two tenants at once, surfaces as a 500, and the same request repeated
+   gets the right answer. A host mapping needs only that the tenant exists and is not
+   deleted, where the Identity acts also need it to be Trial or Active.
 
 The business actor of every written row is `UserId.SystemActor` and the audit actor is
 NULL, as § 3 and [ADR-0101](0101-platform-operator-authority.md) § 9 say. A refused
