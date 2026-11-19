@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,331 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,404 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -508,6 +508,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0100 maintainer review disposition and acceptance (2026-11-18)](#adr-0100-maintainer-review-disposition-and-acceptance-2026-11-18) — 71 lines
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
+  - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24092,3 +24093,76 @@ mapper-readback statement and Amendment 9 for the rest.
 | `python3 scripts/run-realm-node-tests.py` | 13 files, 498 passing tests |
 | `python3 scripts/test-openapi-ci.py` | 64 tests OK; the other eleven suites in `scripts/` OK; `test-ci-native-provisioning.py` not run |
 | `make docs-index`, `make lint-docs` | index regenerated; 3,845 fragment links resolve; roadmap structure conforms; delivery log indexes current |
+
+### P03-8 merge and delivery closeout (2026-11-19)
+
+The maintainer merges [PR #45](https://github.com/HodeTech/LearnStack/pull/45) at
+02:59:14 Europe/Istanbul on 2026-11-19 (23:59:14 UTC on 2026-11-18). Reviewed head
+`5eeba2c3` and merge commit `02654275` share tree `d43ee66d`; the merge parents are
+`0c7394c7` and `5eeba2c3`. Development fast-forwards to that merge without switching
+branches or changing files.
+
+P03-8 implementation delivery is complete and merged under Accepted ADR-0099 (Amendments
+1–9) and the contract transition ADR-0100: D11 is delivered. Steps 0 to 4, their review
+rounds, the CI triage, the contract transition and the
+[PR review disposition](#p03-8-pr-review-disposition-2026-11-18) are recorded above.
+This closeout changes documentation only and selects no new policy or ADR.
+
+Delivered behavior:
+
+- A tenant administrator configures one SAML or OIDC identity provider per tenant in
+  Studio. LearnStack owns the shared Keycloak broker and fixes every trust, flow, mapper
+  and egress decision; client secrets are write-only and egress is bounded and
+  address-class checked.
+- Provider writes are intent-first and readback-verified: Begin, the provider call
+  outside any transaction, then Complete, each with its own MUST audit row. A lost write
+  settles as uncertain and Resume reconciles it. Drift, an expired test window and an
+  entitlement lapse are corrected at the next readback.
+- The lifecycle is Draft, test window, passed test, Active, Disabled and a Deleted
+  tombstone. The sign-in option appears only for an Active, entitled connection, and
+  brokered sessions are host-bound at every credential publication path.
+- The first-broker flow only links an existing account and creates none. The Keycloak
+  account console is retired, so no realm user has Keycloak self-service, and the realm
+  is pinned to 26.7.5 by digest.
+- The OpenAPI gate approves the exact reviewed snapshot pair under ADR-0100 and is
+  isolated from a pull request's own scripts.
+
+Final-head evidence:
+
+- [Run 44408689473, attempt 3](https://github.com/HodeTech/LearnStack/actions/runs/44408689473/attempts/3)
+  passes 27 jobs with two skipped (the bot reviewers), layout **A**, at reviewed head
+  `5eeba2c3`; every required check is green. Attempt 1 (layout A) failed `ordinary-6`,
+  `ordinary-10` and the integration aggregate; attempt 2 (layout B) failed `ordinary-11`
+  and the aggregate.
+- The failed shards' `ci-proof` artifacts show the Keycloak fixture start-up timeout
+  (`readiness_timeout` at `provider_starting`, TLS readiness not completing within 120
+  seconds) with the failed cases lasting a millisecond, so no test body ran. The cause
+  is not localized, and the later pass does not erase the failed attempts. Only those
+  failed shards' artifacts were read; no original archive set was retained for this
+  head.
+- Merge-triggered main run `44425299178` was queued at this observation and has a
+  different source identity.
+- The local verification of the final tree is in the disposition record's table.
+
+Evidence boundaries and handoff:
+
+- No successful opposite-layout B exists on this final head. Final-head A/B
+  reconciliation remains an open P03-11 evidence follow-up, and the merge does not waive
+  Testing 06's complete-pair requirement.
+- Manual accessibility for the Studio federation page and the sign-in option was not
+  performed (ADR-0099 C20). The full local Integration and Architecture suites were not
+  run; hosted CI ran them.
+- The served-contract changes held for a new transition decision (the
+  `clientAuthentication` read-model field, the operation status descriptions and the
+  bound mismatches), gate G20, the Phase 11 items for the production realm invariants,
+  pre-registered accounts and the confirm-link copy, and the managed launcher's closed
+  inventory stay open as the disposition record lists them.
+
+Next by packet order is P03-9, platform authority and operational recovery (D12/D13,
+C14/C15). G13 and G14 are Open and its decision pass must settle them before the first
+Platform writer. It also owns the ADR-0099 federation operator steps: the orphan-broker
+sweep, the operator disable of a broker the tenant cannot reach and the
+delegated-account review. G20 is decided no later than the first packet that adds an
+assignable permission key. P03-10 DSAR and global closure, which integrates
+`federation_connections` and its broker, and P03-11 exit enforcement remain unstarted.
+Phase 03 stays in progress; this closeout starts no next packet.
