@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**383 test methods run in
+**385 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**287 rules in this catalogue are Implemented, and 169 of them are in that assembly.**
+**289 rules in this catalogue are Implemented, and 171 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -1877,13 +1877,15 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
   its own connection. Under `backend/src`, the configuration/construction scan
-  admits exactly **thirteen** files: six design-time factories, one per migration
+  admits exactly **sixteen** files: six design-time factories, one per migration
   chain; `ModuleDbContextRegistration`, which passes a *connection*;
   `PersistenceCompositionExtensions`, with the guarded platform-role builder;
   `ApplicationDataSource`, shared by the API and one-shot Seeder;
-  ADR-0046's confined `OutboxDispatcherDataSource`; and ADR-0072's deployment-only
-  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`; and ADR-0076/0077's
-  private authorization and evidence source builders. Another construction
+  ADR-0046's confined `OutboxDispatcherDataSource`; ADR-0072's deployment-only
+  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`; ADR-0076/0077's
+  private authorization and evidence source builders; the invitation SMTP and
+  provider-event intake sources; and ADR-0104's `IdentityIssuerRebind`, which opens
+  the rebind role's own direct connections. Another construction
   site requires its owning decision and an explicit allow-list change.
   A context on its own connection never saw the announcement, so every read through
   it returns zero rows under the corrected policy — silently.
@@ -3779,9 +3781,11 @@ which decides identity, multiplicity, capture and classification;
   `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
   it must catch and the shapes it must not, because with no offending statement anywhere
   the sweep passes whether it works or matches nothing; and a reflection check,
-  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly eight
-  write methods and no update: the event/job seams ship in Phase 02b, and
-  ADR-0072's two global seams ship in P03-1 Step 3. None
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly thirteen
+  write methods and no update: the event/job seams ship in Phase 02b, ADR-0072's two
+  global seams in P03-1 Step 3, the two trusted authorization seams in P03-2, the
+  operator result seam of ADR-0101 in P03-9 Step 1 and the two controlled-rebind seams
+  of ADR-0104 in P03-9 Step 3. None
   of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
   11 — so the exemption set ships with the rule **empty**, as exact paths: the first
   site to land adds its own path, so it is exempted by name rather than the pattern
@@ -5911,16 +5915,51 @@ structural test proves — and what it does not.
 
 #### `The_Operator_Token_Profile_Is_Called_From_The_Authentication_Boundary_Only`
 
-- **Asserts:** the only source file that names `PlatformOperatorTokenProfile`, calls its
-  `TryRead` or names `PlatformOperatorWitness.Minter` is
-  `LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs`. A further caller
-  joins by an edit here: the offline rebind tool, in P03-9 Step 3.
+- **Asserts:** the source files that name `PlatformOperatorTokenProfile` are exactly the
+  profile's own file, the API scheme's boundary
+  (`LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs`) and the offline
+  validator (`LearnStack.Infrastructure/PlatformOperator/PlatformOperatorTokenValidator.cs`);
+  the files that call its `TryRead` are exactly the scheme boundary and the offline
+  validator, the two callers of ADR-0101 § 7 through one validator; and the only file
+  that names `PlatformOperatorWitness.Minter` is the profile's own, where the one
+  private nested minter lives. A further caller joins by an edit here.
 - **Why it matters:** the witness is evidence that a token passed the closed profile,
   and `TryRead` is the only door to the minter that makes one.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1
-  review).
+  review; widened to the second caller by P03-9 Step 3).
+- **Phase:** P03-9.
+
+#### `The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`
+
+- **Asserts:** in code under `backend/src`, comments stripped, none of the spellings
+  `ConnectionStrings__IdentityRebind`, `ConnectionStrings:IdentityRebind` or
+  `GetConnectionString("IdentityRebind")` appears outside
+  `LearnStack.Tools.IdentityAuthorityRebind/RebindToolInput.cs`, which must itself name
+  the first. A planted source file in a temporary directory is found by the same scan,
+  and none of the demo launcher, the migration script or the two compose files carries
+  the key.
+- **Why it matters:** the sixth role is the only credential that can change the issuer,
+  and the claim that no runtime host can change it is exactly the claim that no runtime
+  configuration names it
+  ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 2).
+- **Source:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 2.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 3).
+- **Phase:** P03-9.
+
+#### `Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock`
+
+- **Asserts:** by IL, the callers of `IdentityAdvisoryLockKey.ForAuthorityRebind` in every
+  production assembly are exactly `NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync`,
+  `IdentityAuthorityQualification.QualifyCoreAsync` and
+  `IdentityIssuerRebind.RunCoreAsync`.
+- **Why it matters:** the exclusive form is the freeze and the shared form is what a start or a
+  creation waits behind; a fourth taker is a fourth party that can hold or wait on it.
+- **Source:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 5.
+- **Type:** xUnit + IL scan. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3).
 - **Phase:** P03-9.
 
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`

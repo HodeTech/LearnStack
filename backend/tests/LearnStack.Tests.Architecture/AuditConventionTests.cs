@@ -516,15 +516,16 @@ public sealed partial class AuditConventionTests
     public void IAuditStore_Exposes_No_Update_Method()
     {
         // The other half of the same claim, and the one a reader checks first. ADR-0033
-        // ADR-0046, ADR-0047, ADR-0072, ADR-0077 and ADR-0101 authorize eleven writes and no update; another method would
-        // make the port contradict its closed write contract.
+        // ADR-0046, ADR-0047, ADR-0072, ADR-0077, ADR-0101 and ADR-0104 authorize thirteen writes and no update;
+        // another method would make the port contradict its closed write contract.
         typeof(IAuditStore).GetMethods()
             .Select(method => method.Name)
             .Should().BeEquivalentTo(
                 "WritePendingAsync", "WriteStandaloneAsync", "WriteBestEffortAsync",
                 "WritePlatformScopeAsync", "WriteEventTerminalAsync", "WriteJobTerminalAsync",
                 "WriteGlobalIdentityPendingAsync", "ReconcileGlobalIdentityAsync",
-                "WriteAuthorizationPendingAsync", "WriteAuthorizationStandaloneAsync", "WritePlatformOperatorResultAsync");
+                "WriteAuthorizationPendingAsync", "WriteAuthorizationStandaloneAsync", "WritePlatformOperatorResultAsync",
+                "WriteIdentityRebindIntentAsync", "WriteIdentityRebindResultAsync");
     }
 
     /// <summary>

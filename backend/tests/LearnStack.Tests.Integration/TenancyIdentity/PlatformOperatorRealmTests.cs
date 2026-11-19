@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.Tests.Integration.Database;
 using LearnStack.SharedKernel.Platform;
@@ -80,7 +81,7 @@ public sealed class PlatformOperatorRealmTests : IAsyncLifetime
             .Should().BeLessThanOrEqualTo(TimeSpan.FromMinutes(15), "the realm caps the operator client's access token");
 
         var settings = Settings(token.GetPayloadValue<string>("acr"));
-        PlatformOperatorTokenProfile.TryRead(token, settings, DateTimeOffset.UtcNow, null, out var witness, out _)
+        PlatformOperatorTokenProfile.TryRead(token, settings, DateTimeOffset.UtcNow, PlatformOperatorSettings.Executor, null, out var witness, out _)
             .Should().BeTrue("the token the realm issues is the token the scheme accepts");
         witness!.SubjectDigest.Should().Be(PlatformOperatorSubject.Digest(_keycloak.IssuerFor("learnstack-hub"), token.Subject));
     }
@@ -116,7 +117,7 @@ public sealed class PlatformOperatorRealmTests : IAsyncLifetime
         var token = new JsonWebToken(exchange.AccessToken);
 
         token.Audiences.Should().NotContain("learnstack-platform");
-        PlatformOperatorTokenProfile.TryRead(token, Settings("mfa"), DateTimeOffset.UtcNow, null, out _, out _)
+        PlatformOperatorTokenProfile.TryRead(token, Settings("mfa"), DateTimeOffset.UtcNow, PlatformOperatorSettings.Executor, null, out _, out _)
             .Should().BeFalse("a portal token carries neither the operator client nor the platform audience");
     }
 

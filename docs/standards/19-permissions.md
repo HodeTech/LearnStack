@@ -92,7 +92,7 @@ nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.killswitch.write`, `platform.tenant.write` and `platform.tenant_bootstrap.write` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.killswitch.write`, `platform.tenant.write`, `platform.tenant_bootstrap.write` and `platform.identity_authority.admin` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 
@@ -106,13 +106,18 @@ not change when it grows ([ADR-0101](../decisions/0101-platform-operator-authori
 | `platform.killswitch.write` | `tenancy.killswitch.toggle` | P03-9 Step 1 |
 | `platform.tenant.write` | `tenancy.tenant.create` (tenant provisioning), `tenancy.hostmapping.write` (host mapping) | P03-9 Step 2 |
 | `platform.tenant_bootstrap.write` | `identity.role.initialize`, `identity.membership.create_first_admin`, `identity.membership.recover_admin` | P03-9 Step 2 |
+| `platform.identity_authority.admin` | `identity.authority.rebind` (the controlled issuer rebind, an offline tool and not a route) | P03-9 Step 3 |
 
 The five onboarding acts of
 [ADR-0102](../decisions/0102-production-tenant-onboarding.md) run under the
 `PlatformOperator` authorization source, which is not a Membership candidate: their
 policies are `FiniteTrusted` with that single source, the business actor of every row
 they write is `UserId.SystemActor`, and the operator is recorded in audit only. The
-grant is evaluated by the gate on every act, never cached across acts.
+grant is evaluated by the gate on every act, never cached across acts. The rebind of
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md) is not an act of that
+executor and not a route: its registered operation needs neither the platform role nor
+the pipeline, so neither the scope nor the executor can spend its admission, and the
+offline tool that consumes it validates the same token and evaluates the same grant.
 
 Tenant permissions are only meaningful inside an admitted tenant scope.
 Organization grants require an eligible Membership for that exact organization.

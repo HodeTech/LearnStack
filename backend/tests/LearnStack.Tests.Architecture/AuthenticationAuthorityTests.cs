@@ -11,6 +11,7 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class AuthenticationAuthorityTests
 {
     private const string Authentication = "LearnStack.Api.Authentication.";
+    private const string OperatorValidation = "LearnStack.Infrastructure.PlatformOperator.";
     private const string Identity = Authentication + nameof(ValidatedTenantIdentity);
     private const string Verified = Authentication + nameof(VerifiedProviderSubject);
     private const string Feature = Authentication + nameof(TenantCredentialFeature);

@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Identity;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 

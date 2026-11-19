@@ -358,11 +358,15 @@ public sealed partial class AuthenticationAuthorityTests
 
     /// <summary>
     /// The operator token profile is its own authority (ADR-0101 § 2, § 3) and reads the validated
-    /// operator token's claims by design. It is exempt by exact type and method, so a raw read in any
-    /// other method of that type, or anywhere else, is still an offender.
+    /// operator token's claims by design; the offline validator that the rebind tool drives validates the same
+    /// token with the stock handler before it applies the profile (ADR-0101 § 7, ADR-0104 § 3). Both are exempt by
+    /// exact type and method, so a raw read in any other method of those types, or anywhere else, is still an
+    /// offender.
     /// </summary>
     private static bool IsOperatorTokenProfileRead(Call call) =>
-        call.Source.Owner.FullName == Authentication + "PlatformOperatorTokenProfile" && call.Source.Name == "TryRead";
+        call.Source.Owner.FullName == OperatorValidation + "PlatformOperatorTokenProfile" && call.Source.Name == "TryRead"
+        || call.Source.Owner.FullName == OperatorValidation + "PlatformOperatorTokenValidator"
+            && call.Source.Name is "ValidateAsync" or ".cctor";
 
     private static bool IsClosedRolesAbsenceCheck(Call call)
     {

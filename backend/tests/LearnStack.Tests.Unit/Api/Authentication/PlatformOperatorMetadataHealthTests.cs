@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Time;
 using Xunit;
 

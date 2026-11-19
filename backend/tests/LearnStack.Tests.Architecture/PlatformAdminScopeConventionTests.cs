@@ -178,9 +178,9 @@ public sealed partial class PlatformAdminScopeConventionTests
             ["LearnStack.Infrastructure.PlatformOperator.PlatformOperatorGate"],
             "only the gate mints an admission, after it has evaluated a grant");
         FullNames(types, typeof(PlatformOperatorWitness.Minter)).Should().BeEquivalentTo(
-            ["LearnStack.Api.Authentication.PlatformOperatorTokenProfile+WitnessMinter"],
-            "only the operator token profile mints a witness, through a private nested minter; the rebind "
-            + "tool joins in Step 3 by an edit to this list, not by accident");
+            ["LearnStack.Infrastructure.PlatformOperator.PlatformOperatorTokenProfile+WitnessMinter"],
+            "only the operator token profile mints a witness, through a private nested minter; the offline rebind "
+            + "tool is a second caller of the profile, not a second minter (ADR-0101 § 7, ADR-0104 § 3)");
         FullNames(types, typeof(IPlatformOperatorGate)).Should().BeEquivalentTo(
             ["LearnStack.Infrastructure.PlatformOperator.PlatformOperatorGate"],
             "a second gate is how a permissive default ships");
@@ -193,17 +193,60 @@ public sealed partial class PlatformAdminScopeConventionTests
     public void The_Operator_Token_Profile_Is_Called_From_The_Authentication_Boundary_Only()
     {
         // The witness is evidence that a token passed the profile. TryRead is the only door to the
-        // minter, so who may call it is the question: the scheme's TokenValidated event, which lives
-        // beside it, and nothing else in production code. The real-realm test and the offline rebind
-        // tool (Step 3) are the sanctioned further callers, the latter added here by name.
-        const string Boundary = "LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs";
+        // minter, so who may call it is the question: the scheme's TokenValidated event, and the offline
+        // validator the rebind tool drives (ADR-0101 § 7: two callers, one validator), and nothing else in
+        // production code. The profile's own file names it too, because it defines it.
+        const string Scheme = "LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs";
+        const string Offline = "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorTokenValidator.cs";
+        const string Profile = "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorTokenProfile.cs";
 
         SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorTokenProfile", except: null)
-            .Should().Equal([Boundary], "no other source file may name the profile that mints a witness");
+            .Should().BeEquivalentTo([Scheme, Offline, Profile], "no other source file may name the profile that mints a witness");
         SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorTokenProfile.TryRead(", except: null)
-            .Should().Equal([Boundary]);
+            .Should().BeEquivalentTo([Scheme, Offline], "only the two sanctioned callers read a token through the profile");
         SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorWitness.Minter", except: null)
-            .Should().Equal([Boundary], "the witness minter base is named by its one nested subclass");
+            .Should().BeEquivalentTo([Profile], "the witness minter base is named by its one nested subclass");
+    }
+
+    [Fact]
+    public void The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool()
+    {
+        // ADR-0104 § 2: the sixth role's connection string exists only in the offline tool's environment, so no runtime
+        // host can change the issuer whatever it does. Every spelling of the key, in code with comments stripped, is
+        // confined to the one tool file that reads it, and that file must name it, or the scan could pass over nothing.
+        const string Tool = "LearnStack.Tools.IdentityAuthorityRebind/RebindToolInput.cs";
+        string[] spellings = ["ConnectionStrings__IdentityRebind", "ConnectionStrings:IdentityRebind", "GetConnectionString(\"IdentityRebind\")"];
+
+        foreach (var spelling in spellings)
+        {
+            SourceScan.FilesContaining(SourceScan.SourceRoot, spelling, except: Tool)
+                .Should().BeEmpty($"the rebind credential '{spelling}' is read by the tool alone");
+        }
+
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "ConnectionStrings__IdentityRebind", except: null)
+            .Should().Equal([Tool], "the tool reads the credential from its environment, and the scan matched it");
+
+        // A planted negative control: a second reader anywhere else is found.
+        var planted = Directory.CreateTempSubdirectory("rebind-key-");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(planted.FullName, "Leak.cs"),
+                "class Leak { string S => System.Environment.GetEnvironmentVariable(\"ConnectionStrings__IdentityRebind\"); }");
+            SourceScan.FilesContaining(planted.FullName, "ConnectionStrings__IdentityRebind", except: null)
+                .Should().Equal(["Leak.cs"]);
+        }
+        finally
+        {
+            planted.Delete(recursive: true);
+        }
+
+        // No compose service, demo launcher or migration script forwards it to anything else.
+        foreach (var path in new[] { "scripts/demo.mjs", "scripts/demo-database.mjs", "scripts/migrate.mjs", "infra/compose/dev.yml", "infra/compose/e2e.yml" })
+        {
+            File.ReadAllText(Path.Combine(RepositoryPaths.RepoRoot(), path.Replace('/', Path.DirectorySeparatorChar)))
+                .Should().NotContain("ConnectionStrings__IdentityRebind", $"{path} never carries the rebind credential");
+        }
     }
 
     [Fact]

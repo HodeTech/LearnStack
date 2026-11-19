@@ -36,6 +36,14 @@ PlatformOperator__Grants__0__Subject=<the operator's sub>
 PlatformOperator__Grants__0__Permissions__0=platform.killswitch.write
 ```
 
+The registered permissions are `platform.killswitch.write`
+([killswitch](killswitch.md)), `platform.tenant.write` and
+`platform.tenant_bootstrap.write` ([tenant onboarding](tenant-onboarding.md)), and
+`platform.identity_authority.admin`, which the offline
+[issuer rebind](identity-issuer-rebind.md) tool checks against the same grants. That
+tool reads the same `PlatformOperator__*` settings from its own environment and is not
+an API route.
+
 A Self-Hosted issuer other than the shipped realm must issue access tokens that meet the
 profile below. If it cannot, no operator can act, by design.
 

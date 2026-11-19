@@ -204,10 +204,12 @@ public sealed partial class FederationAdapterConventionTests
             "JWT bearer metadata and JWKS (ADR-0064): the fixed Authentication:Tenant:Issuer only",
         ["LearnStack.Api/Authentication/CurrentInvitationRecipientReader.cs"] =
             "the invitation recipient's UserInfo read (ADR-0093): the fixed tenant-realm issuer only",
-        ["LearnStack.Api/Authentication/BoundedMetadataReader.cs"] =
-            "the bounded metadata read both bearer schemes share (ADR-0064, ADR-0101 § 2): the fixed issuer each scheme configures only",
-        ["LearnStack.Api/Authentication/PlatformOperatorMetadata.cs"] =
-            "the operator scheme's metadata and JWKS client (ADR-0101 § 2): the one pinned PlatformOperator:Issuer, never a followed redirect",
+        ["LearnStack.Infrastructure/Identity/BoundedMetadataReader.cs"] =
+            "the bounded metadata read both bearer schemes and the rebind tool share (ADR-0064, ADR-0101 § 2, ADR-0104): the fixed issuer each caller configures only",
+        ["LearnStack.Infrastructure/PlatformOperator/PlatformOperatorMetadata.cs"] =
+            "the operator validator's metadata and JWKS client, shared by the API scheme and the offline rebind tool (ADR-0101 § 2, ADR-0104 § 3): the one pinned PlatformOperator:Issuer, never a followed redirect",
+        ["LearnStack.Tools.IdentityAuthorityRebind/KeycloakRealmContinuitySource.cs"] =
+            "the offline rebind tool's read of the new realm (ADR-0104 § 4, § 6): the one new issuer's own origin with an operator-supplied view-users credential, never a followed redirect",
         ["LearnStack.Infrastructure/Email/Smtp/SmtpEmailProvider.cs"] =
             "operator-configured SMTP host for invitation mail; not a tenant URL",
     };

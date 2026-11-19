@@ -19,6 +19,7 @@
          to be asserted against the real schema rather than taken on trust. -->
     <ProjectReference Include="..\..\src\LearnStack.Tools.Seeder\LearnStack.Tools.Seeder.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Tools.IdentityAuthorityInstaller\LearnStack.Tools.IdentityAuthorityInstaller.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Tools.IdentityAuthorityRebind\LearnStack.Tools.IdentityAuthorityRebind.csproj" />
     <ProjectReference Include="../LearnStack.Tests.JobLifecycleProbe/LearnStack.Tests.JobLifecycleProbe.csproj"
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="../LearnStack.Tests.AuthorizationEvidenceProbe/LearnStack.Tests.AuthorizationEvidenceProbe.csproj"

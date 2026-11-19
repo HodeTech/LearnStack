@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Platform;
@@ -31,7 +32,7 @@ public sealed class PlatformOperatorAuthenticationTests
     public void A_Token_Meeting_The_Whole_Profile_Yields_A_Witness_For_The_Pinned_Issuer()
     {
         var read = PlatformOperatorTokenProfile.TryRead(
-            Token(), Settings(), Now, "00-trace-01", out var witness, out var cause);
+            Token(), Settings(), Now, PlatformOperatorSettings.Executor, "00-trace-01", out var witness, out var cause);
 
         read.Should().BeTrue();
         witness!.Issuer.Should().Be(Issuer);
@@ -90,7 +91,7 @@ public sealed class PlatformOperatorAuthenticationTests
             default: throw new ArgumentOutOfRangeException(nameof(defect));
         }
 
-        PlatformOperatorTokenProfile.TryRead(Token(claims), Settings(), Now, null, out var witness, out var cause)
+        PlatformOperatorTokenProfile.TryRead(Token(claims), Settings(), Now, PlatformOperatorSettings.Executor, null, out var witness, out var cause)
             .Should().BeFalse();
         witness.Should().BeNull();
         cause.Should().Be(expected);

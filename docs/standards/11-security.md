@@ -171,7 +171,16 @@ LearnStack runs **two Keycloak realms** per
   the operator surface remains the killswitch writer. The executor that installs an
   act's tenant context accepts only an admission the gate minted for that act within the
   last 30 seconds and spends it once, and the seeder refuses to run outside a
-  Development deployment.
+  Development deployment. The controlled issuer rebind
+  ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md)) is not an HTTP route at
+  all: an offline tool validates the same operator token with the same validator, admits
+  the act against the same per-act grant (`platform.identity_authority.admin`) and then
+  uses a sixth, confined database role whose credential exists only in the tool's
+  environment ([Database Standards](05-database.md#controlled-issuer-rebind-storage)).
+  Its realm credential is an operator-supplied `view-users` client for the new realm,
+  created for the run and deleted after it; it is not a LearnStack runtime or federation
+  credential, and [ADR-0099](../decisions/0099-confined-tenant-federation.md)'s refusal
+  of user-level authority for LearnStack is unaffected.
 
 General rules:
 
@@ -572,6 +581,18 @@ for the full strategy. Standards-side:
 - The `app.tenant_id` and `app.organization_id` session variables are set with
   `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
   which is the single authority for that placement.
+
+### Confined identity-rebind role
+
+`learnstack_identity_rebind` is the sixth login role and the only credential that can
+change `identity_authority.issuer`. It is `NOINHERIT` and `NOBYPASSRLS`, holds a handful
+of column grants and one policy arm, and is configured on no API, worker, seeder, web or
+compose service: [`The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`](21-architecture-tests-catalogue.md#the_identity_rebind_credential_is_named_only_by_the_rebind_tool)
+confines the key to the one tool file that reads it, and the tool refuses to use a role
+whose posture is not exactly the declared one. A column grant to a runtime role guarded
+by a transaction setting was rejected, because any session can set the setting.
+[Database Standards](05-database.md#controlled-issuer-rebind-storage) owns the grants,
+policies, trigger and lock.
 
 ### Confined event dispatcher
 

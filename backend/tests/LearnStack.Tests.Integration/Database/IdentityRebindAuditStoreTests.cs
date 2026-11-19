@@ -26,7 +26,7 @@ public sealed class IdentityRebindAuditStoreTests(PublicReadFixture parent)
     [Fact]
     public async Task The_Intent_And_The_Result_Rows_Are_Written_Bound_To_The_Admission_And_Carry_The_Ticket()
     {
-        await using var scope = Store();
+        await using var scope = RebindProofSupport.Store();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditStore>();
         var admission = Admit(ticket: "CHG-104");
         var authority = Guid.CreateVersion7();
@@ -59,7 +59,7 @@ public sealed class IdentityRebindAuditStoreTests(PublicReadFixture parent)
     [Fact]
     public async Task The_Result_Row_Commits_With_The_Transaction_Or_Not_At_All()
     {
-        await using var scope = Store();
+        await using var scope = RebindProofSupport.Store();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditStore>();
         var admission = Admit();
 
@@ -76,7 +76,7 @@ public sealed class IdentityRebindAuditStoreTests(PublicReadFixture parent)
     [Fact]
     public async Task A_Row_That_Differs_From_Its_Admission_Or_Its_Declaration_Is_Refused_Before_The_Database()
     {
-        await using var scope = Store();
+        await using var scope = RebindProofSupport.Store();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditStore>();
         var admission = Admit(ticket: "CHG-104");
         var authority = Guid.CreateVersion7();
@@ -136,7 +136,7 @@ public sealed class IdentityRebindAuditStoreTests(PublicReadFixture parent)
     [Fact]
     public async Task A_Database_Refusal_Is_An_Audit_Write_Failure_So_The_Rebind_Cannot_Commit()
     {
-        await using var scope = Store();
+        await using var scope = RebindProofSupport.Store();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditStore>();
         var admission = Admit();
 
@@ -212,22 +212,6 @@ public sealed class IdentityRebindAuditStoreTests(PublicReadFixture parent)
         Timestamp = DateTimeOffset.UtcNow,
         Metadata = "{\"operator\":" + PlatformOperatorAttribution.From(admission).ToOperatorJson(admission.Ticket) + "}",
     };
-
-    private AsyncServiceScope Store() =>
-        new ServiceCollection()
-            .AddMetrics()
-            .AddLogging()
-            .AddScoped<IAuditStateCapture, AuditStateCapture>()
-            .AddSingleton<IAuditHealth, AuditHealth>()
-            .AddSingleton<IAuditCatalog>(new AuditCatalog([new IdentityAuditCatalogSource()]))
-            .AddSingleton<ITenantContextAccessor>(StaticTenantContextAccessor.Unresolved)
-            .AddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment, GlobalIdentityEnrollment>()
-            .AddSingleton(new Lazy<NpgsqlDataSource>(
-                () => throw new InvalidOperationException("The rebind rows are written on the caller's own connection.")))
-            .AddScoped<IAuditStore, PostgresAuditStore>()
-            .BuildServiceProvider()
-            .GetRequiredService<IServiceScopeFactory>()
-            .CreateAsyncScope();
 
     private sealed record Row(Guid Tenant, string Operation, string Outcome, Guid? Actor, string? Reason, string Module, string Entity, string Metadata);
 

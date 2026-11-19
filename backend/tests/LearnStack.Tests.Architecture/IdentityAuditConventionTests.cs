@@ -18,6 +18,9 @@ public sealed partial class IdentityAuditConventionTests
     private const string BindingService = "LearnStack.Modules.Identity.Infrastructure.Bindings.GlobalIdentityBindingService";
     private const string InitialMigration = "LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.create_identity_schema";
     private const string Installer = "LearnStack.Infrastructure.Audit.IdentityCreationWitnessInstaller";
+    private const string RebindInstaller = "LearnStack.Infrastructure.Audit.IdentityRebindAuditInstaller";
+    private const string RebindDdl = "LearnStack.Modules.Identity.Infrastructure.Persistence.IdentityAuthorityRebindDdl";
+    private const string RebindRun = "LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityIssuerRebind";
     private const string GlobalSource = "LearnStack.Application.Audit.AuditExecutionCoordinator+GlobalCreationSource";
     private const string InvitationJobStore = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailJobStore";
     private const string InvitationStager = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailStager";
@@ -47,6 +50,11 @@ public sealed partial class IdentityAuditConventionTests
             .Should().Equal(typeof(TransactionExecutionCoordinator).FullName + ".ExecuteFrameAsync");
         Callers(typeof(IAuditStore).FullName!, nameof(IAuditStore.ReconcileGlobalIdentityAsync))
             .Should().Equal(typeof(AuditExecutionCoordinator).FullName + ".ReconcileAsync");
+        // ADR-0104 § 8: the two witness-bound rebind writes have one production caller each, the rebind run itself.
+        Callers(typeof(IAuditStore).FullName!, nameof(IAuditStore.WriteIdentityRebindIntentAsync))
+            .Should().Equal(RebindRun + ".TryWriteIntentAsync");
+        Callers(typeof(IAuditStore).FullName!, nameof(IAuditStore.WriteIdentityRebindResultAsync))
+            .Should().Equal(RebindRun + ".RunCoreAsync");
 
         var audit = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
             "LearnStack.Infrastructure.Audit", "PostgresAuditStore.cs"));
@@ -69,6 +77,8 @@ public sealed partial class IdentityAuditConventionTests
         Il.MethodsNaming(migration!, Installer).Should().Equal("Down", "Up");
         Callers(Installer, "Install").Should().Equal(InitialMigration + ".Up");
         Callers(Installer, "Remove").Should().Equal(InitialMigration + ".Down");
+        // ADR-0104: the rebind role's audit_log grant and policy arm have one central owner and one caller.
+        Callers(RebindInstaller, "Install").Should().Equal(RebindDdl + ".Add");
         foreach (var owner in new[] { InvitationJobStore, InvitationStager })
         {
             var adapter = module.GetType(owner);
@@ -94,6 +104,18 @@ public sealed partial class IdentityAuditConventionTests
         definition.Body.Instructions.Add(extraFrameworkRead);
         try { CoreEdgeViolations(registration).Should().NotBeEmpty("the declaration helper cannot acquire another framework registry read"); }
         finally { definition.Body.Instructions.Remove(extraFrameworkRead); }
+    }
+
+    [Fact]
+    public void Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock()
+    {
+        // ADR-0104 § 5: the exclusive form belongs to the rebind run and the shared form to authority qualification and
+        // the User-creation admission. A fourth taker is a fourth party that can wait on, or hold, the freeze.
+        Callers(typeof(IdentityAdvisoryLockKey).FullName!, nameof(IdentityAdvisoryLockKey.ForAuthorityRebind))
+            .Should().Equal(
+                "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync",
+                "LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityAuthorityQualification.QualifyCoreAsync",
+                RebindRun + ".RunCoreAsync");
     }
 
     [Fact]
@@ -140,6 +162,7 @@ public sealed partial class IdentityAuditConventionTests
                 or "LearnStack.Application.Persistence.TransactionExecutionCoordinator"
                 or "LearnStack.Application.Persistence.TransactionExecutionCoordinator/PreparedGlobalIdentityOwner"
                 || type.FullName == InitialMigration && reference.FullName == Installer
+                || type.FullName == RebindDdl && reference.FullName == RebindInstaller
                 || type.FullName is InvitationJobStore or InvitationStager
                     && reference.FullName is InvitationProducer or InvitationJobOrigin
                 || type.FullName == InvitationRegistration && reference.FullName == FrameworkRequests;

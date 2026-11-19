@@ -228,7 +228,11 @@ will raise them — which this standard requires it to do.
   shipped its writer
   ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)); it keeps
   `(off-path)` because the write runs inside the platform scope rather than through the
-  pipeline.
+  pipeline. The controlled issuer rebind's two rows, `identity.authority.rebind_attempt`
+  and `identity.authority.rebind` ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md)
+  § 8), are `(off-path)` for the same reason one step further: they are written by an
+  offline tool on its own role through two witness-bound methods, under the platform
+  sentinel, with no actor and the ticket in `metadata.operator`.
 
 ## Baseline Coverage (LearnStack Core Modules)
 

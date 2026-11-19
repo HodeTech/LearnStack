@@ -13,6 +13,10 @@
          2.12.0 or later. -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <!-- The operator token validator lives in Infrastructure so the API scheme and the offline rebind tool share one
+         definition (ADR-0101 § 7, ADR-0104 § 3). The versions are the ones JwtBearer already resolves. -->
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
+    <PackageVersion Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.19.2" />
 
     <!-- EF Core (per-module Infrastructure projects). One servicing release for the
          whole EF set, and every project that references the Npgsql provider references

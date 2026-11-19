@@ -418,3 +418,16 @@ fixed seed capability grants no operator or system bypass stands.
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 9 — Controlled issuer rebind (2026-11-20)
+
+Accepted [ADR-0104](0104-controlled-issuer-rebind.md) is the only path that changes
+`identity_authority.issuer`, and it changes nothing else. It preserves `AuthorityId`,
+the subject keys, the actor ids and the closed tombstones that this record's identity
+foundation fixes, and it reads `users` through four columns of a confined sixth role
+without adding an update or a delete owner for `users`. A trigger refuses any change
+of the authority's `id` or `authority_id` for every role. The statements that the
+anchor is installed once and that no runtime process rebinds it stand.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

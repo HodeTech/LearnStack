@@ -1,22 +1,35 @@
 using LearnStack.SharedKernel.Hosting;
+using Microsoft.Extensions.Configuration;
 
-namespace LearnStack.Api.Authentication;
+namespace LearnStack.Infrastructure.PlatformOperator;
 
 /// <summary>
 /// The validated, immutable operator-scheme configuration; absent when the issuer is not
 /// configured, in which case no operator scheme and no operator route exists (ADR-0101 § 2, § 4).
 /// </summary>
-internal sealed class PlatformOperatorSettings
+/// <remarks>
+/// Owned by Infrastructure, not by the API, because the API's bearer scheme and the offline issuer-rebind tool
+/// judge the same token against the same settings and the same validator (ADR-0101 § 7, ADR-0104 § 3).
+/// </remarks>
+public sealed class PlatformOperatorSettings
 {
-    internal const string SectionName = "PlatformOperator";
-    internal const string Audience = "learnstack-platform";
-    internal const string RoutePrefix = "/api/platform";
-    internal const string Executor = "operator.api";
+    public const string SectionName = "PlatformOperator";
+    public const string Audience = "learnstack-platform";
+    public const string RoutePrefix = "/api/platform";
 
-    internal static TimeSpan ClockSkew { get; } = TimeSpan.FromSeconds(30);
+    /// <summary>The executor the API's operator scheme records on an act it admits.</summary>
+    public const string Executor = "operator.api";
+
+    /// <summary>The executor the offline issuer-rebind tool records on the rebind it admits (ADR-0104).</summary>
+    public const string RebindToolExecutor = "operator.rebind";
+
+    /// <summary>The configuration key of the tenant issuer, which an operator issuer may never equal.</summary>
+    public const string TenantIssuerConfigurationKey = "Authentication:Tenant:Issuer";
+
+    public static TimeSpan ClockSkew { get; } = TimeSpan.FromSeconds(30);
 
     /// <summary>The longest <c>exp - iat</c> a token may carry.</summary>
-    internal static TimeSpan MaxTokenLifetime { get; } = TimeSpan.FromMinutes(15);
+    public static TimeSpan MaxTokenLifetime { get; } = TimeSpan.FromMinutes(15);
 
     private PlatformOperatorSettings(
         string issuer, HashSet<string> acceptedAcr, HashSet<string> authorizedParties, TimeSpan maxAuthenticationAge)
@@ -28,14 +41,14 @@ internal sealed class PlatformOperatorSettings
         MaxAuthenticationAge = maxAuthenticationAge;
     }
 
-    internal string Issuer { get; }
-    internal string MetadataAddress { get; }
-    internal IReadOnlySet<string> AcceptedAcr { get; }
-    internal IReadOnlySet<string> AuthorizedParties { get; }
-    internal TimeSpan MaxAuthenticationAge { get; }
+    public string Issuer { get; }
+    public string MetadataAddress { get; }
+    public IReadOnlySet<string> AcceptedAcr { get; }
+    public IReadOnlySet<string> AuthorizedParties { get; }
+    public TimeSpan MaxAuthenticationAge { get; }
 
     /// <summary>Returns null when no issuer is configured; throws when the configuration is unsafe.</summary>
-    internal static PlatformOperatorSettings? FromConfiguration(IConfiguration configuration, DeploymentMode deploymentMode)
+    public static PlatformOperatorSettings? FromConfiguration(IConfiguration configuration, DeploymentMode deploymentMode)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         var section = configuration.GetSection(SectionName);
@@ -80,7 +93,7 @@ internal sealed class PlatformOperatorSettings
                 + "'0' and '1' are single-factor levels and are refused.");
         }
 
-        var tenantIssuer = configuration[TenantAuthenticationOptions.IssuerConfigurationKey];
+        var tenantIssuer = configuration[TenantIssuerConfigurationKey];
         if (!string.IsNullOrWhiteSpace(tenantIssuer)
             && string.Equals(tenantIssuer.TrimEnd('/'), issuer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {

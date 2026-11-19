@@ -1,7 +1,7 @@
 using System.Text;
 using OpenTelemetry;
 
-namespace LearnStack.Api.Authentication;
+namespace LearnStack.Infrastructure.Identity;
 
 /// <summary>
 /// Reads one identity-provider metadata document under a deadline and a byte cap, so a hostile
@@ -12,9 +12,9 @@ namespace LearnStack.Api.Authentication;
 /// reader: the tenant scheme and the operator scheme (ADR-0101 § 2) each pass their own
 /// client, timeout, cap and refusal text, and nothing else differs.
 /// </remarks>
-internal static class BoundedMetadataReader
+public static class BoundedMetadataReader
 {
-    internal static async Task<string> ReadAsync(
+    public static async Task<string> ReadAsync(
         HttpClient client,
         Uri uri,
         TimeSpan timeout,

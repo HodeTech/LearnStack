@@ -220,7 +220,10 @@ a fresh `postgres-data` volume
 `learnstack_migration` owns every table, `learnstack_app` is what the API
 connects as, and `learnstack_platform` / `learnstack_outbox_admin` hold audited
 bypasses. The four roles/passwords and baseline connection strings are in
-`.env.example`, and their privileges are not interchangeable. The accepted
+`.env.example`, and their privileges are not interchangeable. Two confined roles join
+them: `learnstack_identity_ingress` (provider intake) and `learnstack_identity_rebind`,
+the offline issuer-rebind tool's role, whose connection string is never a stack or host
+setting ([runbook](../../../docs/runbooks/identity-issuer-rebind.md)). The accepted
 P03-2 application-role sources do not expand this role set. Running migrations as the
 runtime role would make it the table owner, which is the arrangement
 `FORCE ROW LEVEL SECURITY` exists to defeat.

@@ -1,9 +1,10 @@
-using LearnStack.Infrastructure.PlatformOperator;
+using LearnStack.Infrastructure.Identity;
 using LearnStack.SharedKernel.Time;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
-namespace LearnStack.Api.Authentication;
+namespace LearnStack.Infrastructure.PlatformOperator;
 
 /// <summary>
 /// The operator scheme's own bounded client: finite I/O and no redirects, cookies or
@@ -13,10 +14,10 @@ namespace LearnStack.Api.Authentication;
 /// Owned apart from the tenant client because the two trust different issuers: sharing a
 /// client would share nothing a reader should have to reason about.
 /// </remarks>
-internal sealed class PlatformOperatorBackchannel : IDisposable
+public sealed class PlatformOperatorBackchannel : IDisposable
 {
-    internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
-    internal const int MaximumDocumentBytes = 256 * 1024;
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+    public const int MaximumDocumentBytes = 256 * 1024;
 
     public PlatformOperatorBackchannel() : this(new SocketsHttpHandler()) { }
 
@@ -40,7 +41,7 @@ internal sealed class PlatformOperatorBackchannel : IDisposable
         };
     }
 
-    internal HttpClient Client { get; }
+    public HttpClient Client { get; }
 
     public void Dispose() => Client.Dispose();
 }
@@ -64,23 +65,23 @@ internal sealed class PlatformOperatorBackchannel : IDisposable
 /// outcome.
 /// </para>
 /// </remarks>
-internal sealed class PlatformOperatorMetadataHealth(IClock clock)
+public sealed class PlatformOperatorMetadataHealth(IClock clock)
 {
     /// <summary>How long after a failed fetch the next one is refused without trying.</summary>
-    internal static readonly TimeSpan RetryBackoff = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan RetryBackoff = TimeSpan.FromSeconds(30);
 
     /// <summary>How old the last successful fetch may be once a later one has failed.</summary>
-    internal static readonly TimeSpan MaximumStaleness = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan MaximumStaleness = TimeSpan.FromMinutes(15);
 
     private long _lastSuccessTicks;
     private long _lastFailureTicks;
 
-    internal void RecordSuccess() => Volatile.Write(ref _lastSuccessTicks, clock.UtcNow.UtcTicks);
+    public void RecordSuccess() => Volatile.Write(ref _lastSuccessTicks, clock.UtcNow.UtcTicks);
 
-    internal void RecordFailure() => Volatile.Write(ref _lastFailureTicks, clock.UtcNow.UtcTicks);
+    public void RecordFailure() => Volatile.Write(ref _lastFailureTicks, clock.UtcNow.UtcTicks);
 
     /// <summary>Whether a fetch failed within the backoff and none has succeeded since.</summary>
-    internal bool InBackoff()
+    public bool InBackoff()
     {
         // A failure and a success in the same tick count as the failure being later: the safe reading.
         var failure = Volatile.Read(ref _lastFailureTicks);
@@ -90,7 +91,7 @@ internal sealed class PlatformOperatorMetadataHealth(IClock clock)
     }
 
     /// <summary>Whether keys are being served that a failed refresh could not renew in time.</summary>
-    internal bool IsStale()
+    public bool IsStale()
     {
         var success = Volatile.Read(ref _lastSuccessTicks);
         return success > 0
@@ -111,7 +112,7 @@ internal sealed class PlatformOperatorDocumentRetriever(
     PlatformOperatorSettings settings,
     PlatformOperatorBackchannel backchannel,
     PlatformOperatorMetadataHealth health,
-    ILogger<PlatformOperatorDocumentRetriever> logger) : IDocumentRetriever
+    ILogger logger) : IDocumentRetriever
 {
     private const string Refusal = "Platform operator metadata refused.";
 

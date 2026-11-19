@@ -74,15 +74,22 @@ serving only anonymous reads, requires both runtime configuration keys and the
 matching installed authority. Startup qualification rejects missing, unavailable
 or mismatched registration before accepting HTTP requests. Direct `dotnet run`
 reads process/.NET configuration, not the root `.env`. Restore the intended
-configuration when it differs from the selected database; an issuer rebind remains
-P03-9/G13 and is not an automatic repair.
+configuration when it differs from the selected database; an issuer change is never an
+automatic repair. It is the controlled rebind of
+[ADR-0104](../../decisions/0104-controlled-issuer-rebind.md), an offline tool on a
+confined sixth database role ([runbook](../../runbooks/identity-issuer-rebind.md)):
+it proves each Active person's subject is still reported by the new realm and no
+closed person's key reappears, preserves `AuthorityId`, keys and actors, and writes an
+intent row and a result row with the change. Authority qualification and the
+User-creation admission wait for it behind a shared advisory lock and then read the
+value it left.
 
 The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented. The directory contract appears below; closure and issuer rebind
-retain their named later owners. Production first-admin, Role-template initialization
+implemented. The directory contract appears below; closure retains its named later
+owner. Production first-admin, Role-template initialization
 and recovery are the operator acts of
 [ADR-0102](../../decisions/0102-production-tenant-onboarding.md)
 ([runbook](../../runbooks/tenant-onboarding.md)).

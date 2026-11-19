@@ -60,7 +60,7 @@ public sealed class PlatformOperatorActExecutorTests
         seen.Context.HostScope.Should().BeNull();
         seen.Descriptor.Should().NotBeNull();
         seen.Descriptor!.SourceKind.Should().Be(AuthorizationSourceKind.PlatformOperator);
-        seen.Descriptor.RequestType.Should().Be(typeof(OperatorProvisionTenantCommand));
+        seen.Descriptor.RequestType.Should().Be<OperatorProvisionTenantCommand>();
         seen.Descriptor.Operator!.ReasonSlug.Should().Be("tenant_provision");
         seen.Descriptor.Operator.Issuer.Should().Be(TestPlatformAdmissions.Issuer);
         seen.MatchedWhileLive.Should().BeTrue("the descriptor answers for its request in its context while the act is in flight");
