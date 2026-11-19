@@ -110,6 +110,12 @@ authority. Their named Phase 02c/P03-9 surfaces retain separate admission decisi
 [Database Standards § GRANT matrix](../../standards/05-database.md) records that
 the widening it needs is an ADR's to make, not a migration's.
 
+The Platform catalogue ([ADR-0101](../../decisions/0101-platform-operator-authority.md)) is
+separate and never assignable to a Role. Tenancy owns one key in it today,
+`platform.killswitch.write`, which authorizes the operator surface to toggle
+`platform_killswitches`; operators hold it by configuration
+([Standard 19](../../standards/19-permissions.md)).
+
 ## Bounded human administration contract
 
 Internal human requests carry separate Protected policies and audit bindings.

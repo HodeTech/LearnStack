@@ -39,9 +39,9 @@ internal sealed class OperationPolicyRequirement(OperationPolicy policy) : IAuth
     internal string Name => Prefix + Policy.Id;
 }
 
-internal enum InfrastructureOperationKind { Health = 1, OpenApi = 2, Documentation = 3 }
+internal enum InfrastructureOperationKind { Health = 1, OpenApi = 2, Documentation = 3, PlatformOperator = 4 }
 
-/// <summary>Only the three actual infrastructure mapping owners can attach these fixed declarations.</summary>
+/// <summary>Only the four actual infrastructure mapping owners can attach these fixed declarations.</summary>
 internal sealed class InfrastructureOperationMetadata
 {
     private InfrastructureOperationMetadata(InfrastructureOperationKind kind) => Kind = kind;
@@ -49,6 +49,7 @@ internal sealed class InfrastructureOperationMetadata
     internal static InfrastructureOperationMetadata Health { get; } = new(InfrastructureOperationKind.Health);
     internal static InfrastructureOperationMetadata OpenApi { get; } = new(InfrastructureOperationKind.OpenApi);
     internal static InfrastructureOperationMetadata Documentation { get; } = new(InfrastructureOperationKind.Documentation);
+    internal static InfrastructureOperationMetadata PlatformOperator { get; } = new(InfrastructureOperationKind.PlatformOperator);
 }
 
 internal enum HttpOperationClassification { Unmatched = 0, Refused = 1, Application = 2, Infrastructure = 3 }
@@ -70,6 +71,7 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
             return ReferenceEquals(infrastructure[0], InfrastructureOperationMetadata.Health)
                 || ReferenceEquals(infrastructure[0], InfrastructureOperationMetadata.OpenApi)
                 || ReferenceEquals(infrastructure[0], InfrastructureOperationMetadata.Documentation)
+                || ReferenceEquals(infrastructure[0], InfrastructureOperationMetadata.PlatformOperator)
                 ? HttpOperationClassification.Infrastructure : HttpOperationClassification.Refused;
         }
         if (declarations.Count != 1 || endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not { } action

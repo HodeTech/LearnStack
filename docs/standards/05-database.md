@@ -953,16 +953,13 @@ no context, `learnstack_app` reads **all** of `platform_killswitches`, which is 
 `USING (true)` exists to guarantee.
 
 **Packet 9 shipped the table and the read path, and no writer.** The reason is
-reachability rather than scheduling: every toggle runs inside
-`EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate` is
-`DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope
-permission arrives with the registry in
-[Phase 03](../roadmap/phase-03-identity-admin.md) — which owns the toggle command, its
-permission and its runbook
-([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)). The
-`learnstack_platform` write grant in the matrix below is written ahead of its caller,
-and no runtime path puts a row in the table until that phase lands. Every gated read
-honours a flipped switch the day one exists; what is absent is the flipping.
+reachability rather than scheduling: every toggle runs inside the platform scope, and no
+Platform gate existed. P03-9 Step 1 ships the writer, a service entered with an operator
+admission for `platform.killswitch.write`
+([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
+[ADR-0045 Amendment 5](../decisions/0045-entitlement-and-feature-flag-socket.md)); an
+architecture rule confines the table's write verbs to it. The `learnstack_platform` write
+grant in the matrix below is that writer's.
 
 The overlay is read through the L1 cache and invalidated on toggle, so the table itself
 is touched on a cache miss rather than on every request

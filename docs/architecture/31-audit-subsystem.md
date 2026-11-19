@@ -1400,15 +1400,13 @@ guards are specified only in the Database standard:
 `EnterPlatformAdminScope(reason)` itself, which is not a MediatR request and writes its own
 row through the fourth write path. `tenancy.killswitch.toggle` — the operation
 [ADR-0044 § 1](../decisions/0044-audit-write-path.md) names as the first to be performed
-*inside* that scope — ships no writer here: the registered gate is
-`DenyAllPlatformAdminGate` and the Platform-scope permission arrives with the registry in
-[Phase 03](../roadmap/phase-03-identity-admin.md), which owns the toggle command
-([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+*inside* that scope — shipped no writer in Packet 9; P03-9 Step 1 ships it as a service entered with an
+operator admission ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
+[ADR-0045 Amendment 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 [The Tenancy matrix](../modules/tenancy/audit.md) classifies it MUST and marks it
-**both** `(off-path)` and `(planned)`: off-path because the scope is entered by a service
-method rather than by a MediatR request, so there is no request type to key a catalogue
-entry on (§ 13); planned because no writer performs it in this packet. A cell carries
-every marker that applies, and this is the row that carries two.
+`(off-path)`: the scope is entered by a service method rather than by a MediatR request,
+so there is no request type to key a catalogue entry on (§ 13). It carried `(planned)` as
+well until its writer shipped; a cell carries every marker that applies.
 
 The organization column is decided from the same source as the tenant and at the same
 moment, which is what keeps the two paths agreeing. On the in-transaction path the

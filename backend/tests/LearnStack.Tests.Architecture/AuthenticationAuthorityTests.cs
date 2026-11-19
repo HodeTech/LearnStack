@@ -88,7 +88,7 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)
                      && !(call.Source.Site == ExpectedSite(Events + ".TokenValidated")
                          && call.Target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()")
-                     && !IsClosedRolesAbsenceCheck(call) && !IsClosedInvitationTokenRead(call, calls, methods) && !IsClosedConsentTokenRead(call, calls)))
+                     && !IsClosedRolesAbsenceCheck(call) && !IsOperatorTokenProfileRead(call) && !IsClosedInvitationTokenRead(call, calls, methods) && !IsClosedConsentTokenRead(call, calls)))
             errors.Add("Raw claim/role authority: " + call.Source.Site + " -> " + call.Target.FullName);
         // Object virtual dispatch and generic formatting can export a positional
         // record without an identity-declared call. Close acquisition, holders

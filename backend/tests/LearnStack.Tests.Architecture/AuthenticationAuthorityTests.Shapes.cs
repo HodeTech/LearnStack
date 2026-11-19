@@ -356,6 +356,14 @@ public sealed partial class AuthenticationAuthorityTests
                 "LearnStack.SharedKernel.Permissions.OperationInvocation", "System.Threading.CancellationToken");
     }
 
+    /// <summary>
+    /// The operator token profile is its own authority (ADR-0101 § 2, § 3) and reads the validated
+    /// operator token's claims by design. It is exempt by exact type and method, so a raw read in any
+    /// other method of that type, or anywhere else, is still an offender.
+    /// </summary>
+    private static bool IsOperatorTokenProfileRead(Call call) =>
+        call.Source.Owner.FullName == Authentication + "PlatformOperatorTokenProfile" && call.Source.Name == "TryRead";
+
     private static bool IsClosedRolesAbsenceCheck(Call call)
     {
         if (call.Source.Site != Signature(Authentication + "OperationHttpClassifier", "Classify", Authentication + "HttpOperationClassification",

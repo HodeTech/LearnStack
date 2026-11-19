@@ -2,6 +2,8 @@ using System.Reflection;
 using FluentAssertions;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Infrastructure.PlatformOperator;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -150,45 +152,81 @@ public sealed class PlatformAdminScopeConventionTests
     }
 
     [Fact]
-    public async Task PlatformAdminScope_Entry_Requires_Platform_Permission()
+    public void PlatformAdminScope_Entry_Requires_Platform_Permission()
     {
-        // Conjunct A — live. The gate port exists, the registered implementation refuses
-        // everyone, and the scope consults it. That last part is what makes ADR-0036's
-        // "checked before the scope opens" a call rather than a sentence; the ORDER —
-        // before the credential is touched — is asserted behaviourally in
-        // PlatformAdminGateTests, which a structural test cannot see.
-        typeof(IPlatformAdminGate).Should().BeAssignableTo<object>();
+        // Conjunct A — the scope takes an admission and nothing else. ADR-0036 asks for the
+        // permission to be "checked before the scope opens"; ADR-0101 § 7 makes that a type:
+        // the only way to hold a PlatformAdmission is to have passed the gate, so entry
+        // cannot happen unadmitted. The ORDER — before the credential is touched — is asserted
+        // behaviourally in PlatformAdminGateTests, which a structural test cannot see.
+        typeof(IPlatformAdminScope).GetMethod(nameof(IPlatformAdminScope.EnterAsync))!
+            .GetParameters()[0].ParameterType.Should().Be<PlatformAdmission>(
+                "entry takes the gate's proof and no caller-supplied reason or flag");
 
-        (await new DenyAllPlatformAdminGate().IsPermittedAsync("any", CancellationToken.None))
-            .Should().BeFalse("the shipped gate permits nobody until Phase 03");
+        // Conjunct B — the admission census is closed. Swept across every production
+        // assembly, not just the one declaring the types: a permissive minter or gate would
+        // be registered somewhere else, for a demo, and that is exactly where a narrowed scan
+        // would not look. Test assemblies are not scanned, so a test double does not widen it.
+        var types = ProductionAssemblies().SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type is { IsAbstract: false, IsInterface: false }).ToList();
 
-        SourceScan.FilesContaining(SourceScan.SourceRoot, "IsPermittedAsync", except: null)
-            .Should().Contain(ScopeFile, "the scope must actually consult the gate");
+        Names(types, typeof(PlatformAdmission.Minter)).Should().BeEquivalentTo(
+            [nameof(PlatformOperatorGate)],
+            "only the gate mints an admission, after it has evaluated a grant");
+        Names(types, typeof(PlatformOperatorWitness.Minter)).Should().BeEquivalentTo(
+            ["PlatformOperatorWitnessMinter"],
+            "only the operator authentication boundary mints a witness; the rebind tool joins in "
+            + "Step 3 by an edit to this list, not by accident");
+        Names(types, typeof(IPlatformOperatorGate)).Should().BeEquivalentTo(
+            [nameof(PlatformOperatorGate)], "a second gate is how a permissive default ships");
+        Names(types, typeof(IPlatformOperatorGrantSource)).Should().BeEquivalentTo(
+            [nameof(ConfigurationPlatformOperatorGrantSource)],
+            "a second grant source is how a permissive grant ships; the table adapter joins on its trigger");
+    }
 
-        // Conjunct B — VACUOUS, and doubly so. The permission key itself does not exist:
-        // there is no permission system until Phase 03, and no production caller enters
-        // the scope at all. What can be asserted now is that no second gate
-        // implementation has appeared to sit beside the deny-all one, because that is how
-        // a permissive default arrives — registered somewhere else, for a demo.
-        // Swept across every production assembly, not just the one declaring the
-        // interface. The first version scanned typeof(IPlatformAdminGate).Assembly —
-        // SharedKernel — so a permissive gate in Infrastructure or Api, which is exactly
-        // where "registered elsewhere for a demo" would put one, was invisible to the
-        // rule whose own message names that scenario. The mutation that was supposed to
-        // prove this leg passed only because the probe was planted in SharedKernel too.
-        var gates = ProductionAssemblies()
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type is { IsAbstract: false, IsInterface: false })
-            .Where(typeof(IPlatformAdminGate).IsAssignableFrom)
-            .Select(type => type.Name)
+    [Fact]
+    public void Only_The_Operator_Services_Hold_The_Platform_Scope()
+    {
+        // The scope is reachable from the services that perform an admitted operator act and
+        // from nowhere else. A request handler holding it would enter a cross-tenant scope
+        // from a tenant request path, which the marker rules forbid for a platform entry.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IPlatformAdminScope", except: null)
+            .Select(Path.GetFileName)
+            .Should().BeEquivalentTo(
+                [
+                    "IPlatformAdminScope.cs",
+                    "PlatformAdminScope.cs",
+                    "PersistenceCompositionExtensions.cs",
+                    "KillswitchToggle.cs",
+                ],
+                "each new operator service is added here deliberately, with its denied proof");
+    }
+
+    [Fact]
+    public void Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer()
+    {
+        // ADR-0101 § 13: the overlay reads the table, so a rule on every mention would be
+        // wrong; the confinement is on the write verbs. The writer upserts, so INSERT is the
+        // literal that must be present and UPDATE/DELETE the ones that must stay absent.
+        var writers = KillswitchWriteVerbs
+            .SelectMany(verb => SourceScan.FilesContaining(SourceScan.SourceRoot, verb, except: null))
+            .Select(Path.GetFileName)
             .Distinct()
             .ToList();
 
-        gates.Should().BeEquivalentTo(
-            [nameof(DenyAllPlatformAdminGate)],
-            "Phase 03 replaces this one; a second implementation appearing before then is "
-            + "how 'permissive to unblock a demo' gets shipped");
+        writers.Should().BeEquivalentTo(["KillswitchToggle.cs"], "the writer alone writes the table");
     }
+
+    private static readonly string[] KillswitchWriteVerbs =
+    [
+        "INSERT INTO platform_killswitches",
+        "UPDATE platform_killswitches",
+        "DELETE FROM platform_killswitches",
+        "TRUNCATE platform_killswitches",
+    ];
+
+    private static List<string> Names(IEnumerable<Type> types, Type baseType) =>
+        types.Where(baseType.IsAssignableFrom).Select(type => type.Name).Distinct().ToList();
 
     [Fact]
     public void The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable()

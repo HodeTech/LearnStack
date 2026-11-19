@@ -25,6 +25,7 @@ internal static class TenantAuthenticationPipelineProof
     private static readonly Dictionary<string, string[]> HelperLeaves = new(StringComparer.Ordinal)
     {
         ["MapLearnStackOpenApi"] = [],
+        ["MapLearnStackPlatformOperator"] = [],
         ["UseLearnStackPublicResponsePolicy"] = ["Use"],
         ["MapLearnStackClientErrors"] = ["UseStatusCodePages"],
         ["UseLearnStackCorrelationHeader"] = ["UseMiddleware<CorrelationHeaderMiddleware>"],
@@ -222,7 +223,7 @@ internal static class TenantAuthenticationPipelineProof
                     && (!instance || method.ParameterList.Parameters[0].Modifiers.Any(SyntaxKind.ThisKeyword))).ToArray();
                 // Only framework endpoint leaves are outside this middleware
                 // sequence. Our OpenAPI wrapper still has its real body inspected.
-                if (candidates.Length == 0 && name is "MapGet" or "MapOpenApi" or "MapScalarApiReference") continue;
+                if (candidates.Length == 0 && name is "MapGet" or "MapGroup" or "MapOpenApi" or "MapScalarApiReference") continue;
                 // Resolve source-owned helpers before admitting framework leaves,
                 // even if a helper is named UseAuthentication or starts with Use.
                 if (candidates.Length == 0 && name is "Use" or "UseMiddleware" or "UseExceptionHandler"

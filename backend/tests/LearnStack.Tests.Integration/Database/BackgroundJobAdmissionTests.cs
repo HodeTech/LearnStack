@@ -110,7 +110,6 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
             BackgroundJobRuntimeFixture.OrganizationKey, SchemaFixture.OrgA2);
         var otherTenant = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, tenant: SchemaFixture.TenantB);
         var probe = new BackgroundJobFixtureProbe();
-        var gate = new PermissiveGate();
         var reads = 0;
         var starts = 0;
         var observation = new BackgroundJobAdmissionObservation
@@ -136,16 +135,13 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         await using var host = Fixture.Host(database, probe, configure: services =>
         {
             observation.Configure(services);
-            services.AddSingleton<IPlatformAdminGate>(gate);
         });
-        (await gate.IsPermittedAsync("positive-control")).Should().BeTrue();
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         (await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create())).Outcome.Should().Be(JobStartExecutionOutcome.Started);
         reads.Should().Be(1);
         starts.Should().Be(1);
         observation.ReadScopeDisposed.Should().BeTrue();
         observation.StartScopeDisposed.Should().BeTrue();
-        gate.Calls.Should().Be(1, "the sticky ceiling refuses privileged scope entry before even a permissive gate");
         probe.Constructions.Should().BeEmpty();
     }
 
@@ -293,7 +289,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
             unit.IsRollbackOnly.Should().BeFalse();
             (await Fixture.SendAsync(services)).IsFailure.Should().BeTrue("accessor replacement cannot remove framework confinement");
             probe.Constructions.Should().BeEmpty("ordinary handler construction follows admission");
-            await FluentActions.Awaiting(() => services.GetRequiredService<IPlatformAdminScope>().EnterAsync("framework-proof"))
+            await FluentActions.Awaiting(() => services.GetRequiredService<IPlatformAdminScope>().EnterAsync(LearnStack.Tests.Fixtures.TestPlatformAdmissions.Admission()))
                 .Should().ThrowAsync<InvalidOperationException>().WithMessage("*background-job authority*");
             var privileged = services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
             await FluentActions.Awaiting(async () => await privileged.OpenConnectionAsync())
@@ -309,13 +305,6 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
             "UPDATE background_jobs SET phase = phase WHERE id = @id", ("id", job.Value));
         (await write.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.ReadOnlySqlTransaction);
         await SchemaQueries.ExecuteAsync(unit.Connection, unit.Transaction, "ROLLBACK TO SAVEPOINT readonly_probe");
-    }
-
-    private sealed class PermissiveGate : IPlatformAdminGate
-    {
-        internal int Calls { get; private set; }
-        public ValueTask<bool> IsPermittedAsync(string reason, CancellationToken cancellationToken = default)
-        { Calls++; return ValueTask.FromResult(true); }
     }
 
     private sealed class ProvisioningProbe : IProvisionsTenant

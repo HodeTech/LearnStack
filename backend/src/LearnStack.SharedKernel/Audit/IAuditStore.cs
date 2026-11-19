@@ -1,5 +1,6 @@
 using System.Data.Common;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Platform;
 
 namespace LearnStack.SharedKernel.Audit;
 
@@ -142,6 +143,32 @@ public interface IAuditStore
         DbConnection connection,
         DbTransaction transaction,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes a platform operator act's MUST result row on the scope's work transaction, so it
+    /// commits with the state change or not at all (ADR-0101 § 10).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A new witness-bound method, not a second caller of <see cref="WritePlatformScopeAsync"/>,
+    /// which keeps its single entry-row caller. The <paramref name="admission"/> binds the
+    /// row: its operation slug, closed reason and operator digest must match the draft, the
+    /// actor user id is NULL because an operator is not a user, and the outcome is success.
+    /// The scope is the only caller.
+    /// </para>
+    /// <para>
+    /// The draft carries the real target tenant for a tenant-targeted act and the platform
+    /// sentinel for a platform-wide one. Like the entry row it is written on the platform-role
+    /// connection, which is why the request's own connection is the wrong place for it.
+    /// </para>
+    /// </remarks>
+    Task WritePlatformOperatorResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write a platform operator result.");
 
     /// <summary>Inserts a MUST terminal audit on the successful transition's live transaction.</summary>
     /// <remarks>

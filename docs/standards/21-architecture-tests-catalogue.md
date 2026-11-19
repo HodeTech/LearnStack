@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**377 test methods run in
+**379 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -218,7 +218,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**282 rules in this catalogue are Implemented, and 164 of them are in that assembly.**
+**284 rules in this catalogue are Implemented, and 166 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -5875,46 +5875,49 @@ structural test proves — and what it does not.
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
-- **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
-- **Source:** ADR-0036 § The platform-admin override is not a resolution source.
-- **Type:** xUnit — reflection, a source scan, and a call to the registered gate.
-  **Kind:** structural (the marker and the scan) + behavioural (the gate refuses).
-- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
-- **Phase:** 02a (Packet 7).
-- **Note:** **the permission clause is live in its mechanism and vacuous in its subject;
-  the marker clause is vacuous outright.** Two Notes previously stood here assigning
-  "live" to opposite clauses — one written when the rule was Registered and one when it
-  landed — and this replaces both.
+- **Asserts:** entering the platform scope takes a `PlatformAdmission` and nothing else, and
+  the censuses that make an admission mean something are closed across every production
+  assembly: `PlatformAdmission.Minter` has exactly one subclass, the operator gate;
+  `PlatformOperatorWitness.Minter` has exactly one, the operator authentication boundary's;
+  `IPlatformOperatorGate` and `IPlatformOperatorGrantSource` each have exactly one
+  implementation. A second of any of them is how a permissive default ships.
+- **Source:** ADR-0036 § The platform-admin override is not a resolution source;
+  [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and § 8.
+- **Type:** xUnit — reflection over every production assembly, and behavioural cases without
+  Docker (`PlatformAdminGateTests`) and over HTTP with controlled signed tokens
+  (`PlatformOperatorHttpTests`). **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7; rewritten
+  against the real gate by P03-9 Step 1).
+- **Phase:** 02a (Packet 7); P03-9.
+- **Note:** the rule was live in its mechanism and vacuous in its subject while the registered
+  gate refused everyone. It now has a subject: a Platform permission exists (`PlatformPermissions`),
+  an operator can hold it through a grant, and a permitted entry is exercised. The ordering —
+  admission before the credential is touched — is behavioural and asserted in
+  `PlatformAdminGateTests`; a structural rule cannot see it. The marker clause, that no
+  handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry, is now
+  structural as well: `Only_The_Operator_Services_Hold_The_Platform_Scope` lists every file
+  that may hold the scope, and no request handler is among them.
 
-  *Mechanism, live:* the gate is a real port, the registered implementation refuses
-  everyone, `PlatformAdminScope` consults it, and no second implementation exists in any
-  production assembly — which is how a permissive default actually arrives, registered
-  elsewhere for a demo. The ordering, gate before the credential is touched, is
-  behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
+#### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
-  *Subject, vacuous:* there is no Platform permission to hold. The canonical
-  `AuthorizationBehavior` uses explicit live policies, while the retained
-  assignable manifest contains only Tenant/Organization pairs. API authentication
-  is delivered under ADR-0064; the Platform-scope permission remains Identity work in
-  [Phase 03](../roadmap/phase-03-identity-admin.md). So
-  nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
-  this packet ships. Packet 9 gives the scope its first real work and inherits the gate:
-  the platform-scope `security-event` row the scope writes on entry through
-  `IAuditStore.WritePlatformScopeAsync`
-  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)). The killswitch toggle is not
-  that caller. Packet 9 ships `platform_killswitches`, its policies, the overlay and the
-  cache family and **no writer at all**: a toggle command would sit behind
-  `DenyAllPlatformAdminGate` carrying a permission key nothing registers, so
-  [Phase 03](../roadmap/phase-03-identity-admin.md) owns the command, its permission and
-  its runbook
-  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
-  Neither is the GDPR redaction handler, which lands in Phase 03 with the `users` table
-  it needs.
+- **Asserts:** the files that name `IPlatformAdminScope` are exactly the interface, the scope,
+  the persistence composition and the operator services that perform an admitted act
+  (today the killswitch toggle). Adding a service is a deliberate edit here, with its denied proof.
+- **Why it matters:** a request handler holding the scope would enter a cross-tenant scope from a
+  tenant request path.
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).
+- **Phase:** P03-9.
 
-  *Marker clause, still vacuous — but for a narrower reason since Packet 7 step 9:* no
-  handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
-  `ProvisionTenantCommand` now carries the first, and nothing carries the second, so the
-  conjunction is empty because one half of it is — not because both are.
+#### `Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer`
+
+- **Asserts:** the verbs `INSERT INTO`, `UPDATE`, `DELETE FROM` and `TRUNCATE` against
+  `platform_killswitches` appear only in `KillswitchToggle`. The overlay's reads are unaffected.
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 13.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).
+- **Phase:** P03-9.
 
 ## P02d-4 public-read obligations
 

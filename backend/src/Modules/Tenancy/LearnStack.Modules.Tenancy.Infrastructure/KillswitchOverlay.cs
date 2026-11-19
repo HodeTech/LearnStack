@@ -17,12 +17,10 @@ namespace LearnStack.Modules.Tenancy.Infrastructure;
 /// can see it.
 /// </para>
 /// <para>
-/// <b>No writer, and that is reachability rather than scheduling.</b> Every toggle runs
-/// inside <c>EnterPlatformAdminScope(reason)</c> whose registered gate is
-/// <c>DenyAllPlatformAdminGate</c>, so
-/// <see href="../../../../../docs/roadmap/phase-03-identity-admin.md">Phase 03</see> owns
-/// the toggle command, its permission and its runbook. This type reads a table nothing in
-/// this packet can write, and every gated read honours a flipped switch the day one exists.
+/// <b>One writer.</b> The killswitch toggle service flips a key inside an admitted platform scope
+/// and drops this cache entry after the commit
+/// (<see href="../../../../../docs/decisions/0101-platform-operator-authority.md">ADR-0101 § 13</see>).
+/// This type only reads, and every gated read honours a flipped switch.
 /// </para>
 /// </remarks>
 /// <param name="dataSource">
@@ -57,8 +55,8 @@ public sealed class KillswitchOverlay(
     /// <b>Stated here rather than inherited.</b> Standards 20 fixes this family at the
     /// 60-second hot-path default, and it IS the staleness bound an operator sees: a
     /// killswitch flipped during an incident takes at most this long to take effect on an
-    /// instance whose cache is warm, because Packet 9 ships no writer to invalidate it
-    /// eagerly. Phase 03's toggle command ships the invalidation with it.
+    /// instance whose cache is warm, on an instance other than the one that flipped it, because the writer
+    /// drops only its own process's entry. The flipping instance sees the change at once.
     /// </remarks>
     public static readonly TimeSpan OverlayTtl = TimeSpan.FromSeconds(60);
 

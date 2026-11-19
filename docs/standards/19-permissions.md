@@ -96,6 +96,15 @@ nonempty foundation registry.
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 
+The registered Platform catalogue is `PlatformPermissions` in `LearnStack.SharedKernel`,
+apart from the tenant registry and never assignable, so the served tenant document does not
+change when it grows ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 5). A
+key is registered with the operation that has a denied proof for it:
+
+| Key | Operation | Packet |
+|---|---|---|
+| `platform.killswitch.write` | `tenancy.killswitch.toggle` | P03-9 Step 1 |
+
 Tenant permissions are only meaningful inside an admitted tenant scope.
 Organization grants require an eligible Membership for that exact organization.
 An explicit eligible Tenant grant can independently authorize the declared

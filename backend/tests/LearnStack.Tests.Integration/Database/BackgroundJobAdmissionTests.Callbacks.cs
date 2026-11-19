@@ -18,7 +18,6 @@ public sealed partial class BackgroundJobAdmissionTests
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
         var probe = new BackgroundJobFixtureProbe();
-        var gate = new PermissiveGate();
         var ids = new CallbackGuidFactory();
         var callbacks = 0;
         var constructor = Fixture.ParameterType.GetField("OnConstruction")!;
@@ -46,7 +45,6 @@ public sealed partial class BackgroundJobAdmissionTests
         {
             observation.Configure(services);
             services.AddSingleton<IGuidFactory>(ids);
-            services.AddSingleton<IPlatformAdminGate>(gate);
         });
         try
         {
@@ -55,7 +53,6 @@ public sealed partial class BackgroundJobAdmissionTests
             result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
             callbacks.Should().BeGreaterThan(0, "the callback must actually run in the production DTO/factory path");
             probe.Constructions.Should().BeEmpty();
-            gate.Calls.Should().Be(0, "privileged refusal precedes the deliberately permissive gate");
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
         }
         finally

@@ -64,6 +64,7 @@ public sealed partial class VersionedRouteConvention : IApplicationModelConventi
     public static readonly IReadOnlyList<string> UnversionedRoutePrefixes =
     [
         "api/internal",
+        "api/platform",
     ];
 
     public void Apply(ApplicationModel application)

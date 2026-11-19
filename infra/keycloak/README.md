@@ -186,7 +186,22 @@ manual ledger deletion, history reset, reduced retention or tenant-copy purge.
 | Realm | Population | Clients |
 |-------|------------|---------|
 | `learnstack` | Tenant users; four declared development accounts | `learnstack-web`: confidential code/S256 BFF; `learnstack-api`: resource and legacy service account; `learnstack-event-reader`: confined history reader; `learnstack-federation-admin`: confined federation adapter ([below](#federation-administration-client)); `account` and `account-console`: retired, disabled |
-| `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE; unchanged by P02b-6 |
+| `learnstack-hub` | Platform operators | `learnstack-hub-web`: public PKCE, the portal's; `learnstack-operator`: public PKCE for LearnStack's platform surface, audience `learnstack-platform`, 15-minute access tokens, MFA step-up |
+
+The `learnstack-hub` realm's browser flow is `browser-loa`: password at level 1, a one-time
+password at level 2, so a login through `learnstack-operator` (which asks for `acr` `mfa`) always
+ends in an `acr` that LearnStack accepts only for an operator who passed the second factor
+([ADR-0101](../../docs/decisions/0101-platform-operator-authority.md) § 3). The demo operator
+has a pinned subject and sets up an authenticator at its first login; production MFA enforcement
+for the realm stays [Phase 11](../../docs/roadmap/phase-11-production-hardening.md). A realm import
+into production never includes the demo user.
+
+`learnstack-hub-web` keeps `fullScopeAllowed: true` as a development posture, because the Hub
+operator portal maps the `hub-*` realm roles from its token. Narrowing it needs `scopeMappings` for
+those roles and is coordinated with the Hub's operator-portal packet (P02c-4), since the realm export
+is shared with the Hub repository. The `learnstack-operator` client is `false` and carries no realm
+roles. The procedure for getting a token is the
+[operator access runbook](../../docs/runbooks/operator-access.md).
 
 [SeedData.IdentityUsers](../../backend/src/LearnStack.Tools.Seeder/SeedData.cs)
 owns actor UUIDs and the account/tenant association. The read-only Seeder

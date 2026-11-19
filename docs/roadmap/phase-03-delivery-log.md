@@ -509,9 +509,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 264 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 372 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
+  - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24433,3 +24434,111 @@ and 19, Architecture 13, 28 and 30, the glossary, the Tenancy audit matrix, Phas
 Standard 05 grants and definers, Standard 19 key rows, Standard 21 rules, the permission
 and audit matrices and the runbooks land with the steps that use them. No gate other
 than G13 and G14 changes status, and no behavior is implemented by this record.
+
+### P03-9 Step 1 — operator authority and killswitch (2026-11-19)
+
+Step 1 delivers [ADR-0101](../decisions/0101-platform-operator-authority.md) § 1 to § 14
+for the first Platform operation, the killswitch toggle. The decisions were Accepted in
+`a396f50e`; this record is the implementation and its proof.
+
+Delivered:
+
+- **Contracts** in `LearnStack.SharedKernel`: the Platform permission catalogue
+  (`platform.killswitch.write`), the closed operation registry, the operator witness and
+  the admission, each constructible only through a nested `Minter`, the operator subject
+  digest, the gate and grant-source ports and the ticket grammar.
+- **Gate and grants** in `LearnStack.Infrastructure`: `PlatformOperatorGate`, the
+  configuration grant adapter on `IOptionsMonitor` (valid reloads apply on the next act,
+  an invalid reload refuses everyone), start-time validation of every grant, the
+  demo-operator rule, and the `learnstack.platform_operator` counters.
+- **Scope redesign**: `EnterAsync` takes an admission; the handle is a facade with no
+  connection or transaction member and closes its connection at commit; the entry row
+  carries `metadata.operator`, the closed reason slug and the correlation id with a NULL
+  actor; a new witness-bound `IAuditStore.WritePlatformOperatorResultAsync` writes the
+  MUST result row on the work transaction. `IPlatformAdminGate`,
+  `DenyAllPlatformAdminGate` and `PlatformAdminScopeDeniedException` are removed.
+- **Surface**: the `PlatformOperator` bearer scheme with a closed token profile shared
+  as `PlatformOperatorTokenProfile`, the named policy, minimal endpoints under
+  `/api/platform/v1`, the `platform-v1` OpenAPI document, the prefix added to the host
+  classification and versioned-route exemptions, and absence when no issuer is
+  configured.
+- **Killswitch writer** `KillswitchToggle`: reads the before state under `FOR UPDATE`,
+  upserts, writes the result row, commits, then drops the overlay entry, including after
+  an indeterminate commit. `tenancy.killswitch.toggle` is declared off-path and loses
+  its `(planned)` marker.
+- **Realm**: the `learnstack-operator` client with the `learnstack-platform` audience, a
+  900-second access-token lifespan, no realm roles in the token, the `browser-loa` flow
+  with a level-2 one-time password, `acr.loa.map` `mfa` to 2, and a pinned demo-operator
+  subject. Development configuration accepts `mfa` and grants the demo operator the one
+  key.
+- **Documents**: the operator-access and killswitch runbooks and the runbooks index; the
+  Keycloak README; Standard 19's Platform catalogue; the catalogue entry for
+  `PlatformAdminScope_Entry_Requires_Platform_Permission` and two new rules; the Tenancy
+  permission note; the glossary; the stale "no writer" narratives in Architecture 21 and
+  31, Standard 05 and the code comments.
+
+Findings made while implementing, each fixed:
+
+- The host's default and fallback authorization policies carry only the
+  declared-operation requirement and no authenticated-user requirement, so
+  `[Authorize(AuthenticationSchemes = ...)]` alone authenticated the token and then
+  admitted an anonymous caller. The endpoints use an explicit named policy that requires
+  an authenticated principal from this scheme only. The case that found it asserts the
+  `Bearer` challenge, which only the challenge path sets.
+- The pipeline-order proof treated the endpoint mapper's `MapGroup` as an unverifiable
+  helper; `MapGroup` joins `MapGet` as a framework endpoint leaf and the mapper is
+  declared.
+- The Debug build of the architecture project fails
+  `Authorization_Evidence_Uses_Trusted_Bounded_Provenance`, an IL-shape rule over a type
+  this step does not touch; the Release build that CI uses passes it. Recorded, not
+  changed.
+- Six closed censuses counted the new surface and were updated, each by exact type or
+  name and never by widening a pattern: the authenticated HTTP surface and the
+  job-manifest registration population exclude `PlatformOperatorEndpoints` (its own
+  population is closed by
+  `The_Operator_Surface_Is_Exactly_One_Authorized_Put_Endpoint_Under_Its_Prefix`); the
+  raw-claim authority census admits `PlatformOperatorTokenProfile.TryRead` alone;
+  `IAuditStore` gains its eleventh write; the unversioned-prefix list gains
+  `api/platform`; and Standard 21's published counts move from 377 to 379 test methods
+  and 164 to 166 rules in that assembly.
+- Development configuration now carries an operator issuer and the demo grant, so every
+  test host would have inherited them. The base test factory blanks the issuer and
+  points the one grant at a subject nobody holds; the operator tests set their own.
+  Grants without an issuer validate as inert, because with no issuer there is no scheme
+  and the grant source answers no for everyone.
+- A restored source file kept its old modification time, so an incremental build reused
+  the mutated binaries and three suites failed on stale code. Restored files are touched
+  before the rebuild.
+
+Proof run locally:
+
+| Suite | Result |
+|---|---|
+| Unit | 4,181 passed |
+| Integration, operator and boundary subset (619 cases: route, host classification, authenticated surface, composition, OpenAPI, deployment modes, job manifest, tenant authentication, platform scope, operator HTTP, job admission, idempotency, rate limit, federation) | 619 passed |
+| of which `PlatformOperatorHttpTests` (production Program, controlled RS256 issuer) | 26 passed |
+| of which `PlatformAdminScopeTests` (real PostgreSQL as the platform role) | 24 passed |
+| `PlatformOperatorRealmTests` (pinned Keycloak 26.7.5, real OTP login) | 3 passed |
+| Contract (served tenant document unchanged) | 13 passed |
+| Architecture (Release): scope and evidence rules, API conventions, audit conventions, corpus consistency | passed |
+| Architecture (Release): `OutboxDispatchConventionTests`, `AuthenticationAuthorityTests`, `AuthenticatedHttpSurfaceTests` | were still running at the commit; the result is recorded in the review-round entry |
+
+The real-realm cases show that the shipped export issues an operator token with audience
+`learnstack-platform`, `azp` `learnstack-operator`, `acr` `mfa`, an `auth_time`, a
+lifetime inside 15 minutes and the pinned subject, that the same profile the scheme uses
+accepts it, and that a token from the portal client on the same realm and user does not
+meet it.
+
+Mutation checks, each applied, built, run and restored: the gate skipping the grant, the
+ticket reaching a tenant-visible row, the cache dropped before the commit, a policy
+without an authenticated-user requirement, an ignored `auth_time` age, an unchecked
+`azp` and a result row allowed an actor were all killed. One survived: the scope's
+refusal of a registered operation that does not use the platform role, because the
+registry holds no such operation yet. It is an equivalent mutant today; Step 2 registers
+the first and drives the guard. The unit case that implied it covered the
+unregistered-operation half and was renamed to say so.
+
+Not done here and owned elsewhere: manual accessibility needs no screen in this step;
+the runbooks were written and their requests are the ones the tests make, but no person
+ran them end to end; gateway exposure, production realm MFA enforcement and the grant
+table adapter are in Phase 11's list.

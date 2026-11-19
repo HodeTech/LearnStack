@@ -1,166 +1,256 @@
-using LearnStack.Tests.Unit.Application.Jobs;
-using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
+using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Time;
+using LearnStack.Tests.Fixtures;
+using LearnStack.Tests.Unit.Application.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Npgsql;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.MultiTenancy;
 
 /// <summary>
-/// What stands between a caller and a <c>BYPASSRLS</c> connection.
+/// What stands between an operator and a <c>BYPASSRLS</c> connection (ADR-0101).
 /// </summary>
 /// <remarks>
-/// No Docker: every case here is refused before a connection is opened, which is the
-/// property under test. The <c>Lazy</c> throws if forced, so a case that completes at all
-/// is a case where nothing reached the credential.
+/// No Docker: every case here is decided before a connection is opened, which is the property
+/// under test. The data source throws if forced, so a case that completes is a case where
+/// nothing reached the credential.
 /// </remarks>
 public sealed class PlatformAdminGateTests
 {
-    [Fact]
-    public async Task The_Registered_Gate_Permits_Nobody()
-    {
-        // Nothing else instantiates this type, so without this the only gate behaviour
-        // the corpus exhibits is the permissive double the Docker suite uses. Its own doc
-        // says it exists so nobody makes the default permissive to unblock a demo; this
-        // is the line that would notice.
-        var gate = new DenyAllPlatformAdminGate();
+    private static readonly string Digest = PlatformOperatorSubject.Digest(TestPlatformAdmissions.Issuer, "operator-1");
 
-        (await gate.IsPermittedAsync("anything", CancellationToken.None)).Should().BeFalse();
-        (await gate.IsPermittedAsync("gdpr-redaction:some-user", CancellationToken.None))
-            .Should().BeFalse("a plausible reason is not a permission");
+    [Fact]
+    public async Task An_Operator_Holding_The_Grant_Is_Admitted_For_The_Operation()
+    {
+        var gate = Gate(Grants("operator-1", PlatformPermissions.KillswitchWrite.Key));
+
+        var result = await gate.AdmitAsync(
+            TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, "INC-1", CancellationToken.None);
+
+        result.IsAdmitted.Should().BeTrue();
+        result.Admission!.Operation.Should().BeSameAs(PlatformOperations.KillswitchToggle);
+        result.Admission.Ticket.Should().Be("INC-1");
+        result.Admission.Operator.SubjectDigest.Should().Be(Digest);
     }
 
     [Fact]
-    public async Task Entry_Is_Refused_Before_The_Credential_Is_Touched()
+    public async Task An_Operator_Without_The_Grant_Is_Refused_Even_With_A_Valid_Witness()
     {
-        // ADR-0036 asks for the permission to be "checked before the scope opens". A
-        // check after the connection exists would already have spent a BYPASSRLS
-        // connection on a caller who was never allowed one — and, in a deployment with no
-        // platform credential at all, would report the wrong failure entirely.
-        var scope = Build(new DenyAllPlatformAdminGate(), out var dataSource);
+        var gate = Gate(Grants("someone-else", PlatformPermissions.KillswitchWrite.Key));
 
-        var act = async () => await scope.EnterAsync("test:denied", CancellationToken.None);
+        var result = await gate.AdmitAsync(
+            TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, null, CancellationToken.None);
 
-        await act.Should().ThrowAsync<PlatformAdminScopeDeniedException>();
-        dataSource.IsValueCreated.Should().BeFalse("the gate runs before the credential");
+        result.IsAdmitted.Should().BeFalse();
+        result.Refusal.Should().Be(PlatformRefusal.MissingPermission);
     }
 
     [Fact]
-    public async Task Ordinary_job_is_refused_even_by_a_permissive_platform_gate_before_credential_resolution()
+    public async Task A_Grant_For_Another_Permission_Does_Not_Admit()
     {
-        var fixture = new BackgroundJobExecutionAdmissionTests.Fixture();
-        var gate = new PermissiveGate();
-        var scope = Build(gate, out var source);
-        using var admission = fixture.Enter();
-        var enter = async () => await scope.EnterAsync("test:ordinary-job");
-        await enter.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Ordinary background-job*");
-        source.IsValueCreated.Should().BeFalse();
-        gate.Calls.Should().Be(0, "ordinary admission refuses before the permissive platform gate");
+        // The grant is the permission, matched exactly: a different Platform key, or a prefix
+        // of the right one, is not the key.
+        var gate = Gate(Grants("operator-1", "platform.killswitch"));
+
+        (await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, null))
+            .Refusal.Should().Be(PlatformRefusal.MissingPermission);
     }
 
     [Theory]
     [InlineData("")]
-    [InlineData("   ")]
-    [InlineData(null)]
-    public async Task A_Blank_Reason_Is_Refused_Before_Anything_Else(string? reason)
+    [InlineData("has space")]
+    [InlineData("semi;colon")]
+    [InlineData("this-ticket-is-far-too-long-to-be-a-ticket-reference-it-exceeds-sixty-four")]
+    public async Task A_Malformed_Ticket_Is_Refused_Before_The_Grant_Is_Read(string ticket)
     {
-        // The reason is the value Packet 9 writes durably, and a blank one makes the
-        // record of a cross-tenant access say nothing about why it happened. Refused
-        // ahead of the gate so the failure names the caller's own mistake rather than a
-        // permission they may well hold.
-        var scope = Build(new PermissiveGate(), out var dataSource);
+        var grants = Grants("operator-1", PlatformPermissions.KillswitchWrite.Key);
+        var gate = Gate(grants);
 
-        var act = async () => await scope.EnterAsync(reason!, CancellationToken.None);
+        var result = await gate.AdmitAsync(TestPlatformAdmissions.Witness(), PlatformOperations.KillswitchToggle, ticket);
+
+        result.Refusal.Should().Be(PlatformRefusal.InvalidTicket);
+        grants.Reads.Should().Be(0, "the ticket grammar is checked before any grant is evaluated");
+    }
+
+    [Fact]
+    public async Task An_Unregistered_Operation_Is_Refused()
+    {
+        var gate = Gate(Grants("operator-1", PlatformPermissions.KillswitchWrite.Key));
+
+        // A lookalike is not the registered instance, however identical its content.
+        var lookalike = typeof(PlatformOperation).GetConstructors(
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)[0]
+            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true]);
+
+        (await gate.AdmitAsync(TestPlatformAdmissions.Witness(), (PlatformOperation)lookalike, null))
+            .Refusal.Should().Be(PlatformRefusal.UnknownOperation);
+    }
+
+    [Fact]
+    public async Task A_Missing_Witness_Is_Refused()
+    {
+        var gate = Gate(Grants("operator-1", PlatformPermissions.KillswitchWrite.Key));
+
+        (await gate.AdmitAsync(null!, PlatformOperations.KillswitchToggle, null))
+            .Refusal.Should().Be(PlatformRefusal.InvalidWitness);
+    }
+
+    [Fact]
+    public async Task Entry_With_An_Unregistered_Operation_Never_Touches_The_Credential()
+    {
+        // The scope also refuses a registered operation that does not use the platform role,
+        // but the registry holds none yet, so that second guard cannot be driven until a
+        // packet registers one (P03-9 Step 2 adds the first) and is exercised there.
+        var scope = Build(out var dataSource);
+        var lookalike = typeof(PlatformOperation).GetConstructors(
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)[0]
+            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true]);
+
+        var act = async () => await scope.EnterAsync(
+            TestPlatformAdmissions.Admission((PlatformOperation)lookalike), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
         dataSource.IsValueCreated.Should().BeFalse();
     }
 
     [Fact]
+    public async Task Ordinary_job_is_refused_before_credential_resolution()
+    {
+        var fixture = new BackgroundJobExecutionAdmissionTests.Fixture();
+        var scope = Build(out var source);
+        using var admission = fixture.Enter();
+
+        var enter = async () => await scope.EnterAsync(TestPlatformAdmissions.Admission());
+
+        await enter.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Ordinary background-job*");
+        source.IsValueCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task A_Permitted_Caller_Reaches_The_Credential_And_Fails_There_When_It_Is_Absent()
     {
-        // The other side of the ordering: with the gate open, the next thing that can go
-        // wrong is the credential, and it must surface as the credential rather than as
-        // anything else.
-        var scope = Build(new PermissiveGate(), out var dataSource);
+        var scope = Build(out var dataSource);
 
-        var act = async () => await scope.EnterAsync("test:permitted", CancellationToken.None);
+        var act = async () => await scope.EnterAsync(TestPlatformAdmissions.Admission(), CancellationToken.None);
 
-        // InvalidOperationException and not PlatformAdminScopeDeniedException — the two
-        // are unrelated types, so this assertion already distinguishes "refused entry"
-        // from "entry allowed, credential missing".
-        // The exception's TYPE is the evidence, not IsValueCreated: when a Lazy factory
-        // throws, Lazy<T> caches the failure and leaves IsValueCreated false — measured.
-        // So "reached the credential" is shown by the failure being the credential's,
-        // which is exactly what distinguishes it from the refusal above.
-        // The TYPE, not the message. The Lazy under test is built by this file, so an
-        // assertion on its text would be matching the double rather than production
-        // code; the production message is covered where it is produced, in
+        // The TYPE, not the message: the Lazy under test is built by this file, so an assertion
+        // on its text would match the double. Production's message is covered in
         // PlatformAdminScopeTests.An_Absent_Credential_Names_The_Key_Rather_Than_Degrading.
         await act.Should().ThrowAsync<InvalidOperationException>();
-        dataSource.IsValueCreated.Should().BeFalse(
-            "a Lazy whose factory threw never records a created value");
+        dataSource.IsValueCreated.Should().BeFalse("a Lazy whose factory threw never records a value");
     }
 
     [Fact]
     public async Task An_Operation_The_Catalogue_Does_Not_Declare_Never_Opens_A_Connection()
     {
-        // Third in the ordering, and it belongs before the credential rather than after
-        // the connection: a deployment whose catalogue lost the slug must not spend a
-        // BYPASSRLS connection discovering that it cannot record the entry. Fail-closed
-        // is the whole posture — an entry nothing can record is an entry that does not
-        // happen (ADR-0044 § 10).
-        var scope = Build(new PermissiveGate(), out var dataSource, new AuditCatalog([]));
+        // A deployment whose catalogue lost a slug must not spend a BYPASSRLS connection
+        // discovering that it cannot record the entry (ADR-0044 § 10).
+        var scope = Build(out var dataSource, new AuditCatalog([]));
 
-        var act = async () => await scope.EnterAsync("test:unclassified", CancellationToken.None);
+        var act = async () => await scope.EnterAsync(TestPlatformAdmissions.Admission(), CancellationToken.None);
 
         (await act.Should().ThrowAsync<AuditWriteFailedException>())
             .Which.Message.Should().Contain(PlatformAdminScope.EnterOperation);
-
-        dataSource.IsValueCreated.Should().BeFalse(
-            "the refusal precedes the credential, so no connection is spent on it");
+        dataSource.IsValueCreated.Should().BeFalse("the refusal precedes the credential");
     }
 
     [Fact]
-    public void The_Shipped_Tenancy_Source_Declares_The_Slug_The_Scope_Enters_On()
+    public void The_Shipped_Tenancy_Source_Declares_The_Slugs_The_Scope_Records()
     {
-        // The other half of the case above, and the reason it uses an empty catalogue
-        // rather than a fake that declares the slug: something has to assert that the
-        // shipped source really does. Both together fail if the declaration is removed.
-        new AuditCatalog([new TenancyAuditCatalogSource()])
-            .TryGetOffPath(PlatformAdminScope.EnterOperation, out var declared)
-            .Should().BeTrue();
+        var catalogue = new AuditCatalog([new TenancyAuditCatalogSource()]);
 
-        declared.OperationClass.Should().Be(OperationClass.Must);
-        declared.OperationType.Should().Be(OperationType.SecurityEvent);
-        declared.ModuleName.Should().Be("platform",
-            "the scope belongs to no module\'s request path, whatever source declares it");
+        catalogue.TryGetOffPath(PlatformAdminScope.EnterOperation, out var entry).Should().BeTrue();
+        entry.OperationClass.Should().Be(OperationClass.Must);
+        entry.OperationType.Should().Be(OperationType.SecurityEvent);
+        entry.ModuleName.Should().Be("platform", "the scope belongs to no module's request path");
+
+        foreach (var operation in PlatformOperations.All)
+        {
+            catalogue.TryGetOffPath(operation.AuditSlug, out var declared)
+                .Should().BeTrue($"'{operation.AuditSlug}' must be declared so its result row can be recorded");
+            declared.OperationClass.Should().Be(OperationClass.Must);
+        }
     }
 
-    private static PlatformAdminScope Build(
-        IPlatformAdminGate gate,
-        out PrivilegedDataSource dataSource,
-        IAuditCatalog? catalog = null)
+    [Fact]
+    public void The_Registry_Is_Closed_And_Every_Operation_Names_A_Registered_Platform_Permission()
+    {
+        PlatformOperations.All.Should().OnlyHaveUniqueItems(operation => operation.AuditSlug);
+        PlatformOperations.All.Should().OnlyHaveUniqueItems(operation => operation.ReasonSlug);
+        foreach (var operation in PlatformOperations.All)
+        {
+            PlatformPermissions.TryGet(operation.Permission.Key, out var registered).Should().BeTrue();
+            registered.Should().BeSameAs(operation.Permission);
+            operation.Permission.Scope.Should().Be(LearnStack.SharedKernel.Permissions.PermissionScope.Platform);
+        }
+    }
+
+    [Fact]
+    public void The_Grant_Validator_Refuses_Unregistered_Keys_And_The_Demo_Operator_Outside_Development()
+    {
+        var options = new PlatformOperatorGrantOptions { Issuer = TestPlatformAdmissions.Issuer };
+        options.Grants.Add(new PlatformOperatorGrant { Subject = "operator-1", Permissions = { "platform.tenant.write" } });
+        new PlatformOperatorGrantOptionsValidator(DeploymentMode.Development).Validate(null, options).Failed.Should().BeTrue(
+            "a key no operation has registered is not a grant");
+
+        var demo = new PlatformOperatorGrantOptions { Issuer = TestPlatformAdmissions.Issuer };
+        demo.Grants.Add(new PlatformOperatorGrant
+        {
+            Subject = PlatformOperatorGrantOptions.DemoOperatorSubject,
+            Permissions = { PlatformPermissions.KillswitchWrite.Key },
+        });
+        new PlatformOperatorGrantOptionsValidator(DeploymentMode.Development).Validate(null, demo).Succeeded.Should().BeTrue();
+        new PlatformOperatorGrantOptionsValidator(DeploymentMode.SaaS).Validate(null, demo).Failed.Should().BeTrue(
+            "the exported demo operator may hold a grant in Development only");
+    }
+
+    [Fact]
+    public async Task The_Configuration_Source_Matches_The_Digest_And_Fails_Closed_Without_An_Issuer()
+    {
+        var withIssuer = Source(new PlatformOperatorGrantOptions
+        {
+            Issuer = TestPlatformAdmissions.Issuer,
+            Grants = { new PlatformOperatorGrant { Subject = "operator-1", Permissions = { PlatformPermissions.KillswitchWrite.Key } } },
+        });
+        (await withIssuer.IsGrantedAsync(Digest, PlatformPermissions.KillswitchWrite.Key)).Should().BeTrue();
+        (await withIssuer.IsGrantedAsync(PlatformOperatorSubject.Digest("https://other/", "operator-1"), PlatformPermissions.KillswitchWrite.Key))
+            .Should().BeFalse("the same subject at another issuer is another operator");
+
+        var noIssuer = Source(new PlatformOperatorGrantOptions
+        {
+            Grants = { new PlatformOperatorGrant { Subject = "operator-1", Permissions = { PlatformPermissions.KillswitchWrite.Key } } },
+        });
+        (await noIssuer.IsGrantedAsync(Digest, PlatformPermissions.KillswitchWrite.Key)).Should().BeFalse();
+    }
+
+    private static PlatformOperatorGate Gate(IPlatformOperatorGrantSource grants) =>
+        new(grants, NullLogger<PlatformOperatorGate>.Instance);
+
+    private static CountingGrants Grants(string subject, params string[] keys) =>
+        new(TestPlatformAdmissions.Issuer, subject, keys);
+
+    private static ConfigurationPlatformOperatorGrantSource Source(PlatformOperatorGrantOptions options) =>
+        new(new FixedMonitor(options), NullLogger<ConfigurationPlatformOperatorGrantSource>.Instance);
+
+    private static PlatformAdminScope Build(out PrivilegedDataSource dataSource, IAuditCatalog? catalog = null)
     {
         dataSource = new PrivilegedDataSource(() => throw new InvalidOperationException(
             "ConnectionStrings:PlatformAdmin is not configured in this test."));
 
-        // The catalogue is real and built from the shipped Tenancy source, because the
-        // lookup now sits between the gate and the credential: a fake declaring the slug
-        // would let this file pass while the source that has to declare it did not.
-        // Nothing here reaches the store — the credential throws first — so the scope
-        // factory is an empty provider's.
+        // The catalogue is real and built from the shipped Tenancy source, so a fake declaring
+        // the slugs cannot let this file pass while the source that must declare them did not.
         return new PlatformAdminScope(
-            gate,
             dataSource,
             catalog ?? new AuditCatalog([new TenancyAuditCatalogSource()]),
             new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
@@ -169,13 +259,22 @@ public sealed class PlatformAdminGateTests
             NullLogger<PlatformAdminScope>.Instance);
     }
 
-    private sealed class PermissiveGate : IPlatformAdminGate
+    private sealed class CountingGrants(string issuer, string subject, string[] keys) : IPlatformOperatorGrantSource
     {
-        public int Calls { get; private set; }
-        public ValueTask<bool> IsPermittedAsync(string reason, CancellationToken cancellationToken = default)
+        public int Reads { get; private set; }
+
+        public ValueTask<bool> IsGrantedAsync(string subjectDigest, string permissionKey, CancellationToken cancellationToken = default)
         {
-            Calls++;
-            return ValueTask.FromResult(true);
+            Reads++;
+            return ValueTask.FromResult(
+                subjectDigest == PlatformOperatorSubject.Digest(issuer, subject) && keys.Contains(permissionKey));
         }
+    }
+
+    private sealed class FixedMonitor(PlatformOperatorGrantOptions value) : IOptionsMonitor<PlatformOperatorGrantOptions>
+    {
+        public PlatformOperatorGrantOptions CurrentValue => value;
+        public PlatformOperatorGrantOptions Get(string? name) => value;
+        public IDisposable? OnChange(Action<PlatformOperatorGrantOptions, string?> listener) => null;
     }
 }

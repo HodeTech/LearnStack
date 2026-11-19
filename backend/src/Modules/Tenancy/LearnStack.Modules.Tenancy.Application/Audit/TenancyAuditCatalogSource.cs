@@ -110,6 +110,10 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             // to name the same one.
             .DeclareOffPath(
                 "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must)
+            // The killswitch flip is written inside an admitted platform scope on its work
+            // transaction (ADR-0101 § 13); the scope is a service, so there is no request type.
+            .DeclareOffPath(
+                "tenancy.killswitch.toggle", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.outbox.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(

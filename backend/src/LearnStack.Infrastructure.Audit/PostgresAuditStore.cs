@@ -11,6 +11,7 @@ using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
+using LearnStack.SharedKernel.Platform;
 
 namespace LearnStack.Infrastructure.Audit;
 
@@ -412,6 +413,58 @@ public sealed partial class PostgresAuditStore : IAuditStore
             throw new AuditWriteFailedException(
                 "The platform-scope audit row could not be written, so the scope must not "
                 + "be entered.",
+                failure);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task WritePlatformOperatorResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(admission);
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        // The admission binds the row: the operation, the closed reason and the operator
+        // must be the admitted ones, the actor column stays NULL because an operator is not a
+        // user, and only a success is written here. A caller cannot present a different act.
+        if (!StronglyTypedId.IsAssigned(entry.TenantId)
+            || entry.ModuleName == "identity"
+            || !PlatformOperations.IsRegistered(admission.Operation)
+            || !string.Equals(entry.Operation, admission.Operation.AuditSlug, StringComparison.Ordinal)
+            || !string.Equals(entry.Reason, admission.Operation.ReasonSlug, StringComparison.Ordinal)
+            || entry.ActorUserId is not null
+            || entry.Outcome != AuditOutcome.Success
+            || entry.OperationClass != OperationClass.Must
+            || entry.Metadata is null
+            || !entry.Metadata.Contains(admission.Operator.SubjectDigest, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The platform operator result row does not match its admission.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+
+            Bind(command.Parameters, entry);
+
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The platform operator result row could not be written, so the act must not "
+                + "commit.",
                 failure);
         }
     }

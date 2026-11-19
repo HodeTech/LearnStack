@@ -61,6 +61,9 @@ public sealed class HostClassificationMiddleware
         "/openapi",
         "/admin/hangfire",
         "/api/internal",
+        // The platform operator surface (ADR-0101 § 4): authenticated by its own scheme, and its
+        // target tenant is data of the act, never a resolution input.
+        "/api/platform",
     ];
 
     /// <summary>Unknown hosts, unlabelled — the host itself is never a dimension.</summary>

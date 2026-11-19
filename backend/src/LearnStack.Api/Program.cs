@@ -1,6 +1,7 @@
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
+using LearnStack.Api.Platform;
 using LearnStack.Api.PublicReads;
 using LearnStack.Api.Tenancy;
 using LearnStack.Api.Versioning;
@@ -58,6 +59,9 @@ builder.Services.AddLearnStackRateLimiting();
 // the explicit middleware order below owns both insertions and all guards.
 builder.Services.AddLearnStackTenantAuthentication(
     TenantAuthenticationOptions.FromConfiguration(builder.Configuration, deploymentMode));
+// ADR-0101: the operator gate, grants and, only when an issuer is configured, the second scheme
+// confined to /api/platform. The tenant scheme above stays the default and the only scheme on /api/v1.
+builder.Services.AddLearnStackPlatformOperatorAuthority(builder.Configuration, deploymentMode);
 builder.Services.AddLearnStackTenantSubjectAdmission();
 builder.Services.AddLearnStackNativeSessionSource(builder.Configuration);
 builder.Services.AddLearnStackIdentitySelfEntry();
@@ -159,6 +163,7 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
     .WithMetadata(InfrastructureOperationMetadata.Health);
 
 app.MapControllers();
+app.MapLearnStackPlatformOperator();
 
 app.Run();
 

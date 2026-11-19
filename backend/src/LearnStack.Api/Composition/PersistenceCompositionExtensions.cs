@@ -188,9 +188,9 @@ public static class PersistenceCompositionExtensions
         services.AddLearnStackBackgroundJobContracts();
         services.AddInvitationEmailDelivery(configuration);
 
-        // The gate first, so a reader sees that entry is refused before a connection is
-        // opened rather than after. Both are stateless singletons.
-        services.TryAddSingleton<IPlatformAdminGate, DenyAllPlatformAdminGate>();
+        // The scope is a stateless singleton. Admission is not its concern any more: the
+        // caller holds a PlatformAdmission from IPlatformOperatorGate, registered with the
+        // operator authority (ADR-0101), so a refused operator never reaches a connection.
         services.TryAddSingleton<IPlatformAdminScope, PlatformAdminScope>();
 
         // Scoped: one connection per request, owned by this, shared by every
@@ -301,6 +301,7 @@ public static class PersistenceCompositionExtensions
         // and shares the one entry — and the load runs on its own connection, because the
         // cache flight that runs it outlives the caller that started it.
         services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
+        services.TryAddScoped<IKillswitchToggle, KillswitchToggle>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default
