@@ -174,7 +174,7 @@ public sealed partial class TenantContextConstructionTests
         // handler scope (integration events). HTTP and the acceptance/execution
         // halves of the integration-event scope and the job executor exist today;
         // the rule is written over the whole set so the next writer is a deliberate edit here rather
-        // than a silent addition there. The operator act executor (ADR-0102, ADR-0036 Amendment 3)
+        // than a silent addition there. The operator act executor (ADR-0102, ADR-0036 Amendment 22)
         // is that deliberate edit: a fifth logical writer, which installs the resolved context
         // of the tenant an admitted operator act names. The method keeps the name three Accepted
         // ADRs and the catalogue cite.

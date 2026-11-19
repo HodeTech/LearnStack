@@ -82,7 +82,11 @@ internal static partial class PlatformOperatorEndpoints
         HttpRequest request, CancellationToken cancellationToken)
         where TBody : class
     {
-        if (request.ContentLength is 0 || (request.ContentLength is null && !request.Headers.ContainsKey("Transfer-Encoding")))
+        // HTTP/1.x with neither a length nor a transfer encoding has no body. HTTP/2 and HTTP/3 carry bodies
+        // without either header, so for them only a declared zero length is an absent body.
+        var undeclared = request.ContentLength is null && !request.Headers.ContainsKey("Transfer-Encoding")
+            && (HttpProtocol.IsHttp10(request.Protocol) || HttpProtocol.IsHttp11(request.Protocol));
+        if (request.ContentLength is 0 || undeclared)
         {
             return (null, BodyState.Missing);
         }

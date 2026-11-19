@@ -9,7 +9,9 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Platform;
@@ -224,6 +226,80 @@ public sealed class OperatorActGuardTests
     }
 
     [Fact]
+    public async Task The_Live_Act_Check_Answers_Without_Taking_A_Lock()
+    {
+        using var rig = new Rig();
+        var request = Request();
+
+        await rig.RunAsync(request, () =>
+        {
+            rig.Guard.RequireLiveAct(request).IsSuccess.Should().BeTrue();
+            rig.Guard.RequireLiveAct(Request()).IsFailure.Should().BeTrue("another request object is not this invocation's");
+            return Task.FromResult(Result.Ok(None.Value));
+        });
+
+        rig.Guard.RequireLiveAct(request).IsFailure.Should().BeTrue("outside an invocation there is no live act");
+        await rig.Locks.DidNotReceive().AcquireAsync(Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("user")]
+    [InlineData("organization")]
+    [InlineData("host")]
+    [InlineData("unresolved")]
+    public async Task The_Live_Act_Check_Refuses_A_Context_That_Is_Not_The_Tenants_Ambient_One(string change)
+    {
+        using var rig = new Rig();
+        var request = Request();
+        Apply(rig, change);
+        var refused = false;
+
+        await rig.RunAsync(request, () =>
+        {
+            refused = rig.Guard.RequireLiveAct(request).IsFailure;
+            return Task.FromResult(Result.Ok(None.Value));
+        });
+
+        refused.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_Replay_Is_Recorded_On_The_Guard_And_Starts_Unrecorded()
+    {
+        using var rig = new Rig();
+
+        rig.Guard.Replayed.Should().BeFalse();
+        rig.Guard.MarkReplayed();
+        rig.Guard.Replayed.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(AuthorizationSourceKind.PlatformOperator, false)]
+    [InlineData(AuthorizationSourceKind.Seed, true)]
+    public async Task An_Authorization_Refusal_Of_An_Operator_Act_Writes_No_Durable_Denial_Row_Unlike_Any_Other_Source(
+        AuthorizationSourceKind source, bool writes)
+    {
+        // ADR-0033 Amendment 14. The control is the seed source, which records the same refusal, so the empty
+        // answer for the operator is the coordinator's decision and not a fixture that cannot write.
+        using var rig = new Rig { SourceKind = source };
+        OperatorProvisionTenantCommand operatorRequest = Request();
+        var seedRequest = new ProvisionTenantCommand(Tenant, "acme", "Acme", OrganizationId.From(Guid.CreateVersion7()), "main", "Main");
+        await using var execution = rig.Evidence.BeginExecution();
+
+        Task<Result<None>> Refuse(object request) => rig.RunAsync(request, () =>
+        {
+            rig.Evidence.RecordPolicyRefusal(rig.CurrentInvocation!, null, new Error(new LocalizedMessage("lockey_forbidden")));
+            return Task.FromResult(Result.Fail<None>(new Error(new LocalizedMessage("lockey_forbidden"))));
+        });
+
+        await (source == AuthorizationSourceKind.PlatformOperator ? Refuse(operatorRequest) : Refuse(seedRequest));
+        await rig.Evidence.BeforeOwnerCompletionAsync(rig.Unit, CancellationToken.None);
+        await rig.Evidence.BeforeSuccessAsync(CancellationToken.None);
+
+        (rig.EvidenceWrites().Length > 0).Should().Be(writes);
+    }
+
+    [Fact]
     public async Task A_Plan_For_Another_Tenant_Is_Not_Held_For_This_Act()
     {
         using var rig = new Rig();
@@ -269,16 +345,26 @@ public sealed class OperatorActGuardTests
             var clock = Substitute.For<IClock>();
             clock.UtcNow.Returns(Now);
             OperationAuthorizationCoordinator? current = null;
-            var evidence = new AuthorizationEvidenceCoordinator(
-                Substitute.For<IAuditStore>(), new AuditStateCapture(), Unit, clock, new SystemGuidFactory(),
+            Evidence = new AuthorizationEvidenceCoordinator(
+                Store, new AuditStateCapture(), Unit, clock, new SystemGuidFactory(),
                 () => current!, [], NullLogger<AuthorizationEvidenceCoordinator>.Instance);
             _coordinator = current = new OperationAuthorizationCoordinator(
                 new OperationPolicyCatalog([new TenancyOperationPolicySource(), new IdentityOperationPolicySource()]),
-                Substitute.For<IProtectedOperationAuthorizer>(), Context, [], [Source], evidence);
+                Substitute.For<IProtectedOperationAuthorizer>(), Context, [], [Source], Evidence);
             Guard = new OperatorActGuard(_coordinator, Context, Unit, Locks);
         }
 
         public ITenantContext Context { get; } = Substitute.For<ITenantContext>();
+
+        public IAuditStore Store { get; } = Substitute.For<IAuditStore>();
+
+        public AuthorizationEvidenceCoordinator Evidence { get; }
+
+        public OperationInvocation? CurrentInvocation => _coordinator.CurrentInvocation;
+
+        /// <summary>The authorization-evidence writes the store was asked for, by method name.</summary>
+        public string[] EvidenceWrites() => [.. Store.ReceivedCalls()
+            .Select(call => call.GetMethodInfo().Name).Where(name => name.StartsWith("WriteAuthorization", StringComparison.Ordinal))];
 
         public IGlobalIdentityUnitOfWork GlobalUnit { get; } = Substitute.For<IGlobalIdentityUnitOfWork>();
 

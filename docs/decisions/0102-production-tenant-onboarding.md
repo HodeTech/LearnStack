@@ -55,6 +55,20 @@ is not proof that anything is implemented.
 
 ## Decision
 
+> **Erratum — 2026-11-19.** Item 1 below says the target tenant is announced by "one
+> new logical tenant setter", "the eleventh", and that "the four context writers do not
+> change". No new setter exists, and the claim was unachievable when it was written:
+> the query filters and the transaction behavior read the context accessor, so an act
+> that is not installed in it is invisible to row security. The operator act executor
+> installs an immutable resolved ambient context for the admitted target, the ordinary
+> transaction behavior announces it, the setter census does not move, and the executor
+> is a fifth writer of the accessor; shown by
+> `SetTenant_Callers_Are_The_Enumerated_Four` (`TenantContextConstructionTests`) and
+> `PlatformOperatorActExecutorTests`. The Decision is unchanged: an admitted operator
+> act runs on the application role under the admitted target tenant's announcement and
+> the platform role is not used. Current authority:
+> [ADR-0040 Amendment 25](0040-ambient-unit-of-work.md). Recorded in Amendment 1.
+
 1. **A confined operator source and announcement.** `AuthorizationSourceKind` gains
    `PlatformOperator`, minted only from an
    [ADR-0101](0101-platform-operator-authority.md) admission for one of the operations
@@ -68,15 +82,6 @@ is not proof that anything is implemented.
    [ADR-0036](0036-tenant-resolution-trusted-inputs.md) receive dated disclosures, and
    the four context writers do not change. The platform role is not used.
 
-   > **Erratum (2026-11-19, Amendment 1 below).** The mechanism above was not built and
-   > could not have been. No new tenant setter exists: the operator act executor
-   installs > an immutable resolved ambient context for the admitted target, and the
-   ordinary > transaction behavior announces it, so the setter census does not move. The
-   executor > is a fifth writer of the tenant context accessor, because the query
-   filters and the > transaction behavior read that accessor and an act that is not
-   installed in it is > invisible to row security. "The four context writers do not
-   change" and "the > eleventh logical tenant setter" were therefore false when this
-   record was accepted.
 2. **The commands.** `OperatorProvisionTenant` creates a Tenant and its default
    Organization. `OperatorMapHost` maps a host through the existing host-mapping store
    and its reserved-host and platform-host rules. `OperatorInitializeRole` creates one
@@ -186,6 +191,15 @@ naming.
   branch, Seeder mode refusal and the onboarding runbook. It touches the source enum,
   `OperationPolicy` and `TrustedOperationDescriptor` source guards, the authorization
   audit context, the evidence coordinator and the draft composer.
+  > **Erratum — 2026-11-19.** The proof item below reads "succeeding after the last one
+  > is revoked". The database refuses that state: the deferred last-administrator guard
+  > rejects any commit that leaves a tenant without an available administrator, so no
+  > ordinary write reaches it; shown by SQLSTATE `P0303` in
+  > `PlatformOperatorOnboardingTests`. The proof reaches the state by an owner-level
+  > repair that steps around that guard and shows the invariant intact after the
+  > recovery, and "the setter's operation binding" reads as the executor's binding of
+  > the admitted operation to its request type. The Decision is unchanged. Current
+  > authority: Amendment 1 item 4. Recorded in Amendment 1.
 - Proof: positive and denied acts; wrong tenant; unbootstrapped person; interruption
   between every pair of steps with a retry that completes once; an unknown COMMIT; a
   tenant with history refusing the first-admin act; recovery refusing a tenant with an
@@ -193,14 +207,6 @@ naming.
   invariant after recovery; seed insufficiency in both directions. The mutation targets
   are the source check, the in-transaction predicates, the resolver's Active filter and
   the setter's operation binding.
-
-  > **Erratum (2026-11-19, Amendment 1 below).** "After the last one is revoked" names a
-  > state the database refuses: the deferred last-administrator guard rejects any commit
-  > that leaves a tenant without an available administrator, so no ordinary write
-  reaches > it. The proof reaches the state by an owner-level repair that steps around
-  that > guard, and shows the invariant intact after the recovery. "The setter's
-  operation > binding" reads as the executor's binding of the admitted operation to its
-  request > type.
 
 ## Carriers
 
@@ -217,11 +223,16 @@ specifications, and the Phase 03 Status.
 
 ### Amendment 1 — As built: an executor-installed context, no new setter (2026-11-19)
 
-Step 2 of the packet shipped the five acts and showed four statements of this record
-wrong or stale. Each is corrected inline above and recorded here.
+Step 2 of the packet shipped the five acts. Two statements of this record were false
+when it was accepted, and each carries an inline erratum above it: the new tenant setter
+and unchanged context writers of § 1, and the proof item that revokes the last
+administrator. Both were shown by the shipped code and its tests
+(`SetTenant_Callers_Are_The_Enumerated_Four`, `PlatformOperatorActExecutorTests`, and
+SQLSTATE `P0303` in `PlatformOperatorOnboardingTests`). The items below refine what the
+record left open or stated differently from what was built; they are history, not
+errata.
 
-1. **No new setter; a fifth context writer.** § 1 promised one new confined tenant
-   setter and unchanged context writers. The operator act executor
+1. **No new setter; a fifth context writer.** The operator act executor
    (`LearnStack.Infrastructure/PlatformOperator/PlatformOperatorActExecutor.cs`)
    consumes the single-use admission, opens a fresh scope, installs an immutable
    resolved `Ambient` context for the admitted tenant (no user, no organization, no host
@@ -231,18 +242,24 @@ wrong or stale. Each is corrected inline above and recorded here.
    platform role is not used, and the executor is the fifth writer of the context
    accessor ([ADR-0036](0036-tenant-resolution-trusted-inputs.md) Amendment 2). The one
    source that may mint the operator descriptor is the fourth minting source, scoped to
-   the executor's frame and bound to the operation of the admission.
+   the executor's frame and bound to the operation of the admission. The routes that may
+   call the executor are pinned by
+   `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`.
 2. **Provisioning on a resolved context.** The new tenant's id is the act's target, so
    the executor installs a resolved context for an id that has no `tenants` row yet, and
    the ordinary insert policy admits it. The operator provisioning command therefore
    needs no provisioning announcement, and the seed command keeps its own.
-3. **The resolver is the sixteenth definer.** `fn_identity_operator_resolve_user(uuid,
-   bytea)` takes the stored authority id and the derived subject key. The application
-   derives the key with the one `IdentitySubjectKey` implementation under the
-   deployment's qualified authority, and the function refuses any other authority, any
-   session but the application role, any key that is not 32 bytes and any transaction
-   that is not an ordinary read-write tenant one, then answers an Active user's id or
-   null. [Database Standards](../standards/05-database.md) carries the contract.
+3. **The resolver is the sixteenth definer.**
+   `fn_identity_operator_resolve_user(uuid, bytea)` takes the stored authority id and
+   the derived subject key. The application derives the key with the one
+   `IdentitySubjectKey` implementation under the deployment's qualified authority, and
+   the function refuses any other authority, any session but the application role, any
+   key that is not 32 bytes and any transaction that is not an ordinary read-write
+   tenant one, then answers an Active user's id or null. The handlers ask the guard
+   whether the act is live before they call it. The function is nonetheless callable by
+   any application-role transaction that announces a tenant, so what it protects is the
+   subject lookup's confinement to the application role and not a witness bound to an
+   act; [Database Standards](../standards/05-database.md) records the residual.
 4. **Recovery is a break-glass for repaired states.** The last-administrator guard is
    deferred to commit and rejects any write that leaves a tenant without an available
    administrator, which means a Membership with an Active tenant-wide administrator Role
@@ -254,13 +271,42 @@ wrong or stale. Each is corrected inline above and recorded here.
    but unusable is not a recoverable tenant under it, and a predicate that also reads
    the User's eligibility would need a second confined definer. The maintainer decides
    whether that is wanted.
+5. **"Membership history" is tenant-wide history.** § 7 refuses a tenant that "ever had
+   a Membership". The predicate is evaluated under the act's own context, which carries
+   no organization and no tenant-wide read witness, so row security shows it
+   tenant-wide Memberships only. A tenant whose only Memberships are organization-scoped
+   reads as having had none. Ordinary writes cannot produce that state, because the
+   graph guard requires a tenant-wide administrator, so it is reachable only after an
+   owner-level repair, as recovery's state is, and the database's own guard reads the
+   same way.
+6. **"Bootstrapped" means a global binding.** §§ 5 and 6 say the person signs in at the
+   tenant's mapped host first. The resolver finds an Active user of the stored authority
+   with that subject, wherever they signed in, because `users` is global per authority.
+   The runbook says so and asks the operator to confirm the subject belongs to the
+   intended person.
+7. **Idempotency as built.** An exact repeat of an act answers from what was stored; a
+   repeat that changes any value under the same identifiers is refused
+   (`lockey_identifier_taken`). The administrator and Role acts find their own
+   Membership or Role before judging the Role's present state, so a template the new
+   administrator edited afterwards does not make the original act's retry fail. A
+   repeated act commits its ordinary MUST rows with no captured change, so the trail
+   shows every attempt. The host-mapping retry drops the host's cached resolution again.
+8. **Signals (§ 11).** `learnstack_platform_operator_acts_total{operation,outcome}`
+   counts each act as `applied`, `replayed`, `refused` or `failed`; a `replayed` count
+   by operation is a setup resumed at that step. Event 7109 (Warning) records an
+   admitted act the pipeline itself refused as forbidden, which writes no durable row.
+9. **Request shape.** Every identifier is a UUIDv7 and the platform sentinel is refused
+   as a tenant (400). A host mapping must state both `isActive` and `isPubliclyLive`,
+   because no act unmaps a host. A blank provider subject or one over 255 characters is
+   a 400, and a refused storage write answers in the vocabulary the sibling Identity
+   handlers use (`concurrency_conflict`, `dependency_unavailable`, or
+   `identity_foundation_refused`).
 
-Two behaviors the record left open are fixed. The business actor of every written row is
-`UserId.SystemActor` and the audit actor is NULL, as § 3 and
-[ADR-0101](0101-platform-operator-authority.md) § 9 say. A refused operator act writes
-the ordinary `failed` MUST row in the target tenant, carrying the operator in
-`metadata.operator`, and an authorization refusal of an operator request writes no
-durable denial row ([ADR-0033](0033-audit-durability-model.md) Amendment 14).
+The business actor of every written row is `UserId.SystemActor` and the audit actor is
+NULL, as § 3 and [ADR-0101](0101-platform-operator-authority.md) § 9 say. A refused
+operator act writes the ordinary `failed` MUST row in the target tenant, carrying the
+operator in `metadata.operator`, and an authorization refusal of an operator request
+writes no durable denial row ([ADR-0033](0033-audit-durability-model.md) Amendment 14).
 
 Carriers changed with this amendment: ADR-0033 Amendment 14, ADR-0036 Amendment 22 and
 ADR-0040 Amendment 25, each with an inline erratum beside the false text; Database

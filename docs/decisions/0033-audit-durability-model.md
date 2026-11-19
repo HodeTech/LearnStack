@@ -880,13 +880,14 @@ Amendment 12 makes an authorization refusal a MUST `identity.authorization.deny`
 For the `PlatformOperator` source of [ADR-0102](0102-production-tenant-onboarding.md)
 the authorization evidence coordinator writes none, in either of its denial paths.
 Operator refusals follow the decision [ADR-0101](0101-platform-operator-authority.md) §
-11 records for denied entry: a counter and a log line by closed cause at the gate, and
-the act's own refusal response, with no durable row. Inside an admitted act an
-authorization refusal can only mean the request, source or context was not what the
-executor built, and the act fails closed with the response. The pipeline's other rows
-are unchanged: a business refusal of an admitted act writes the ordinary `failed` MUST
-row in the target tenant with `metadata.operator`, and a success writes its MUST rows in
-the act's own transaction. Every other source keeps Amendment 12 as written.
+11 records for denied entry: a counter and a log line by closed cause at the gate. An
+authorization refusal inside an admitted act can only mean the request, source or
+context was not what the executor built; the executor counts the act as `refused`, logs
+event 7109 as a Warning, and the act fails closed with its response, with no durable
+row. The pipeline's other rows are unchanged: a business refusal of an admitted act
+writes the ordinary `failed` MUST row in the target tenant with `metadata.operator`, and
+a success writes its MUST rows in the act's own transaction. Every other source keeps
+Amendment 12 as written.
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.

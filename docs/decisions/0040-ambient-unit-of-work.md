@@ -1005,6 +1005,14 @@ finding.
 
 ### Amendment 24 — Eleventh logical setter: operator target (2026-11-19)
 
+> **Erratum — 2026-11-19.** The paragraph below counts an eleventh logical tenant
+> setter, four unchanged context writers and a ninth definer. All three counts were
+> wrong: there is no new setter (the census stays at fourteen), the context writers are
+> five, and the resolver is the sixteenth definer; shown by
+> `SetTenant_Callers_Are_The_Enumerated_Four`, `GlobalIdentitySchemaTests` and
+> `PlatformOperatorActExecutorTests`. The Decision is unchanged. Current authority:
+> Amendment 25 below. Recorded in Amendment 25.
+
 Accepted [ADR-0102](0102-production-tenant-onboarding.md) adds the eleventh logical
 tenant setter, confined to the `PlatformOperator` source. It reads the target of an
 admitted operation, announces it once per unit of work and refuses any other caller. The
@@ -1012,9 +1020,6 @@ four context writers do not change. The single-act resolver that maps a provider
 to a `UserId` is a ninth definer function; its signature, owner, body and ACL land in
 [Standard 05](../standards/05-database.md) with the packet that ships it.
 
-> **Erratum (2026-11-19, Amendment 25 below).** All three counts above were wrong when
-> this amendment was written: there is no new setter, the context writers are five, and
-> the resolver is the sixteenth definer.
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.

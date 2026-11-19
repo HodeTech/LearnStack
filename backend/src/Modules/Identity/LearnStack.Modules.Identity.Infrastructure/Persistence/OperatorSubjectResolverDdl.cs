@@ -36,8 +36,4 @@ internal static class OperatorSubjectResolverDdl
         REVOKE ALL ON FUNCTION public.fn_identity_operator_resolve_user(uuid,bytea) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.fn_identity_operator_resolve_user(uuid,bytea) TO learnstack_app;
         """);
-
-    internal static void Remove(MigrationBuilder migration) => migration.Sql("""
-        DROP FUNCTION public.fn_identity_operator_resolve_user(uuid,bytea);
-        """);
 }

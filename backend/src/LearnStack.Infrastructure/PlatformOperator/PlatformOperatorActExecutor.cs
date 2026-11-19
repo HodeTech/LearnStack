@@ -6,6 +6,7 @@ using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Infrastructure.PlatformOperator;
 
@@ -15,14 +16,13 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The confined tenant setter.</b> This is the one place a tenant chosen by an operator reaches the
-/// pipeline. It consumes the admission, opens a fresh scope, installs an immutable
-/// <see cref="OperatorTenantContext"/> in the accessor for the length of the act (or leaves the
-/// context unresolved when the act creates its tenant, which then announces itself through
-/// <c>IProvisionsTenant</c> as the seed's provisioning does), enters the one-frame operator source,
-/// sends the request and restores the accessor. The target is never read from a header, a host or an
-/// ambient value, and a request outside the closed catalog, or one the admission's operation does not
-/// cover, is refused before any scope exists.
+/// <b>The one place an operator's tenant reaches the pipeline.</b> It consumes the admission, opens a
+/// fresh scope, installs an immutable resolved <see cref="OperatorTenantContext"/> in the accessor for
+/// the length of the act, including for the tenant the act is about to create, enters the one-frame
+/// operator source, sends the request, counts how the act ended and restores the accessor. The ordinary
+/// transaction behavior announces the installed context, so this adds no tenant setter. The target is
+/// never read from a header, a host or an ambient value, and a request outside the closed catalog, or one
+/// the admission's operation does not cover, is refused before any scope exists.
 /// </para>
 /// <para>
 /// <b>It is a context writer, and says so.</b> Installing a context in the accessor is what makes the
@@ -31,11 +31,12 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 /// runtime. The platform role is not used, and nothing here opens a connection.
 /// </para>
 /// </remarks>
-public sealed class PlatformOperatorActExecutor(
+public sealed partial class PlatformOperatorActExecutor(
     IServiceScopeFactory scopeFactory,
     ITenantContextAccessor accessor,
     PlatformOperatorActCatalog acts,
-    IClock clock)
+    IClock clock,
+    ILogger<PlatformOperatorActExecutor> logger)
 {
     /// <summary>Runs <paramref name="request"/> for <paramref name="tenantId"/> under <paramref name="admission"/>.</summary>
     /// <exception cref="InvalidOperationException">The admission or the request is not admissible.</exception>
@@ -77,11 +78,46 @@ public sealed class PlatformOperatorActExecutor(
 
             var source = services.GetServices<ITrustedOperationSource>().OfType<PlatformOperatorOperationSource>().Single();
             using var frame = source.Enter(admission, context);
-            return await services.GetRequiredService<ISender>().Send(request, cancellationToken);
+            TResponse response;
+            try
+            {
+                response = await services.GetRequiredService<ISender>().Send(request, cancellationToken);
+            }
+            catch
+            {
+                PlatformOperatorMetrics.Act(admission.Operation, PlatformOperatorActOutcome.Failed);
+                throw;
+            }
+
+            if (response.IsSuccess)
+            {
+                PlatformOperatorMetrics.Act(
+                    admission.Operation,
+                    services.GetRequiredService<OperatorActGuard>().Replayed
+                        ? PlatformOperatorActOutcome.Replayed : PlatformOperatorActOutcome.Applied);
+            }
+            else
+            {
+                PlatformOperatorMetrics.Act(admission.Operation, PlatformOperatorActOutcome.Refused);
+                if (response.Error?.Code == "forbidden")
+                {
+                    // An admitted act the pipeline itself refused means the request, source or context was not what
+                    // this executor built: a defect, not an operator's mistake, and it writes no audit row.
+                    LogPipelineRefused(logger, admission.Operation.AuditSlug);
+                }
+            }
+
+            return response;
         }
         finally
         {
             accessor.Current = previous;
         }
     }
+
+    [LoggerMessage(
+        EventId = 7109,
+        Level = LogLevel.Warning,
+        Message = "An admitted operator act {Operation} was refused by the request pipeline as forbidden; the request, source or context was not what the executor built.")]
+    private static partial void LogPipelineRefused(ILogger logger, string operation);
 }

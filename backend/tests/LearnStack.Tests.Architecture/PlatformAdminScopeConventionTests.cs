@@ -223,6 +223,23 @@ public sealed partial class PlatformAdminScopeConventionTests
                 "each new operator service is added here deliberately, with its denied proof");
     }
 
+    [Fact]
+    public void Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act()
+    {
+        // ADR-0102: the executor is the one place an operator's tenant reaches the pipeline, and an admission is
+        // the only thing that lets it run. The files that name it in code are the executor, the registration beside
+        // the source it enters and the onboarding routes, and nothing else: a second caller is a second route to an
+        // act, and is added here deliberately with its own denied proof.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorActExecutor", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorActExecutor.cs",
+                    "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorOperationSource.cs",
+                    "LearnStack.Api/Platform/PlatformOperatorEndpoints.Onboarding.cs",
+                ],
+                "each new caller of an operator act is added here deliberately, with its denied proof");
+    }
+
     private const string KillswitchWriterFile =
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchToggle.cs";
 

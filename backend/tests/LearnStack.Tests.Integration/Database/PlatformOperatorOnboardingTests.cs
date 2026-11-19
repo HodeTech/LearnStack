@@ -1,9 +1,16 @@
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Tenancy;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using LearnStack.SharedKernel.Platform;
 using Microsoft.AspNetCore.Hosting;
 using Npgsql;
@@ -40,6 +47,7 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
     public async Task An_Operator_Onboards_A_Tenant_Step_By_Step_And_Every_Act_Is_Audited_And_Repeatable()
     {
         await using var proof = await Proof.CreateAsync(parent);
+        using var outcomes = new ActOutcomes();
         var tenant = Ids.Next();
         var organization = Ids.Next();
         var role = Ids.Next();
@@ -50,9 +58,30 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
         // Provision, and send the same act again.
         var provision = await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization));
         await AssertOkAsync(provision);
+        using (var answered = JsonDocument.Parse(await provision.Content.ReadAsStringAsync()))
+        {
+            var correlation = answered.RootElement.GetProperty("correlationId").GetString();
+            (await proof.CorrelationIdsAsync(tenant, "tenancy.tenant.create")).Should().Contain(correlation,
+                "the runbook finds an act's rows by the correlation id its answer returned");
+        }
+
         await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization)));
         (await proof.CountAsync(tenant, "tenants")).Should().Be(1);
         (await proof.CountAsync(tenant, "organizations")).Should().Be(1);
+
+        // An exact repeat answers from what was stored; a repeat that changes any value is a different request.
+        using (var repeat = await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization)))
+        {
+            using var body = JsonDocument.Parse(await repeat.Content.ReadAsStringAsync());
+            body.RootElement.GetProperty("result").GetProperty("defaultOrganizationSlug").GetString().Should().Be("main");
+        }
+
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization, displayName: "Renamed")),
+            HttpStatusCode.Conflict, "lockey_identifier_taken");
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization, organizationSlug: "elsewhere")),
+            HttpStatusCode.Conflict, "lockey_identifier_taken");
 
         // The first administrator needs the role and the person first; each refusal writes nothing.
         await AssertRuleAsync(
@@ -74,8 +103,19 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
         // The host mapping, then again.
         var mapped = await proof.PutAsync(Full, $"/tenants/{tenant}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":true}""");
         await AssertOkAsync(mapped);
+        proof.Invalidations.Should().Equal([host], "the first run drops any cached answer for the host");
         await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":true}"""));
+        proof.Invalidations.Should().Equal([host, host], "the retry drops it again, which is the repair for a miss cached before the commit");
         (await proof.HostMappingsAsync(host)).Should().Equal(tenant);
+
+        // How each act ended, as the monitoring owner sees it: four first runs, five repeats that found their own
+        // earlier result (the provisioning twice and each of the others once) and four refusals.
+        outcomes.Counts.Should().Equal(new Dictionary<string, int>
+        {
+            ["applied"] = 4,
+            ["replayed"] = 5,
+            ["refused"] = 4,
+        });
 
         // Who the business columns name, and what the audit rows say.
         (await proof.ScalarAsync<Guid>(tenant, "SELECT created_by FROM public.memberships")).Should().Be(UserId.SystemActor.Value);
@@ -85,9 +125,11 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             ["tenancy.tenant.create", "tenancy.organization.create", "identity.role.initialize",
              "identity.membership.create_first_admin", "tenancy.hostmapping.write"]);
         audit.Should().OnlyContain(row => row.ActorUserId == null, "an operator act names no tenant user; the operator is in metadata");
-        audit.Where(row => row.Outcome == "failed").Select(row => row.Operation).Should().Equal(
-            ["identity.membership.create_first_admin", "identity.membership.create_first_admin"],
-            "the two refused first-administrator attempts are recorded as the failures they were, and nothing else failed");
+        audit.Where(row => row.Outcome == "failed").Select(row => row.Operation).Should().BeEquivalentTo(
+            ["identity.membership.create_first_admin", "identity.membership.create_first_admin",
+             "tenancy.tenant.create", "tenancy.organization.create", "tenancy.tenant.create", "tenancy.organization.create"],
+            "the two refused first-administrator attempts and the two changed provisioning repeats are recorded as the "
+            + "failures they were, and nothing else failed");
         audit.Should().OnlyContain(row => row.Metadata.Contains(proof.Operator.Issuer, StringComparison.Ordinal),
             "every row carries the admitted operator's issuer");
         audit.Should().OnlyContain(row => !row.Metadata.Contains(proof.PersonSubject, StringComparison.Ordinal)
@@ -95,6 +137,17 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
         audit.Should().OnlyContain(row => !row.Metadata.Contains("INC-77", StringComparison.Ordinal), "the ticket stays out of rows a tenant can read");
         audit.Select(row => row.Reason).Distinct().Should().BeEquivalentTo(
             ["tenant_provision", "role_initialize", "first_admin_create", "host_map"]);
+        foreach (var row in audit)
+        {
+            using var metadata = JsonDocument.Parse(row.Metadata);
+            var @operator = metadata.RootElement.GetProperty("operator");
+            @operator.GetProperty("issuer").GetString().Should().Be(proof.Operator.Issuer);
+            @operator.GetProperty("acr").GetString().Should().Be("mfa");
+            @operator.GetProperty("kind").GetString().Should().Be("human");
+            @operator.GetProperty("executor").GetString().Should().NotBeNullOrWhiteSpace();
+            @operator.GetProperty("subjectDigest").GetString().Should().MatchRegex("^[A-Za-z0-9_-]{43}$");
+            metadata.RootElement.GetProperty("authorization").GetProperty("source").GetString().Should().Be("operator");
+        }
     }
 
     [Fact]
@@ -129,7 +182,7 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
         await using var proof = await Proof.CreateAsync(parent);
         var missing = Ids.Next();
 
-        (await proof.PutAsync(Full, $"/tenants/{missing}/host-mappings/missing.example.test", "{}")).StatusCode
+        (await proof.PutAsync(Full, $"/tenants/{missing}/host-mappings/missing.example.test", LiveFlags)).StatusCode
             .Should().Be(HttpStatusCode.NotFound);
         (await proof.PutAsync(Full, $"/tenants/{missing}/roles/{Ids.Next()}", RoleBody())).StatusCode
             .Should().Be(HttpStatusCode.NotFound);
@@ -165,7 +218,8 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             .Should().Be(HttpStatusCode.BadRequest);
         (await proof.PutAsync(Full, RecoveryPath(tenant, v4), AdminBody(Ids.Next(), proof.PersonSubject))).StatusCode
             .Should().Be(HttpStatusCode.BadRequest);
-        (await proof.CountAsync(Ids.Next(), "tenants")).Should().Be(0);
+        (await proof.CountAsync(v4, "tenants")).Should().Be(0);
+        (await proof.CountAsync(tenant, "tenants")).Should().Be(0);
     }
 
     [Fact]
@@ -182,6 +236,153 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             await proof.PutAsync(Full, FirstAdminPath(tenant, Ids.Next()), AdminBody(role, proof.PersonSubject)),
             HttpStatusCode.Conflict, "lockey_bootstrap_required");
         (await proof.CountAsync(tenant, "memberships")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_Reply_Lost_After_The_Commit_Is_Answered_By_Sending_The_Same_Request_Again()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        var tenant = Ids.Next();
+        var organization = Ids.Next();
+        var slug = "lost-" + Ids.Short();
+        using var lossy = proof.ClientWith(services => services.Insert(0, ServiceDescriptor.Scoped<
+            IPipelineBehavior<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>, LoseTheReplyAfterTheCommit>()));
+
+        using var lost = await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization), lossy);
+
+        lost.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "the act committed and the operator was told it failed");
+        (await proof.CountAsync(tenant, "tenants")).Should().Be(1, "the commit is real whatever the operator was told");
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization)));
+        (await proof.CountAsync(tenant, "tenants")).Should().Be(1);
+        (await proof.CountAsync(tenant, "organizations")).Should().Be(1);
+        (await proof.AuditAsync(tenant)).Count(row => row.Operation == "tenancy.tenant.create" && row.Outcome == "success")
+            .Should().Be(2, "the first run wrote the create; the retry is recorded as the repeated act it is, without a second tenant");
+    }
+
+    [Fact]
+    public async Task An_Act_Interrupted_Between_Its_Writes_Leaves_Nothing_And_The_Retry_Completes_Once()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        var tenant = Ids.Next();
+        var organization = Ids.Next();
+        var slug = "cut-" + Ids.Short();
+        using var failing = proof.ClientWith(services =>
+        {
+            var registered = services.Last(descriptor => descriptor.ServiceType == typeof(ITenantWriteStore));
+            services.Remove(registered);
+            services.AddScoped<ITenantWriteStore>(provider => new FailTheLastWrite((ITenantWriteStore)(
+                registered.ImplementationFactory?.Invoke(provider)
+                ?? ActivatorUtilities.CreateInstance(provider, registered.ImplementationType!))));
+        });
+
+        using var cut = await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization), failing);
+
+        cut.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        (await proof.CountAsync(tenant, "tenants")).Should().Be(0, "the tenant and organization inserts rolled back with the act");
+        (await proof.CountAsync(tenant, "organizations")).Should().Be(0);
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody(slug, organization)));
+        (await proof.CountAsync(tenant, "tenants")).Should().Be(1);
+        (await proof.CountAsync(tenant, "organizations")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task The_Platform_Sentinel_And_A_Malformed_Request_Are_Refused_With_The_Status_An_Operator_Can_Act_On()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        var sentinel = TenantId.PlatformSentinel.Value;
+        var tenant = Ids.Next();
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody("shape-" + Ids.Short(), Ids.Next())));
+
+        (await proof.PutAsync(Full, $"/tenants/{sentinel}/roles/{Ids.Next()}", RoleBody())).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest, "the sentinel is the platform's own tenant and no act may name it");
+        (await proof.PutAsync(Full, FirstAdminPath(tenant, Ids.Next()), AdminBody(Ids.Next(), "   "))).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest, "a blank subject is a malformed request");
+        (await proof.PutAsync(Full, FirstAdminPath(tenant, Ids.Next()), AdminBody(Ids.Next(), new string('x', 256)))).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest, "a subject over 255 characters is a malformed request");
+        (await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}",
+            """{"builtInKey":"TenantAdmin","capabilityScope":"Tenant","ticket":"has a space"}""")).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest, "the ticket grammar is enforced at the gate");
+        (await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}", "{ not json")).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest);
+        (await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}", """{"builtInKey":"Nobody","capabilityScope":"Tenant"}""")).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest, "an unknown template key is refused before any act");
+        (await proof.SendAsync(Full, $"/tenants/{tenant}/roles/{Ids.Next()}", new StringContent(RoleBody(), Encoding.UTF8, "text/plain"))).StatusCode
+            .Should().Be(HttpStatusCode.UnsupportedMediaType);
+        (await proof.CountAsync(tenant, "roles")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_Host_Mapping_States_Both_Flags_And_Refuses_A_Host_Another_Tenant_Holds_And_A_Foreign_Organization()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        var first = Ids.Next();
+        var second = Ids.Next();
+        var secondOrganization = Ids.Next();
+        var host = "shared-" + Ids.Short() + ".example.test";
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{first}", ProvisionBody("one-" + Ids.Short(), Ids.Next())));
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{second}", ProvisionBody("two-" + Ids.Short(), secondOrganization)));
+
+        // No unmap act exists, so a mapping never arrives serving traffic because a field was left out.
+        (await proof.PutAsync(Full, $"/tenants/{first}/host-mappings/{host}", "{}")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await proof.PutAsync(Full, $"/tenants/{first}/host-mappings/{host}", """{"isActive":true}""")).StatusCode
+            .Should().Be(HttpStatusCode.BadRequest);
+        (await proof.HostMappingsAsync(host)).Should().BeEmpty();
+
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{first}/host-mappings/{host}", LiveFlags));
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, $"/tenants/{second}/host-mappings/{host}", LiveFlags),
+            HttpStatusCode.Conflict, "lockey_host_taken");
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, $"/tenants/{first}/host-mappings/{host}", """{"isActive":true,"isPubliclyLive":false}"""),
+            HttpStatusCode.Conflict, "lockey_host_taken");
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, $"/tenants/{first}/host-mappings/other-{Ids.Short()}.example.test",
+                JsonSerializer.Serialize(new { organizationId = secondOrganization, isActive = true, isPubliclyLive = true })),
+            HttpStatusCode.Conflict, "lockey_organization_not_in_tenant");
+        (await proof.HostMappingsAsync(host)).Should().Equal(first);
+    }
+
+    [Fact]
+    public async Task Organization_Scope_Templates_Are_Initialized_And_Only_A_Tenant_Administrator_Role_Of_This_Tenant_Can_Administer()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        var tenant = Ids.Next();
+        var other = Ids.Next();
+        var adminRole = Ids.Next();
+        var orgAdminRole = Ids.Next();
+        var otherRole = Ids.Next();
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}", ProvisionBody("scoped-" + Ids.Short(), Ids.Next())));
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{other}", ProvisionBody("other-" + Ids.Short(), Ids.Next())));
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{adminRole}", RoleBody()));
+        await AssertOkAsync(await proof.PutAsync(
+            Full, $"/tenants/{tenant}/roles/{orgAdminRole}", """{"builtInKey":"OrgAdmin","capabilityScope":"Organization"}"""));
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{other}/roles/{otherRole}", RoleBody()));
+        (await proof.CountAsync(tenant, "roles")).Should().Be(2);
+
+        // An Organization-scope administrator template and another tenant's administrator template are not this
+        // tenant's tenant-wide administrator Role.
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, FirstAdminPath(tenant, Ids.Next()), AdminBody(orgAdminRole, proof.PersonSubject)),
+            HttpStatusCode.Conflict, "lockey_role_not_initialized");
+        await AssertRuleAsync(
+            await proof.PutAsync(Full, FirstAdminPath(tenant, Ids.Next()), AdminBody(otherRole, proof.PersonSubject)),
+            HttpStatusCode.Conflict, "lockey_role_not_initialized");
+        (await proof.CountAsync(tenant, "memberships")).Should().Be(0);
+        await AssertOkAsync(await proof.PutAsync(Full, FirstAdminPath(tenant, Ids.Next()), AdminBody(adminRole, proof.PersonSubject)));
+    }
+
+    [Fact]
+    public async Task A_Retry_Of_The_First_Administrator_Still_Answers_After_The_Role_Template_Was_Edited()
+    {
+        await using var proof = await Proof.CreateAsync(parent);
+        var (tenant, role, membership) = await proof.OnboardAsync(Full);
+        await proof.EditRoleOutsideTheActsAsync(tenant, role);
+
+        // The administrator edited the template after the first run, so it is no longer the pristine one the
+        // act created; the retry of the original act must still find its Membership and answer.
+        await AssertOkAsync(await proof.PutAsync(Full, FirstAdminPath(tenant, membership), AdminBody(role, proof.PersonSubject)));
+        await AssertOkAsync(await proof.PutAsync(Full, $"/tenants/{tenant}/roles/{role}", RoleBody()));
+        (await proof.CountAsync(tenant, "memberships")).Should().Be(1);
     }
 
     [Fact]
@@ -275,13 +476,16 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
         (await proof.ScalarAsync<long>(tenant, "SELECT count(*) FROM public.memberships WHERE status='Active'")).Should().Be(0);
     }
 
-    private static string ProvisionBody(string slug, Guid organization) => JsonSerializer.Serialize(new
-    {
-        slug,
-        displayName = "Onboarded " + slug,
-        defaultOrganization = new { id = organization, slug = "main", displayName = "Main" },
-        ticket = "INC-77",
-    });
+    private const string LiveFlags = """{"isActive":true,"isPubliclyLive":true}""";
+
+    private static string ProvisionBody(string slug, Guid organization, string? displayName = null, string organizationSlug = "main") =>
+        JsonSerializer.Serialize(new
+        {
+            slug,
+            displayName = displayName ?? "Onboarded " + slug,
+            defaultOrganization = new { id = organization, slug = organizationSlug, displayName = "Main" },
+            ticket = "INC-77",
+        });
 
     private static string RoleBody() => """{"builtInKey":"TenantAdmin","capabilityScope":"Tenant","ticket":"INC-77"}""";
 
@@ -319,10 +523,13 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
     {
         private readonly HttpClient _client;
         private readonly Dictionary<string, string> _tokens = [];
+        private readonly List<HttpClient> _extraClients = [];
 
         private Proof(TenantAuthenticationIssuer tenantIssuer, TenantAuthenticationIssuer @operator,
-            IdentityPublicReadFixture database, UserId person, string personSubject, HttpClient client)
+            IdentityPublicReadFixture database, UserId person, string personSubject, HttpClient client,
+            List<string> invalidations)
         {
+            Invalidations = invalidations;
             TenantIssuer = tenantIssuer;
             Operator = @operator;
             Database = database;
@@ -341,6 +548,9 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
 
         internal string PersonSubject { get; }
 
+        /// <summary>The hosts whose cached resolution the acts dropped, in order.</summary>
+        internal List<string> Invalidations { get; }
+
         internal static async Task<Proof> CreateAsync(PublicReadFixture parent)
         {
             var tenantIssuer = await TenantAuthenticationIssuer.StartAsync();
@@ -349,12 +559,15 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             var subject = "onboarding-person-" + person.Value.ToString("N");
             IdentityPublicReadFixture? database = null;
             HttpClient? client = null;
+            var invalidations = new List<string>();
             try
             {
                 database = await IdentityPublicReadFixture.CreateAsync(
                     parent, tenantIssuer.Issuer, new Dictionary<UserId, string> { [person] = subject });
-                client = database.ClientFor("localhost", configureHost: ConfigureOperator(@operator));
-                return new Proof(tenantIssuer, @operator, database, person, subject, client);
+                client = database.ClientFor("localhost",
+                    services => services.AddSingleton<IHostResolutionInvalidator>(new RecordingInvalidator(invalidations)),
+                    ConfigureOperator(@operator));
+                return new Proof(tenantIssuer, @operator, database, person, subject, client, invalidations);
             }
             catch
             {
@@ -387,7 +600,22 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             }
         };
 
-        internal async Task<HttpResponseMessage> PutAsync(string operatorSubject, string path, string json)
+        /// <summary>
+        /// A second host over the same database whose services <paramref name="configure"/> changes, for the cases
+        /// that make an act fail where the production code would not.
+        /// </summary>
+        internal HttpClient ClientWith(Action<IServiceCollection> configure)
+        {
+            var client = Database.ClientFor("localhost", configure, ConfigureOperator(Operator));
+            _extraClients.Add(client);
+            return client;
+        }
+
+        internal async Task<HttpResponseMessage> PutAsync(string operatorSubject, string path, string json, HttpClient? client = null) =>
+            await SendAsync(operatorSubject, path, new StringContent(json, Encoding.UTF8, "application/json"), client);
+
+        internal async Task<HttpResponseMessage> SendAsync(
+            string operatorSubject, string path, HttpContent content, HttpClient? client = null)
         {
             if (!_tokens.TryGetValue(operatorSubject, out var token))
             {
@@ -409,9 +637,29 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
             using var request = new HttpRequestMessage(HttpMethod.Put, "/api/platform/v1" + path)
             {
                 Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) },
-                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+                Content = content,
             };
-            return await _client.SendAsync(request);
+            return await (client ?? _client).SendAsync(request);
+        }
+
+        /// <summary>The correlation ids of the audit rows of one operation in the tenant.</summary>
+        internal async Task<List<string>> CorrelationIdsAsync(Guid tenant, string operation)
+        {
+            await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Database.AppConnectionString);
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await using var transaction = await app.BeginTransactionAsync();
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, tenant);
+            await using var command = new NpgsqlCommand(
+                "SELECT correlation_id FROM public.audit_log WHERE operation=@operation", app, transaction);
+            command.Parameters.AddWithValue("operation", operation);
+            await using var reader = await command.ExecuteReaderAsync();
+            var ids = new List<string>();
+            while (await reader.ReadAsync())
+            {
+                ids.Add(reader.GetString(0));
+            }
+
+            return ids;
         }
 
         /// <summary>A person who has signed in, so the first-sign-in bootstrap has bound them.</summary>
@@ -442,6 +690,23 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
                 ALTER POLICY users_isolation ON public.users WITH CHECK ({check});
                 ALTER TABLE public.users ENABLE TRIGGER tg_users_no_update;
                 """);
+            await transaction.CommitAsync();
+        }
+
+        /// <summary>
+        /// A later edit of the Role by its owner, which bumps the row version the way an administrator's edit does, with
+        /// the same locks a handler would take.
+        /// </summary>
+        internal async Task EditRoleOutsideTheActsAsync(Guid tenant, Guid role)
+        {
+            await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Database.AppConnectionString);
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await using var transaction = await app.BeginTransactionAsync();
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, tenant);
+            await IdentityMembershipFixture.LockAsync(app, transaction, tenant, null, exclusive: true);
+            await IdentityMembershipFixture.ExecuteAsync(app, transaction,
+                "UPDATE public.roles SET row_version=row_version+1, updated_at=clock_timestamp(), updated_by=@actor WHERE id=@role",
+                ("actor", UserId.SystemActor.Value), ("role", role));
             await transaction.CommitAsync();
         }
 
@@ -551,10 +816,101 @@ public sealed class PlatformOperatorOnboardingTests(PublicReadFixture parent)
 
         public async ValueTask DisposeAsync()
         {
+            foreach (var extra in _extraClients)
+            {
+                extra.Dispose();
+            }
+
             _client.Dispose();
             await Database.DisposeAsync();
             await Operator.DisposeAsync();
             await TenantIssuer.DisposeAsync();
         }
     }
+
+    /// <summary>Counts the outcome label of every onboarding act counted while it is alive.</summary>
+    private sealed class ActOutcomes : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        private readonly Dictionary<string, int> _counts = [];
+
+        public ActOutcomes()
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == LearnStack.Infrastructure.PlatformOperator.PlatformOperatorMetrics.MeterName
+                    && instrument.Name == LearnStack.Infrastructure.PlatformOperator.PlatformOperatorMetrics.ActCounterName)
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            _listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+            {
+                foreach (var tag in tags)
+                {
+                    if (tag is { Key: "outcome", Value: string outcome })
+                    {
+                        lock (_counts)
+                        {
+                            _counts[outcome] = _counts.GetValueOrDefault(outcome) + 1;
+                        }
+                    }
+                }
+            });
+            _listener.Start();
+        }
+
+        public IReadOnlyDictionary<string, int> Counts
+        {
+            get
+            {
+                lock (_counts)
+                {
+                    return new Dictionary<string, int>(_counts);
+                }
+            }
+        }
+
+        public void Dispose() => _listener.Dispose();
+    }
+
+    private sealed class RecordingInvalidator(List<string> hosts) : IHostResolutionInvalidator
+    {
+        public Task InvalidateAsync(string normalizedHost, CancellationToken cancellationToken = default)
+        {
+            hosts.Add(normalizedHost);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>A reply lost after the commit: the outermost behavior fails once the whole act, commit included, is done.</summary>
+    private sealed class LoseTheReplyAfterTheCommit
+        : IPipelineBehavior<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>
+    {
+        public async Task<Result<ProvisionedTenantDto>> Handle(
+            OperatorProvisionTenantCommand request,
+            RequestHandlerDelegate<Result<ProvisionedTenantDto>> next,
+            CancellationToken cancellationToken)
+        {
+            await next();
+            throw new InvalidOperationException("The reply was lost after the commit.");
+        }
+    }
+
+    /// <summary>The tenant store with its third write, the default-organization back-reference, failing.</summary>
+    private sealed class FailTheLastWrite(ITenantWriteStore inner) : ITenantWriteStore
+    {
+        public Task AddAsync(LearnStack.Modules.Tenancy.Domain.Tenant aggregate, CancellationToken cancellationToken = default) =>
+            inner.AddAsync(aggregate, cancellationToken);
+
+        public Task UpdateAsync(LearnStack.Modules.Tenancy.Domain.Tenant aggregate, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The act was interrupted between its writes.");
+
+        public Task<LearnStack.Modules.Tenancy.Domain.Tenant?> FindAsync(TenantId id, CancellationToken cancellationToken = default) =>
+            inner.FindAsync(id, cancellationToken);
+
+        public Task<LearnStack.Modules.Tenancy.Domain.Tenant?> FindForUpdateAsync(TenantId id, CancellationToken cancellationToken = default) =>
+            inner.FindForUpdateAsync(id, cancellationToken);
+    }
 }
+

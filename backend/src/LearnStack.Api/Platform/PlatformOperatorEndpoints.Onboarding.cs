@@ -103,9 +103,12 @@ internal static partial class PlatformOperatorEndpoints
         RunAsync<HostMapRequest, HostMappingDto>(
             http, tenantId, PlatformOperations.HostMap, gate, executor, loggers,
             body => body.Ticket,
-            body => new OperatorMapHostCommand(
-                host, body.OrganizationId is { } organization ? OrganizationId.From(organization) : null,
-                body.IsActive ?? true, body.IsPubliclyLive ?? true),
+            // Both flags are the operator's to state: there is no act that unmaps a host, so a mapping must
+            // never arrive serving anonymous traffic because a field was left out.
+            body => body.IsActive is { } active && body.IsPubliclyLive is { } live
+                ? new OperatorMapHostCommand(
+                    host, body.OrganizationId is { } organization ? OrganizationId.From(organization) : null, active, live)
+                : null,
             cancellationToken);
 
     private static Task<IResult> InitializeRoleAsync(
@@ -128,8 +131,8 @@ internal static partial class PlatformOperatorEndpoints
         RunAsync<AdministratorRequest, Guid>(
             http, tenantId, PlatformOperations.FirstAdminCreate, gate, executor, loggers,
             body => body.Ticket,
-            body => body.ProviderSubject is { } subject && IsRoot(membershipId) && IsRoot(body.RoleId)
-                ? new OperatorCreateFirstAdminCommand(membershipId, body.RoleId, subject) : null,
+            body => IsSubject(body.ProviderSubject) && IsRoot(membershipId) && IsRoot(body.RoleId)
+                ? new OperatorCreateFirstAdminCommand(membershipId, body.RoleId, body.ProviderSubject!) : null,
             cancellationToken);
 
     private static Task<IResult> RecoverAdminAsync(
@@ -138,8 +141,8 @@ internal static partial class PlatformOperatorEndpoints
         RunAsync<AdministratorRequest, Guid>(
             http, tenantId, PlatformOperations.AdminRecover, gate, executor, loggers,
             body => body.Ticket,
-            body => body.ProviderSubject is { } subject && IsRoot(membershipId) && IsRoot(body.RoleId)
-                ? new OperatorRecoverAdminCommand(membershipId, body.RoleId, subject) : null,
+            body => IsSubject(body.ProviderSubject) && IsRoot(membershipId) && IsRoot(body.RoleId)
+                ? new OperatorRecoverAdminCommand(membershipId, body.RoleId, body.ProviderSubject!) : null,
             cancellationToken);
 
     /// <summary>
@@ -200,7 +203,16 @@ internal static partial class PlatformOperatorEndpoints
         }
     }
 
-    private static bool IsRoot(Guid id) => id != Guid.Empty && id.Version == 7;
+    /// <summary>
+    /// An identifier the operator generates: a UUIDv7, never the nil value and never the platform sentinel, which
+    /// is the tenant the platform's own rows belong to and which no operator act may name.
+    /// </summary>
+    private static bool IsRoot(Guid id) => id != Guid.Empty && id.Version == 7 && id != TenantId.PlatformSentinel.Value;
+
+    private const int MaximumSubjectLength = 255;
+
+    private static bool IsSubject(string? subject) =>
+        !string.IsNullOrWhiteSpace(subject) && subject.Length <= MaximumSubjectLength;
 
     private static IResult RefusalProblem(HttpContext http, PlatformRefusal refusal) => refusal switch
     {

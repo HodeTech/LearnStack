@@ -6250,8 +6250,8 @@ readers.
 
 **Derives from:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) and its
 Amendment 1. An operator onboarding act runs on the application role under the ordinary
-tenant announcement, so it adds no table, no policy and no grant. It adds one confined
-definer.
+tenant announcement, so it adds no table, no policy and no table grant. It adds one
+confined definer.
 
 ### Operator subject resolution
 
@@ -6270,8 +6270,9 @@ answers exactly that:
   bytes, and any authority id other than the one stored in `identity_authority`. Each
   raises `23514` and reveals nothing.
 - **Answer.** The `id` of the one `users` row with that authority and key whose `status`
-  is `Active` and whose `deleted_at` is null, otherwise null. It reads no other relation
-  and writes nothing.
+  is `Active` and whose `deleted_at` is null, otherwise null. It reads
+  `identity_authority` for its refusal check and `users` for its answer, and nothing
+  else, and it writes nothing.
 - **Caller.** `OperatorSubjectResolver`, which derives the key with the one
   `IdentitySubjectKey` implementation under the deployment's qualified authority, so a
   request supplies the provider subject and nothing else. The exact SQL, ACL, owner and
@@ -6280,4 +6281,13 @@ answers exactly that:
 A Membership written under that answer still passes the ordinary admission guard, which
 re-reads the User's eligibility under the user fence, so the resolver is a lookup and
 not an authority.
+
+**Residual.** The function is executable by `learnstack_app` and checks the session and
+the arguments, not a witness bound to an operator act, as the invitation and consent
+definers do. Any application-role transaction that announces a tenant can ask it whether
+a provider subject is an Active user and receive the `UserId`. The key is an unkeyed
+hash that supplies neither secrecy nor admission authority
+([ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md)), so the answer
+discloses that a person exists, not who they are or what they may do. The handlers check
+that the act is live before they call it; no SQL-level binding is added.
 

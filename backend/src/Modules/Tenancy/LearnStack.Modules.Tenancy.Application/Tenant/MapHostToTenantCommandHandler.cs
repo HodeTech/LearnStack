@@ -150,11 +150,18 @@ internal sealed class MapHostToTenantCommandHandler(
 
         if (idempotent && await hosts.FindForUpdateAsync(mapping.Host, cancellationToken) is { } existing)
         {
-            return existing.OrganizationId == mapping.OrganizationId && existing.IsActive == mapping.IsActive
-                && existing.IsPubliclyLive == mapping.IsPubliclyLive
-                ? Result.Ok(new HostMappingDto(
-                    existing.Host, existing.TenantId, existing.OrganizationId, existing.IsActive, existing.IsPubliclyLive))
-                : Result.FailFor<Result<HostMappingDto>>(HostTaken());
+            if (existing.OrganizationId != mapping.OrganizationId || existing.IsActive != mapping.IsActive
+                || existing.IsPubliclyLive != mapping.IsPubliclyLive)
+            {
+                return Result.FailFor<Result<HostMappingDto>>(HostTaken());
+            }
+
+            // The retry is also the repair for the one thing the first run could not guarantee: a miss
+            // cached between its invalidation and its commit. Dropping the entry again is idempotent.
+            await resolutionCache.InvalidateAsync(mapping.Host, cancellationToken);
+            operatorGuard.MarkReplayed();
+            return Result.Ok(new HostMappingDto(
+                existing.Host, existing.TenantId, existing.OrganizationId, existing.IsActive, existing.IsPubliclyLive));
         }
 
         try

@@ -1409,6 +1409,14 @@ and qualification; acceptance alone installs no runtime subject.
 
 ### Amendment 21 — Platform URL space and confined operator target (2026-11-19)
 
+> **Erratum — 2026-11-19.** The second paragraph below says the target tenant of an
+> admitted operator act is announced "by one confined setter". No setter was added: the
+> operator act executor installs a resolved ambient context for the target and the
+> ordinary transaction behavior announces it; shown by
+> `SetTenant_Callers_Are_The_Enumerated_Four` and `PlatformOperatorActExecutorTests`.
+> The Decision is unchanged. Current authority: Amendment 22 below. Recorded in
+> Amendment 22.
+
 Accepted [ADR-0101](0101-platform-operator-authority.md) fixes the platform URL space
 this record left open: `/api/platform/v1/*`, unclassified by host like `/api/internal`
 and authenticated by the operator scheme. This record's sentence that operator
@@ -1423,9 +1431,6 @@ work by one confined setter. The rule that no route resolves a tenant from a
 request-supplied override stands for every route that resolves context from a host or a
 claim.
 
-> **Erratum (2026-11-19, Amendment 22 below).** "One confined setter" is wrong: no
-> setter was added. The operator act executor installs a resolved ambient context for
-> the target and the ordinary transaction behavior announces it.
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.

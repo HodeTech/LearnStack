@@ -102,6 +102,7 @@ public sealed partial class IdentityAuditConventionTests
         (SeedTenancyGuard, "RequireCurrent", 1),
         (OperatorActGuard, "AdmitAsync", 1),
         (OperatorActGuard, "RequireCurrent", 1),
+        (OperatorActGuard, "RequireLiveAct", 1),
         (SeedTenancyGuard, "AllowsIdentityContinuationAsync", 1),
         (SeedTenancyGuard, "AllowsContentContinuationAsync", 1),
         (SeedTenancyGuard, "<HasPristinePrerequisitesAsync>g__Current|14_0", 1),

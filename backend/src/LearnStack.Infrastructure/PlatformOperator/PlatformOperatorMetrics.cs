@@ -23,6 +23,9 @@ public static class PlatformOperatorMetrics
     /// <summary>MUST result rows committed, by <c>operation</c>.</summary>
     public const string ResultCounterName = "learnstack_platform_operator_results_total";
 
+    /// <summary>Onboarding acts by <c>operation</c> and <c>outcome</c> (applied, replayed, refused, failed).</summary>
+    public const string ActCounterName = "learnstack_platform_operator_acts_total";
+
     /// <summary>Acts refused with 503 because a MUST row could not be written, by <c>operation</c>.</summary>
     public const string AuditFailureCounterName = "learnstack_platform_operator_audit_failures_total";
 
@@ -39,6 +42,9 @@ public static class PlatformOperatorMetrics
 
     private static readonly Counter<long> Results =
         Meter.CreateCounter<long>(ResultCounterName, description: "MUST result rows committed by operation.");
+
+    private static readonly Counter<long> Acts =
+        Meter.CreateCounter<long>(ActCounterName, description: "Operator onboarding acts by operation and outcome.");
 
     private static readonly Counter<long> AuditFailures =
         Meter.CreateCounter<long>(AuditFailureCounterName, description: "Operator acts refused because the MUST row was not durable.");
@@ -80,7 +86,38 @@ public static class PlatformOperatorMetrics
     public static void Result(PlatformOperation operation) =>
         Results.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug));
 
+    /// <summary>
+    /// Counts one onboarding act by how it ended: <c>applied</c> wrote its state, <c>replayed</c> found the state an
+    /// earlier run of the same act wrote and so is a setup resumed at that step, <c>refused</c> returned a failure
+    /// result, and <c>failed</c> threw.
+    /// </summary>
+    public static void Act(PlatformOperation operation, PlatformOperatorActOutcome outcome) =>
+        Acts.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),
+            new KeyValuePair<string, object?>("outcome", outcome switch
+            {
+                PlatformOperatorActOutcome.Applied => "applied",
+                PlatformOperatorActOutcome.Replayed => "replayed",
+                PlatformOperatorActOutcome.Refused => "refused",
+                _ => "failed",
+            }));
+
     /// <summary>Counts an act that was refused because its MUST row could not be written.</summary>
     public static void AuditFailed(PlatformOperation operation) =>
         AuditFailures.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug));
+}
+
+/// <summary>How an onboarding act ended, the closed label set of the act counter.</summary>
+public enum PlatformOperatorActOutcome
+{
+    /// <summary>The act wrote its state.</summary>
+    Applied = 1,
+
+    /// <summary>The act found the state an earlier run wrote and wrote nothing.</summary>
+    Replayed = 2,
+
+    /// <summary>The act returned a failure result.</summary>
+    Refused = 3,
+
+    /// <summary>The act threw.</summary>
+    Failed = 4,
 }

@@ -1,11 +1,16 @@
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using LearnStack.Application.Authorization;
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -13,6 +18,7 @@ using LearnStack.SharedKernel.Time;
 using LearnStack.Tests.Fixtures;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 
@@ -193,6 +199,43 @@ public sealed class PlatformOperatorActExecutorTests
     }
 
     [Fact]
+    public async Task Each_Act_Is_Counted_By_How_It_Ended()
+    {
+        using var counted = new ActCounter();
+        await using var rig = new Rig();
+
+        await rig.Executor.ExecuteAsync(
+            TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now), Tenant, Provision());
+        rig.Replay = true;
+        await rig.Executor.ExecuteAsync(
+            TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now), Tenant, Provision());
+        rig.Replay = false;
+        rig.Refusal = new Error(new LocalizedMessage("lockey_business_rule_violation"));
+        await rig.Executor.ExecuteAsync(
+            TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now), Tenant, Provision());
+        rig.Refusal = null;
+        rig.Failure = new InvalidOperationException("handler failed");
+        var failed = () => rig.Executor.ExecuteAsync(
+            TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now), Tenant, Provision());
+        await failed.Should().ThrowAsync<InvalidOperationException>();
+
+        counted.Outcomes.Should().Equal(
+            ["tenancy.tenant.create:applied", "tenancy.tenant.create:replayed", "tenancy.tenant.create:refused", "tenancy.tenant.create:failed"]);
+    }
+
+    [Fact]
+    public async Task An_Admitted_Act_The_Pipeline_Refuses_As_Forbidden_Is_Logged_As_A_Defect()
+    {
+        await using var rig = new Rig();
+        rig.Refusal = new Error(new LocalizedMessage("lockey_forbidden"));
+
+        await rig.Executor.ExecuteAsync(
+            TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now), Tenant, Provision());
+
+        rig.LoggedEvents.Should().Equal([7109], "the warning an operator can alert on, since this refusal writes no audit row");
+    }
+
+    [Fact]
     public void The_Act_Catalog_Refuses_An_Operation_That_Needs_The_Platform_Role_Or_No_Acts_At_All()
     {
         var bypass = () => new PlatformOperatorActCatalog(
@@ -231,6 +274,11 @@ public sealed class PlatformOperatorActExecutorTests
             services.AddSingleton<IOperationPolicyCatalog>(
                 new OperationPolicyCatalog([new TenancyOperationPolicySource(), new IdentityOperationPolicySource()]));
             services.AddSingleton(clock);
+            services.AddSingleton(typeof(ILogger<>), typeof(CapturingLogger<>));
+            services.AddSingleton(LoggedEvents);
+            services.AddScoped(_ => new OperatorActGuard(
+                Substitute.For<IOperationInvocationContext>(), Substitute.For<ITenantContext>(),
+                Substitute.For<IUnitOfWork>(), Substitute.For<IIdentityMutationLocks>()));
             services.AddPlatformOperatorActs(catalog);
             services.AddScoped(provider =>
             {
@@ -244,9 +292,19 @@ public sealed class PlatformOperatorActExecutorTests
                         context, source, descriptor,
                         descriptor?.Matches(typeof(OperatorProvisionTenantCommand), context) ?? false,
                         Probe?.Invoke(source, context) ?? []));
-                    return Failure is null
-                        ? Task.FromResult(Result.Ok(new ProvisionedTenantDto(Tenant, "acme", OrganizationId.From(Guid.CreateVersion7()), "main")))
-                        : Task.FromException<Result<ProvisionedTenantDto>>(Failure);
+                    if (Replay)
+                    {
+                        provider.GetRequiredService<OperatorActGuard>().MarkReplayed();
+                    }
+
+                    if (Failure is not null)
+                    {
+                        return Task.FromException<Result<ProvisionedTenantDto>>(Failure);
+                    }
+
+                    return Task.FromResult(Refusal is { } refusal
+                        ? Result.FailFor<Result<ProvisionedTenantDto>>(refusal)
+                        : Result.Ok(new ProvisionedTenantDto(Tenant, "acme", OrganizationId.From(Guid.CreateVersion7()), "main")));
                 });
                 return sender;
             });
@@ -262,8 +320,61 @@ public sealed class PlatformOperatorActExecutorTests
 
         public Exception? Failure { get; set; }
 
+        public bool Replay { get; set; }
+
+        public Error? Refusal { get; set; }
+
+        public List<int> LoggedEvents { get; } = [];
+
         public Func<ITrustedOperationSource, ITenantContext, IReadOnlyList<TrustedOperationDescriptor?>>? Probe { get; set; }
 
         public ValueTask DisposeAsync() => _provider.DisposeAsync();
+    }
+
+    private sealed class CapturingLogger<T>(List<int> events) : ILogger<T>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            events.Add(eventId.Id);
+    }
+
+    /// <summary>Records the <c>operation:outcome</c> of every act counted while it is alive.</summary>
+    private sealed class ActCounter : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+
+        public ActCounter()
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName && instrument.Name == PlatformOperatorMetrics.ActCounterName)
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            _listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+            {
+                string? operation = null, outcome = null;
+                foreach (var tag in tags)
+                {
+                    if (tag.Key == "operation") operation = tag.Value as string;
+                    if (tag.Key == "outcome") outcome = tag.Value as string;
+                }
+
+                lock (Outcomes)
+                {
+                    Outcomes.Add(operation + ":" + outcome);
+                }
+            });
+            _listener.Start();
+        }
+
+        public List<string> Outcomes { get; } = [];
+
+        public void Dispose() => _listener.Dispose();
     }
 }

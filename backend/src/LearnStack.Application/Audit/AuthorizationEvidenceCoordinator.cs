@@ -167,7 +167,8 @@ public sealed class AuthorizationEvidenceCoordinator(
     private void RecordDenial(OperationInvocation invocation, ProtectedOperationDecision? decision, AuthorizationRefusalReason reason,
         string errorKey = "lockey_forbidden", AuthorizationAuditContext? observedContext = null)
     {
-        // An operator's refused act leaves a counter and a log line and no durable row (ADR-0101 § 11).
+        // An operator's refused act writes no durable row: the executor counts it as refused and logs event 7109
+        // (ADR-0033 Amendment 14).
         if (invocation.TrustedSource is { SourceKind: AuthorizationSourceKind.PlatformOperator }) return;
         if (_entries.ContainsKey(invocation) || !HasAttribution(invocation)) return;
         try

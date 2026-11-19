@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**381 test methods run in
+**382 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**285 rules in this catalogue are Implemented, and 167 of them are in that assembly.**
+**286 rules in this catalogue are Implemented, and 168 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -5934,6 +5934,21 @@ structural test proves — and what it does not.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).
+- **Phase:** P03-9.
+
+#### `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `PlatformOperatorActExecutor` in code, comments stripped, are exactly the executor,
+  the registration beside the source it enters and the onboarding routes. A second
+  caller is a second route to an act; adding one is a deliberate edit here, with its
+  denied proof.
+- **Why it matters:** the executor installs a tenant context from an admission, so what
+  may call it is what may run an operator act. The admission is the barrier, and this
+  keeps the set of places that can spend one small and visible.
+- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2).
 - **Phase:** P03-9.
 
 #### `Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer`

@@ -23,6 +23,18 @@ internal static class OperatorIdentityFailures
     internal static Result<Guid> Unavailable() => Result<Guid>.Fail(new Error(new LocalizedMessage("lockey_dependency_unavailable")));
 
     /// <summary>
+    /// What a refused storage write answers, in the vocabulary the sibling Identity handlers already use: a
+    /// lost race or a lock that timed out is retryable, a missing plan is unavailable, and the rest is the
+    /// foundation refusing the graph.
+    /// </summary>
+    internal static Result<Guid> Storage(IdentityFoundationStorageException failure) => failure.Failure switch
+    {
+        IdentityFoundationStorageFailure.Conflict => Result<Guid>.Fail(new Error(new LocalizedMessage("lockey_concurrency_conflict"))),
+        IdentityFoundationStorageFailure.Plan => Unavailable(),
+        _ => Rule("$", "lockey_identity_foundation_refused"),
+    };
+
+    /// <summary>
     /// A 409 with the reason on the field it concerns. The top-level code stays
     /// <c>business_rule_violation</c> because the status map is closed and a module-specific code would
     /// answer 500.
@@ -68,11 +80,14 @@ internal sealed class OperatorInitializeRoleCommandHandler(
             // The same template named again is the same act, so a reply lost on the wire costs nothing.
             if (await store.FindAsync(id, cancellationToken) is { } existing)
             {
-                return existing.TenantId == context.TenantId && existing.BuiltInKey == request.BuiltInKey
-                    && existing.PermissionScope == request.CapabilityScope && existing.CreatedBy == UserId.SystemActor
-                    && existing.MatchesInitialTemplate()
-                    ? Result<Guid>.Ok(request.RoleId)
-                    : OperatorIdentityFailures.Rule("RoleId", "lockey_identifier_taken");
+                // The act is identified by the Role's id, tenant, key, scope and creator. Its grants are not part of
+                // that: once an administrator exists the template may be edited, and a retry of the original act
+                // must still find its Role.
+                if (existing.TenantId != context.TenantId || existing.BuiltInKey != request.BuiltInKey
+                    || existing.PermissionScope != request.CapabilityScope || existing.CreatedBy != UserId.SystemActor)
+                    return OperatorIdentityFailures.Rule("RoleId", "lockey_identifier_taken");
+                guard.MarkReplayed();
+                return Result<Guid>.Ok(request.RoleId);
             }
 
             if (await store.HasMembershipHistoryAsync(cancellationToken))
@@ -87,9 +102,9 @@ internal sealed class OperatorInitializeRoleCommandHandler(
             await store.ValidateGraphAsync(cancellationToken);
             return Result<Guid>.Ok(request.RoleId);
         }
-        catch (IdentityFoundationStorageException)
+        catch (IdentityFoundationStorageException failure)
         {
-            return OperatorIdentityFailures.Rule("$", "lockey_identity_foundation_refused");
+            return OperatorIdentityFailures.Storage(failure);
         }
         catch (IdentityMutationLockException)
         {
@@ -125,6 +140,11 @@ internal static class OperatorAdministratorCreation
         if (!await SeedFoundationGate.AllowsCurrentLifecycleAsync(context, lifecycle, cancellationToken))
             return OperatorIdentityFailures.NotFound();
 
+        // The confined resolver is reachable only from inside a live operator act, so the check is made before
+        // it is called and not left to the lock plan that needs its answer.
+        if (guard.RequireLiveAct(request) is { IsFailure: true } notLive)
+            return Result<Guid>.Fail(notLive.Error);
+
         // The person first: naming a person who has not signed in refuses before any lock or write.
         if (await subjects.ResolveActiveUserAsync(providerSubject, cancellationToken) is not { } userId
             || !SeedFoundationGate.ValidUser(userId))
@@ -139,19 +159,23 @@ internal static class OperatorAdministratorCreation
             if (!await SeedFoundationGate.AllowsCurrentLifecycleAsync(context, lifecycle, cancellationToken))
                 return OperatorIdentityFailures.NotFound();
             var id = MembershipId.From(membershipId);
+
+            // The same act named again finds its Membership, so a reply lost on the wire costs nothing. This is
+            // asked before the Role's present state is judged: the new administrator may have edited the
+            // template since, and a retry of the original act must not be refused for that.
+            if (await store.FindAsync(id, cancellationToken) is { } existing)
+            {
+                if (existing.TenantId != context.TenantId || existing.UserId != userId
+                    || existing.OrganizationId is not null || existing.Status != MembershipStatus.Active
+                    || !existing.RoleAssignments.Any(assignment => assignment.RoleId.Value == roleId))
+                    return OperatorIdentityFailures.Rule("MembershipId", "lockey_identifier_taken");
+                guard.MarkReplayed();
+                return Result<Guid>.Ok(membershipId);
+            }
+
             var role = await roles.ReadAsync(RoleId.From(roleId), cancellationToken);
             if (!IsAdministratorRole(role, context.TenantId, firstAdmin))
                 return OperatorIdentityFailures.Rule("RoleId", "lockey_role_not_initialized");
-
-            // The same act named again finds its Membership, so a reply lost on the wire costs nothing.
-            if (await store.FindAsync(id, cancellationToken) is { } existing)
-            {
-                return existing.TenantId == context.TenantId && existing.UserId == userId
-                    && existing.OrganizationId is null && existing.Status == MembershipStatus.Active
-                    && existing.RoleAssignments.Any(assignment => assignment.RoleId.Value == roleId)
-                    ? Result<Guid>.Ok(membershipId)
-                    : OperatorIdentityFailures.Rule("MembershipId", "lockey_identifier_taken");
-            }
 
             // The act's own predicate, under the locks. The first administrator refuses any Membership
             // history, so it is not a way to add an administrator to a tenant that has had members; the
@@ -172,9 +196,9 @@ internal static class OperatorAdministratorCreation
             await store.ValidateGraphAsync(cancellationToken);
             return Result<Guid>.Ok(membershipId);
         }
-        catch (IdentityFoundationStorageException)
+        catch (IdentityFoundationStorageException failure)
         {
-            return OperatorIdentityFailures.Rule("$", "lockey_identity_foundation_refused");
+            return OperatorIdentityFailures.Storage(failure);
         }
         catch (IdentityMutationLockException)
         {

@@ -120,16 +120,27 @@ internal sealed class ProvisionTenantCommandHandler(
             request, new IdentityMutationLockPlan([], request.TenantId, IdentityTenantLockMode.Exclusive), cancellationToken);
         if (admission.IsFailure) return Result<ProvisionedTenantDto>.Fail(admission.Error);
 
-        // The act is idempotent on the pair (id, slug), so a reply lost on the wire costs nothing: the
-        // tenant is already there and the same pair finds it. A known slug under another id is the
-        // database's own answer, below, because row security hides another tenant's row from this read.
+        // An exact repeat of the act is the answer, and anything else under the same id is a different
+        // request: a reply lost on the wire costs nothing, and a retry that changes a value is refused
+        // rather than silently answered with a record it did not describe. The comparison reads the stored
+        // Organization, so the answer is what was written and never an echo of the request. A known slug
+        // under another id is the database's own answer, below, because row security hides another
+        // tenant's row from this read.
         var existing = await tenants.FindAsync(request.TenantId, cancellationToken);
         if (existing is not null)
         {
-            return existing.Slug == request.Slug && existing.DefaultOrganizationId == request.DefaultOrganizationId
-                ? Result.Ok(new ProvisionedTenantDto(
-                    request.TenantId, existing.Slug, request.DefaultOrganizationId, request.DefaultOrganizationSlug))
-                : Result.FailFor<Result<ProvisionedTenantDto>>(TakenFor(nameof(OperatorProvisionTenantCommand.TenantId)));
+            var organization = existing.DefaultOrganizationId == request.DefaultOrganizationId
+                ? await organizations.FindForUpdateAsync(request.DefaultOrganizationId, cancellationToken)
+                : null;
+            if (organization is null || existing.Slug != request.Slug || existing.DisplayName != request.DisplayName
+                || organization.Slug != request.DefaultOrganizationSlug
+                || organization.DisplayName != request.DefaultOrganizationDisplayName)
+            {
+                return Result.FailFor<Result<ProvisionedTenantDto>>(TakenFor(nameof(OperatorProvisionTenantCommand.TenantId)));
+            }
+
+            operatorGuard.MarkReplayed();
+            return Result.Ok(new ProvisionedTenantDto(request.TenantId, existing.Slug, organization.Id, organization.Slug));
         }
 
         try

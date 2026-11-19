@@ -44,16 +44,20 @@ act that has not been answered `200`.
    ```
 
 2. **Map the host.** `PUT /api/platform/v1/tenants/{tenantId}/host-mappings/{host}` with
-   `{ "isActive": true, "isPubliclyLive": true, "ticket": "CHG-123" }`. `organizationId`
-   is optional and pins the host to one branch. **You assert that the tenant owns the
-   host.** LearnStack checks no DNS and issues no certificate: a Self-Hosted operator is
-   responsible for both. A SaaS custom domain is the Hub's to approve and is not
-   reachable from here.
+   `{ "isActive": true, "isPubliclyLive": true, "ticket": "CHG-123" }`. **Both flags are
+   required** (a body without them is a `400`), because no act unmaps a host and a
+   mapping must never go live by omission. `organizationId` is optional and pins the
+   host to one branch. **You assert that the tenant owns the host.** LearnStack checks
+   no DNS and issues no certificate: a Self-Hosted operator is responsible for both. A
+   SaaS custom domain is the Hub's to approve and is not reachable from here.
 
 3. **The person signs in once at that host.** The tenant has no members yet, and the
    zero-membership entry binds the person to the identity authority the first time they
-   sign in. The next acts refuse a subject that has not done this
-   (`lockey_bootstrap_required`).
+   sign in. The next acts refuse a subject that is not an Active, bound user of that
+   authority (`lockey_bootstrap_required`). The check is global, not per host: a subject
+   that signed in anywhere is accepted, so **confirm the `sub` is the intended
+   person's** (their own console entry), because a mistyped `sub` of another real person
+   is accepted and makes that person the administrator.
 
 4. **Initialize the Role templates** the tenant will need, one act each:
    `PUT /api/platform/v1/tenants/{tenantId}/roles/{roleId}` with
@@ -67,7 +71,7 @@ act that has not been answered `200`.
 5. **Create the first administrator.**
    `PUT /api/platform/v1/tenants/{tenantId}/first-administrator/{membershipId}` with
    `{ "roleId": "<the TenantAdmin role id>", "providerSubject": "<sub>", "ticket": "CHG-123" }`.
-   It refuses any tenant that has ever had a Membership, so it cannot add an
+   It refuses any tenant that has had a tenant-wide Membership, so it cannot add an
    administrator to a tenant that has members.
 
 The `ticket` in each body is optional, and is the operator's own reference. Every answer
@@ -77,7 +81,7 @@ is `200 { "result": ..., "correlationId": "..." }`. Keep the correlation id.
 
 `PUT /api/platform/v1/tenants/{tenantId}/administrator-recovery/{membershipId}` with the
 same body as step 5. It creates a replacement administrator and is the only act that
-adds one to a tenant with Membership history.
+adds one to a tenant with tenant-wide Membership history.
 
 **It refuses while any Active tenant-wide administrator Membership exists**
 (`lockey_administrator_exists`). The database also refuses to leave a tenant without an
@@ -93,7 +97,7 @@ leaves the last-administrator guard as it found it.
 
 | Status | Reason (in the problem's `errors`) | What it means and what to do |
 |---|---|---|
-| 400 | `validation_failed` | The body is malformed, a value is out of its grammar, an id is not a UUIDv7, or the ticket is not 1 to 64 characters of `A-Z a-z 0-9 . _ : / # -` |
+| 400 | `validation_failed` | The body is malformed, a value is out of its grammar, an id is not a UUIDv7 (or is the platform sentinel), a host mapping omits a flag, the `providerSubject` is blank or over 255 characters, or the ticket is not 1 to 64 characters of `A-Z a-z 0-9 . _ : / # -` |
 | 401 | | The token does not meet the profile; there is one answer for every cause, and the cause is in the operator's signals |
 | 403 | | The token is good and the operator holds no grant for this act |
 | 404 | | The tenant does not exist, or the act can no longer see it. Provision first |
@@ -103,18 +107,31 @@ leaves the last-administrator guard as it found it.
 | 409 | `lockey_tenant_has_memberships` | The tenant has had a Membership, so a first administrator or a new template is refused. Use recovery only if no administrator is active |
 | 409 | `lockey_administrator_exists` | Recovery refused: an Active administrator exists |
 | 409 | `lockey_role_template_unknown`, `lockey_identity_foundation_refused` | The template or the resulting graph is not one the identity foundation admits |
+| 409 | `lockey_host_taken` | The host is mapped to another tenant, or to this one with other flags; the answer never says which |
+| 409 | `lockey_host_reserved` | The host is a platform host and can never resolve to a tenant |
+| 409 | `lockey_organization_not_in_tenant` | The `organizationId` of a host mapping is not one of this tenant's |
+| 409 | `lockey_concurrency_conflict` | Another change won, or a lock timed out; repeat the same request. If it repeats, a second template of the same key and scope already exists |
 | 503 | | The audit row could not be written or a dependency could not answer, so nothing changed. Retry after a short delay |
 
-A refused act writes a `failed` audit row in the tenant, so the attempt is on the
-record.
+A business refusal of an admitted act (a `409`) writes a `failed` audit row in the
+tenant, so the attempt is on the record. A refusal at the gate (`401`, `403`, or a `400`
+for the ticket) writes none: it leaves a counter and a log line, and the operator is not
+yet an admitted actor of any tenant.
 
 ## Repeating an act
 
 Every act is idempotent on the ids you chose, so any failure that leaves you unsure, a
 timeout or a connection reset or a `500` after a commit, is answered by sending the same
-request again. The retry finds what was written and answers `200`; it never writes a
-second row. A retry whose ids match but whose other values differ is refused as
-`lockey_identifier_taken` or `lockey_slug_taken` rather than changing the record.
+request again. The retry finds what was written and answers `200` from the stored
+record; it never writes a second tenant, Role, Membership or mapping. It does record
+itself: the repeated act commits its ordinary audit rows as a `success` with no entity
+or before and after state, so a repeat is visible in the trail as the repeat it is. A
+retry whose ids match but whose other values differ, a changed display name or
+organization slug for example, is refused as `lockey_identifier_taken` or
+`lockey_slug_taken` rather than changing the record. A retry of the first administrator
+or of a Role act still answers after the new administrator has edited the template. The
+host-mapping retry also drops the host's cached resolution again, which repairs a miss
+cached between the first run's invalidation and its commit.
 
 ## Reading the record
 
@@ -135,6 +152,15 @@ COMMIT;
 ```
 
 The operator's digest is computed as in [Killswitch](killswitch.md#reading-the-record).
+
+## Signals
+
+`learnstack_platform_operator_acts_total{operation,outcome}` counts each act as
+`applied`, `replayed`, `refused` or `failed`; a `replayed` count is a setup resumed at
+that step. Event 7109 (Warning) means an admitted act was refused as forbidden by the
+request pipeline itself, which is a defect and not an operator mistake, and which writes
+no audit row. The gate's counters and events 7101 to 7108 are in
+[operator access](operator-access.md).
 
 ## What this does not do
 

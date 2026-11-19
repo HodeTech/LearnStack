@@ -323,8 +323,9 @@ Rules:
   is used when an authorisation check rejects the operation — these MUST be audited so
   we can detect probing. A Platform operator admission refusal is tenantless and outside
   that population: it leaves a counter and a Warning log
-  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 11), and so does an
-  authorization refusal of an operator act inside the pipeline
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 11), and an
+  authorization refusal of an operator act inside the pipeline leaves a counted
+  `refused` outcome and a Warning, event 7109, with no durable row
   ([ADR-0033 Amendment 14](../decisions/0033-audit-durability-model.md)). A business
   refusal of an admitted operator act writes the ordinary `failed` row in the target
   tenant, with `actor_user_id` NULL, the closed reason slug and `metadata.operator`.

@@ -50,6 +50,9 @@ public sealed class OperatorSubjectResolverTests(PublicReadFixture parent)
         (await proof.RefusalAsync(key: key, announceTenant: false)).Should().Be("23514", "no tenant announcement");
         (await proof.RefusalAsync(key: key, readOnly: true)).Should().Be("23514", "a read-only transaction");
         (await proof.RefusalAsync(key: key, asOwner: true)).Should().Be("23514", "a session that is not the application role");
+        (await proof.RefusalAsync(key: key, repeatableRead: true)).Should().Be("23514", "a transaction that is not READ COMMITTED");
+        (await proof.RefusalAsync(key: key, nullAuthority: true)).Should().Be("23514", "a null authority");
+        (await proof.RefusalAsync(nullKey: true)).Should().Be("23514", "a null key");
         (await proof.RefusalAsync(key: key)).Should().BeNull("the control: the same call, admitted");
     }
 
@@ -103,11 +106,13 @@ public sealed class OperatorSubjectResolverTests(PublicReadFixture parent)
 
         /// <summary>The SQLSTATE the definer raises for the call, or null when it answers.</summary>
         internal async Task<string?> RefusalAsync(
-            Guid? authority = null, byte[]? key = null, bool announceTenant = true, bool readOnly = false, bool asOwner = false)
+            Guid? authority = null, byte[]? key = null, bool announceTenant = true, bool readOnly = false, bool asOwner = false,
+            bool repeatableRead = false, bool nullAuthority = false, bool nullKey = false)
         {
             await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(
                 asOwner ? _database.MigrationConnectionString : _database.AppConnectionString);
-            await using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync(
+                repeatableRead ? System.Data.IsolationLevel.RepeatableRead : System.Data.IsolationLevel.ReadCommitted);
             if (readOnly)
             {
                 await IdentityMembershipFixture.ExecuteAsync(connection, transaction, "SET TRANSACTION READ ONLY");
@@ -122,6 +127,8 @@ public sealed class OperatorSubjectResolverTests(PublicReadFixture parent)
             {
                 await using var command = Command(
                     connection, transaction, authority ?? _database.Registration.AuthorityId.Value, key ?? Key(Subject));
+                if (nullAuthority) command.Parameters["authority"].Value = DBNull.Value;
+                if (nullKey) command.Parameters["key"].Value = DBNull.Value;
                 await command.ExecuteScalarAsync();
                 return null;
             }

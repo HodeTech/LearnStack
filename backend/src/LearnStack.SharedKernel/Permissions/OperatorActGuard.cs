@@ -59,6 +59,29 @@ public sealed class OperatorActGuard(
     IUnitOfWork unit,
     IIdentityMutationLocks locks)
 {
+    private int _replayed;
+
+    /// <summary>
+    /// Whether the act found its own earlier result and wrote nothing, so the executor can count a retry
+    /// apart from a first run (ADR-0102 § 11).
+    /// </summary>
+    public bool Replayed => Volatile.Read(ref _replayed) != 0;
+
+    /// <summary>Records that the act is answering from state a previous run of the same act wrote.</summary>
+    public void MarkReplayed() => Volatile.Write(ref _replayed, 1);
+
+    /// <summary>
+    /// Whether <paramref name="request"/> is the live operator act in its own context and transaction, with no lock
+    /// taken and nothing read, for a handler that must not touch a confined read before it knows it is one.
+    /// </summary>
+    public Result<None> RequireLiveAct(object request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return context.IsResolved && HasInvocation(execution.CurrentInvocation, request) && HasOwner(context.TenantId)
+            ? Result.Ok(None.Value)
+            : RefusedNone();
+    }
+
     /// <summary>Checks the act and acquires the plan; a refusal is a Problem Details-ready failure.</summary>
     public async Task<Result<OperatorActAdmission>> AdmitAsync(
         object request, IdentityMutationLockPlan plan, CancellationToken cancellationToken)
