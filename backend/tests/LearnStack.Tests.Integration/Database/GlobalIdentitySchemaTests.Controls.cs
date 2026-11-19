@@ -407,12 +407,12 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(29, "the closed set includes three provider definers, one target transition guard, the federation connection guard and the operator resolver");
+        functions.Should().HaveCount(30, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver and the identity authority key guard");
         functions.Count(function => function.Definer).Should().Be(16);
         functions.Single(function => function.Name == "fn_tenancy_own_field_consent_scope").Signature
             .Should().Be("public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)",
                 nameof(MembershipFieldConsentStorageTests.Definer_scope_is_subject_and_host_capped_with_a_closed_bounded_interface));
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(29);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(30);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");

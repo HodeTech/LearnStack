@@ -90,6 +90,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     private const string PlatformPassword = "platform-test";
     private const string OutboxPassword = "outbox-test";
     private const string IngressPassword = "ingress-test";
+    private const string RebindPassword = "rebind-test";
     private const string ContainerScriptPath = "/tmp/02-create-roles.sql";
 
     // Pinned to the tag infra/compose/dev.yml runs. A fixture on a different major would
@@ -110,6 +111,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithEnvironment("LEARNSTACK_PLATFORM_PW", PlatformPassword)
         .WithEnvironment("LEARNSTACK_OUTBOX_PW", OutboxPassword)
         .WithEnvironment("LEARNSTACK_IDENTITY_INGRESS_PW", IngressPassword)
+        .WithEnvironment("LEARNSTACK_IDENTITY_REBIND_PW", RebindPassword)
         // Keep concurrent publishers in one allocator address family, including identity fixtures.
         .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "5432/tcp"))
         .Build();
@@ -127,6 +129,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
     public string IdentityIngressConnectionString => For("learnstack_identity_ingress", IngressPassword);
+
+    /// <summary><c>NOBYPASSRLS</c>; only the offline issuer-rebind tool's equivalent (ADR-0104).</summary>
+    public string IdentityRebindConnectionString => For("learnstack_identity_rebind", RebindPassword);
 
     // An owned auxiliary fixture may attach this database to its disposable Docker network.
     internal string ContainerId => _container.Id;
@@ -167,7 +172,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"Provisioning the four database roles failed (exit {result.ExitCode}).{Environment.NewLine}"
+                $"Provisioning the database roles failed (exit {result.ExitCode}).{Environment.NewLine}"
                 + $"{result.Stderr}{Environment.NewLine}{result.Stdout}");
         }
     }

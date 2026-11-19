@@ -469,6 +469,87 @@ public sealed partial class PostgresAuditStore : IAuditStore
         }
     }
 
+    /// <inheritdoc />
+    public Task WriteIdentityRebindIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        WriteIdentityRebindAsync(entry, admission, connection, transaction, result: false, cancellationToken);
+
+    /// <inheritdoc />
+    public Task WriteIdentityRebindResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        WriteIdentityRebindAsync(entry, admission, connection, transaction, result: true, cancellationToken);
+
+    private async Task WriteIdentityRebindAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        bool result,
+        CancellationToken cancellationToken)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(admission);
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        // The same facts the role's policy arm restates in SQL, checked first so a caller error is an argument
+        // error rather than a database refusal: the one rebind operation, its attempt or result slug as
+        // declared off-path, the platform sentinel, no actor, no organization, no network or mail attribution,
+        // and the admitted operator and correlation id. The intent is indeterminate; the result is a success.
+        var operation = admission.Operation;
+        var slug = result ? operation.AuditSlug : operation.AttemptAuditSlug;
+        if (!ReferenceEquals(operation, PlatformOperations.IdentityAuthorityRebind)
+            || slug is null
+            || !_catalog.TryGetOffPath(slug, out var declared)
+            || declared.Operation != slug || declared.ModuleName != "identity"
+            || declared.OperationClass != OperationClass.Must || declared.OperationType != OperationType.SecurityEvent
+            || declared.EntityType is null
+            || entry.TenantId != TenantId.PlatformSentinel
+            || entry.OrganizationId is not null
+            || entry.Operation != declared.Operation || entry.ModuleName != declared.ModuleName
+            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType
+            || !string.Equals(entry.EntityType, declared.EntityType.Name, StringComparison.Ordinal)
+            || !string.Equals(entry.Reason, operation.ReasonSlug, StringComparison.Ordinal)
+            || entry.ActorUserId is not null || entry.ActorEmail is not null
+            || entry.IpAddress is not null || entry.UserAgent is not null
+            || entry.Outcome != (result ? AuditOutcome.Success : AuditOutcome.Indeterminate)
+            || !string.Equals(entry.CorrelationId, admission.Operator.CorrelationId, StringComparison.Ordinal)
+            || !MetadataNamesAdmittedOperator(entry, admission))
+        {
+            throw new ArgumentException(
+                "The identity rebind row does not match its admission and its declared operation.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+
+            Bind(command.Parameters, entry);
+
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                result
+                    ? "The identity rebind result row could not be written, so the rebind must not commit."
+                    : "The identity rebind intent row could not be written, so the rebind must not begin.",
+                failure);
+        }
+    }
+
     /// <summary>
     /// Whether <c>metadata.operator</c> names exactly the admitted issuer and subject digest,
     /// and carries a ticket only on a sentinel-tenant row, and only the admitted one.

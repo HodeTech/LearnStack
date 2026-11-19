@@ -57,6 +57,38 @@ public sealed class PlatformAdminGateTests
     }
 
     [Fact]
+    public async Task The_Rebind_Operation_Is_Admitted_Only_For_The_Identity_Authority_Admin_Grant()
+    {
+        // ADR-0104 § 3: the offline tool's operator holds platform.identity_authority.admin, and no other
+        // Platform grant stands in for it, the killswitch and the onboarding grants included.
+        var rebind = PlatformOperations.IdentityAuthorityRebind;
+        rebind.Permission.Key.Should().Be("platform.identity_authority.admin");
+
+        var admitted = await Gate(Grants("operator-1", PlatformPermissions.IdentityAuthorityAdmin.Key))
+            .AdmitAsync(TestPlatformAdmissions.Witness(), rebind, "CHG-104");
+        admitted.IsAdmitted.Should().BeTrue();
+        admitted.Admission!.Operation.Should().BeSameAs(rebind);
+        admitted.Admission.Ticket.Should().Be("CHG-104");
+
+        foreach (var other in PlatformPermissions.All.Where(permission => permission != PlatformPermissions.IdentityAuthorityAdmin))
+        {
+            (await Gate(Grants("operator-1", other.Key)).AdmitAsync(TestPlatformAdmissions.Witness(), rebind, null))
+                .Refusal.Should().Be(PlatformRefusal.MissingPermission, other.Key);
+        }
+
+        // The converse: the rebind grant admits no other act.
+        foreach (var operation in PlatformOperations.All.Where(operation => !ReferenceEquals(operation, rebind)))
+        {
+            (await Gate(Grants("operator-1", PlatformPermissions.IdentityAuthorityAdmin.Key))
+                .AdmitAsync(TestPlatformAdmissions.Witness(), operation, null))
+                .Refusal.Should().Be(PlatformRefusal.MissingPermission, operation.AuditSlug);
+        }
+
+        // An admission for the rebind cannot be spent on the scope or the executor, neither of which is its owner.
+        rebind.NeedsPlatformRole.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task A_Grant_For_Another_Permission_Does_Not_Admit()
     {
         // The grant is the permission, matched exactly: a different Platform key, or a prefix
@@ -128,7 +160,7 @@ public sealed class PlatformAdminGateTests
         // A lookalike is not the registered instance, however identical its content.
         var lookalike = typeof(PlatformOperation).GetConstructors(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)[0]
-            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true]);
+            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true, null]);
 
         (await gate.AdmitAsync(TestPlatformAdmissions.Witness(), (PlatformOperation)lookalike, null))
             .Refusal.Should().Be(PlatformRefusal.UnknownOperation);
@@ -152,7 +184,7 @@ public sealed class PlatformAdminGateTests
         var scope = Build(out var dataSource);
         var lookalike = typeof(PlatformOperation).GetConstructors(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)[0]
-            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true]);
+            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true, null]);
 
         var act = async () => await scope.EnterAsync(
             TestPlatformAdmissions.Admission((PlatformOperation)lookalike), CancellationToken.None);

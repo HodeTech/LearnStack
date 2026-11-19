@@ -11,9 +11,15 @@ namespace LearnStack.SharedKernel.Platform;
 public sealed record PlatformOperation
 {
     internal PlatformOperation(
-        string auditSlug, string reasonSlug, PermissionDefinition permission, bool needsPlatformRole)
+        string auditSlug, string reasonSlug, PermissionDefinition permission, bool needsPlatformRole,
+        string? attemptAuditSlug = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(auditSlug);
+        if (attemptAuditSlug is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(attemptAuditSlug);
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(reasonSlug);
         ArgumentNullException.ThrowIfNull(permission);
         if (permission.Scope != PermissionScope.Platform)
@@ -25,10 +31,17 @@ public sealed record PlatformOperation
         ReasonSlug = reasonSlug;
         Permission = permission;
         NeedsPlatformRole = needsPlatformRole;
+        AttemptAuditSlug = attemptAuditSlug;
     }
 
     /// <summary>The audit operation slug of the result row.</summary>
     public string AuditSlug { get; }
+
+    /// <summary>
+    /// The audit slug of the intent row written before the act's own transaction, or null when the act writes
+    /// no such row. Only an act that runs outside the request pipeline has one (ADR-0104 § 8).
+    /// </summary>
+    public string? AttemptAuditSlug { get; }
 
     /// <summary>The closed reason slug every row of this act carries.</summary>
     public string ReasonSlug { get; }
@@ -67,9 +80,17 @@ public static class PlatformOperations
     public static PlatformOperation AdminRecover { get; } = new(
         "identity.membership.recover_admin", "admin_recover", PlatformPermissions.TenantBootstrapWrite, false);
 
+    /// <summary>
+    /// Rebind the identity authority's issuer from the offline tool, which neither enters the platform scope nor
+    /// runs through the pipeline and writes an intent row and a result row of its own role (ADR-0104 § 8).
+    /// </summary>
+    public static PlatformOperation IdentityAuthorityRebind { get; } = new(
+        "identity.authority.rebind", "issuer_rebind", PlatformPermissions.IdentityAuthorityAdmin, false,
+        attemptAuditSlug: "identity.authority.rebind_attempt");
+
     /// <summary>Every registered operation.</summary>
     public static IReadOnlyList<PlatformOperation> All { get; } =
-        [KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover];
+        [KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover, IdentityAuthorityRebind];
 
     /// <summary>Whether <paramref name="operation"/> is one of the registered instances.</summary>
     public static bool IsRegistered(PlatformOperation? operation) =>

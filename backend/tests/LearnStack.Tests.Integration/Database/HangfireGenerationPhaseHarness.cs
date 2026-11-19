@@ -76,6 +76,7 @@ internal static class HangfireGenerationPhaseHarness
                 .WithEnvironment("LEARNSTACK_PLATFORM_PW", Guid.NewGuid().ToString("N"))
                 .WithEnvironment("LEARNSTACK_OUTBOX_PW", outboxPassword)
                 .WithEnvironment("LEARNSTACK_IDENTITY_INGRESS_PW", Guid.NewGuid().ToString("N"))
+                .WithEnvironment("LEARNSTACK_IDENTITY_REBIND_PW", Guid.NewGuid().ToString("N"))
                 // Module commands append to its existing PostgreSQL arguments;
                 // an extra executable token would become an invalid argument.
                 .WithCommand("-c", "log_min_messages=panic", "-c", "log_min_error_statement=panic",

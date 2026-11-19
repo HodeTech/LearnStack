@@ -38,7 +38,8 @@ public class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
     public string AppConnectionString => _database?.AppConnectionString ?? Postgres.AppConnectionString;
     public string OutboxConnectionString => _database?.OutboxConnectionString ?? Postgres.OutboxConnectionString;
     internal string MigrationConnectionString => _database?.MigrationConnectionString ?? Postgres.MigrationConnectionString;
-    private string PlatformConnectionString => _database?.PlatformConnectionString ?? Postgres.PlatformConnectionString;
+    internal string PlatformConnectionString => _database?.PlatformConnectionString ?? Postgres.PlatformConnectionString;
+    internal string IdentityRebindConnectionString => _database?.IdentityRebindConnectionString ?? Postgres.IdentityRebindConnectionString;
     public PublicReadObservation Observation { get; } = new();
 
     internal static async Task<PublicReadFixture> CreateIsolatedAsync(PublicReadFixture parent)

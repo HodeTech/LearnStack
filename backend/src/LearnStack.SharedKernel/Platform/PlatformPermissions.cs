@@ -32,8 +32,13 @@ public static class PlatformPermissions
     public static PermissionDefinition TenantBootstrapWrite { get; } =
         new(PermissionScope.Platform, "platform.tenant_bootstrap.write");
 
+    /// <summary>Rebind the identity authority's issuer through the offline tool (ADR-0104).</summary>
+    public static PermissionDefinition IdentityAuthorityAdmin { get; } =
+        new(PermissionScope.Platform, "platform.identity_authority.admin");
+
     /// <summary>Every registered Platform permission.</summary>
-    public static IReadOnlyList<PermissionDefinition> All { get; } = [KillswitchWrite, TenantWrite, TenantBootstrapWrite];
+    public static IReadOnlyList<PermissionDefinition> All { get; } =
+        [KillswitchWrite, TenantWrite, TenantBootstrapWrite, IdentityAuthorityAdmin];
 
     /// <summary>Finds a registered Platform permission by its key.</summary>
     public static bool TryGet(string? key, out PermissionDefinition definition)

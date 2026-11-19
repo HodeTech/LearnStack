@@ -88,5 +88,9 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetPublicSignInQuery>();
         builder.DeclareOffPath("identity.user.create", OperationType.SecurityEvent, OperationClass.Must, typeof(User));
         builder.DeclareOffPath("identity.authorization.deny", OperationType.SecurityEvent, OperationClass.Must);
+        // The controlled issuer rebind (ADR-0104 § 8): an intent row on its own short transaction and a result
+        // row with the change, both from the offline tool's role and neither through the pipeline.
+        builder.DeclareOffPath("identity.authority.rebind_attempt", OperationType.SecurityEvent, OperationClass.Must, typeof(IdentityAuthority));
+        builder.DeclareOffPath("identity.authority.rebind", OperationType.SecurityEvent, OperationClass.Must, typeof(IdentityAuthority));
     }
 }

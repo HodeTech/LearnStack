@@ -132,6 +132,23 @@ internal sealed class IdentityPublicReadFixture : PublicReadFixture
         result.Actor.Should().Be(actor);
     }
 
+    /// <summary>
+    /// One process of the given registration: it qualifies, <paramref name="afterQualification"/> runs while it is
+    /// up (a rebind, for instance), and then it tries one adoption. The result is returned, never asserted.
+    /// </summary>
+    internal async Task<IdentityBindingResult> TryAdoptAsync(IdentityAuthorityRegistration registration, UserId actor,
+        string opaqueSubject, Func<Task>? afterQualification = null)
+    {
+        var subject = new GlobalIdentitySubject(registration.AuthorityId, registration.Issuer, opaqueSubject);
+        await using var source = ApplicationDataSource.Build(AppConnectionString);
+        await using var provider = SeedComposition.Build(source, null, NullLoggerFactory.Instance,
+            identityAuthority: registration, seedAdmission: new ExactBindingAdmission(subject, actor));
+        await provider.GetRequiredService<IdentityAuthorityQualification>().QualifyAsync();
+        if (afterQualification is not null) await afterQualification();
+        await using var scope = provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<ISeedIdentityBindingAdopter>().AdoptAsync(subject, actor);
+    }
+
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         base.ConfigureTestHost(builder);

@@ -23,6 +23,17 @@ public sealed class GlobalIdentityKeyTests
         userKey.Should().NotBe(tenantKey);
     }
 
+    // SHA-256 over the length-prefixed UTF-8 strings "learnstack.identity.lock.v1" and "authority-rebind", first
+    // eight bytes as a big-endian signed integer, calculated outside the C# helper.
+    [Fact]
+    public void The_rebind_key_is_one_fixed_value_that_no_user_tenant_or_subject_key_shares()
+    {
+        IdentityAdvisoryLockKey.ForAuthorityRebind().Should().Be(-6667816513393306176L);
+        IdentityAdvisoryLockKey.ForAuthorityRebind().Should().Be(IdentityAdvisoryLockKey.ForAuthorityRebind());
+        IdentityAdvisoryLockKey.ForAuthorityRebind().Should().NotBe(IdentityAdvisoryLockKey.ForUser(UserId.From(Authority.Value)))
+            .And.NotBe(IdentityAdvisoryLockKey.ForTenant(TenantId.From(Authority.Value)));
+    }
+
     [Fact]
     public void A_contextual_lock_plan_copies_deduplicates_and_orders_actual_users_and_keeps_mode()
     {

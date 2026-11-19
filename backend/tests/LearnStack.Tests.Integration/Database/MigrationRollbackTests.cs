@@ -103,8 +103,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(24L,
-            "current Identity also installs three provider definers, one target transition guard, the federation connection guard and the operator subject resolver");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(25L,
+            "current Identity also installs three provider definers, one target transition guard, the federation connection guard, the operator subject resolver and the authority key guard");
         await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
@@ -215,14 +215,16 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         federation.Should().Throw<NotSupportedException>().WithMessage("Federation connection storage requires a reviewed forward migration.");
         Action releaseV4 = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.role_registry_release_v4().DownOperations;
         releaseV4.Should().Throw<NotSupportedException>().WithMessage("Role release adoption requires a reviewed forward migration.");
+        Action operatorResolver = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_operator_subject_resolver().DownOperations;
+        operatorResolver.Should().Throw<NotSupportedException>().WithMessage("Operator subject resolution requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
             (platform, "20261105020229_lock_invitation_envelope_parent", PlatformReversibleHead,
                 "20261110013140_add_custom_field_protected_receipts", "Retained custom field receipts require a reviewed forward migration."),
-            (identity, "20261113120259_add_federation_connections", IdentityReversibleHead,
-                "20261119140000_add_operator_subject_resolver", "Operator subject resolution requires a reviewed forward migration."),
+            (identity, "20261119140000_add_operator_subject_resolver", IdentityReversibleHead,
+                "20261120090000_add_identity_authority_rebind", "The issuer-rebind storage requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

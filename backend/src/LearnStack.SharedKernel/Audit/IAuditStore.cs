@@ -5,7 +5,7 @@ using LearnStack.SharedKernel.Platform;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Ten writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Thirteen writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -169,6 +169,40 @@ public interface IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default) =>
         throw new InvalidOperationException("This audit store cannot write a platform operator result.");
+
+    /// <summary>
+    /// Writes the controlled issuer rebind's intent row on the offline tool's own short transaction, before the
+    /// rebind's main transaction begins (ADR-0104 § 8).
+    /// </summary>
+    /// <remarks>
+    /// A witness-bound method for the one act that runs outside the pipeline and the platform scope. The
+    /// <paramref name="admission"/> binds the row to the rebind operation's attempt slug, its closed reason and
+    /// the admitted operator; the tenant is the platform sentinel, the actor is NULL and the outcome is
+    /// <c>indeterminate</c> because the attempt's end is not yet known. The caller owns the transaction.
+    /// </remarks>
+    Task WriteIdentityRebindIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write an identity rebind intent.");
+
+    /// <summary>
+    /// Writes the controlled issuer rebind's MUST result row on the main transaction, so it commits with the
+    /// issuer change or not at all (ADR-0104 § 8).
+    /// </summary>
+    /// <remarks>
+    /// Bound like <see cref="WriteIdentityRebindIntentAsync"/> to the result slug with the outcome
+    /// <c>success</c>. A refused draft or a failed write requires the caller to roll the issuer change back.
+    /// </remarks>
+    Task WriteIdentityRebindResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write an identity rebind result.");
 
     /// <summary>Inserts a MUST terminal audit on the successful transition's live transaction.</summary>
     /// <remarks>

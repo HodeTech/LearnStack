@@ -43,6 +43,7 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
     [InlineData("learnstack_platform", true)]
     [InlineData("learnstack_outbox_admin", true)]
     [InlineData("learnstack_identity_ingress", false)]
+    [InlineData("learnstack_identity_rebind", false)]
     public async Task EachRoleExistsWithItsDeclaredBypassPosture(string role, bool expectedBypass)
     {
         await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);
@@ -194,8 +195,9 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
     [Fact]
     public async Task EveryRoleCredentialActuallyLogsIn()
     {
-        // All four, including learnstack_outbox_admin, whose connection string no
-        // other case opens. A password the script never set, or set to something
+        // All six, including learnstack_outbox_admin, whose connection string no
+        // other case opens, and the two confined roles (ADR-0097, ADR-0104), whose
+        // credentials only their own tools use. A password the script never set, or set to something
         // else, is invisible until the dispatcher tries to start — in Phase 02b,
         // far from here.
         // Compared against the EXPECTED role, not against one derived from the same
@@ -210,6 +212,8 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
             ("learnstack_app", _postgres.AppConnectionString),
             ("learnstack_platform", _postgres.PlatformConnectionString),
             ("learnstack_outbox_admin", _postgres.OutboxConnectionString),
+            ("learnstack_identity_ingress", _postgres.IdentityIngressConnectionString),
+            ("learnstack_identity_rebind", _postgres.IdentityRebindConnectionString),
         ];
 
         foreach (var (expected, connectionString) in roles)
@@ -226,7 +230,7 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
     public async Task PublicHoldsNoConnectPrivilegeOnTheDatabase()
     {
         // PUBLIC holds CONNECT and TEMPORARY on every database by default, so the
-        // script's four explicit grants add nothing until that default is revoked.
+        // script's explicit grants add nothing until that default is revoked.
         // Asserted because nothing else in this suite would notice: removing the
         // REVOKE from the script leaves all the other cases green, which was
         // measured — the grants and the roles are unaffected, only the reach is.
@@ -249,7 +253,7 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
 
         entries.Should().NotBeEmpty("an ACL of NULL means PostgreSQL's permissive default is still in force");
         entries.Should().NotContain(e => e.StartsWith('='),
-            "PUBLIC must hold no privilege on this database; the four explicit grants are the whole of the reach");
+            "PUBLIC must hold no privilege on this database; the explicit grants are the whole of the reach");
         entries.Should().Contain(e => e.StartsWith("learnstack_app="),
             "and learnstack_app must still hold the CONNECT it was granted");
     }
@@ -303,6 +307,51 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
         }
     }
 
+    [Fact]
+    public async Task TheRebindRoleIsNoInheritMemberOfNothingAndTheScriptTakesBackItsEscalation()
+    {
+        // The sixth role (ADR-0104) is bounded by its few grants and its policy arms and
+        // by nothing it could inherit, so an out-of-band INHERIT, BYPASSRLS or membership
+        // would make those bounds meaningless while every grant census still read correctly.
+        try
+        {
+            await _postgres.ExecuteAsSuperuserAsync(
+                "ALTER ROLE learnstack_identity_rebind INHERIT BYPASSRLS; "
+                + "GRANT learnstack_migration TO learnstack_identity_rebind; "
+                + "GRANT learnstack_identity_rebind TO learnstack_app");
+
+            (await RebindPostureAsync()).Should().Be((true, true, true, true), "the escalation must be real for the test to mean anything");
+
+            var result = await _postgres.RunRolesScriptAgainAsync();
+            result.ExitCode.Should().Be(0, "{0}", result.Stderr);
+
+            (await RebindPostureAsync()).Should().Be((false, false, false, false),
+                "re-running the script restores NOINHERIT NOBYPASSRLS and revokes every membership in both directions");
+        }
+        finally
+        {
+            await _postgres.ExecuteAsSuperuserAsync(
+                "ALTER ROLE learnstack_identity_rebind NOINHERIT NOBYPASSRLS; "
+                + "REVOKE learnstack_migration FROM learnstack_identity_rebind; "
+                + "REVOKE learnstack_identity_rebind FROM learnstack_app");
+        }
+    }
+
+    private async Task<(bool Inherit, bool Bypass, bool MemberOfOwner, bool ApplicationIsMember)> RebindPostureAsync()
+    {
+        await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT r.rolinherit, r.rolbypassrls,
+                   pg_has_role('learnstack_identity_rebind', 'learnstack_migration', 'MEMBER'),
+                   pg_has_role('learnstack_app', 'learnstack_identity_rebind', 'MEMBER')
+            FROM pg_roles r WHERE r.rolname = 'learnstack_identity_rebind'
+            """, (NpgsqlConnection)connection);
+        await using var reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        return (reader.GetBoolean(0), reader.GetBoolean(1), reader.GetBoolean(2), reader.GetBoolean(3));
+    }
+
     [Theory]
     // Directly, and through a bridge role that holds the membership on the
     // application role's behalf — because a fix keyed on the four names would
@@ -339,7 +388,7 @@ public sealed partial class DatabaseRoleTests : IClassFixture<PostgresFixture>
             result.ExitCode.Should().Be(0, "{0}", result.Stderr);
 
             (await ReachesABypassRoleAsync()).Should().BeFalse(
-                "re-running the script revokes every membership the four roles hold");
+                "re-running the script revokes every membership the six roles hold");
         }
         finally
         {

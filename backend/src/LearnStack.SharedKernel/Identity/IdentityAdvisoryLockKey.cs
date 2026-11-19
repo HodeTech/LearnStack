@@ -35,6 +35,18 @@ public static class IdentityAdvisoryLockKey
         return BinaryPrimitives.ReadInt64BigEndian(hash.GetHashAndReset());
     }
 
+    /// <summary>
+    /// The one key of the controlled issuer rebind (ADR-0104 § 5): the offline tool holds it exclusively for the
+    /// whole of its proof, and authority qualification and the User-creation admission take it shared.
+    /// </summary>
+    public static long ForAuthorityRebind()
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        IdentitySubjectKey.Append(hash, Encoding.UTF8.GetBytes("learnstack.identity.lock.v1"));
+        IdentitySubjectKey.Append(hash, Encoding.UTF8.GetBytes("authority-rebind"));
+        return BinaryPrimitives.ReadInt64BigEndian(hash.GetHashAndReset());
+    }
+
     private static long ForIdentifier(string kind, Guid identifier)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

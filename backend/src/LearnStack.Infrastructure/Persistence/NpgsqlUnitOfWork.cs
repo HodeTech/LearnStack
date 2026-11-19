@@ -336,7 +336,23 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         if (_mode != TransactionMode.ReadWrite || _globalIdentityLocked || _globalIdentitySealed)
             throw new InvalidOperationException("The global identity subject lock belongs only to its fresh creation owner.");
         await ExecuteAsync("SET LOCAL lock_timeout = '2s'", cancellationToken);
+        // Fixed order, rebind before subject (ADR-0104 § 5): the offline rebind tool takes only the first key, so
+        // no cycle exists. A creation that waits out a rebind reads the issuer afresh under READ COMMITTED.
         var started = Stopwatch.GetTimestamp();
+        try
+        {
+            await ExecuteAsync("SELECT pg_catalog.pg_advisory_xact_lock_shared(@key)", cancellationToken,
+                ("key", IdentityAdvisoryLockKey.ForAuthorityRebind()));
+            IdentityLockObservation.Complete(IdentityLockKind.Authority, started);
+        }
+        catch (Exception failure) when (failure is not OutOfMemoryException and not StackOverflowException)
+        {
+            IdentityLockObservation.Complete(IdentityLockKind.Authority, started, failure);
+            throw;
+        }
+
+        await RequireUnchangedAuthorityAsync(descriptor.Subject, cancellationToken);
+        started = Stopwatch.GetTimestamp();
         try
         {
             await ExecuteAsync("SELECT pg_catalog.pg_advisory_xact_lock(@key)", cancellationToken,
@@ -349,6 +365,26 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
             throw;
         }
         _globalIdentityLocked = true;
+    }
+
+    // The qualified facts of the process that asked for the creation must still be the stored ones. A process that
+    // qualified before a rebind and is still running would otherwise create Users from the old realm's tokens
+    // once the rebind released its lock.
+    private async Task RequireUnchangedAuthorityAsync(GlobalIdentitySubject subject, CancellationToken cancellationToken)
+    {
+        await using var command = _connection!.CreateCommand();
+        command.CommandTimeout = 10;
+        command.CommandText = "SELECT authority_id, issuer FROM public.identity_authority WHERE id = 1";
+        command.Transaction = (NpgsqlTransaction?)_transaction;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)
+            || reader.GetGuid(0) != subject.AuthorityId.Value
+            || !string.Equals(reader.GetString(1), subject.Issuer, StringComparison.Ordinal)
+            || await reader.ReadAsync(cancellationToken))
+        {
+            IdentityLockObservation.AuthorityChanged();
+            throw new IdentityAuthorityChangedException();
+        }
     }
 
     public void EnrollGlobalIdentityContext(object context, GlobalIdentityOwnerDescriptor descriptor)
