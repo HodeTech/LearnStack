@@ -509,12 +509,15 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 595 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 802 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
   - [P03-9 Step 1 — review round 1 and its fixes (2026-11-19)](#p03-9-step-1--review-round-1-and-its-fixes-2026-11-19) — 107 lines
   - [P03-9 Step 1 — review round 2 and its fixes (2026-11-19)](#p03-9-step-1--review-round-2-and-its-fixes-2026-11-19) — 116 lines
+  - [P03-9 Step 2 — production onboarding (2026-11-19)](#p03-9-step-2--production-onboarding-2026-11-19) — 126 lines
+  - [P03-9 Step 2 — review round 1 and its fixes (2026-11-19)](#p03-9-step-2--review-round-1-and-its-fixes-2026-11-19) — 46 lines
+  - [P03-9 Step 2 — review round 2 and its fixes (2026-11-19)](#p03-9-step-2--review-round-2-and-its-fixes-2026-11-19) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24767,3 +24770,210 @@ reported the generic wording instead, so the mutation control inside the case di
 match. The case passed alone, the whole class passed twice more, and the same case
 passed in the earlier full run on the same code, so it is recorded as an inference flake
 in an unrelated control and not as a defect of this change.
+
+### P03-9 Step 2 — production onboarding (2026-11-19)
+
+Step 2 delivers [ADR-0102](../decisions/0102-production-tenant-onboarding.md): five
+operator acts that create a production tenant and its first administrator, on the
+application role, through the ordinary request pipeline. The decisions were Accepted in
+`a396f50e`; this record is the implementation and its proof.
+
+Delivered:
+
+- **A fourth trusted-operation source.** `AuthorizationSourceKind.PlatformOperator`, a
+  `PlatformOperatorAttribution` the descriptor carries (issuer, subject digest, `acr`,
+  executor, closed reason slug), and `PlatformOperatorOperationSource`, the fourth
+  `MintingSource`, scoped to one frame and bound to the operation of one admission. The
+  seed, delivery and job sources and their policies are unchanged, so neither authority
+  can perform the other's acts.
+- **The executor.** `PlatformOperatorActExecutor` consumes the single-use admission,
+  refuses a request outside its closed catalog, an admission for another operation, the
+  platform sentinel and a stale admission before it is spent, opens a fresh scope,
+  installs an immutable resolved `OperatorTenantContext` for the tenant the route names,
+  sends the command and restores the accessor. It is the fifth writer of the context
+  accessor and adds no tenant setter.
+- **Five commands and their handlers.** `OperatorProvisionTenantCommand` and
+  `OperatorMapHostCommand` are handled by the same classes as the seed commands, so the
+  three-write order, the conflict mapping and the one cross-aggregate exception exist
+  once. `OperatorInitializeRoleCommand`, `OperatorCreateFirstAdminCommand` and
+  `OperatorRecoverAdminCommand` are new Identity handlers. `OperatorActGuard`
+  (SharedKernel) restates source, context and transaction on the handler's own owner,
+  takes the ordered locks of [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md)
+  and asks again before every write.
+- **The person.** A sixteenth confined definer, `fn_identity_operator_resolve_user`,
+  resolves a provider subject to the `UserId` of an Active user for the stored
+  authority; `users` is invisible to a tenant announcement otherwise.
+- **Five routes** under `/api/platform/v1/tenants/...`, each a `PUT` on
+  operator-supplied identifiers, so a reply lost on the wire is repaired by sending the
+  request again; the operator document `platform-v1` describes them.
+- **Audit.** The composer, authorization context and evidence coordinator gain the
+  operator branch: a null actor, the closed reason slug and `metadata.operator`, no
+  ticket. A refused act writes the ordinary `failed` MUST row in the tenant; an
+  authorization refusal of an operator request writes none.
+- **The Seeder refuses outside Development** (exit 2, before it reads a credential).
+- **Signals.** `learnstack_platform_operator_acts_total{operation,outcome}` and event
+  7109.
+- **Documents.** The onboarding runbook, ADR errata and Amendments in ADR-0102, 0040,
+  0036 and 0033, Standards 05, 11, 18, 19 and 21, the Identity and Tenancy module
+  specifications, the glossary, the seed skill and the README.
+
+Findings made while implementing, each fixed or recorded:
+
+- **ADR-0102 § 1 could not be built as written.** It promised one new confined tenant
+  setter and unchanged context writers. The query filters and the transaction behavior
+  read the accessor, so an act that is not installed in it is invisible to row security.
+  The executor installs the context, the ordinary behavior announces it, the setter
+  census stays at fourteen and the writers are five. Inline errata and
+  [ADR-0040](../decisions/0040-ambient-unit-of-work.md) Amendment 25 and
+  [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) Amendment 22 record
+  it. The test that enumerates writers keeps its name, which three Accepted records cite.
+- **The last-administrator guard makes recovery a break-glass.** The real-database proof
+  showed the deferred `fn_identity_complete_graph_guard` (`P0303`) rejects any commit
+  that leaves a tenant without an available administrator, so the state § 8 recovers
+  from is unreachable by revocation, and users have no update owner. The predicate is
+  implemented as accepted, the proof reaches the state by an owner-level repair that
+  steps around the guard and shows the invariant intact after the recovery, and
+  Amendment 1 item 4 records it. A predicate that also reads the User's eligibility needs
+  a second confined definer and is the maintainer's decision.
+- **A refused act is audited.** Refused acts write `failed` rows in the target tenant, so
+  the first proof's assertion that nothing failed was wrong and the attempts are now the
+  evidence.
+- **Row security applies to the owner.** The owner credential cannot read a tenant's rows
+  or the host index without announcing the tenant, and the memberships guards need the
+  advisory locks. The fixtures that repair state announce and lock like a handler does.
+- **Six Step 1 leftovers.** The fast architecture classes had not been run over Step 1's
+  rounds: the metadata readers were not on the transport-holder list, the killswitch
+  ordering test sat under `Database/` without a Docker need, the realm-file test named
+  the Keycloak fixture, the endpoint built a killswitch key from the route (the registry
+  now resolves it), and Standard 21's counts were two methods and one rule behind. All
+  fixed here.
+- **The pre-commit hook.** `dotnet format` adds a byte-order mark to a new C# file, which
+  made the stash restore conflict once, and an intent-to-add entry fails the hook; both
+  are recorded in the working notes, not in the repository.
+
+#### Proof run locally
+
+| Suite | Result |
+|---|---|
+| Unit | 4,283 passed (new: guard 14, executor 12, catalog disjointness 1) |
+| Integration, `PlatformOperatorOnboardingTests` (real PostgreSQL through the actual Program, as `learnstack_app`) | 16 passed |
+| Integration, `OperatorSubjectResolverTests`, `SeederDevelopmentOnlyTests`, `SeedOperationSourceTests`, `PlatformOperatorHttpTests` | 3, 7, 15 and 28 passed |
+| Integration, definer, schema and migration census classes | passed after the pins moved to 16 definers and 29 functions |
+| Architecture (Release), every class except the four IL-census classes | 492 passed |
+| Architecture (Release, 42 min), `AuthenticatedHttpSurfaceTests`, `BackgroundJobManifestBoundaryTests`, `AuthenticationAuthorityTests`, `OutboxDispatchConventionTests`, `BackgroundJobAdmissionBoundaryTests`, run on the final code after both review rounds | 178 passed |
+| Integration, the whole suite, on the final code after both review rounds (1 h 25 min) | 4,478 passed, none failed, none skipped |
+
+What the real-database cases show: each act answers `200` and again `200` on a repeat;
+a changed value under the same identifiers is refused; a reply lost after the commit
+(the outermost behavior fails once the commit is done) and an act interrupted between
+its writes both leave the state the retry then completes once; a grant is judged per act
+and a refused act writes nothing; an unknown tenant is `404`; a taken slug, host or
+identifier is `409`; a tenant with Membership history refuses the first administrator
+and the Role templates; recovery refuses while an administrator is active, succeeds once
+none is, and leaves the database's last-administrator guard as it found it; an
+Organization-scope or another tenant's administrator Role does not qualify; every row
+carries `actor_user_id` NULL, the closed reason slug and the operator's issuer, `acr`,
+executor and subject digest, and never the person's subject, the operator's raw subject
+or the ticket; the correlation id the answer returns finds the rows.
+
+#### Mutation checks
+
+Thirty-two mutations of the new guards, each applied, built, run and restored with the
+restored file touched. Twenty-two were killed at once: the guard accepting a read-only or
+rollback-only unit, a global identity transaction, another tenant's plan or announcement,
+or a lost lock not rolling the act back; the executor ignoring the operation binding,
+admitting the sentinel or a stale or reused admission, or leaving its context installed;
+the source answering in another context or for another operation; the first
+administrator ignoring Membership history; recovery ignoring an active administrator;
+Role templates ignoring history; the resolver returning a non-Active user, accepting
+another authority, another session or a short key; route ids not checked; and a
+provisioning replay accepting any pair. Ten survived. Five exposed gaps in the tests and
+were killed after they were strengthened: the guard allowing a user, an organization or a
+host scope that was already in the context when the act began, the source ignoring the
+policy's sources, and recovery accepting any Role. Five are equivalent mutants: the
+guard's checks of the source kind, the policy's sources and the descriptor's liveness,
+which the coordinator and the invocation already enforce (the invocation can be built
+only by the coordinator, so no test can present a mismatch); the executor's refusal of a
+platform-role operation, which the act catalog refuses first; and the source's
+frame-open check, which the disposal of the source with the scope makes redundant.
+
+### P03-9 Step 2 — review round 1 and its fixes (2026-11-19)
+
+Three independent reviewers, each read-only, read the range from the accepted decisions
+to the implementation: authority and security, correctness and concurrency, and tests,
+censuses and documentation. None reported a Blocker. Each finding was checked against
+the code before it was fixed.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Provisioning | A replay compared only the slug and organization id and answered with the request's organization slug, which was never stored | The replay reads the stored organization and compares the whole request; the answer is what was stored and a changed value is refused |
+| Identity acts | A retry was refused when the person's state or the template had changed after the first run | The Membership and Role replays are judged before the present state, and a template edited by the new administrator no longer unmakes the original act |
+| Host mapping | The retry did not drop the cached resolution again; both flags defaulted to live although the factory defaults them off and no act unmaps a host | The retry invalidates again; both flags are required |
+| Routes | The platform sentinel as a tenant answered 500; a blank or over-long subject was a `409` on the wrong field; ids were checked only at the tenant | The sentinel and every identifier are checked at the route (400); the subject is checked at the route |
+| Resolver | It was called before the act was known to be live | The guard's `RequireLiveAct` is asked first |
+| Storage refusals | Every refusal answered `identity_foundation_refused` | They answer in the sibling handlers' vocabulary: `concurrency_conflict`, `dependency_unavailable`, or the foundation refusal |
+| Signals | § 11 promised per-act counters and none existed; the code comment and Standard 18 claimed a counter and a log for a refusal inside the pipeline | The act counter and event 7109 exist; the documents say what they emit |
+| HTTP/2 | A body without a content length or transfer encoding was read as absent | Only HTTP/1.x reads absence from the headers |
+| Migration | The resolver migration was reversible although every recent Identity head refuses reversal | Forward-only; the rollback census names the new head |
+| Documents | The ADR errata had been mangled by the 88-column reflow and sat after the span they correct | Rewritten in the form [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) prescribes, before the span, with the evidence and the Current authority line |
+| Documents | The runbook promised a retry refusal the code did not give; Standard 05 said "no grant" and "reads no other relation" | Corrected |
+
+New cases: a reply lost after the commit, an act interrupted between its writes,
+sentinel and malformed requests, exact template and scope names, both host flags
+required, a host held by another tenant, a foreign organization, Organization-scope
+templates, another tenant's Role, a retry after the Role was edited, an ineligible
+person, the resolver's remaining refusals, the act counter, and the no-denial-row
+coordinator case with a seed control.
+
+#### Recorded, not changed
+
+- **The user-eligibility recovery predicate.** A 17th definer; the maintainer decides.
+- **The classification of the ADR-0102 § 1 correction.** Inline errata, Decision
+  unchanged and an Amendment; a superseding ADR was weighed and not chosen.
+
+#### Mutation checks
+
+Eleven further mutations after the fixes, each applied, built, run and restored: the
+coordinator's observed-denial skip, a host replay not counted or keeping the stale cache,
+a provisioning replay ignoring the display name or the organization slug, the sentinel
+and any subject accepted at the route, a Role and a Membership replay not counted, and a
+Membership replay judged after the Role's state were all killed. The coordinator's first
+denial skip, in `RecordDenial`, survived and is an equivalent mutant: the observed-denial
+path is reached first and carries its own skip.
+
+### P03-9 Step 2 — review round 2 and its fixes (2026-11-19)
+
+Three further independent reviewers, with lenses different from round 1: composition,
+regression risk and the whole attack surface; SQL, row security, locks, the migration
+and performance; and operability, the API contract, maintainability and the coherence of
+the document set. None reported a Blocker.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Contract | A `503` answered as a result carried no `Retry-After` although the operator document declares it on every `503`; the runbook described a lock timeout as a `409` | The helper that answers a result sets it; the runbook separates the lock the act could not take from the statement that timed out |
+| Contract | The operator document listed a 409 reason that does not exist, a killswitch-only 404 and 400, no 413 or 429, and no required fields for the five bodies | The request records state their required fields, the ticket grammar and the subject length; the status texts are truthful; the test asserts the required members |
+| Routes | `Enum.TryParse` accepted numerals, padded names and comma lists that OR into another member | Exact names only |
+| Resolver | A provider fault or an unqualified authority escaped as an unclassified exception; the definer named a variable `found` and measured a key by `length` | Classified like the sibling stores; renamed; `octet_length` |
+| Census | Standard 05 claimed the resolver's callers were pinned and nothing pinned them | `Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject` |
+| Maintainability | The killswitch route repeated the refusal switch and the audit-503 block; `RequestTypes` had no caller; a summary and a 255 literal were stale or duplicated | One shared helper each; the member is removed; one constant |
+| Documents | The Identity and Tenancy module specifications still said no production first-admin exists; the ADR repeated the setter claim in Context, Consequences, Implementation Notes and Carriers with no erratum; the runbook had no "Not recoverable here" section; the sibling runbooks applied killswitch-only signals to every act; the seeder's rule was missing from the seed skill and README | All corrected; Amendment 1 gains the shared-cores, unrecorded-ticket and request-shape items |
+
+#### Recorded, not changed
+
+- **A lock timeout on a unique-index wait in the Tenancy writes surfaces as a 500**, as
+  when two operators map one host to two tenants at once. The writes classify only a
+  unique violation, the translating save is shared with the seed, and the same request
+  repeated gets the right answer. Amendment 1 item 11 says so.
+- **The ticket is not recorded.** The gate validates it, the five acts store it nowhere,
+  and the runbook says so.
+- **A host mapping needs only that the tenant exists and is not deleted**, where the
+  Identity acts also need Trial or Active. Whether a suspended tenant may be mapped is
+  the maintainer's decision.
+- **A repeated act commits MUST rows with no captured change**, counted as `replayed`; a
+  metadata marker on the row is not built.
+- **A `replayed` flag in the response** would tell an operator resuming a setup without
+  reading the metric; the response shape is the contract and is left as it is.
