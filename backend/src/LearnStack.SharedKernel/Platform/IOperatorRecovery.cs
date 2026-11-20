@@ -45,13 +45,17 @@ public sealed record OperatorRecoveryResult(OperatorRecoveryOutcome Outcome, int
 /// The recovery owner could not finish and nothing is known to be wrong with the request: the credential or the pool
 /// is unavailable, the owner's one lane is busy, or the commit's outcome is unknown (ADR-0103 § 5).
 /// </summary>
-/// <remarks>The message is fixed and carries no address, credential or row value.</remarks>
+/// <remarks>
+/// The message is fixed and carries no address, credential or row value. The cause, when there is one, is for the
+/// operator's logs only: no response carries it.
+/// </remarks>
 public sealed class OperatorRecoveryUnavailableException : Exception
 {
     /// <summary>Builds the refusal.</summary>
     /// <param name="commitOutcomeUnknown">Whether the transition's COMMIT may have reached the database.</param>
-    public OperatorRecoveryUnavailableException(bool commitOutcomeUnknown = false)
-        : base("The operator recovery owner is unavailable.") => CommitOutcomeUnknown = commitOutcomeUnknown;
+    /// <param name="cause">The fault that made the owner unavailable, kept so the route can log it.</param>
+    public OperatorRecoveryUnavailableException(bool commitOutcomeUnknown = false, Exception? cause = null)
+        : base("The operator recovery owner is unavailable.", cause) => CommitOutcomeUnknown = commitOutcomeUnknown;
 
     /// <summary>Whether the commit may have landed, so the operator inspects the row before repeating the request.</summary>
     public bool CommitOutcomeUnknown { get; }

@@ -1035,6 +1035,24 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         (await test.ReadOperatorAuditAsync("platform.delivery.reset")).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Reset_reports_a_stale_fence_before_it_reports_a_refused_state()
+    {
+        // The fence is compared before the state: an operator who read an older row is told to read it again, and is not
+        // told the row is refused, even when the tenant has since stopped serving.
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        await test.SetStateAsync(id, DeadLetterRetryExhausted);
+        await test.SetTenantStatusAsync("Suspended");
+        var before = await test.ReadAsync(id);
+
+        var result = await ResetAsync(test.Store(), test, id, change: request => request with { Attempts = request.Attempts + 1 });
+
+        result.Outcome.Should().Be(OperatorRecoveryOutcome.StaleFence);
+        (await test.ReadAsync(id)).Should().Be(before);
+        (await test.ReadOperatorAuditAsync("platform.delivery.reset")).Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData("pending")]
     [InlineData("processed")]
@@ -1185,6 +1203,150 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         Guid Tenant, Guid? Organization, Guid Actor, string Module, string Operation,
         string Type, string Class, string Outcome, string? Reason, string Correlation, string Metadata);
 
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("organization")]
+    [InlineData("operation")]
+    [InlineData("reason")]
+    [InlineData("metadata")]
+    [InlineData("correlation")]
+    [InlineData("actor")]
+    [InlineData("class")]
+    [InlineData("type")]
+    [InlineData("transaction")]
+    public async Task Substituting_a_field_of_the_reset_row_or_its_transaction_is_refused_by_the_real_seam_and_rolls_the_reset_back(
+        string substitution)
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync(organization: SchemaFixture.OrgA1);
+        await test.SetStateAsync(id, DeadLetterRetryExhausted);
+        var calls = 0;
+        var store = test.Store(decorate: inner => new OperatorRecoveryAuditDecorator(inner,
+            async (draft, witness, connection, transaction, cancellationToken) =>
+            {
+                calls++;
+                witness.Kind.Should().Be("reset");
+                witness.EventId.Should().Be(id);
+                witness.TenantId.Should().Be(SchemaFixture.TenantA);
+                witness.OrganizationId.Should().Be(SchemaFixture.OrgA1);
+                if (substitution == "transaction")
+                {
+                    await using var otherConnection = await test.DispatchSource.OpenConnectionAsync(cancellationToken);
+                    await using var otherTransaction = await otherConnection.BeginTransactionAsync(cancellationToken);
+                    await inner.WriteOperatorRecoveryAsync(draft, witness, otherConnection, otherTransaction, cancellationToken);
+                    return;
+                }
+
+                var changed = substitution switch
+                {
+                    "tenant" => draft with { TenantId = TenantId.From(SchemaFixture.TenantB) },
+                    "organization" => draft with { OrganizationId = OrganizationId.From(SchemaFixture.OrgA2) },
+                    "operation" => draft with { Operation = PlatformOperations.DeliveryReplay.AuditSlug },
+                    "reason" => draft with { Reason = PlatformOperations.DeliveryReplay.ReasonSlug },
+                    "metadata" => draft with { Metadata = draft.Metadata + " " },
+                    "correlation" => draft with { CorrelationId = "00-forged" },
+                    "actor" => draft with { ActorUserId = UserId.From(Guid.CreateVersion7()) },
+                    "class" => draft with { OperationClass = OperationClass.Should },
+                    "type" => draft with { OperationType = OperationType.Update },
+                    _ => throw new ArgumentOutOfRangeException(nameof(substitution)),
+                };
+                await inner.WriteOperatorRecoveryAsync(changed, witness, connection, transaction, cancellationToken);
+            }));
+        var before = await test.ReadAsync(id);
+
+        var attempt = () => ResetAsync(store, test, id);
+        await attempt.Should().ThrowAsync<ArgumentException>();
+
+        calls.Should().Be(1, "the refusal must come from the real audit seam, after a successful UPDATE");
+        (await test.ReadAsync(id)).Should().Be(before, "the reset and its row commit together or not at all");
+        (await test.ReadOperatorAuditAsync("platform.delivery.reset")).Should().BeEmpty();
+        (await ResetAsync(test.Store(), test, id)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied,
+            "the same fence succeeds through the unmodified seam");
+    }
+
+    [Fact]
+    public async Task A_witness_from_an_earlier_reset_cannot_be_reused_on_a_later_one()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        OperatorRecoveryTransition? previous = null;
+        var store = test.Store(decorate: inner => new OperatorRecoveryAuditDecorator(inner,
+            async (draft, witness, connection, transaction, cancellationToken) =>
+            {
+                await inner.WriteOperatorRecoveryAsync(draft, previous ?? witness, connection, transaction, cancellationToken);
+                previous = witness;
+            }));
+        var first = await test.InsertAsync();
+        await test.SetStateAsync(first, DeadLetterRetryExhausted);
+        (await ResetAsync(store, test, first)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied);
+        var second = await test.InsertAsync();
+        await test.SetStateAsync(second, DeadLetterRetryExhausted);
+        var before = await test.ReadAsync(second);
+
+        var attempt = () => ResetAsync(store, test, second);
+        await attempt.Should().ThrowAsync<ArgumentException>();
+
+        (await test.ReadAsync(second)).Should().Be(before);
+        (await test.ReadOperatorAuditAsync("platform.delivery.reset")).Should().ContainSingle("only the first reset committed");
+    }
+
+    [Fact]
+    public async Task The_recovery_owner_resets_through_the_outbox_store_and_counts_each_outcome_under_the_reset_operation()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        await test.SetStateAsync(id, DeadLetterRetryExhausted);
+        var fence = await test.ReadAsync(id);
+        var request = new OutboxResetRequest(SchemaFixture.TenantA, id, fence.Attempts, fence.DeadLetteredAt!.Value);
+        var owner = new OperatorRecovery(test.DeliveryStore(), test.Store());
+        using var meters = new OperatorRecoveryMeterProbe();
+
+        var applied = await owner.ResetOutboxAsync(ResetAdmission(), request);
+        var stale = await owner.ResetOutboxAsync(ResetAdmission(), request);
+        var unknown = await owner.ResetOutboxAsync(ResetAdmission(), request with { EventId = Guid.CreateVersion7() });
+
+        (applied.Outcome, stale.Outcome, unknown.Outcome).Should().Be(
+            (OperatorRecoveryOutcome.Applied, OperatorRecoveryOutcome.StaleFence, OperatorRecoveryOutcome.NotFound));
+        (await test.ReadAsync(id)).Attempts.Should().Be(0, "the owner reached the outbox store and no other");
+        var reset = PlatformOperations.DeliveryReset.AuditSlug;
+        var replay = PlatformOperations.DeliveryReplay.AuditSlug;
+        (meters.Recoveries(reset, "applied"), meters.Recoveries(reset, "stale_fence"), meters.Recoveries(reset, "not_found"))
+            .Should().Be((1, 1, 1));
+        meters.Results(reset).Should().Be(1, "only an applied reset committed a result row");
+        meters.Recoveries(replay, "applied").Should().Be(0, "a producer reset is never counted as a delivery replay");
+    }
+
+    [Fact]
+    public async Task The_operator_lane_is_its_own_slot_so_a_busy_operator_never_costs_the_dispatcher_one()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var first = await test.InsertAsync();
+        var second = await test.InsertAsync();
+        await test.SetStateAsync(first, DeadLetterRetryExhausted);
+        await test.SetStateAsync(second, DeadLetterRetryExhausted);
+        var store = test.Store();
+
+        // Hold the first row's lock, so the first reset waits inside the operator lane.
+        await using var holder = await test.DispatchSource.OpenConnectionAsync();
+        await using var holding = await holder.BeginTransactionAsync();
+        await using (var hold = new NpgsqlCommand("SELECT 1 FROM outbox_messages WHERE id = @id FOR UPDATE", holder, holding))
+        {
+            hold.Parameters.AddWithValue("id", first);
+            await hold.ExecuteScalarAsync();
+        }
+
+        var waiting = ResetAsync(store, test, first);
+        await test.WaitForLockWaitAsync();
+
+        var busy = () => ResetAsync(store, test, second);
+        await busy.Should().ThrowAsync<OperatorRecoveryUnavailableException>("one operator call at a time per store");
+        (await store.ReadSnapshotAsync(NoBlockedPartitions)).Should().NotBeNull("the dispatcher's own slots are untouched");
+
+        await holding.CommitAsync();
+        (await waiting).Outcome.Should().Be(OperatorRecoveryOutcome.Applied);
+        (await ResetAsync(store, test, second)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied,
+            "the lane is free again once the first call ends");
+    }
+
     private sealed class TestDatabase : IAsyncDisposable
     {
         private readonly DisposableSchemaDatabase _database;
@@ -1199,6 +1361,19 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         }
 
         public NpgsqlDataSource DispatchSource { get; }
+
+        public async Task WaitForLockWaitAsync()
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await using var connection = await DispatchSource.OpenConnectionAsync();
+            while (true)
+            {
+                await using var command = new NpgsqlCommand(
+                    "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock')", connection);
+                if (await command.ExecuteScalarAsync(deadline.Token) is true) return;
+                await Task.Delay(10, deadline.Token);
+            }
+        }
         public ServiceProvider Provider { get; }
         public string OutboxConnectionString => _database.OutboxConnectionString;
 
@@ -1216,6 +1391,12 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
                 throw;
             }
         }
+
+        /// <summary>The subscriber store beside the producer store, for a test that builds the recovery owner over both.</summary>
+        public DeliveryDispatchStore DeliveryStore() => new(
+            new PrivilegedDataSource(() => DispatchSource), EligibleRegistry(), new DeliveryDispatchOptions(),
+            new SystemGuidFactory(), new FixedClock(Occurred), Provider.GetRequiredService<IServiceScopeFactory>(),
+            BackgroundJobLifecycleProjectionDeclaration.Create());
 
         public OutboxDispatchStore Store(
             OutboxEventRegistry? registry = null, IClock? clock = null,

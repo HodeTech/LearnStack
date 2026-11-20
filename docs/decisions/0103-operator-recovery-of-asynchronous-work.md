@@ -86,6 +86,12 @@ dashboard.
    causal column, so the database refuses what the projection must not return. Grant
    tests read column privileges. Each row returns the fence its transition needs. A row
    whose terminal request is pending shows its state and is not actionable.
+
+   > **Erratum (2026-11-20, Amendment 1 items 2 and 6).** The platform role already
+   > held table-wide `SELECT` on `outbox_messages`, so named column grants beside it
+   > would have excluded nothing: the migration revokes it first. The scope's entry row
+   > carries the operation `platform.admin_scope.enter` and the reason
+   > `delivery_inspect`, not the slug `platform.delivery.inspect` as an operation.
 2. **Targeted subscriber replay.** `platform.delivery.replay` resets one
    `(tenant, subscription, event)` delivery. The request carries the fence read at
    inspection: `replay_count`, `dead_lettered_at` and `terminal_reason`. It is refused
@@ -123,6 +129,13 @@ dashboard.
    rolls the transition back and answers 503 with no state change. A stale fence answers
    409 `stale_fence`, a refused state 409 `not_recoverable`, and neither writes a row or
    changes state.
+
+   > **Erratum (2026-11-20, Amendment 1 items 3 and 4).** The witness is a sibling
+   > class with two kinds, not a new kind of the terminal witness, and `stale_fence`
+   > and `not_recoverable` are reasons on the fields `fence` and `state` of the code
+   > `business_rule_violation`, because the status map is closed. A commit whose
+   > answer was lost is `503` `dependency_unavailable` with the reason
+   > `outcome_unknown` on the field `outcome`.
 6. **Not admitted: job recovery.** No job requeue, retry, probe re-arm, reservation or
    capacity release exists. A quarantined job stays frozen, retains its reservation and
    keeps `jobs` unhealthy, exactly as
@@ -291,9 +304,15 @@ recovery.
    stale fence is `409` `business_rule_violation` with the reason `lockey_stale_fence`
    on the field `fence`, and a refused state is `409` with `lockey_not_recoverable` on
    the field `state`, as the onboarding acts already answer. A missing row is `404`. A
-   MUST row that cannot be written, an unavailable lane or database, and a commit whose
-   answer was lost are `503` with `Retry-After`, the last with its own reason
-   `outcome_unknown`.
+   MUST row that cannot be written, an unavailable lane or database, a failed
+   inspection read and a commit whose answer was lost are `503` with `Retry-After`. The
+   last is `dependency_unavailable` with the reason `lockey_outcome_unknown` on the
+   field `outcome`, so the body's status agrees with the response's: a new top-level
+   code would have answered `500` in the body under a `503` response. The cause of an
+   unavailable owner is logged and never returned. A page parameter that is refused
+   (`state`, `limit`, `cursor`) is `400` naming itself in `errors`; a `limit` of zero or
+   less is refused and a larger one is clamped, as Standard 04 says, and the
+   quarantined-jobs list takes no `state`.
 5. **"The event's tenant is Active."** The test is the lifecycle projection the
    dispatcher role already reads, read in the same transaction as the reset: the tenant
    is not deleted, has its default organization and is Trial or Active, which is the
@@ -302,20 +321,37 @@ recovery.
    retired or no longer knows, because a reset would only dead-letter it again with a
    second MUST row.
 6. **Inspection.** Each page is one entered platform scope on the platform role's column
-   grants, so the scope's entry row, which names `platform.delivery.inspect` and carries
-   the ticket and the operator's attribution, is the audit. The scope reads and changes
-   nothing, so it writes no result row and ends by disposal; the slug is still declared
-   off-path, because the scope refuses an operation that is not. Pages are keyset
-   cursors bound to their resource and state, 1 to 100 rows, and a cursor carries no
-   authority. The fence timestamp is the stored microsecond, returned and compared
-   exactly.
+   grants, so the scope's entry row is the audit. Its operation is
+   `platform.admin_scope.enter` and its reason is `delivery_inspect`, the reason of the
+   admitted operation `platform.delivery.inspect`; it carries the ticket and the
+   operator's attribution, and it does not say which of the three lists was read. The
+   scope reads and changes nothing, so it writes no result row and ends by disposal; the
+   slug is still declared off-path, because the scope refuses an operation that is not.
+   A row's `lastError` is shown only when it has the shape of the dispatcher's
+   descriptors (`publish:failed:provider`) and is `unrecognized` otherwise, because the
+   database bounds the length of that column and not its content. `actionable` is the
+   row's and the registry's advice: the tenant's service state is read by the
+   transition, so a row of a suspended tenant can be listed actionable and refused.
+   Pages are keyset cursors bound to their resource and state, 1 to 100 rows, and a
+   cursor carries no authority. The fence timestamp is the stored microsecond,
+   returned and compared exactly.
 7. **An unknown COMMIT is not reconciled automatically.** A reset and its row commit
    together, so a lost answer leaves nothing to repair: the operator inspects, and the
    fence of a landed reset has moved, so a repeat answers `409` on the fence. The
-   runbook says so.
+   runbook says so. Any fault after the COMMIT was sent, the connection's cleanup
+   included, is reported the same way, because the answer is then unknown. A cleanup
+   fault on the operator lane seals its store as one on the dispatcher's lanes does:
+   the stores share the unconfirmed-cleanup seal, which only a restart clears.
 8. **Signals.** `learnstack_platform_operator_recoveries_total{operation,outcome}`
    counts each transition as applied, stale fence, not recoverable, not found,
    unavailable or commit unknown, so a replay storm is visible.
+9. **A producer reset of a type that is not yet Active.** The reset refuses a retired
+   or unknown type and acts on a pending one, whose row the dispatcher claims once the
+   type is Active, as it claims any row of that type; a replay refuses it, because it
+   needs an Active ordinary subscription.
+10. **The tenant test is not locked.** The lifecycle read and the transition share a
+    transaction but not a lock, so a suspension that commits between them does not stop
+    the transition. P03-10 (G16) re-verifies this with the replay floor after erasure.
 
 The Decision, Status, Date and prior amendments of this record are unchanged.
 Acceptance of the linked records is not proof that anything they decide is implemented.

@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using LearnStack.Api.PublicReads;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -60,7 +61,12 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
                         [new OpenApiSecuritySchemeReference(PlatformOperatorAuthentication.Scheme, document)] = [],
                     },
                 ];
-                DescribeResponses(document, operation);
+                DescribeResponses(document, operation, method == HttpMethod.Get);
+                if (method == HttpMethod.Get)
+                {
+                    DescribeInspectionParameters(operation);
+                }
+
                 // An inspection is a read and carries no body.
                 if (operation.RequestBody is null && method != HttpMethod.Get)
                 {
@@ -91,11 +97,67 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         _ => throw new InvalidOperationException("An operator operation declares no request body: " + operationId),
     };
 
-    private static void DescribeResponses(OpenApiDocument document, OpenApiOperation operation)
+    /// <summary>
+    /// The page parameters of an inspection by their rule and not only by prose: the closed state set, the page-size
+    /// range, the ticket's shape and the cursor's length bound.
+    /// </summary>
+    private static void DescribeInspectionParameters(OpenApiOperation operation)
+    {
+        foreach (var parameter in operation.Parameters ?? [])
+        {
+            if (parameter is not OpenApiParameter concrete)
+            {
+                continue;
+            }
+
+            switch (concrete.Name)
+            {
+                case "state":
+                    concrete.Description = "dead_lettered (default) or terminal_requested; a quarantined-jobs list takes no state.";
+                    concrete.Schema = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String,
+                        Enum = [JsonValue.Create("dead_lettered")!, JsonValue.Create("terminal_requested")!],
+                    };
+                    break;
+                case "limit":
+                    concrete.Description = "Page size, 1 or more; a value above 100 is clamped to 100. Zero or less is refused.";
+                    concrete.Schema = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.Integer,
+                        Minimum = "1",
+                        Default = JsonValue.Create(20),
+                    };
+                    break;
+                case "cursor":
+                    concrete.Description = "The nextCursor of the previous page; it belongs to the route and state that issued it.";
+                    concrete.Schema = new OpenApiSchema { Type = JsonSchemaType.String, MaxLength = 512 };
+                    break;
+                case "ticket":
+                    concrete.Description = "An optional change reference, recorded on the platform scope's entry row.";
+                    concrete.Schema = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String,
+                        MinLength = 1,
+                        MaxLength = 64,
+                        Pattern = Platform.TicketPattern.Value,
+                    };
+                    break;
+            }
+        }
+    }
+
+    private static void DescribeResponses(OpenApiDocument document, OpenApiOperation operation, bool isRead)
     {
         operation.Responses ??= [];
         foreach (var (status, description) in Statuses)
         {
+            // A read has no body to refuse and no row to find: 404, 413 and 415 belong to the acts.
+            if (isRead && status is "404" or "413" or "415")
+            {
+                continue;
+            }
+
             // 409 belongs to the acts that can meet a state they refuse; a switch toggle never answers it.
             if (status == "409" && !operation.Responses.ContainsKey("409"))
             {
@@ -135,7 +197,8 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
                 concrete.Headers["Retry-After"] = new OpenApiHeader
                 {
                     Required = true,
-                    Description = "Suggested retry delay in seconds; the act is safe to repeat.",
+                    Description = "Suggested retry delay in seconds. Repeat after it unless the body names errors.outcome: "
+                        + "then the commit may have landed, and the row is read before the act is repeated.",
                     Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "0" },
                 };
             }
@@ -144,7 +207,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
 
     private static readonly (string Status, string Description)[] Statuses =
     [
-        ("400", "validation_failed: the body is malformed, a required field is missing, an identifier is not a UUIDv7, a provider subject is blank or over 255 characters, a template name is not one of the closed set, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -. A refusal at the gate or by a route check carries no per-field errors."),
+        ("400", "validation_failed: the body is malformed, a required field is missing, an onboarding identifier is not a UUIDv7, a recovery route names the nil or the platform tenant or a malformed subscription, a provider subject is blank or over 255 characters, a template name is not one of the closed set, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -. A refusal at the gate carries no per-field errors; a page parameter that is refused names itself on errors.state, errors.limit or errors.cursor."),
         ("401", "unauthorized: the credential is missing or does not meet the token profile. One answer for every cause; the cause is in the operator's signals."),
         ("403", "forbidden: the credential is good and this operator holds no grant for the operation."),
         ("404", "not_found: the killswitch key is not declared, the tenant the route names does not exist, or a recovery names no such row."),
@@ -152,7 +215,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         ("413", "payload_too_large: the body is over 4096 bytes."),
         ("415", "unsupported_media_type: the body is not application/json."),
         ("429", "rate_limited: the caller exceeded the per-peer request budget."),
-        ("500", "internal_error: an unexpected failure. An act whose final commit's outcome is unknown may have landed; repeat the same request (every act is idempotent on its identifiers) or read the state before changing it."),
-        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written or an ordered lock could not be taken, so nothing changed. Retry after the delay. A recovery can also answer outcome_unknown: its commit may have landed, so inspect the row before repeating, because a landed reset answers a repeat 409 on errors.fence."),
+        ("500", "internal_error: an unexpected failure. An act's final commit may have landed: read the state before changing it. An exact repeat of an onboarding act answers 200; a repeat of a recovery that had landed answers 409 on errors.fence."),
+        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written, a connection or an ordered lock could not be taken, or a read failed, so nothing changed. Retry after the delay. A recovery's dependency_unavailable can carry errors.outcome = lockey_outcome_unknown: its commit may have landed, so inspect the row before repeating, because a landed recovery answers a repeat 409 on errors.fence."),
     ];
 }

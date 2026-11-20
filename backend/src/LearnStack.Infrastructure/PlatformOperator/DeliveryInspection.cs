@@ -1,9 +1,11 @@
 using System.Data.Common;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
+using Npgsql;
 
 namespace LearnStack.Infrastructure.PlatformOperator;
 
@@ -27,6 +29,12 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventRegistry registry) : IDeliveryInspection
 {
     private const int MaximumLimit = 100;
+
+    // The dispatcher writes a closed vocabulary of lowercase descriptors (for example publish:failed:provider). The
+    // database bounds only the byte length of last_error, so the projection shows a value of that shape and nothing
+    // else: free text could carry markup, and a page is rendered by a client the operator trusts.
+    private static readonly Regex DescriptorShape = new(
+        @"\A[a-z][a-z0-9_.:-]{0,63}\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 
     private const string OutboxColumns = "id, tenant_id, organization_id, occurred_at, type, attempts, last_error, "
         + "available_after, locked_until, terminal_reason, dead_lettered_at, processed_at";
@@ -143,9 +151,20 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
             after = new DateTimeOffset(ticks, TimeSpan.Zero);
         }
 
-        await using var handle = await scope.EnterAsync(admission, cancellationToken).ConfigureAwait(false);
-        var built = statement(after, key, size + 1);
-        var rows = await handle.QueryAsync(built.Sql, built.Parameters, map, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<T> rows;
+        try
+        {
+            await using var handle = await scope.EnterAsync(admission, cancellationToken).ConfigureAwait(false);
+            var built = statement(after, key, size + 1);
+            rows = await handle.QueryAsync(built.Sql, built.Parameters, map, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (failure is NpgsqlException or TimeoutException
+            || (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            // A read is safe to repeat; the cause is for the route's log, never for the response.
+            throw new OperatorRecoveryUnavailableException(cause: failure);
+        }
+
         var items = rows.Take(size).ToList();
         var next = rows.Count > size && items.Count > 0
             ? Encode(scopeKey, ticksOf(items[^1]), keyOf(items[^1]))
@@ -177,7 +196,7 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
         var disposition = registry.Resolve(type);
         return new OutboxMessageInspection(
             reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), disposition.EventTypeLabel,
-            reader.GetFieldValue<DateTimeOffset>(3), reader.GetInt32(5), reader.IsDBNull(6) ? null : reader.GetString(6),
+            reader.GetFieldValue<DateTimeOffset>(3), reader.GetInt32(5), Shown(reader.IsDBNull(6) ? null : reader.GetString(6)),
             reader.GetFieldValue<DateTimeOffset>(7), lockedUntil, reason, deadLettered,
             Actionable: deadLettered is not null && reason == "retry_exhausted" && reader.IsDBNull(11) && lockedUntil is null
                 && disposition.Disposition is not (OutboxEventDisposition.Retired or OutboxEventDisposition.Unknown));
@@ -193,11 +212,14 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
         return new EventDeliveryInspection(
             reader.GetGuid(0), subscription, reader.GetGuid(2), reader.IsDBNull(3) ? null : reader.GetGuid(3),
             registry.Resolve(type).EventTypeLabel, reader.GetFieldValue<DateTimeOffset>(4), reader.GetInt32(6),
-            reader.IsDBNull(7) ? null : reader.GetString(7), reader.GetFieldValue<DateTimeOffset>(8), lockedUntil, reason,
+            Shown(reader.IsDBNull(7) ? null : reader.GetString(7)), reader.GetFieldValue<DateTimeOffset>(8), lockedUntil, reason,
             deadLettered, reader.GetInt32(12), reader.IsDBNull(13) ? null : reader.GetFieldValue<DateTimeOffset>(13),
             Actionable: deadLettered is not null && reader.IsDBNull(14) && lockedUntil is null && reason != "invalid_envelope"
                 && registry.IsActiveOrdinarySubscription(type, subscription));
     }
+
+    private static string? Shown(string? error) =>
+        error is null ? null : DescriptorShape.IsMatch(error) ? error : "unrecognized";
 
     private static QuarantinedJobInspection MapJob(DbDataReader reader) => new(
         reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetString(3),

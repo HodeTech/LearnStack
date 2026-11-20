@@ -518,9 +518,29 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             .Should().Contain(["attempts", "deadLetteredAt"]);
         foreach (var route in OperatorRoutes)
         {
-            root.GetProperty("paths").GetProperty(route).GetProperty(VerbOf(route)).GetProperty("responses").EnumerateObject()
-                .Select(response => response.Name).Should().Contain(["413", "429"], route);
+            var statuses = root.GetProperty("paths").GetProperty(route).GetProperty(VerbOf(route)).GetProperty("responses")
+                .EnumerateObject().Select(response => response.Name).ToArray();
+            if (VerbOf(route) == "get")
+            {
+                statuses.Should().Contain("429", route).And.NotContain(["404", "409", "413", "415"], "a read has no body, no row to find and no state to refuse: " + route);
+            }
+            else
+            {
+                statuses.Should().Contain(["413", "429"], route);
+            }
         }
+
+        // The page parameters are declared by their rule, not only described: the closed state set, the size range,
+        // the ticket's shape and the cursor's bound.
+        JsonElement ParameterOf(string route, string name) => root.GetProperty("paths").GetProperty(route).GetProperty("get")
+            .GetProperty("parameters").EnumerateArray().Single(parameter => parameter.GetProperty("name").GetString() == name)
+            .GetProperty("schema");
+        var outbox = "/api/platform/v1/asynchronous-work/outbox-messages";
+        ParameterOf(outbox, "state").GetProperty("enum").EnumerateArray().Select(value => value.GetString())
+            .Should().BeEquivalentTo(["dead_lettered", "terminal_requested"]);
+        ParameterOf(outbox, "limit").GetProperty("minimum").GetRawText().Trim('"').Should().Be("1");
+        ParameterOf(outbox, "cursor").GetProperty("maxLength").GetInt32().Should().Be(512);
+        ParameterOf(outbox, "ticket").GetProperty("pattern").GetString().Should().Be(@"^[A-Za-z0-9._:/#-]{1,64}$");
     }
 
     private const string Work = "/api/platform/v1/asynchronous-work";
@@ -554,6 +574,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     [InlineData("limit=abc")]
     [InlineData("limit=-1")]
     [InlineData("limit=1.5")]
+    [InlineData("limit=0")]
+    [InlineData("limit=99999999999")]
     [InlineData("ticket=has%20space")]
     public async Task An_Inspection_With_A_Malformed_Parameter_Is_A_Validation_Failure_Before_Any_Scope(string query)
     {
@@ -561,6 +583,106 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         _inspection.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("limit=0", "limit")]
+    [InlineData("limit=-3", "limit")]
+    [InlineData("state=bogus", "state")]
+    public async Task A_Refused_Page_Parameter_Names_Itself_As_Standard_04_Asks(string query, string field)
+    {
+        var response = await Call(HttpMethod.Get, Work + "/outbox-messages?" + query, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("errors").TryGetProperty(field, out _).Should().BeTrue(field);
+        _inspection.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_Quarantined_Jobs_List_Takes_No_State_And_Refuses_One_After_The_Gate()
+    {
+        var refused = await Call(HttpMethod.Get, Work + "/quarantined-jobs?state=terminal_requested", Valid());
+
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using (var body = JsonDocument.Parse(await refused.Content.ReadAsStringAsync()))
+        {
+            body.RootElement.GetProperty("errors").TryGetProperty("state", out _).Should().BeTrue();
+        }
+
+        _inspection.Calls.Should().BeEmpty();
+        (await Call(HttpMethod.Get, Work + "/quarantined-jobs?state=terminal_requested", Sign(("sub", "someone-else"))))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden, "the gate answers before a parameter is read");
+    }
+
+    [Fact]
+    public async Task An_Inspection_Whose_Database_Fault_Surfaces_Is_A_Retryable_503_Whose_Body_Agrees_With_Its_Status()
+    {
+        _inspection.Failure = new OperatorRecoveryUnavailableException(cause: new TimeoutException("forced"));
+
+        var response = await Call(HttpMethod.Get, Work + "/outbox-messages", Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.Headers.RetryAfter.Should().NotBeNull();
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("status").GetInt32().Should().Be(503);
+        body.RootElement.GetProperty("code").GetString().Should().Be("dependency_unavailable");
+        body.RootElement.ToString().Should().NotContain("forced", "the cause is for the log and never for the response");
+    }
+
+    [Theory]
+    [InlineData(HeldKey.None)]
+    [InlineData(HeldKey.Read)]
+    [InlineData(HeldKey.Write)]
+    public async Task The_Read_And_Write_Delivery_Permissions_Admit_Only_Their_Own_Routes_And_The_Killswitch_Grant_Neither(
+        HeldKey held)
+    {
+        // ADR-0103 Decision table. Every other test here runs as an operator who holds all three keys, so none of them can tell
+        // which key a route asks for. This one holds exactly one key, and the other routes must refuse it.
+        var key = held switch
+        {
+            HeldKey.Read => PlatformPermissions.DeliveryRead.Key,
+            HeldKey.Write => PlatformPermissions.DeliveryWrite.Key,
+            _ => PlatformPermissions.KillswitchWrite.Key,
+        };
+        var recovery = new RecordingRecovery();
+        var inspection = new RecordingInspection();
+        await using var single = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
+            services: registrations =>
+            {
+                registrations.AddSingleton<IOperatorRecovery>(recovery);
+                registrations.AddScoped<IDeliveryInspection>(_ => inspection);
+            },
+            permissions: [key]);
+        using var client = single.CreateClient();
+
+        async Task<HttpStatusCode> Send(HttpMethod method, string path, string? json)
+        {
+            using var request = new HttpRequestMessage(method, path) { Headers = { { "Authorization", "Bearer " + Valid() } } };
+            if (json is not null) request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return (await client.SendAsync(request)).StatusCode;
+        }
+
+        var reads = new[] { Work + "/outbox-messages", Work + "/event-deliveries", Work + "/quarantined-jobs" };
+        foreach (var path in reads)
+        {
+            (await Send(HttpMethod.Get, path, null)).Should().Be(
+                held == HeldKey.Read ? HttpStatusCode.OK : HttpStatusCode.Forbidden, path);
+        }
+
+        (await Send(HttpMethod.Post, ReplayPath, ReplayBody)).Should().Be(
+            held == HeldKey.Write ? HttpStatusCode.OK : HttpStatusCode.Forbidden, ReplayPath);
+        (await Send(HttpMethod.Post, ResetPath, ResetBody)).Should().Be(
+            held == HeldKey.Write ? HttpStatusCode.OK : HttpStatusCode.Forbidden, ResetPath);
+        inspection.Calls.Count.Should().Be(held == HeldKey.Read ? reads.Length : 0);
+        recovery.Calls.Count.Should().Be(held == HeldKey.Write ? 2 : 0);
+    }
+
+    public enum HeldKey
+    {
+        None,
+        Read,
+        Write,
     }
 
     [Fact]
@@ -639,15 +761,17 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("/event-deliveries/not-a-guid/orders.notify.v1/" + RowEvent + "/replay")]
-    [InlineData("/event-deliveries/" + RowTenant + "/Not.A.Subscription/" + RowEvent + "/replay")]
-    [InlineData("/event-deliveries/00000000-0000-0000-0000-000000000000/orders.notify.v1/" + RowEvent + "/replay")]
-    [InlineData("/event-deliveries/" + RowTenant + "/orders.notify.v1/00000000-0000-0000-0000-000000000000/replay")]
-    public async Task A_Replay_Route_Naming_No_Real_Row_Is_Refused_Without_Calling_The_Owner(string suffix)
+    [InlineData("/event-deliveries/not-a-guid/orders.notify.v1/" + RowEvent + "/replay", HttpStatusCode.NotFound)]
+    [InlineData("/event-deliveries/" + RowTenant + "/Not.A.Subscription/" + RowEvent + "/replay", HttpStatusCode.BadRequest)]
+    [InlineData("/event-deliveries/00000000-0000-0000-0000-000000000000/orders.notify.v1/" + RowEvent + "/replay", HttpStatusCode.BadRequest)]
+    [InlineData("/event-deliveries/" + RowTenant + "/orders.notify.v1/00000000-0000-0000-0000-000000000000/replay", HttpStatusCode.BadRequest)]
+    public async Task A_Replay_Route_Naming_No_Real_Row_Is_Refused_Without_Calling_The_Owner(string suffix, HttpStatusCode expected)
     {
+        // A tenant that is not a UUID matches no route; the nil identifiers and a malformed subscription match it and
+        // are refused by the route's own checks, after the gate.
         var response = await Call(HttpMethod.Post, Work + suffix, Valid(), ReplayBody);
 
-        response.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.NotFound);
+        response.StatusCode.Should().Be(expected);
         _recovery.Calls.Should().BeEmpty();
     }
 
@@ -694,7 +818,16 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
             response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, reason);
             response.Headers.RetryAfter.Should().NotBeNull(reason);
-            (await response.Content.ReadAsStringAsync()).Should().Contain(reason);
+            var text = await response.Content.ReadAsStringAsync();
+            text.Should().Contain(reason);
+            using var body = JsonDocument.Parse(text);
+            body.RootElement.GetProperty("status").GetInt32().Should().Be(503, "the body's status never disagrees with the response's: " + reason);
+            body.RootElement.GetProperty("code").GetString().Should().Be(
+                reason == "outcome_unknown" ? "dependency_unavailable" : reason);
+            if (reason == "outcome_unknown")
+            {
+                body.RootElement.GetProperty("errors").GetProperty("outcome").ToString().Should().Contain("outcome_unknown");
+            }
         }
     }
 
@@ -727,7 +860,6 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             .Should().BeOfType<LearnStack.Infrastructure.PlatformOperator.DeliveryInspection>();
         scope.ServiceProvider.GetRequiredService<LearnStack.Infrastructure.Messaging.DeliveryDispatchStore>().Should().NotBeNull();
         scope.ServiceProvider.GetRequiredService<LearnStack.Infrastructure.Messaging.OutboxDispatchStore>().Should().NotBeNull();
-        await Task.CompletedTask;
     }
 
     private static readonly string[] OperatorRoutes =
@@ -1032,7 +1164,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         IKillswitchToggle toggle,
         string grantSubject = Subject,
         bool configured = true,
-        Action<IServiceCollection>? services = null) : ConstructionOnlyApiFactory
+        Action<IServiceCollection>? services = null,
+        string[]? permissions = null) : ConstructionOnlyApiFactory
     {
         protected override void ConfigureTestHost(IWebHostBuilder builder)
         {
@@ -1044,9 +1177,15 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 builder.UseSetting("PlatformOperator:AcceptedAcr:0", "mfa");
                 builder.UseSetting("PlatformOperator:AuthorizedParties:0", "learnstack-operator");
                 builder.UseSetting("PlatformOperator:Grants:0:Subject", grantSubject);
-                builder.UseSetting("PlatformOperator:Grants:0:Permissions:0", PlatformPermissions.KillswitchWrite.Key);
-                builder.UseSetting("PlatformOperator:Grants:0:Permissions:1", PlatformPermissions.DeliveryRead.Key);
-                builder.UseSetting("PlatformOperator:Grants:0:Permissions:2", PlatformPermissions.DeliveryWrite.Key);
+                var held = permissions ??
+                [
+                    PlatformPermissions.KillswitchWrite.Key, PlatformPermissions.DeliveryRead.Key,
+                    PlatformPermissions.DeliveryWrite.Key,
+                ];
+                for (var index = 0; index < held.Length; index++)
+                {
+                    builder.UseSetting("PlatformOperator:Grants:0:Permissions:" + index, held[index]);
+                }
             }
 
             builder.ConfigureTestServices(registrations =>

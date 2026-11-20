@@ -6483,62 +6483,83 @@ triggers) and the head pin in `MigrationRollbackTests`.
 
 ## Operator recovery storage
 
-**Derives from:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and its
-Amendment 1. Operator inspection reads metadata through the platform role's column grants, and the two
-fenced transitions run on the dispatcher's outbox role. The canonical SQL of every grant and index
-named here is in the [Outbox](#outbox), [Inbox](#inbox) and Background jobs blocks, which migration
-tests compare with the applied schema, and the head of the Platform chain is pinned in
+**Derives from:**
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and its
+Amendment 1. Operator inspection reads metadata through the platform role's column
+grants, and the two fenced transitions run on the dispatcher's outbox role. The
+canonical SQL of every grant and index named here is in the [Outbox](#outbox),
+[Inbox](#inbox) and Background jobs blocks, which migration tests compare with the
+applied schema, and the head of the Platform chain is pinned in
 `MigrationRollbackTests`.
 
 ### The platform role's inspection grants
 
-`learnstack_platform` holds `SELECT` on named columns of four tables and nothing wider: twelve columns
-of `outbox_messages`, fifteen of `event_deliveries`, twenty-seven of `background_jobs` and every column
-of `background_job_reservations`. It never reads `payload`, `metadata`, `correlation_id`,
-`causation_id`, `actor_user_id`, `topic`, `partition_key`, `locked_by`, a job's `parameters`, `plan`,
-`plan_fingerprint`, `traceparent`, a causal column, `operation_id` or an ownership or bridge token, so a
-statement that names one is refused by PostgreSQL itself. The role kept `DELETE` on `outbox_messages` for
-the retention purge of [Phase 11](../roadmap/phase-11-production-hardening.md), and the table-wide
-`SELECT` it held beside it was revoked, because a column grant next to a table grant excludes nothing.
-Column privileges are read from `information_schema.column_privileges`, as for every column-grant table.
-Two partial indexes, `ix_outbox_messages_dead_lettered` and `ix_event_deliveries_dead_lettered`, serve the
-dead-lettered scan the inspection pages by keyset. The migration is forward-only.
+`learnstack_platform` holds `SELECT` on named columns of four tables and nothing
+wider: twelve columns of `outbox_messages`, fifteen of `event_deliveries`,
+twenty-seven of `background_jobs` and every column of `background_job_reservations`.
+It never reads `payload`, `metadata`, `correlation_id`, `causation_id`,
+`actor_user_id`, `topic`, `partition_key`, `locked_by`, a job's `parameters`, `plan`,
+`plan_fingerprint`, `traceparent`, a causal column, `operation_id` or an ownership
+or bridge token, so a statement that names one is refused by PostgreSQL itself. The
+role kept `DELETE` on `outbox_messages` for the retention purge of
+[Phase 11](../roadmap/phase-11-production-hardening.md), and the table-wide `SELECT`
+it held beside it was revoked, because a column grant next to a table grant excludes
+nothing. Column privileges are read from `information_schema.column_privileges`, as
+for every column-grant table. The database bounds which columns a page can read and
+the length of `last_error`, not its content, so the inspection shows a `last_error`
+only when it has the shape of the dispatcher's descriptors. Two partial indexes,
+`ix_outbox_messages_dead_lettered` and `ix_event_deliveries_dead_lettered`, serve
+the dead-lettered scan the inspection pages by keyset. The migration is
+forward-only.
 
 ### The two transitions
 
-Both run on the outbox role, which already holds the column `UPDATE` grants they need, the lifecycle
-`SELECT` of `tenants` and `INSERT` on `audit_log`: no write grant was added. Each locks one row with
-`FOR UPDATE`, compares the fence the operator read, checks the state, and updates under the same predicate
-with `RETURNING old.*` and `new.*`, so the witness is built from what the statement did and the row is
-written on the same transaction before `COMMIT`.
+Both run on the outbox role, which already holds the column `UPDATE` grants they
+need, the lifecycle `SELECT` of `tenants` and `INSERT` on `audit_log`: no write
+grant was added. Each locks one row with `FOR UPDATE`, compares the fence the
+operator read, checks the state, and updates under the same predicate with
+`RETURNING old.*` and `new.*`, so the witness is built from what the statement did
+and the row is written on the same transaction before `COMMIT`. Which fences and
+which states are refused is decided by ADR-0103 (§ 2, § 3 and Amendment 1) and is
+not restated here.
 
-- **Replay** fences `(replay_count, dead_lettered_at, terminal_reason)` on one
-  `(tenant, subscription, event)` row of `event_deliveries`. It refuses a processed or leased row, the reason
-  `invalid_envelope`, a subscription that is not an Active ordinary one of the stored type and a tenant that is
-  not serving, clears the terminal fields and the lease, resets attempts, makes the row due, and adds one to
-  `replay_count`. The inbox row, the siblings and the producer row are untouched.
-- **Producer reset** fences `(attempts, dead_lettered_at)` on one `outbox_messages` row and acts only on
-  `terminal_reason = 'retry_exhausted'` of a row not processed or leased whose stored type the registry still
-  knows. It clears the terminal fields, `last_error` and the lease, sets `attempts` to zero and makes the row
-  due. It writes no delivery row.
+- **Replay** fences one `(tenant, subscription, event)` row of `event_deliveries`
+  and writes that table only. The inbox row, the siblings and the producer row are
+  untouched.
+- **Producer reset** fences one `outbox_messages` row and writes that table only.
+  It writes no delivery row.
 
-The timestamp of a fence is `timestamptz` to the microsecond. It is carried and compared exactly, and a test
-presents a fence one microsecond off.
+The timestamp of a fence is `timestamptz` to the microsecond. It is carried and
+compared exactly, and a test presents a fence one microsecond off.
 
 ### The operator lane
 
-Each messaging store has two slots for the dispatcher's own SQL owner and its uncertain-COMMIT reconciliation
-and a third, reserved for the operator owner. The operator never takes the dispatcher's slots, and a second
-concurrent operator call on a store is refused. The lanes are two of the thirteen messaging and bridge slots in
-the [capacity ledger](#shared-dispatcher-source-lifetime-and-capacity), which is 54 for the default topology
-and 160 for the maximum.
+Each messaging store has two slots for the dispatcher's own SQL owner and its
+uncertain-COMMIT reconciliation and a third, reserved for the operator owner. The
+operator never takes the dispatcher's slots, and a second concurrent operator call
+on a store is refused. The lanes are two of the thirteen messaging and bridge slots
+in the [capacity ledger](#shared-dispatcher-source-lifetime-and-capacity), which is
+54 for the default topology and 160 for the maximum. The stores share one
+unconfirmed-cleanup seal, so a cleanup fault on the operator lane seals the store
+as one on the dispatcher's lanes does.
 
 ### Proof
 
-Real PostgreSQL as each role: `DeliveryDispatchStoreTests` and `OutboxDispatchStoreTests` (the current fence
-applies, every stale variant including one microsecond refuses and changes nothing, each refused state, a
-tenant that is not serving, a forced audit failure rolling the change back, an admission for another operation
-or a stale or spent one, a busy operator lane that leaves the dispatcher's slots alone, a lost commit
-acknowledgement, and every other row byte-identical), `DeliveryInspectionTests` (pages, cursors, the entry
-row, and the columns the platform role cannot select) and `PlatformOperatorHttpTests` (the routes, their
-statuses and the contract).
+Real PostgreSQL as each role:
+
+- `DeliveryDispatchStoreTests` and `OutboxDispatchStoreTests`: the current fence
+  applies; every stale variant, one microsecond included, refuses and changes
+  nothing; each refused state; a tenant that is not serving; a forced audit failure
+  rolling the change back; an admission for another operation, a stale one or a spent
+  one; the witness refusing each substituted field of the row and a transaction that
+  is not its own, and a witness reused on a later transition; a busy operator lane
+  that leaves the dispatcher's slots alone, in each store; a lost commit
+  acknowledgement; the real `OperatorRecovery` owner reaching the right store and
+  counting each outcome under its own operation; and the siblings and the inbox
+  byte-identical after a replay.
+- `DeliveryInspectionTests`: pages and keyset cursors (equal instants included), a
+  cursor refused under another resource or state, the entry row, the job occupancy
+  counts, the descriptor shape of `last_error`, and the exact columns the platform
+  role can and cannot select.
+- `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their
+  statuses and contract, and the pair of permissions, each held alone.

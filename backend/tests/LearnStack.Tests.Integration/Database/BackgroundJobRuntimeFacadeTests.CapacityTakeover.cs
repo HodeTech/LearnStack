@@ -53,8 +53,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         });
         await using var proxy = new CommitResponseDroppingProxy(database.OutboxConnectionString,
             commitsToPass: int.MaxValue, lifetime: TimeSpan.FromMinutes(2));
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
-        var settings = new NpgsqlConnectionStringBuilder(proxy.ConnectionString) { Pooling = true, MaxPoolSize = 52 };
+        var physical = new BackgroundJobPhysicalPoolSettings(true, BackgroundJobCapacity.Floor);
+        var settings = new NpgsqlConnectionStringBuilder(proxy.ConnectionString) { Pooling = true, MaxPoolSize = BackgroundJobCapacity.Floor };
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(settings.ConnectionString));
         await using var peerSource = Source(database, physical);
         using var globals = new GlobalFilterSnapshot();

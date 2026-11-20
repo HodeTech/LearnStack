@@ -30,7 +30,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await using var database = await DatabaseAsync();
         var applicationName = "combined_capacity_" + Guid.NewGuid().ToString("N");
         var connectionString = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
-        { Pooling = true, MaxPoolSize = 52, ApplicationName = applicationName }.ConnectionString;
+        { Pooling = true, MaxPoolSize = BackgroundJobCapacity.Floor, ApplicationName = applicationName }.ConnectionString;
         var outboxHold = new CombinedTerminalHold();
         var deliveryHold = new CombinedTerminalHold();
         // Uncommitted unique-key contention identifies the exact stock expiration
@@ -90,7 +90,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await delivery.StartAsync(CancellationToken.None);
             await jobs.StartAsync(CancellationToken.None);
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
-            await AssertGuardedPoolAsync(source, new(true, 52));
+            await AssertGuardedPoolAsync(source, new(true, BackgroundJobCapacity.Floor));
             expiration = ActualExpiration(runtime);
             await EventuallyAsync(async () =>
             {
@@ -121,7 +121,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             absentOwner.Should().Throw<Xunit.Sdk.XunitException>();
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, tenant: SchemaFixture.TenantB);
             await EnsureQualificationStartAsync(runtime, source, job, bodyObserved.Task);
-            (await bodyObserved.Task.WaitAsync(TestWait)).Should().BeInRange(3, 52);
+            (await bodyObserved.Task.WaitAsync(TestWait)).Should().BeInRange(3, BackgroundJobCapacity.Floor);
             await EventuallyAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString,
                 job, tenant: SchemaFixture.TenantB))?.Phase == "completed");
             await AssertCombinedBusinessAsync(database, organization);
@@ -171,7 +171,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         expiration.Should().NotBeNull();
         expiration!.Snapshot.Should().BeEquivalentTo(new { State = HangfireSharedComponentState.Retained, Invocations = 1L, OwnsResources = true, ActualJoined = false });
         source.Should().NotBeNull();
-        PoolStatistics(source!).Busy.Should().BeInRange(3, 52);
+        PoolStatistics(source!).Busy.Should().BeInRange(3, BackgroundJobCapacity.Floor);
     }
 
     private static async Task<int> CombinedBlockedExpirationPidAsync(DisposableSchemaDatabase database, string applicationName,

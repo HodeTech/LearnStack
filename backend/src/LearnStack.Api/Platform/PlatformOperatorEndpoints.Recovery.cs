@@ -106,24 +106,27 @@ internal static partial class PlatformOperatorEndpoints
         HttpContext http, IPlatformOperatorGate gate, IDeliveryInspection inspection, ILoggerFactory loggers,
         CancellationToken cancellationToken) =>
         InspectAsync(
-            http, gate, ticket, state, limit, loggers, cancellationToken,
-            async (admission, parsedState, size) => await inspection.InspectOutboxAsync(admission, parsedState, cursor, size, cancellationToken));
+            http, gate, ticket, state, limit, loggers, true,
+            async (admission, parsedState, size) => await inspection.InspectOutboxAsync(admission, parsedState, cursor, size, cancellationToken),
+            cancellationToken);
 
     private static Task<IResult> InspectDeliveriesAsync(
         [FromQuery] string? state, [FromQuery] string? limit, [FromQuery] string? cursor, [FromQuery] string? ticket,
         HttpContext http, IPlatformOperatorGate gate, IDeliveryInspection inspection, ILoggerFactory loggers,
         CancellationToken cancellationToken) =>
         InspectAsync(
-            http, gate, ticket, state, limit, loggers, cancellationToken,
-            async (admission, parsedState, size) => await inspection.InspectDeliveriesAsync(admission, parsedState, cursor, size, cancellationToken));
+            http, gate, ticket, state, limit, loggers, true,
+            async (admission, parsedState, size) => await inspection.InspectDeliveriesAsync(admission, parsedState, cursor, size, cancellationToken),
+            cancellationToken);
 
     private static Task<IResult> InspectJobsAsync(
-        [FromQuery] string? limit, [FromQuery] string? cursor, [FromQuery] string? ticket,
+        [FromQuery] string? state, [FromQuery] string? limit, [FromQuery] string? cursor, [FromQuery] string? ticket,
         HttpContext http, IPlatformOperatorGate gate, IDeliveryInspection inspection, ILoggerFactory loggers,
         CancellationToken cancellationToken) =>
         InspectAsync(
-            http, gate, ticket, "dead_lettered", limit, loggers, cancellationToken,
-            async (admission, _, size) => await inspection.InspectJobsAsync(admission, cursor, size, cancellationToken));
+            http, gate, ticket, state, limit, loggers, false,
+            async (admission, _, size) => await inspection.InspectJobsAsync(admission, cursor, size, cancellationToken),
+            cancellationToken);
 
     /// <summary>
     /// The shared flow of an inspection: the gate first, so the query is answered only to an operator who may inspect,
@@ -136,8 +139,9 @@ internal static partial class PlatformOperatorEndpoints
         string? state,
         string? limit,
         ILoggerFactory loggers,
-        CancellationToken cancellationToken,
-        Func<PlatformAdmission, DeliveryInspectionState, int, Task<InspectionPage<T>?>> page)
+        bool acceptsState,
+        Func<PlatformAdmission, DeliveryInspectionState, int, Task<InspectionPage<T>?>> page,
+        CancellationToken cancellationToken)
     {
         var (refusal, admission) = await AdmitAsync(http, gate, PlatformOperations.DeliveryInspect, ticket, cancellationToken);
         if (refusal is not null)
@@ -145,22 +149,32 @@ internal static partial class PlatformOperatorEndpoints
             return refusal;
         }
 
-        if (!TryState(state, out var parsedState) || !TryLimit(limit, out var size))
+        var parsedState = DeliveryInspectionState.DeadLettered;
+        if (acceptsState ? !TryState(state, out parsedState) : state is not null)
         {
-            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
+            return InvalidParameter(http, "state");
+        }
+
+        if (!TryLimit(limit, out var size))
+        {
+            return InvalidParameter(http, "limit");
         }
 
         try
         {
             var result = await page(admission!, parsedState, size);
             return result is null
-                ? Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed")
+                ? InvalidParameter(http, "cursor")
                 : Results.Ok(new InspectionResponse<T>(
                     result.Items, new InspectionPageInfo(result.NextCursor, null, result.NextCursor is not null, false)));
         }
         catch (AuditWriteFailedException failure)
         {
             return AuditUnavailableProblem(http, loggers, PlatformOperations.DeliveryInspect, failure);
+        }
+        catch (OperatorRecoveryUnavailableException failure)
+        {
+            return UnavailableProblem(http, loggers, PlatformOperations.DeliveryInspect, failure);
         }
     }
 
@@ -239,12 +253,48 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (OperatorRecoveryUnavailableException failure)
         {
-            RetryAfter.Apply(http.Response, StatusCodes.Status503ServiceUnavailable);
-            return Problem(
-                http, StatusCodes.Status503ServiceUnavailable,
-                failure.CommitOutcomeUnknown ? "lockey_outcome_unknown" : "lockey_dependency_unavailable");
+            return UnavailableProblem(http, loggers, operation, failure);
         }
     }
+
+    private static readonly Action<ILogger, string, bool, Exception?> LogRecoveryUnavailable =
+        LoggerMessage.Define<string, bool>(
+            LogLevel.Warning,
+            new EventId(7109, nameof(LogRecoveryUnavailable)),
+            "An operator recovery owner was unavailable for {Operation}; the commit's outcome unknown: {CommitOutcomeUnknown}.");
+
+    /// <summary>
+    /// A 503 whose cause the operator can find: the fault is logged, and the response names only whether the commit's
+    /// outcome is unknown. The status map is closed, so the reason travels on the field <c>outcome</c> of
+    /// <c>dependency_unavailable</c> and the body's status agrees with the response's.
+    /// </summary>
+    private static IResult UnavailableProblem(
+        HttpContext http, ILoggerFactory loggers, PlatformOperation operation, OperatorRecoveryUnavailableException failure)
+    {
+        LogRecoveryUnavailable(
+            loggers.CreateLogger(typeof(PlatformOperatorEndpoints).FullName!), operation.AuditSlug, failure.CommitOutcomeUnknown,
+            failure.InnerException);
+        return ResultProblem(
+            http,
+            failure.CommitOutcomeUnknown
+                ? new Error(
+                    new LocalizedMessage("lockey_dependency_unavailable"),
+                    new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+                    {
+                        ["outcome"] = [new LocalizedMessage("lockey_outcome_unknown")],
+                    })
+                : new Error(new LocalizedMessage("lockey_dependency_unavailable")));
+    }
+
+    /// <summary>A 400 that names the query parameter at fault, as Standard 04 asks of a page parameter.</summary>
+    private static IResult InvalidParameter(HttpContext http, string parameter) => ResultProblem(
+        http,
+        new Error(
+            new LocalizedMessage("lockey_validation_failed"),
+            new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+            {
+                [parameter] = [new LocalizedMessage(ModelBindingProblemDetails.FieldMessageKey)],
+            }));
 
     /// <summary>A 409 with the reason on the field it concerns; the status map is closed, so the code stays the business rule's.</summary>
     private static Error Rule(string field, string reason) => new(
@@ -314,12 +364,14 @@ internal static partial class PlatformOperatorEndpoints
             return true;
         }
 
-        if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        // Standard 04: a limit of zero or less is rejected, a larger one is clamped, never rejected.
+        if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            || parsed < 1)
         {
             return false;
         }
 
-        size = Math.Clamp(parsed, 1, MaximumPageSize);
+        size = Math.Min(parsed, MaximumPageSize);
         return true;
     }
 

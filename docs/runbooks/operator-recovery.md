@@ -45,9 +45,11 @@ because the database refuses those columns to the platform role.
 ## Inspect
 
 Each page is one entered platform scope, so each page writes one
-`platform.admin_scope.enter` audit row naming `platform.delivery.inspect`, with your
-attribution and ticket. Pass the ticket as `?ticket=`: 1 to 64 letters, digits or
-`.` `_` `:` `/` `#` `-`.
+`platform.admin_scope.enter` audit row with the reason `delivery_inspect`, your
+attribution and your ticket. It does not say which of the three lists you read or how
+far you paged. Pass the ticket as `?ticket=`: 1 to 64 letters, digits or `.` `_` `:`
+`/` `#` `-`. Inspections run on `ConnectionStrings:PlatformAdmin`; the two acts run on
+`ConnectionStrings:OutboxDispatcher` ([setup](operator-access.md#what-must-be-configured)).
 
 ```sh
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -58,11 +60,15 @@ curl -s -H "Authorization: Bearer $TOKEN" \
   row has a terminal reason recorded and the commit of its dead-letter not yet made: its
   state is shown and it is **not actionable**. It becomes dead-lettered by itself, or it
   does not.
-- `limit` is 1 to 100 (default 20, larger values are clamped). The answer holds `items` and a `pageInfo`
-  with `nextCursor` and `hasNext`; send `nextCursor` back as `cursor`. A cursor belongs
-  to the route and state that issued it.
-- Each row carries `eventType` as the registry's label (never stored text) and
-  `actionable`. Treat `actionable` as advice: the transition checks again.
+- `limit` is 1 to 100 (default 20; a larger value is clamped, zero or less is refused
+  with `errors.limit`). The answer holds `items` and a `pageInfo` with `nextCursor`
+  and `hasNext`; send `nextCursor` back as `cursor`. A cursor belongs to the route and
+  state that issued it. The quarantined-jobs list takes no `state`.
+- Each row carries `eventType` as the registry's label (never stored text), `lastError`
+  (a descriptor such as `publish:failed:provider`, or `unrecognized`) and `actionable`.
+  Treat `actionable` as advice about the row and the registry: the act also checks the
+  tenant's service state and the fence, so a suspended tenant's row can be listed
+  actionable and refused.
 - **The fence travels with the row.** A delivery shows `replayCount`, `deadLetteredAt`,
   `terminalReason`; an outbox row shows `attempts` and `deadLetteredAt`.
   `deadLetteredAt` has microsecond precision: send it back **exactly as returned**.
@@ -81,8 +87,11 @@ curl -s -H "Authorization: Bearer $TOKEN" \
   already reached a subscriber is absorbed by the event's stable identity; a delivery
   that already ended terminal needs its own replay.
 - **Neither** if the reason is `invalid_envelope`: the stored envelope is immutable and
-  cannot become valid. A reason of `unknown_type` or `retired_type` follows the registry
-  now: an event the registry still does not know, or has retired, is refused.
+  cannot become valid. For a *replay*, a reason of `unknown_type` or `retired_type`
+  follows the registry now: an event the registry still does not know, or has retired,
+  is refused, and one it knows again is replayed. A *producer reset* acts only on
+  `retry_exhausted`; any other reason is refused. A reset of a type that is not yet
+  Active is applied, and the dispatcher claims the row once the type is Active.
 
 ## Act
 
@@ -104,13 +113,13 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/
 |---|---|
 | `200`, `outcome: applied` | The row was reset and its MUST audit row committed with it. `countAfter` is the new replay count, or zero attempts |
 | `409`, `errors.fence` = `lockey_stale_fence` | The row no longer shows the fence you sent: the dispatcher, another operator or a retry moved it. Nothing changed and nothing was written. **Inspect again** and decide again |
-| `409`, `errors.state` = `lockey_not_recoverable` | The fence holds and the row is not one a reset may act on: processed, leased, `invalid_envelope`, a reason a reset refuses, a subscription that is no longer Active, an event type the registry no longer knows, or a tenant that is not serving (not Trial or Active, or deleted). Nothing changed |
+| `409`, `errors.state` = `lockey_not_recoverable` | The fence holds and the row is not one an act may take: `invalid_envelope`, a reason a producer reset refuses, a subscription that is no longer Active, an event type the registry no longer knows, or a tenant that is not serving (not Trial or Active, or deleted). Nothing changed |
 | `404` | No such row for that tenant |
 | `403` | You hold no `platform.delivery.write` grant. Nothing was opened |
-| `400` | The route, the body or the ticket is malformed. A refusal at the gate carries no per-field errors |
+| `400` | The route, the body or the ticket is malformed. A refusal at the gate carries no per-field errors; a refused page parameter names itself (`errors.state`, `errors.limit`, `errors.cursor`) |
 | `503`, `audit_unavailable` | The MUST row could not be written, so nothing changed. Retry after the delay |
-| `503`, `dependency_unavailable` | The outbox role's connection or its one operator lane was unavailable. Nothing changed. Only one operator call runs per store at a time; retry after the delay |
-| `503`, `outcome_unknown` | The commit's answer was lost. It **may have landed**. **Inspect the row before repeating**: a landed reset shows an advanced `replayCount` (or `attempts` of zero), and a repeat of the same request would answer `409` `lockey_stale_fence` |
+| `503`, `dependency_unavailable` | A connection, the one operator lane or an inspection's read was unavailable. Nothing changed. Only one operator call runs per store at a time, and a second is refused at once and not queued; retry after the delay. The cause is in the API's log, never in the response |
+| `503`, `dependency_unavailable` with `errors.outcome` = `lockey_outcome_unknown` | The commit was sent and its answer was lost, or a fault followed it. It **may have landed**. **Inspect the row before repeating**: a landed reset shows an advanced `replayCount` (or `attempts` of zero), and a repeat of the same request would answer `409` `lockey_stale_fence` |
 
 An applied replay makes the delivery due at once; the dispatcher claims it like any
 other.
@@ -127,7 +136,9 @@ other.
    tenant) with no actor, the operation `platform.delivery.replay` or
    `platform.delivery.reset`, the reason `delivery_replay` or `delivery_reset`, your
    attribution in `metadata.operator` and the fence before and after in
-   `metadata.fence`. The ticket is not on it, because the tenant can read it.
+   `metadata.fence`. The ticket is not on it, because the tenant can read it: a
+   ticket sent with an act is checked and not stored, so record the response's
+   `correlationId` against your own change reference.
 
 ## Signals
 
@@ -140,15 +151,18 @@ access](operator-access.md#signals).
 
 ## Limits
 
-- **Erasure.** The rule that the tenant is serving is the guard until the erasure work
+- **Erasure.** The rule that the tenant is serving is the guard until P03-10 (G16)
   defines what a replay may reach after a tenant's data is erased; it re-verifies these
-  transitions. Do not reset anything for a tenant that is being erased.
+  transitions. The check is not locked against a suspension that commits at the same
+  moment. Do not reset anything for a tenant that is being erased.
 - **The invitation path.** A stuck or unknown outbound invitation email is a *job*, and
   nothing here releases it. Reissuing an invitation helps only while the tenant has a
   free slot; it neither reconciles nor releases the old effect, and four unresolved
   effects can hold every slot with no operator remedy.
 - **Capacity.** The operator lane is one connection per store, so replays are one at a
-  time. A burst is slow on purpose.
+  time, and a second concurrent call is refused with `503` at once. Send them one after
+  another. A connection-cleanup fault on that lane seals its store as one on the
+  dispatcher's lanes does, and only a restart clears it.
 
 ## Not recoverable here
 

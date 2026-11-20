@@ -98,7 +98,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18.4-alpine")
         .WithDatabase(Database)
         // Qualification can hold the supported job application (128) and
-        // privileged (158) source boundaries together, plus fixture observers.
+        // privileged (160) source boundaries together, plus fixture observers.
         .WithCommand("-c", "max_connections=300", "-c", "log_error_verbosity=terse",
             "-c", "log_min_error_statement=panic", "-c", "log_statement=none",
             "-c", "log_min_duration_statement=-1", "-c", "log_min_duration_sample=-1",

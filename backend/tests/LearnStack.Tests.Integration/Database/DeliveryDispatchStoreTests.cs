@@ -539,6 +539,27 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
     }
 
     [Theory]
+    [InlineData("count")]
+    [InlineData("reason")]
+    public async Task Replay_reports_a_stale_fence_before_it_reports_a_refused_state(string variation)
+    {
+        // The fence is compared before the state, so an operator who read an older row is told to read it again and
+        // is not told the row is refused: only a row whose fence they hold can be refused to them.
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        await test.UpdateAsync(id, First, "terminal_reason = 'invalid_envelope', dead_lettered_at = '2026-10-01 12:00:00.123456+00'");
+        var before = await test.ReadAsync(id);
+
+        var result = await ReplayAsync(test.Store(), test, SchemaFixture.TenantA, First, id,
+            change: request => variation == "count" ? request with { ReplayCount = request.ReplayCount + 1 }
+                : request with { TerminalReason = "retry_exhausted" });
+
+        result.Outcome.Should().Be(OperatorRecoveryOutcome.StaleFence);
+        (await test.ReadAsync(id)).Should().Be(before);
+        (await test.ReadOperatorAuditAsync("platform.delivery.replay")).Should().BeEmpty();
+    }
+
+    [Theory]
     [InlineData("live")]
     [InlineData("requested")]
     public async Task Replay_treats_a_row_that_is_not_dead_lettered_as_a_stale_fence(string state)
@@ -776,6 +797,120 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
         (await test.Store().TryClaimAsync(NoBlocked)).Should().NotBeNull();
     }
 
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("organization")]
+    [InlineData("operation")]
+    [InlineData("reason")]
+    [InlineData("metadata")]
+    [InlineData("correlation")]
+    [InlineData("actor")]
+    [InlineData("class")]
+    [InlineData("type")]
+    [InlineData("transaction")]
+    public async Task Substituting_a_field_of_the_replay_row_or_its_transaction_is_refused_by_the_real_seam_and_rolls_the_replay_back(
+        string substitution)
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync(organization: SchemaFixture.OrgA1);
+        await test.UpdateAsync(id, First, DeadLetter);
+        var calls = 0;
+        var store = test.Store(decorate: inner => new OperatorRecoveryAuditDecorator(inner,
+            async (draft, witness, connection, transaction, cancellationToken) =>
+            {
+                calls++;
+                // The witness came from the real successful UPDATE, before the row it must describe is written.
+                witness.Kind.Should().Be("replay");
+                witness.EventId.Should().Be(id);
+                witness.TenantId.Should().Be(SchemaFixture.TenantA);
+                witness.OrganizationId.Should().Be(SchemaFixture.OrgA1);
+                if (substitution == "transaction")
+                {
+                    await using var otherConnection = await test.Dispatch.OpenConnectionAsync(cancellationToken);
+                    await using var otherTransaction = await otherConnection.BeginTransactionAsync(cancellationToken);
+                    await inner.WriteOperatorRecoveryAsync(draft, witness, otherConnection, otherTransaction, cancellationToken);
+                    return;
+                }
+
+                var changed = substitution switch
+                {
+                    "tenant" => draft with { TenantId = TenantId.From(SchemaFixture.TenantB) },
+                    "organization" => draft with { OrganizationId = OrganizationId.From(SchemaFixture.OrgA2) },
+                    "operation" => draft with { Operation = PlatformOperations.DeliveryReset.AuditSlug },
+                    "reason" => draft with { Reason = PlatformOperations.DeliveryReset.ReasonSlug },
+                    "metadata" => draft with { Metadata = draft.Metadata + " " },
+                    "correlation" => draft with { CorrelationId = "00-forged" },
+                    "actor" => draft with { ActorUserId = UserId.From(Guid.CreateVersion7()) },
+                    "class" => draft with { OperationClass = OperationClass.Should },
+                    "type" => draft with { OperationType = OperationType.Update },
+                    _ => throw new ArgumentOutOfRangeException(nameof(substitution)),
+                };
+                await inner.WriteOperatorRecoveryAsync(changed, witness, connection, transaction, cancellationToken);
+            }));
+        var before = await test.ReadAsync(id);
+
+        var attempt = () => ReplayAsync(store, test, SchemaFixture.TenantA, First, id);
+        await attempt.Should().ThrowAsync<ArgumentException>();
+
+        calls.Should().Be(1, "the refusal must come from the real audit seam, after a successful UPDATE");
+        (await test.ReadAsync(id)).Should().Be(before, "the replay and its row commit together or not at all");
+        (await test.ReadOperatorAuditAsync("platform.delivery.replay")).Should().BeEmpty();
+        (await ReplayAsync(test.Store(), test, SchemaFixture.TenantA, First, id)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied,
+            "the same fence succeeds through the unmodified seam");
+        (await test.ReadOperatorAuditAsync("platform.delivery.replay")).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_witness_from_an_earlier_replay_cannot_be_reused_on_a_later_one()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        OperatorRecoveryTransition? previous = null;
+        var store = test.Store(decorate: inner => new OperatorRecoveryAuditDecorator(inner,
+            async (draft, witness, connection, transaction, cancellationToken) =>
+            {
+                await inner.WriteOperatorRecoveryAsync(draft, previous ?? witness, connection, transaction, cancellationToken);
+                previous = witness;
+            }));
+        var first = await test.InsertAsync();
+        await test.UpdateAsync(first, First, DeadLetter);
+        (await ReplayAsync(store, test, SchemaFixture.TenantA, First, first)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied);
+        var second = await test.InsertAsync();
+        await test.UpdateAsync(second, First, DeadLetter);
+        var before = await test.ReadAsync(second);
+
+        var attempt = () => ReplayAsync(store, test, SchemaFixture.TenantA, First, second);
+        await attempt.Should().ThrowAsync<ArgumentException>();
+
+        (await test.ReadAsync(second)).Should().Be(before);
+        (await test.ReadOperatorAuditAsync("platform.delivery.replay")).Should().ContainSingle("only the first replay committed");
+    }
+
+    [Fact]
+    public async Task The_recovery_owner_replays_through_the_delivery_store_and_counts_each_outcome_under_the_replay_operation()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        await test.UpdateAsync(id, First, DeadLetter);
+        var fence = await test.ReadAsync(id);
+        var request = new DeliveryReplayRequest(SchemaFixture.TenantA, First, id, fence.ReplayCount, fence.DeadLettered!.Value, "retry_exhausted");
+        var owner = new OperatorRecovery(test.Store(), test.OutboxStore());
+        using var meters = new OperatorRecoveryMeterProbe();
+
+        var applied = await owner.ReplayDeliveryAsync(ReplayAdmission(), request);
+        var stale = await owner.ReplayDeliveryAsync(ReplayAdmission(), request);
+        var unknown = await owner.ReplayDeliveryAsync(ReplayAdmission(), request with { EventId = Guid.CreateVersion7() });
+
+        (applied.Outcome, stale.Outcome, unknown.Outcome).Should().Be(
+            (OperatorRecoveryOutcome.Applied, OperatorRecoveryOutcome.StaleFence, OperatorRecoveryOutcome.NotFound));
+        (await test.ReadAsync(id)).ReplayCount.Should().Be(1, "the owner reached the delivery store and no other");
+        var replay = PlatformOperations.DeliveryReplay.AuditSlug;
+        var reset = PlatformOperations.DeliveryReset.AuditSlug;
+        (meters.Recoveries(replay, "applied"), meters.Recoveries(replay, "stale_fence"), meters.Recoveries(replay, "not_found"))
+            .Should().Be((1, 1, 1));
+        meters.Results(replay).Should().Be(1, "only an applied replay committed a result row");
+        meters.Recoveries(reset, "applied").Should().Be(0, "a delivery replay is never counted as a producer reset");
+    }
+
     private static OutboxEventRegistry Registry()
     {
         var handlers = IntegrationEventHandlerRegistry.FromServiceDescriptors([
@@ -855,6 +990,12 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
             }
             catch { await test.DisposeAsync(); throw; }
         }
+
+        /// <summary>The producer store beside the delivery store, for a test that builds the recovery owner over both.</summary>
+        public OutboxDispatchStore OutboxStore() =>
+            new(new PrivilegedDataSource(() => Dispatch), Registry(), new OutboxDispatchOptions(), new SystemGuidFactory(),
+                new FixedClock(Occurred), _provider.GetRequiredService<IServiceScopeFactory>(),
+                BackgroundJobLifecycleProjectionDeclaration.Create());
 
         public DeliveryDispatchStore Store(NpgsqlDataSource? source = null, Func<IAuditStore, IAuditStore>? decorate = null) =>
             new(new PrivilegedDataSource(() => source ?? Dispatch), Registry(), new DeliveryDispatchOptions(),

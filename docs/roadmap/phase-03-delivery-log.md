@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 790 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 898 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -519,6 +519,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 3 — controlled issuer rebind (2026-11-20)](#p03-9-step-3--controlled-issuer-rebind-2026-11-20) — 107 lines
   - [P03-9 Step 3 — review round 1 and its fixes (2026-11-20)](#p03-9-step-3--review-round-1-and-its-fixes-2026-11-20) — 23 lines
   - [P03-9 Step 3 — review round 2 and its fixes (2026-11-20)](#p03-9-step-3--review-round-2-and-its-fixes-2026-11-20) — 70 lines
+  - [P03-9 Step 4 — operator recovery of asynchronous work (2026-11-20)](#p03-9-step-4--operator-recovery-of-asynchronous-work-2026-11-20) — 59 lines
+  - [P03-9 Step 4 — review round 1 and its fixes (2026-11-20)](#p03-9-step-4--review-round-1-and-its-fixes-2026-11-20) — 49 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24966,3 +24968,111 @@ Two branches have no case that reaches them and are recorded: the refusal for se
 settings the server did not apply (it needs a pooler in the path), and the stdin wait
 ending on a signal. Both are small, and the first is checked in the positive on every
 run.
+
+### P03-9 Step 4 — operator recovery of asynchronous work (2026-11-20)
+
+Step 4 delivers [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md):
+a metadata-only inspection of dead-lettered work and two fenced transitions, and no
+dashboard and no job recovery. The decision was Accepted in `a396f50e`; this record is
+the implementation and its proof, and ADR-0103 Amendment 1 records where the code
+corrected the Decision.
+
+Delivered:
+
+- **The seam.** `platform.delivery.read` and `platform.delivery.write`, the three
+  operations `platform.delivery.inspect`, `platform.delivery.replay` and
+  `platform.delivery.reset` with their off-path declarations, and an executor kind on
+  every `PlatformOperation` (scope, pipeline, recovery owner, rebind tool) that replaces
+  the earlier pair of booleans.
+- **The inspection.** `IDeliveryInspection` and `DeliveryInspection`: cursor-paged
+  metadata of dead-lettered and terminal-requested outbox rows and deliveries and of
+  quarantined jobs with their reservation occupancy, one entered platform scope per
+  page, on column grants. One forward-only Platform migration revokes the platform
+  role's table-wide `SELECT` on `outbox_messages` and grants twelve, fifteen,
+  twenty-seven and seven named columns of the four tables, and adds two partial indexes.
+- **The two transitions.** `DeliveryDispatchStore.ReplayAsync` and the new
+  `OutboxDispatchStore.ResetAsync`, each a partial-class file: lock, fence, state and
+  tenant checks, one fenced `UPDATE ... RETURNING old.*, new.*` and a MUST row on the
+  same outbox-role transaction through the sibling witness `OperatorRecoveryTransition`
+  and the fourteenth `IAuditStore` write. Each store has a third connection slot for
+  the operator lane (capacity 52 to 54, 158 to 160), and `OperatorRecovery` is the DI
+  owner behind `IOperatorRecovery`.
+- **The routes.** Three `GET` inspections and two `POST` acts under
+  `/api/platform/v1/asynchronous-work`, gate first, served in `platform-v1`.
+- **Signals and documents.** `learnstack_platform_operator_recoveries_total`, the
+  runbook `operator-recovery.md`, ADR-0103 Amendment 1, Standards 05, 10, 18, 19, 20 and
+  21, Architecture 15, 23 and 31, the module documents and the glossary.
+
+Where the code corrected the Decision (ADR-0103 Amendment 1, with inline errata beside
+the statements in the Decision):
+
+- The platform role already held table-wide `SELECT` on `outbox_messages`, so the
+  migration revokes it before it grants twelve columns.
+- The witness is a sibling class with two kinds, not a new kind of the terminal witness
+  whose census pins two factories.
+- The status map is closed, so a stale fence and a refused state are reasons on the
+  fields `fence` and `state` of `business_rule_violation`, and an unknown commit
+  outcome is a reason on the field `outcome` of `dependency_unavailable`.
+- The inspection's entry row carries the operation `platform.admin_scope.enter` and the
+  reason `delivery_inspect`; it does not say which list was read.
+
+Proof, against real PostgreSQL as each role: the current fence applies and every stale
+variant refuses, one microsecond included; a stale fence is reported before a refused
+state; each refused state, a tenant that is not serving and a type the registry has
+retired or no longer knows; a forced audit failure rolls the change back; a wrong,
+stale or spent admission; the operator lane in each store; a lost commit
+acknowledgement and its repeat; the siblings and the inbox byte-identical after a
+replay; the witness refusing each substituted field of its row and a foreign
+transaction, and a reused witness; the real owner counting each outcome under its own
+operation; the inspection's pages, cursors, occupancy counts and exact column
+grants; the eleven routes, their statuses and the served contract; and each delivery
+permission held alone.
+
+### P03-9 Step 4 — review round 1 and its fixes (2026-11-20)
+
+Three independent reviewers, each read-only, read the range from the implementation's
+base to its commit: authority, security and the attack surface; correctness,
+concurrency and failure windows; and tests, censuses and documentation. Each finding
+was checked against the code before it was acted on; the three reports agreed on the
+two that mattered most.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Tests | About forty integration test sites and three unit sites still pinned the old 52-connection floor, so every runtime fixture threw on construction | The sites derive the floor from the production manifest through one constant; the unit sites pin 54 and 53; the fixture comment says 160 |
+| Contract | The unknown-commit `503` carried `status: 500` in its body, because the status map is closed and the reason was a new top-level code | It is `dependency_unavailable` with the reason on the field `outcome`; a test asserts the body's status for every `503` |
+| Authority | Nothing pinned which permission each operation binds, and every HTTP case ran as an operator holding all three keys | A unit theory pins the pair both ways, and an HTTP theory holds each key alone against all five routes |
+| Tests | The real owner ran in no test, its counters were unobserved, and no test showed the witness refusing a substituted field | Owner tests over the real stores read the counters by operation; a ten-field substitution matrix and a reused witness run for each store |
+| Tests | The occupancy assertion was vacuous, the cursor test could not tell a bound scope from an invalid key, deliveries and terminal-requested rows were not paged, the outbox column inventory was open and the outbox operator lane was unproven | Each has its own test, seeded so that the guard decides the outcome |
+| Contract | A `limit` of zero was clamped, a state on the jobs list was ignored, a refused page parameter named nothing, an inspection's database fault was a `500`, and a `503` logged no cause | Zero is refused naming `limit`, the jobs list refuses a state, each refusal names its parameter, the fault is a `503` and the cause is logged and never returned |
+| Failure windows | A fault after the `COMMIT` was sent, the connection's cleanup included, was reported as nothing changed | Any such fault is reported as an unknown outcome; a missing lifecycle projection is a configuration error and no longer a transient `503` |
+| Disclosure | `last_error` is bounded by length only, so stored text could reach the page | The page shows a descriptor-shaped value and `unrecognized` otherwise |
+| Documents | Four documents said the entry row names `platform.delivery.inspect`; the access runbook omitted two credentials; the recovery runbook was wrong about reasons, queuing, refusals and the erasure owner; Standard 05 restated the ADR and claimed proofs that did not exist | Corrected; ADR-0103 carries inline errata beside the false text and Amendment 1 items 6, 7, 9 and 10; Standard 21 records the new consumer |
+| OpenAPI | A read listed `404`, `413` and `415`, the page parameters were free strings and two texts called every act idempotent | Reads list none of the three, the parameters carry their enum, bounds and shape, and the texts say what a repeat answers |
+| Censuses | The reset factory and the outbox reset overload had no mutation twin; two HTTP assertions were loose | Twins added; the assertions name their status |
+
+Mutation checks of the guards this step added: twenty-six single-line mutations of the
+fence comparison, the state and tenant checks, the result row, the operator lane, the
+witness binding, the permission pair, the page rules, the descriptor shape, the
+occupancy counts, the cursor scope and the owner's counters. Three survived at first
+because the fenced `UPDATE` repeats each predicate, so the early comparison only
+decides whether a stale fence is reported before a refused state; one test per store
+now pins that order, and all twenty-six are killed.
+
+#### Not changed
+
+- **`Cache-Control: no-store` on the operator `GET`s.** Steps 1 to 3 answer the same
+  way, and a shared cache does not store a response to a request that carries
+  `Authorization`. A response policy for the whole operator surface is the maintainer's
+  decision, not this step's.
+- **Verb sub-paths `/replay` and `/reset`.** Standard 04 does not forbid them and the
+  decision names no path.
+- **The fence as one opaque token.** The microsecond instant is kept exact, because the
+  comparison is the safety property; a client that truncates it is refused, never
+  wrongly admitted. The runbook says to send it back as returned.
+- **A disposal fault after a successful `COMMIT`.** The code reports it as an unknown
+  outcome; no test can inject it, because Npgsql's disposal does not throw on a dead
+  socket.
+- **A ticket on a replay or a reset.** It is checked and not stored, because the audit
+  row is readable by the tenant; the runbook says to record the correlation id.

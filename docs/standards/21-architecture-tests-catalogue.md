@@ -2071,6 +2071,13 @@ diagnostic above row security, not the boundary, as its own note says.
   connection after grant removal, for both direct and transitive membership.
 - **Phase:** 02b, P02b-2.
 
+- **Accepted extension:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)
+  adds exactly one more consumer of the two stores' connections, the operator recovery
+  owner `OperatorRecovery`, which holds no credential and reaches the outbox role only
+  through each store's reserved operator lane. The dispatcher census pins the stores'
+  recovery methods and their parameters, and
+  [OperatorRecoveryBoundaryTests](../../backend/tests/LearnStack.Tests.Architecture/OperatorRecoveryBoundaryTests.cs)
+  closes who may mint the recovery witness and who may write its row.
 - **Accepted extension:** ADR-0047 preserves this canonical name while adding
   enumerated H1 credential consumers and the minimal lifecycle reader. P02b-4
   Step 2 implements role/table grants; Step 4 adds the closed facade, source pin

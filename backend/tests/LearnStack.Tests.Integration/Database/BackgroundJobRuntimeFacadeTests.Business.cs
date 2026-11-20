@@ -72,7 +72,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         });
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, BackgroundJobCapacity.Floor);
         await using var source = Source(database, physical);
         using var globals = new GlobalFilterSnapshot();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(100));
@@ -168,7 +168,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         });
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, BackgroundJobCapacity.Floor);
         await using var source = Source(database, physical);
         using var globals = new GlobalFilterSnapshot();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(100));
@@ -261,10 +261,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         });
-        await using var source = Source(database, new(true, 52));
+        await using var source = Source(database, new(true, BackgroundJobCapacity.Floor));
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         using var globals = new GlobalFilterSnapshot();
-        var runtime = Runtime(host.Services, source, bounds, new(true, 52));
+        var runtime = Runtime(host.Services, source, bounds, new(true, BackgroundJobCapacity.Floor));
         using var deadline = new CancellationTokenSource(TestWait);
         try
         {

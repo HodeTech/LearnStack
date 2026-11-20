@@ -22,7 +22,8 @@ The surface does not exist until an issuer is configured; with none, every
 | `PlatformOperator:AuthorizedParties` | The allowed `azp` clients. The shipped realm's is `learnstack-operator` |
 | `PlatformOperator:MaxAuthenticationAge` | How old `auth_time` may be, as a time span such as `00:15:00`; at most one hour, default 15 minutes |
 | `PlatformOperator:Grants` | Each operator's `Subject` (the issuer's `sub`) and the Platform permission keys held |
-| `ConnectionStrings:PlatformAdmin` | The `learnstack_platform` credential the killswitch act runs under. Required for that act: without it the first act fails with an error that names this key. The [onboarding](tenant-onboarding.md) acts run on the application role and do not use it |
+| `ConnectionStrings:PlatformAdmin` | The `learnstack_platform` credential the killswitch act and the [recovery](operator-recovery.md) inspections run under. Required for them: without it the first one fails with an error that names this key. The [onboarding](tenant-onboarding.md) acts run on the application role and do not use it |
+| `ConnectionStrings:OutboxDispatcher` | The dispatcher's outbox-role credential, which the two recovery acts (replay and reset) use through the dispatcher's own stores. Without it they cannot run, as the dispatcher cannot |
 
 List settings are indexed in environment variables, and the double underscore is the
 separator:

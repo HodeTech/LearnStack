@@ -88,6 +88,30 @@ public sealed class PlatformAdminGateTests
         rebind.NeedsPlatformRole.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("platform.delivery.inspect", "platform.delivery.read")]
+    [InlineData("platform.delivery.replay", "platform.delivery.write")]
+    [InlineData("platform.delivery.reset", "platform.delivery.write")]
+    public async Task A_Recovery_Operation_Is_Admitted_Only_For_Its_Own_Delivery_Permission(string slug, string permission)
+    {
+        // ADR-0103 Decision table: inspecting needs platform.delivery.read, and the two acts need platform.delivery.write. The pair
+        // is pinned both ways: the table says which key each operation binds, and no other Platform key, the other
+        // delivery key and the killswitch key included, admits it.
+        var operation = PlatformOperations.All.Single(candidate => candidate.AuditSlug == slug);
+        operation.Permission.Key.Should().Be(permission);
+
+        var admitted = await Gate(Grants("operator-1", permission))
+            .AdmitAsync(TestPlatformAdmissions.Witness(), operation, "CHG-103");
+        admitted.IsAdmitted.Should().BeTrue();
+        admitted.Admission!.Operation.Should().BeSameAs(operation);
+
+        foreach (var other in PlatformPermissions.All.Where(candidate => candidate.Key != permission))
+        {
+            (await Gate(Grants("operator-1", other.Key)).AdmitAsync(TestPlatformAdmissions.Witness(), operation, null))
+                .Refusal.Should().Be(PlatformRefusal.MissingPermission, other.Key);
+        }
+    }
+
     [Fact]
     public async Task A_Grant_For_Another_Permission_Does_Not_Admit()
     {

@@ -40,19 +40,29 @@ public sealed partial class OutboxDispatchStore
             return new OperatorRecoveryResult(OperatorRecoveryOutcome.StaleFence);
         }
 
+        var progress = new RecoveryProgress();
         try
         {
-            return await ResetCoreAsync(request, admission, cancellationToken).ConfigureAwait(false);
+            return await ResetCoreAsync(request, admission, progress, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (progress.CommitAttempted
+            && (failure is NpgsqlException or TimeoutException or InvalidOperationException or AggregateException
+                || (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested)))
+        {
+            // The COMMIT was sent, so whatever failed afterwards (the connection's cleanup included) leaves its
+            // outcome unknown, and the operator inspects the row before repeating.
+            throw new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, failure);
         }
         catch (Exception failure) when (failure is NpgsqlException or TimeoutException or InvalidOperationException
             || (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            throw new OperatorRecoveryUnavailableException();
+            throw new OperatorRecoveryUnavailableException(cause: failure);
         }
     }
 
     private async Task<OperatorRecoveryResult> ResetCoreAsync(
-        OutboxResetRequest request, PlatformAdmission admission, CancellationToken cancellationToken)
+        OutboxResetRequest request, PlatformAdmission admission,
+        RecoveryProgress progress, CancellationToken cancellationToken)
     {
         using var deadline = Deadline(cancellationToken);
         await using var ownedConnection = await OpenConnectionAsync(deadline.Token, operatorLane: true).ConfigureAwait(false);
@@ -127,6 +137,7 @@ public sealed partial class OutboxDispatchStore
         }
 
         await WriteRecoveryRowAsync(witness, admission, connection, transaction, deadline.Token).ConfigureAwait(false);
+        progress.CommitAttempted = true;
         try
         {
             await transaction.CommitAsync(deadline.Token).ConfigureAwait(false);
@@ -136,7 +147,7 @@ public sealed partial class OutboxDispatchStore
             // COMMIT may have reached PostgreSQL; the row and its audit commit together or not at all, so the
             // operator inspects the row, whose fence moved if the reset landed.
             ownedConnection.RecordCommitFailure(failure);
-            throw new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true);
+            throw new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, failure);
         }
 
         return new OperatorRecoveryResult(OperatorRecoveryOutcome.Applied, witness.AfterCount);
@@ -179,7 +190,7 @@ public sealed partial class OutboxDispatchStore
     private async Task<bool> TenantServesAsync(
         NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenant, CancellationToken cancellationToken)
     {
-        var lifecycle = _lifecycle ?? throw new InvalidOperationException("The tenant lifecycle projection is not configured.");
+        var lifecycle = _lifecycle ?? throw new NotSupportedException("The tenant lifecycle projection is not configured.");
         await using var command = new NpgsqlCommand(
             "SELECT status, deleted_at IS NOT NULL, default_organization_id FROM tenants WHERE id = @tenant", connection, transaction);
         Configure(command);
@@ -189,6 +200,12 @@ public sealed partial class OutboxDispatchStore
             && lifecycle.AllowsTenant(
                 reader.GetString(0), reader.GetBoolean(1), reader.IsDBNull(2) ? null : reader.GetGuid(2),
                 BackgroundJobRecipientPolicy.ServingTenants);
+    }
+
+    /// <summary>Whether the COMMIT was sent, so a later fault is reported as an unknown outcome and not as nothing changed.</summary>
+    private sealed class RecoveryProgress
+    {
+        internal bool CommitAttempted { get; set; }
     }
 
     /// <summary>The store's own minting subtype for the recovery witness; no other type may derive from the seam.</summary>

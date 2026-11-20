@@ -325,7 +325,7 @@ public sealed class BackgroundJobProductionManifestTests
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = "Host=localhost;Port=1;Database=learnstack;Username=learnstack_app;Maximum Pool Size=32",
-                ["ConnectionStrings:OutboxDispatcher"] = "Host=localhost;Port=1;Database=learnstack;Username=learnstack_outbox_admin;Maximum Pool Size=52",
+                ["ConnectionStrings:OutboxDispatcher"] = $"Host=localhost;Port=1;Database=learnstack;Username=learnstack_outbox_admin;Maximum Pool Size={BackgroundJobCapacity.Floor}",
             }));
             builder.ConfigureTestServices(collection =>
             {

@@ -221,7 +221,7 @@ public interface IAuditStore
         DbConnection connection,
         DbTransaction transaction,
         CancellationToken cancellationToken = default) =>
-        throw new InvalidOperationException("This audit store cannot write an operator recovery row.");
+        throw new NotSupportedException("This audit store cannot write an operator recovery row.");
 
     /// <summary>Inserts a MUST terminal audit on the successful transition's live transaction.</summary>
     /// <remarks>

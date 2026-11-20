@@ -167,6 +167,152 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await SchemaQueries.ExecuteAsync(platform, null, "SELECT job_id, released_at FROM background_job_reservations");
     }
 
+    [Fact]
+    public async Task Job_occupancy_counts_the_unreleased_reservations_of_the_job_and_of_its_capacity_group()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        var held = await BackgroundJobRuntimeRows.InsertAsync(
+            proof.Database.AppConnectionString, definition: "fixture.unknown.v1", tenant: SchemaFixture.TenantA,
+            capacityGroup: "fixture.resource");
+        var neighbour = await BackgroundJobRuntimeRows.InsertAsync(
+            proof.Database.AppConnectionString, definition: "fixture.unknown.v1", tenant: SchemaFixture.TenantA,
+            capacityGroup: "fixture.resource");
+        await using (var dispatcher = await PostgresFixture.OpenAsync(proof.Database.OutboxConnectionString))
+            await SchemaQueries.ExecuteAsync(dispatcher, null,
+                "UPDATE background_jobs SET phase = 'quarantined', quarantine_reason = 'unknown_outcome' WHERE id = @id", ("id", held.Value));
+        // The fixture rows are written with the foreign keys and guard triggers off: the proof is the two counts, and
+        // a reservation's own lifecycle has its own proofs. One unreleased and one released reservation belong to the
+        // quarantined job; a second job of the same group holds one more.
+        await proof.SqlAsync($"""
+            SET session_replication_role = replica;
+            INSERT INTO background_job_capacity (tenant_id, capacity_group)
+                SELECT DISTINCT tenant_id, capacity_group FROM background_jobs WHERE id IN ('{held.Value}', '{neighbour.Value}')
+                ON CONFLICT DO NOTHING;
+            INSERT INTO background_job_attempts (id, tenant_id, job_id, stage, ordinal, admission_token, deadline)
+                SELECT uuidv7(), tenant_id, id, 'normal', ordinal, uuidv7(), clock_timestamp() + interval '4 minutes'
+                FROM background_jobs, (VALUES (1), (2)) AS attempts(ordinal) WHERE id = '{held.Value}'
+                UNION ALL
+                SELECT uuidv7(), tenant_id, id, 'normal', 1, uuidv7(), clock_timestamp() + interval '4 minutes'
+                FROM background_jobs WHERE id = '{neighbour.Value}';
+            INSERT INTO background_job_reservations (tenant_id, capacity_group, job_id, attempt_id, reserved_at, released_at, release_reason)
+                SELECT j.tenant_id, j.capacity_group, j.id, a.id, clock_timestamp() - interval '1 minute',
+                    CASE WHEN a.ordinal = 2 AND j.id = '{held.Value}' THEN clock_timestamp() END,
+                    CASE WHEN a.ordinal = 2 AND j.id = '{held.Value}' THEN 'completed' END
+                FROM background_jobs j JOIN background_job_attempts a ON a.job_id = j.id AND a.tenant_id = j.tenant_id
+                WHERE j.id IN ('{held.Value}', '{neighbour.Value}');
+            """);
+
+        var page = await proof.Inspection.InspectJobsAsync(proof.Admission(), null, 10);
+
+        var row = page!.Items.Should().ContainSingle("only the quarantined job is listed").Which;
+        row.JobId.Should().Be(held.Value);
+        row.HeldReservations.Should().Be(1, "the released reservation of the job is not held");
+        row.GroupOccupancy.Should().Be(2, "the job's unreleased reservation and its neighbour's, both of one capacity group");
+    }
+
+    [Fact]
+    public async Task A_cursor_belongs_to_the_resource_and_state_that_issued_it_even_when_its_key_is_valid_for_another()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        for (var index = 1; index <= 2; index++)
+        {
+            await proof.OutboxAsync(Guid.CreateVersion7(), $"attempts = 6, terminal_reason = 'retry_exhausted', dead_lettered_at = '2026-10-0{index} 12:00:00+00'");
+            await proof.DeliveryAsync(Guid.CreateVersion7(), Subscription, $"terminal_reason = 'retry_exhausted', dead_lettered_at = '2026-10-0{index} 12:00:00+00'");
+        }
+
+        var outbox = (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1))!.NextCursor;
+        var delivery = (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1))!.NextCursor;
+        outbox.Should().NotBeNull();
+        delivery.Should().NotBeNull();
+
+        // Each was issued for the route and state it came from: the same position under another one is refused.
+        (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, outbox, 10)).Should().BeNull();
+        (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, delivery, 10)).Should().BeNull();
+        (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, outbox, 10)).Should().BeNull();
+        (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, delivery, 10)).Should().BeNull();
+        (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, outbox, 10)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Deliveries_page_through_equal_instants_without_a_repeat_or_a_gap()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.CreateVersion7()).ToArray();
+        foreach (var id in ids)
+            await proof.DeliveryAsync(id, Subscription, "terminal_reason = 'retry_exhausted', dead_lettered_at = '2026-10-01 12:00:00.000001+00'");
+
+        var seen = new List<Guid>();
+        string? cursor = null;
+        var pages = 0;
+        do
+        {
+            var page = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, cursor, 2);
+            seen.AddRange(page!.Items.Select(row => row.EventId));
+            cursor = page.NextCursor;
+            pages++;
+        }
+        while (cursor is not null && pages < 10);
+
+        pages.Should().Be(3);
+        seen.Should().BeEquivalentTo(ids, "every row once").And.OnlyHaveUniqueItems();
+        seen.Should().Equal(ids.OrderBy(id => id), "equal instants are ordered by the row's own key");
+    }
+
+    [Fact]
+    public async Task Terminal_requested_rows_page_in_the_order_their_dead_letter_is_due()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        var late = Guid.CreateVersion7();
+        var early = Guid.CreateVersion7();
+        await proof.OutboxAsync(late, "attempts = 6, terminal_reason = 'retry_exhausted', available_after = '2026-10-03 12:00:00+00'");
+        await proof.OutboxAsync(early, "attempts = 6, terminal_reason = 'retry_exhausted', available_after = '2026-10-02 12:00:00+00'");
+
+        var first = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, null, 1);
+        var second = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, first!.NextCursor, 1);
+
+        first.Items.Single().EventId.Should().Be(early);
+        second!.Items.Single().EventId.Should().Be(late);
+        second.NextCursor.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task The_platform_role_can_select_exactly_the_twelve_outbox_columns_the_inspection_projects()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        await using var platform = await PostgresFixture.OpenAsync(proof.Database.PlatformConnectionString);
+        await using var command = new NpgsqlCommand("""
+            SELECT attname FROM pg_attribute
+            WHERE attrelid = 'outbox_messages'::regclass AND attnum > 0 AND NOT attisdropped
+                AND has_column_privilege('learnstack_platform', 'outbox_messages', attnum, 'SELECT')
+            ORDER BY attname
+            """, (NpgsqlConnection)platform);
+        var granted = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync())
+            while (await reader.ReadAsync()) granted.Add(reader.GetString(0));
+
+        granted.Should().Equal(
+            "attempts", "available_after", "dead_lettered_at", "id", "last_error", "locked_until", "occurred_at",
+            "organization_id", "processed_at", "tenant_id", "terminal_reason", "type");
+    }
+
+    [Theory]
+    [InlineData("publish:failed:provider", "publish:failed:provider")]
+    [InlineData("migration:legacy:redacted", "migration:legacy:redacted")]
+    [InlineData("<b>stored text</b>", "unrecognized")]
+    [InlineData("Free Text With Spaces", "unrecognized")]
+    public async Task The_last_error_a_page_shows_is_a_descriptor_or_the_word_unrecognized(string stored, string shown)
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        await proof.OutboxAsync(Guid.CreateVersion7(), $"attempts = 6, terminal_reason = 'retry_exhausted', dead_lettered_at = now(), last_error = '{stored}'");
+        await proof.DeliveryAsync(Guid.CreateVersion7(), Subscription, $"terminal_reason = 'retry_exhausted', dead_lettered_at = now(), last_error = '{stored}'");
+
+        var outbox = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+        var delivery = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+
+        outbox!.Items.Single().LastError.Should().Be(shown);
+        delivery!.Items.Single().LastError.Should().Be(shown);
+    }
+
     [IntegrationEventPartition(nameof(TenantId), tenantWide: true)]
     public sealed record InspectionEvent : IntegrationEventBase
     {
@@ -244,7 +390,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
             return rows;
         }
 
-        private Task SqlAsync(string sql) => _postgres.ExecuteAsSuperuserAsync(sql, RebindProofSupport.DatabaseOf(Database.MigrationConnectionString));
+        internal Task SqlAsync(string sql) => _postgres.ExecuteAsSuperuserAsync(sql, RebindProofSupport.DatabaseOf(Database.MigrationConnectionString));
 
         public async ValueTask DisposeAsync()
         {

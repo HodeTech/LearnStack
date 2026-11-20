@@ -679,7 +679,7 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, store, "ResetCoreAsync",
                 "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Platform.OperatorRecoveryResult>", MethodAttributes.Private,
                 "LearnStack.SharedKernel.Platform.OutboxResetRequest", "LearnStack.SharedKernel.Platform.PlatformAdmission",
-                BoundaryCancellation),
+                Store + "/RecoveryProgress", BoundaryCancellation),
         ];
         var storeReader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
             "System.Threading.Tasks.ValueTask`1<" + Store + "/OwnedConnection>", MethodAttributes.Private,

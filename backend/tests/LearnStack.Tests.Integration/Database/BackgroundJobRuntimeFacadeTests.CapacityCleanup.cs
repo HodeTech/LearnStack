@@ -104,10 +104,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.AddTransient<IPipelineBehavior<RecordBackgroundJobCapacityCleanupCommand, Result<None>>,
                 CapacityCleanupCheckpointObserver>();
         });
-        await using var source = Source(database, new(true, 52));
+        await using var source = Source(database, new(true, BackgroundJobCapacity.Floor));
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         using var globals = new GlobalFilterSnapshot();
-        var runtime = Runtime(host.Services, source, bounds, new(true, 52));
+        var runtime = Runtime(host.Services, source, bounds, new(true, BackgroundJobCapacity.Floor));
         var observation = host.Services.GetRequiredService<BackgroundJobObservation>();
         using var metrics = new BackgroundJobStageProbe(observation);
         using var traces = new BackgroundJobTraceProbe(observation);

@@ -77,6 +77,21 @@ public sealed partial class OutboxDispatchConventionTests
             var method = AddCall(type, "UnrelatedRecoveryHelper", factory, OpCodes.Call);
             return () => type.Methods.Remove(method);
         }, RecoveryOffenders);
+
+        // The reset factory is as closed as the replay one: it is probed the same ways.
+        var resetFactory = source.Methods.Single(method => method.Name == RecoveryResetMint);
+        foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn })
+        {
+            AssertMutation(census, "a cross-assembly reset mint helper using " + opcode.Name, () =>
+                AddCallProbe(application, "AdditionalRecoveryResetMintCaller", resetFactory, opcode), RecoveryOffenders);
+        }
+
+        AssertMutation(census, "a reset mint helper on the delivery store type", () =>
+        {
+            var type = census.Types[(InfrastructureAssembly, DeliveryStore)];
+            var method = AddCall(type, "UnrelatedRecoveryResetHelper", resetFactory, OpCodes.Call);
+            return () => type.Methods.Remove(method);
+        }, RecoveryOffenders);
     }
 
     private static SortedSet<string> RecoveryOffenders(ProductionCensus census)
