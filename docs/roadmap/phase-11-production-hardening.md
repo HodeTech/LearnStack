@@ -689,8 +689,12 @@ new erasure permission.
 - Soft delete and purge jobs.
 - Processed outbox, delivery, inbox and job-history purge decisions against the
   inventory. Among its first-party asynchronous tables, only
-  `outbox_messages` currently grants Platform SELECT/DELETE;
-  inbox, delivery and LearnStack job tables grant Platform no access. Immutable
+  `outbox_messages` grants Platform `DELETE`; Platform reads twelve metadata columns of
+  it, fifteen of `event_deliveries`, twenty-seven of `background_jobs` and every
+  column of `background_job_reservations`
+  ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)), and the
+  inbox grants it no access. A purge predicate that needs another column needs a
+  named grant or another principal. Immutable
   completion/execution facts and no-delete guards remain effective even with
   `BYPASSRLS`. Before the first purge writer, a bounded decision names the exact
   principal, minimum grants and required migration, eligible facts, dependency

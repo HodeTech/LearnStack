@@ -313,6 +313,125 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         delivery!.Items.Single().LastError.Should().Be(shown);
     }
 
+    [Fact]
+    public async Task A_refused_credential_is_a_defect_and_an_unreachable_database_is_a_retryable_outage()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        var wrongPassword = new NpgsqlConnectionStringBuilder(proof.Database.PlatformConnectionString)
+        {
+            Password = "not-the-password",
+            Pooling = false,
+        }.ConnectionString;
+        var unreachable = new NpgsqlConnectionStringBuilder(proof.Database.PlatformConnectionString)
+        {
+            Host = "127.0.0.1",
+            Port = 1,
+            Pooling = false,
+            Timeout = 3,
+        }.ConnectionString;
+        await using var refusedSource = LearnStack.Api.Composition.PersistenceCompositionExtensions.BuildPlatformDataSource(wrongPassword);
+        await using var unreachableSource = LearnStack.Api.Composition.PersistenceCompositionExtensions.BuildPlatformDataSource(unreachable);
+
+        // A retry cannot cure a refused credential, so it surfaces as the defect it is and not as a retryable outage.
+        var refused = async () => await proof.InspectionOver(refusedSource)
+            .InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+        (await refused.Should().ThrowAsync<NpgsqlException>()).Which.IsTransient.Should().BeFalse();
+
+        var outage = async () => await proof.InspectionOver(unreachableSource)
+            .InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+        (await outage.Should().ThrowAsync<OperatorRecoveryUnavailableException>()).Which.InnerException.Should().BeAssignableTo<NpgsqlException>();
+    }
+
+    [Fact]
+    public async Task Deliveries_with_equal_instants_page_by_tenant_then_subscription_then_event()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        // The event ids run against the subscriptions' order, so a keyset that dropped a column would skip a row.
+        var larger = Guid.Parse("ffffffff-0000-7000-8000-000000000001");
+        var smaller = Guid.Parse("00000000-0000-7000-8000-000000000001");
+        const string instant = "terminal_reason = 'retry_exhausted', dead_lettered_at = '2026-10-01 12:00:00.000001+00'";
+        await proof.DeliveryAsync(larger, "a.first.v1", instant);
+        await proof.DeliveryAsync(smaller, "b.second.v1", instant);
+
+        var first = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1);
+        var second = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, first!.NextCursor, 1);
+
+        first.Items.Single().SubscriptionId.Should().Be("a.first.v1");
+        second!.Items.Single().SubscriptionId.Should().Be("b.second.v1", "the subscription orders before the event id");
+        second.NextCursor.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task The_dead_letter_indexes_exist_with_the_keys_and_predicates_the_inspection_orders_and_filters_by()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        await using var platform = await PostgresFixture.OpenAsync(proof.Database.PlatformConnectionString);
+        async Task<string?> Definition(string index)
+        {
+            await using var command = new NpgsqlCommand("SELECT indexdef FROM pg_indexes WHERE indexname = @name", (NpgsqlConnection)platform);
+            command.Parameters.AddWithValue("name", index);
+            return await command.ExecuteScalarAsync() as string;
+        }
+
+        (await Definition("ix_outbox_messages_dead_lettered")).Should()
+            .Contain("(dead_lettered_at, id)").And.Contain("WHERE (dead_lettered_at IS NOT NULL)");
+        (await Definition("ix_event_deliveries_dead_lettered")).Should()
+            .Contain("(dead_lettered_at, tenant_id, subscription_id, event_id)").And.Contain("WHERE (dead_lettered_at IS NOT NULL)");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_dead_lettered_pages_use_their_partial_index_in_key_order_with_no_sort(bool afterCursor)
+    {
+        // The statement is the text the inspection runs. Sequential and bitmap scans are disabled so that the only
+        // plan left is an ordered scan of the index: the index being absent from it, or a Sort above it, means the
+        // statement's predicate or its order no longer matches the index, and a page would scan and sort every dead
+        // letter.
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        await proof.SqlAsync($"""
+            INSERT INTO outbox_messages (id, tenant_id, organization_id, occurred_at, correlation_id, type, topic, partition_key,
+                payload, attempts, terminal_reason, dead_lettered_at, processed_at)
+            SELECT uuidv7(), '{SchemaFixture.TenantA}', '{SchemaFixture.OrgA1}', now(), 'c', '{KnownType}',
+                'learnstack.test.inspection', 'k', '[]'::jsonb, CASE WHEN g % 30 = 0 THEN 6 ELSE 0 END,
+                CASE WHEN g % 30 = 0 THEN 'retry_exhausted' END,
+                CASE WHEN g % 30 = 0 THEN now() - make_interval(secs => g) END,
+                CASE WHEN g % 30 = 0 THEN NULL ELSE now() END
+            FROM generate_series(1, 6000) g;
+            INSERT INTO event_deliveries (tenant_id, subscription_id, event_id, organization_id, occurred_at, correlation_id, type,
+                topic, partition_key, payload, terminal_reason, dead_lettered_at, processed_at)
+            SELECT '{SchemaFixture.TenantA}', '{Subscription}', uuidv7(), '{SchemaFixture.OrgA1}', now(), 'c', '{KnownType}',
+                'learnstack.test.inspection', 'k', '[]'::jsonb,
+                CASE WHEN g % 30 = 0 THEN 'retry_exhausted' END,
+                CASE WHEN g % 30 = 0 THEN now() - make_interval(secs => g) END,
+                CASE WHEN g % 30 = 0 THEN NULL ELSE now() END
+            FROM generate_series(1, 6000) g;
+            ANALYZE outbox_messages;
+            ANALYZE event_deliveries;
+            """);
+        await using var platform = await PostgresFixture.OpenAsync(proof.Database.PlatformConnectionString);
+
+        async Task<string> Plan(string sql, params (string Name, object Value)[] parameters)
+        {
+            await using var command = new NpgsqlCommand("SET enable_seqscan = off; SET enable_bitmapscan = off; EXPLAIN (FORMAT JSON) " + sql, (NpgsqlConnection)platform);
+            foreach (var (name, value) in parameters) command.Parameters.AddWithValue(name, value);
+            return (await command.ExecuteScalarAsync())!.ToString()!;
+        }
+
+        var after = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+        var outbox = await Plan(
+            DeliveryInspection.OutboxSql(DeliveryInspectionState.DeadLettered, afterCursor),
+            [("size", 21), .. afterCursor ? new (string, object)[] { ("after", after), ("key", Guid.CreateVersion7()) } : []]);
+        var delivery = await Plan(
+            DeliveryInspection.DeliverySql(DeliveryInspectionState.DeadLettered, afterCursor),
+            [("size", 21), .. afterCursor
+                ? new (string, object)[] { ("after", after), ("tenant", SchemaFixture.TenantA), ("subscription", Subscription), ("event", Guid.CreateVersion7()) }
+                : []]);
+
+        outbox.Should().Contain("ix_outbox_messages_dead_lettered").And.NotContain("\"Node Type\": \"Sort\"").And.NotContain("Seq Scan");
+        delivery.Should().Contain("ix_event_deliveries_dead_lettered").And.NotContain("\"Node Type\": \"Sort\"").And.NotContain("Seq Scan");
+    }
+
     [IntegrationEventPartition(nameof(TenantId), tenantWide: true)]
     public sealed record InspectionEvent : IntegrationEventBase
     {
@@ -329,6 +448,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
     {
         private readonly PostgresFixture _postgres;
         private readonly NpgsqlDataSource _platform;
+        private readonly OutboxEventRegistry _registry;
 
         private Proof(PostgresFixture postgres, DisposableSchemaDatabase database)
         {
@@ -337,14 +457,18 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
             _platform = LearnStack.Api.Composition.PersistenceCompositionExtensions.BuildPlatformDataSource(database.PlatformConnectionString);
             var handlers = IntegrationEventHandlerRegistry.FromServiceDescriptors(
                 [ServiceDescriptor.Scoped<IIntegrationEventHandler<InspectionEvent>, InspectionHandler>()]);
-            var registry = OutboxEventRegistry.Create(
+            _registry = OutboxEventRegistry.Create(
                 [OutboxEventRegistration.Required(typeof(InspectionEvent), [OutboxSubscriptionManifest.Active(Subscription, typeof(InspectionHandler))],
                     "declared.previous.inspection")], [], handlers, [typeof(InspectionEvent).Assembly]);
-            var scope = new PlatformAdminScope(
-                new PrivilegedDataSource(() => _platform), new AuditCatalog([new TenancyAuditCatalogSource()]),
-                AuditStoreScopeFactory(), new SystemClock(), new SystemGuidFactory(), NullLogger<PlatformAdminScope>.Instance);
-            Inspection = new DeliveryInspection(scope, registry);
+            Inspection = InspectionOver(_platform);
         }
+
+        /// <summary>The inspection as production builds it, over the platform data source a test supplies.</summary>
+        internal DeliveryInspection InspectionOver(NpgsqlDataSource platform) => new(
+            new PlatformAdminScope(
+                new PrivilegedDataSource(() => platform), new AuditCatalog([new TenancyAuditCatalogSource()]),
+                AuditStoreScopeFactory(), new SystemClock(), new SystemGuidFactory(), NullLogger<PlatformAdminScope>.Instance),
+            _registry);
 
         internal DisposableSchemaDatabase Database { get; }
 

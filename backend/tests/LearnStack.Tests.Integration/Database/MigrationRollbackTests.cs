@@ -217,6 +217,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         releaseV4.Should().Throw<NotSupportedException>().WithMessage("Role release adoption requires a reviewed forward migration.");
         Action operatorResolver = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_operator_subject_resolver().DownOperations;
         operatorResolver.Should().Throw<NotSupportedException>().WithMessage("Operator subject resolution requires a reviewed forward migration.");
+        Action protectedReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_custom_field_protected_receipts().DownOperations;
+        protectedReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained custom field receipts require a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,

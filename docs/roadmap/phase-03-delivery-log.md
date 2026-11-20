@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 898 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 937 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -521,6 +521,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 3 — review round 2 and its fixes (2026-11-20)](#p03-9-step-3--review-round-2-and-its-fixes-2026-11-20) — 70 lines
   - [P03-9 Step 4 — operator recovery of asynchronous work (2026-11-20)](#p03-9-step-4--operator-recovery-of-asynchronous-work-2026-11-20) — 59 lines
   - [P03-9 Step 4 — review round 1 and its fixes (2026-11-20)](#p03-9-step-4--review-round-1-and-its-fixes-2026-11-20) — 49 lines
+  - [P03-9 Step 4 — review round 2 and its fixes (2026-11-20)](#p03-9-step-4--review-round-2-and-its-fixes-2026-11-20) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25076,3 +25077,42 @@ now pins that order, and all twenty-six are killed.
   socket.
 - **A ticket on a replay or a reset.** It is checked and not stored, because the audit
   row is readable by the tenant; the runbook says to record the correlation id.
+
+### P03-9 Step 4 — review round 2 and its fixes (2026-11-20)
+
+Three fresh read-only reviewers read the range with different lenses from round 1:
+composition and regression; SQL, row-level security, the migration and performance;
+and operability, the operator's experience and the truth of the documents. None
+reported a Blocker or a Major. Each finding was checked against the code before it
+was fixed.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Operability | The unavailable-owner log line reused event id 7109, which the onboarding runbooks, three ADRs and a test pin as a defect alert | The line is 7110; a test captures the log of the `503` path and asserts the id, the level and the cause |
+| Failure class | Every database fault, a refused credential and a missing grant included, was reported as a retryable `503` | Only a transient fault, a timeout or the server's statement timeout is unavailable; a refused credential or a missing grant surfaces as the `500` it is, with a unit theory over the SQLSTATEs and a real-database test of both |
+| Operator experience | A refused state said only that it was refused, and the unknown-outcome recipe asked the operator to observe an advanced count that a landed act never leaves | A refusal names its rule as the `cause` parameter of its reason; the runbook's unknown-outcome recipe is list again, then the tenant's audit row by the correlation id |
+| Contract | A misspelt query parameter was ignored and answered a different list, a `limit` past the range of an int was refused, the jobs list advertised a `state` it refuses, and the page size was declared again at the edge | An unknown parameter is refused without being echoed, any size above the maximum is clamped, the jobs list does not offer a `state`, and the kernel's constants are used |
+| Documents | Phase 11 and Architecture 23 still said the platform role reads `outbox_messages` whole; the Outbox canonical block lacked its new index; two statements said the two stores share one cleanup seal; the runbooks omitted the log ids, the cause classes of a `503` that does not clear, the response table's other statuses, the audit read recipe, the `#` encoding and the producer-reset wording | Corrected; the runbook now has a section for an unknown outcome and one for a `503` that does not clear; ADR-0103 Amendment 1 items 6, 7, 9 and 10 say what the code does |
+| Tests | The keyset's tie-break columns, the indexes' keys and predicates, the plan of each dead-lettered page, a recovery admission on the platform scope and on the platform result writer, and the previous Platform head's `Down` were unpinned; two stale 52-connection literals remained | Each has a test, and the literals are corrected |
+
+Mutation checks of the guards this round added: the transient classification, the
+refusal tokens, the unknown-parameter and limit rules, the event id, the keyset
+tie-break and the executor kind of the result writer.
+
+#### Not changed
+
+- **A non-concurrent `CREATE INDEX` in the migration.** The two indexes are built in
+  the migration's transaction, as the earlier ledger indexes were, and the tables are
+  small until the retention purge of Phase 11 exists. A concurrent build, or a lock
+  timeout, is a deployment decision for that phase and the maintainer.
+- **A single-row read or a tenant and event filter on the lists.** The recipe for an
+  unknown outcome does not need one, and each page is one audited scope by design;
+  the runbook names it as not here.
+- **The failure descriptor in the audit row.** A reset clears `last_error`, so the
+  descriptor that caused the dead letter is not in the fence's before state. Whether
+  the row should carry it is a maintainer decision.
+- **The platform role's loss of `SELECT` on the correlation and actor columns of
+  `outbox_messages`.** It constrains P03-10 and Phase 11, which need a named grant or
+  another principal for a predicate that reads them; Phase 11's text now says so.

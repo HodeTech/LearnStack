@@ -85,7 +85,7 @@ public sealed class BackgroundJobQuarantineHealthTests
             Recurrence = new(0, 0, 0, false, false, true, true, false, false, true),
         };
         var snapshot = new BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState.Running,
-            new(3, 4, 1, 16, 52), 3, 0, 0, null, true, true, true, true, false, [], [], control);
+            new(3, 4, 1, 16, 54), 3, 0, 0, null, true, true, true, true, false, [], [], control);
         snapshot.IsHealthy.Should().Be(healthy);
     }
 

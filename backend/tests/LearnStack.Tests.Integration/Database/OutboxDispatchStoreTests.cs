@@ -1029,7 +1029,9 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         await test.SetStateAsync(id, $"terminal_reason = '{reason}', dead_lettered_at = '2026-10-01 12:00:00.123456+00'");
         var before = await test.ReadAsync(id);
 
-        (await ResetAsync(test.Store(), test, id)).Outcome.Should().Be(OperatorRecoveryOutcome.NotRecoverable);
+        var refused = await ResetAsync(test.Store(), test, id);
+
+        (refused.Outcome, refused.Refusal).Should().Be((OperatorRecoveryOutcome.NotRecoverable, "reason_refused"));
 
         (await test.ReadAsync(id)).Should().Be(before);
         (await test.ReadOperatorAuditAsync("platform.delivery.reset")).Should().BeEmpty();
@@ -1083,7 +1085,8 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         foreach (var id in new[] { gone, retired })
         {
             var before = await test.ReadAsync(id);
-            (await ResetAsync(test.Store(registry), test, id)).Outcome.Should().Be(OperatorRecoveryOutcome.NotRecoverable,
+            var refused = await ResetAsync(test.Store(registry), test, id);
+            (refused.Outcome, refused.Refusal).Should().Be((OperatorRecoveryOutcome.NotRecoverable, "type_not_dispatchable"),
                 "a reset would only dead-letter the row again with a second MUST row");
             (await test.ReadAsync(id)).Should().Be(before);
         }
@@ -1114,8 +1117,9 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         await test.SetTenantStatusAsync("Suspended");
         var before = await test.ReadAsync(id);
 
-        (await ResetAsync(test.Store(), test, id)).Outcome.Should().Be(OperatorRecoveryOutcome.NotRecoverable);
+        var refused = await ResetAsync(test.Store(), test, id);
 
+        (refused.Outcome, refused.Refusal).Should().Be((OperatorRecoveryOutcome.NotRecoverable, "tenant_not_serving"));
         (await test.ReadAsync(id)).Should().Be(before);
         await test.SetTenantStatusAsync("Active");
         (await ResetAsync(test.Store(), test, id)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied);

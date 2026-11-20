@@ -901,6 +901,55 @@ public sealed class PlatformAdminScopeTests
         }
     }
 
+    [Theory]
+    [InlineData("platform.delivery.replay")]
+    [InlineData("platform.delivery.reset")]
+    public async Task An_Admission_For_A_Recovery_Act_Opens_No_Platform_Scope_And_Writes_No_Platform_Result_Row(string slug)
+    {
+        // ADR-0103: a replay and a reset run on the dispatcher's outbox role and write their own row through the
+        // recovery witness. An admission minted for one is not spendable on the platform scope or on the platform
+        // result writer, whose draft below is otherwise exactly what that writer accepts.
+        var operation = PlatformOperations.All.Single(candidate => candidate.AuditSlug == slug);
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var store = AuditStoreScopeFactory().CreateAsyncScope();
+        var audit = store.ServiceProvider.GetRequiredService<IAuditStore>();
+        var admission = TestPlatformAdmissions.Admission(operation, null, correlationId: "corr-" + Guid.NewGuid().ToString("N"));
+
+        var enter = async () => await Build(dataSource).EnterAsync(admission);
+        (await enter.Should().ThrowAsync<ArgumentException>(slug)).Which.Message.Should().Contain("platform role");
+
+        await using var connection = await dataSource.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        var draft = new AuditEntryDraft
+        {
+            Id = AuditEntryId.From(Guid.CreateVersion7()),
+            TenantId = TenantId.PlatformSentinel,
+            OrganizationId = null,
+            ActorUserId = null,
+            ActorEmail = null,
+            ModuleName = "tenancy",
+            Operation = operation.AuditSlug,
+            OperationType = OperationType.SecurityEvent,
+            OperationClass = OperationClass.Must,
+            EntityType = null,
+            EntityId = null,
+            Outcome = AuditOutcome.Success,
+            ErrorKey = null,
+            Reason = operation.ReasonSlug,
+            BeforeState = null,
+            AfterState = null,
+            Changes = null,
+            CorrelationId = admission.Operator.CorrelationId,
+            IpAddress = null,
+            UserAgent = null,
+            Timestamp = DateTimeOffset.UtcNow,
+            Metadata = "{\"operator\":{\"issuer\":\"" + admission.Operator.Issuer + "\",\"subjectDigest\":\""
+                + admission.Operator.SubjectDigest + "\",\"kind\":\"human\"}}",
+        };
+        var write = async () => await audit.WritePlatformOperatorResultAsync(draft, admission, connection, transaction);
+        (await write.Should().ThrowAsync<ArgumentException>(slug)).Which.Message.Should().Contain("admission");
+    }
+
     [Fact]
     public async Task Commit_Without_A_Result_Row_Is_Refused_And_The_Work_Rolls_Back()
     {

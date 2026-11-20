@@ -19,7 +19,8 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
     internal const string Description =
         "Operator-only platform operations. Authenticate with a short-lived access token issued by the "
         + "deployment's operator issuer to the client learnstack-operator after a second factor; the token "
-        + "profile and the runbooks are in docs/runbooks/operator-access.md. Authentication grants no "
+        + "profile and the runbooks are in docs/runbooks/operator-access.md, and the recovery of dead-lettered "
+        + "work is explained in docs/runbooks/operator-recovery.md. Authentication grants no "
         + "permission: each operation needs a Platform grant held by LearnStack and evaluated on every act.";
 
     public async Task TransformAsync(
@@ -103,6 +104,15 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
     /// </summary>
     private static void DescribeInspectionParameters(OpenApiOperation operation)
     {
+        // The quarantined-jobs list takes no state and refuses one, so the document does not offer it.
+        if (operation.OperationId == "PlatformJobInspect" && operation.Parameters is { } offered)
+        {
+            foreach (var state in offered.Where(parameter => parameter.Name == "state").ToList())
+            {
+                offered.Remove(state);
+            }
+        }
+
         foreach (var parameter in operation.Parameters ?? [])
         {
             if (parameter is not OpenApiParameter concrete)
@@ -113,7 +123,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
             switch (concrete.Name)
             {
                 case "state":
-                    concrete.Description = "dead_lettered (default) or terminal_requested; a quarantined-jobs list takes no state.";
+                    concrete.Description = "dead_lettered (default) or terminal_requested.";
                     concrete.Schema = new OpenApiSchema
                     {
                         Type = JsonSchemaType.String,
@@ -211,7 +221,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         ("401", "unauthorized: the credential is missing or does not meet the token profile. One answer for every cause; the cause is in the operator's signals."),
         ("403", "forbidden: the credential is good and this operator holds no grant for the operation."),
         ("404", "not_found: the killswitch key is not declared, the tenant the route names does not exist, or a recovery names no such row."),
-        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A recovery answers 409 with the reason on errors.fence (the row no longer shows the fence the inspection returned: read it again) or on errors.state (the fence holds and the row is not one a reset may act on). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200."),
+        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A recovery answers 409 with the reason on errors.fence (the row no longer shows the fence the inspection returned: read it again) or on errors.state (the fence holds and the row is not one the act may take; the rule that refused it is the reason's cause parameter: processed, leased, invalid_envelope, reason_refused, subscription_not_active, type_not_dispatchable or tenant_not_serving). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200."),
         ("413", "payload_too_large: the body is over 4096 bytes."),
         ("415", "unsupported_media_type: the body is not application/json."),
         ("429", "rate_limited: the caller exceeded the per-peer request budget."),

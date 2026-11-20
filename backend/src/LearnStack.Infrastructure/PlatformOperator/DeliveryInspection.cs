@@ -3,9 +3,9 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
-using Npgsql;
 
 namespace LearnStack.Infrastructure.PlatformOperator;
 
@@ -28,7 +28,7 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 /// </remarks>
 public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventRegistry registry) : IDeliveryInspection
 {
-    private const int MaximumLimit = 100;
+    private const int MaximumLimit = CursorPagination.MaxLimit;
 
     // The dispatcher writes a closed vocabulary of lowercase descriptors (for example publish:failed:provider). The
     // database bounds only the byte length of last_error, so the projection shows a value of that shape and nothing
@@ -42,19 +42,41 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
     private const string DeliveryColumns = "tenant_id, subscription_id, event_id, organization_id, occurred_at, type, attempts, "
         + "last_error, available_after, locked_until, terminal_reason, dead_lettered_at, replay_count, replayed_at, processed_at";
 
+    private static (string Where, string Order) Shape(DeliveryInspectionState state) =>
+        state == DeliveryInspectionState.DeadLettered
+            ? ("dead_lettered_at IS NOT NULL AND processed_at IS NULL", "dead_lettered_at")
+            : ("processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL", "available_after");
+
+    /// <summary>
+    /// The statement of an outbox page. It is exposed so that a test can ask PostgreSQL for the plan of the text the
+    /// inspection really runs: the dead-lettered scan must use <c>ix_outbox_messages_dead_lettered</c> in key order.
+    /// </summary>
+    internal static string OutboxSql(DeliveryInspectionState state, bool afterCursor)
+    {
+        var (where, order) = Shape(state);
+        return $"SELECT {OutboxColumns} FROM outbox_messages WHERE {where}"
+            + (afterCursor ? $" AND ({order}, id) > (@after, @key)" : string.Empty)
+            + $" ORDER BY {order}, id LIMIT @size";
+    }
+
+    /// <summary>The statement of a delivery page, exposed for the same reason as <see cref="OutboxSql"/>.</summary>
+    internal static string DeliverySql(DeliveryInspectionState state, bool afterCursor)
+    {
+        var (where, order) = Shape(state);
+        return $"SELECT {DeliveryColumns} FROM event_deliveries WHERE {where}"
+            + (afterCursor ? $" AND ({order}, tenant_id, subscription_id, event_id) > (@after, @tenant, @subscription, @event)" : string.Empty)
+            + $" ORDER BY {order}, tenant_id, subscription_id, event_id LIMIT @size";
+    }
+
     /// <inheritdoc />
     public Task<InspectionPage<OutboxMessageInspection>?> InspectOutboxAsync(
         PlatformAdmission admission, DeliveryInspectionState state, string? cursor, int limit, CancellationToken cancellationToken = default)
     {
-        var (where, order, byDeadLetter) = state == DeliveryInspectionState.DeadLettered
-            ? ("dead_lettered_at IS NOT NULL AND processed_at IS NULL", "dead_lettered_at", true)
-            : ("processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL", "available_after", false);
+        var byDeadLetter = state == DeliveryInspectionState.DeadLettered;
         return PageAsync(
             admission, "outbox." + state, cursor, limit, cancellationToken,
             (after, key, size) => new Statement(
-                $"SELECT {OutboxColumns} FROM outbox_messages WHERE {where}"
-                + (after is null ? string.Empty : $" AND ({order}, id) > (@after, @key)")
-                + $" ORDER BY {order}, id LIMIT @size",
+                OutboxSql(state, after is not null),
                 [.. KeyParameters(after, key, Guid.TryParse(key, out var id) ? id : Guid.Empty, size)]),
             reader => MapOutbox(reader),
             row => (byDeadLetter ? row.DeadLetteredAt!.Value : row.AvailableAfter).UtcTicks,
@@ -66,9 +88,7 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
     public Task<InspectionPage<EventDeliveryInspection>?> InspectDeliveriesAsync(
         PlatformAdmission admission, DeliveryInspectionState state, string? cursor, int limit, CancellationToken cancellationToken = default)
     {
-        var (where, order, byDeadLetter) = state == DeliveryInspectionState.DeadLettered
-            ? ("dead_lettered_at IS NOT NULL AND processed_at IS NULL", "dead_lettered_at", true)
-            : ("processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL", "available_after", false);
+        var byDeadLetter = state == DeliveryInspectionState.DeadLettered;
         return PageAsync(
             admission, "delivery." + state, cursor, limit, cancellationToken,
             (after, key, size) =>
@@ -82,11 +102,7 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
                     parameters.Add(new PlatformSqlParameter("event", eventId));
                 }
 
-                return new Statement(
-                    $"SELECT {DeliveryColumns} FROM event_deliveries WHERE {where}"
-                    + (after is null ? string.Empty : $" AND ({order}, tenant_id, subscription_id, event_id) > (@after, @tenant, @subscription, @event)")
-                    + $" ORDER BY {order}, tenant_id, subscription_id, event_id LIMIT @size",
-                    parameters);
+                return new Statement(DeliverySql(state, after is not null), parameters);
             },
             reader => MapDelivery(reader),
             row => (byDeadLetter ? row.DeadLetteredAt!.Value : row.AvailableAfter).UtcTicks,
@@ -158,10 +174,10 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
             var built = statement(after, key, size + 1);
             rows = await handle.QueryAsync(built.Sql, built.Parameters, map, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception failure) when (failure is NpgsqlException or TimeoutException
-            || (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception failure) when (OperatorRecoveryFaults.IsTransientDatabaseFault(failure, cancellationToken))
         {
-            // A read is safe to repeat; the cause is for the route's log, never for the response.
+            // A read is safe to repeat; the cause is for the route's log, never for the response. A refused
+            // credential or a missing grant is not transient and surfaces as the defect it is.
             throw new OperatorRecoveryUnavailableException(cause: failure);
         }
 

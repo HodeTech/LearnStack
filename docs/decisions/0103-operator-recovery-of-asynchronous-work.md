@@ -135,7 +135,7 @@ dashboard.
    > and `not_recoverable` are reasons on the fields `fence` and `state` of the code
    > `business_rule_violation`, because the status map is closed. A commit whose
    > answer was lost is `503` `dependency_unavailable` with the reason
-   > `outcome_unknown` on the field `outcome`.
+   > `lockey_outcome_unknown` on the field `outcome`.
 6. **Not admitted: job recovery.** No job requeue, retry, probe re-arm, reservation or
    capacity release exists. A quarantined job stays frozen, retains its reservation and
    keeps `jobs` unhealthy, exactly as
@@ -281,7 +281,7 @@ recovery.
    role held table-wide `SELECT` and `DELETE` there since the first platform migration,
    so a column grant beside it would exclude nothing. The migration revokes the
    table-wide `SELECT`, grants twelve named columns, keeps `DELETE` for the retention
-   purge that Phase 11 owns (its predicate reads only granted columns), and grants named
+   purge that Phase 11 owns (its predicate has to read only granted columns), and grants named
    columns on the other three tables: fifteen on `event_deliveries`, twenty-seven on
    `background_jobs` and every column of `background_job_reservations`. No envelope,
    parameter, plan, outcome, causal, trace, lease-token or operation-key column is among
@@ -311,8 +311,14 @@ recovery.
    code would have answered `500` in the body under a `503` response. The cause of an
    unavailable owner is logged and never returned. A page parameter that is refused
    (`state`, `limit`, `cursor`) is `400` naming itself in `errors`; a `limit` of zero or
-   less is refused and a larger one is clamped, as Standard 04 says, and the
-   quarantined-jobs list takes no `state`.
+   less is refused and a larger one, however large, is clamped, as Standard 04 says,
+   the quarantined-jobs list takes no `state`, and a parameter the route does not know
+   is refused as `query` without being echoed. A refused state names the rule that
+   refused it as the `cause` parameter of its reason: `processed`, `leased`,
+   `invalid_envelope`, `reason_refused`, `subscription_not_active`,
+   `type_not_dispatchable` or `tenant_not_serving`. Only a transient fault, a timeout
+   or the server's statement timeout is unavailable: a refused credential or a missing
+   grant surfaces as a `500`, because a retry cannot cure it.
 5. **"The event's tenant is Active."** The test is the lifecycle projection the
    dispatcher role already reads, read in the same transaction as the reset: the tenant
    is not deleted, has its default organization and is Trial or Active, which is the
@@ -336,12 +342,16 @@ recovery.
    cursor carries no authority. The fence timestamp is the stored microsecond,
    returned and compared exactly.
 7. **An unknown COMMIT is not reconciled automatically.** A reset and its row commit
-   together, so a lost answer leaves nothing to repair: the operator inspects, and the
-   fence of a landed reset has moved, so a repeat answers `409` on the fence. The
-   runbook says so. Any fault after the COMMIT was sent, the connection's cleanup
-   included, is reported the same way, because the answer is then unknown. A cleanup
-   fault on the operator lane seals its store as one on the dispatcher's lanes does:
-   the stores share the unconfirmed-cleanup seal, which only a restart clears.
+   together, so a lost answer leaves nothing to repair. A landed act leaves the
+   dead-lettered list, so the operator lists again, and a repeat of a landed act answers
+   `409` on the fence; the tenant's audit row, read by the correlation id, tells the act
+   from another operator's. The runbook says so. Any fault after the COMMIT was sent,
+   the connection's cleanup included, is reported the same way, because the answer is
+   then unknown. A cleanup fault on the operator lane seals its store as one on the
+   dispatcher's lanes does: the three lanes of one store share its unconfirmed-cleanup
+   seal, which only a restart clears, and the two stores do not share one. A sealed
+   store also never reports its privileged source released, so the shutdown of the
+   host waits as it does after a dispatcher fault.
 8. **Signals.** `learnstack_platform_operator_recoveries_total{operation,outcome}`
    counts each transition as applied, stale fence, not recoverable, not found,
    unavailable or commit unknown, so a replay storm is visible.

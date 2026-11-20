@@ -37,7 +37,7 @@
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-8 | Tenant federation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19); final-head opposite-layout/pair qualification and manual accessibility evidence remain open; the contract-transition items, G20 and the Phase 11 realm items are owned in the closeout |
-> | P03-9 | Platform authority and operational recovery | Decisions Accepted — [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); implementation in progress: Step 1 (operator authority and killswitch), Step 2 (production onboarding) and Step 3 (controlled issuer rebind) delivered and twice reviewed, Steps 4 and 5 pending |
+> | P03-9 | Platform authority and operational recovery | Decisions Accepted — [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); implementation in progress: Step 1 (operator authority and killswitch), Step 2 (production onboarding), Step 3 (controlled issuer rebind) and Step 4 (operator recovery of asynchronous work) delivered and twice reviewed, Step 5 pending |
 > | P03-10 | DSAR and global account closure | Not started |
 > | P03-11 | Exit enforcement | Not started |
 

@@ -5,7 +5,7 @@ using LearnStack.SharedKernel.Platform;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Thirteen writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Fourteen writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>

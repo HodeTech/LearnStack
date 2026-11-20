@@ -5,6 +5,7 @@ using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
@@ -58,8 +59,9 @@ internal sealed record InspectionResponse<T>(IReadOnlyList<T> Items, InspectionP
 internal static partial class PlatformOperatorEndpoints
 {
     private const string WorkPrefix = "/asynchronous-work";
-    private const int DefaultPageSize = 20;
-    private const int MaximumPageSize = 100;
+    private static readonly string[] InspectionParameters = ["state", "limit", "cursor", "ticket"];
+    private const int DefaultPageSize = CursorPagination.DefaultLimit;
+    private const int MaximumPageSize = CursorPagination.MaxLimit;
 
     private static readonly Regex SubscriptionPattern = new(
         @"\A[a-z][a-z0-9]*\.[a-z][a-z0-9-]*\.v[1-9][0-9]*\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
@@ -84,12 +86,18 @@ internal static partial class PlatformOperatorEndpoints
         Describe(
             group.MapPost(WorkPrefix + "/event-deliveries/{tenantId:guid}/{subscriptionId}/{eventId:guid}/replay", ReplayDeliveryAsync)
                 .WithName("PlatformDeliveryReplay")
-                .WithSummary("Reset one dead-lettered subscriber delivery under the fence the inspection returned."),
+                .WithSummary("Reset one dead-lettered subscriber delivery under the fence the inspection returned.")
+                .WithDescription(
+                    "Send every fence field exactly as the inspection returned it: replayCount, deadLetteredAt (to the microsecond; a "
+                    + "value rounded to milliseconds never matches) and terminalReason. A ticket is checked and not stored."),
             typeof(RecoveryResponse));
         Describe(
             group.MapPost(WorkPrefix + "/outbox-messages/{tenantId:guid}/{eventId:guid}/reset", ResetOutboxAsync)
                 .WithName("PlatformOutboxReset")
-                .WithSummary("Reset one retry-exhausted outbox row under the fence the inspection returned; this renews its attempt budget."),
+                .WithSummary("Reset one retry-exhausted outbox row under the fence the inspection returned; this renews its attempt budget.")
+                .WithDescription(
+                    "Send every fence field exactly as the inspection returned it: attempts and deadLetteredAt (to the microsecond; a "
+                    + "value rounded to milliseconds never matches). A ticket is checked and not stored."),
             typeof(RecoveryResponse));
     }
 
@@ -158,6 +166,13 @@ internal static partial class PlatformOperatorEndpoints
         if (!TryLimit(limit, out var size))
         {
             return InvalidParameter(http, "limit");
+        }
+
+        // A misspelt parameter would otherwise be ignored and answer a different list than the one asked for. The
+        // name is not echoed: it is the caller's text.
+        if (http.Request.Query.Keys.Any(key => !InspectionParameters.Contains(key, StringComparer.Ordinal)))
+        {
+            return InvalidParameter(http, "query");
         }
 
         try
@@ -243,7 +258,7 @@ internal static partial class PlatformOperatorEndpoints
                     "applied", tenantId, eventId, subscriptionId, result.CountAfter ?? 0,
                     admission.Operator.CorrelationId ?? http.TraceIdentifier)),
                 OperatorRecoveryOutcome.StaleFence => ResultProblem(http, Rule("fence", "lockey_stale_fence")),
-                OperatorRecoveryOutcome.NotRecoverable => ResultProblem(http, Rule("state", "lockey_not_recoverable")),
+                OperatorRecoveryOutcome.NotRecoverable => ResultProblem(http, Rule("state", "lockey_not_recoverable", result.Refusal)),
                 _ => Problem(http, StatusCodes.Status404NotFound, "lockey_not_found"),
             };
         }
@@ -260,7 +275,7 @@ internal static partial class PlatformOperatorEndpoints
     private static readonly Action<ILogger, string, bool, Exception?> LogRecoveryUnavailable =
         LoggerMessage.Define<string, bool>(
             LogLevel.Warning,
-            new EventId(7109, nameof(LogRecoveryUnavailable)),
+            new EventId(7110, nameof(LogRecoveryUnavailable)),
             "An operator recovery owner was unavailable for {Operation}; the commit's outcome unknown: {CommitOutcomeUnknown}.");
 
     /// <summary>
@@ -296,12 +311,16 @@ internal static partial class PlatformOperatorEndpoints
                 [parameter] = [new LocalizedMessage(ModelBindingProblemDetails.FieldMessageKey)],
             }));
 
-    /// <summary>A 409 with the reason on the field it concerns; the status map is closed, so the code stays the business rule's.</summary>
-    private static Error Rule(string field, string reason) => new(
+    /// <summary>
+    /// A 409 with the reason on the field it concerns; the status map is closed, so the code stays the business rule's.
+    /// A refused state names the rule that refused it as the reason's <c>cause</c> parameter.
+    /// </summary>
+    private static Error Rule(string field, string reason, string? cause = null) => new(
         new LocalizedMessage("lockey_business_rule_violation"),
         new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
         {
-            [field] = [new LocalizedMessage(reason)],
+            [field] = [new LocalizedMessage(
+                reason, cause is null ? null : new Dictionary<string, string>(StringComparer.Ordinal) { ["cause"] = cause })],
         });
 
     private static async Task<(IResult? Refusal, PlatformAdmission? Admission)> AdmitAsync(
@@ -364,14 +383,16 @@ internal static partial class PlatformOperatorEndpoints
             return true;
         }
 
-        // Standard 04: a limit of zero or less is rejected, a larger one is clamped, never rejected.
-        if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+        // Standard 04: a limit of zero or less is rejected, a larger one is clamped, never rejected. The digits are read
+        // without a width, so a value past the range of an int is a larger limit and is clamped like any other.
+        if (!System.Numerics.BigInteger.TryParse(
+                text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
             || parsed < 1)
         {
             return false;
         }
 
-        size = Math.Min(parsed, MaximumPageSize);
+        size = parsed > MaximumPageSize ? MaximumPageSize : (int)parsed;
         return true;
     }
 

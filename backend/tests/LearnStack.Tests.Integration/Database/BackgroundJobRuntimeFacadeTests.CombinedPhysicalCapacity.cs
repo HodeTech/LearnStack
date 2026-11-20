@@ -133,7 +133,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             AssertCombinedHolds(outboxHold, deliveryHold, expiration, source);
             await AssertCombinedBackendsAsync(database, applicationName, outboxHold, deliveryHold, expirationPid);
             runtime.Snapshot.RunningPools.Should().Be(3);
-            testOutput.WriteLine("Supported52 pool: real expiration + two distinct terminal-scope physical checkouts held; tenantB native business/MUST audit committed before release. Representative contention, not exact52 saturation.");
+            testOutput.WriteLine("Supported-floor pool: real expiration + two distinct terminal-scope physical checkouts held; tenantB native business/MUST audit committed before release. Representative contention, not exact-floor saturation.");
         }
         finally
         {

@@ -228,7 +228,7 @@ remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 <!-- async-store-first-party:start -->
 | Store | Copies and subject linkage | Existing constraint |
 |---|---|---|
-| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL | Platform has SELECT/DELETE, no envelope rewrite grant |
+| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL | Platform has `DELETE` and `SELECT` of twelve metadata columns only ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)), no envelope rewrite grant |
 | `event_deliveries` | Independent per-subscription envelope/`payload` copy with `actor_user_id`, tenant/org, causation/trace/partition, lease, closed failure descriptor and dead-letter/replay state | No DELETE grant to runtime roles; producer cleanup does not erase this copy |
 | `inbox_messages` | `(tenant_id, subscription_id, event_id)` and `recorded_at`; indirect subject linkage without actor, payload or org columns | Immutable completion history; no generic Platform purge |
 | `background_jobs` | `causal_actor_user_id`, identifier-only `parameters`/`plan`, trace/causation, lease, closed failure/terminal descriptors and parent/recipient/operation/final-attempt links | Envelope/prepared facts stay immutable; uncertain effects retain occupancy |

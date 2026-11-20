@@ -534,6 +534,7 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
         var result = await ReplayAsync(test.Store(), test, SchemaFixture.TenantA, subscription, id);
 
         result.Outcome.Should().Be(OperatorRecoveryOutcome.NotRecoverable, state);
+        result.Refusal.Should().Be(state == "active" ? "invalid_envelope" : "subscription_not_active", state);
         (await test.ReadAsync(id, subscription)).Should().Be(before);
         (await test.ReadOperatorAuditAsync("platform.delivery.replay")).Should().BeEmpty("a refusal writes no row");
     }
@@ -649,8 +650,9 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
         await test.SetTenantStatusAsync("Suspended");
         var before = await test.ReadAsync(id);
 
-        (await ReplayAsync(test.Store(), test, SchemaFixture.TenantA, First, id)).Outcome.Should().Be(OperatorRecoveryOutcome.NotRecoverable);
+        var refused = await ReplayAsync(test.Store(), test, SchemaFixture.TenantA, First, id);
 
+        (refused.Outcome, refused.Refusal).Should().Be((OperatorRecoveryOutcome.NotRecoverable, "tenant_not_serving"));
         (await test.ReadAsync(id)).Should().Be(before);
         await test.SetTenantStatusAsync("Active");
         (await ReplayAsync(test.Store(), test, SchemaFixture.TenantA, First, id)).Outcome.Should().Be(OperatorRecoveryOutcome.Applied);

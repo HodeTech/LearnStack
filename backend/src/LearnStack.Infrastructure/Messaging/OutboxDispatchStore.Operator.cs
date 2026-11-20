@@ -46,15 +46,13 @@ public sealed partial class OutboxDispatchStore
             return await ResetCoreAsync(request, admission, progress, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception failure) when (progress.CommitAttempted
-            && (failure is NpgsqlException or TimeoutException or InvalidOperationException or AggregateException
-                || (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested)))
+            && (failure is AggregateException || OperatorRecoveryFaults.IsUnavailable(failure, cancellationToken)))
         {
             // The COMMIT was sent, so whatever failed afterwards (the connection's cleanup included) leaves its
             // outcome unknown, and the operator inspects the row before repeating.
             throw new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, failure);
         }
-        catch (Exception failure) when (failure is NpgsqlException or TimeoutException or InvalidOperationException
-            || (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception failure) when (OperatorRecoveryFaults.IsUnavailable(failure, cancellationToken))
         {
             throw new OperatorRecoveryUnavailableException(cause: failure);
         }
@@ -105,11 +103,16 @@ public sealed partial class OutboxDispatchStore
         }
 
         var disposition = _registry.Resolve(type).Disposition;
-        if (processed || leased || reason != "retry_exhausted"
-            || disposition is OutboxEventDisposition.Retired or OutboxEventDisposition.Unknown
-            || !await TenantServesAsync(connection, transaction, request.TenantId, deadline.Token).ConfigureAwait(false))
+        var refusal = processed ? "processed"
+            : leased ? "leased"
+            : reason != "retry_exhausted" ? "reason_refused"
+            : disposition is OutboxEventDisposition.Retired or OutboxEventDisposition.Unknown ? "type_not_dispatchable"
+            : !await TenantServesAsync(connection, transaction, request.TenantId, deadline.Token).ConfigureAwait(false)
+                ? "tenant_not_serving"
+                : null;
+        if (refusal is not null)
         {
-            return new OperatorRecoveryResult(OperatorRecoveryOutcome.NotRecoverable);
+            return new OperatorRecoveryResult(OperatorRecoveryOutcome.NotRecoverable, Refusal: refusal);
         }
 
         OperatorRecoveryTransition witness;
@@ -145,7 +148,8 @@ public sealed partial class OutboxDispatchStore
         catch (Exception failure) when (failure is NpgsqlException or OperationCanceledException or IOException)
         {
             // COMMIT may have reached PostgreSQL; the row and its audit commit together or not at all, so the
-            // operator inspects the row, whose fence moved if the reset landed.
+            // operator lists again (a landed reset leaves the dead-lettered list) or reads the tenant's audit row by
+            // the correlation id.
             ownedConnection.RecordCommitFailure(failure);
             throw new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, failure);
         }

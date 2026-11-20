@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace LearnStack.Tests.Integration;
@@ -47,6 +48,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     private RecordingToggle _toggle = null!;
     private RecordingRecovery _recovery = null!;
     private RecordingInspection _inspection = null!;
+    private CapturingLogs _logs = null!;
     private HttpClient _client = null!;
 
     public async Task InitializeAsync()
@@ -56,9 +58,12 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         _toggle = new RecordingToggle();
         _recovery = new RecordingRecovery();
         _inspection = new RecordingInspection();
+        _logs = new CapturingLogs();
         _factory = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
             services: registrations =>
             {
+                // The host's logging is Serilog, which does not feed registered providers: the routes ask for the factory.
+                registrations.AddSingleton<ILoggerFactory>(_ => LoggerFactory.Create(builder => builder.AddProvider(_logs)));
                 registrations.AddSingleton<IOperatorRecovery>(_recovery);
                 registrations.AddScoped<IDeliveryInspection>(_ => _inspection);
             });
@@ -536,6 +541,9 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             .GetProperty("parameters").EnumerateArray().Single(parameter => parameter.GetProperty("name").GetString() == name)
             .GetProperty("schema");
         var outbox = "/api/platform/v1/asynchronous-work/outbox-messages";
+        root.GetProperty("paths").GetProperty("/api/platform/v1/asynchronous-work/quarantined-jobs").GetProperty("get")
+            .GetProperty("parameters").EnumerateArray().Select(parameter => parameter.GetProperty("name").GetString())
+            .Should().NotContain("state", "the jobs list takes no state and refuses one");
         ParameterOf(outbox, "state").GetProperty("enum").EnumerateArray().Select(value => value.GetString())
             .Should().BeEquivalentTo(["dead_lettered", "terminal_requested"]);
         ParameterOf(outbox, "limit").GetProperty("minimum").GetRawText().Trim('"').Should().Be("1");
@@ -575,7 +583,6 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     [InlineData("limit=-1")]
     [InlineData("limit=1.5")]
     [InlineData("limit=0")]
-    [InlineData("limit=99999999999")]
     [InlineData("ticket=has%20space")]
     public async Task An_Inspection_With_A_Malformed_Parameter_Is_A_Validation_Failure_Before_Any_Scope(string query)
     {
@@ -583,6 +590,67 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         _inspection.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("500")]
+    [InlineData("99999999999")]
+    [InlineData("99999999999999999999999999")]
+    public async Task A_Limit_Of_Any_Size_Is_Clamped_To_The_Maximum_And_Never_Refused(string limit)
+    {
+        var response = await Call(HttpMethod.Get, Work + "/event-deliveries?limit=" + limit, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        _inspection.Calls.Should().ContainSingle().Which.Limit.Should().Be(100);
+    }
+
+    [Theory]
+    [InlineData("statee=terminal_requested")]
+    [InlineData("limt=5")]
+    [InlineData("state=dead_lettered&cursr=abc")]
+    public async Task A_Misspelt_Parameter_Is_Refused_And_Never_Ignored_And_Is_Not_Echoed(string query)
+    {
+        var response = await Call(HttpMethod.Get, Work + "/outbox-messages?" + query, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var text = await response.Content.ReadAsStringAsync();
+        using var body = JsonDocument.Parse(text);
+        body.RootElement.GetProperty("errors").TryGetProperty("query", out _).Should().BeTrue();
+        text.Should().NotContain("statee").And.NotContain("limt").And.NotContain("cursr");
+        _inspection.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("tenant_not_serving")]
+    [InlineData("invalid_envelope")]
+    [InlineData("type_not_dispatchable")]
+    public async Task A_Refused_State_Names_The_Rule_That_Refused_It_As_A_Parameter_Of_Its_Reason(string cause)
+    {
+        _recovery.Result = new OperatorRecoveryResult(OperatorRecoveryOutcome.NotRecoverable, Refusal: cause);
+
+        var response = await Call(HttpMethod.Post, ResetPath, Valid(), ResetBody);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var reason = body.RootElement.GetProperty("errors").GetProperty("state")[0];
+        reason.GetProperty("key").GetString().Should().Be("lockey_not_recoverable");
+        reason.GetProperty("params").GetProperty("cause").GetString().Should().Be(cause);
+    }
+
+    [Fact]
+    public async Task An_Unavailable_Owner_Logs_Its_Cause_Under_Its_Own_Event_Id_Which_No_Other_Line_Uses()
+    {
+        _recovery.Failure = new OperatorRecoveryUnavailableException(cause: new TimeoutException("forced"));
+
+        var response = await Call(HttpMethod.Post, ReplayPath, Valid(), ReplayBody);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        var entry = _logs.Entries.Should().ContainSingle(line => line.Id == 7110).Which;
+        entry.Level.Should().Be(LogLevel.Warning);
+        entry.Exception.Should().BeOfType<TimeoutException>("the cause is in the log and in no response");
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("forced");
+        // 7109 is the onboarding pipeline's defect alert, which the operator runbooks pin to that meaning.
+        _logs.Entries.Should().NotContain(line => line.Id == 7109);
     }
 
     [Theory]
@@ -1129,6 +1197,30 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         {
             Calls.Add((admission, request));
             return Failure is not null ? Task.FromException<OperatorRecoveryResult>(Failure) : Task.FromResult(Result);
+        }
+    }
+
+    private sealed class CapturingLogs : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<(int Id, LogLevel Level, Exception? Exception)> _entries = new();
+
+        public IReadOnlyCollection<(int Id, LogLevel Level, Exception? Exception)> Entries => [.. _entries];
+
+        public ILogger CreateLogger(string categoryName) => new Capture(_entries);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Capture(ConcurrentQueue<(int Id, LogLevel Level, Exception? Exception)> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+                entries.Enqueue((eventId.Id, logLevel, exception));
         }
     }
 

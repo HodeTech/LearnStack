@@ -39,7 +39,12 @@ public enum OperatorRecoveryOutcome
 /// <summary>The end of one recovery and the count the row now carries when it was applied.</summary>
 /// <param name="Outcome">How it ended.</param>
 /// <param name="CountAfter">The fence's count after an applied reset: the new replay count, or zero attempts.</param>
-public sealed record OperatorRecoveryResult(OperatorRecoveryOutcome Outcome, int? CountAfter = null);
+/// <param name="Refusal">
+/// For a refused state, the closed token that says which rule refused it: <c>processed</c>, <c>leased</c>,
+/// <c>invalid_envelope</c>, <c>reason_refused</c>, <c>subscription_not_active</c>, <c>type_not_dispatchable</c> or
+/// <c>tenant_not_serving</c>.
+/// </param>
+public sealed record OperatorRecoveryResult(OperatorRecoveryOutcome Outcome, int? CountAfter = null, string? Refusal = null);
 
 /// <summary>
 /// The recovery owner could not finish and nothing is known to be wrong with the request: the credential or the pool

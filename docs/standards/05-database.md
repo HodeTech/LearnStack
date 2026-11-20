@@ -1628,6 +1628,9 @@ CREATE INDEX ix_outbox_messages_recovery
 CREATE INDEX ix_outbox_messages_terminal
     ON outbox_messages (available_after, occurred_at, id)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
+-- ADR-0103: the operator inspection's dead-lettered page, in key order.
+CREATE INDEX ix_outbox_messages_dead_lettered
+    ON outbox_messages (dead_lettered_at, id) WHERE dead_lettered_at IS NOT NULL;
 
 ALTER TABLE outbox_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE outbox_messages FORCE  ROW LEVEL SECURITY;
@@ -6509,8 +6512,10 @@ for every column-grant table. The database bounds which columns a page can read 
 the length of `last_error`, not its content, so the inspection shows a `last_error`
 only when it has the shape of the dispatcher's descriptors. Two partial indexes,
 `ix_outbox_messages_dead_lettered` and `ix_event_deliveries_dead_lettered`, serve
-the dead-lettered scan the inspection pages by keyset. The migration is
-forward-only.
+the dead-lettered scan the inspection pages by keyset, and a test asks PostgreSQL for
+the plan of the statement the inspection runs. The migration builds them without
+`CONCURRENTLY`, inside its transaction, as the earlier ledger indexes were. The
+migration is forward-only.
 
 ### The two transitions
 
@@ -6557,9 +6562,12 @@ Real PostgreSQL as each role:
   acknowledgement; the real `OperatorRecovery` owner reaching the right store and
   counting each outcome under its own operation; and the siblings and the inbox
   byte-identical after a replay.
-- `DeliveryInspectionTests`: pages and keyset cursors (equal instants included), a
-  cursor refused under another resource or state, the entry row, the job occupancy
-  counts, the descriptor shape of `last_error`, and the exact columns the platform
-  role can and cannot select.
+- `DeliveryInspectionTests`: pages and keyset cursors (equal instants and the
+  tenant, subscription and event tie-break included), a cursor refused under another
+  resource or state, the entry row, the job occupancy counts, the descriptor shape of
+  `last_error`, the exact columns the platform role can and cannot select, the two
+  indexes' keys and predicates and the plan of each dead-lettered page, and a
+  refused credential surfacing as a defect where an unreachable database is a
+  retryable outage.
 - `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their
   statuses and contract, and the pair of permissions, each held alone.

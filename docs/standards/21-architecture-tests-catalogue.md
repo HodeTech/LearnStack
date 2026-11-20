@@ -6000,23 +6000,25 @@ structural test proves — and what it does not.
 
 - **Asserts:** by IL, over every production assembly, that `OperatorRecoveryTransition`
   is sealed with one private live-reader constructor, readonly state and getter-only
-  properties, in an assembly with no friend; that its nested `MintingSource` is public,
-  abstract and protected-constructed with exactly the two protected static factories
-  (`FromReplayUpdate`, `FromResetUpdate`); that the only subtypes are the private sealed
-  `RecoveryMint` classes nested in `DeliveryDispatchStore` and `OutboxDispatchStore`; that
-  the factories' only callers are those classes' two wrappers, whose only callers are the
-  stores' `ReplayCoreAsync` and `ResetCoreAsync`; that the witness constructor's only
-  callers are the factories; and that `IAuditStore.WriteOperatorRecoveryAsync` is declared
-  on the port and implemented by `PostgresAuditStore` alone, with the two stores'
-  `WriteRecoveryRowAsync` as its only callers. Its companion
+  properties, in an assembly with no friend; that its nested `MintingSource` is
+  public, abstract and protected-constructed with exactly the two protected static
+  factories (`FromReplayUpdate`, `FromResetUpdate`); that the only subtypes are the
+  private sealed `RecoveryMint` classes nested in `DeliveryDispatchStore` and
+  `OutboxDispatchStore`; that the factories' only callers are those classes' two
+  wrappers, whose only callers are the stores' `ReplayCoreAsync` and `ResetCoreAsync`;
+  that the witness constructor's only callers are the factories; and that
+  `IAuditStore.WriteOperatorRecoveryAsync` is declared on the port and implemented by
+  `PostgresAuditStore` alone, with the two stores' `WriteRecoveryRowAsync` as its only
+  callers. Its companion
   `Operator_recovery_census_detects_extra_derivers_constructors_and_callers` plants a
-  second subtype, an extra mint helper, a direct constructor call, an extra writer caller
-  and a helper on the sanctioned store, and requires the same detector to reject each.
-- **Why it matters:** the witness is evidence that a row was reset under a fence in a live
-  transaction, and it binds the audit row to the admitted operation, the operator and the
-  fence. A second way to make one, or to write the row, is a second way to forge that
-  evidence. The terminal witness could not carry an operator, so this is a sibling, not
-  a third factory on it.
+  second subtype, an extra mint helper for each factory, a direct constructor call, an
+  extra writer caller and a helper on the sanctioned stores, and requires the same
+  detector to reject each.
+- **Why it matters:** the witness is evidence that a row was reset under a fence in a
+  live transaction, and it binds the audit row to the admitted operation, the operator
+  and the fence. A second way to make one, or to write the row, is a second way to
+  forge that evidence. The terminal witness could not carry an operator, so this is a
+  sibling, not a third factory on it.
 - **Source:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) § 5
   and its Amendment 1.
 - **Type:** xUnit + IL scan. **Kind:** structural.
@@ -6031,8 +6033,8 @@ structural test proves — and what it does not.
   implementation, the persistence composition and the recovery routes. Adding a caller
   is a deliberate edit here, with its denied proof.
 - **Why it matters:** the two transitions are the dispatcher's second writer and the
-  inspection reads across tenants; a handler that held either port would reach a reset or
-  a cross-tenant read from a request path the operator gate does not guard.
+  inspection reads across tenants; a handler that held either port would reach a
+  reset or a cross-tenant read from a request path the operator gate does not guard.
 - **Source:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) § 4.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 4).
