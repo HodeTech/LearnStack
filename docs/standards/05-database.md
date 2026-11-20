@@ -6212,7 +6212,9 @@ owns qualification.
 classes): `[TenantOwned]` only, no organization column, the tenant-wide EF filter,
 `ENABLE` and `FORCE` RLS with the one tenant-only isolation policy of
 [the canonical template](#tenant-owned-and-organization-scoped-tables), and
-`SELECT`, `INSERT`, `UPDATE` to `learnstack_app` only — no `DELETE` grant. It is the
+`SELECT`, `INSERT`, `UPDATE` to `learnstack_app` and a four-column `SELECT` to
+`learnstack_platform` ([below](#federation-operator-projection)); no `DELETE` grant.
+It is the
 eighth member of the `SchemaTableClasses` Identity contextual class. The forward-only
 migration refuses reversal.
 
@@ -6283,8 +6285,8 @@ alias, display name, issuer, client identifier, configuration digest or any othe
 is refused by PostgreSQL, and so is every write. The grant is a forward-only migration
 of the Identity chain, because the table is created there after the Platform chain has
 run. The reader is the one statement of the operator's owner, which sees tombstones
-and reads by primary key; the architecture census pins it whole, and tests read the granted
-columns, refuse every other, and read two tenants' rows through the role.
+and reads by primary key; the architecture census pins it whole, and tests read the
+granted columns, refuse every other, and read two tenants' rows through the role.
 
 ### Federation host-alias read
 

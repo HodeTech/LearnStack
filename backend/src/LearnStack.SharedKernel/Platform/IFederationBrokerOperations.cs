@@ -52,7 +52,10 @@ public enum FederationActOutcome
     /// <summary>The provider's change was made and confirmed; the account review is owed.</summary>
     Applied = 1,
 
-    /// <summary>The broker was already absent (remove) or already disabled (disable); nothing was sent and no tenant row was written.</summary>
+    /// <summary>
+    /// The broker was already absent (remove) or already disabled (disable); nothing was sent. No tenant row is written when
+    /// it was so at the first read, and both rows are when it changed between that read and the provider call.
+    /// </summary>
     AlreadyApplied,
 
     /// <summary>A disable named an alias no instance has.</summary>
@@ -62,8 +65,9 @@ public enum FederationActOutcome
     NotOwned,
 
     /// <summary>
-    /// A live connection row names a broker that reads, so a remove refuses; the tenant's own Delete retires the pair. An
-    /// unreadable owned broker is removed even with a live row (ADR-0099 Amendment 12).
+    /// A live connection row names the broker and it still reads or is still enabled, so a remove refuses: the tenant's own
+    /// Delete retires a pair that reads, and an enabled one may still be serving. An unreadable owned broker that is
+    /// disabled is removed even with a live row (ADR-0099 Amendment 12).
     /// </summary>
     LiveConnection,
 
@@ -84,7 +88,12 @@ public enum FederationActOutcome
 /// <param name="Outcome">How it ended.</param>
 /// <param name="TenantId">The tenant the marker names, when an owned broker was found.</param>
 /// <param name="ConnectionId">The connection the marker names, when an owned broker was found.</param>
-public sealed record FederationActResult(FederationActOutcome Outcome, Guid? TenantId = null, Guid? ConnectionId = null);
+/// <param name="Cause">
+/// The failure behind an unknown outcome, for the route's log and never for a response: a provider fault after the change
+/// was sent, or a completion that could not be written.
+/// </param>
+public sealed record FederationActResult(
+    FederationActOutcome Outcome, Guid? TenantId = null, Guid? ConnectionId = null, Exception? Cause = null);
 
 /// <summary>
 /// The confined owner of the operator's federation report, remove and disable (ADR-0099 Amendment 10 and 11): it

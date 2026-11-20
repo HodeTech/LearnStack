@@ -113,9 +113,13 @@ public interface IFederationOperator
 
     /// <summary>
     /// Deletes the instance after proving its marker names this owner, whether or not it can be read, and confirms
-    /// that it is gone. The provider deletes the federated links with it.
+    /// that it is gone. The provider deletes the federated links with it. When <paramref name="requireDisabledUnreadable"/>
+    /// is set, the instance must still read as unreadable and be disabled when the delete is about to be sent, proved again
+    /// at that moment, or the call is <see cref="FederationOperatorOutcome.Refused"/> and nothing is sent: that is the
+    /// condition under which the owner removes a broker a live connection row still names (ADR-0099 Amendment 12).
     /// </summary>
-    Task<FederationOperatorOutcome> RemoveAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default);
+    Task<FederationOperatorOutcome> RemoveAsync(
+        FederationBrokerOwner owner, bool requireDisabledUnreadable = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sets <c>enabled</c> to false at the provider only, after proving the marker: the one provider write that sends
@@ -136,7 +140,8 @@ public sealed class UnconfiguredFederationOperator : IFederationOperator
     public Task<int?> CountMappersAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default) =>
         Task.FromResult<int?>(null);
 
-    public Task<FederationOperatorOutcome> RemoveAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default) =>
+    public Task<FederationOperatorOutcome> RemoveAsync(
+        FederationBrokerOwner owner, bool requireDisabledUnreadable = false, CancellationToken cancellationToken = default) =>
         Task.FromResult(FederationOperatorOutcome.Unavailable);
 
     public Task<FederationOperatorOutcome> DisableAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default) =>

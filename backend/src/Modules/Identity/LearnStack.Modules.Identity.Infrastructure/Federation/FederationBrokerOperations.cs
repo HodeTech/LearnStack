@@ -1,9 +1,7 @@
-using System.Data.Common;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using LearnStack.Infrastructure.Messaging;
-using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Platform;
@@ -42,46 +40,64 @@ namespace LearnStack.Modules.Identity.Infrastructure.Federation;
 /// read them.
 /// </para>
 /// </remarks>
-public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFederationOperator provider) : IFederationBrokerOperations
+public sealed class FederationBrokerOperations(
+    IPlatformAdminScope scope, IFederationOperator provider, TimeSpan? completionBudget = null) : IFederationBrokerOperations
 {
     private const int MaximumLimit = CursorPagination.MaxLimit;
     private const string EntityType = "FederationConnection";
     private const string RowQuery = "SELECT id, tenant_id, state, deleted_at IS NOT NULL FROM federation_connections WHERE id = ANY(@ids)";
     private static readonly TimeSpan ReportDeadline = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan CompletionBudget = TimeSpan.FromSeconds(3);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>The completion's own budget, detached from the request; a test passes a shorter or longer one.</summary>
+    private readonly TimeSpan _completionBudget = completionBudget ?? TimeSpan.FromSeconds(3);
 
     /// <inheritdoc />
     public Task<FederationReportResult> ReportAsync(
         PlatformAdmission admission, string? cursor, int limit, CancellationToken cancellationToken = default) =>
-        GuardAsync(() => ReportCoreAsync(admission, cursor, limit, cancellationToken), cancellationToken);
+        GuardAsync(_ => ReportCoreAsync(admission, cursor, limit, cancellationToken), cancellationToken);
 
     /// <inheritdoc />
     public Task<FederationActResult> RemoveAsync(
         PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken = default) =>
-        GuardAsync(() => RemoveCoreAsync(admission, brokerAlias, cancellationToken), cancellationToken);
+        GuardAsync(progress => RemoveCoreAsync(admission, brokerAlias, progress, cancellationToken), cancellationToken);
 
     /// <inheritdoc />
     public Task<FederationActResult> DisableAsync(
         PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken = default) =>
-        GuardAsync(() => DisableCoreAsync(admission, brokerAlias, cancellationToken), cancellationToken);
+        GuardAsync(progress => DisableCoreAsync(admission, brokerAlias, progress, cancellationToken), cancellationToken);
+
+    /// <summary>Whether a provider change may have landed, which decides what a failure further on may claim.</summary>
+    private sealed class ActProgress
+    {
+        internal bool ChangeMayHaveLanded { get; set; }
+    }
 
     /// <summary>
-    /// A transient database fault is the unavailable owner it is, with its cause kept for the route's log, and never a raw
-    /// 500. It is raised only where nothing was changed: a completion that fails after a change is answered inside
-    /// <see cref="CompleteAsync"/> as the unknown outcome, before it can reach this guard.
+    /// A failure after a change that landed or may have is the unknown outcome, with its cause kept for the route's log and
+    /// never "nothing changed"; before any change, a transient database fault is the unavailable owner, and never a raw 500.
+    /// What this guard does not catch (a refused credential, a missing grant before any change, a programmer error) is the
+    /// defect it is.
     /// </summary>
-    private static async Task<T> GuardAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    private static async Task<T> GuardAsync<T>(Func<ActProgress, Task<T>> operation, CancellationToken cancellationToken)
     {
+        var progress = new ActProgress();
         try
         {
-            return await operation();
+            return await operation(progress);
         }
-        catch (Exception failure) when (OperatorRecoveryFaults.IsTransientDatabaseFault(failure, cancellationToken))
+        catch (Exception failure) when (progress.ChangeMayHaveLanded && !IsFatal(failure))
+        {
+            throw new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, cause: failure);
+        }
+        catch (Exception failure) when (!progress.ChangeMayHaveLanded
+            && OperatorRecoveryFaults.IsTransientDatabaseFault(failure, cancellationToken))
         {
             throw new OperatorRecoveryUnavailableException(cause: failure);
         }
     }
+
+    private static bool IsFatal(Exception failure) => failure is OutOfMemoryException or AccessViolationException or StackOverflowException;
 
     private async Task<FederationReportResult> ReportCoreAsync(
         PlatformAdmission admission, string? cursor, int limit, CancellationToken cancellationToken)
@@ -164,7 +180,7 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
     }
 
     private async Task<FederationActResult> RemoveCoreAsync(
-        PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken)
+        PlatformAdmission admission, string brokerAlias, ActProgress progress, CancellationToken cancellationToken)
     {
         RequireOperation(admission, PlatformOperations.FederationRemove);
         await using var handle = await scope.EnterAsync(admission, cancellationToken);
@@ -190,7 +206,7 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
 
         if (RefusesRemoval(facts, row))
         {
-            // Amendment 10 item 3: a live row refuses a broker that reads. The tenant's own Delete retires it.
+            // Amendment 10 item 3 and Amendment 12 item 1: a live row refuses a broker that reads or is still enabled.
             return Known(FederationActOutcome.LiveConnection, owner);
         }
 
@@ -202,6 +218,7 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
         var again = (await ReadRowsAsync(handle, [owner.ConnectionId], cancellationToken)).GetValueOrDefault(owner.ConnectionId);
         FederationActOutcome outcome;
         string? cause = null;
+        Exception? failure = null;
         if (RefusesRemoval(facts, again))
         {
             outcome = FederationActOutcome.LiveConnection;
@@ -209,15 +226,18 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
         }
         else
         {
-            outcome = await ChangeAsync(token => provider.RemoveAsync(owner, token), cancellationToken);
+            // A live row is let through only for a broker that does not read and is disabled, which the adapter proves
+            // again at the delete.
+            (outcome, failure) = await ChangeAsync(
+                token => provider.RemoveAsync(owner, requireDisabledUnreadable: IsLive(again), token), progress, cancellationToken);
         }
 
-        outcome = await CompleteAsync(handle, owner, classes, row, outcome, cause);
-        return Known(outcome, owner);
+        (outcome, failure) = await CompleteAsync(handle, owner, classes, row, outcome, cause, failure, progress);
+        return Known(outcome, owner, failure);
     }
 
     private async Task<FederationActResult> DisableCoreAsync(
-        PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken)
+        PlatformAdmission admission, string brokerAlias, ActProgress progress, CancellationToken cancellationToken)
     {
         RequireOperation(admission, PlatformOperations.FederationDisable);
         await using var handle = await scope.EnterAsync(admission, cancellationToken);
@@ -253,55 +273,61 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
         }
 
         await handle.WriteIntentAsync(Result(owner, classes, row, after: null), cancellationToken);
-        var outcome = await ChangeAsync(token => provider.DisableAsync(owner, token), cancellationToken);
-        outcome = await CompleteAsync(handle, owner, classes, row, outcome, cause: null);
-        return Known(outcome, owner);
+        var (outcome, failure) = await ChangeAsync(token => provider.DisableAsync(owner, token), progress, cancellationToken);
+        (outcome, failure) = await CompleteAsync(handle, owner, classes, row, outcome, cause: null, failure, progress);
+        return Known(outcome, owner, failure);
     }
 
     /// <summary>
-    /// The provider's change, with a caller that leaves recorded as an unknown outcome: the change may already have been
-    /// sent, and the adapter rethrows the caller's cancellation without saying which side of the send it fell on.
+    /// The provider's change. A caller that leaves, and any other failure after the change may have been sent, is an
+    /// unknown outcome with its cause kept: the adapter rethrows the caller's cancellation without saying which side of the
+    /// send it fell on, and an unexpected failure says nothing about whether the provider took the change. Either is
+    /// recorded in the completion row, never skipped.
     /// </summary>
-    private static async Task<FederationActOutcome> ChangeAsync(
-        Func<CancellationToken, Task<FederationOperatorOutcome>> change, CancellationToken cancellationToken)
+    private static async Task<(FederationActOutcome Outcome, Exception? Failure)> ChangeAsync(
+        Func<CancellationToken, Task<FederationOperatorOutcome>> change, ActProgress progress, CancellationToken cancellationToken)
     {
+        FederationActOutcome outcome;
+        Exception? failure = null;
         try
         {
-            return Map(await change(cancellationToken));
+            outcome = Map(await change(cancellationToken));
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (Exception caught) when (!IsFatal(caught))
         {
-            return FederationActOutcome.Uncertain;
+            outcome = FederationActOutcome.Uncertain;
+            failure = caught;
         }
+
+        progress.ChangeMayHaveLanded = outcome is FederationActOutcome.Applied or FederationActOutcome.Uncertain;
+        return (outcome, failure);
     }
 
     /// <summary>
     /// Writes and commits the completion row on a bounded token detached from the request, and returns the outcome the
-    /// caller is to answer. A completion that cannot be written is the audit failure it is when nothing changed; after a
-    /// change that landed or may have, the intent row stands alone and the answer is the unknown outcome, never
-    /// "nothing changed, repeat it".
+    /// caller is to answer with the failure behind it. A completion that cannot be written is the audit failure it is when
+    /// nothing changed; after a change that landed or may have, the intent row stands alone and the answer is the unknown
+    /// outcome with the completion's failure as its cause, never "nothing changed, repeat it" and never a silent swallow.
     /// </summary>
-    private static async Task<FederationActOutcome> CompleteAsync(
+    private async Task<(FederationActOutcome Outcome, Exception? Failure)> CompleteAsync(
         IPlatformAdminScopeHandle handle, FederationBrokerOwner owner, IReadOnlyList<string> classes, Row? row,
-        FederationActOutcome outcome, string? cause)
+        FederationActOutcome outcome, string? cause, Exception? failure, ActProgress progress)
     {
         var token = OutcomeToken(outcome);
         // The account review is owed for any change that may have landed: the provider removes federated links with a
-        // broker, and nothing here reads them (ADR-0099 Amendment 10 item 7).
+        // broker, and nothing here reads them (ADR-0099 Amendment 10 item 7). A disable owes it too (Amendment 12 item 6).
         var owed = outcome is FederationActOutcome.Applied or FederationActOutcome.Uncertain;
         var after = JsonSerializer.Serialize(new AfterState(token, cause, owed), Json);
-        using var budget = new CancellationTokenSource(CompletionBudget);
+        using var budget = new CancellationTokenSource(_completionBudget);
         try
         {
             await handle.WriteResultAsync(Result(owner, classes, row, after), budget.Token);
             await handle.CommitAsync(budget.Token);
-            return outcome;
+            return (outcome, failure);
         }
-        catch (Exception failure) when (
-            outcome is FederationActOutcome.Applied or FederationActOutcome.Uncertain
-            && failure is AuditWriteFailedException or DbException or OperationCanceledException or IOException)
+        catch (Exception lost) when (progress.ChangeMayHaveLanded && !IsFatal(lost))
         {
-            return FederationActOutcome.Uncertain;
+            return (FederationActOutcome.Uncertain, lost);
         }
     }
 
@@ -309,8 +335,8 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
         owner.TenantId, EntityType, owner.ConnectionId.ToString("D", CultureInfo.InvariantCulture),
         JsonSerializer.Serialize(new BeforeState(classes, RowState(row)), Json), after);
 
-    private static FederationActResult Known(FederationActOutcome outcome, FederationBrokerOwner owner) =>
-        new(outcome, owner.TenantId.Value, owner.ConnectionId);
+    private static FederationActResult Known(FederationActOutcome outcome, FederationBrokerOwner owner, Exception? failure = null) =>
+        new(outcome, owner.TenantId.Value, owner.ConnectionId, failure);
 
     private static FederationActOutcome Map(FederationOperatorOutcome outcome) => outcome switch
     {
@@ -356,11 +382,12 @@ public sealed class FederationBrokerOperations(IPlatformAdminScope scope, IFeder
 
     /// <summary>
     /// A live connection row refuses the removal of a broker that reads: the tenant's own Delete retires that pair. A broker
-    /// that does not read is the exception (ADR-0099 Amendment 12 item 1), because the tenant's Delete treats it as foreign
-    /// and fails (Amendment 9 item 5), so nothing else could ever remove it; it already fails closed, and the tenant's
-    /// next readback finds it absent.
+    /// that does not read and is disabled is the exception (ADR-0099 Amendment 12 item 1 and Amendment 13 item 1), because
+    /// the tenant's Delete treats it as foreign and fails (Amendment 5 item 5), so nothing else could ever remove it. An
+    /// unreadable broker that is still enabled is refused: "unreadable" is a shape check, and the provider may still be
+    /// serving it, so the operator disables it first, which is reversible, and removes it after.
     /// </summary>
-    private static bool RefusesRemoval(FederationBrokerFacts facts, Row? row) => facts.Readable && IsLive(row);
+    private static bool RefusesRemoval(FederationBrokerFacts facts, Row? row) => IsLive(row) && (facts.Readable || facts.Enabled);
 
     private static bool IsLive(Row? row) => row is { Deleted: false } && !string.Equals(row.State, "Deleted", StringComparison.Ordinal);
 

@@ -2,9 +2,9 @@
 
 How an operator finds the identity-provider brokers a tenant's federation left
 orphaned, unreadable or nonconforming, and removes or disables one. Decided in
-[ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md) and
-implemented as Amendment 11. There is **no dashboard** and **no way to list or remove
-a realm user**: this is an API and this document.
+[ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md), implemented
+as Amendment 11 and corrected by Amendments 12 and 13. There is **no dashboard** and
+**no way to list or remove a realm user**: this is an API and this document.
 
 ## What exists
 
@@ -55,13 +55,14 @@ A broker that conforms and has a live row is not reported.
 - **Listing or removing realm users.** No LearnStack credential may enumerate or remove
   them ([ADR-0099 Decision Q1](../decisions/0099-confined-tenant-federation.md)). The
   account review below is yours, with your own realm authority.
-- **Removing a broker that reads while a live row names it.** Disable it here if it
-  must stop now, and let the tenant's own *Delete* retire the connection with its
-  broker; a remove is refused (`errors.connection`) while a live row names a broker
-  that reads. A broker that does *not* read is the exception, below.
+- **Removing a broker that reads, or one that is still enabled, while a live row names
+  it.** A remove is refused (`errors.connection`). Disable it here if it must stop now,
+  and let the tenant's own *Delete* retire the connection with its broker. The one
+  exception is a broker that does *not* read and is disabled: the tenant's own Delete
+  treats it as foreign and cannot, so nothing else can, and it is removed here.
 - **Repairing a broker.** There is no rewrite from the fixed profile on this surface.
-  The tenant's next readback corrects its own broker; an unreadable one is removed
-  here, because the tenant's own Delete treats it as foreign and cannot.
+  The tenant's next readback records a drifted broker's state on its own row and leaves
+  the broker as found; an unreadable one is disabled and then removed here.
 - **A broker whose tenant is archived or deleted with a live row.** That is
   [P03-10](../roadmap/phase-03-identity-admin.md)'s.
 - **A provider-side fence.** A tenant's create that lands after a sweep produces a new
@@ -119,14 +120,17 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | The broker is | Do |
 |---|---|
 | `orphan`, readable or not | **Remove** it |
-| `unreadable_owned`, with or without a live row | **Remove** it: the tenant's own Delete cannot reach a broker that does not read, so nothing else can. The tenant's row stays as it was and its next readback finds the broker absent, after which the tenant's own Delete completes. Disable it instead only if the loss of its federated links must wait |
-| `nonconforming` with a live row | **Disable** it if it is a risk now; the tenant's next readback corrects it, and until then the sign-in option fails closed. The tenant's own Delete can remove it, because it reads; a remove here is refused |
+| `unreadable_owned`, no live row | **Remove** it |
+| `unreadable_owned` with a live row, still `enabled` | **Disable** it first. "Unreadable" is a shape check of one read, and an unreadable broker can still be serving sign-ins, so a remove is refused (`errors.connection`). The disable is reversible in the provider's console |
+| `unreadable_owned` with a live row, `enabled` false | **Remove** it: the tenant's own Delete treats a broker that does not read as foreign and cannot reach it, so nothing else can. The provider proves again at the delete that it still does not read and is still disabled, or sends nothing (`errors.provider`). The tenant's row stays as it was and its next readback finds the broker absent, after which the tenant's own Delete completes |
+| `nonconforming` with a live row | **Disable** it if it is a risk now; the tenant's next readback records the drift on its row and leaves the broker as found. The tenant's own Delete can remove it, because it reads; a remove here is refused |
 | healthy with a live row | Neither: a disable is refused with `not_applicable` |
 
 A **remove** also deletes the broker's federated links, which is why [an account
-review](#account-review-after-a-remove) is owed. A **disable** changes only `enabled`
-at the provider and the tenant's own row is left to its next readback. Neither writes
-the tenant's connection row.
+review](#account-review-after-a-remove-or-a-disable) is owed. A **disable** changes
+only `enabled` at the provider and keeps the links, but people who sign in only
+through that broker cannot while it is disabled, so its review is smaller and is owed
+too. Neither writes the tenant's connection row.
 
 ## Act
 
@@ -143,7 +147,8 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/
 Use `.../disable` the same way.
 
 Each act proves the owner marker at the provider and reads the connection row (a live
-row refuses a remove at once and writes no tenant row). It then writes an **intent**
+row refuses the remove of a broker that reads or is still enabled at once, and writes
+no tenant row). It then writes an **intent**
 row; a remove reads the row again, as the last check before the delete. It changes the
 provider, reads it back, and writes a **completion** row on a bounded budget of its own,
 so a client that leaves while the provider works does not lose the record.
@@ -154,14 +159,14 @@ so a client that leaves while the provider works does not lose the record.
 | `200`, `outcome: already_applied` | The broker was already absent (remove) or already disabled (disable). Nothing was sent, and when it was so at the first read **no tenant row was written**; if it changed between that read and the provider call, the intent and completion rows exist and the completion says `already_applied` |
 | `404` | A disable named an alias no instance has |
 | `409`, `errors.owner` = `lockey_not_owned` | The instance's marker does not name a tenant and a connection of LearnStack's, or its row names another tenant. Nothing was touched |
-| `409`, `errors.connection` = `lockey_live_connection` | A live connection row names a broker that reads, so a remove is refused. Disable it if it must stop now, and the tenant deletes the connection |
+| `409`, `errors.connection` = `lockey_live_connection` | A live connection row names the broker and it reads or is still enabled, so a remove is refused. Disable it first; a broker that does not read is then removable, and one that reads is retired by the tenant's own Delete |
 | `409`, `errors.class` = `lockey_not_applicable` | A disable found a healthy owned broker with a live row |
-| `409`, `errors.provider` = `lockey_provider_refused` | The provider definitively refused the change. Nothing changed |
+| `409`, `errors.provider` = `lockey_provider_refused` | The provider definitively refused the change, or a remove that was let through for an unreadable, disabled broker found it reading or enabled again at the delete. Nothing changed |
 | `400` | The alias is not a derived one, or the body or the ticket is malformed. A refusal at the gate carries no per-field errors |
 | `401`, `403`, `413`, `415`, `429` | As in [operator recovery](operator-recovery.md#act): the credential, the grant (`platform.federation.admin` for an act), the body size or type, or the request budget |
-| `503`, `audit_unavailable` | The intent row could not be written or committed, or the completion of a change that did not happen could not be: nothing changed, though the intent row may stand alone. Retry after the delay; error line 7105 is in the API's log |
+| `503`, `audit_unavailable` | The scope's entry row (no intent row exists), or the intent row, could not be written or committed, or the completion of a change that did not happen could not be: nothing changed, though the intent row may stand alone. Retry after the delay; error line 7105 is in the API's log |
 | `503`, `dependency_unavailable` | The provider or the database could not be reached before any change was sent. Nothing changed. Retry after the delay |
-| `503`, `dependency_unavailable` with `errors.outcome` = `lockey_outcome_unknown` | A change was sent and its answer was lost, the request was aborted while it ran, or the completion that records it could not be written. It **may have landed**: see [An unknown outcome](#an-unknown-outcome) |
+| `503`, `dependency_unavailable` with `errors.outcome` = `lockey_outcome_unknown` | A change was sent and its answer was lost, the request was aborted while it ran, an unexpected failure followed it, or the completion that records it could not be written. It **may have landed**: see [An unknown outcome](#an-unknown-outcome). Warning 7110 in the API's log carries the failure |
 | `500` | An unexpected failure or a deployment defect (a refused credential, a missing grant): the API's log names it |
 
 A client that never received an answer (a timeout, a gateway error) is in the same
@@ -171,8 +176,10 @@ position as an unknown outcome.
 
 There is no provider-side fence, so reconcile by reading, in this order:
 
-1. Read the report again, or read the one alias. A remove that landed leaves no
-   instance with that alias; a disable that landed shows `enabled` false.
+1. Read the report again from the same cursor (there is no read of one alias), or
+   look at the instance in the provider's console. A remove that landed leaves no
+   instance with that alias, so a report no longer lists it; a disable that landed
+   shows `enabled` false.
 2. If it did not land, repeating the act is safe: it re-proves the marker and the row.
 3. To tell your act from another operator's, read the tenant's audit rows by the
    `correlationId` of the failed response, as in [Check it worked](#check-it-worked).
@@ -180,26 +187,34 @@ There is no provider-side fence, so reconcile by reading, in this order:
 A repeat of an act that had landed answers `already_applied` with `accountReviewOwed`
 false, and writes no row; that alone cannot say whose act it was, and it does not say a
 review is owed. **After an unknown remove that shows the broker gone, treat the account
-review as owed.** The record is the `remove_attempt` row, with no completion row or
-with an `uncertain` one.
+review as owed**, and after an unknown disable that shows `enabled` false, treat the
+smaller review (people who signed in only through it) as owed. The record is the
+`remove_attempt` or `disable_attempt` row, with no completion row or with an
+`uncertain` one.
 
-## Account review after a remove
+## Account review after a remove or a disable
 
 The provider deletes **the broker's federated links** with the broker and keeps the
 accounts. A person who signed in only through that provider still has an account, and
-has lost the way into it. LearnStack cannot list or repair these accounts, and
-Keycloak keeps link events for seven days only, so the review is a realm
-administrator's, in the provider's own console under their own authority:
+has lost the way into it. A disable keeps the links, and the same people cannot use
+them while the broker is disabled: review them the same way, and re-enable the broker
+in the provider's console if the disable was a mistake. LearnStack cannot list or
+repair these accounts, and Keycloak keeps link events for seven days only, so the
+review is a realm administrator's, in the provider's own console under their own
+authority:
 
 1. If the removal is not urgent, **note the linked users before you remove**: the
-   console lists a user's identity-provider links.
+   console lists a user's identity-provider links. For an unreadable, enabled broker
+   this is the time between the disable and the remove.
 2. After the remove, review the accounts that depended on it: whether each has another
    credential or sign-in route, and whether its sessions must be ended.
 3. Tell the tenant's owner. No owner notification channel exists before
    [Phase 08a](../roadmap/phase-08a-assessment-notifications.md), so this is by hand.
 
 An `accountReviewOwed` of `true` in the answer, and the same member in the completion
-row's `after_state`, are the reminder. Nothing in LearnStack closes the review.
+row's `after_state`, are the reminder for an applied or an uncertain act. A repeat of a
+landed act answers `already_applied` with `false`, so keep your own record. Nothing in
+LearnStack closes the review.
 
 ## Check it worked
 
@@ -261,7 +276,10 @@ a killswitch act does.
 ## Limits
 
 - **Pages are slices of the realm.** A realm with many instances takes many pages;
-  there is no filter by tenant, class or alias. A page whose instances are unusually
+  there is no filter by tenant, class or alias. The cursor is an offset into the
+  provider's list, and a remove shortens that list: **read a page again from the same
+  cursor after you act on it**, or sweep first and act afterwards, or an instance that
+  moved up is skipped. A page whose instances are unusually
   large (over 1 MiB together) is refused as unavailable: lower `limit`.
 - **The mapper reads are sequential.** Each costs a token and a call, so a page of many
   healthy brokers can run out of its ten seconds; `mappersUnread` says so.

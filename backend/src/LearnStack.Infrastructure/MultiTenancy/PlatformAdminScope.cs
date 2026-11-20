@@ -565,7 +565,7 @@ public sealed class PlatformAdminScope(
                 // effect must not start on an intent nobody can prove was recorded.
                 await _transaction.CommitAsync(cancellationToken);
             }
-            catch (Exception failure)
+            catch (Exception failure) when (failure is not (OutOfMemoryException or AccessViolationException))
             {
                 // Any failure of the commit, a connection already broken included, stops the effect: it must not start on
                 // an intent nobody can prove was recorded (ADR-0044 Amendment 18).

@@ -26,6 +26,6 @@ public static class OperatorRecoveryFaults
     /// A transient database fault, or one of the owner's own refusals: the lane is busy, the pool is exhausted or the
     /// store is sealed by an unconfirmed cleanup, each of which is an <see cref="InvalidOperationException"/>.
     /// </summary>
-    public static bool IsUnavailable(Exception failure, CancellationToken caller) =>
+    internal static bool IsUnavailable(Exception failure, CancellationToken caller) =>
         failure is InvalidOperationException || IsTransientDatabaseFault(failure, caller);
 }

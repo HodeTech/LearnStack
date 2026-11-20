@@ -122,7 +122,13 @@ public sealed partial class FederationProviderTests
             (await tenant.DeleteAsync(broken)).Should().Be(FederationProviderResult.Foreign);
             var stored = (await admin.GetAsync("identity-provider/instances/" + unmarked.Alias)).GetRawText();
 
-            (await op.RemoveAsync(broken)).Should().Be(FederationOperatorOutcome.Applied);
+            // The owner removes a broker a live row names only while it is unreadable and disabled, proved at the delete: this one
+            // is unreadable but still enabled, so the provider refuses and nothing is deleted. Disabled, it is removed.
+            (await op.RemoveAsync(broken, requireDisabledUnreadable: true)).Should().Be(FederationOperatorOutcome.Refused);
+            (await admin.GetAsync("identity-provider/instances/" + broken.Alias)).GetProperty("alias").GetString().Should().Be(broken.Alias);
+            (await op.DisableAsync(broken)).Should().Be(FederationOperatorOutcome.Applied);
+
+            (await op.RemoveAsync(broken, requireDisabledUnreadable: true)).Should().Be(FederationOperatorOutcome.Applied);
 
             (await admin.GetAsync("identity-provider/instances")).EnumerateArray()
                 .Select(instance => instance.GetProperty("alias").GetString()).Should().NotContain(broken.Alias);

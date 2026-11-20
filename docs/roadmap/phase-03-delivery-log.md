@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,075 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,138 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -524,6 +524,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 4 — review round 2 and its fixes (2026-11-20)](#p03-9-step-4--review-round-2-and-its-fixes-2026-11-20) — 39 lines
   - [P03-9 Step 5 — federation operator steps (2026-11-20)](#p03-9-step-5--federation-operator-steps-2026-11-20) — 71 lines
   - [P03-9 Step 5 — review round 1 and its fixes (2026-11-20)](#p03-9-step-5--review-round-1-and-its-fixes-2026-11-20) — 67 lines
+  - [P03-9 Step 5 — review round 2 and its fixes (2026-11-20)](#p03-9-step-5--review-round-2-and-its-fixes-2026-11-20) — 63 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25256,3 +25257,66 @@ Decided and not changed:
   `mappersUnread` bound the cost, and the runbook says so.
 - **The disable reads the row once.** Amendment 11 item 8 accepts the read-and-write
   interleave; the effect fails closed.
+
+### P03-9 Step 5 — review round 2 and its fixes (2026-11-20)
+
+Three further read-only reviews ran over the round 1 fix commit with different lenses:
+an adversarial analysis of the fixes and of the authority change they carry; contract
+and documentation truth after the round 1 edits; and test adequacy of the fixes with
+fresh eyes on the whole step. Each finding was verified against the code first.
+
+Fixed, with the proof that now catches each:
+
+- **The removal rule rested on a false premise.** Amendment 12 item 1 let the operator
+  remove an unreadable owned broker with a live row because it "already fails closed".
+  It does not: "unreadable" is the shape check of one read, a broker edited in the
+  provider's console can be unreadable and still serve sign-ins, and the tenant's
+  brokered publication does not depend on a provider read. The remove of a broker a
+  live row names now needs it to be unreadable **and disabled**, which the adapter
+  proves again at the delete and refuses to send otherwise. ADR-0099 Amendment 13
+  records it with inline errata beside the false premise and the wrong pointer. The
+  maintainer's choice to make the class removable stands; the rule that narrows it is
+  reported to the maintainer. Owner tests refuse each combination that reads or is
+  enabled and remove an unreadable, disabled one with the live row untouched; adapter
+  tests refuse a readable, an enabled and an unreadable-enabled broker without sending
+  a delete; the real provider refuses an enabled unreadable broker, accepts it once
+  disabled, and a mutation sweep kills the dropped conditions.
+- **A failure after the change could still say "nothing changed".** The owner tracks
+  whether a change may have landed. Any non-fatal failure after that point (the
+  provider call, the completion row, its commit, the handle's disposal, an unexpected
+  provider failure, a cancellation) is the unknown outcome with the failure kept as its
+  cause for warning 7110, and a completion that cannot be written is no longer swallowed
+  silently. The completion budget is injectable, so the owner tests cut a hung write in
+  two hundred milliseconds and otherwise run on a generous one. Tests fail the commit
+  with a connection fault, a closed transaction and a timeout, hang the write, fail the
+  disposal, throw from the provider after the send, abort the caller during a disable,
+  and have the provider find the broker already gone.
+- **A wider intent-commit catch.** It excludes the fatal exceptions, and a test closes
+  the connection between the intent row and its commit.
+- **Public surface.** Only the transient-fault classifier of the recovery fault helper
+  is public.
+- **Record against behaviour.** The runbook's live-row exception, the review a disable
+  owes, the read of one alias that does not exist, the entry-row audit failure, the
+  paging that shifts when a remove shortens the provider's list, the refusal table of
+  operator access, the Standard 05 sentence that said the table is granted to the
+  application role only, the glossary, and the served contract (a description of the
+  report and its unread count, the removal rule, the federation runbook, a pinned
+  document test) are corrected. Three lines over eighty-eight columns are reflowed.
+- **Test gaps.** The composition tests resolve the operator's port closed without the
+  secret and as its own adapter with its own pipeline with it; the tokenizer behind the
+  pinned listing query also refuses a query built through a builder or a property; the
+  `not_found` body, the already-applied-after-intent case, the unread count of the
+  first report test and the listing that runs out of time are asserted.
+
+Decided and not changed:
+
+- **A completion lost after a certainly applied change answers `503`
+  `outcome_unknown`,** not a `200` with a marker: the record is the one thing known to
+  be missing, and the runbook says a repeat answers `already_applied` with no review
+  owed, so the operator keeps their own record.
+- **An unknown enum member in the route throws.** It is a defect to see (a `500`, which
+  the contract says may follow a landed act), and every member is covered today.
+- **The budget's disposal is not bounded** after a failed commit; Npgsql's own command
+  timeout applies, and no test showed a hang.
+- **Offset paging.** The cursor stays an offset; the runbook says to read a page again
+  after acting on it.

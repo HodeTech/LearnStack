@@ -276,7 +276,7 @@ internal static partial class PlatformOperatorEndpoints
         LoggerMessage.Define<string, bool>(
             LogLevel.Warning,
             new EventId(7110, nameof(LogRecoveryUnavailable)),
-            "An operator recovery owner was unavailable for {Operation}; the commit's outcome unknown: {CommitOutcomeUnknown}.");
+            "An operator owner (recovery, inspection or federation) was unavailable for {Operation}; the outcome unknown: {CommitOutcomeUnknown}.");
 
     /// <summary>
     /// A 503 whose cause the operator can find: the fault is logged, and the response names only whether the commit's

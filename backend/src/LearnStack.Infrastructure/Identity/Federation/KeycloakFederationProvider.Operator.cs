@@ -89,7 +89,8 @@ internal sealed partial class KeycloakFederationProvider
     }
 
     /// <inheritdoc />
-    public async Task<FederationOperatorOutcome> RemoveAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default)
+    public async Task<FederationOperatorOutcome> RemoveAsync(
+        FederationBrokerOwner owner, bool requireDisabledUnreadable = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(owner);
         var sent = false;
@@ -100,6 +101,9 @@ internal sealed partial class KeycloakFederationProvider
             {
                 if (probe.Kind == Probe.Absent) return FederationOperatorOutcome.AlreadyApplied;
                 if (probe.Kind == Probe.NotOwned || !Names(probe.Facts!.Owner, owner)) return FederationOperatorOutcome.NotOwned;
+                // The owner removes a broker a live row still names only while it does not read and is disabled: proved
+                // again here, at the delete, and not trusted from an inspection that may be seconds old.
+                if (requireDisabledUnreadable && (probe.Facts.Readable || probe.Facts.Enabled)) return FederationOperatorOutcome.Refused;
             }
             finally { probe.Zero(); }
 

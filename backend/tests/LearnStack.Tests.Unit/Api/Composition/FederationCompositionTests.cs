@@ -38,6 +38,42 @@ public sealed class FederationCompositionTests
     }
 
     [Fact]
+    public async Task Without_the_admin_secret_the_operator_port_is_closed_and_answers_nothing_it_could_act_on()
+    {
+        await using var provider = Build(new Dictionary<string, string?>());
+        var operations = provider.GetRequiredService<IFederationOperator>();
+        var connection = Guid.CreateVersion7();
+        var owner = new FederationBrokerOwner(
+            LearnStack.SharedKernel.Identifiers.TenantId.From(Guid.CreateVersion7()), connection, "lsf-" + connection.ToString("N"));
+
+        operations.Should().BeOfType<UnconfiguredFederationOperator>();
+        (await operations.ListAsync(0, 5)).Status.Should().Be(FederationOperatorStatus.Unavailable);
+        (await operations.InspectAsync(owner.Alias)).Status.Should().Be(FederationInspectionStatus.Unavailable);
+        (await operations.CountMappersAsync(owner)).Should().BeNull();
+        (await operations.RemoveAsync(owner)).Should().Be(FederationOperatorOutcome.Unavailable);
+        (await operations.DisableAsync(owner)).Should().Be(FederationOperatorOutcome.Unavailable);
+    }
+
+    [Fact]
+    public async Task With_the_admin_secret_the_operator_is_its_own_adapter_instance_with_its_own_resilience_pipeline()
+    {
+        await using var provider = Build(new Dictionary<string, string?>
+        {
+            ["Federation:ClientSecret"] = "federation-admin-secret",
+            ["Authentication:Tenant:Issuer"] = "https://keycloak.example.com/realms/learnstack",
+        });
+
+        var operations = provider.GetRequiredService<IFederationOperator>();
+        var tenant = provider.GetRequiredService<IFederationProvider>();
+
+        operations.GetType().Name.Should().Be("KeycloakFederationProvider");
+        operations.Should().NotBeSameAs(tenant, "a sweep must not share the tenant calls' bulkhead and breaker");
+        var operatorPipeline = provider.GetRequiredService<LearnStack.SharedKernel.Resilience.IProviderResilience<IFederationOperator>>();
+        var tenantPipeline = provider.GetRequiredService<LearnStack.SharedKernel.Resilience.IProviderResilience<IFederationProvider>>();
+        operatorPipeline.Pipeline.Should().NotBeSameAs(tenantPipeline.Pipeline);
+    }
+
+    [Fact]
     public void Plain_http_issuer_is_admitted_only_for_development_loopback()
     {
         var configuration = new Dictionary<string, string?>
@@ -140,6 +176,8 @@ public sealed class FederationCompositionTests
         // The module's defaults are registered first, exactly as the Identity foundation does.
         services.TryAddSingleton<IFederationProvider, UnconfiguredFederationProvider>();
         services.TryAddSingleton<IFederationEgressFetcher, UnconfiguredFederationEgressFetcher>();
+        // The operator's port has its own fail-closed default, registered by the Identity foundation the same way.
+        services.TryAddSingleton<IFederationOperator, UnconfiguredFederationOperator>();
         services.AddLearnStackFederationAdapter(configuration);
         return services.BuildServiceProvider(validateScopes: true);
     }

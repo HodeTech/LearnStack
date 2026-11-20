@@ -63,15 +63,25 @@ public sealed partial class FederationAdapterConventionTests
             ["?first=", "&max=", "&briefRepresentation=false"]);
         adapter.Where(source => source.Key != RoutesSource).SelectMany(source => QueryLiterals(source.Value)).Should().BeEmpty(
             "Fix: a provider query string is built in KeycloakFederationRoutes alone");
+        // A query built without a literal that holds a separator (a builder, a helper, a property) is not a literal to find.
+        adapter.Where(source => QueryBuilders(source.Value)).Select(source => source.Key).Should().BeEmpty(
+            "Fix: no query is composed through UriBuilder, QueryHelpers or a Query property in the adapter");
     }
 
     [Fact]
     public void The_query_detector_sees_a_planted_fragment()
     {
+        QueryBuilders("var u = new UriBuilder(uri) { Query = \"search=\" + term };").Should().BeTrue();
+        QueryBuilders("var u = QueryHelpers.AddQueryString(path, \"search\", term);").Should().BeTrue();
+        QueryBuilders("builder.Query = x;").Should().BeTrue();
+        QueryBuilders("var clean = new Uri(options.AdminRealm, \"identity-provider/instances\");").Should().BeFalse();
         QueryLiterals("var uri = \"identity-provider/instances?search=\" + term; var x = \"&briefRepresentation=false\";")
             .Should().Equal(["identity-provider/instances?search=", "&briefRepresentation=false"]);
         QueryLiterals("var clean = \"identity-provider/instances\";").Should().BeEmpty();
     }
+
+    private static bool QueryBuilders(string source) =>
+        Regex.IsMatch(source, @"\bUriBuilder\b|\bAddQueryString\b|\bQueryHelpers\b|\.Query\s*=");
 
     /// <summary>The string literals of a source that hold a query separator, with whole-line comments set aside first.</summary>
     private static List<string> QueryLiterals(string source) =>

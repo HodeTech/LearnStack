@@ -43,15 +43,22 @@ internal static partial class PlatformOperatorEndpoints
         DescribeInspection(
             group.MapGet(FederationPrefix, ReportFederationAsync)
                 .WithName("PlatformFederationReport")
-                .WithSummary("Report identity-provider brokers that are orphaned, unreadable or nonconforming; the realm is read first, then the rows."),
+                .WithSummary("Report identity-provider brokers that are orphaned, unreadable or nonconforming; the realm is read first, then the rows.")
+                .WithDescription(
+                    "One page of the provider's own listing, in the provider's order: items holds the brokers on that slice that need "
+                    + "an operator, so an empty items with a nextCursor is not the end. mappersUnread counts the healthy-looking live "
+                    + "brokers whose mappers could not be read (the provider failed or the page's time ran out): they are unknown, not "
+                    + "clean, and no item names them. scanned and ignored count the instances the provider returned and the ones that "
+                    + "are not LearnStack's. A ticket is checked and recorded only on the platform scope's entry row."),
             typeof(FederationReportResponse));
         Describe(
             group.MapPost(FederationPrefix + "/{alias}/remove", RemoveFederationAsync)
                 .WithName("PlatformFederationRemove")
                 .WithSummary("Remove an orphaned or unreadable owned broker at the provider; the provider deletes its federated links.")
                 .WithDescription(
-                    "Refused while a live connection row names a broker that reads; an unreadable owned broker is removed even "
-                    + "with a live row, because nothing else can. An absent broker is already removed. The tenant's "
+                    "Refused while a live connection row names the broker and it reads or is still enabled; an unreadable owned "
+                    + "broker that is disabled is removed even with a live row, because nothing else can. An absent broker is "
+                    + "already removed. The tenant's "
                     + "intent and completion rows are written around the provider call; the delegated-account review is the "
                     + "operator's, by runbook. A ticket is checked and recorded only on the platform scope's entry row, never "
                     + "on a tenant's row."),
@@ -169,7 +176,7 @@ internal static partial class PlatformOperatorEndpoints
                 FederationActOutcome.Refused => ResultProblem(http, Rule("provider", "lockey_provider_refused")),
                 FederationActOutcome.Unavailable => UnavailableProblem(http, loggers, operation, new OperatorRecoveryUnavailableException()),
                 FederationActOutcome.Uncertain => UnavailableProblem(
-                    http, loggers, operation, new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true)),
+                    http, loggers, operation, new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, cause: result.Cause)),
                 _ => throw new InvalidOperationException("A federation outcome the route does not answer."),
             };
         }

@@ -617,6 +617,40 @@ public sealed class KeycloakFederationProviderTests
             .NotContain(TenantSecret).And.NotContain(AdminSecret).And.NotContain("Acme").And.NotContain("idp.example.com");
     }
 
+    [Theory]
+    [InlineData("readable_disabled", false, false)]
+    [InlineData("unreadable_enabled", true, true)]
+    [InlineData("readable_enabled", false, true)]
+    public async Task A_remove_that_requires_an_unreadable_disabled_broker_proves_it_again_at_the_delete_and_sends_nothing_otherwise(
+        string kind, bool unreadable, bool enabled)
+    {
+        var owner = OwnerOf();
+        var provider = new FakeKeycloak();
+        provider.Brokers[owner.Alias] = unreadable ? Unreadable(owner, enabled) : Stored(owner, enabled);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(owner, requireDisabledUnreadable: true)).Should().Be(FederationOperatorOutcome.Refused, kind);
+
+        provider.Requests.Should().NotContain(request => request.Method == "DELETE");
+        provider.Brokers.Should().ContainKey(owner.Alias);
+    }
+
+    [Fact]
+    public async Task A_remove_that_requires_an_unreadable_disabled_broker_deletes_one_and_an_unrequired_remove_deletes_any_owned_broker()
+    {
+        var gone = OwnerOf();
+        var healthy = OwnerOf();
+        var provider = new FakeKeycloak();
+        provider.Brokers[gone.Alias] = Unreadable(gone, enabled: false);
+        provider.Brokers[healthy.Alias] = Stored(healthy, enabled: true);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(gone, requireDisabledUnreadable: true)).Should().Be(FederationOperatorOutcome.Applied);
+        (await adapter.RemoveAsync(healthy)).Should().Be(FederationOperatorOutcome.Applied, "an orphan needs no live-row proof");
+
+        provider.Brokers.Should().BeEmpty();
+    }
+
     [Fact]
     public void The_operator_ports_result_types_can_carry_no_secret_or_provider_text_because_they_declare_no_member_that_could()
     {

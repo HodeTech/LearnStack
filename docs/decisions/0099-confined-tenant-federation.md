@@ -1188,6 +1188,10 @@ realm users.
    > (Amendment 9 item 5), the runner fails the Delete with an owner mismatch, and the
    > row stays live. An unreadable owned broker with a live row therefore had no
    > removal path at all.
+   >
+   > **Correction (2026-11-20, Amendment 13 item 3).** The rule that the tenant adapter
+   > reports a broker foreign when its marker matches and it no longer reads is
+   > Amendment 5 item 5. Amendment 9 item 5 is the readable nonconforming broker.
 6. **Disable sends back what the provider returned.** An unreadable owned broker cannot
    be rebuilt from the fixed profile, so the operator disable is the one provider write
    that does not build its body from the allow-list: it reads the instance, proves the
@@ -1229,6 +1233,11 @@ state, without changing Amendment 10's choice of option, what the implementation
    never writes the tenant's row. The rows record the live state found, and the account
    review is owed as for any remove. Amendment 10 item 3 and Amendment 11 item 5 are
    read accordingly, and a readable nonconforming broker is still disabled, not removed.
+
+   > **Erratum (2026-11-20, Amendment 13 item 1).** "It already fails closed" is not
+   > supported: an unreadable broker can still be enabled and serving, so the removal
+   > needs it disabled first. The pointer "Amendment 9 item 5" is Amendment 5 item 5
+   > (Amendment 13 item 3).
 2. **An unread mapper count is a page counter.** Amendment 11 item 4 reports an unread
    count "unknown, never zero". A broker whose only possible class is an extra mapper
    has no other class to carry the unknown, so the page carries it: `mappersUnread`
@@ -1259,3 +1268,39 @@ state, without changing Amendment 10's choice of option, what the implementation
 The Decision, Status, Date and prior amendments of this record are unchanged, except
 for the inline erratum beside Amendment 11 item 5 that item 1 records. Acceptance of
 the linked records is not proof that anything they decide is implemented.
+
+### Amendment 13 — Federation operator steps: review round 2 corrections (2026-11-20)
+
+The second review round of Step 5 found that Amendment 12 item 1 rests on a premise the
+code does not support, and three places where the behaviour or the record said less
+than it should. The maintainer chose the removal in Amendment 12 item 1; item 1 below
+narrows how it is done and is reported to the maintainer.
+
+1. **An unreadable owned broker is removed with a live row only after it is disabled.**
+   Amendment 12 item 1 said such a broker "already fails closed". It does not:
+   "unreadable" is the shape check of one read, a broker edited in the provider's
+   console can be unreadable and still serve sign-ins, and the tenant's brokered
+   publication does not depend on a provider read. A remove of a broker a live row
+   still names therefore needs it to read as unreadable **and** to be disabled. An
+   unreadable broker that is still enabled is refused (`errors.connection`): the
+   operator disables it, which is reversible, and removes it after. The adapter proves
+   both conditions again when the delete is about to be sent and sends nothing
+   otherwise (`refused`), so an inspection seconds old is not trusted. Amendment 12
+   item 1 is read accordingly, and the tenant's row is still never written.
+2. **A failure after a change is the unknown outcome, with its cause.** Any non-fatal
+   failure after a provider change landed or may have (the provider call itself, the
+   completion row, its commit, the handle's disposal) answers `503`
+   `dependency_unavailable` with the reason `outcome_unknown`, and the failure goes to
+   the route's log (event 7110) and never into a response. An unexpected provider
+   failure or a cancellation is recorded `uncertain` and still completed. Before any
+   change, a transient database fault is the plain `503` and anything else is the
+   defect it is. Amendment 12 item 3 is read accordingly.
+3. **Pointers.** The rule that the tenant adapter reports a broker foreign when its
+   marker matches and it no longer reads is Amendment 5 item 5, and Amendment 9 item 5
+   is the readable nonconforming broker. The erratum beside Amendment 11 item 5 and
+   Amendment 12 item 1 carry inline corrections.
+
+The Decision, Status, Date and prior amendments of this record are unchanged, except for
+the inline errata beside Amendment 10 item 6 (recorded by Amendment 11), Amendment 11
+item 5 and Amendment 12 item 1 (recorded by Amendments 12 and 13). Acceptance of the
+linked records is not proof that anything they decide is implemented.

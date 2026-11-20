@@ -173,10 +173,10 @@ LearnStack runs **two Keycloak realms** per
   [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md)), each behind
   an entry row and a per-act admission. The federation acts reach the identity provider
   only through the confined admin client and its operator port, after an intent row the
-  scope handle commits, and never read or remove a realm user. The executor that installs an
-  act's tenant context accepts only an admission the gate minted for that act within the
-  last 30 seconds and spends it once, and the seeder refuses to run outside a
-  Development deployment. The controlled issuer rebind
+  scope handle commits, and never read or remove a realm user. The executor that
+  installs an act's tenant context accepts only an admission the gate minted for that
+  act within the last 30 seconds and spends it once, and the seeder refuses to run
+  outside a Development deployment. The controlled issuer rebind
   ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md)) is not an HTTP route at
   all: an offline tool validates the same operator token with the same validator, admits
   the act against the same per-act grant (`platform.identity_authority.admin`) and then

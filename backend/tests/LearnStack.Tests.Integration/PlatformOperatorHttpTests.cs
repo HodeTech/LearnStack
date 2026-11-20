@@ -444,6 +444,26 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_Served_Contract_Documents_The_Federation_Report_Its_Unread_Count_And_The_Removal_Rule()
+    {
+        using var document = JsonDocument.Parse(await _client.GetStringAsync("/openapi/platform-v1.json"));
+        var paths = document.RootElement.GetProperty("paths");
+
+        var report = paths.GetProperty("/api/platform/v1/federation/brokers").GetProperty("get");
+        report.GetProperty("description").GetString().Should().Contain("mappersUnread").And.Contain("not the end");
+        var schema = document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("FederationReportResponse");
+        schema.GetProperty("properties").TryGetProperty("mappersUnread", out var unread).Should().BeTrue();
+        unread.GetProperty("type").ToString().Should().Contain("integer");
+        schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()).Should().Contain("mappersUnread");
+
+        var remove = paths.GetProperty("/api/platform/v1/federation/brokers/{alias}/remove").GetProperty("post");
+        remove.GetProperty("description").GetString().Should().Contain("reads or is still enabled").And.Contain("disabled");
+        document.RootElement.GetProperty("info").GetProperty("description").GetString().Should().Contain("federation-operator.md");
+        var conflict = remove.GetProperty("responses").GetProperty("409").GetProperty("description").GetString();
+        conflict.Should().Contain("errors.owner").And.Contain("errors.connection").And.Contain("errors.class").And.Contain("errors.provider");
+    }
+
+    [Fact]
     public async Task The_Operator_Contract_Is_Its_Own_Document_And_The_Tenant_Document_Does_Not_Carry_It()
     {
         var operatorDocument = await _client.GetStringAsync("/openapi/platform-v1.json");
@@ -769,8 +789,13 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/disable", Valid(), "{}");
 
         response.StatusCode.Should().Be(status);
-        if (token is null) return;
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        if (token is null)
+        {
+            body.RootElement.GetProperty("code").GetString().Should().Be("not_found");
+            return;
+        }
+
         (body.RootElement.GetProperty("outcome").GetString(), body.RootElement.GetProperty("accountReviewOwed").GetBoolean()).Should().Be((token, owed));
     }
 
