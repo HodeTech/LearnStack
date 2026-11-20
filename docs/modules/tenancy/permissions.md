@@ -111,7 +111,7 @@ authority. Their named Phase 02c/P03-9 surfaces retain separate admission decisi
 the widening it needs is an ADR's to make, not a migration's.
 
 The Platform catalogue ([ADR-0101](../../decisions/0101-platform-operator-authority.md))
-is separate and never assignable to a Role. Tenancy owns four keys in it today.
+is separate and never assignable to a Role. Tenancy owns six keys in it today.
 `platform.killswitch.write` authorizes the operator surface to toggle
 `platform_killswitches`. `platform.tenant.write` authorizes the operator's production
 tenant provisioning and host mapping
@@ -126,8 +126,16 @@ asynchronous work and its two fenced recovery transitions
 ([ADR-0103](../../decisions/0103-operator-recovery-of-asynchronous-work.md)): they run in
 the platform scope and on the dispatcher's outbox role, not through the pipeline, and
 write the off-path slugs `platform.delivery.inspect`, `platform.delivery.replay` and
-`platform.delivery.reset` in [Tenancy's audit matrix](audit.md). Operators hold the keys
-by configuration ([Standard 19](../../standards/19-permissions.md)).
+`platform.delivery.reset` in [Tenancy's audit matrix](audit.md).
+`platform.federation.read` and `platform.federation.admin` authorize the operator's
+report of orphaned, unreadable and nonconforming identity-provider brokers and its
+remove and disable of one
+([ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md),
+[runbook](../../runbooks/federation-operator.md)): they run in the platform scope, not
+through the pipeline, and write the off-path slugs `platform.federation.report`,
+`platform.federation.remove_attempt`, `platform.federation.remove`,
+`platform.federation.disable_attempt` and `platform.federation.disable`. Operators hold
+the keys by configuration ([Standard 19](../../standards/19-permissions.md)).
 
 ## Bounded human administration contract
 

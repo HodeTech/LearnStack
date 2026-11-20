@@ -131,14 +131,27 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             .DeclareOffPath(
                 "platform.job.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             // The three operator recovery operations of ADR-0103: an inspection is audited by the platform scope's
-            // entry row, which names this slug as its operation, and the two transitions write their own MUST row
-            // on the outbox-role transaction that makes the change.
+            // entry row, whose reason is this slug's, and the two transitions write their own MUST row on the
+            // outbox-role transaction that makes the change.
             .DeclareOffPath(
                 "platform.delivery.inspect", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.delivery.replay", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.delivery.reset", OperationType.SecurityEvent, OperationClass.Must)
+            // The three operator federation operations of ADR-0099 Amendment 10. A report is audited by the platform
+            // scope's entry row; a remove and a disable write an intent row on their attempt slug at the scope
+            // handle's checkpoint and a completion row on their own slug (Amendment 11), under the real tenant.
+            .DeclareOffPath(
+                "platform.federation.report", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.remove", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.remove_attempt", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.disable", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.disable_attempt", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(

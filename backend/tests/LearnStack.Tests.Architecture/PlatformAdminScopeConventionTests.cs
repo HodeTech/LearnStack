@@ -263,6 +263,7 @@ public sealed partial class PlatformAdminScopeConventionTests
                     CompositionFile,
                     KillswitchWriterFile,
                     DeliveryInspectionFile,
+                    FederationOperationsFile,
                 ],
                 "each new operator service is added here deliberately, with its denied proof");
     }
@@ -309,6 +310,37 @@ public sealed partial class PlatformAdminScopeConventionTests
                 ],
                 "each new caller of the inspection is added here deliberately, with its denied proof");
     }
+
+    [Fact]
+    public void Only_The_Federation_Routes_And_Their_Owner_Name_The_Federation_Operator_Ports()
+    {
+        // ADR-0099 Amendment 10: the report, the remove and the disable are reachable from the federation routes alone,
+        // through the one owner, and the operator's provider port is held by that owner and the adapter that implements
+        // it. The tenant runner holds neither, so the rule that the tenant's provider port is the runner's alone stands.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IFederationBrokerOperations", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.SharedKernel/Platform/IFederationBrokerOperations.cs",
+                    FederationOperationsFile,
+                    "LearnStack.Api/Composition/PersistenceCompositionExtensions.cs",
+                    "LearnStack.Api/Platform/PlatformOperatorEndpoints.Federation.cs",
+                ],
+                "each new caller of a federation operator act is added here deliberately, with its denied proof");
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IFederationOperator", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.SharedKernel/Identity/IFederationOperator.cs",
+                    FederationOperationsFile,
+                    "LearnStack.Infrastructure/Identity/Federation/KeycloakFederationProvider.cs",
+                    "LearnStack.Infrastructure/Identity/Federation/FederationAdapterFactory.cs",
+                    "LearnStack.Api/Composition/FederationComposition.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Bindings/IdentityFoundationRegistration.cs",
+                ],
+                "the operator's provider port is held by the owner, its adapter and the composition that selects it");
+    }
+
+    private const string FederationOperationsFile =
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Federation/FederationBrokerOperations.cs";
 
     private const string KillswitchWriterFile =
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchToggle.cs";

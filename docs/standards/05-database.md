@@ -1100,7 +1100,7 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
 | `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
 | `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
-| `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | — | — |
+| `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | — | `SELECT` of `id`, `tenant_id`, `state` and `deleted_at` only ([ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 11); exact [projection grant](#federation-operator-projection) |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -6265,6 +6265,26 @@ columns:
 - Every refusal condition is evaluated as `(condition) IS NOT FALSE`, so a condition
   that is NULL because a nullable pending or test column is NULL refuses: the guard
   fails closed.
+
+### Federation operator projection
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment
+10 item 5 and Amendment 11 item 2. The operator's report asks one question of the
+registry, whether a broker the realm lists still has a live row, and reads it as
+`learnstack_platform` through four columns, which the platform role's `BYPASSRLS`
+makes readable across tenants and the grant alone bounds:
+
+```sql
+GRANT SELECT (id, tenant_id, state, deleted_at) ON public.federation_connections TO learnstack_platform;
+```
+
+The platform role receives no other privilege on the table: a statement that names the
+alias, display name, issuer, client identifier, configuration digest or any other column
+is refused by PostgreSQL, and so is every write. The grant is a forward-only migration
+of the Identity chain, because the table is created there after the Platform chain has
+run. The reader is the one statement of the operator's owner, which sees tombstones
+and reads by primary key; the architecture census pins it whole, and tests read the granted
+columns, refuse every other, and read two tenants' rows through the role.
 
 ### Federation host-alias read
 

@@ -167,8 +167,13 @@ LearnStack runs **two Keycloak realms** per
   mTLS client certificate; and the platform operator prefix accepts operator tokens of
   its pinned issuer only, for its own audience. The operator's onboarding acts
   ([ADR-0102](../decisions/0102-production-tenant-onboarding.md)) run on the application
-  role, under row security, through the ordinary pipeline; the one `BYPASSRLS` use of
-  the operator surface remains the killswitch writer. The executor that installs an
+  role, under row security, through the ordinary pipeline; the `BYPASSRLS` uses of the
+  operator surface are the platform scope's callers (the killswitch writer, the recovery
+  inspections and the federation report, remove and disable of
+  [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md)), each behind
+  an entry row and a per-act admission. The federation acts reach the identity provider
+  only through the confined admin client and its operator port, after an intent row the
+  scope handle commits, and never read or remove a realm user. The executor that installs an
   act's tenant context accepts only an admission the gate minted for that act within the
   last 30 seconds and spends it once, and the seeder refuses to run outside a
   Development deployment. The controlled issuer rebind

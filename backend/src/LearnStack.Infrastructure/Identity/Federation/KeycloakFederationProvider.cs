@@ -16,10 +16,12 @@ namespace LearnStack.Infrastructure.Identity.Federation;
 /// client-credentials token per operation, and calls only <see cref="KeycloakFederationRoutes"/>: create for an absent
 /// owned alias, read, full-state replace and delete of that alias, and its mapper list. Every read or write first proves
 /// the provider object's owner marker names this tenant and connection; a foreign or unreadable object is never touched.
+/// The same class implements the operator port (ADR-0099 Amendment 10): one instance serves the tenant runner and
+/// another, built with its own resilience pipeline, serves the operator, so a sweep cannot starve a tenant's calls.
 /// The client secret is written, never read back, and never returned. Provider responses, messages and exceptions stay
 /// inside this namespace: the port sees closed statuses only.
 /// </summary>
-internal sealed class KeycloakFederationProvider : IFederationProvider, IDisposable
+internal sealed partial class KeycloakFederationProvider : IFederationProvider, IFederationOperator, IDisposable
 {
     internal const string SecretKey = "Federation:ClientSecret";
     private const int TokenLimit = 16 * 1024;
@@ -29,7 +31,7 @@ internal sealed class KeycloakFederationProvider : IFederationProvider, IDisposa
 
     private readonly KeycloakFederationOptions _options;
     private readonly ISecretProvider _secrets;
-    private readonly IProviderResilience<IFederationProvider> _resilience;
+    private readonly ResiliencePipeline _pipeline;
     private readonly HttpClient _client;
 
     internal KeycloakFederationProvider(KeycloakFederationOptions options, ISecretProvider secrets, IProviderResilience<IFederationProvider> resilience)
@@ -38,10 +40,22 @@ internal sealed class KeycloakFederationProvider : IFederationProvider, IDisposa
     /// <summary>Controlled transports are a test seam, never a certificate bypass: a supplied sockets handler is hardened.</summary>
     internal KeycloakFederationProvider(KeycloakFederationOptions options, ISecretProvider secrets, IProviderResilience<IFederationProvider> resilience,
         HttpMessageHandler handler)
+        : this(options, secrets, (resilience ?? throw new ArgumentNullException(nameof(resilience))).Pipeline, handler) { }
+
+    /// <summary>The operator's adapter: the same client and routes under its own bulkhead and breaker.</summary>
+    internal KeycloakFederationProvider(KeycloakFederationOptions options, ISecretProvider secrets, IProviderResilience<IFederationOperator> resilience)
+        : this(options, secrets, resilience, new SocketsHttpHandler()) { }
+
+    internal KeycloakFederationProvider(KeycloakFederationOptions options, ISecretProvider secrets, IProviderResilience<IFederationOperator> resilience,
+        HttpMessageHandler handler)
+        : this(options, secrets, (resilience ?? throw new ArgumentNullException(nameof(resilience))).Pipeline, handler) { }
+
+    private KeycloakFederationProvider(KeycloakFederationOptions options, ISecretProvider secrets, ResiliencePipeline pipeline,
+        HttpMessageHandler handler)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _secrets = secrets ?? throw new ArgumentNullException(nameof(secrets));
-        _resilience = resilience ?? throw new ArgumentNullException(nameof(resilience));
+        _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         ArgumentNullException.ThrowIfNull(handler);
         if (handler is SocketsHttpHandler sockets)
         {
@@ -176,7 +190,7 @@ internal sealed class KeycloakFederationProvider : IFederationProvider, IDisposa
         ceiling.CancelAfter(CallCeiling);
         try
         {
-            return await _resilience.Pipeline.ExecuteAsync(async token =>
+            return await _pipeline.ExecuteAsync(async token =>
             {
                 var bearer = await TokenAsync(secret!, token).ConfigureAwait(false);
                 return await operation(bearer, token).ConfigureAwait(false);

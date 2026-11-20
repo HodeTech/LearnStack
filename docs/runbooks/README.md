@@ -13,3 +13,4 @@ begins this directory with the platform operator runbooks;
 | [Tenant onboarding](tenant-onboarding.md) | A production tenant must be provisioned, mapped to a host and given its first administrator, or an administrator must be recovered |
 | [Identity issuer rebind](identity-issuer-rebind.md) | The tenant identity provider keeps its realm and users but changes address, and the stored issuer must follow without re-keying anyone |
 | [Operator recovery](operator-recovery.md) | An event or delivery is dead-lettered, a job is quarantined, and an operator must inspect it or reset one delivery or outbox row under a fence |
+| [Federation operator](federation-operator.md) | A tenant's identity-provider broker is orphaned, unreadable or nonconforming, and an operator must report it, remove it or disable it, and an account review is owed |

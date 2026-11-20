@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**389 test methods run in
+**390 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**292 rules in this catalogue are Implemented, and 174 of them are in that assembly.**
+**293 rules in this catalogue are Implemented, and 175 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -3788,12 +3788,13 @@ which decides identity, multiplicity, capture and classification;
   `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
   it must catch and the shapes it must not, because with no offending statement anywhere
   the sweep passes whether it works or matches nothing; and a reflection check,
-  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly fourteen
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly fifteen
   write methods and no update: the event/job seams ship in Phase 02b, ADR-0072's two
   global seams in P03-1 Step 3, the two trusted authorization seams in P03-2, the
   operator result seam of ADR-0101 in P03-9 Step 1, the two controlled-rebind seams
-  of ADR-0104 in P03-9 Step 3 and the operator recovery seam of ADR-0103 in P03-9
-  Step 4. None
+  of ADR-0104 in P03-9 Step 3, the operator recovery seam of ADR-0103 in P03-9
+  Step 4 and the platform scope's intent seam of ADR-0044 Amendment 18 in P03-9
+  Step 5. None
   of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
   11 — so the exemption set ships with the rule **empty**, as exact paths: the first
   site to land adds its own path, so it is exempted by name rather than the pattern
@@ -6040,6 +6041,24 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 4).
 - **Phase:** P03-9.
 
+#### `Only_The_Federation_Routes_And_Their_Owner_Name_The_Federation_Operator_Ports`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `IFederationBrokerOperations` are exactly the port, its one owner, the persistence
+  composition and the federation routes, and the files that name `IFederationOperator`
+  are exactly the port, the owner, the adapter that implements it, its factory, the
+  federation composition and the Identity foundation registration that gives it a
+  fail-closed default. The tenant runner is in neither list. Adding a caller is a
+  deliberate edit here, with its denied proof.
+- **Why it matters:** the removal and the disable change the realm's identity providers
+  for every tenant, and the tenant's provider port is held by the runner alone; a second
+  holder of the operator port, or a handler that reached the owner, would make a
+  cross-tenant provider change from a path the operator gate does not guard.
+- **Source:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 10.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 5).
+- **Phase:** P03-9.
+
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
 - **Asserts:** the files, by their path under `backend/src`, that name
@@ -7823,9 +7842,12 @@ sign-in read). The
 
 #### `Federation_Adapter_Admits_Only_The_Enumerated_Routes`
 
-- **Asserts:** `KeycloakFederationRoutes` builds exactly four routes (token, the
-  identity-provider collection, one owned instance and its mappers), and no string
-  literal in the adapter namespace names another Admin, identity-provider,
+- **Asserts:** `KeycloakFederationRoutes` builds exactly six routes (token, the
+  identity-provider collection, one bounded page of that collection, one owned instance,
+  one instance by a derived alias and its mappers; the page and the by-alias read serve
+  the operator of
+  [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md)), and no
+  string literal in the adapter namespace names another Admin, identity-provider,
   authentication, user, client or role path. The unit test
   `KeycloakFederationProviderTests.Every_admitted_request_targets_the_enumerated_routes_only`
   checks the same set behaviourally against a scripted provider.

@@ -769,6 +769,47 @@ entered on the re-authentication form.
   with unchanged provenance
   ([Security § Federation host binding](../../standards/11-security.md#federation-host-binding)).
 
+### Operator federation steps (P03-9 Step 5)
+
+[ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md) and
+[Amendment 11](../../decisions/0099-confined-tenant-federation.md) give the platform
+operator a report, a remove and a disable of the identity-provider brokers a tenant's
+federation left orphaned, unreadable or nonconforming. The operator's procedure is the
+[federation operator runbook](../../runbooks/federation-operator.md); this section is
+the module's side of it.
+
+- **Two ports, one adapter.** `IFederationOperator` (SharedKernel) sits beside
+  `IFederationProvider` and is held only by `FederationBrokerOperations` (Identity
+  Infrastructure) and the operator half of the Keycloak adapter, never by the tenant
+  runner. The operator adapter is a second instance with its own resilience pipeline,
+  on the same confined client, so a sweep cannot starve a tenant's calls. Its
+  fail-closed default reports every call unavailable until the federation admin client
+  is configured.
+- **One service, three acts.** `FederationBrokerOperations` implements
+  `IFederationBrokerOperations` (SharedKernel). It consumes the operator's
+  `PlatformAdmission` in the platform scope, reads the realm page first and the
+  connection rows second, and classifies each marked broker as `orphan`,
+  `unreadable_owned` or `nonconforming`. A broker whose marker does not parse strictly
+  to a tenant and connection whose derived alias it is, or whose marker disagrees with
+  its row about the tenant, is counted and never named.
+- **Rows read.** `learnstack_platform` holds `SELECT` of `id`, `tenant_id`, `state` and
+  `deleted_at` on `federation_connections` and nothing more
+  ([Standard 05](../../standards/05-database.md#federation-operator-projection)); the
+  Identity migration `20261120160000_grant_platform_federation_projection` carries it.
+  The one statement that reads the table as the platform role reads by primary key and
+  sees tombstones, which `FederationConnectionReads.Live` hides from the tenant paths.
+- **Two rows around the provider call.** A remove or a disable writes an intent row on
+  `platform.federation.remove_attempt` or `platform.federation.disable_attempt` at the
+  platform scope handle's checkpoint
+  ([ADR-0044 Amendment 18](../../decisions/0044-audit-write-path.md)), commits it, calls
+  the provider, and writes the completion row on `platform.federation.remove` or
+  `platform.federation.disable`. Both name the tenant the owner marker names and carry
+  closed tokens only. The audit matrix is in
+  [Tenancy's audit.md](../tenancy/audit.md), whose catalogue holds these slugs.
+- **No realm user is read or removed.** A remove deletes the broker and the provider
+  deletes its federated links; the account review is the realm administrator's, by
+  runbook.
+
 ## Entity-relationship diagram
 
 ```mermaid

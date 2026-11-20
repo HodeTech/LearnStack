@@ -44,9 +44,20 @@ public static class PlatformPermissions
     public static PermissionDefinition DeliveryWrite { get; } =
         new(PermissionScope.Platform, "platform.delivery.write");
 
+    /// <summary>Report the identity-provider brokers a tenant's federation left orphaned or unreadable (ADR-0099 Amendment 10).</summary>
+    public static PermissionDefinition FederationRead { get; } =
+        new(PermissionScope.Platform, "platform.federation.read");
+
+    /// <summary>Remove an orphaned or unreadable owned broker and disable a nonconforming one (ADR-0099 Amendment 10).</summary>
+    public static PermissionDefinition FederationAdmin { get; } =
+        new(PermissionScope.Platform, "platform.federation.admin");
+
     /// <summary>Every registered Platform permission.</summary>
     public static IReadOnlyList<PermissionDefinition> All { get; } =
-        [KillswitchWrite, TenantWrite, TenantBootstrapWrite, IdentityAuthorityAdmin, DeliveryRead, DeliveryWrite];
+    [
+        KillswitchWrite, TenantWrite, TenantBootstrapWrite, IdentityAuthorityAdmin, DeliveryRead, DeliveryWrite,
+        FederationRead, FederationAdmin,
+    ];
 
     /// <summary>Finds a registered Platform permission by its key.</summary>
     public static bool TryGet(string? key, out PermissionDefinition definition)

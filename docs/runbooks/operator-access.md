@@ -22,7 +22,7 @@ The surface does not exist until an issuer is configured; with none, every
 | `PlatformOperator:AuthorizedParties` | The allowed `azp` clients. The shipped realm's is `learnstack-operator` |
 | `PlatformOperator:MaxAuthenticationAge` | How old `auth_time` may be, as a time span such as `00:15:00`; at most one hour, default 15 minutes |
 | `PlatformOperator:Grants` | Each operator's `Subject` (the issuer's `sub`) and the Platform permission keys held |
-| `ConnectionStrings:PlatformAdmin` | The `learnstack_platform` credential the killswitch act and the [recovery](operator-recovery.md) inspections run under. Required for them: without it the first one fails with an error that names this key. The [onboarding](tenant-onboarding.md) acts run on the application role and do not use it |
+| `ConnectionStrings:PlatformAdmin` | The `learnstack_platform` credential the killswitch act, the [recovery](operator-recovery.md) inspections and the [federation](federation-operator.md) report, remove and disable run under. Required for them: without it the first one fails with an error that names this key. The [onboarding](tenant-onboarding.md) acts run on the application role and do not use it |
 | `ConnectionStrings:OutboxDispatcher` | The dispatcher's outbox-role credential, which the two recovery acts (replay and reset) use through the dispatcher's own stores. Without it they cannot run, as the dispatcher cannot |
 
 List settings are indexed in environment variables, and the double underscore is the
@@ -45,7 +45,10 @@ The registered permissions are `platform.killswitch.write`
 tool reads the same `PlatformOperator__*` settings from its own environment and is not
 an API route. `platform.delivery.read` and `platform.delivery.write` are the two
 permissions of [operator recovery](operator-recovery.md): the first for the inspection
-routes and the second for a replay or a producer reset.
+routes and the second for a replay or a producer reset. `platform.federation.read` and
+`platform.federation.admin` are the two permissions of the [federation
+operator](federation-operator.md): the first for the report and the second for a remove
+or a disable.
 
 A Self-Hosted issuer other than the shipped realm must issue access tokens that meet the
 profile below. If it cannot, no operator can act, by design.
@@ -180,8 +183,9 @@ the response.
 |---|---|
 | `learnstack_platform_operator_admissions_total{outcome,operation}` | Acts admitted or refused at the gate; `operation` is the audit slug, for example `tenancy.killswitch.toggle` |
 | `learnstack_platform_operator_refusals_total{cause}` | Refusals, by cause: `request_aborted`, `metadata_stale`, `metadata_unavailable`, `token_missing`, `token_expired`, `token_lifetime`, `token_signature`, `token_issuer`, `token_audience`, `token_type`, `token_algorithm`, `token_invalid`, `profile_issuer`, `profile_subject`, `profile_azp`, `profile_acr`, `profile_iat`, `profile_auth_time`, `profile_lifetime`, `profile_auth_age`, and at the gate `invalid_ticket`, `missing_permission`, `unknown_operation`, `invalid_witness` |
-| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by an operator act: the killswitch toggle in the platform scope, and a replay or a reset on the dispatcher's outbox role |
+| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by an operator act: the killswitch toggle and a federation remove or disable (the completion row) in the platform scope, and a replay or a reset on the dispatcher's outbox role |
 | `learnstack_platform_operator_recoveries_total{operation,outcome}` | Recovery transitions by how they ended; see the [recovery runbook](operator-recovery.md#signals) |
+| `learnstack_platform_operator_federation_total{operation,outcome}` | Federation reports, removes and disables by how they ended; see the [federation runbook](federation-operator.md#signals) |
 | `learnstack_platform_operator_acts_total{operation,outcome}` | Onboarding acts by how they ended (`applied`, `replayed`, `refused`, `failed`); see the [onboarding runbook](tenant-onboarding.md#signals) |
 | `learnstack_platform_operator_audit_failures_total{operation}` | Acts refused because the MUST row was not durable (the 503) |
 | `learnstack_platform_operator_metadata_failures_total` | The issuer's discovery document or key set could not be read, was refused, or named another origin. While it climbs, new keys are not learned; a fetch that failed is not retried for 30 seconds, and once the keys held are more than 15 minutes old with a later fetch failed, every operator is refused (`metadata_stale`) |
@@ -190,10 +194,11 @@ A log line accompanies each. Search by event id: 7102 (Warning) a refused act, 7
 (Warning) a refused credential with its cause, 7106 (Warning) a metadata failure, 7105
 (Error) a refused audit write, and 7101 (Error) a grant configuration that failed
 validation on reload; while 7101 appears every operator act is refused until the
-configuration is valid. Every admitted killswitch act and every recovery inspection page
-logs a Warning with event 7001 and the text "Platform-admin scope entered" (other hosts
-reuse the number for unrelated lines, so match the text too); the onboarding acts and the
-two recovery acts do not enter the platform scope and log no 7001. Event 7109 (Warning)
+configuration is valid. Every admitted killswitch act, recovery inspection page and
+federation report, remove or disable logs a Warning with event 7001 and the text
+"Platform-admin scope entered" (other hosts reuse the number for unrelated lines, so
+match the text too); the onboarding acts and the two recovery acts do not enter the
+platform scope and log no 7001. Event 7109 (Warning)
 is an onboarding act the request pipeline itself refused as forbidden, which is a
 defect. Event 7110 (Warning) is a recovery or an inspection the owner could not finish,
 with whether its commit's outcome is unknown; see the [recovery

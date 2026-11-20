@@ -77,6 +77,8 @@ The adapter builds every route in `KeycloakFederationRoutes`, and only these:
 | `PUT admin/realms/learnstack/identity-provider/instances/{alias}` | Full-state replace of an owned broker. Refused without a call when it would change the stored issuer or SAML entity identifier, or, without a fresh secret, the token endpoint, client identifier or client authentication ([ADR-0099 Amendment 5](../../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)) |
 | `DELETE admin/realms/learnstack/identity-provider/instances/{alias}` | Delete of an owned broker; an absent alias is already deleted |
 | `GET admin/realms/learnstack/identity-provider/instances/{alias}/mappers` | Mapper count for the readback; any mapper is drift |
+| `GET admin/realms/learnstack/identity-provider/instances?first={n}&max={m}&briefRepresentation=false` | The operator's bounded page of the realm's listing ([Operator access](#operator-access)); no other query member |
+| `GET admin/realms/learnstack/identity-provider/instances/{alias}` (operator) | The operator's read of one derived alias before it knows whose it is; the tenant adapter reads only its own owner's alias |
 
 The `{alias}` is only `lsf-` and the connection identifier's 32 lowercase hexadecimal
 characters, from `FederationBrokerOwner`. No other alias, user, flow, realm, client or
@@ -87,6 +89,37 @@ values the profile consumes and the port carries no metadata document (the deliv
 records the decision). The pinned 26.7.5 parser was observed to return
 `validateSignature=true` for metadata whose `WantAuthnRequestsSigned` is false; the
 adapter never forwards its output either way.
+
+### Operator access
+
+[ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md) and
+Amendment 11 give the platform operator four acts on this realm through the same
+confined client, `manage-identity-providers`, and no wider role: a **report** (the
+listing joined to the registry), an **inspection** of one alias, a **remove** of an
+owner-marked broker that the registry no longer holds live, and a **disable** of an
+owner-marked broker at the provider only.
+
+- The operator holds `IFederationOperator`, a port beside `IFederationProvider` that
+  the tenant runner never holds; its adapter is the same internal sealed class with its
+  own resilience pipeline.
+- A broker is the platform's to touch only when its marker parses strictly
+  (`lsf-` alias, `{tenant:D}:{connection:D}`) **and** the alias is the connection's
+  derived one. An unmarked instance, a foreign marker and an alias that is not
+  LearnStack's are counted and never named.
+- A remove deletes by alias and confirms the alias is gone. The provider deletes the
+  federated links of that broker with it and keeps the accounts; the runbook owes an
+  account review.
+- A disable is the one provider write that is not the fixed profile: the broker can be
+  unreadable (that is why it is disabled rather than rewritten), so the adapter reads
+  the raw representation, sets `enabled=false` and puts it back with the secret mask
+  the provider returned. Nothing else in the representation changes, and the pinned
+  provider keeps the stored secret when it reads its own mask back.
+- A report is one page, no larger than the API's cursor limit, and its cursor is the
+  provider offset the next page starts at. A listing the provider cannot answer reports
+  `unavailable`, never an empty realm.
+- Federation destinations, secrets, display names, issuers and configuration values
+  never cross the operator port: facts are an alias, an owner, readable, conforming,
+  enabled, protocol and a mapper count.
 
 ### Ownership and readback
 

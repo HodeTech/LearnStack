@@ -160,6 +160,12 @@ public sealed class KillswitchToggleOrderingTests
                 (IReadOnlyList<T>)(object)Enumerable.Repeat(true, LockedRows).ToList());
         }
 
+        public Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default)
+        {
+            Steps.Add("intent");
+            return Task.CompletedTask;
+        }
+
         public Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
         {
             Steps.Add("result");

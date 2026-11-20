@@ -92,11 +92,14 @@ public sealed class PlatformAdminGateTests
     [InlineData("platform.delivery.inspect", "platform.delivery.read")]
     [InlineData("platform.delivery.replay", "platform.delivery.write")]
     [InlineData("platform.delivery.reset", "platform.delivery.write")]
-    public async Task A_Recovery_Operation_Is_Admitted_Only_For_Its_Own_Delivery_Permission(string slug, string permission)
+    [InlineData("platform.federation.report", "platform.federation.read")]
+    [InlineData("platform.federation.remove", "platform.federation.admin")]
+    [InlineData("platform.federation.disable", "platform.federation.admin")]
+    public async Task An_Operator_Operation_Is_Admitted_Only_For_Its_Own_Permission(string slug, string permission)
     {
-        // ADR-0103 Decision table: inspecting needs platform.delivery.read, and the two acts need platform.delivery.write. The pair
-        // is pinned both ways: the table says which key each operation binds, and no other Platform key, the other
-        // delivery key and the killswitch key included, admits it.
+        // ADR-0103 Decision table and ADR-0099 Amendment 10: a read needs the read key and an act needs the write or
+        // admin key. The pair is pinned both ways: the table says which key each operation binds, and no other
+        // Platform key, the sibling key and the killswitch key included, admits it.
         var operation = PlatformOperations.All.Single(candidate => candidate.AuditSlug == slug);
         operation.Permission.Key.Should().Be(permission);
 
@@ -356,6 +359,15 @@ public sealed class PlatformAdminGateTests
             catalogue.TryGetOffPath(operation.AuditSlug, out var declared)
                 .Should().BeTrue($"'{operation.AuditSlug}' must be declared so its result row can be recorded");
             declared.OperationClass.Should().Be(OperationClass.Must);
+
+            // An operation with a checkpoint writes an intent row on its attempt slug, which must be declared too.
+            if (operation.AttemptAuditSlug is { } attempt)
+            {
+                catalogue.TryGetOffPath(attempt, out var declaredAttempt)
+                    .Should().BeTrue($"'{attempt}' must be declared so its intent row can be recorded");
+                declaredAttempt.OperationClass.Should().Be(OperationClass.Must);
+                declaredAttempt.OperationType.Should().Be(OperationType.SecurityEvent);
+            }
         }
     }
 
@@ -364,6 +376,11 @@ public sealed class PlatformAdminGateTests
     {
         PlatformOperations.All.Should().OnlyHaveUniqueItems(operation => operation.AuditSlug);
         PlatformOperations.All.Should().OnlyHaveUniqueItems(operation => operation.ReasonSlug);
+
+        // An attempt slug is its own row kind: no two operations share one and none equals any result slug.
+        var attempts = PlatformOperations.All.Select(operation => operation.AttemptAuditSlug).OfType<string>().ToArray();
+        attempts.Should().OnlyHaveUniqueItems();
+        attempts.Should().NotIntersectWith(PlatformOperations.All.Select(operation => operation.AuditSlug));
         foreach (var operation in PlatformOperations.All)
         {
             PlatformPermissions.TryGet(operation.Permission.Key, out var registered).Should().BeTrue();

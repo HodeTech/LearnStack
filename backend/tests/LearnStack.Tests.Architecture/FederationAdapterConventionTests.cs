@@ -47,7 +47,8 @@ public sealed partial class FederationAdapterConventionTests
         var routes = typeof(FederationAdapterFactory).Assembly.GetType("LearnStack.Infrastructure.Identity.Federation.KeycloakFederationRoutes", true)!;
         routes.GetMethods(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
             .Where(method => method.ReturnType == typeof(Uri)).Select(method => method.Name).Order(StringComparer.Ordinal)
-            .Should().Equal(["Instance", "Instances", "Mappers", "Token"], "the token endpoint, create, one owned instance and its mappers only");
+            .Should().Equal(["Instance", "InstanceOf", "InstancePage", "Instances", "Mappers", "Token"],
+                "the token endpoint, create, the operator's bounded page and one-alias read, one owned instance and its mappers only");
         RouteOffenders(Sources()).Should().BeEmpty(
             "Fix: build every provider route in KeycloakFederationRoutes, which admits only identity-provider/instances[/{alias}[/mappers]] (ADR-0099)");
     }

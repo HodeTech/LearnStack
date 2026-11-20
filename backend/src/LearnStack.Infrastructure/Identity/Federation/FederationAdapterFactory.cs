@@ -13,6 +13,10 @@ public static class FederationAdapterFactory
     public static IFederationProvider CreateProvider(KeycloakFederationOptions options, ISecretProvider secrets,
         IProviderResilience<IFederationProvider> resilience) => new KeycloakFederationProvider(options, secrets, resilience);
 
+    /// <summary>The operator's adapter: the same client and routes under its own resilience pipeline (ADR-0099 Amendment 10).</summary>
+    public static IFederationOperator CreateOperator(KeycloakFederationOptions options, ISecretProvider secrets,
+        IProviderResilience<IFederationOperator> resilience) => new KeycloakFederationProvider(options, secrets, resilience);
+
     public static IFederationEgressFetcher CreateEgressFetcher(FederationEgressOptions options) => new FederationEgressFetcher(options);
 
     /// <summary>The secret key the composition root checks before selecting the real adapter.</summary>

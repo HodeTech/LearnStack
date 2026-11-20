@@ -275,3 +275,13 @@ baseline provider-credential-rotation row covers `rotate_secret`.
 no personal data. `GetPublicSignInQuery` is an explicit Off public read: it is
 anonymous and returns only the host tenant's Active alias and display name
 ([Standard 18](../../standards/18-audit-coverage.md)).
+
+The platform operator's report, remove and disable of orphaned or broken brokers
+([ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md)) are not
+Identity operations and are not in this table. They run at the platform scope, outside
+the request pipeline, and write the off-path slugs `platform.federation.report`,
+`platform.federation.remove_attempt`, `platform.federation.remove`,
+`platform.federation.disable_attempt` and `platform.federation.disable`, which
+[Tenancy's audit matrix](../tenancy/audit.md) classifies and Tenancy's catalogue source
+registers. Their rows name the tenant the owner marker names and entity
+`FederationConnection`.

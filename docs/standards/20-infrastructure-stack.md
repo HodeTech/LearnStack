@@ -486,6 +486,12 @@ after its outcome settled; the timeout is 2.5 s, the circuit breaker on, and the
 bulkhead exactly 4 without a queue. These values are fixed: the composition root
 refuses any other value at startup, and refuses breaker parameters outside the ranges
 the provider specification states.
+The same class implements the operator port `IFederationOperator`
+([ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 10 and 11),
+held only by the operator's owner and by the adapter, and built as a second instance
+with its own `IProviderResilience<IFederationOperator>` pipeline of the same fixed
+shape so that an operator sweep cannot starve a tenant's calls; its fail-closed default
+is registered beside the provider's. It adds one provider route, a paged listing of the realm's instances.
 The operator egress allow-list `Federation:Egress:AllowedHosts` is composition
 configuration, never tenant input. The
 [provider specification](../modules/identity/providers.md#tenant-federation-adapter) owns

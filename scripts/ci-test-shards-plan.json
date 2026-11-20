@@ -96,6 +96,7 @@
     "LearnStack.Tests.Integration.Database.EntitlementExpiryReversalTests",
     "LearnStack.Tests.Integration.Database.EventDeliveryMigrationTests",
     "LearnStack.Tests.Integration.Database.FeatureFlagsTests",
+    "LearnStack.Tests.Integration.Database.FederationBrokerOperationsTests",
     "LearnStack.Tests.Integration.Database.FederationConnectionStorageTests",
     "LearnStack.Tests.Integration.Database.FederationHttpTests",
     "LearnStack.Tests.Integration.Database.FixedSeedPrerequisiteReadTests",

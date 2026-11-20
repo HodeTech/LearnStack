@@ -54,8 +54,10 @@ public sealed record PlatformOperation
     public string AuditSlug { get; }
 
     /// <summary>
-    /// The audit slug of the intent row written before the act's own transaction, or null when the act writes
-    /// no such row. Only an act that runs outside the request pipeline has one (ADR-0104 § 8).
+    /// The audit slug of the intent row written before the act's effect, or null when the act writes no such row.
+    /// Only an act that runs outside the request pipeline has one: the rebind tool writes it on its own role
+    /// (ADR-0104 § 8) and a platform-scope act with an effect outside the database writes it at the scope handle's
+    /// checkpoint (ADR-0099 Amendment 11).
     /// </summary>
     public string? AttemptAuditSlug { get; }
 
@@ -132,11 +134,36 @@ public static class PlatformOperations
         "platform.delivery.reset", "delivery_reset", PlatformPermissions.DeliveryWrite,
         PlatformOperationExecutor.RecoveryOwner);
 
+    /// <summary>
+    /// Report the realm's identity-provider brokers by class, orphans first: read-only in the platform scope, audited
+    /// by the scope's entry row (ADR-0099 Amendment 10 item 2).
+    /// </summary>
+    public static PlatformOperation FederationReport { get; } = new(
+        "platform.federation.report", "federation_report", PlatformPermissions.FederationRead,
+        PlatformOperationExecutor.PlatformScope);
+
+    /// <summary>
+    /// Remove an orphaned or unreadable owned broker at the provider: an intent row at the scope handle's
+    /// checkpoint, the provider call, and a completion row (ADR-0099 Amendment 10 item 3).
+    /// </summary>
+    public static PlatformOperation FederationRemove { get; } = new(
+        "platform.federation.remove", "federation_remove", PlatformPermissions.FederationAdmin,
+        PlatformOperationExecutor.PlatformScope, attemptAuditSlug: "platform.federation.remove_attempt");
+
+    /// <summary>
+    /// Disable a nonconforming or unreachable owned broker at the provider only, with the same two rows
+    /// (ADR-0099 Amendment 10 item 4).
+    /// </summary>
+    public static PlatformOperation FederationDisable { get; } = new(
+        "platform.federation.disable", "federation_disable", PlatformPermissions.FederationAdmin,
+        PlatformOperationExecutor.PlatformScope, attemptAuditSlug: "platform.federation.disable_attempt");
+
     /// <summary>Every registered operation.</summary>
     public static IReadOnlyList<PlatformOperation> All { get; } =
     [
         KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover,
-        IdentityAuthorityRebind, DeliveryInspect, DeliveryReplay, DeliveryReset,
+        IdentityAuthorityRebind, DeliveryInspect, DeliveryReplay, DeliveryReset, FederationReport, FederationRemove,
+        FederationDisable,
     ];
 
     /// <summary>Whether <paramref name="operation"/> is one of the registered instances.</summary>

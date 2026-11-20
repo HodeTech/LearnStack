@@ -41,6 +41,8 @@ internal static class FederationComposition
             || policy.Bulkhead is not { MaxConcurrency: 4, QueueLength: 0 })
             throw new InvalidOperationException("Federation requires finite provider resilience without write retries.");
         services.AddProviderResilience<IFederationProvider>(policyConfiguration, "federation");
+        // The operator's calls run under their own pipeline of the same fixed shape, so a sweep cannot starve a tenant's.
+        services.AddProviderResilience<IFederationOperator>(policyConfiguration, "federation");
 
         var egress = new FederationEgressOptions(configuration.GetSection(AllowedHostsKey).Get<string[]>() ?? []);
         services.TryAddSingleton(egress);
@@ -51,6 +53,14 @@ internal static class FederationComposition
             var development = provider.GetRequiredService<IHostEnvironment>().IsDevelopment();
             var options = new KeycloakFederationOptions(configuration["Authentication:Tenant:Issuer"] ?? "", development);
             return FederationAdapterFactory.CreateProvider(options, secrets, provider.GetRequiredService<IProviderResilience<IFederationProvider>>());
+        }));
+        services.Replace(ServiceDescriptor.Singleton<IFederationOperator>(provider =>
+        {
+            var secrets = provider.GetRequiredService<ISecretProvider>();
+            if (!Configured(secrets)) return new UnconfiguredFederationOperator();
+            var development = provider.GetRequiredService<IHostEnvironment>().IsDevelopment();
+            var options = new KeycloakFederationOptions(configuration["Authentication:Tenant:Issuer"] ?? "", development);
+            return FederationAdapterFactory.CreateOperator(options, secrets, provider.GetRequiredService<IProviderResilience<IFederationOperator>>());
         }));
         services.Replace(ServiceDescriptor.Singleton<IFederationEgressFetcher>(provider =>
             Configured(provider.GetRequiredService<ISecretProvider>())

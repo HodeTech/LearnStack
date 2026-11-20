@@ -70,10 +70,12 @@ public sealed record PlatformResult(
 /// The work one scope entry allows: a transaction on the platform role, as a facade.
 /// </summary>
 /// <remarks>
-/// <b>One scope, one transaction, one commit.</b> After <see cref="CommitAsync"/> or disposal
-/// the handle refuses every call and the underlying connection is closed, so nothing a
+/// <b>One scope, one commit, and at most one checkpoint.</b> After <see cref="CommitAsync"/> or
+/// disposal the handle refuses every call and the underlying connection is closed, so nothing a
 /// caller captured can run an autocommit statement on a connection that sees every tenant.
-/// Disposing without committing rolls back.
+/// Disposing without committing rolls back. An act whose effect lies outside the database writes its
+/// intent row at <see cref="WriteIntentAsync"/>, which commits the work so far and continues in a fresh
+/// transaction on the same connection; the completion row and <see cref="CommitAsync"/> end the scope.
 /// </remarks>
 public interface IPlatformAdminScopeHandle : IAsyncDisposable
 {
@@ -87,6 +89,17 @@ public interface IPlatformAdminScopeHandle : IAsyncDisposable
         IReadOnlyList<PlatformSqlParameter>? parameters,
         Func<DbDataReader, T> map,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes the act's MUST intent row, commits it, and continues the scope in a fresh work transaction
+    /// (ADR-0099 Amendment 11). Only an operation that declares an attempt slug has one, it is written once and
+    /// before the result row, and nothing after it is rolled back with the effect it announces: a failure here means
+    /// the effect must not start, and an effect that fails afterwards leaves this row standing.
+    /// </summary>
+    /// <exception cref="LearnStack.SharedKernel.Audit.AuditWriteFailedException">
+    /// The row could not be written or committed, so the effect must not start.
+    /// </exception>
+    Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Writes the act's MUST result row on the work transaction, so it commits with the

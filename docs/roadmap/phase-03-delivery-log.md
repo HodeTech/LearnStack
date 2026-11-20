@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 937 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,008 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -522,6 +522,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 4 — operator recovery of asynchronous work (2026-11-20)](#p03-9-step-4--operator-recovery-of-asynchronous-work-2026-11-20) — 59 lines
   - [P03-9 Step 4 — review round 1 and its fixes (2026-11-20)](#p03-9-step-4--review-round-1-and-its-fixes-2026-11-20) — 49 lines
   - [P03-9 Step 4 — review round 2 and its fixes (2026-11-20)](#p03-9-step-4--review-round-2-and-its-fixes-2026-11-20) — 39 lines
+  - [P03-9 Step 5 — federation operator steps (2026-11-20)](#p03-9-step-5--federation-operator-steps-2026-11-20) — 71 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25116,3 +25117,74 @@ tie-break and the executor kind of the result writer.
 - **The platform role's loss of `SELECT` on the correlation and actor columns of
   `outbox_messages`.** It constrains P03-10 and Phase 11, which need a named grant or
   another principal for a predicate that reads them; Phase 11's text now says so.
+
+### P03-9 Step 5 — federation operator steps (2026-11-20)
+
+Step 5 delivers [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md):
+a report, a remove and a disable of the identity-provider brokers a tenant's federation
+left orphaned, unreadable or nonconforming, and no way to list or remove a realm user.
+Amendment 11 records where the code corrected Amendment 10, and
+[ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md) records the audit seam it
+needed. The maintainer chose the audit shape (a checkpoint on the platform scope handle,
+a fifteenth `IAuditStore` write) and accepted the bounded raw round trip of the disable
+before any code was written.
+
+Delivered:
+
+- **The seam.** `platform.federation.read` and `platform.federation.admin`; the three
+  operations `platform.federation.report`, `platform.federation.remove` and
+  `platform.federation.disable`, the last two with attempt slugs
+  (`platform.federation.remove_attempt`, `platform.federation.disable_attempt`) declared
+  off-path MUST/SecurityEvent in the Tenancy catalogue.
+- **The audit checkpoint.** `IPlatformAdminScopeHandle.WriteIntentAsync` writes the
+  intent row on the attempt slug with the outcome `indeterminate`, commits it, and
+  continues in a fresh transaction on the same connection, once, and a result row is
+  refused before it. `IAuditStore.WritePlatformOperatorIntentAsync` is the fifteenth
+  write, witness-bound like the result method, refusing a ticket on a tenant-readable
+  row and the identity module's own rows.
+- **The ports.** `IFederationOperator` beside the tenant provider port, with a
+  fail-closed default and a second adapter instance with its own resilience pipeline;
+  `IFederationBrokerOperations` with its closed result types, owned by
+  `FederationBrokerOperations` in Identity Infrastructure. The adapter's route census
+  grows from four builders to six (a bounded page of the listing and a read by derived
+  alias), and the owner marker is parsed strictly: an `lsf-` alias and a
+  `{tenant:D}:{connection:D}` marker that round-trips.
+- **The rows read.** An Identity-chain forward-only migration,
+  `20261120160000_grant_platform_federation_projection`, grants `learnstack_platform`
+  `SELECT` of four columns of `federation_connections`; the raw-reader census admits the
+  operator's one statement, pinned whole.
+- **The routes.** `GET /api/platform/v1/federation/brokers`, and `POST` of
+  `.../{alias}/remove` and `.../{alias}/disable`, gate first, served in `platform-v1`;
+  the counter `learnstack_platform_operator_federation_total`.
+- **Documents.** The runbook `federation-operator.md`, ADR-0044 Amendment 18, ADR-0099
+  Amendment 11 with an erratum beside the item that cited a pattern Amendment 2 does not
+  hold, Standards 04, 05, 10, 11, 18, 19, 20 and 21, Architecture 31, the Identity and
+  Tenancy module documents, the runbooks index, operator access and the glossary.
+
+Where the code corrected Amendment 10 (ADR-0099 Amendment 11):
+
+- The intent-first pattern is the Decision's § Intent-first operations, not
+  Amendment 2, which is the Keycloak pin.
+- A remove refuses while a live row names the broker, an unreadable owned broker
+  included: such a broker is disabled by the operator and deleted by the tenant.
+- The disable of an unreadable broker is the one provider write that sends back what the
+  provider returned, with only `enabled` changed, because the fixed profile cannot be
+  rebuilt from a representation that does not read.
+- A mapper is drift only a mapper read shows, so the mappers of a healthy broker are
+  counted one after another within the page's ten seconds and an unread count is
+  reported unknown, never zero.
+- The report reads the realm first and the rows second, because a tenant writes its row
+  before it creates the broker.
+
+Proof, against real PostgreSQL as each role and the pinned Keycloak 26.7.5: the
+listing's pages, the three classes and the foreign, unmarked and mismatched instances
+that are counted and never named; a remove of an unreadable orphan that deletes the
+federated links and leaves the account and a control broker byte-identical; a disable
+that changes `enabled` alone; the intent row committed before the provider call and
+surviving a failure after it; no tenant row for an absent broker, an unowned alias, a
+live row or an unavailable provider; the result row refused before the intent, the
+intent refused twice and for an operation with no attempt slug; the exact column grant
+and the refused columns; each route's statuses, bodies and permission held alone; and
+the route, port-holder and raw-reader censuses with their planted violations. A
+mutation sweep over the new guards killed every mutant but one equivalent: a marker
+length check that the marker's round trip makes redundant.

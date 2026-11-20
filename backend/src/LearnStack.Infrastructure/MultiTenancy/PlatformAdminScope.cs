@@ -148,6 +148,7 @@ public sealed class PlatformAdminScope(
         //    not enter a cross-tenant scope unrecorded.
         var declaredEntry = Declared(EnterOperation);
         var declaredResult = Declared(admission.Operation.AuditSlug);
+        var declaredIntent = admission.Operation.AttemptAuditSlug is { } attemptSlug ? Declared(attemptSlug) : null;
 
         // 2. The credential. Opening through the guarded facade here is where an absent
         //    ConnectionStrings:PlatformAdmin surfaces — on entry, at the first call, with
@@ -184,11 +185,13 @@ public sealed class PlatformAdminScope(
                 entry.Id.Value,
                 null);
 
-            var current = transaction;
             return new Handle(
                 connection,
-                current,
-                (result, token) => WriteResultAsync(admission, declaredResult, result, connection, current, token),
+                transaction,
+                (result, current, token) => WriteResultAsync(admission, declaredResult, result, connection, current, token),
+                declaredIntent is null
+                    ? null
+                    : (result, current, token) => WriteIntentAsync(admission, declaredIntent, result, connection, current, token),
                 () => PlatformOperatorMetrics.Result(admission.Operation),
                 _logger);
         }
@@ -258,6 +261,37 @@ public sealed class PlatformAdminScope(
         NpgsqlTransaction transaction,
         CancellationToken cancellationToken)
     {
+        var draft = ComposeOperatorRow(admission, declared, result, AuditOutcome.Success);
+
+        await using var services = _scopeFactory.CreateAsyncScope();
+        await services.ServiceProvider
+            .GetRequiredService<IAuditStore>()
+            .WritePlatformOperatorResultAsync(draft, admission, connection, transaction, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes the act's MUST intent row on the work transaction, through the witness-bound method; the handle
+    /// commits it before the effect starts (ADR-0099 Amendment 11).
+    /// </summary>
+    private async Task WriteIntentAsync(
+        PlatformAdmission admission,
+        AuditCatalogEntry declared,
+        PlatformResult intent,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var draft = ComposeOperatorRow(admission, declared, intent, AuditOutcome.Indeterminate);
+
+        await using var services = _scopeFactory.CreateAsyncScope();
+        await services.ServiceProvider
+            .GetRequiredService<IAuditStore>()
+            .WritePlatformOperatorIntentAsync(draft, admission, connection, transaction, cancellationToken);
+    }
+
+    private AuditEntryDraft ComposeOperatorRow(
+        PlatformAdmission admission, AuditCatalogEntry declared, PlatformResult result, AuditOutcome outcome)
+    {
         ArgumentNullException.ThrowIfNull(result);
         if (!StronglyTypedId.IsAssigned(result.TenantId))
         {
@@ -271,7 +305,7 @@ public sealed class PlatformAdminScope(
 
         // The ticket stays out of a row a tenant can read: it appears only under the sentinel.
         var isSentinel = result.TenantId == TenantId.PlatformSentinel;
-        var draft = new AuditEntryDraft
+        return new AuditEntryDraft
         {
             Id = AuditEntryId.From(_guidFactory.NewUuidV7()),
             TenantId = result.TenantId,
@@ -284,7 +318,7 @@ public sealed class PlatformAdminScope(
             OperationClass = declared.OperationClass,
             EntityType = result.EntityType ?? declared.EntityType?.Name,
             EntityId = result.EntityId,
-            Outcome = AuditOutcome.Success,
+            Outcome = outcome,
             ErrorKey = null,
             Reason = admission.Operation.ReasonSlug,
             BeforeState = result.BeforeState,
@@ -296,11 +330,6 @@ public sealed class PlatformAdminScope(
             Timestamp = _clock.UtcNow,
             Metadata = OperatorMetadata(admission, includeTicket: isSentinel, provenance: null),
         };
-
-        await using var services = _scopeFactory.CreateAsyncScope();
-        await services.ServiceProvider
-            .GetRequiredService<IAuditStore>()
-            .WritePlatformOperatorResultAsync(draft, admission, connection, transaction, cancellationToken);
     }
 
     private const int MaximumStateBytes = 32 * 1024;
@@ -442,17 +471,22 @@ public sealed class PlatformAdminScope(
     /// </remarks>
     private sealed class Handle(
         NpgsqlConnection connection,
-        NpgsqlTransaction transaction,
-        Func<PlatformResult, CancellationToken, Task> writeResult,
+        NpgsqlTransaction firstTransaction,
+        Func<PlatformResult, NpgsqlTransaction, CancellationToken, Task> writeResult,
+        Func<PlatformResult, NpgsqlTransaction, CancellationToken, Task>? writeIntent,
         Action onCommitted,
         ILogger logger)
         : IPlatformAdminScopeHandle
     {
         private static readonly string[] StatementVerbs = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH"];
 
+        // Replaced once, at the intent checkpoint: the first transaction commits the intent row alone, and the work
+        // that follows runs in a fresh one on the same connection.
+        private NpgsqlTransaction _transaction = firstTransaction;
         private bool _resolved;
         private bool _disposed;
         private bool _faulted;
+        private bool _intentWritten;
         private bool _resultWritten;
 
         public async Task<int> ExecuteAsync(
@@ -500,12 +534,70 @@ public sealed class PlatformAdminScope(
             }
         }
 
+        public async Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default)
+        {
+            EnsureUsable();
+            if (writeIntent is null)
+            {
+                throw new InvalidOperationException("This operation declares no intent checkpoint.");
+            }
+
+            if (_intentWritten || _resultWritten)
+            {
+                throw new InvalidOperationException(
+                    "An intent row is written once, before the result row.");
+            }
+
+            try
+            {
+                await writeIntent(intent, _transaction, cancellationToken);
+            }
+            catch (Exception failure) when (failure is not ArgumentException)
+            {
+                _faulted = true;
+                throw;
+            }
+
+            try
+            {
+                // The row commits alone and before the effect: an effect that later fails, or a process that dies,
+                // leaves it standing. A commit whose outcome is unknown stops the act all the same, because the
+                // effect must not start on an intent nobody can prove was recorded.
+                await _transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception failure) when (failure is NpgsqlException or OperationCanceledException or IOException)
+            {
+                _faulted = true;
+                throw new AuditWriteFailedException(
+                    "The platform operator intent row could not be committed, so the effect must not start.", failure);
+            }
+
+            try
+            {
+                await _transaction.DisposeAsync();
+                _transaction = await connection.BeginTransactionAsync(cancellationToken);
+            }
+            catch
+            {
+                _faulted = true;
+                throw;
+            }
+
+            _intentWritten = true;
+        }
+
         public async Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
         {
             EnsureUsable();
+            if (writeIntent is not null && !_intentWritten)
+            {
+                throw new InvalidOperationException(
+                    "An operation with an intent checkpoint writes its intent row before its result row.");
+            }
+
             try
             {
-                await writeResult(result, cancellationToken);
+                await writeResult(result, _transaction, cancellationToken);
             }
             catch (Exception failure) when (failure is not ArgumentException)
             {
@@ -529,7 +621,7 @@ public sealed class PlatformAdminScope(
             }
 
             _resolved = true;
-            await transaction.CommitAsync(cancellationToken);
+            await _transaction.CommitAsync(cancellationToken);
             onCommitted();
 
             // The connection closes at completion, not at disposal: nothing may run on a
@@ -550,7 +642,7 @@ public sealed class PlatformAdminScope(
                 {
                     try
                     {
-                        await transaction.RollbackAsync();
+                        await _transaction.RollbackAsync();
                     }
                     catch (Exception failure) when (failure is InvalidOperationException or NpgsqlException)
                     {
@@ -574,7 +666,7 @@ public sealed class PlatformAdminScope(
             _disposed = true;
             try
             {
-                await transaction.DisposeAsync();
+                await _transaction.DisposeAsync();
             }
             finally
             {
@@ -585,7 +677,7 @@ public sealed class PlatformAdminScope(
         private NpgsqlCommand Build(string sql, IReadOnlyList<PlatformSqlParameter>? parameters)
         {
             RequireOneStatement(sql);
-            var command = new NpgsqlCommand(sql, connection, transaction);
+            var command = new NpgsqlCommand(sql, connection, _transaction);
             if (parameters is not null)
             {
                 foreach (var parameter in parameters)

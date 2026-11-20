@@ -306,6 +306,9 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IKillswitchToggle, KillswitchToggle>();
         // The operator inspection of asynchronous work reads in the platform scope on column grants (ADR-0103 § 1).
         services.TryAddScoped<IDeliveryInspection, DeliveryInspection>();
+        // ADR-0099 Amendment 10: the operator's federation report, remove and disable, over the platform scope and the
+        // operator port, which the composition root replaces with the confined adapter when the admin client is configured.
+        services.TryAddScoped<IFederationBrokerOperations, LearnStack.Modules.Identity.Infrastructure.Federation.FederationBrokerOperations>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default

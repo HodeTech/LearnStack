@@ -48,6 +48,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     private RecordingToggle _toggle = null!;
     private RecordingRecovery _recovery = null!;
     private RecordingInspection _inspection = null!;
+    private RecordingBrokers _brokers = null!;
     private CapturingLogs _logs = null!;
     private HttpClient _client = null!;
 
@@ -58,6 +59,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         _toggle = new RecordingToggle();
         _recovery = new RecordingRecovery();
         _inspection = new RecordingInspection();
+        _brokers = new RecordingBrokers();
         _logs = new CapturingLogs();
         _factory = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
             services: registrations =>
@@ -66,6 +68,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 registrations.AddSingleton<ILoggerFactory>(_ => LoggerFactory.Create(builder => builder.AddProvider(_logs)));
                 registrations.AddSingleton<IOperatorRecovery>(_recovery);
                 registrations.AddScoped<IDeliveryInspection>(_ => _inspection);
+                registrations.AddScoped<IFederationBrokerOperations>(_ => _brokers);
             });
         _client = _factory.CreateClient();
     }
@@ -653,6 +656,174 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         _logs.Entries.Should().NotContain(line => line.Id == 7109);
     }
 
+    private const string Fed = "/api/platform/v1/federation/brokers";
+    private const string BrokerAlias = "lsf-019a192954507bbb8df1516e8e002502";
+
+    [Fact]
+    public async Task A_Federation_Report_Passes_Its_Page_On_Clamps_The_Limit_And_Answers_The_Envelope()
+    {
+        var response = await Call(HttpMethod.Get, Fed + "?limit=500&cursor=abc&ticket=CHG-5", Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var call = _brokers.Calls.Should().ContainSingle().Which;
+        (call.Operation, call.Argument, call.Limit).Should().Be(("report", "abc", 100));
+        call.Admission.Operation.Should().BeSameAs(PlatformOperations.FederationReport);
+        call.Admission.Ticket.Should().Be("CHG-5");
+        var text = await response.Content.ReadAsStringAsync();
+        text.Should().Contain("\"items\":[]").And.Contain("\"nextCursor\":\"next\"").And.Contain("\"scanned\":3").And.Contain("\"ignored\":1");
+    }
+
+    [Theory]
+    [InlineData("limit=0", "limit")]
+    [InlineData("state=terminal_requested", "query")]
+    [InlineData("limt=5", "query")]
+    public async Task A_Federation_Report_Refuses_A_Bad_Or_Unknown_Parameter_And_Names_It_Without_Echo(string query, string field)
+    {
+        var response = await Call(HttpMethod.Get, Fed + "?" + query, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var text = await response.Content.ReadAsStringAsync();
+        using var body = JsonDocument.Parse(text);
+        body.RootElement.GetProperty("errors").TryGetProperty(field, out _).Should().BeTrue(field);
+        text.Should().NotContain("limt");
+        _brokers.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Cursor_The_Federation_Owner_Refuses_And_An_Unavailable_Provider_Are_Answered_As_Their_Problems()
+    {
+        _brokers.Report = FederationReportResult.Of(FederationReportOutcome.InvalidCursor);
+        var refused = await Call(HttpMethod.Get, Fed + "?cursor=forged", Valid());
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await refused.Content.ReadAsStringAsync()).Should().Contain("cursor");
+
+        _brokers.Report = FederationReportResult.Of(FederationReportOutcome.Unavailable);
+        var unavailable = await Call(HttpMethod.Get, Fed, Valid());
+        unavailable.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        unavailable.Headers.RetryAfter.Should().NotBeNull();
+        using var body = JsonDocument.Parse(await unavailable.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("status").GetInt32().Should().Be(503);
+        body.RootElement.GetProperty("code").GetString().Should().Be("dependency_unavailable");
+    }
+
+    [Theory]
+    [InlineData("remove", "FederationRemove")]
+    [InlineData("disable", "FederationDisable")]
+    public async Task A_Federation_Act_Runs_Under_An_Admission_For_Exactly_Its_Operation_And_Answers_The_Review_Owed(
+        string verb, string operationName)
+    {
+        var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/{verb}", Valid(), """{"ticket":"CHG-9"}""");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var call = _brokers.Calls.Should().ContainSingle().Which;
+        (call.Operation, call.Argument).Should().Be((verb, BrokerAlias));
+        call.Admission.Operation.Should().BeSameAs(operationName == "FederationRemove"
+            ? PlatformOperations.FederationRemove : PlatformOperations.FederationDisable);
+        call.Admission.Ticket.Should().Be("CHG-9");
+        var text = await response.Content.ReadAsStringAsync();
+        text.Should().Contain("\"outcome\":\"applied\"").And.Contain("\"accountReviewOwed\":true").And.Contain(BrokerAlias);
+    }
+
+    [Theory]
+    [InlineData("not-an-alias")]
+    [InlineData("lsf-ABCDEF0123456789ABCDEF0123456789")]
+    [InlineData("lsf-0123456789abcdef0123456789abcde")]
+    [InlineData("kc-019a192954507bbb8df1516e8e002502")]
+    public async Task A_Federation_Act_Names_Only_A_Derived_Alias_And_Calls_Nothing_Otherwise(string alias)
+    {
+        var response = await Call(HttpMethod.Post, $"{Fed}/{alias}/remove", Valid(), "{}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _brokers.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(FederationActOutcome.AlreadyApplied, HttpStatusCode.OK, "already_applied")]
+    [InlineData(FederationActOutcome.NotFound, HttpStatusCode.NotFound, "not_found")]
+    [InlineData(FederationActOutcome.NotOwned, HttpStatusCode.Conflict, "lockey_not_owned")]
+    [InlineData(FederationActOutcome.LiveConnection, HttpStatusCode.Conflict, "lockey_live_connection")]
+    [InlineData(FederationActOutcome.NotApplicable, HttpStatusCode.Conflict, "lockey_not_applicable")]
+    [InlineData(FederationActOutcome.Refused, HttpStatusCode.Conflict, "lockey_provider_refused")]
+    public async Task A_Federation_Act_Answers_Each_Outcome_With_Its_Status_And_The_Reason_On_The_Field_It_Concerns(
+        FederationActOutcome outcome, HttpStatusCode status, string expected)
+    {
+        _brokers.Act = new FederationActResult(outcome);
+
+        var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}");
+
+        response.StatusCode.Should().Be(status);
+        (await response.Content.ReadAsStringAsync()).Should().Contain(expected);
+    }
+
+    [Fact]
+    public async Task An_Unknown_Or_Unavailable_Federation_Outcome_Is_A_Retryable_503_Whose_Body_Agrees_With_Its_Status()
+    {
+        foreach (var (outcome, unknown) in new[] { (FederationActOutcome.Unavailable, false), (FederationActOutcome.Uncertain, true) })
+        {
+            _brokers.Act = new FederationActResult(outcome);
+
+            var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/disable", Valid(), "{}");
+
+            response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, outcome.ToString());
+            response.Headers.RetryAfter.Should().NotBeNull();
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            body.RootElement.GetProperty("status").GetInt32().Should().Be(503);
+            body.RootElement.TryGetProperty("errors", out var errors).Should().Be(unknown);
+            if (unknown) errors.GetProperty("outcome").ToString().Should().Contain("outcome_unknown");
+        }
+    }
+
+    [Fact]
+    public async Task A_Failed_Federation_Audit_Write_Is_The_Retryable_Audit_503_And_Is_Counted()
+    {
+        _brokers.Failure = new AuditWriteFailedException("forced");
+
+        var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        await AssertProblem(response, "audit_unavailable");
+    }
+
+    [Theory]
+    [InlineData(FedKey.None)]
+    [InlineData(FedKey.Read)]
+    [InlineData(FedKey.Admin)]
+    public async Task The_Federation_Read_And_Admin_Keys_Admit_Only_Their_Own_Routes_And_The_Delivery_Keys_Neither(FedKey held)
+    {
+        var key = held switch
+        {
+            FedKey.Read => PlatformPermissions.FederationRead.Key,
+            FedKey.Admin => PlatformPermissions.FederationAdmin.Key,
+            _ => PlatformPermissions.DeliveryWrite.Key,
+        };
+        var brokers = new RecordingBrokers();
+        await using var single = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
+            services: registrations => registrations.AddScoped<IFederationBrokerOperations>(_ => brokers),
+            permissions: [key]);
+        using var client = single.CreateClient();
+
+        async Task<HttpStatusCode> Send(HttpMethod method, string path, string? json)
+        {
+            using var request = new HttpRequestMessage(method, path) { Headers = { { "Authorization", "Bearer " + Valid() } } };
+            if (json is not null) request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return (await client.SendAsync(request)).StatusCode;
+        }
+
+        (await Send(HttpMethod.Get, Fed, null)).Should().Be(held == FedKey.Read ? HttpStatusCode.OK : HttpStatusCode.Forbidden);
+        (await Send(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", "{}")).Should().Be(
+            held == FedKey.Admin ? HttpStatusCode.OK : HttpStatusCode.Forbidden);
+        (await Send(HttpMethod.Post, $"{Fed}/{BrokerAlias}/disable", "{}")).Should().Be(
+            held == FedKey.Admin ? HttpStatusCode.OK : HttpStatusCode.Forbidden);
+        brokers.Calls.Count.Should().Be(held == FedKey.None ? 0 : held == FedKey.Read ? 1 : 2);
+    }
+
+    public enum FedKey
+    {
+        None,
+        Read,
+        Admin,
+    }
+
     [Theory]
     [InlineData("limit=0", "limit")]
     [InlineData("limit=-3", "limit")]
@@ -943,12 +1114,18 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         "/api/platform/v1/asynchronous-work/quarantined-jobs",
         "/api/platform/v1/asynchronous-work/event-deliveries/{tenantId}/{subscriptionId}/{eventId}/replay",
         "/api/platform/v1/asynchronous-work/outbox-messages/{tenantId}/{eventId}/reset",
+        "/api/platform/v1/federation/brokers",
+        "/api/platform/v1/federation/brokers/{alias}/remove",
+        "/api/platform/v1/federation/brokers/{alias}/disable",
     ];
 
     /// <summary>The verb each operator route answers: reads are GET, recovery acts are POST, the rest are idempotent PUTs.</summary>
-    private static string VerbOf(string route) => route.Contains("/asynchronous-work/", StringComparison.Ordinal)
-        ? route.EndsWith("/replay", StringComparison.Ordinal) || route.EndsWith("/reset", StringComparison.Ordinal) ? "post" : "get"
-        : "put";
+    private static string VerbOf(string route) =>
+        route.Contains("/asynchronous-work/", StringComparison.Ordinal)
+            ? route.EndsWith("/replay", StringComparison.Ordinal) || route.EndsWith("/reset", StringComparison.Ordinal) ? "post" : "get"
+            : route.Contains("/federation/", StringComparison.Ordinal)
+                ? route.EndsWith("/remove", StringComparison.Ordinal) || route.EndsWith("/disable", StringComparison.Ordinal) ? "post" : "get"
+                : "put";
 
     [Fact]
     public async Task Without_An_Issuer_The_Surface_And_Its_Document_Do_Not_Exist()
@@ -983,7 +1160,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public void The_Operator_Surface_Is_Exactly_The_Eleven_Authorized_Endpoints_Under_Its_Prefix()
+    public void The_Operator_Surface_Is_Exactly_The_Fourteen_Authorized_Endpoints_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
         // its population is closed here instead: every routed endpoint under /api/platform (whatever
@@ -1179,6 +1356,34 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         }
     }
 
+    private sealed class RecordingBrokers : IFederationBrokerOperations
+    {
+        public List<(string Operation, PlatformAdmission Admission, string? Argument, int Limit)> Calls { get; } = [];
+        public FederationReportResult Report { get; set; } = new(FederationReportOutcome.Ok, [], "next", 3, 1);
+        public FederationActResult Act { get; set; } = new(FederationActOutcome.Applied, Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002501"),
+            Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002502"));
+        public Exception? Failure { get; set; }
+
+        public Task<FederationReportResult> ReportAsync(
+            PlatformAdmission admission, string? cursor, int limit, CancellationToken cancellationToken = default)
+        {
+            Calls.Add(("report", admission, cursor, limit));
+            return Failure is not null ? Task.FromException<FederationReportResult>(Failure) : Task.FromResult(Report);
+        }
+
+        public Task<FederationActResult> RemoveAsync(PlatformAdmission admission, string alias, CancellationToken cancellationToken = default) =>
+            Record("remove", admission, alias);
+
+        public Task<FederationActResult> DisableAsync(PlatformAdmission admission, string alias, CancellationToken cancellationToken = default) =>
+            Record("disable", admission, alias);
+
+        private Task<FederationActResult> Record(string operation, PlatformAdmission admission, string alias)
+        {
+            Calls.Add((operation, admission, alias, 0));
+            return Failure is not null ? Task.FromException<FederationActResult>(Failure) : Task.FromResult(Act);
+        }
+    }
+
     private sealed class RecordingRecovery : IOperatorRecovery
     {
         public List<(PlatformAdmission Admission, object Request)> Calls { get; } = [];
@@ -1272,7 +1477,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 var held = permissions ??
                 [
                     PlatformPermissions.KillswitchWrite.Key, PlatformPermissions.DeliveryRead.Key,
-                    PlatformPermissions.DeliveryWrite.Key,
+                    PlatformPermissions.DeliveryWrite.Key, PlatformPermissions.FederationRead.Key,
+                    PlatformPermissions.FederationAdmin.Key,
                 ];
                 for (var index = 0; index < held.Length; index++)
                 {

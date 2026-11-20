@@ -569,6 +569,8 @@ public sealed partial class OutboxDispatchConventionTests
                     ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation]),
                 Owner(AuditAssembly, "LearnStack.Infrastructure.Audit.AuditConfigService", "LoadAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform, "RecordAsync"), Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "CommitAsync"),
+                // ADR-0044 Amendment 18: the checkpoint commits the intent row alone before the provider is called.
+                Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "WriteIntentAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver", "ReadAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator", "BelongsToTenantAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags", "LoadTenantFlagsAsync"),

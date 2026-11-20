@@ -69,6 +69,7 @@ internal static partial class PlatformOperatorEndpoints
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         MapOnboarding(group);
         MapRecovery(group);
+        MapFederation(group);
         return app;
     }
 

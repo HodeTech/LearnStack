@@ -95,6 +95,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         "PlatformFirstAdminCreate" or "PlatformAdminRecover" => typeof(Platform.AdministratorRequest),
         "PlatformDeliveryReplay" => typeof(Platform.DeliveryReplayBody),
         "PlatformOutboxReset" => typeof(Platform.OutboxResetBody),
+        "PlatformFederationRemove" or "PlatformFederationDisable" => typeof(Platform.FederationActBody),
         _ => throw new InvalidOperationException("An operator operation declares no request body: " + operationId),
     };
 

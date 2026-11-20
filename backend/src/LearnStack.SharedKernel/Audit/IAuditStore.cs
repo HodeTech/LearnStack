@@ -5,7 +5,7 @@ using LearnStack.SharedKernel.Platform;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Fourteen writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Fifteen writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -169,6 +169,30 @@ public interface IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default) =>
         throw new InvalidOperationException("This audit store cannot write a platform operator result.");
+
+    /// <summary>
+    /// Writes the intent row of a platform-scope act whose effect lies outside the database, on the scope's work
+    /// transaction at its checkpoint, which the scope then commits before the effect (ADR-0099 Amendment 11).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bound like <see cref="WritePlatformOperatorResultAsync"/> to the admission, with three differences: the
+    /// operation is the admitted operation's <see cref="PlatformOperation.AttemptAuditSlug"/>, which only an act with
+    /// a checkpoint has, the outcome is <c>indeterminate</c> because the effect has not happened, and the act's
+    /// completion row is the result row that follows. The scope is the only caller.
+    /// </para>
+    /// <para>
+    /// A tenant-readable row carries no ticket, as for the result row. A refused draft or a failed write requires
+    /// the caller not to start the effect.
+    /// </para>
+    /// </remarks>
+    Task WritePlatformOperatorIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This audit store cannot write a platform operator intent.");
 
     /// <summary>
     /// Writes the controlled issuer rebind's intent row on the offline tool's own short transaction, before the

@@ -471,6 +471,59 @@ public sealed partial class PostgresAuditStore : IAuditStore
     }
 
     /// <inheritdoc />
+    public async Task WritePlatformOperatorIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(admission);
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        // The admission binds the row exactly as it binds the result row, to the attempt slug instead: only an act
+        // that entered the platform scope and declares a checkpoint can present one, the effect has not happened so
+        // the outcome is indeterminate, and the identity module's own rows are never written here.
+        if (!StronglyTypedId.IsAssigned(entry.TenantId)
+            || entry.ModuleName == "identity"
+            || !PlatformOperations.IsRegistered(admission.Operation)
+            || !admission.Operation.NeedsPlatformRole
+            || admission.Operation.AttemptAuditSlug is not { } attemptSlug
+            || !string.Equals(entry.Operation, attemptSlug, StringComparison.Ordinal)
+            || !string.Equals(entry.Reason, admission.Operation.ReasonSlug, StringComparison.Ordinal)
+            || entry.ActorUserId is not null
+            || entry.Outcome != AuditOutcome.Indeterminate
+            || entry.OperationClass != OperationClass.Must
+            || !string.Equals(entry.CorrelationId, admission.Operator.CorrelationId, StringComparison.Ordinal)
+            || !MetadataNamesAdmittedOperator(entry, admission))
+        {
+            throw new ArgumentException(
+                "The platform operator intent row does not match its admission.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+
+            Bind(command.Parameters, entry);
+
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The platform operator intent row could not be written, so the effect must not start.",
+                failure);
+        }
+    }
+
+    /// <inheritdoc />
     public Task WriteIdentityRebindIntentAsync(
         AuditEntryDraft entry,
         PlatformAdmission admission,

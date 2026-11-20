@@ -273,8 +273,11 @@ public sealed class KeycloakFederationProviderTests
         await adapter.ApplyAsync(new(State(enabled: true), null));
         await adapter.ReadAsync(Owner);
         await adapter.DeleteAsync(Owner);
+        using var operatorAdapter = CreateOperator(provider);
+        await operatorAdapter.ListAsync(0, 2);
         var admitted = new[]
         {
+            "GET /admin/realms/learnstack/identity-provider/instances",
             "POST /realms/learnstack/protocol/openid-connect/token",
             "POST /admin/realms/learnstack/identity-provider/instances",
             "GET /admin/realms/learnstack/identity-provider/instances/" + Owner.Alias,
@@ -283,11 +286,335 @@ public sealed class KeycloakFederationProviderTests
             "GET /admin/realms/learnstack/identity-provider/instances/" + Owner.Alias + "/mappers",
         };
         provider.Requests.Select(request => request.Method + " " + request.Path).Distinct().Should().BeSubsetOf(admitted);
-        provider.Requests.Should().OnlyContain(request => request.Query.Length == 0);
+        // Only the listing carries a query, and it is exactly the bounded page: no search, no filter, no other member.
+        provider.Requests.Where(request => request.Query.Length != 0).Should().OnlyContain(
+            request => request.Method == "GET" && request.Path == "/admin/realms/learnstack/identity-provider/instances"
+                && request.Query == "?first=0&max=2&briefRepresentation=false");
     }
 
     private static KeycloakFederationProvider Create(FakeKeycloak provider, string? secret = AdminSecret) =>
         new(new KeycloakFederationOptions(Issuer), new Secrets(secret), new Resilience(), provider);
+
+    private static KeycloakFederationProvider CreateOperator(FakeKeycloak provider, string? secret = AdminSecret) =>
+        new(new KeycloakFederationOptions(Issuer), new Secrets(secret), new OperatorResilience(), provider);
+
+    private static FederationBrokerOwner OwnerOf(Guid? connection = null, TenantId? tenant = null)
+    {
+        var id = connection ?? Guid.CreateVersion7();
+        return new(tenant ?? Tenant, id, FederationBrokerOwner.AliasPrefix + id.ToString("N"));
+    }
+
+    private static FederationBrokerState StateFor(FederationBrokerOwner owner, bool enabled = true) => State(enabled) with { Owner = owner };
+
+    /// <summary>A broker as the provider stores it after a tenant's create: conforming, with its secret.</summary>
+    private static JsonObject Stored(FederationBrokerOwner owner, bool enabled = true) =>
+        KeycloakFederationProfile.Representation(StateFor(owner, enabled), Fresh());
+
+    /// <summary>An owned broker the adapter cannot read: its issuer is gone, as when an operator edited it in the provider.</summary>
+    private static JsonObject Unreadable(FederationBrokerOwner owner, bool enabled = true)
+    {
+        var broker = Stored(owner, enabled);
+        broker["config"]!.AsObject().Remove("issuer");
+        return broker;
+    }
+
+    private static string Foreign() => "lsf-" + new string('0', 32);
+
+    [Fact]
+    public async Task A_listing_classifies_owned_brokers_and_ignores_everything_else()
+    {
+        var provider = new FakeKeycloak();
+        var healthy = OwnerOf();
+        var broken = OwnerOf();
+        var drifted = OwnerOf();
+        provider.Brokers[healthy.Alias] = Stored(healthy);
+        provider.Brokers[broken.Alias] = Unreadable(broken, enabled: false);
+        provider.Brokers[drifted.Alias] = Stored(drifted);
+        provider.Brokers[drifted.Alias]["config"]!["extra"] = "not-in-the-profile";
+        // Not LearnStack's: an alias nobody derived, a derived alias with no marker, and a marker for another connection.
+        provider.Brokers["corporate-sso"] = new JsonObject { ["alias"] = "corporate-sso", ["config"] = new JsonObject() };
+        var unmarked = OwnerOf();
+        provider.Brokers[unmarked.Alias] = new JsonObject { ["alias"] = unmarked.Alias, ["config"] = new JsonObject() };
+        var mismatched = OwnerOf();
+        var stolen = Stored(mismatched);
+        stolen["config"]![KeycloakFederationProfile.OwnerKey] = $"{Tenant.Value:D}:{Guid.CreateVersion7():D}";
+        provider.Brokers[mismatched.Alias] = stolen;
+        using var adapter = CreateOperator(provider);
+
+        var page = await adapter.ListAsync(0, 20);
+
+        page.Status.Should().Be(FederationOperatorStatus.Ok);
+        page.Scanned.Should().Be(6);
+        page.Ignored.Should().Be(3);
+        page.Owned.Select(facts => facts.Owner.Alias).Should().BeEquivalentTo([healthy.Alias, broken.Alias, drifted.Alias]);
+        var byAlias = page.Owned.ToDictionary(facts => facts.Owner.Alias);
+        byAlias[healthy.Alias].Should().Match<FederationBrokerFacts>(facts => facts.Readable && facts.Conforms && facts.Enabled
+            && facts.Protocol == FederationBrokerProtocol.Oidc);
+        byAlias[broken.Alias].Should().Match<FederationBrokerFacts>(facts => !facts.Readable && !facts.Conforms && !facts.Enabled
+            && facts.Protocol == null);
+        byAlias[drifted.Alias].Should().Match<FederationBrokerFacts>(facts => facts.Readable && !facts.Conforms);
+        provider.Requests.Where(request => request.Path.Contains("identity-provider", StringComparison.Ordinal))
+            .Select(request => request.Method + " " + request.Path + request.Query).Should().Equal(
+                "GET /admin/realms/learnstack/identity-provider/instances?first=0&max=20&briefRepresentation=false");
+        page.ToString().Should().NotContain(TenantSecret).And.NotContain(AdminSecret).And.NotContain("Acme");
+    }
+
+    [Fact]
+    public async Task A_listing_pages_by_offset_and_a_provider_that_ignores_the_page_size_is_unavailable()
+    {
+        var provider = new FakeKeycloak();
+        var owners = Enumerable.Range(0, 5).Select(_ => OwnerOf()).OrderBy(owner => owner.Alias, StringComparer.Ordinal).ToArray();
+        foreach (var owner in owners) provider.Brokers[owner.Alias] = Unreadable(owner);
+        using var adapter = CreateOperator(provider);
+
+        var first = await adapter.ListAsync(0, 2);
+        var second = await adapter.ListAsync(2, 2);
+        var last = await adapter.ListAsync(4, 2);
+
+        (first.Scanned, second.Scanned, last.Scanned).Should().Be((2, 2, 1));
+        first.Owned.Concat(second.Owned).Concat(last.Owned).Select(facts => facts.Owner.Alias).Should().Equal(owners.Select(owner => owner.Alias));
+
+        provider.ListIgnoresPaging = true;
+        (await adapter.ListAsync(0, 2)).Status.Should().Be(FederationOperatorStatus.Unavailable);
+    }
+
+    [Theory]
+    [InlineData("object")]
+    [InlineData("5xx")]
+    public async Task A_listing_that_is_not_an_array_or_that_the_provider_fails_is_unavailable_and_returns_nothing(string defect)
+    {
+        var provider = new FakeKeycloak { ListDefect = defect };
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.ListAsync(0, 5)).Should().Be(FederationBrokerPage.Unavailable);
+    }
+
+    [Fact]
+    public async Task An_inspection_reports_absent_foreign_and_owned_with_the_mapper_count_of_a_readable_broker()
+    {
+        var provider = new FakeKeycloak { Mappers = 2 };
+        var mine = OwnerOf();
+        var broken = OwnerOf();
+        provider.Brokers[mine.Alias] = Stored(mine);
+        provider.Brokers[broken.Alias] = Unreadable(broken);
+        provider.Brokers[Foreign()] = new JsonObject { ["alias"] = Foreign(), ["config"] = new JsonObject() };
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.InspectAsync(OwnerOf().Alias)).Should().Be(FederationBrokerInspection.Absent);
+        (await adapter.InspectAsync(Foreign())).Should().Be(FederationBrokerInspection.NotOwned);
+        var owned = await adapter.InspectAsync(mine.Alias);
+        (owned.Status, owned.MapperCount, owned.Facts!.Owner.TenantId).Should().Be((FederationInspectionStatus.Owned, 2, Tenant));
+        var unreadable = await adapter.InspectAsync(broken.Alias);
+        (unreadable.Status, unreadable.MapperCount, unreadable.Facts!.Readable).Should().Be((FederationInspectionStatus.Owned, 0, false));
+        var notDerived = async () => await adapter.InspectAsync("not-a-derived-alias");
+        await notDerived.Should().ThrowAsync<ArgumentException>("no route is built from an alias that is not the derived form");
+    }
+
+    [Fact]
+    public async Task A_remove_deletes_an_owned_broker_readable_or_not_and_confirms_its_absence()
+    {
+        var provider = new FakeKeycloak();
+        var readable = OwnerOf();
+        var broken = OwnerOf();
+        provider.Brokers[readable.Alias] = Stored(readable);
+        provider.Brokers[broken.Alias] = Unreadable(broken);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(readable)).Should().Be(FederationOperatorOutcome.Applied);
+        (await adapter.RemoveAsync(broken)).Should().Be(FederationOperatorOutcome.Applied);
+
+        provider.Brokers.Should().BeEmpty();
+        provider.Requests.Count(request => request.Method == "DELETE").Should().Be(2);
+        // The provider is read before the delete and again after it, so the outcome is the absence and not a status.
+        provider.Requests.Where(request => request.Path.EndsWith(readable.Alias, StringComparison.Ordinal))
+            .Select(request => request.Method).Should().Equal("GET", "DELETE", "GET");
+    }
+
+    [Fact]
+    public async Task A_remove_of_an_absent_broker_is_already_applied_and_sends_nothing()
+    {
+        var provider = new FakeKeycloak();
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(OwnerOf())).Should().Be(FederationOperatorOutcome.AlreadyApplied);
+
+        provider.Requests.Where(request => !request.Path.EndsWith("/token", StringComparison.Ordinal)).Select(request => request.Method)
+            .Should().Equal("GET");
+    }
+
+    [Fact]
+    public async Task A_remove_never_touches_an_instance_whose_marker_is_not_the_owner_the_caller_proved()
+    {
+        var provider = new FakeKeycloak();
+        var claimed = OwnerOf();
+        var other = Stored(claimed);
+        other["config"]![KeycloakFederationProfile.OwnerKey] = $"{Guid.CreateVersion7():D}:{claimed.ConnectionId:D}";
+        provider.Brokers[claimed.Alias] = other;
+        var unmarked = OwnerOf();
+        provider.Brokers[unmarked.Alias] = new JsonObject { ["alias"] = unmarked.Alias, ["config"] = new JsonObject() };
+        using var adapter = CreateOperator(provider);
+
+        // Another tenant's marker on the claimed connection, and an unmarked derived alias.
+        (await adapter.RemoveAsync(claimed)).Should().Be(FederationOperatorOutcome.NotOwned);
+        (await adapter.RemoveAsync(unmarked)).Should().Be(FederationOperatorOutcome.NotOwned);
+
+        provider.Brokers.Should().HaveCount(2);
+        provider.Requests.Should().NotContain(request => request.Method == "DELETE");
+    }
+
+    [Theory]
+    [InlineData("refused", FederationOperatorOutcome.Refused)]
+    [InlineData("fails", FederationOperatorOutcome.Uncertain)]
+    public async Task A_delete_the_provider_refuses_changes_nothing_and_one_that_fails_after_it_was_sent_is_uncertain(
+        string kind, FederationOperatorOutcome expected)
+    {
+        var owner = OwnerOf();
+        var provider = new FakeKeycloak { DeleteStatus = kind == "refused" ? HttpStatusCode.Conflict : HttpStatusCode.InternalServerError };
+        provider.Brokers[owner.Alias] = Unreadable(owner);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(owner)).Should().Be(expected);
+
+        provider.Brokers.Should().ContainKey(owner.Alias);
+    }
+
+    [Fact]
+    public async Task A_delete_the_provider_accepts_and_does_not_perform_is_uncertain_because_absence_is_the_confirmation()
+    {
+        var owner = OwnerOf();
+        var provider = new FakeKeycloak { IgnoreDelete = true };
+        provider.Brokers[owner.Alias] = Unreadable(owner);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(owner)).Should().Be(FederationOperatorOutcome.Uncertain);
+    }
+
+    [Theory]
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502", true)]
+    [InlineData("019A1929-5450-7BBB-8DF1-516E8E002501:019a1929-5450-7bbb-8df1-516e8e002502", false)]
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501:019A1929-5450-7BBB-8DF1-516E8E002502", false)]
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502 ", false)]
+    [InlineData(" 019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502", false)]
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501;019a1929-5450-7bbb-8df1-516e8e002502", false)]
+    [InlineData("019a1929545 07bbb8df1516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502", false)]
+    [InlineData("00000000-0000-0000-0000-000000000000:019a1929-5450-7bbb-8df1-516e8e002502", false)] // leakwatch:ignore
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-4bbb-8df1-516e8e002502", false)]
+    [InlineData("019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502:x", false)]
+    [InlineData("", false)]
+    public void The_owner_marker_is_parsed_strictly_and_names_only_the_connections_own_derived_alias(string marker, bool valid)
+    {
+        var alias = "lsf-019a192954507bbb8df1516e8e002502";
+
+        KeycloakFederationProfile.TryOwnerFromMarker(marker, alias, out var owner).Should().Be(valid, marker);
+
+        if (valid)
+        {
+            (owner.TenantId.Value, owner.ConnectionId).Should().Be(
+                (Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002501"), Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002502")));
+        }
+
+        // Another connection's alias never matches this marker, however well formed it is.
+        KeycloakFederationProfile.TryOwnerFromMarker(
+            "019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502", "lsf-019a192954507bbb8df1516e8e002503", out _)
+            .Should().BeFalse();
+        KeycloakFederationProfile.TryOwnerFromMarker(null, alias, out _).Should().BeFalse();
+        KeycloakFederationProfile.TryOwnerFromMarker("019a1929-5450-7bbb-8df1-516e8e002501:019a1929-5450-7bbb-8df1-516e8e002502", null, out _)
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_provider_that_cannot_be_reached_before_any_change_is_sent_is_unavailable_and_not_uncertain()
+    {
+        var owner = OwnerOf();
+        var provider = new FakeKeycloak { TokenDefect = "extra-role" };
+        provider.Brokers[owner.Alias] = Unreadable(owner);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.RemoveAsync(owner)).Should().Be(FederationOperatorOutcome.Unavailable);
+        (await adapter.DisableAsync(owner)).Should().Be(FederationOperatorOutcome.Unavailable);
+        provider.Requests.Select(request => request.Method).Should().NotContain(["DELETE", "PUT"]);
+    }
+
+    [Fact]
+    public async Task A_disable_sends_back_what_the_provider_returned_with_only_enabled_changed_and_keeps_the_stored_secret()
+    {
+        var provider = new FakeKeycloak();
+        var broken = OwnerOf();
+        provider.Brokers[broken.Alias] = Unreadable(broken, enabled: true);
+        var before = provider.Brokers[broken.Alias].DeepClone().AsObject();
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.DisableAsync(broken)).Should().Be(FederationOperatorOutcome.Applied);
+
+        var after = provider.Brokers[broken.Alias];
+        after["enabled"]!.GetValue<bool>().Should().BeFalse();
+        // Nothing else moved, the computed members were never sent, and the secret the provider holds is the one it held.
+        before["enabled"] = false;
+        JsonNode.DeepEquals(after, before).Should().BeTrue("only enabled differs from what the provider held");
+        after.ContainsKey("internalId").Should().BeFalse();
+        after.ContainsKey("types").Should().BeFalse();
+        after["config"]!["clientSecret"]!.GetValue<string>().Should().Be(TenantSecret);
+        var put = provider.Requests.Single(request => request.Method == "PUT");
+        put.Body.Should().NotContain(TenantSecret, "the secret travels as the provider's own mask, never as a value this adapter read");
+        put.Body.Should().Contain("**********");
+    }
+
+    [Fact]
+    public async Task A_disable_of_a_disabled_broker_sends_nothing_and_one_that_is_not_the_proved_owners_is_never_written()
+    {
+        var provider = new FakeKeycloak();
+        var off = OwnerOf();
+        provider.Brokers[off.Alias] = Unreadable(off, enabled: false);
+        var claimed = OwnerOf();
+        var other = Stored(claimed);
+        other["config"]![KeycloakFederationProfile.OwnerKey] = $"{Guid.CreateVersion7():D}:{claimed.ConnectionId:D}";
+        provider.Brokers[claimed.Alias] = other;
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.DisableAsync(off)).Should().Be(FederationOperatorOutcome.AlreadyApplied);
+        (await adapter.DisableAsync(claimed)).Should().Be(FederationOperatorOutcome.NotOwned);
+        (await adapter.DisableAsync(OwnerOf())).Should().Be(FederationOperatorOutcome.Refused, "there is nothing to disable");
+
+        provider.Requests.Should().NotContain(request => request.Method == "PUT");
+    }
+
+    [Theory]
+    [InlineData("fails", FederationOperatorOutcome.Uncertain)]
+    [InlineData("refused", FederationOperatorOutcome.Refused)]
+    [InlineData("ignored", FederationOperatorOutcome.Uncertain)]
+    public async Task A_disable_is_confirmed_by_reading_the_instance_again(string kind, FederationOperatorOutcome expected)
+    {
+        var owner = OwnerOf();
+        var provider = new FakeKeycloak
+        {
+            WriteStatus = kind == "fails" ? HttpStatusCode.InternalServerError : kind == "refused" ? HttpStatusCode.Conflict : null,
+            IgnorePut = kind == "ignored",
+        };
+        provider.Brokers[owner.Alias] = Unreadable(owner, enabled: true);
+        using var adapter = CreateOperator(provider);
+
+        (await adapter.DisableAsync(owner)).Should().Be(expected);
+
+        provider.Brokers[owner.Alias]["enabled"]!.GetValue<bool>().Should().BeTrue("the provider did not take the change");
+    }
+
+    [Fact]
+    public async Task The_operator_port_never_returns_a_secret_or_provider_text()
+    {
+        var owner = OwnerOf();
+        var provider = new FakeKeycloak { Mappers = 1 };
+        provider.Brokers[owner.Alias] = Stored(owner);
+        using var adapter = CreateOperator(provider);
+
+        var results = new object?[]
+        {
+            await adapter.ListAsync(0, 5), await adapter.InspectAsync(owner.Alias), await adapter.CountMappersAsync(owner),
+            await adapter.DisableAsync(owner), await adapter.RemoveAsync(owner),
+        };
+
+        string.Join('|', results.Select(result => result?.ToString())).Should()
+            .NotContain(TenantSecret).And.NotContain(AdminSecret).And.NotContain("Acme").And.NotContain("idp.example.com");
+    }
 
     private static FederationClientSecret Fresh() =>
         FederationClientSecret.TryCreate(TenantSecret, out var secret) ? secret! : throw new InvalidOperationException();
@@ -316,6 +643,12 @@ public sealed class KeycloakFederationProviderTests
         public string PortName => "federation";
     }
 
+    private sealed class OperatorResilience : IProviderResilience<IFederationOperator>
+    {
+        public ResiliencePipeline Pipeline => ResiliencePipeline.Empty;
+        public string PortName => "federation";
+    }
+
     internal sealed record Recorded(string Method, string Path, string Query, string Body);
 
     /// <summary>A scripted provider holding brokers by alias, as the pinned Admin REST API stores and masks them.</summary>
@@ -326,6 +659,11 @@ public sealed class KeycloakFederationProviderTests
         internal int Mappers { get; set; }
         internal string? TokenDefect { get; init; }
         internal HttpStatusCode? WriteStatus { get; init; }
+        internal HttpStatusCode? DeleteStatus { get; init; }
+        internal string? ListDefect { get; init; }
+        internal bool ListIgnoresPaging { get; set; }
+        internal bool IgnorePut { get; init; }
+        internal bool IgnoreDelete { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -345,6 +683,16 @@ public sealed class KeycloakFederationProviderTests
                 Brokers[alias] = created;
                 return new(HttpStatusCode.Created);
             }
+            if (request.Method == HttpMethod.Get && path == prefix)
+            {
+                if (ListDefect == "5xx") return new(HttpStatusCode.InternalServerError);
+                if (ListDefect == "object") return Json(HttpStatusCode.OK, new JsonObject());
+                var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+                var page = Brokers.Values.OrderBy(broker => broker["alias"]!.GetValue<string>(), StringComparer.Ordinal)
+                    .Skip(int.Parse(query["first"]!));
+                if (!ListIgnoresPaging) page = page.Take(int.Parse(query["max"]!));
+                return Json(HttpStatusCode.OK, new JsonArray([.. page.Select(View)]));
+            }
             var rest = path[(prefix.Length + 1)..];
             var mappers = rest.EndsWith("/mappers", StringComparison.Ordinal);
             var key = mappers ? rest[..^"/mappers".Length] : rest;
@@ -352,15 +700,12 @@ public sealed class KeycloakFederationProviderTests
             if (request.Method == HttpMethod.Get)
             {
                 if (!Brokers.TryGetValue(key, out var broker)) return new(HttpStatusCode.NotFound);
-                var view = broker.DeepClone().AsObject();
-                if (view["config"]!.AsObject().ContainsKey("clientSecret")) view["config"]!["clientSecret"] = "**********";
-                view["internalId"] = Guid.NewGuid().ToString();
-                view["types"] = new JsonArray("USER_AUTHENTICATION");
-                return Json(HttpStatusCode.OK, view);
+                return Json(HttpStatusCode.OK, View(broker));
             }
             if (request.Method == HttpMethod.Put)
             {
                 if (WriteStatus is { } status) return new(status);
+                if (IgnorePut) return new(HttpStatusCode.NoContent);
                 if (!Brokers.TryGetValue(key, out var existing)) return new(HttpStatusCode.NotFound);
                 var replacement = JsonNode.Parse(body)!.AsObject();
                 var config = replacement["config"]!.AsObject();
@@ -370,8 +715,22 @@ public sealed class KeycloakFederationProviderTests
                 return new(HttpStatusCode.NoContent);
             }
             if (request.Method == HttpMethod.Delete)
+            {
+                if (DeleteStatus is { } deleteStatus) return new(deleteStatus);
+                if (IgnoreDelete) return new(HttpStatusCode.NoContent);
                 return new(Brokers.TryRemove(key, out _) ? HttpStatusCode.NoContent : HttpStatusCode.NotFound);
+            }
             return new(HttpStatusCode.MethodNotAllowed);
+        }
+
+        /// <summary>What the provider returns for a stored broker: the secret masked and the computed members added.</summary>
+        private static JsonNode View(JsonObject broker)
+        {
+            var view = broker.DeepClone().AsObject();
+            if (view["config"]!.AsObject().ContainsKey("clientSecret")) view["config"]!["clientSecret"] = "**********";
+            view["internalId"] = Guid.NewGuid().ToString();
+            view["types"] = new JsonArray("USER_AUTHENTICATION");
+            return view;
         }
 
         private static HttpResponseMessage Json(HttpStatusCode status, JsonNode value) =>

@@ -1329,3 +1329,35 @@ Accepted [ADR-0101](0101-platform-operator-authority.md),
 
 The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
 of the linked records is not proof that anything they decide is implemented.
+
+## Amendment 18 — Platform scope intent checkpoint (2026-11-20)
+
+Accepted [ADR-0099](0099-confined-tenant-federation.md) Amendment 10 gives two operator
+acts an effect outside the database, in the identity provider: a removal and a disable
+of a broker. The maintainer approved this seam before it was written, because the
+platform scope of Amendment 17 writes one result row and closes at commit, which leaves
+nothing durable before such an effect. [ADR-0099](0099-confined-tenant-federation.md)
+Amendment 11 records the implementation.
+
+- **One new witness-bound write, the fifteenth.** `IAuditStore.WritePlatformOperatorIntentAsync`
+  writes the intent row of a platform-scope act on its `PlatformOperation.AttemptAuditSlug`,
+  with the outcome `indeterminate`, the same closed reason, correlation id and
+  `metadata.operator` as the result row, the actor NULL and the class MUST. Like the
+  result method it is bound to the admission, takes the real target tenant, refuses a
+  ticket on a tenant-readable row and refuses the identity module's own rows. An
+  operation with no attempt slug, or one that does not enter the platform scope (the
+  offline rebind, whose intent has its own method), presents none.
+- **A checkpoint on the scope handle.** `IPlatformAdminScopeHandle.WriteIntentAsync`
+  writes that row on the work transaction, commits it, and continues the scope in a fresh
+  transaction on the same connection. It is allowed once, only for an operation that
+  declares an attempt slug, and the result row of such an operation is refused before it.
+  A failure to write or to commit the intent row throws `AuditWriteFailedException` and
+  the effect must not start; an effect that fails afterwards leaves the intent row
+  standing, as § 10 requires of the entry row. The scope still ends at the result row and
+  the commit, or by disposal, which rolls back whatever followed the checkpoint.
+- **Declared like every off-path slug.** The attempt slugs are declared off-path
+  MUST/SecurityEvent in the Tenancy catalogue source beside the entry and result slugs,
+  and the scope refuses entry when any of them is undeclared.
+
+The Decision, Status, Date and prior amendments of this record are unchanged.
+Acceptance of the linked records is not proof that anything they decide is implemented.

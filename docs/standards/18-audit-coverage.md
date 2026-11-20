@@ -240,7 +240,15 @@ will raise them — which this standard requires it to do.
   `platform.delivery.replay` and `platform.delivery.reset` are
   written on the dispatcher's outbox-role transaction through one witness-bound method,
   under the real event tenant, with no actor, the operator attribution and the fence in
-  `metadata`, and no ticket, because a tenant can read the row.
+  `metadata`, and no ticket, because a tenant can read the row. The operator federation
+  operations of [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 10
+  and 11 are `(off-path)` as well: `platform.federation.report` is audited by the
+  platform scope's entry row, and `platform.federation.remove` and
+  `platform.federation.disable` each write an intent row on their `_attempt` slug at the
+  scope handle's checkpoint, with the outcome `indeterminate`, committed before the
+  provider call ([ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md)), and a
+  completion row on their own slug. Both rows name the tenant the owner marker names
+  and carry no ticket and no tenant-authored text.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
