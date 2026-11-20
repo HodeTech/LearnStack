@@ -68,6 +68,7 @@ internal static partial class PlatformOperatorEndpoints
             .ProducesProblem(StatusCodes.Status500InternalServerError)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         MapOnboarding(group);
+        MapRecovery(group);
         return app;
     }
 

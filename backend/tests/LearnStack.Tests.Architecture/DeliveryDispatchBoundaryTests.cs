@@ -185,7 +185,7 @@ public sealed partial class OutboxDispatchConventionTests
                      "TRUNCATE another_table, event_deliveries", "MERGE INTO event_deliveries USING x ON true WHEN MATCHED THEN DELETE" })
             AssertMutation(census, "an unauthorized subscriber SQL writer", () => AddSqlProbe(module, sql), DeliverySqlOffenders);
         var store = census.Types[(InfrastructureAssembly, DeliveryStore)];
-        foreach (var name in new[] { "ReplayAsync", "UnrelatedSqlHelper" })
+        foreach (var name in new[] { "ReplayCoreAsync", "UnrelatedSqlHelper" })
             AssertMutation(census, "an extra SQL helper or overload", () =>
             {
                 var method = AddSqlMethod(store, name, "UPDATE event_deliveries SET attempts=0");
@@ -297,7 +297,8 @@ public sealed partial class OutboxDispatchConventionTests
                      ("LearnStack.Infrastructure.Messaging.PostgresInboxGuard", "TryClaimAsync"),
                      (DeliveryCompletionType, "FenceAsync"),
                      (DeliveryStore, "AcquireAsync"), (DeliveryStore, "UpdateAsync"),
-                     (DeliveryStore, "TryTerminalizeAsync"), (DeliveryStore, "ReplayAsync"),
+                     // ADR-0103: the operator's fenced replay is the second writer of subscriber status.
+                     (DeliveryStore, "TryTerminalizeAsync"), (DeliveryStore, "ReplayCoreAsync"),
                  })
         {
             if (!types.TryGetValue((InfrastructureAssembly, typeName), out var type))
@@ -459,7 +460,13 @@ public sealed partial class OutboxDispatchConventionTests
         var storeConstructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
             BoundaryGuardedSource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
             "LearnStack.Infrastructure.Messaging.DeliveryDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
-            "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
+            "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory",
+            "LearnStack.SharedKernel.Jobs.BackgroundJobLifecycleProjection");
+        // The public replay is the operator's entry and holds no connection; the core below it owns the one.
+        RequireBoundaryMethod(offenders, store, "ReplayAsync",
+            "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Platform.OperatorRecoveryResult>", MethodAttributes.Public,
+            "LearnStack.SharedKernel.Platform.DeliveryReplayRequest", "LearnStack.SharedKernel.Platform.PlatformAdmission",
+            BoundaryCancellation);
         string[] storeAcquisitions =
         [
             RequireBoundaryMethod(offenders, store, "AcquireAsync", "System.Threading.Tasks.Task`1<" + DeliveryClaimType + ">", MethodAttributes.Private,
@@ -471,11 +478,14 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, store, "IsDurablyTerminalAsync", BoundaryBooleanTask, MethodAttributes.Private, DeliveryClaimType),
             RequireBoundaryMethod(offenders, store, "ReadSnapshotAsync", "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.DeliveryQueueSnapshot>",
                 MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
-            RequireBoundaryMethod(offenders, store, "ReplayAsync", BoundaryBooleanTask, MethodAttributes.Public,
-                "System.Guid", "System.String", "System.Guid", BoundaryCancellation),
+            RequireBoundaryMethod(offenders, store, "ReplayCoreAsync",
+                "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Platform.OperatorRecoveryResult>", MethodAttributes.Private,
+                "LearnStack.SharedKernel.Platform.DeliveryReplayRequest", "LearnStack.SharedKernel.Platform.PlatformAdmission",
+                BoundaryCancellation),
         ];
         var storeReader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
-            "System.Threading.Tasks.ValueTask`1<" + DeliveryStore + "/OwnedConnection>", MethodAttributes.Private, BoundaryCancellation);
+            "System.Threading.Tasks.ValueTask`1<" + DeliveryStore + "/OwnedConnection>", MethodAttributes.Private,
+            BoundaryCancellation, "System.Boolean");
         CheckSourceFieldAccess(offenders, census, store, storeConstructor, [storeReader]);
         CheckCleanupConnectionOwner(offenders, census, store, storeReader, storeAcquisitions);
         var expected = new[]
@@ -500,7 +510,8 @@ public sealed partial class OutboxDispatchConventionTests
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this")).ToArray();
         CheckSet(offenders, "privileged delivery store holders", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
             [TypeId(worker) + ":_store", InfrastructureAssembly + ":" + DeliveryStore + "/OwnedConnection:<owner>P",
-             BoundaryApi + ":" + MessagingLifetime + ":_deliveryStore"]);
+             BoundaryApi + ":" + MessagingLifetime + ":_deliveryStore",
+             InfrastructureAssembly + ":" + OperatorRecoveryOwner + ":_deliveries"]);
         if (fields.Any(field => !field.IsPrivate || !field.IsInitOnly
                 && !(field.DeclaringType.FullName == DeliveryStore + "/OwnedConnection" && field.Name == "<owner>P")))
             offenders.Add("Delivery store holders must be private readonly or the exact construction-only cleanup capture");

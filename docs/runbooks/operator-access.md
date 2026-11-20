@@ -42,7 +42,9 @@ The registered permissions are `platform.killswitch.write`
 `platform.identity_authority.admin`, which the offline
 [issuer rebind](identity-issuer-rebind.md) tool checks against the same grants. That
 tool reads the same `PlatformOperator__*` settings from its own environment and is not
-an API route.
+an API route. `platform.delivery.read` and `platform.delivery.write` are the two
+permissions of [operator recovery](operator-recovery.md): the first for the inspection
+routes and the second for a replay or a producer reset.
 
 A Self-Hosted issuer other than the shipped realm must issue access tokens that meet the
 profile below. If it cannot, no operator can act, by design.
@@ -177,7 +179,8 @@ the response.
 |---|---|
 | `learnstack_platform_operator_admissions_total{outcome,operation}` | Acts admitted or refused at the gate; `operation` is the audit slug, for example `tenancy.killswitch.toggle` |
 | `learnstack_platform_operator_refusals_total{cause}` | Refusals, by cause: `request_aborted`, `metadata_stale`, `metadata_unavailable`, `token_missing`, `token_expired`, `token_lifetime`, `token_signature`, `token_issuer`, `token_audience`, `token_type`, `token_algorithm`, `token_invalid`, `profile_issuer`, `profile_subject`, `profile_azp`, `profile_acr`, `profile_iat`, `profile_auth_time`, `profile_lifetime`, `profile_auth_age`, and at the gate `invalid_ticket`, `missing_permission`, `unknown_operation`, `invalid_witness` |
-| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by the platform scope, so the killswitch act only |
+| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by an operator act: the killswitch toggle in the platform scope, and a replay or a reset on the dispatcher's outbox role |
+| `learnstack_platform_operator_recoveries_total{operation,outcome}` | Recovery transitions by how they ended; see the [recovery runbook](operator-recovery.md#signals) |
 | `learnstack_platform_operator_acts_total{operation,outcome}` | Onboarding acts by how they ended (`applied`, `replayed`, `refused`, `failed`); see the [onboarding runbook](tenant-onboarding.md#signals) |
 | `learnstack_platform_operator_audit_failures_total{operation}` | Acts refused because the MUST row was not durable (the 503) |
 | `learnstack_platform_operator_metadata_failures_total` | The issuer's discovery document or key set could not be read, was refused, or named another origin. While it climbs, new keys are not learned; a fetch that failed is not retried for 30 seconds, and once the keys held are more than 15 minutes old with a later fetch failed, every operator is refused (`metadata_stale`) |

@@ -1398,7 +1398,8 @@ public sealed partial class TenancySchemaTests
         // that lets anything enter EnterPlatformAdminScope at all.
         "learnstack_platform platform_killswitches DELETE,INSERT,SELECT,UPDATE",
         "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
-        "learnstack_platform outbox_messages DELETE,SELECT",
+        // ADR-0103: the purge keeps its DELETE; the table-wide SELECT is gone, and the inspection reads named columns.
+        "learnstack_platform outbox_messages DELETE",
         "learnstack_platform idempotency_keys DELETE,SELECT",
         "learnstack_app tenant_content_types DELETE,INSERT,SELECT,UPDATE",
         "learnstack_app tenant_level_taxonomies DELETE,INSERT,SELECT,UPDATE",

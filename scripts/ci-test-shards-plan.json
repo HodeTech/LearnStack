@@ -83,6 +83,7 @@
     "LearnStack.Tests.Integration.Database.DatabaseRoleTests",
     "LearnStack.Tests.Integration.Database.DeliveryDispatchStoreTests",
     "LearnStack.Tests.Integration.Database.DeliveryExecutionTests",
+    "LearnStack.Tests.Integration.Database.DeliveryInspectionTests",
     "LearnStack.Tests.Integration.Database.DeliveryProcessorTests",
     "LearnStack.Tests.Integration.Database.DomainEventProductionTests",
     "LearnStack.Tests.Integration.Database.DurableEventAcceptanceTests",

@@ -8,7 +8,7 @@ namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 public sealed class BackgroundJobPhysicalCapacityTests
 {
     [Fact]
-    public void Default_topology_counts_actual_invocation_and_recurrence_owners_and_requires_52_connections()
+    public void Default_topology_counts_actual_invocation_and_recurrence_owners_and_requires_54_connections()
     {
         var capacity = BackgroundJobPhysicalCapacity.Calculate(BackgroundJobInfrastructureRegistry.CreateDefault());
         capacity.Pools.Should().Be(3);
@@ -16,18 +16,18 @@ public sealed class BackgroundJobPhysicalCapacityTests
         capacity.ControlPools.Should().Be(1);
         capacity.InvocationOwners.Should().Be(16);
         capacity.RecurrenceConnections.Should().Be(2);
-        capacity.RequiredConnections.Should().Be(52);
+        capacity.RequiredConnections.Should().Be(54);
     }
 
     [Fact]
-    public void Maximum_valid_control_multiplicity_requires_158_connections()
+    public void Maximum_valid_control_multiplicity_requires_160_connections()
     {
         var capacity = BackgroundJobPhysicalCapacity.Calculate(Topology(6));
         capacity.Pools.Should().Be(8);
         capacity.Workers.Should().Be(32);
         capacity.ControlPools.Should().Be(6);
         capacity.InvocationOwners.Should().Be(64);
-        capacity.RequiredConnections.Should().Be(158);
+        capacity.RequiredConnections.Should().Be(160);
     }
 
     [Fact]

@@ -243,3 +243,79 @@ follow.
 - [Event and Outbox](../architecture/15-event-and-outbox.md),
   [Data Protection](../architecture/23-data-protection.md)
 - [Phase 03](../roadmap/phase-03-identity-admin.md): G14, D13, C15
+
+## Amendment 1 — Implementation contract of the recovery owner (2026-11-20)
+
+Step 4 of the platform-authority packet implements the decision. Each item below fixes
+something the Decision left open or states where the code meets it; items 2, 3 and 4
+correct a statement the code could not satisfy as written. None of them changes the
+Decision's choice of option, its two transitions, its permissions or its refusal of job
+recovery.
+
+1. **Where the code lives.** The owner is `OperatorRecovery`, a singleton behind
+   `IOperatorRecovery`. It holds the two dispatcher stores and no credential, so the
+   credential census gains no reader and no keyed binding. `ReplayAsync` stays on
+   `DeliveryDispatchStore` with its new signature, and `ResetAsync` is new on
+   `OutboxDispatchStore`; both are partial-class files, and neither store's claim, fail
+   or terminalize code changed. Each store gained a third connection slot, reserved for
+   the operator lane: the dispatcher's own two slots (the main owner and its
+   uncertain-COMMIT reconciliation) are never taken by an operator, a second concurrent
+   operator call on a store is refused as unavailable instead of waiting, and the
+   physical-capacity ledger grows by the two lanes, from 52 to 54 for the default
+   topology and from 158 to 160 for the maximum.
+2. **The platform role already read `outbox_messages` whole.** § 1 says a migration
+   gives the role `SELECT` on named columns so that the database refuses the rest. The
+   role held table-wide `SELECT` and `DELETE` there since the first platform migration,
+   so a column grant beside it would exclude nothing. The migration revokes the
+   table-wide `SELECT`, grants twelve named columns, keeps `DELETE` for the retention
+   purge that Phase 11 owns (its predicate reads only granted columns), and grants named
+   columns on the other three tables: fifteen on `event_deliveries`, twenty-seven on
+   `background_jobs` and every column of `background_job_reservations`. No envelope,
+   parameter, plan, outcome, causal, trace, lease-token or operation-key column is among
+   them. It adds two partial indexes on the dead-lettered rows, because no index served
+   that scan. The canonical SQL is in Database Standards, and the platform-role tests
+   that read `correlation_id` moved to the owner and dispatcher roles.
+3. **One witness class with two kinds, and no audit DDL.** § 5 says a new witness kind,
+   and the carrier disclosures say two. The code has one sibling class,
+   `OperatorRecoveryTransition`, whose protected minting seam is subtyped only by a
+   private nested class in each of the two stores and whose two factories are the replay
+   and the reset. It is not a third factory on the terminal witness, whose census pins
+   two. One new `IAuditStore` method, `WriteOperatorRecoveryAsync`, writes the row,
+   which makes fourteen writes. The outbox role already holds `INSERT` on `audit_log`
+   and bypasses row security, so no policy arm or grant changed: the binding of the row
+   to the real event tenant is the witness's, which composes the exact `metadata` (the
+   operator attribution, the event and subscription, and the fence before and after) and
+   refuses a draft that differs.
+4. **The error vocabulary.** The API's status map is closed and answers an unknown
+   top-level code with `500`, so `stale_fence` and `not_recoverable` are not codes. A
+   stale fence is `409` `business_rule_violation` with the reason `lockey_stale_fence`
+   on the field `fence`, and a refused state is `409` with `lockey_not_recoverable` on
+   the field `state`, as the onboarding acts already answer. A missing row is `404`. A
+   MUST row that cannot be written, an unavailable lane or database, and a commit whose
+   answer was lost are `503` with `Retry-After`, the last with its own reason
+   `outcome_unknown`.
+5. **"The event's tenant is Active."** The test is the lifecycle projection the
+   dispatcher role already reads, read in the same transaction as the reset: the tenant
+   is not deleted, has its default organization and is Trial or Active, which is the
+   serving-tenant meaning the job runtime uses. Suspended and Archived tenants are
+   refused. A producer reset also refuses a row whose stored type the registry has since
+   retired or no longer knows, because a reset would only dead-letter it again with a
+   second MUST row.
+6. **Inspection.** Each page is one entered platform scope on the platform role's column
+   grants, so the scope's entry row, which names `platform.delivery.inspect` and carries
+   the ticket and the operator's attribution, is the audit. The scope reads and changes
+   nothing, so it writes no result row and ends by disposal; the slug is still declared
+   off-path, because the scope refuses an operation that is not. Pages are keyset
+   cursors bound to their resource and state, 1 to 100 rows, and a cursor carries no
+   authority. The fence timestamp is the stored microsecond, returned and compared
+   exactly.
+7. **An unknown COMMIT is not reconciled automatically.** A reset and its row commit
+   together, so a lost answer leaves nothing to repair: the operator inspects, and the
+   fence of a landed reset has moved, so a repeat answers `409` on the fence. The
+   runbook says so.
+8. **Signals.** `learnstack_platform_operator_recoveries_total{operation,outcome}`
+   counts each transition as applied, stale fence, not recoverable, not found,
+   unavailable or commit unknown, so a replay storm is visible.
+
+The Decision, Status, Date and prior amendments of this record are unchanged.
+Acceptance of the linked records is not proof that anything they decide is implemented.

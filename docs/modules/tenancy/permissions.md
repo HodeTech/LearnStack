@@ -111,7 +111,7 @@ authority. Their named Phase 02c/P03-9 surfaces retain separate admission decisi
 the widening it needs is an ADR's to make, not a migration's.
 
 The Platform catalogue ([ADR-0101](../../decisions/0101-platform-operator-authority.md))
-is separate and never assignable to a Role. Tenancy owns two keys in it today.
+is separate and never assignable to a Role. Tenancy owns four keys in it today.
 `platform.killswitch.write` authorizes the operator surface to toggle
 `platform_killswitches`. `platform.tenant.write` authorizes the operator's production
 tenant provisioning and host mapping
@@ -120,8 +120,14 @@ tenant provisioning and host mapping
 operations whose one source is `PlatformOperator`, run on the application role under the
 target tenant's ordinary announcement, and share their audit slugs
 (`tenancy.tenant.create`, `tenancy.organization.create`, `tenancy.hostmapping.write`)
-with the seed commands they parallel. Operators hold the keys by configuration
-([Standard 19](../../standards/19-permissions.md)).
+with the seed commands they parallel. `platform.delivery.read` and
+`platform.delivery.write` authorize the operator's inspection of dead-lettered
+asynchronous work and its two fenced recovery transitions
+([ADR-0103](../../decisions/0103-operator-recovery-of-asynchronous-work.md)): they run in
+the platform scope and on the dispatcher's outbox role, not through the pipeline, and
+write the off-path slugs `platform.delivery.inspect`, `platform.delivery.replay` and
+`platform.delivery.reset` in [Tenancy's audit matrix](audit.md). Operators hold the keys
+by configuration ([Standard 19](../../standards/19-permissions.md)).
 
 ## Bounded human administration contract
 

@@ -6,6 +6,7 @@ using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.Modules.Tenancy.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -44,7 +45,8 @@ public static class OutboxCompositionExtensions
             provider.GetRequiredService<OutboxDispatchOptions>(),
             provider.GetRequiredService<IGuidFactory>(),
             provider.GetRequiredService<IClock>(),
-            provider.GetRequiredService<IServiceScopeFactory>()));
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<BackgroundJobLifecycleProjection>()));
         services.TryAddSingleton<OutboxProcessor>();
         services.AddHostedService(ResolveOutboxHostedService);
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(OutboxHealthCheck)))
@@ -61,7 +63,10 @@ public static class OutboxCompositionExtensions
             provider.GetRequiredService<DeliveryDispatchOptions>(),
             provider.GetRequiredService<IGuidFactory>(),
             provider.GetRequiredService<IClock>(),
-            provider.GetRequiredService<IServiceScopeFactory>()));
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<BackgroundJobLifecycleProjection>()));
+        // The operator recovery owner holds the two stores and no credential of its own (ADR-0103 § 4).
+        services.TryAddSingleton<IOperatorRecovery, OperatorRecovery>();
         services.TryAddSingleton<DeliveryProcessor>();
         services.AddHostedService(ResolveDeliveryHostedService);
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(DeliveryHealthCheck)))

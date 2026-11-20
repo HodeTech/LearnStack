@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**386 test methods run in
+**389 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**290 rules in this catalogue are Implemented, and 172 of them are in that assembly.**
+**292 rules in this catalogue are Implemented, and 174 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -3781,11 +3781,12 @@ which decides identity, multiplicity, capture and classification;
   `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
   it must catch and the shapes it must not, because with no offending statement anywhere
   the sweep passes whether it works or matches nothing; and a reflection check,
-  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly thirteen
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly fourteen
   write methods and no update: the event/job seams ship in Phase 02b, ADR-0072's two
   global seams in P03-1 Step 3, the two trusted authorization seams in P03-2, the
-  operator result seam of ADR-0101 in P03-9 Step 1 and the two controlled-rebind seams
-  of ADR-0104 in P03-9 Step 3. None
+  operator result seam of ADR-0101 in P03-9 Step 1, the two controlled-rebind seams
+  of ADR-0104 in P03-9 Step 3 and the operator recovery seam of ADR-0103 in P03-9
+  Step 4. None
   of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
   11 — so the exemption set ships with the rule **empty**, as exact paths: the first
   site to land adds its own path, so it is exempted by name rather than the pattern
@@ -5988,12 +5989,55 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3).
 - **Phase:** P03-9.
 
+#### `Operator_Recovery_Audit_Identity_Is_Row_Bound`
+
+- **Asserts:** by IL, over every production assembly, that `OperatorRecoveryTransition`
+  is sealed with one private live-reader constructor, readonly state and getter-only
+  properties, in an assembly with no friend; that its nested `MintingSource` is public,
+  abstract and protected-constructed with exactly the two protected static factories
+  (`FromReplayUpdate`, `FromResetUpdate`); that the only subtypes are the private sealed
+  `RecoveryMint` classes nested in `DeliveryDispatchStore` and `OutboxDispatchStore`; that
+  the factories' only callers are those classes' two wrappers, whose only callers are the
+  stores' `ReplayCoreAsync` and `ResetCoreAsync`; that the witness constructor's only
+  callers are the factories; and that `IAuditStore.WriteOperatorRecoveryAsync` is declared
+  on the port and implemented by `PostgresAuditStore` alone, with the two stores'
+  `WriteRecoveryRowAsync` as its only callers. Its companion
+  `Operator_recovery_census_detects_extra_derivers_constructors_and_callers` plants a
+  second subtype, an extra mint helper, a direct constructor call, an extra writer caller
+  and a helper on the sanctioned store, and requires the same detector to reject each.
+- **Why it matters:** the witness is evidence that a row was reset under a fence in a live
+  transaction, and it binds the audit row to the admitted operation, the operator and the
+  fence. A second way to make one, or to write the row, is a second way to forge that
+  evidence. The terminal witness could not carry an operator, so this is a sibling, not
+  a third factory on it.
+- **Source:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) § 5
+  and its Amendment 1.
+- **Type:** xUnit + IL scan. **Kind:** structural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`, P03-9 Step 4).
+- **Phase:** P03-9.
+
+#### `Only_The_Recovery_Routes_And_Their_Owners_Name_The_Operator_Recovery_And_Inspection_Ports`
+
+- **Asserts:** the files, by their path under `backend/src`, that name `IOperatorRecovery`
+  are exactly the port, its one implementation, the outbox composition and the recovery
+  routes, and the files that name `IDeliveryInspection` are exactly the port, its
+  implementation, the persistence composition and the recovery routes. Adding a caller
+  is a deliberate edit here, with its denied proof.
+- **Why it matters:** the two transitions are the dispatcher's second writer and the
+  inspection reads across tenants; a handler that held either port would reach a reset or
+  a cross-tenant read from a request path the operator gate does not guard.
+- **Source:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) § 4.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 4).
+- **Phase:** P03-9.
+
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
 - **Asserts:** the files, by their path under `backend/src`, that name
   `IPlatformAdminScope` are exactly the interface, the scope, the persistence
   composition and the operator services that perform an admitted act (today the
-  killswitch toggle). Adding a service is a deliberate edit here, with its denied proof.
+  killswitch toggle and the delivery inspection). Adding a service is a deliberate
+  edit here, with its denied proof.
 - **Why it matters:** a request handler holding the scope would enter a cross-tenant
   scope from a tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.

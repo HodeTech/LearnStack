@@ -160,7 +160,7 @@ public sealed class PlatformAdminGateTests
         // A lookalike is not the registered instance, however identical its content.
         var lookalike = typeof(PlatformOperation).GetConstructors(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)[0]
-            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true, null]);
+            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, PlatformOperationExecutor.PlatformScope, null]);
 
         (await gate.AdmitAsync(TestPlatformAdmissions.Witness(), (PlatformOperation)lookalike, null))
             .Refusal.Should().Be(PlatformRefusal.UnknownOperation);
@@ -184,7 +184,7 @@ public sealed class PlatformAdminGateTests
         var scope = Build(out var dataSource);
         var lookalike = typeof(PlatformOperation).GetConstructors(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)[0]
-            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, true, null]);
+            .Invoke(["tenancy.killswitch.toggle", "killswitch_toggle", PlatformPermissions.KillswitchWrite, PlatformOperationExecutor.PlatformScope, null]);
 
         var act = async () => await scope.EnterAsync(
             TestPlatformAdmissions.Admission((PlatformOperation)lookalike), CancellationToken.None);

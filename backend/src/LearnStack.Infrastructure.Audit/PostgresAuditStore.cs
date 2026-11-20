@@ -438,6 +438,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
         if (!StronglyTypedId.IsAssigned(entry.TenantId)
             || entry.ModuleName == "identity"
             || !PlatformOperations.IsRegistered(admission.Operation)
+            || !(admission.Operation.RunsInPipeline || admission.Operation.NeedsPlatformRole)
             || !string.Equals(entry.Operation, admission.Operation.AuditSlug, StringComparison.Ordinal)
             || !string.Equals(entry.Reason, admission.Operation.ReasonSlug, StringComparison.Ordinal)
             || entry.ActorUserId is not null
@@ -639,6 +640,50 @@ public sealed partial class PostgresAuditStore : IAuditStore
         {
             throw new AuditWriteFailedException(
                 "The terminal audit could not be written; its state transition must roll back.", failure);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task WriteOperatorRecoveryAsync(
+        AuditEntryDraft entry,
+        OperatorRecoveryTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(transition);
+        transition.EnsureMatches(entry, connection, transaction);
+
+        var operation = transition.Kind switch
+        {
+            "replay" => PlatformOperations.DeliveryReplay.AuditSlug,
+            "reset" => PlatformOperations.DeliveryReset.AuditSlug,
+            _ => throw new ArgumentException("The recovery transition kind is not supported.", nameof(transition)),
+        };
+        if (!_catalog.TryGetOffPath(operation, out var declared)
+            || declared.Operation != operation || declared.ModuleName != "platform"
+            || declared.OperationClass != OperationClass.Must
+            || declared.OperationType != OperationType.SecurityEvent || declared.EntityType is not null
+            || entry.Operation != declared.Operation || entry.ModuleName != declared.ModuleName
+            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType)
+        {
+            throw new ArgumentException("The recovery audit requires its declared MUST security event.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+            Bind(command.Parameters, entry);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The recovery audit could not be written; its reset must roll back.", failure);
         }
     }
 

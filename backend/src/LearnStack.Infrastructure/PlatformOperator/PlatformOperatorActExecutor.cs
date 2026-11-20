@@ -49,7 +49,7 @@ public sealed partial class PlatformOperatorActExecutor(
     {
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(request);
-        if (!PlatformOperations.IsRegistered(admission.Operation) || admission.Operation.NeedsPlatformRole
+        if (!PlatformOperations.IsRegistered(admission.Operation) || !admission.Operation.RunsInPipeline
             || !acts.TryGet(request.GetType(), out var act) || !ReferenceEquals(act.Operation, admission.Operation)
             || !StronglyTypedId.IsAssigned(tenantId) || tenantId == TenantId.PlatformSentinel)
         {

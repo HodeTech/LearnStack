@@ -35,7 +35,7 @@ internal sealed class PlatformOperatorOperationSource(
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(context);
         if (!CanIssue || _frame is not null || !PlatformOperations.IsRegistered(admission.Operation)
-            || admission.Operation.NeedsPlatformRole)
+            || !admission.Operation.RunsInPipeline)
         {
             throw new InvalidOperationException("Operator act provenance is invalid.");
         }

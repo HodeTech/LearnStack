@@ -541,7 +541,10 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, LifecycleInvitationSmtpOwner, "ExecuteSqlAsync", LifecycleInvitationSmtpSqlParameters),
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
-                Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),
+                // ADR-0103: the operator's fenced replay and reset each own one short transaction of their own on the
+                // dispatcher role, never business completion.
+                Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayCoreAsync"),
+                Owner(InfrastructureAssembly, Store, "ResetCoreAsync"),
                 // Routing publishes a claim only after this owned operation acknowledges COMMIT and joins cleanup.
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobRoutingStore", "TryClaimOwnedAsync"),
                 // Bridge transport hints own short privileged transactions, never business completion.

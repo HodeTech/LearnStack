@@ -658,7 +658,13 @@ public sealed partial class OutboxDispatchConventionTests
         var storeConstructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
             BoundaryGuardedSource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
             "LearnStack.Infrastructure.Messaging.OutboxDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
-            "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
+            "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory",
+            "LearnStack.SharedKernel.Jobs.BackgroundJobLifecycleProjection");
+        // The public reset is the operator's entry and holds no connection; the core below it owns the one.
+        RequireBoundaryMethod(offenders, store, "ResetAsync",
+            "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Platform.OperatorRecoveryResult>", MethodAttributes.Public,
+            "LearnStack.SharedKernel.Platform.OutboxResetRequest", "LearnStack.SharedKernel.Platform.PlatformAdmission",
+            BoundaryCancellation);
         string[] storeAcquisitions =
         [
             RequireBoundaryMethod(offenders, store, "AcquireAsync", "System.Threading.Tasks.Task`1<" + BoundaryClaim + ">", MethodAttributes.Private,
@@ -670,9 +676,14 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, store, "IsDurablyTerminalAsync", BoundaryBooleanTask, MethodAttributes.Private, "System.Guid"),
             RequireBoundaryMethod(offenders, store, "ReadSnapshotAsync", "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.OutboxQueueSnapshot>",
                 MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, store, "ResetCoreAsync",
+                "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Platform.OperatorRecoveryResult>", MethodAttributes.Private,
+                "LearnStack.SharedKernel.Platform.OutboxResetRequest", "LearnStack.SharedKernel.Platform.PlatformAdmission",
+                BoundaryCancellation),
         ];
         var storeReader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
-            "System.Threading.Tasks.ValueTask`1<" + Store + "/OwnedConnection>", MethodAttributes.Private, BoundaryCancellation);
+            "System.Threading.Tasks.ValueTask`1<" + Store + "/OwnedConnection>", MethodAttributes.Private,
+            BoundaryCancellation, "System.Boolean");
         CheckSourceFieldAccess(offenders, census, store, storeConstructor, [storeReader]);
         CheckCleanupConnectionOwner(offenders, census, store, storeReader, storeAcquisitions);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
@@ -719,7 +730,8 @@ public sealed partial class OutboxDispatchConventionTests
                 && field.FieldType.FullName == Store)).ToArray();
         CheckSet(offenders, "privileged store fields", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
             [TypeId(worker) + ":_store", InfrastructureAssembly + ":" + Store + "/OwnedConnection:<owner>P",
-             BoundaryApi + ":" + MessagingLifetime + ":_outboxStore"]);
+             BoundaryApi + ":" + MessagingLifetime + ":_outboxStore",
+             InfrastructureAssembly + ":" + OperatorRecoveryOwner + ":_outbox"]);
         foreach (var field in fields)
             if (!field.IsPrivate || !field.IsInitOnly && !(field.DeclaringType.FullName == Store + "/OwnedConnection" && field.Name == "<owner>P"))
                 offenders.Add(field.FullName + ": store capability must remain private and readonly or the exact construction-only cleanup capture");

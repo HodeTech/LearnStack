@@ -265,7 +265,12 @@ registers `platform.delivery.dead_letter`, both off-path under Tenancy. The
 subscriber witness binds the actual tenant/subscription/event tuple and uses a
 validated attempt trace without causal-envelope or payload SELECT. Outcome success
 describes terminal state, not publication. Producer terminal audit omits invalid
-causal fields in favor of a fresh validated attempt trace.
+causal fields in favor of a fresh validated attempt trace. The operator's reset of a
+dead-lettered row is a sibling seam, `WriteOperatorRecoveryAsync`
+([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)): its witness
+carries the admitted operator and the fence before and after, the row names the real
+event tenant with no actor and no ticket, and the outbox role needs no new policy arm
+because it bypasses row security and already holds `INSERT`.
 Absent optional causal IDs are valid and do not alone invalidate the stored trace.
 Closed terminal values use bounded metadata; `Reason` stays for platform entry.
 Audit failure retains terminal work for retry without delivery; uncertain COMMIT

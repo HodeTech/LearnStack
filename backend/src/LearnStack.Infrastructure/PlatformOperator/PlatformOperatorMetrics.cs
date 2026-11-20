@@ -29,6 +29,9 @@ public static class PlatformOperatorMetrics
     /// <summary>Acts refused with 503 because a MUST row could not be written, by <c>operation</c>.</summary>
     public const string AuditFailureCounterName = "learnstack_platform_operator_audit_failures_total";
 
+    /// <summary>Recovery transitions by <c>operation</c> and <c>outcome</c> (ADR-0103 § 10).</summary>
+    public const string RecoveryCounterName = "learnstack_platform_operator_recoveries_total";
+
     /// <summary>Issuer metadata or key fetches that failed or were refused (no label).</summary>
     public const string MetadataFailureCounterName = "learnstack_platform_operator_metadata_failures_total";
 
@@ -45,6 +48,9 @@ public static class PlatformOperatorMetrics
 
     private static readonly Counter<long> Acts =
         Meter.CreateCounter<long>(ActCounterName, description: "Operator onboarding acts by operation and outcome.");
+
+    private static readonly Counter<long> Recoveries =
+        Meter.CreateCounter<long>(RecoveryCounterName, description: "Operator recovery transitions by operation and outcome.");
 
     private static readonly Counter<long> AuditFailures =
         Meter.CreateCounter<long>(AuditFailureCounterName, description: "Operator acts refused because the MUST row was not durable.");
@@ -100,6 +106,25 @@ public static class PlatformOperatorMetrics
                 PlatformOperatorActOutcome.Refused => "refused",
                 _ => "failed",
             }));
+
+    /// <summary>
+    /// Counts one recovery transition by how it ended: <c>applied</c>, <c>stale_fence</c>, <c>not_recoverable</c> or
+    /// <c>not_found</c>. A fence refusal is its own label so a monitoring owner can see a replay storm.
+    /// </summary>
+    public static void Recovery(PlatformOperation operation, OperatorRecoveryOutcome outcome) =>
+        Recoveries.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),
+            new KeyValuePair<string, object?>("outcome", outcome switch
+            {
+                OperatorRecoveryOutcome.Applied => "applied",
+                OperatorRecoveryOutcome.StaleFence => "stale_fence",
+                OperatorRecoveryOutcome.NotRecoverable => "not_recoverable",
+                _ => "not_found",
+            }));
+
+    /// <summary>Counts a recovery the owner could not finish: <c>unavailable</c>, or <c>commit_unknown</c> when it may have landed.</summary>
+    public static void RecoveryUnavailable(PlatformOperation operation, bool commitOutcomeUnknown) =>
+        Recoveries.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),
+            new KeyValuePair<string, object?>("outcome", commitOutcomeUnknown ? "commit_unknown" : "unavailable"));
 
     /// <summary>Counts an act that was refused because its MUST row could not be written.</summary>
     public static void AuditFailed(PlatformOperation operation) =>

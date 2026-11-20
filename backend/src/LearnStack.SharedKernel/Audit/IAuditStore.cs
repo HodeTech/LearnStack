@@ -204,6 +204,25 @@ public interface IAuditStore
         CancellationToken cancellationToken = default) =>
         throw new InvalidOperationException("This audit store cannot write an identity rebind result.");
 
+    /// <summary>
+    /// Inserts an operator's MUST recovery row on the live transaction of the fenced reset it describes
+    /// (ADR-0103 § 5).
+    /// </summary>
+    /// <remarks>
+    /// A witness-bound method like the terminal write, for the second writer of dispatcher status: the
+    /// <paramref name="transition"/> binds the row to the admitted operation, its closed reason, the operator's
+    /// attribution and the fence before and after. The row names the real event tenant and carries no actor and no
+    /// ticket. The operation must be declared off-path as MUST/SecurityEvent. Any mismatch or write failure requires
+    /// the caller to roll the reset back. This seam opens and commits no transaction.
+    /// </remarks>
+    Task WriteOperatorRecoveryAsync(
+        AuditEntryDraft entry,
+        OperatorRecoveryTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write an operator recovery row.");
+
     /// <summary>Inserts a MUST terminal audit on the successful transition's live transaction.</summary>
     /// <remarks>
     /// The producer transition store is the only caller in P02b-2. The operation

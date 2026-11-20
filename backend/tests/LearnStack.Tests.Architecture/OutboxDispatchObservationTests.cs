@@ -372,6 +372,8 @@ public sealed partial class OutboxDispatchConventionTests
         {
             ("LearnStack.Infrastructure.Messaging.PostgresOutbox", "EnqueueAsync"),
             (Store, "AcquireAsync"), (Store, "UpdateAsync"), (Store, "TryTerminalizeAsync"),
+            // ADR-0103: the operator's fenced producer reset is the second writer of dispatcher status.
+            (Store, "ResetCoreAsync"),
             ("LearnStack.Infrastructure.Persistence.Migrations.add_outbox_dispatch_state", "Up"),
         })
         {

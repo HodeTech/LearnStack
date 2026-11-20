@@ -262,6 +262,7 @@ public sealed partial class PlatformAdminScopeConventionTests
                     ScopeFile,
                     CompositionFile,
                     KillswitchWriterFile,
+                    DeliveryInspectionFile,
                 ],
                 "each new operator service is added here deliberately, with its denied proof");
     }
@@ -283,8 +284,37 @@ public sealed partial class PlatformAdminScopeConventionTests
                 "each new caller of an operator act is added here deliberately, with its denied proof");
     }
 
+    [Fact]
+    public void Only_The_Recovery_Routes_And_Their_Owners_Name_The_Operator_Recovery_And_Inspection_Ports()
+    {
+        // ADR-0103: the two fenced transitions and the inspection are reachable from the recovery routes alone. The
+        // files that name a port are the port, its one implementation, the registration beside the source it enters and
+        // the routes, and nothing else: a second caller is a second route to a reset, added here with its denied proof.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IOperatorRecovery", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.SharedKernel/Platform/IOperatorRecovery.cs",
+                    "LearnStack.Infrastructure/Messaging/OperatorRecovery.cs",
+                    "LearnStack.Api/Composition/OutboxCompositionExtensions.cs",
+                    "LearnStack.Api/Platform/PlatformOperatorEndpoints.Recovery.cs",
+                ],
+                "each new caller of a recovery transition is added here deliberately, with its denied proof");
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IDeliveryInspection", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.SharedKernel/Platform/IDeliveryInspection.cs",
+                    DeliveryInspectionFile,
+                    "LearnStack.Api/Composition/PersistenceCompositionExtensions.cs",
+                    "LearnStack.Api/Platform/PlatformOperatorEndpoints.Recovery.cs",
+                ],
+                "each new caller of the inspection is added here deliberately, with its denied proof");
+    }
+
     private const string KillswitchWriterFile =
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchToggle.cs";
+
+    private const string DeliveryInspectionFile =
+        "LearnStack.Infrastructure/PlatformOperator/DeliveryInspection.cs";
 
     [Fact]
     public void Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer()

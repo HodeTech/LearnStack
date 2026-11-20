@@ -13,13 +13,49 @@ public sealed class PlatformOperatorActCatalogTests
     [Fact]
     public void The_Rebind_Operation_Is_Not_A_Pipeline_Act_Even_Though_It_Needs_No_Platform_Role()
     {
-        // NeedsPlatformRole is false for the rebind, which is what the executor admits; only the catalog keeps it out.
+        // NeedsPlatformRole is false for the rebind; what keeps it out is that it does not run in the pipeline.
         PlatformOperations.IdentityAuthorityRebind.NeedsPlatformRole.Should().BeFalse();
+        PlatformOperations.IdentityAuthorityRebind.RunsInPipeline.Should().BeFalse();
 
         var act = () => new PlatformOperatorActCatalog(
             [new KeyValuePair<Type, PlatformOperatorAct>(typeof(Request), new PlatformOperatorAct(PlatformOperations.IdentityAuthorityRebind))]);
 
         act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [MemberData(nameof(NonPipelineOperations))]
+    public void An_Operation_That_Runs_Anywhere_But_The_Pipeline_Is_Refused_By_The_Catalog(PlatformOperation operation)
+    {
+        operation.RunsInPipeline.Should().BeFalse();
+
+        var act = () => new PlatformOperatorActCatalog(
+            [new KeyValuePair<Type, PlatformOperatorAct>(typeof(Request), new PlatformOperatorAct(operation))]);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    public static TheoryData<PlatformOperation> NonPipelineOperations() => new()
+    {
+        PlatformOperations.KillswitchToggle,
+        PlatformOperations.IdentityAuthorityRebind,
+        PlatformOperations.DeliveryInspect,
+        PlatformOperations.DeliveryReplay,
+        PlatformOperations.DeliveryReset,
+    };
+
+    [Fact]
+    public void Every_Registered_Operation_Runs_In_Exactly_One_Place_And_Only_The_Scope_Needs_The_Platform_Role()
+    {
+        foreach (var operation in PlatformOperations.All)
+        {
+            operation.NeedsPlatformRole.Should().Be(operation.Executor == PlatformOperationExecutor.PlatformScope, operation.AuditSlug);
+            operation.RunsInPipeline.Should().Be(operation.Executor == PlatformOperationExecutor.Pipeline, operation.AuditSlug);
+        }
+
+        PlatformOperations.DeliveryReplay.Executor.Should().Be(PlatformOperationExecutor.RecoveryOwner);
+        PlatformOperations.DeliveryReset.Executor.Should().Be(PlatformOperationExecutor.RecoveryOwner);
+        PlatformOperations.DeliveryInspect.Executor.Should().Be(PlatformOperationExecutor.PlatformScope);
     }
 
     [Fact]

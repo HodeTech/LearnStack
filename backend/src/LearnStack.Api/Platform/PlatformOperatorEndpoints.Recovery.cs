@@ -1,0 +1,328 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
+using LearnStack.Api.Authentication;
+using LearnStack.Api.Common;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Platform;
+using LearnStack.SharedKernel.Results;
+using Microsoft.AspNetCore.Mvc;
+
+namespace LearnStack.Api.Platform;
+
+/// <summary>The fence a subscriber replay presents, as the inspection showed it.</summary>
+/// <param name="ReplayCount">The delivery's replay count; required.</param>
+/// <param name="DeadLetteredAt">The instant it was dead-lettered, to the microsecond, as the inspection returned it; required.</param>
+/// <param name="TerminalReason">The terminal reason the inspection showed; required.</param>
+/// <param name="Ticket">An optional ticket reference, 1 to 64 characters of <c>[A-Za-z0-9._:/#-]</c>.</param>
+internal sealed record DeliveryReplayBody(
+    [property: Required] int? ReplayCount,
+    [property: Required] DateTimeOffset? DeadLetteredAt,
+    [property: Required][property: StringLength(32, MinimumLength = 1)] string? TerminalReason,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(TicketPattern.Value)]
+    string? Ticket);
+
+/// <summary>The fence a producer reset presents, as the inspection showed it.</summary>
+/// <param name="Attempts">The row's attempt count; required.</param>
+/// <param name="DeadLetteredAt">The instant it was dead-lettered, to the microsecond, as the inspection returned it; required.</param>
+/// <param name="Ticket">An optional ticket reference, 1 to 64 characters of <c>[A-Za-z0-9._:/#-]</c>.</param>
+internal sealed record OutboxResetBody(
+    [property: Required] int? Attempts,
+    [property: Required] DateTimeOffset? DeadLetteredAt,
+    [property: StringLength(64, MinimumLength = 1)]
+    [property: RegularExpression(TicketPattern.Value)]
+    string? Ticket);
+
+/// <summary>What an applied recovery answers: the row it reset, the count it now carries and the correlation id.</summary>
+internal sealed record RecoveryResponse(
+    string Outcome, Guid TenantId, Guid EventId, string? SubscriptionId, int CountAfter, string CorrelationId);
+
+/// <summary>The cursor envelope of Standard 04, for an inspection page.</summary>
+internal sealed record InspectionPageInfo(string? NextCursor, string? PreviousCursor, bool HasNext, bool HasPrevious);
+
+/// <summary>One page of an inspection.</summary>
+internal sealed record InspectionResponse<T>(IReadOnlyList<T> Items, InspectionPageInfo PageInfo);
+
+/// <summary>
+/// The recovery routes of the operator surface (ADR-0103): a metadata-only inspection of dead-lettered work and
+/// the two fenced transitions that act on what it shows. There is no dashboard and no job recovery.
+/// </summary>
+/// <remarks>
+/// Each route runs the gate first. The acts are <c>POST</c>s that carry the fence read at inspection: a stale fence
+/// answers <c>409</c> with the reason on the field <c>fence</c>, a state a reset may not act on answers <c>409</c> with
+/// the reason on the field <c>state</c>, a MUST row that cannot be written answers <c>503</c> with nothing changed, and
+/// a commit whose outcome is unknown answers <c>503</c> so the operator inspects before repeating.
+/// </remarks>
+internal static partial class PlatformOperatorEndpoints
+{
+    private const string WorkPrefix = "/asynchronous-work";
+    private const int DefaultPageSize = 20;
+    private const int MaximumPageSize = 100;
+
+    private static readonly Regex SubscriptionPattern = new(
+        @"\A[a-z][a-z0-9]*\.[a-z][a-z0-9-]*\.v[1-9][0-9]*\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    private static void MapRecovery(RouteGroupBuilder group)
+    {
+        DescribeInspection(
+            group.MapGet(WorkPrefix + "/outbox-messages", InspectOutboxAsync)
+                .WithName("PlatformOutboxInspect")
+                .WithSummary("List dead-lettered or terminal-requested outbox rows, metadata only, with the fence a reset needs."),
+            typeof(InspectionResponse<OutboxMessageInspection>));
+        DescribeInspection(
+            group.MapGet(WorkPrefix + "/event-deliveries", InspectDeliveriesAsync)
+                .WithName("PlatformDeliveryInspect")
+                .WithSummary("List dead-lettered or terminal-requested subscriber deliveries, metadata only, with the fence a replay needs."),
+            typeof(InspectionResponse<EventDeliveryInspection>));
+        DescribeInspection(
+            group.MapGet(WorkPrefix + "/quarantined-jobs", InspectJobsAsync)
+                .WithName("PlatformJobInspect")
+                .WithSummary("List quarantined jobs with their reservation occupancy; nothing here releases or requeues one."),
+            typeof(InspectionResponse<QuarantinedJobInspection>));
+        Describe(
+            group.MapPost(WorkPrefix + "/event-deliveries/{tenantId:guid}/{subscriptionId}/{eventId:guid}/replay", ReplayDeliveryAsync)
+                .WithName("PlatformDeliveryReplay")
+                .WithSummary("Reset one dead-lettered subscriber delivery under the fence the inspection returned."),
+            typeof(RecoveryResponse));
+        Describe(
+            group.MapPost(WorkPrefix + "/outbox-messages/{tenantId:guid}/{eventId:guid}/reset", ResetOutboxAsync)
+                .WithName("PlatformOutboxReset")
+                .WithSummary("Reset one retry-exhausted outbox row under the fence the inspection returned; this renews its attempt budget."),
+            typeof(RecoveryResponse));
+    }
+
+    private static void DescribeInspection(RouteHandlerBuilder route, Type success) => route
+        .Produces(StatusCodes.Status200OK, success, "application/json")
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status500InternalServerError)
+        .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
+    private static Task<IResult> InspectOutboxAsync(
+        [FromQuery] string? state, [FromQuery] string? limit, [FromQuery] string? cursor, [FromQuery] string? ticket,
+        HttpContext http, IPlatformOperatorGate gate, IDeliveryInspection inspection, ILoggerFactory loggers,
+        CancellationToken cancellationToken) =>
+        InspectAsync(
+            http, gate, ticket, state, limit, loggers, cancellationToken,
+            async (admission, parsedState, size) => await inspection.InspectOutboxAsync(admission, parsedState, cursor, size, cancellationToken));
+
+    private static Task<IResult> InspectDeliveriesAsync(
+        [FromQuery] string? state, [FromQuery] string? limit, [FromQuery] string? cursor, [FromQuery] string? ticket,
+        HttpContext http, IPlatformOperatorGate gate, IDeliveryInspection inspection, ILoggerFactory loggers,
+        CancellationToken cancellationToken) =>
+        InspectAsync(
+            http, gate, ticket, state, limit, loggers, cancellationToken,
+            async (admission, parsedState, size) => await inspection.InspectDeliveriesAsync(admission, parsedState, cursor, size, cancellationToken));
+
+    private static Task<IResult> InspectJobsAsync(
+        [FromQuery] string? limit, [FromQuery] string? cursor, [FromQuery] string? ticket,
+        HttpContext http, IPlatformOperatorGate gate, IDeliveryInspection inspection, ILoggerFactory loggers,
+        CancellationToken cancellationToken) =>
+        InspectAsync(
+            http, gate, ticket, "dead_lettered", limit, loggers, cancellationToken,
+            async (admission, _, size) => await inspection.InspectJobsAsync(admission, cursor, size, cancellationToken));
+
+    /// <summary>
+    /// The shared flow of an inspection: the gate first, so the query is answered only to an operator who may inspect,
+    /// then the page parameters, then one page in an entered platform scope.
+    /// </summary>
+    private static async Task<IResult> InspectAsync<T>(
+        HttpContext http,
+        IPlatformOperatorGate gate,
+        string? ticket,
+        string? state,
+        string? limit,
+        ILoggerFactory loggers,
+        CancellationToken cancellationToken,
+        Func<PlatformAdmission, DeliveryInspectionState, int, Task<InspectionPage<T>?>> page)
+    {
+        var (refusal, admission) = await AdmitAsync(http, gate, PlatformOperations.DeliveryInspect, ticket, cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        if (!TryState(state, out var parsedState) || !TryLimit(limit, out var size))
+        {
+            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
+        }
+
+        try
+        {
+            var result = await page(admission!, parsedState, size);
+            return result is null
+                ? Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed")
+                : Results.Ok(new InspectionResponse<T>(
+                    result.Items, new InspectionPageInfo(result.NextCursor, null, result.NextCursor is not null, false)));
+        }
+        catch (AuditWriteFailedException failure)
+        {
+            return AuditUnavailableProblem(http, loggers, PlatformOperations.DeliveryInspect, failure);
+        }
+    }
+
+    private static async Task<IResult> ReplayDeliveryAsync(
+        Guid tenantId, string subscriptionId, Guid eventId, HttpContext http, IPlatformOperatorGate gate,
+        IOperatorRecovery recovery, ILoggerFactory loggers, CancellationToken cancellationToken)
+    {
+        var (body, refusal, admission) = await AdmitWithBodyAsync<DeliveryReplayBody>(
+            http, gate, PlatformOperations.DeliveryReplay, request => request.Ticket, cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        if (body is null || !IsOperatorRowId(tenantId) || eventId == Guid.Empty || !SubscriptionPattern.IsMatch(subscriptionId)
+            || body.ReplayCount is not { } count || body.DeadLetteredAt is not { } deadLettered || body.TerminalReason is not { } reason)
+        {
+            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
+        }
+
+        return await RecoverAsync(
+            http, loggers, PlatformOperations.DeliveryReplay, admission!, tenantId, eventId, subscriptionId,
+            () => recovery.ReplayDeliveryAsync(
+                admission!, new DeliveryReplayRequest(tenantId, subscriptionId, eventId, count, deadLettered, reason), cancellationToken));
+    }
+
+    private static async Task<IResult> ResetOutboxAsync(
+        Guid tenantId, Guid eventId, HttpContext http, IPlatformOperatorGate gate, IOperatorRecovery recovery,
+        ILoggerFactory loggers, CancellationToken cancellationToken)
+    {
+        var (body, refusal, admission) = await AdmitWithBodyAsync<OutboxResetBody>(
+            http, gate, PlatformOperations.DeliveryReset, request => request.Ticket, cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        if (body is null || !IsOperatorRowId(tenantId) || eventId == Guid.Empty
+            || body.Attempts is not { } attempts || body.DeadLetteredAt is not { } deadLettered)
+        {
+            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
+        }
+
+        return await RecoverAsync(
+            http, loggers, PlatformOperations.DeliveryReset, admission!, tenantId, eventId, null,
+            () => recovery.ResetOutboxAsync(
+                admission!, new OutboxResetRequest(tenantId, eventId, attempts, deadLettered), cancellationToken));
+    }
+
+    private static async Task<IResult> RecoverAsync(
+        HttpContext http,
+        ILoggerFactory loggers,
+        PlatformOperation operation,
+        PlatformAdmission admission,
+        Guid tenantId,
+        Guid eventId,
+        string? subscriptionId,
+        Func<Task<OperatorRecoveryResult>> transition)
+    {
+        try
+        {
+            var result = await transition();
+            return result.Outcome switch
+            {
+                OperatorRecoveryOutcome.Applied => Results.Ok(new RecoveryResponse(
+                    "applied", tenantId, eventId, subscriptionId, result.CountAfter ?? 0,
+                    admission.Operator.CorrelationId ?? http.TraceIdentifier)),
+                OperatorRecoveryOutcome.StaleFence => ResultProblem(http, Rule("fence", "lockey_stale_fence")),
+                OperatorRecoveryOutcome.NotRecoverable => ResultProblem(http, Rule("state", "lockey_not_recoverable")),
+                _ => Problem(http, StatusCodes.Status404NotFound, "lockey_not_found"),
+            };
+        }
+        catch (AuditWriteFailedException failure)
+        {
+            return AuditUnavailableProblem(http, loggers, operation, failure);
+        }
+        catch (OperatorRecoveryUnavailableException failure)
+        {
+            RetryAfter.Apply(http.Response, StatusCodes.Status503ServiceUnavailable);
+            return Problem(
+                http, StatusCodes.Status503ServiceUnavailable,
+                failure.CommitOutcomeUnknown ? "lockey_outcome_unknown" : "lockey_dependency_unavailable");
+        }
+    }
+
+    /// <summary>A 409 with the reason on the field it concerns; the status map is closed, so the code stays the business rule's.</summary>
+    private static Error Rule(string field, string reason) => new(
+        new LocalizedMessage("lockey_business_rule_violation"),
+        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+        {
+            [field] = [new LocalizedMessage(reason)],
+        });
+
+    private static async Task<(IResult? Refusal, PlatformAdmission? Admission)> AdmitAsync(
+        HttpContext http, IPlatformOperatorGate gate, PlatformOperation operation, string? ticket, CancellationToken cancellationToken)
+    {
+        var witness = http.Features.Get<PlatformOperatorFeature>()?.Witness;
+        if (witness is null)
+        {
+            return (Problem(http, StatusCodes.Status401Unauthorized, "lockey_unauthorized"), null);
+        }
+
+        var admission = await gate.AdmitAsync(witness, operation, ticket, cancellationToken);
+        return admission.IsAdmitted ? (null, admission.Admission) : (RefusalProblem(http, admission.Refusal), null);
+    }
+
+    /// <summary>The body is read to find the ticket, and answered only after the gate has admitted the act.</summary>
+    private static async Task<(TBody? Body, IResult? Refusal, PlatformAdmission? Admission)> AdmitWithBodyAsync<TBody>(
+        HttpContext http, IPlatformOperatorGate gate, PlatformOperation operation, Func<TBody, string?> ticketOf,
+        CancellationToken cancellationToken)
+        where TBody : class
+    {
+        var witness = http.Features.Get<PlatformOperatorFeature>()?.Witness;
+        if (witness is null)
+        {
+            return (null, Problem(http, StatusCodes.Status401Unauthorized, "lockey_unauthorized"), null);
+        }
+
+        var (body, bodyState) = await ReadBodyAsync<TBody>(http.Request, cancellationToken);
+        var admission = await gate.AdmitAsync(witness, operation, body is null ? null : ticketOf(body), cancellationToken);
+        if (!admission.IsAdmitted)
+        {
+            return (null, RefusalProblem(http, admission.Refusal), null);
+        }
+
+        return bodyState == BodyState.NotJson
+            ? (null, Problem(http, StatusCodes.Status415UnsupportedMediaType, "lockey_unsupported_media_type"), null)
+            : (body, null, admission.Admission);
+    }
+
+    private static bool TryState(string? text, out DeliveryInspectionState state)
+    {
+        state = DeliveryInspectionState.DeadLettered;
+        switch (text)
+        {
+            case null or "dead_lettered":
+                return true;
+            case "terminal_requested":
+                state = DeliveryInspectionState.TerminalRequested;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryLimit(string? text, out int size)
+    {
+        size = DefaultPageSize;
+        if (text is null)
+        {
+            return true;
+        }
+
+        if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            return false;
+        }
+
+        size = Math.Clamp(parsed, 1, MaximumPageSize);
+        return true;
+    }
+
+    /// <summary>A tenant the row names: never the nil value and never the platform sentinel, which no event row can carry.</summary>
+    private static bool IsOperatorRowId(Guid tenant) => tenant != Guid.Empty && tenant != TenantId.PlatformSentinel.Value;
+}

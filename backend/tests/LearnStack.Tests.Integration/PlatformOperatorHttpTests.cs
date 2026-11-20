@@ -45,6 +45,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     private TenantAuthenticationIssuer _operator = null!;
     private PlatformOperatorApiFactory _factory = null!;
     private RecordingToggle _toggle = null!;
+    private RecordingRecovery _recovery = null!;
+    private RecordingInspection _inspection = null!;
     private HttpClient _client = null!;
 
     public async Task InitializeAsync()
@@ -52,7 +54,14 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         _tenant = await TenantAuthenticationIssuer.StartAsync();
         _operator = await TenantAuthenticationIssuer.StartAsync();
         _toggle = new RecordingToggle();
-        _factory = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject);
+        _recovery = new RecordingRecovery();
+        _inspection = new RecordingInspection();
+        _factory = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
+            services: registrations =>
+            {
+                registrations.AddSingleton<IOperatorRecovery>(_recovery);
+                registrations.AddScoped<IDeliveryInspection>(_ => _inspection);
+            });
         _client = _factory.CreateClient();
     }
 
@@ -460,11 +469,20 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             .Should().BeTrue();
         put.GetProperty("responses").TryGetProperty("409", out _).Should().BeFalse("a switch toggle never answers a refused state");
 
-        // Every onboarding act is a PUT with its own body, the same status set, and a 409 for the state it refuses.
+        // Every act has its own body, the same status set, and a 409 for the state it refuses. An inspection is a
+        // read: it has no body and nothing to refuse, so it answers no 409.
         foreach (var route in OperatorRoutes.Where(route => !route.Contains("killswitches", StringComparison.Ordinal)))
         {
-            var act = root.GetProperty("paths").GetProperty(route).GetProperty("put");
+            var act = root.GetProperty("paths").GetProperty(route).GetProperty(VerbOf(route));
             act.GetProperty("security").GetArrayLength().Should().Be(1, route);
+            if (VerbOf(route) == "get")
+            {
+                act.TryGetProperty("requestBody", out _).Should().BeFalse("a read carries no body: " + route);
+                act.GetProperty("responses").EnumerateObject().Select(response => response.Name)
+                    .Should().Contain(["200", "400", "401", "403", "500", "503"], route);
+                continue;
+            }
+
             act.GetProperty("requestBody").GetProperty("content").GetProperty("application/json")
                 .GetProperty("schema").ValueKind.Should().NotBe(JsonValueKind.Undefined, route);
             act.GetProperty("responses").EnumerateObject().Select(response => response.Name)
@@ -478,7 +496,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         var schemas = root.GetProperty("components").GetProperty("schemas");
         string[] RequiredOf(string route)
         {
-            var schema = root.GetProperty("paths").GetProperty(route).GetProperty("put").GetProperty("requestBody")
+            var schema = root.GetProperty("paths").GetProperty(route).GetProperty(VerbOf(route)).GetProperty("requestBody")
                 .GetProperty("content").GetProperty("application/json").GetProperty("schema");
             if (schema.TryGetProperty("$ref", out var reference))
             {
@@ -494,11 +512,222 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         RequiredOf("/api/platform/v1/tenants/{tenantId}/roles/{roleId}").Should().Contain(["builtInKey", "capabilityScope"]);
         RequiredOf("/api/platform/v1/tenants/{tenantId}/first-administrator/{membershipId}").Should().Contain(["roleId", "providerSubject"]);
         RequiredOf("/api/platform/v1/tenants/{tenantId}/administrator-recovery/{membershipId}").Should().Contain(["roleId", "providerSubject"]);
+        RequiredOf("/api/platform/v1/asynchronous-work/event-deliveries/{tenantId}/{subscriptionId}/{eventId}/replay")
+            .Should().Contain(["replayCount", "deadLetteredAt", "terminalReason"]);
+        RequiredOf("/api/platform/v1/asynchronous-work/outbox-messages/{tenantId}/{eventId}/reset")
+            .Should().Contain(["attempts", "deadLetteredAt"]);
         foreach (var route in OperatorRoutes)
         {
-            root.GetProperty("paths").GetProperty(route).GetProperty("put").GetProperty("responses").EnumerateObject()
+            root.GetProperty("paths").GetProperty(route).GetProperty(VerbOf(route)).GetProperty("responses").EnumerateObject()
                 .Select(response => response.Name).Should().Contain(["413", "429"], route);
         }
+    }
+
+    private const string Work = "/api/platform/v1/asynchronous-work";
+    private const string RowTenant = "019a1929-5450-7bbb-8df1-516e8e002501";
+    private const string RowEvent = "019a1929-5450-7bbb-8df1-516e8e002502";
+    private const string RowSubscription = "orders.notify.v1";
+    private const string ReplayPath = Work + "/event-deliveries/" + RowTenant + "/" + RowSubscription + "/" + RowEvent + "/replay";
+    private const string ResetPath = Work + "/outbox-messages/" + RowTenant + "/" + RowEvent + "/reset";
+    private const string ReplayBody = """{"replayCount":2,"deadLetteredAt":"2026-10-01T12:00:00.1234560Z","terminalReason":"retry_exhausted","ticket":"CHG-103"}""";
+    private const string ResetBody = """{"attempts":6,"deadLetteredAt":"2026-10-01T12:00:00.1234560Z","ticket":"CHG-103"}""";
+
+    [Fact]
+    public async Task An_Inspection_Passes_Its_Parameters_On_Clamps_The_Limit_And_Answers_The_Page_Envelope()
+    {
+        var response = await Call(HttpMethod.Get, Work + "/outbox-messages?state=terminal_requested&limit=500&cursor=abc&ticket=CHG-1", Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var call = _inspection.Calls.Should().ContainSingle().Which;
+        call.Resource.Should().Be("outbox");
+        call.State.Should().Be(DeliveryInspectionState.TerminalRequested);
+        call.Cursor.Should().Be("abc");
+        call.Limit.Should().Be(100, "a limit above the maximum is clamped, as Standard 04 says");
+        call.Admission.Operation.Should().BeSameAs(PlatformOperations.DeliveryInspect);
+        call.Admission.Ticket.Should().Be("CHG-1");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"items\":[]").And.Contain("\"nextCursor\":\"next-cursor\"").And.Contain("\"hasNext\":true");
+    }
+
+    [Theory]
+    [InlineData("state=bogus")]
+    [InlineData("limit=abc")]
+    [InlineData("limit=-1")]
+    [InlineData("limit=1.5")]
+    [InlineData("ticket=has%20space")]
+    public async Task An_Inspection_With_A_Malformed_Parameter_Is_A_Validation_Failure_Before_Any_Scope(string query)
+    {
+        var response = await Call(HttpMethod.Get, Work + "/event-deliveries?" + query, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _inspection.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Cursor_The_Service_Refuses_Is_A_Validation_Failure_And_A_Failed_Audit_Write_Is_A_Retryable_503()
+    {
+        _inspection.RefuseCursor = true;
+        (await Call(HttpMethod.Get, Work + "/quarantined-jobs?cursor=forged", Valid())).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        _inspection.RefuseCursor = false;
+        _inspection.Failure = new AuditWriteFailedException("forced");
+        var response = await Call(HttpMethod.Get, Work + "/quarantined-jobs", Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.Headers.RetryAfter.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("GET", Work + "/outbox-messages")]
+    [InlineData("GET", Work + "/event-deliveries")]
+    [InlineData("GET", Work + "/quarantined-jobs")]
+    [InlineData("POST", ReplayPath)]
+    [InlineData("POST", ResetPath)]
+    public async Task An_Operator_Without_The_Delivery_Grants_Is_Forbidden_Whatever_The_Request_Carries_And_Nothing_Is_Called(string verb, string path)
+    {
+        var response = await Call(new HttpMethod(verb), path, Sign(("sub", "someone-else")), verb == "POST" ? "not json" : null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        await AssertProblem(response, "forbidden");
+        _inspection.Calls.Should().BeEmpty("admission is refused before any scope is entered");
+        _recovery.Calls.Should().BeEmpty("admission is refused before any outbox-role connection is opened");
+    }
+
+    [Fact]
+    public async Task A_Replay_Carries_The_Fence_To_The_Microsecond_Under_An_Admission_For_Exactly_That_Operation()
+    {
+        var response = await Call(HttpMethod.Post, ReplayPath, Valid(), ReplayBody);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var (admission, request) = _recovery.Calls.Should().ContainSingle().Which;
+        admission.Operation.Should().BeSameAs(PlatformOperations.DeliveryReplay);
+        admission.Ticket.Should().Be("CHG-103");
+        var replay = request.Should().BeOfType<DeliveryReplayRequest>().Which;
+        replay.TenantId.Should().Be(Guid.Parse(RowTenant));
+        replay.EventId.Should().Be(Guid.Parse(RowEvent));
+        replay.SubscriptionId.Should().Be(RowSubscription);
+        replay.ReplayCount.Should().Be(2);
+        replay.TerminalReason.Should().Be("retry_exhausted");
+        replay.DeadLetteredAt.UtcTicks.Should().Be(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero).AddTicks(1234560).UtcTicks);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"outcome\":\"applied\"").And.Contain("\"countAfter\":1").And.Contain("\"correlationId\"");
+    }
+
+    [Fact]
+    public async Task A_Reset_Carries_Its_Fence_Under_An_Admission_For_The_Reset_Operation()
+    {
+        var response = await Call(HttpMethod.Post, ResetPath, Valid(), ResetBody);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var (admission, request) = _recovery.Calls.Should().ContainSingle().Which;
+        admission.Operation.Should().BeSameAs(PlatformOperations.DeliveryReset);
+        var reset = request.Should().BeOfType<OutboxResetRequest>().Which;
+        (reset.TenantId, reset.EventId, reset.Attempts).Should().Be((Guid.Parse(RowTenant), Guid.Parse(RowEvent), 6));
+    }
+
+    [Theory]
+    [InlineData("""{}""")]
+    [InlineData("""{"replayCount":2,"deadLetteredAt":"2026-10-01T12:00:00Z"}""")]
+    [InlineData("""{"replayCount":2,"deadLetteredAt":"not a date","terminalReason":"retry_exhausted"}""")]
+    [InlineData("""{"replayCount":2,"deadLetteredAt":"2026-10-01T12:00:00Z","terminalReason":"retry_exhausted","ticket":"has space"}""")]
+    public async Task A_Replay_Body_That_Cannot_Be_A_Fence_Is_A_Validation_Failure_And_Nothing_Is_Called(string body)
+    {
+        var response = await Call(HttpMethod.Post, ReplayPath, Valid(), body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _recovery.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("/event-deliveries/not-a-guid/orders.notify.v1/" + RowEvent + "/replay")]
+    [InlineData("/event-deliveries/" + RowTenant + "/Not.A.Subscription/" + RowEvent + "/replay")]
+    [InlineData("/event-deliveries/00000000-0000-0000-0000-000000000000/orders.notify.v1/" + RowEvent + "/replay")]
+    [InlineData("/event-deliveries/" + RowTenant + "/orders.notify.v1/00000000-0000-0000-0000-000000000000/replay")]
+    public async Task A_Replay_Route_Naming_No_Real_Row_Is_Refused_Without_Calling_The_Owner(string suffix)
+    {
+        var response = await Call(HttpMethod.Post, Work + suffix, Valid(), ReplayBody);
+
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.NotFound);
+        _recovery.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(OperatorRecoveryOutcome.StaleFence, HttpStatusCode.Conflict, "lockey_stale_fence")]
+    [InlineData(OperatorRecoveryOutcome.NotRecoverable, HttpStatusCode.Conflict, "lockey_not_recoverable")]
+    [InlineData(OperatorRecoveryOutcome.NotFound, HttpStatusCode.NotFound, "not_found")]
+    public async Task A_Refused_Recovery_Answers_Its_Status_With_The_Reason_On_The_Field_It_Concerns(
+        OperatorRecoveryOutcome outcome, HttpStatusCode status, string expected)
+    {
+        _recovery.Result = new OperatorRecoveryResult(outcome);
+
+        var response = await Call(HttpMethod.Post, ResetPath, Valid(), ResetBody);
+
+        response.StatusCode.Should().Be(status);
+        (await response.Content.ReadAsStringAsync()).Should().Contain(expected);
+    }
+
+    [Fact]
+    public async Task A_Stale_Fence_And_A_Refused_State_Name_Different_Fields_Under_One_Status_Code()
+    {
+        _recovery.Result = new OperatorRecoveryResult(OperatorRecoveryOutcome.StaleFence);
+        var stale = await (await Call(HttpMethod.Post, ResetPath, Valid(), ResetBody)).Content.ReadAsStringAsync();
+        _recovery.Result = new OperatorRecoveryResult(OperatorRecoveryOutcome.NotRecoverable);
+        var state = await (await Call(HttpMethod.Post, ResetPath, Valid(), ResetBody)).Content.ReadAsStringAsync();
+
+        stale.Should().Contain("\"code\":\"business_rule_violation\"").And.Contain("\"fence\"");
+        state.Should().Contain("\"code\":\"business_rule_violation\"").And.Contain("\"state\"");
+    }
+
+    [Fact]
+    public async Task An_Owner_That_Cannot_Finish_Or_Whose_Commit_Is_Unknown_Or_Whose_Audit_Failed_Is_A_Retryable_503_With_Its_Own_Reason()
+    {
+        foreach (var (failure, reason) in new (Exception, string)[]
+                 {
+                     (new OperatorRecoveryUnavailableException(), "dependency_unavailable"),
+                     (new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true), "outcome_unknown"),
+                     (new AuditWriteFailedException("forced"), "audit_unavailable"),
+                 })
+        {
+            _recovery.Failure = failure;
+
+            var response = await Call(HttpMethod.Post, ReplayPath, Valid(), ReplayBody);
+
+            response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, reason);
+            response.Headers.RetryAfter.Should().NotBeNull(reason);
+            (await response.Content.ReadAsStringAsync()).Should().Contain(reason);
+        }
+    }
+
+    [Fact]
+    public async Task An_Act_Without_A_Body_Or_With_The_Wrong_Media_Type_Is_Answered_As_A_Problem_Only_To_A_Granted_Operator()
+    {
+        (await Call(HttpMethod.Post, ResetPath, Valid())).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var wrongType = new HttpRequestMessage(HttpMethod.Post, ResetPath)
+        {
+            Headers = { { "Authorization", "Bearer " + Valid() } },
+            Content = new StringContent(ResetBody, System.Text.Encoding.UTF8, "text/plain"),
+        };
+
+        (await _client.SendAsync(wrongType)).StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
+        _recovery.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_Production_Composition_Resolves_The_Recovery_Owner_And_The_Inspection_Over_The_Real_Stores()
+    {
+        // The doubles above replace both ports, so this builds the host the way production does and asks for them: a
+        // registration that is missing or cannot be constructed would otherwise surface only on the first operator call.
+        await using var production = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject);
+        using var client = production.CreateClient();
+
+        using var scope = production.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IOperatorRecovery>()
+            .Should().BeOfType<LearnStack.Infrastructure.Messaging.OperatorRecovery>();
+        scope.ServiceProvider.GetRequiredService<IDeliveryInspection>()
+            .Should().BeOfType<LearnStack.Infrastructure.PlatformOperator.DeliveryInspection>();
+        scope.ServiceProvider.GetRequiredService<LearnStack.Infrastructure.Messaging.DeliveryDispatchStore>().Should().NotBeNull();
+        scope.ServiceProvider.GetRequiredService<LearnStack.Infrastructure.Messaging.OutboxDispatchStore>().Should().NotBeNull();
+        await Task.CompletedTask;
     }
 
     private static readonly string[] OperatorRoutes =
@@ -509,7 +738,17 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         "/api/platform/v1/tenants/{tenantId}/roles/{roleId}",
         "/api/platform/v1/tenants/{tenantId}/first-administrator/{membershipId}",
         "/api/platform/v1/tenants/{tenantId}/administrator-recovery/{membershipId}",
+        "/api/platform/v1/asynchronous-work/outbox-messages",
+        "/api/platform/v1/asynchronous-work/event-deliveries",
+        "/api/platform/v1/asynchronous-work/quarantined-jobs",
+        "/api/platform/v1/asynchronous-work/event-deliveries/{tenantId}/{subscriptionId}/{eventId}/replay",
+        "/api/platform/v1/asynchronous-work/outbox-messages/{tenantId}/{eventId}/reset",
     ];
+
+    /// <summary>The verb each operator route answers: reads are GET, recovery acts are POST, the rest are idempotent PUTs.</summary>
+    private static string VerbOf(string route) => route.Contains("/asynchronous-work/", StringComparison.Ordinal)
+        ? route.EndsWith("/replay", StringComparison.Ordinal) || route.EndsWith("/reset", StringComparison.Ordinal) ? "post" : "get"
+        : "put";
 
     [Fact]
     public async Task Without_An_Issuer_The_Surface_And_Its_Document_Do_Not_Exist()
@@ -544,7 +783,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public void The_Operator_Surface_Is_Exactly_The_Six_Authorized_Put_Endpoints_Under_Its_Prefix()
+    public void The_Operator_Surface_Is_Exactly_The_Eleven_Authorized_Endpoints_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
         // its population is closed here instead: every routed endpoint under /api/platform (whatever
@@ -560,12 +799,13 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Should().BeEquivalentTo(
             OperatorRoutes.Select(route => route.Replace("{tenantId}", "{tenantId:guid}").Replace("{roleId}", "{roleId:guid}")
-                .Replace("{membershipId}", "{membershipId:guid}")),
+                .Replace("{membershipId}", "{membershipId:guid}").Replace("{eventId}", "{eventId:guid}")),
             "the operator population is closed: a new route is a reviewed act with its own policy, grant and audit slug");
         foreach (var endpoint in endpoints)
         {
             var route = endpoint.RoutePattern.RawText;
-            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()!.HttpMethods.Should().Equal(["PUT"], route);
+            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()!.HttpMethods.Should().Equal(
+                [VerbOf(route!.Replace(":guid", string.Empty)).ToUpperInvariant()], route);
             endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
                 .Select(data => data.Policy).Should().Contain(PlatformOperatorAuthentication.PolicyName,
                     "an operator endpoint without the authenticated-operator policy would admit an anonymous caller: " + route);
@@ -692,6 +932,13 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         public void Advance(TimeSpan by) => UtcNow += by;
     }
 
+    private async Task<HttpResponseMessage> Call(HttpMethod method, string path, string token, string? json = null)
+    {
+        using var request = new HttpRequestMessage(method, path) { Headers = { { "Authorization", "Bearer " + token } } };
+        if (json is not null) request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        return await _client.SendAsync(request);
+    }
+
     private async Task<HttpResponseMessage> Put(string token, string json)
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, Path)
@@ -732,6 +979,53 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         }
     }
 
+    private sealed class RecordingRecovery : IOperatorRecovery
+    {
+        public List<(PlatformAdmission Admission, object Request)> Calls { get; } = [];
+        public OperatorRecoveryResult Result { get; set; } = new(OperatorRecoveryOutcome.Applied, 1);
+        public Exception? Failure { get; set; }
+
+        public Task<OperatorRecoveryResult> ReplayDeliveryAsync(
+            PlatformAdmission admission, DeliveryReplayRequest request, CancellationToken cancellationToken = default) =>
+            Record(admission, request);
+
+        public Task<OperatorRecoveryResult> ResetOutboxAsync(
+            PlatformAdmission admission, OutboxResetRequest request, CancellationToken cancellationToken = default) =>
+            Record(admission, request);
+
+        private Task<OperatorRecoveryResult> Record(PlatformAdmission admission, object request)
+        {
+            Calls.Add((admission, request));
+            return Failure is not null ? Task.FromException<OperatorRecoveryResult>(Failure) : Task.FromResult(Result);
+        }
+    }
+
+    private sealed class RecordingInspection : IDeliveryInspection
+    {
+        public List<(PlatformAdmission Admission, string Resource, DeliveryInspectionState? State, string? Cursor, int Limit)> Calls { get; } = [];
+        public bool RefuseCursor { get; set; }
+        public Exception? Failure { get; set; }
+
+        public Task<InspectionPage<OutboxMessageInspection>?> InspectOutboxAsync(
+            PlatformAdmission admission, DeliveryInspectionState state, string? cursor, int limit, CancellationToken cancellationToken = default) =>
+            Page<OutboxMessageInspection>(admission, "outbox", state, cursor, limit);
+
+        public Task<InspectionPage<EventDeliveryInspection>?> InspectDeliveriesAsync(
+            PlatformAdmission admission, DeliveryInspectionState state, string? cursor, int limit, CancellationToken cancellationToken = default) =>
+            Page<EventDeliveryInspection>(admission, "delivery", state, cursor, limit);
+
+        public Task<InspectionPage<QuarantinedJobInspection>?> InspectJobsAsync(
+            PlatformAdmission admission, string? cursor, int limit, CancellationToken cancellationToken = default) =>
+            Page<QuarantinedJobInspection>(admission, "job", null, cursor, limit);
+
+        private Task<InspectionPage<T>?> Page<T>(PlatformAdmission admission, string resource, DeliveryInspectionState? state, string? cursor, int limit)
+        {
+            Calls.Add((admission, resource, state, cursor, limit));
+            if (Failure is not null) return Task.FromException<InspectionPage<T>?>(Failure);
+            return Task.FromResult<InspectionPage<T>?>(RefuseCursor ? null : new InspectionPage<T>([], "next-cursor"));
+        }
+    }
+
     private sealed class PlatformOperatorApiFactory(
         TenantAuthenticationIssuer tenant,
         TenantAuthenticationIssuer @operator,
@@ -751,6 +1045,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 builder.UseSetting("PlatformOperator:AuthorizedParties:0", "learnstack-operator");
                 builder.UseSetting("PlatformOperator:Grants:0:Subject", grantSubject);
                 builder.UseSetting("PlatformOperator:Grants:0:Permissions:0", PlatformPermissions.KillswitchWrite.Key);
+                builder.UseSetting("PlatformOperator:Grants:0:Permissions:1", PlatformPermissions.DeliveryRead.Key);
+                builder.UseSetting("PlatformOperator:Grants:0:Permissions:2", PlatformPermissions.DeliveryWrite.Key);
             }
 
             builder.ConfigureTestServices(registrations =>

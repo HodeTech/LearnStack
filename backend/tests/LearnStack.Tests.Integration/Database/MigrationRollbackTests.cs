@@ -221,8 +221,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
-            (platform, "20261105020229_lock_invitation_envelope_parent", PlatformReversibleHead,
-                "20261110013140_add_custom_field_protected_receipts", "Retained custom field receipts require a reviewed forward migration."),
+            (platform, "20261110013140_add_custom_field_protected_receipts", PlatformReversibleHead,
+                "20261120120000_grant_platform_delivery_inspection", "The platform role's column grants require a reviewed forward migration."),
             (identity, "20261119140000_add_operator_subject_resolver", IdentityReversibleHead,
                 "20261120090000_add_identity_authority_rebind", "The issuer-rebind storage requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,

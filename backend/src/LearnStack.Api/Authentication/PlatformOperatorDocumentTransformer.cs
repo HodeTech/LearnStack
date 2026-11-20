@@ -51,7 +51,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
                 continue;
             }
 
-            foreach (var operation in path.Operations.Values)
+            foreach (var (method, operation) in path.Operations)
             {
                 operation.Security =
                 [
@@ -61,7 +61,8 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
                     },
                 ];
                 DescribeResponses(document, operation);
-                if (operation.RequestBody is null)
+                // An inspection is a read and carries no body.
+                if (operation.RequestBody is null && method != HttpMethod.Get)
                 {
                     // Declared here and not through `Accepts` on the endpoint: that metadata makes routing
                     // reject any other content type itself, before the handler can answer 415 as a problem.
@@ -85,6 +86,8 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         "PlatformHostMap" => typeof(Platform.HostMapRequest),
         "PlatformRoleInitialize" => typeof(Platform.RoleInitializeRequest),
         "PlatformFirstAdminCreate" or "PlatformAdminRecover" => typeof(Platform.AdministratorRequest),
+        "PlatformDeliveryReplay" => typeof(Platform.DeliveryReplayBody),
+        "PlatformOutboxReset" => typeof(Platform.OutboxResetBody),
         _ => throw new InvalidOperationException("An operator operation declares no request body: " + operationId),
     };
 
@@ -144,12 +147,12 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         ("400", "validation_failed: the body is malformed, a required field is missing, an identifier is not a UUIDv7, a provider subject is blank or over 255 characters, a template name is not one of the closed set, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -. A refusal at the gate or by a route check carries no per-field errors."),
         ("401", "unauthorized: the credential is missing or does not meet the token profile. One answer for every cause; the cause is in the operator's signals."),
         ("403", "forbidden: the credential is good and this operator holds no grant for the operation."),
-        ("404", "not_found: the killswitch key is not declared, or the tenant the route names does not exist."),
-        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200."),
+        ("404", "not_found: the killswitch key is not declared, the tenant the route names does not exist, or a recovery names no such row."),
+        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A recovery answers 409 with the reason on errors.fence (the row no longer shows the fence the inspection returned: read it again) or on errors.state (the fence holds and the row is not one a reset may act on). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200."),
         ("413", "payload_too_large: the body is over 4096 bytes."),
         ("415", "unsupported_media_type: the body is not application/json."),
         ("429", "rate_limited: the caller exceeded the per-peer request budget."),
         ("500", "internal_error: an unexpected failure. An act whose final commit's outcome is unknown may have landed; repeat the same request (every act is idempotent on its identifiers) or read the state before changing it."),
-        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written or an ordered lock could not be taken, so nothing changed. Retry after the delay."),
+        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written or an ordered lock could not be taken, so nothing changed. Retry after the delay. A recovery can also answer outcome_unknown: its commit may have landed, so inspect the row before repeating, because a landed reset answers a repeat 409 on errors.fence."),
     ];
 }

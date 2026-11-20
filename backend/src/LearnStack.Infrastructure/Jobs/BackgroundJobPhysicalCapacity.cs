@@ -16,7 +16,8 @@ public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int C
         var controls = topology.Pools.Values.Count(pool => pool.Kind == BackgroundJobWorkerPoolKind.Control);
         var invocations = topology.Pools.Values.Sum(pool => BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers));
         // Stock W + four per-pool controls/lifecycle + two schedulers per
-        // Control pool + shared/bridge/messaging eleven + retained invocation U.
+        // Control pool + shared/bridge/messaging thirteen + retained invocation U.
+        // The thirteen include one operator recovery lane in each messaging store.
         // Each invocation has at most one actual routing, recovery acquisition,
         // confirmation or checkpoint-history SQL operation, including cleanup.
         // Step 5 adds one batch renewal slot, two recovery/probe slots and
@@ -24,7 +25,7 @@ public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int C
         return new(pools, workers, controls, invocations,
             // Recurrence has one serialized SQL owner and one native manager
             // connection, including retained startup/native return and cleanup.
-            checked(workers + 4 * pools + 2 * controls + 18 + invocations));
+            checked(workers + 4 * pools + 2 * controls + 20 + invocations));
     }
 
     public void Validate(BackgroundJobPhysicalPoolSettings settings)

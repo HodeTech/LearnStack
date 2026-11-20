@@ -793,6 +793,15 @@ actual routing/terminal identity and a validated attempt trace; it adds no
 causal-envelope or payload read to the bypass scheduler. See
 [Audit Coverage](18-audit-coverage.md#required-behaviours).
 
+The dispatcher's two stores have a second writer, the operator recovery owner of
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md): a fenced
+subscriber replay and a narrow producer reset, each behind an operator admission and
+each writing its MUST row through a sibling witness (`OperatorRecoveryTransition`) on
+the same outbox-role transaction. The owner holds no credential: it is a DI consumer of the two
+stores, whose third connection slot is reserved for it, and `IOperatorRecovery` is the
+only port the recovery routes hold. The inspection that precedes a reset runs in the
+platform scope on column grants and writes no change.
+
 ## Background Jobs and Hangfire
 
 Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)

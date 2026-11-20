@@ -32,11 +32,25 @@ public sealed partial class OutboxDispatchConventionTests
         + "::CreateRuntime(System.IServiceProvider)";
     private static string RuntimePreallocateId => InfrastructureAssembly + ":System.Void " + JobRuntime
         + "::PreallocateOwners(Hangfire.PostgreSql.PostgreSqlStorage)";
-    private static IEnumerable<string> MessagingStoreConsumerIds(string store) =>
-    [
-        BoundaryApi + ":System.Void " + MessagingLifetime + "::.ctor(" + store + ")",
-        BoundaryApi + ":System.Threading.Tasks.Task " + MessagingLifetime + "::ObserveExecutionAsync(System.Threading.Tasks.Task)",
-    ];
+    private static IEnumerable<string> MessagingStoreConsumerIds(string store)
+    {
+        // ADR-0103: the operator recovery owner is the one DI consumer of each store beside the processors, and it
+        // reaches only the store's own operator lane.
+        const string Result = "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Platform.OperatorRecoveryResult> ";
+        return
+        [
+            BoundaryApi + ":System.Void " + MessagingLifetime + "::.ctor(" + store + ")",
+            BoundaryApi + ":System.Threading.Tasks.Task " + MessagingLifetime + "::ObserveExecutionAsync(System.Threading.Tasks.Task)",
+            InfrastructureAssembly + ":System.Void " + OperatorRecoveryOwner + "::.ctor(" + DeliveryStore + "," + Store + ")",
+            InfrastructureAssembly + ":" + Result + OperatorRecoveryOwner + (store == DeliveryStore
+                ? "::ReplayDeliveryAsync(LearnStack.SharedKernel.Platform.PlatformAdmission,"
+                    + "LearnStack.SharedKernel.Platform.DeliveryReplayRequest,System.Threading.CancellationToken)"
+                : "::ResetOutboxAsync(LearnStack.SharedKernel.Platform.PlatformAdmission,"
+                    + "LearnStack.SharedKernel.Platform.OutboxResetRequest,System.Threading.CancellationToken)"),
+        ];
+    }
+
+    private const string OperatorRecoveryOwner = "LearnStack.Infrastructure.Messaging.OperatorRecovery";
 
     private static bool IsDeclaredOwner(string owner, TypeDefinition type) =>
         type.Methods.Any(method => MethodId(method) == owner);

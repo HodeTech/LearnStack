@@ -36,9 +36,17 @@ public static class PlatformPermissions
     public static PermissionDefinition IdentityAuthorityAdmin { get; } =
         new(PermissionScope.Platform, "platform.identity_authority.admin");
 
+    /// <summary>Inspect the metadata of dead-lettered deliveries and quarantined jobs (ADR-0103).</summary>
+    public static PermissionDefinition DeliveryRead { get; } =
+        new(PermissionScope.Platform, "platform.delivery.read");
+
+    /// <summary>Replay one dead-lettered subscriber delivery and reset one dead-lettered producer row (ADR-0103).</summary>
+    public static PermissionDefinition DeliveryWrite { get; } =
+        new(PermissionScope.Platform, "platform.delivery.write");
+
     /// <summary>Every registered Platform permission.</summary>
     public static IReadOnlyList<PermissionDefinition> All { get; } =
-        [KillswitchWrite, TenantWrite, TenantBootstrapWrite, IdentityAuthorityAdmin];
+        [KillswitchWrite, TenantWrite, TenantBootstrapWrite, IdentityAuthorityAdmin, DeliveryRead, DeliveryWrite];
 
     /// <summary>Finds a registered Platform permission by its key.</summary>
     public static bool TryGet(string? key, out PermissionDefinition definition)

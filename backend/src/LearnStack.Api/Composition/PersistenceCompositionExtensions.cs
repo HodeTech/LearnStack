@@ -28,6 +28,8 @@ using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Infrastructure.PlatformOperator;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -302,6 +304,8 @@ public static class PersistenceCompositionExtensions
         // cache flight that runs it outlives the caller that started it.
         services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
         services.TryAddScoped<IKillswitchToggle, KillswitchToggle>();
+        // The operator inspection of asynchronous work reads in the platform scope on column grants (ADR-0103 § 1).
+        services.TryAddScoped<IDeliveryInspection, DeliveryInspection>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default

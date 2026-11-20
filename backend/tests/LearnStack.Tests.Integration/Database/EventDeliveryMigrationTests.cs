@@ -40,6 +40,14 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
         "terminal_reason", "dead_lettered_at", "replay_count", "replayed_at",
     ];
 
+    /// <summary>ADR-0103: the metadata an operator inspects, with no envelope, causal, routing or lease-token column.</summary>
+    private static readonly string[] PlatformInspectionColumns =
+    [
+        "tenant_id", "subscription_id", "event_id", "organization_id", "occurred_at", "type", "processed_at",
+        "attempts", "last_error", "available_after", "locked_until", "terminal_reason", "dead_lettered_at",
+        "replay_count", "replayed_at",
+    ];
+
     private static readonly string[] SchedulerReadColumns =
     [
         "tenant_id", "subscription_id", "event_id", "organization_id", "occurred_at",
@@ -88,7 +96,10 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
         }
 
         await context.Database.MigrateAsync();
-        (await InventoryAsync(database.MigrationConnectionString)).Should().Equal(before);
+        // The database was built at this migration and brought to the head, so what later migrations add to these two
+        // tables (the platform role's inspection grants and the dead-letter index, ADR-0103) is not a difference.
+        (await InventoryAsync(database.MigrationConnectionString)).Where(item => !AddedAfterTheLedger(item))
+            .Should().Equal(before);
         await using var restored = await PostgresFixture.OpenAsync(database.AppConnectionString);
         await using var restoredTransaction = await restored.BeginTransactionAsync();
         await AnnounceAsync(restored, restoredTransaction, SchemaFixture.TenantA);
@@ -134,6 +145,7 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
                     ("learnstack_app", "INSERT") => AcceptanceColumns.ToList(),
                     ("learnstack_app", "UPDATE") => ["processed_at"],
                     ("learnstack_outbox_admin", "SELECT") => SchedulerReadColumns.ToList(),
+                    ("learnstack_platform", "SELECT") => PlatformInspectionColumns.ToList(),
                     ("learnstack_outbox_admin", "UPDATE") => SchedulingColumns.ToList(),
                     _ => [],
                 };
@@ -904,6 +916,10 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
         while (await reader.ReadAsync()) result.Add(reader.GetString(0));
         return result;
     }
+
+    private static bool AddedAfterTheLedger(string item) =>
+        item.StartsWith("grant:event_deliveries:learnstack_platform:", StringComparison.Ordinal)
+        || item.Contains("ix_event_deliveries_dead_lettered", StringComparison.Ordinal);
 
     private static async Task<List<string>> InventoryAsync(string connectionString)
     {

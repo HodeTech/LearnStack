@@ -130,6 +130,15 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
                 "platform.delivery.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.job.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
+            // The three operator recovery operations of ADR-0103: an inspection is audited by the platform scope's
+            // entry row, which names this slug as its operation, and the two transitions write their own MUST row
+            // on the outbox-role transaction that makes the change.
+            .DeclareOffPath(
+                "platform.delivery.inspect", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.delivery.replay", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.delivery.reset", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(

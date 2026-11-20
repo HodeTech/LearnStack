@@ -1112,12 +1112,12 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `platform_killswitches` | `SELECT` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `inbox_messages` | `SELECT`, `INSERT (tenant_id, subscription_id, event_id)` | — | — |
-| `event_deliveries` | `SELECT`, acceptance-column `INSERT`, `UPDATE (processed_at)`; exact lists [below](#inbox) | — | routing/status-column `SELECT`, scheduling/status-column `UPDATE`; exact lists [below](#inbox) |
-| `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after, locked_by, locked_until, terminal_reason, dead_lettered_at)` (P02b-2 Step 1) |
-| `background_jobs` | RLS `SELECT`; envelope `INSERT`, admission/checkpoint `UPDATE` | — | Routing/status `SELECT, UPDATE` |
+| `event_deliveries` | `SELECT`, acceptance-column `INSERT`, `UPDATE (processed_at)`; exact lists [below](#inbox) | inspection-metadata column `SELECT` ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)) | routing/status-column `SELECT`, scheduling/status-column `UPDATE`; exact lists [below](#inbox) |
+| `outbox_messages` | `SELECT, INSERT` | `DELETE`, and `SELECT` of twelve inspection-metadata columns only ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md); the earlier table-wide `SELECT` is revoked) | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after, locked_by, locked_until, terminal_reason, dead_lettered_at)` (P02b-2 Step 1) |
+| `background_jobs` | RLS `SELECT`; envelope `INSERT`, admission/checkpoint `UPDATE` | 27 metadata columns `SELECT`, no parameter, plan, trace, causal or capability column | Routing/status `SELECT, UPDATE` |
 | `background_job_attempts` | RLS `SELECT`; receipt `INSERT`, evidence `UPDATE` | — | Enumerated metadata `SELECT`, excluding outcome DTO |
 | `background_job_capacity` | RLS `SELECT, INSERT`; immutable-column `UPDATE` for row locking | — | `SELECT` |
-| `background_job_reservations` | RLS `SELECT, INSERT`; positive-evidence release `UPDATE` | — | `SELECT` |
+| `background_job_reservations` | RLS `SELECT, INSERT`; positive-evidence release `UPDATE` | `SELECT` of every column, for occupancy | `SELECT` |
 | `background_job_recurrences` | — | — | Manifest `INSERT`, control `SELECT, UPDATE` |
 | `background_job_occurrences` | — | — | Slot `INSERT`, control `SELECT, UPDATE` |
 | `background_job_recipients` | RLS `SELECT`; child receipt `UPDATE` | — | Route `INSERT`, routing `SELECT, UPDATE` |
@@ -1645,7 +1645,10 @@ CREATE POLICY outbox_messages_isolation ON outbox_messages
 -- DELETE; status transitions belong to the dispatcher and purging belongs to the
 -- audited platform scope.
 GRANT SELECT, INSERT ON outbox_messages TO learnstack_app;
-GRANT SELECT, DELETE ON outbox_messages TO learnstack_platform;
+GRANT DELETE ON outbox_messages TO learnstack_platform;
+GRANT SELECT (id, tenant_id, organization_id, occurred_at, type, processed_at, attempts,
+              last_error, available_after, locked_until, terminal_reason, dead_lettered_at)
+    ON outbox_messages TO learnstack_platform;
 GRANT SELECT ON outbox_messages TO learnstack_outbox_admin;
 GRANT UPDATE (processed_at, attempts, last_error, available_after,
               locked_by, locked_until, terminal_reason, dead_lettered_at)
@@ -1836,6 +1839,9 @@ CREATE INDEX ix_event_deliveries_recovery
 CREATE INDEX ix_event_deliveries_terminal
     ON event_deliveries (available_after, occurred_at, event_id, tenant_id, subscription_id)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
+CREATE INDEX ix_event_deliveries_dead_lettered
+    ON event_deliveries (dead_lettered_at, tenant_id, subscription_id, event_id)
+    WHERE dead_lettered_at IS NOT NULL;
 
 ALTER TABLE event_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_deliveries FORCE ROW LEVEL SECURITY;
@@ -1911,6 +1917,10 @@ GRANT SELECT (tenant_id, subscription_id, event_id, organization_id, occurred_at
 GRANT UPDATE (attempts, last_error, available_after, locked_by, locked_until,
               terminal_reason, dead_lettered_at, replay_count, replayed_at)
     ON event_deliveries TO learnstack_outbox_admin;
+GRANT SELECT (tenant_id, subscription_id, event_id, organization_id, occurred_at,
+              type, processed_at, attempts, last_error, available_after, locked_until,
+              terminal_reason, dead_lettered_at, replay_count, replayed_at)
+    ON event_deliveries TO learnstack_platform;
 ```
 
 The app acceptance INSERT excludes all scheduling/completion/terminal columns;
@@ -4169,6 +4179,15 @@ GRANT INSERT (id, occurrence_id, tenant_id, organization_id, recurrence_key, rev
     ON background_job_recipients TO learnstack_outbox_admin;
 GRANT UPDATE (available_after, ownership_token, ownership_until, skipped_at, skipped_reason,
     last_error, quarantined_at) ON background_job_recipients TO learnstack_outbox_admin;
+-- ADR-0103: the platform role reads job metadata for operator inspection through named columns only.
+GRANT SELECT (id, tenant_id, organization_id, definition_key, profile, queue, capacity_group,
+    original_due_at, created_at, phase, normal_attempts, finalize_attempts, available_after,
+    ownership_kind, ownership_until, attempt_deadline, probe_after, unsuccessful_probes, last_error,
+    quarantine_reason, terminal_reason, processed_at, dead_lettered_at, finalization_status,
+    finalization_reason, business_finalization_incomplete, wake_generation)
+    ON background_jobs TO learnstack_platform;
+GRANT SELECT (tenant_id, capacity_group, job_id, attempt_id, reserved_at, released_at, release_reason)
+    ON background_job_reservations TO learnstack_platform;
 
 REVOKE ALL ON FUNCTION public.fn_background_job_no_delete() FROM PUBLIC;
 
@@ -4585,21 +4604,25 @@ driver's later no-op into cleanup evidence.
 
 The dispatch and bridge stores retain concrete connections and disposal tasks on
 connection-cleanup failure and seal later acquisitions. Each messaging store has
-two fixed ownership slots for terminal-COMMIT reconciliation; the bridge has one
-serialized SQL slot. These witnesses concern physical-source release, not all
+two fixed ownership slots for terminal-COMMIT reconciliation and a third, reserved
+for the operator recovery owner of [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md),
+so an operator's reset can never take the slot the dispatcher's own reconciliation
+needs and a second concurrent operator call is refused as unavailable; the bridge
+has one serialized SQL slot. These witnesses concern physical-source release, not all
 application callbacks or private driver tasks. Failed opens rely on the pinned
 driver's qualified ordinary unwind; an arbitrary driver-cleanup fault is not a
 release guarantee.
 
 `BackgroundJobPhysicalCapacity` calculates the current Step 8 floor as
-`W + 4P + 2C + 18 + U = 2W + 8P + 2C + 18`, where `W` is total workers, `P` is
+`W + 4P + 2C + 20 + U = 2W + 8P + 2C + 20`, where `W` is total workers, `P` is
 pools, `C` is control pools and `U = W + 4P` is retained invocation owners.
 Each invocation issues at most one privileged routing, recovery acquisition,
 confirmation or checkpoint-history SQL operation at a time, including actual
 cleanup. A clean unavailable history retry follows cleanup in that same slot;
 it does not add another simultaneous checkout.
 The original eleven covers two shared components, four bridge calls, one bridge
-SQL lane and two depth-two messaging lanes. Step 5 adds one batch-renewal slot,
+SQL lane and two depth-two messaging lanes; the operator recovery owner adds one
+lane in each messaging store, which makes thirteen. Step 5 adds one batch-renewal slot,
 one recovery slot plus its fresh-probe slot, and one terminal slot plus its
 fresh-probe slot. Step 8 adds one serialized recurrence SQL lane and one separately
 owned native recurring-manager call. The latter reuses its dedicated provider
@@ -4607,7 +4630,7 @@ connection for its stock lock and write transaction. A held native call cannot
 consume another recurrence SQL slot. Failed cleanup retains the concrete owner
 and seals that lane;
 probes do not recursively acquire another probe. The default topology requires
-**52**; the maximum valid topology requires **158**. Pooled startup refuses a
+**54**; the maximum valid topology requires **160**. Pooled startup refuses a
 lower `MaxPoolSize` before bootstrap, using settings captured from the same
 immutable configuration as the source. Nonpooling remains allowed with the same
 owner bounds; its positive `MaxPoolSize` is not a physical-checkout cap.
@@ -4621,6 +4644,7 @@ peak. Its complete acquisition ledger is:
 | `4P` | Per-generation metadata heartbeat, watchdog, cancellation watcher and lifecycle allowance; retained cleanup still belongs to that one generation. |
 | `2C` | Delayed and recurring schedulers, each with parallelism one and sequential reuse of its outer distributed-lock connection. |
 | Original eleven | Shared expiration and fetched-job heartbeat; four bridge native calls plus serialized SQL; two concrete slots in each messaging store. |
+| Two operator lanes | The third slot of each messaging store, reserved for the operator recovery owner ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)); a second concurrent operator call on a store is refused and does not wait. |
 | Five control slots | One batch renewal, control/recovery plus fresh probe, terminal plus fresh probe; unconfirmed cleanup seals each lane. |
 | Two recurrence slots | One serialized SQL flight and one native manager, including actual return and cleanup. |
 | `U` | One privileged routing/recovery/history/status flight per admitted invocation, including retained cleanup; application work uses the separate source. |
@@ -4652,7 +4676,7 @@ including live work and unresolved receipt history; it does not add stock worker
 slots. Adding control pools adds neither terminal nor recipient application owners.
 External Prepare, read, Arm, Outcome, recovery checkpoints and fresh Finalize
 use the same sequential main/auxiliary inventory; their phase count is not a
-connection multiplier. The facade fixture for privileged maximum 158
+connection multiplier. The facade fixture for privileged maximum 160
 has eight pools of four workers, six of them control, and requires 42 application
 connections. Other worker distributions can share the same privileged maximum
 with a different application floor; neither maximum substitutes for calculating
@@ -6456,3 +6480,65 @@ a killed session, a lost commit acknowledgement and a reconciliation that waits)
 `IdentityAuthorityRebindToolTests` (the offline tool as a child process). The census
 counts are in `GlobalIdentitySchemaTests` (thirty functions, sixteen definers, thirty
 triggers) and the head pin in `MigrationRollbackTests`.
+
+## Operator recovery storage
+
+**Derives from:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and its
+Amendment 1. Operator inspection reads metadata through the platform role's column grants, and the two
+fenced transitions run on the dispatcher's outbox role. The canonical SQL of every grant and index
+named here is in the [Outbox](#outbox), [Inbox](#inbox) and Background jobs blocks, which migration
+tests compare with the applied schema, and the head of the Platform chain is pinned in
+`MigrationRollbackTests`.
+
+### The platform role's inspection grants
+
+`learnstack_platform` holds `SELECT` on named columns of four tables and nothing wider: twelve columns
+of `outbox_messages`, fifteen of `event_deliveries`, twenty-seven of `background_jobs` and every column
+of `background_job_reservations`. It never reads `payload`, `metadata`, `correlation_id`,
+`causation_id`, `actor_user_id`, `topic`, `partition_key`, `locked_by`, a job's `parameters`, `plan`,
+`plan_fingerprint`, `traceparent`, a causal column, `operation_id` or an ownership or bridge token, so a
+statement that names one is refused by PostgreSQL itself. The role kept `DELETE` on `outbox_messages` for
+the retention purge of [Phase 11](../roadmap/phase-11-production-hardening.md), and the table-wide
+`SELECT` it held beside it was revoked, because a column grant next to a table grant excludes nothing.
+Column privileges are read from `information_schema.column_privileges`, as for every column-grant table.
+Two partial indexes, `ix_outbox_messages_dead_lettered` and `ix_event_deliveries_dead_lettered`, serve the
+dead-lettered scan the inspection pages by keyset. The migration is forward-only.
+
+### The two transitions
+
+Both run on the outbox role, which already holds the column `UPDATE` grants they need, the lifecycle
+`SELECT` of `tenants` and `INSERT` on `audit_log`: no write grant was added. Each locks one row with
+`FOR UPDATE`, compares the fence the operator read, checks the state, and updates under the same predicate
+with `RETURNING old.*` and `new.*`, so the witness is built from what the statement did and the row is
+written on the same transaction before `COMMIT`.
+
+- **Replay** fences `(replay_count, dead_lettered_at, terminal_reason)` on one
+  `(tenant, subscription, event)` row of `event_deliveries`. It refuses a processed or leased row, the reason
+  `invalid_envelope`, a subscription that is not an Active ordinary one of the stored type and a tenant that is
+  not serving, clears the terminal fields and the lease, resets attempts, makes the row due, and adds one to
+  `replay_count`. The inbox row, the siblings and the producer row are untouched.
+- **Producer reset** fences `(attempts, dead_lettered_at)` on one `outbox_messages` row and acts only on
+  `terminal_reason = 'retry_exhausted'` of a row not processed or leased whose stored type the registry still
+  knows. It clears the terminal fields, `last_error` and the lease, sets `attempts` to zero and makes the row
+  due. It writes no delivery row.
+
+The timestamp of a fence is `timestamptz` to the microsecond. It is carried and compared exactly, and a test
+presents a fence one microsecond off.
+
+### The operator lane
+
+Each messaging store has two slots for the dispatcher's own SQL owner and its uncertain-COMMIT reconciliation
+and a third, reserved for the operator owner. The operator never takes the dispatcher's slots, and a second
+concurrent operator call on a store is refused. The lanes are two of the thirteen messaging and bridge slots in
+the [capacity ledger](#shared-dispatcher-source-lifetime-and-capacity), which is 54 for the default topology
+and 160 for the maximum.
+
+### Proof
+
+Real PostgreSQL as each role: `DeliveryDispatchStoreTests` and `OutboxDispatchStoreTests` (the current fence
+applies, every stale variant including one microsecond refuses and changes nothing, each refused state, a
+tenant that is not serving, a forced audit failure rolling the change back, an admission for another operation
+or a stale or spent one, a busy operator lane that leaves the dispatcher's slots alone, a lost commit
+acknowledgement, and every other row byte-identical), `DeliveryInspectionTests` (pages, cursors, the entry
+row, and the columns the platform role cannot select) and `PlatformOperatorHttpTests` (the routes, their
+statuses and the contract).

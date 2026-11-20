@@ -505,10 +505,14 @@ remains in the phase Status block.
   grants, immutable-fact treatment, dependency/deletion order, replay/deduplication
   floor and evidence of completion. No such authority or policy is chosen by this
   inventory. Ordinary SystemActor delivery and dispatcher credentials supply none.
-- `learnstack_platform` has no grants on inbox, delivery or LearnStack job
-  tables. `BYPASSRLS` bypasses policies, not SQL privileges, no-delete triggers or
-  write-once facts. Any required authority change needs its own bounded decision
-  and migration before the writer ships.
+- `learnstack_platform` has no grant on inbox or delivery payloads, a job's
+  parameters or plan, or any outbox envelope column. It reads named metadata columns
+  of `outbox_messages`, `event_deliveries`, `background_jobs` and
+  `background_job_reservations` for the operator inspection of
+  [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md), and keeps
+  `DELETE` on `outbox_messages` for the retention purge. `BYPASSRLS` bypasses policies,
+  not SQL privileges, no-delete triggers or write-once facts. Any further authority
+  change needs its own bounded decision and migration before the writer ships.
 - Live/uncertain effects, reservation accounting, immutable execution evidence,
   monotonic progress and same-transaction MUST audit remain intact. Erasure,
   elapsed time and operator authority prove neither quiescence nor permission to

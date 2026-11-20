@@ -233,7 +233,13 @@ will raise them — which this standard requires it to do.
   ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 8), are `(off-path)` for
   the same reason one step further: they are written by an offline tool on its own role
   through two witness-bound methods, under the platform sentinel, with no actor and the
-  ticket in `metadata.operator`.
+  ticket in `metadata.operator`. The operator recovery operations of
+  [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) are
+  `(off-path)` too: `platform.delivery.inspect` is the operation the platform scope's
+  entry row names, and `platform.delivery.replay` and `platform.delivery.reset` are
+  written on the dispatcher's outbox-role transaction through one witness-bound method,
+  under the real event tenant, with no actor, the operator attribution and the fence in
+  `metadata`, and no ticket, because a tenant can read the row.
 
 ## Baseline Coverage (LearnStack Core Modules)
 

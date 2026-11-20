@@ -19,8 +19,9 @@ public sealed class PlatformOperatorActCatalog
     private readonly FrozenDictionary<Type, PlatformOperatorAct> _acts;
 
     /// <summary>
-    /// Builds the catalog; every operation must be a registered one that needs no platform role, and none may be the
-    /// controlled issuer rebind, which is an offline act on its own role and never a pipeline act (ADR-0104).
+    /// Builds the catalog; every operation must be a registered pipeline act on the application role. The controlled
+    /// issuer rebind (ADR-0104) and the recovery transitions (ADR-0103) each run on a confined role of their own and
+    /// are never pipeline acts.
     /// </summary>
     public PlatformOperatorActCatalog(IEnumerable<KeyValuePair<Type, PlatformOperatorAct>> acts)
     {
@@ -28,8 +29,7 @@ public sealed class PlatformOperatorActCatalog
         var list = acts.ToList();
         if (list.Count == 0
             || list.Any(pair => pair.Key.IsAbstract || !PlatformOperations.IsRegistered(pair.Value.Operation)
-                || pair.Value.Operation.NeedsPlatformRole
-                || ReferenceEquals(pair.Value.Operation, PlatformOperations.IdentityAuthorityRebind)))
+                || !pair.Value.Operation.RunsInPipeline))
         {
             throw new ArgumentException("The operator act catalog needs registered operations that use the application role.");
         }

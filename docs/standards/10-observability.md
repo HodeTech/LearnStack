@@ -478,6 +478,7 @@ backend treat business rejections as system failures.
 | `learnstack_platform_operator_admissions_total` | counter | outcome (`admitted`, `refused`), operation (a registered slug or `unknown`) |
 | `learnstack_platform_operator_refusals_total` | counter | cause (a closed set: token, profile and gate causes; [runbook](../runbooks/operator-access.md#signals)) |
 | `learnstack_platform_operator_results_total` | counter | operation |
+| `learnstack_platform_operator_recoveries_total` | counter | operation (`platform.delivery.replay`, `platform.delivery.reset`), outcome (`applied`, `stale_fence`, `not_recoverable`, `not_found`, `unavailable`, `commit_unknown`; [runbook](../runbooks/operator-recovery.md#signals)) |
 | `learnstack_platform_operator_audit_failures_total` | counter | operation |
 | `learnstack_platform_operator_metadata_failures_total` | counter | none |
 | `learnstack_identity_rebind_runs_total` | counter | outcome (`applied`, `already_applied`, `unknown`, or a `refused_` class; [runbook](../runbooks/identity-issuer-rebind.md#when-it-refuses)) |
