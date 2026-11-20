@@ -54,6 +54,31 @@ public sealed partial class FederationAdapterConventionTests
     }
 
     [Fact]
+    public void The_one_admitted_query_is_the_listing_page_and_no_provider_file_builds_another()
+    {
+        // ADR-0099 Amendment 11 item 7: the census admits the listing's collection route with its one exact query. The
+        // route builder names the three fragments of it, in order, and no other query fragment exists in the adapter.
+        var adapter = Sources().Where(source => source.Key.StartsWith(AdapterDirectory, StringComparison.Ordinal)).ToList();
+        QueryLiterals(adapter.Single(source => source.Key == RoutesSource).Value).Should().Equal(
+            ["?first=", "&max=", "&briefRepresentation=false"]);
+        adapter.Where(source => source.Key != RoutesSource).SelectMany(source => QueryLiterals(source.Value)).Should().BeEmpty(
+            "Fix: a provider query string is built in KeycloakFederationRoutes alone");
+    }
+
+    [Fact]
+    public void The_query_detector_sees_a_planted_fragment()
+    {
+        QueryLiterals("var uri = \"identity-provider/instances?search=\" + term; var x = \"&briefRepresentation=false\";")
+            .Should().Equal(["identity-provider/instances?search=", "&briefRepresentation=false"]);
+        QueryLiterals("var clean = \"identity-provider/instances\";").Should().BeEmpty();
+    }
+
+    /// <summary>The string literals of a source that hold a query separator, with whole-line comments set aside first.</summary>
+    private static List<string> QueryLiterals(string source) =>
+        [.. Regex.Matches(Regex.Replace(source, @"^\s*//.*$", string.Empty, RegexOptions.Multiline), @"""(?:[^""\\\r\n]|\\.)*""")
+            .Select(match => match.Value[1..^1]).Where(literal => literal.Contains('?') || literal.Contains('&'))];
+
+    [Fact]
     public void The_route_detector_refuses_planted_routes()
     {
         var planted = new Dictionary<string, string>

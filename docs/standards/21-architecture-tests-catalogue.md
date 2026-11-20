@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**390 test methods run in
+**393 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -6044,8 +6044,9 @@ structural test proves — and what it does not.
 #### `Only_The_Federation_Routes_And_Their_Owner_Name_The_Federation_Operator_Ports`
 
 - **Asserts:** the files, by their path under `backend/src`, that name
-  `IFederationBrokerOperations` are exactly the port, its one owner, the persistence
-  composition and the federation routes, and the files that name `IFederationOperator`
+  `FederationBrokerOperations` (the port's name contains it, so the owner's class is
+  found too) are exactly the port, its one owner, the persistence composition and the
+  federation routes, and the files that name `IFederationOperator`
   are exactly the port, the owner, the adapter that implements it, its factory, the
   federation composition and the Identity foundation registration that gives it a
   fail-closed default. The tenant runner is in neither list. Adding a caller is a
@@ -6055,7 +6056,9 @@ structural test proves — and what it does not.
   holder of the operator port, or a handler that reached the owner, would make a
   cross-tenant provider change from a path the operator gate does not guard.
 - **Source:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 10.
-- **Type:** xUnit + source scan. **Kind:** structural.
+- **Type:** xUnit + source scan, with a planted holder of each port and of the
+  concrete owner (`The_Federation_Port_Census_Finds_A_Planted_Holder_Of_Either_Port_Or_The_Concrete_Owner`).
+  **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 5).
 - **Phase:** P03-9.
 
@@ -6064,8 +6067,8 @@ structural test proves — and what it does not.
 - **Asserts:** the files, by their path under `backend/src`, that name
   `IPlatformAdminScope` are exactly the interface, the scope, the persistence
   composition and the operator services that perform an admitted act (today the
-  killswitch toggle and the delivery inspection). Adding a service is a deliberate
-  edit here, with its denied proof.
+  killswitch toggle, the delivery inspection and the federation owner). Adding a
+  service is a deliberate edit here, with its denied proof.
 - **Why it matters:** a request handler holding the scope would enter a cross-tenant
   scope from a tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
@@ -7785,15 +7788,20 @@ sign-in read). The
   `state <> 'Deleted' AND deleted_at IS NULL`; every production source, both Identity
   projects included, that reads `federation_connections` (`FROM` or `JOIN`, any case or
   whitespace, with or without the schema, quoted or through the mapped table-name
-  constant) is exactly `FederationConnectionStore`, `FederationHostAliasReader` or
-  `PublicSignInReader`; and each such statement, not merely its file, interpolates that
-  constant and spells no tombstone predicate of its own, so the three raw reads cannot
-  drift from each other or from the EF `Live` filter silently.
+  constant) is exactly `FederationConnectionStore`, `FederationHostAliasReader`,
+  `PublicSignInReader` or the operator's `FederationBrokerOperations`; each of the
+  three tenant statements, not merely its file, interpolates that constant and spells
+  no tombstone predicate of its own, so the three tenant reads cannot drift from each
+  other or from the EF `Live` filter silently. The operator's read is the one
+  exception: it must see tombstones, so it is pinned whole instead, by primary key
+  through the four columns the platform role may read
+  ([ADR-0099 Amendment 11](../decisions/0099-confined-tenant-federation.md) item 2).
 - **Source:** [ADR-0099 Amendment 1](../decisions/0099-confined-tenant-federation.md#amendment-1--step-1-storage-deviations-2026-11-13)
   (the tombstone) and the P03-8 Step 2 review round 1 (S-D).
 - **Type:** source scan with planted controls: an own predicate, a second statement
   without the constant, an unlisted reader by `JOIN`, without the schema, with other
-  spacing, quoted or through the table-name constant, and a dropped reader.
+  spacing, quoted or through the table-name constant, a dropped reader, and a
+  widened operator statement (a fifth column, another predicate, a second statement).
   **Kind:** structural.
 - **Status:** **Implemented** (`FederationApplicationConventionTests`).
 - **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
@@ -7850,7 +7858,11 @@ sign-in read). The
   string literal in the adapter namespace names another Admin, identity-provider,
   authentication, user, client or role path. The unit test
   `KeycloakFederationProviderTests.Every_admitted_request_targets_the_enumerated_routes_only`
-  checks the same set behaviourally against a scripted provider.
+  checks the same set behaviourally against a scripted provider. The listing's one
+  exact query is pinned too: the route builder names the fragments `?first=`, `&max=`
+  and `&briefRepresentation=false`, in that order, and no other file of the adapter
+  builds a query string (`The_one_admitted_query_is_the_listing_page_and_no_provider_file_builds_another`,
+  with a planted fragment).
 - **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
   ("the adapter admits only the enumerated calls and aliases").
 - **Type:** reflection plus source scan, with planted routes. **Kind:** structural.

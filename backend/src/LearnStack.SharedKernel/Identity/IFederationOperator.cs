@@ -106,7 +106,7 @@ public interface IFederationOperator
     Task<FederationBrokerPage> ListAsync(int offset, int limit, CancellationToken cancellationToken = default);
 
     /// <summary>Reads one alias: whether it is absent, foreign to LearnStack or owned, and its nonsecret facts.</summary>
-    Task<FederationBrokerInspection> InspectAsync(string alias, CancellationToken cancellationToken = default);
+    Task<FederationBrokerInspection> InspectAsync(string brokerAlias, CancellationToken cancellationToken = default);
 
     /// <summary>Counts the mappers on an owned readable broker; null when the provider could not answer.</summary>
     Task<int?> CountMappersAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default);
@@ -130,7 +130,7 @@ public sealed class UnconfiguredFederationOperator : IFederationOperator
     public Task<FederationBrokerPage> ListAsync(int offset, int limit, CancellationToken cancellationToken = default) =>
         Task.FromResult(FederationBrokerPage.Unavailable);
 
-    public Task<FederationBrokerInspection> InspectAsync(string alias, CancellationToken cancellationToken = default) =>
+    public Task<FederationBrokerInspection> InspectAsync(string brokerAlias, CancellationToken cancellationToken = default) =>
         Task.FromResult(FederationBrokerInspection.Unavailable);
 
     public Task<int?> CountMappersAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default) =>

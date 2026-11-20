@@ -565,8 +565,10 @@ public sealed class PlatformAdminScope(
                 // effect must not start on an intent nobody can prove was recorded.
                 await _transaction.CommitAsync(cancellationToken);
             }
-            catch (Exception failure) when (failure is NpgsqlException or OperationCanceledException or IOException)
+            catch (Exception failure)
             {
+                // Any failure of the commit, a connection already broken included, stops the effect: it must not start on
+                // an intent nobody can prove was recorded (ADR-0044 Amendment 18).
                 _faulted = true;
                 throw new AuditWriteFailedException(
                     "The platform operator intent row could not be committed, so the effect must not start.", failure);

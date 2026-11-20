@@ -317,7 +317,9 @@ public sealed partial class PlatformAdminScopeConventionTests
         // ADR-0099 Amendment 10: the report, the remove and the disable are reachable from the federation routes alone,
         // through the one owner, and the operator's provider port is held by that owner and the adapter that implements
         // it. The tenant runner holds neither, so the rule that the tenant's provider port is the runner's alone stands.
-        SourceScan.FilesContaining(SourceScan.SourceRoot, "IFederationBrokerOperations", except: null)
+        // The scan names the owner's class, not only its port: every file naming the interface names this substring too, so a
+        // holder of the concrete owner is found as well.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "FederationBrokerOperations", except: null)
             .Should().BeEquivalentTo(
                 [
                     "LearnStack.SharedKernel/Platform/IFederationBrokerOperations.cs",
@@ -337,6 +339,27 @@ public sealed partial class PlatformAdminScopeConventionTests
                     "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Bindings/IdentityFoundationRegistration.cs",
                 ],
                 "the operator's provider port is held by the owner, its adapter and the composition that selects it");
+    }
+
+    [Fact]
+    public void The_Federation_Port_Census_Finds_A_Planted_Holder_Of_Either_Port_Or_The_Concrete_Owner()
+    {
+        var planted = Directory.CreateTempSubdirectory("federation-holder-");
+        try
+        {
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaPort.cs"), "class A(IFederationBrokerOperations operations) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaOwner.cs"), "class B(FederationBrokerOperations owner) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaProvider.cs"), "class C(IFederationOperator provider) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "Clean.cs"), "class D(IFederationProvider tenantProvider) { }");
+
+            SourceScan.FilesContaining(planted.FullName, "FederationBrokerOperations", except: null)
+                .Should().BeEquivalentTo(["ViaPort.cs", "ViaOwner.cs"]);
+            SourceScan.FilesContaining(planted.FullName, "IFederationOperator", except: null).Should().BeEquivalentTo(["ViaProvider.cs"]);
+        }
+        finally
+        {
+            planted.Delete(recursive: true);
+        }
     }
 
     private const string FederationOperationsFile =

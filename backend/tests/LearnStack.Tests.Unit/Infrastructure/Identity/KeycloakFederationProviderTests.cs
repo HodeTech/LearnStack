@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -616,6 +617,22 @@ public sealed class KeycloakFederationProviderTests
             .NotContain(TenantSecret).And.NotContain(AdminSecret).And.NotContain("Acme").And.NotContain("idp.example.com");
     }
 
+    [Fact]
+    public void The_operator_ports_result_types_can_carry_no_secret_or_provider_text_because_they_declare_no_member_that_could()
+    {
+        // ToString is a constant on these records, so a text check cannot see a new member. The members can be seen: each is an
+        // owner, a flag, a count, a closed status or a protocol, and there is no string for a display name, issuer or secret.
+        var closed = new HashSet<Type>
+        {
+            typeof(FederationBrokerOwner), typeof(bool), typeof(int), typeof(FederationBrokerProtocol?), typeof(FederationOperatorStatus),
+            typeof(FederationInspectionStatus), typeof(FederationBrokerFacts), typeof(IReadOnlyList<FederationBrokerFacts>),
+        };
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        foreach (var type in new[] { typeof(FederationBrokerFacts), typeof(FederationBrokerPage), typeof(FederationBrokerInspection) })
+            type.GetProperties(declared).Select(property => property.PropertyType).Should().BeSubsetOf(closed, type.Name);
+    }
+
     private static FederationClientSecret Fresh() =>
         FederationClientSecret.TryCreate(TenantSecret, out var secret) ? secret! : throw new InvalidOperationException();
 
@@ -689,8 +706,8 @@ public sealed class KeycloakFederationProviderTests
                 if (ListDefect == "object") return Json(HttpStatusCode.OK, new JsonObject());
                 var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
                 var page = Brokers.Values.OrderBy(broker => broker["alias"]!.GetValue<string>(), StringComparer.Ordinal)
-                    .Skip(int.Parse(query["first"]!));
-                if (!ListIgnoresPaging) page = page.Take(int.Parse(query["max"]!));
+                    .Skip(int.Parse(query["first"]!, System.Globalization.CultureInfo.InvariantCulture));
+                if (!ListIgnoresPaging) page = page.Take(int.Parse(query["max"]!, System.Globalization.CultureInfo.InvariantCulture));
                 return Json(HttpStatusCode.OK, new JsonArray([.. page.Select(View)]));
             }
             var rest = path[(prefix.Length + 1)..];

@@ -55,9 +55,10 @@ Platform operator endpoints live under `/api/platform/v1/...`, outside the tenan
 ([ADR-0101](../decisions/0101-platform-operator-authority.md)). The federation routes
 (`GET /api/platform/v1/federation/brokers` and the `remove` and `disable` acts under it,
 [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md)) take an
-optional checked, never stored `ticket`, answer a refusal on the field it concerns and
-answer an act whose outcome is unknown `503` `dependency_unavailable` with
-`errors.outcome`.
+optional `ticket`, checked and recorded only on the platform scope's entry row and
+never on a tenant-readable row, answer a refusal on the field it concerns, and answer
+an act whose outcome is unknown, or whose completion could not be recorded after the
+provider changed, `503` `dependency_unavailable` with `errors.outcome`.
 
 **P02d-4 Accepted contract — 2026-10-03.** Steps 2–3 deliver all four GET/HEAD
 read pairs; Step 4 delivers the contract/SDK controls. Institution

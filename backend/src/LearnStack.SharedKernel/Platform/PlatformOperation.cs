@@ -135,7 +135,7 @@ public static class PlatformOperations
         PlatformOperationExecutor.RecoveryOwner);
 
     /// <summary>
-    /// Report the realm's identity-provider brokers by class, orphans first: read-only in the platform scope, audited
+    /// Report the realm's identity-provider brokers by class, in the provider's order: read-only in the platform scope, audited
     /// by the scope's entry row (ADR-0099 Amendment 10 item 2).
     /// </summary>
     public static PlatformOperation FederationReport { get; } = new(

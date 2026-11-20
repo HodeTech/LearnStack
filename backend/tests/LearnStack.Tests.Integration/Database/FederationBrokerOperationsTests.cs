@@ -41,14 +41,19 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
     {
         private DisposableSchemaDatabase? _database;
 
+        /// <summary>A tenant with no connection row, for the case where a live row appears after the intent.</summary>
+        public static readonly Guid TenantC = Guid.Parse("33333333-3333-7333-8333-333333333333");
+
         public string PlatformConnectionString => _database!.PlatformConnectionString;
+
+        public string AppConnectionString => _database!.AppConnectionString;
 
         public async Task InitializeAsync()
         {
             _database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
             await using (var owner = await PostgresFixture.OpenAsync(_database.MigrationConnectionString))
             {
-                foreach (var (tenant, slug) in new[] { (SchemaFixture.TenantA, "alpha"), (SchemaFixture.TenantB, "beta") })
+                foreach (var (tenant, slug) in new[] { (SchemaFixture.TenantA, "alpha"), (SchemaFixture.TenantB, "beta"), (FederationDatabase.TenantC, "gamma") })
                 {
                     await using var transaction = await owner.BeginTransactionAsync();
                     await SchemaQueries.ExecuteAsync(owner, transaction, $"SET LOCAL app.tenant_id = '{tenant:D}'");
@@ -165,17 +170,43 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
         rows[0].Metadata.Should().Contain("CHG-1", "the entry row is a sentinel row, which carries the ticket");
     }
 
-    [Fact]
-    public async Task A_remove_of_a_broker_with_a_live_row_is_refused_before_anything_is_written_or_sent()
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public async Task A_remove_of_a_broker_that_reads_with_a_live_row_is_refused_before_anything_is_written_or_sent(bool readable, bool conforms)
     {
-        var operations = new Scripted { Inspected = Facts(OwnerOf(LiveA), readable: false) };
+        // Readable and drifted, or readable and clean: the tenant's own Delete retires such a pair, so the operator refuses.
+        var operations = new Scripted { Inspected = Facts(OwnerOf(LiveA), readable, conforms), InspectedMappers = conforms ? 0 : 1 };
         var admission = Admission(PlatformOperations.FederationRemove);
 
         var result = await Service(operations).RemoveAsync(admission, Alias(LiveA));
 
         result.Outcome.Should().Be(FederationActOutcome.LiveConnection);
-        operations.Removed.Should().BeEmpty("a live connection row refuses, for an unreadable broker too");
+        operations.Removed.Should().BeEmpty();
         (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
+    }
+
+    [Fact]
+    public async Task A_remove_of_an_unreadable_owned_broker_is_applied_even_with_a_live_row_because_the_tenants_delete_cannot_reach_it()
+    {
+        // The tenant's Delete reports an unreadable owned broker as foreign and fails, so a live row would otherwise hold it
+        // forever (ADR-0099 Amendment 12). The rows record the live state the operator found, and the tenant's row is left.
+        var owner = OwnerOf(LiveA);
+        var operations = new Scripted { Inspected = Facts(owner, readable: false) };
+        var admission = Admission(PlatformOperations.FederationRemove);
+
+        var result = await Service(operations).RemoveAsync(admission, owner.Alias);
+
+        result.Should().Be(new FederationActResult(FederationActOutcome.Applied, SchemaFixture.TenantA, LiveA));
+        operations.Removed.Should().ContainSingle();
+        var rows = await RowsAsync(admission.Operator.CorrelationId!);
+        rows.Select(row => row.Operation).Should().Equal(
+            PlatformAdminScope.EnterOperation, "platform.federation.remove_attempt", "platform.federation.remove");
+        using var before = JsonDocument.Parse(rows[1].Before);
+        before.RootElement.GetProperty("rowState").GetString().Should().Be("Draft", "the live row is recorded as found");
+        before.RootElement.GetProperty("classes").EnumerateArray().Select(item => item.GetString()).Should().Equal("unreadable_owned");
+        (await ScalarAsync("SELECT count(*) FROM public.federation_connections WHERE id = @id AND state <> 'Deleted'", LiveA))
+            .Should().Be(1, "the operator never writes the tenant's row");
     }
 
     [Theory]
@@ -266,19 +297,228 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
         (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
     }
 
-    [Fact]
-    public async Task A_failed_completion_write_leaves_the_intent_row_standing_after_the_effect()
+    [Theory]
+    [InlineData("remove", FederationOperatorOutcome.Applied)]
+    [InlineData("remove", FederationOperatorOutcome.Uncertain)]
+    [InlineData("disable", FederationOperatorOutcome.Applied)]
+    public async Task A_completion_that_cannot_be_written_after_a_change_is_answered_as_the_unknown_outcome_and_leaves_the_intent_standing(
+        string act, FederationOperatorOutcome provider)
     {
         var owner = OwnerOf(Guid.CreateVersion7());
-        var operations = new Scripted { Inspected = Facts(owner, readable: false) };
+        var operations = new Scripted { Inspected = Facts(owner, readable: false), RemoveOutcome = provider, DisableOutcome = provider };
+        var remove = act == "remove";
+        var admission = Admission(remove ? PlatformOperations.FederationRemove : PlatformOperations.FederationDisable);
+        var service = Service(operations, failResult: true);
+
+        var result = remove ? await service.RemoveAsync(admission, owner.Alias) : await service.DisableAsync(admission, owner.Alias);
+
+        result.Outcome.Should().Be(FederationActOutcome.Uncertain, "the change was sent and its record was not written");
+        (remove ? operations.Removed : operations.Disabled).Should().ContainSingle("the provider call had been made");
+        (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(
+            PlatformAdminScope.EnterOperation, remove ? "platform.federation.remove_attempt" : "platform.federation.disable_attempt");
+    }
+
+    [Fact]
+    public async Task A_completion_that_cannot_be_written_when_nothing_changed_is_still_the_audit_failure()
+    {
+        var owner = OwnerOf(Guid.CreateVersion7());
+        var operations = new Scripted { Inspected = Facts(owner, readable: false), RemoveOutcome = FederationOperatorOutcome.Refused };
         var admission = Admission(PlatformOperations.FederationRemove);
 
         var act = async () => await Service(operations, failResult: true).RemoveAsync(admission, owner.Alias);
 
-        await act.Should().ThrowAsync<AuditWriteFailedException>();
-        operations.Removed.Should().ContainSingle("the provider call had been made");
-        (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(
-            PlatformAdminScope.EnterOperation, "platform.federation.remove_attempt");
+        await act.Should().ThrowAsync<AuditWriteFailedException>("a refused change recorded nowhere is safe to repeat");
+    }
+
+    [Fact]
+    public async Task A_caller_that_leaves_while_the_provider_changes_the_broker_is_recorded_as_uncertain_on_a_detached_budget()
+    {
+        var owner = OwnerOf(Guid.CreateVersion7());
+        using var caller = new CancellationTokenSource();
+        var operations = new Scripted { Inspected = Facts(owner, readable: false) };
+        operations.BeforeRemove = () =>
+        {
+            // The request is aborted after the change may have been sent: the adapter rethrows the caller's cancellation.
+            caller.Cancel();
+            throw new OperationCanceledException(caller.Token);
+        };
+        var admission = Admission(PlatformOperations.FederationRemove);
+
+        var result = await Service(operations).RemoveAsync(admission, owner.Alias, caller.Token);
+
+        result.Outcome.Should().Be(FederationActOutcome.Uncertain);
+        var rows = await RowsAsync(admission.Operator.CorrelationId!);
+        rows.Select(row => row.Operation).Should().Equal(
+            PlatformAdminScope.EnterOperation, "platform.federation.remove_attempt", "platform.federation.remove");
+        using var after = JsonDocument.Parse(rows[2].After);
+        after.RootElement.GetProperty("outcome").GetString().Should().Be("uncertain");
+        after.RootElement.GetProperty("accountReviewOwed").GetBoolean().Should().BeTrue("the change may have deleted the links");
+    }
+
+    [Theory]
+    [InlineData("remove")]
+    [InlineData("disable")]
+    public async Task A_marker_that_names_another_tenant_than_its_row_is_not_owned_and_writes_no_tenant_row(string act)
+    {
+        // The tombstone is tenant A's, and the instance's marker names tenant B: never touched, and no row names B.
+        var owner = OwnerOf(TombstoneA, SchemaFixture.TenantB);
+        var operations = new Scripted { Inspected = Facts(owner, readable: false) };
+        var remove = act == "remove";
+        var admission = Admission(remove ? PlatformOperations.FederationRemove : PlatformOperations.FederationDisable);
+        var service = Service(operations);
+
+        var result = remove ? await service.RemoveAsync(admission, owner.Alias) : await service.DisableAsync(admission, owner.Alias);
+
+        result.Outcome.Should().Be(FederationActOutcome.NotOwned);
+        operations.Removed.Should().BeEmpty();
+        operations.Disabled.Should().BeEmpty();
+        (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
+    }
+
+    [Fact]
+    public async Task A_live_row_that_appears_after_the_intent_refuses_the_delete_and_is_recorded_without_calling_the_provider()
+    {
+        // Amendment 10 item 3: the row is read again immediately before the delete. A tenant commits its row at that moment.
+        var connection = Guid.CreateVersion7();
+        var owner = OwnerOf(connection, FederationDatabase.TenantC);
+        var operations = new Scripted { Inspected = Facts(owner, readable: true, conforms: false), InspectedMappers = 1 };
+        var admission = Admission(PlatformOperations.FederationRemove);
+        var service = new FederationBrokerOperations(Scope(false, false, afterIntent: async () =>
+        {
+            await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+            await using var transaction = await app.BeginTransactionAsync();
+            await FenceAsync(app, transaction, FederationDatabase.TenantC);
+            await InsertAsync(app, transaction, connection, FederationDatabase.TenantC, IdentityMembershipFixture.AdminA,
+                DateTimeOffset.UtcNow.AddMinutes(-5));
+            await transaction.CommitAsync();
+        }), operations);
+
+        var result = await service.RemoveAsync(admission, owner.Alias);
+
+        result.Should().Be(new FederationActResult(FederationActOutcome.LiveConnection, FederationDatabase.TenantC, connection));
+        operations.Removed.Should().BeEmpty("the provider is not called once the row is live");
+        var rows = await RowsAsync(admission.Operator.CorrelationId!);
+        rows.Select(row => row.Operation).Should().Equal(
+            PlatformAdminScope.EnterOperation, "platform.federation.remove_attempt", "platform.federation.remove");
+        using var before = JsonDocument.Parse(rows[1].Before);
+        before.RootElement.GetProperty("rowState").GetString().Should().Be("absent", "the first read found no row");
+        using var after = JsonDocument.Parse(rows[2].After);
+        (after.RootElement.GetProperty("outcome").GetString(), after.RootElement.GetProperty("cause").GetString())
+            .Should().Be(("refused", "live_connection"));
+        after.RootElement.GetProperty("accountReviewOwed").GetBoolean().Should().BeFalse("nothing was changed");
+    }
+
+    [Theory]
+    [InlineData(FederationOperatorOutcome.Uncertain, "uncertain", FederationActOutcome.Uncertain)]
+    [InlineData(FederationOperatorOutcome.Unavailable, "unavailable", FederationActOutcome.Unavailable)]
+    [InlineData(FederationOperatorOutcome.Refused, "refused", FederationActOutcome.Refused)]
+    [InlineData(FederationOperatorOutcome.NotOwned, "not_owned", FederationActOutcome.NotOwned)]
+    public async Task A_provider_that_does_not_apply_a_disable_is_recorded_in_the_completion_row(
+        FederationOperatorOutcome provider, string recorded, FederationActOutcome expected)
+    {
+        var owner = OwnerOf(LiveA);
+        var operations = new Scripted { Inspected = Facts(owner, readable: false), DisableOutcome = provider };
+        var admission = Admission(PlatformOperations.FederationDisable);
+
+        var result = await Service(operations).DisableAsync(admission, owner.Alias);
+
+        result.Outcome.Should().Be(expected);
+        var rows = await RowsAsync(admission.Operator.CorrelationId!);
+        rows.Select(row => row.Operation).Should().Equal(
+            PlatformAdminScope.EnterOperation, "platform.federation.disable_attempt", "platform.federation.disable");
+        using var after = JsonDocument.Parse(rows[2].After);
+        after.RootElement.GetProperty("outcome").GetString().Should().Be(recorded);
+    }
+
+    [Theory]
+    [InlineData(FederationInspectionStatus.Unavailable, FederationActOutcome.Unavailable)]
+    [InlineData(FederationInspectionStatus.Absent, FederationActOutcome.NotFound)]
+    [InlineData(FederationInspectionStatus.NotOwned, FederationActOutcome.NotOwned)]
+    public async Task A_disable_the_provider_cannot_inspect_or_that_names_nothing_it_owns_sends_nothing_and_writes_no_tenant_row(
+        FederationInspectionStatus status, FederationActOutcome expected)
+    {
+        var operations = new Scripted { InspectedStatus = status };
+        var admission = Admission(PlatformOperations.FederationDisable);
+
+        var result = await Service(operations).DisableAsync(admission, Alias(Guid.CreateVersion7()));
+
+        result.Outcome.Should().Be(expected);
+        operations.Disabled.Should().BeEmpty();
+        (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
+    }
+
+    [Fact]
+    public async Task A_provider_that_cannot_inspect_a_remove_sends_nothing_and_writes_no_tenant_row()
+    {
+        var operations = new Scripted { InspectedStatus = FederationInspectionStatus.Unavailable };
+        var admission = Admission(PlatformOperations.FederationRemove);
+
+        var result = await Service(operations).RemoveAsync(admission, Alias(Guid.CreateVersion7()));
+
+        result.Outcome.Should().Be(FederationActOutcome.Unavailable);
+        operations.Removed.Should().BeEmpty();
+        (await RowsAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
+    }
+
+    [Fact]
+    public async Task A_report_counts_the_mappers_of_a_healthy_broker_and_names_one_that_carries_drift()
+    {
+        var healthy = OwnerOf(LiveA);
+        var operations = new Scripted { Listed = [Facts(healthy)] };
+        operations.MapperCounts[healthy.Alias] = 2;
+
+        var result = await Service(operations).ReportAsync(Admission(PlatformOperations.FederationReport), null, 20);
+
+        var item = result.Items.Should().ContainSingle().Which;
+        (string.Join('+', item.Classes), item.Mappers, item.RowState).Should().Be(("nonconforming", 2, "Draft"));
+        result.Unread.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_broker_whose_mappers_could_not_be_read_is_counted_as_unread_and_never_reported_as_clean()
+    {
+        var first = OwnerOf(LiveA);
+        var second = OwnerOf(LiveB, SchemaFixture.TenantB);
+        var operations = new Scripted { Listed = [Facts(first), Facts(second)] };
+        operations.MapperCounts[first.Alias] = null;
+        operations.MapperDeadlines.Add(second.Alias);
+
+        var result = await Service(operations).ReportAsync(Admission(PlatformOperations.FederationReport), null, 20);
+
+        result.Outcome.Should().Be(FederationReportOutcome.Ok);
+        result.Items.Should().BeEmpty("a broker with no mapper count is unknown, and an unknown broker is not a finding");
+        result.Unread.Should().Be(2, "the page says how many healthy-looking brokers it could not clear");
+    }
+
+    [Theory]
+    [InlineData("report")]
+    [InlineData("remove")]
+    [InlineData("disable")]
+    public async Task A_transient_database_fault_is_the_unavailable_owner_with_its_cause_and_never_a_raw_failure(string act)
+    {
+        var fault = new NpgsqlException("the database is not reachable", new IOException("reset"));
+        var owner = OwnerOf(Guid.CreateVersion7());
+        var service = new FederationBrokerOperations(new ThrowingScope(fault), new Scripted { Inspected = Facts(owner, readable: false) });
+
+        var call = act switch
+        {
+            "report" => (Func<Task>)(async () => await service.ReportAsync(Admission(PlatformOperations.FederationReport), null, 5)),
+            "remove" => async () => await service.RemoveAsync(Admission(PlatformOperations.FederationRemove), owner.Alias),
+            _ => async () => await service.DisableAsync(Admission(PlatformOperations.FederationDisable), owner.Alias),
+        };
+
+        (await call.Should().ThrowAsync<OperatorRecoveryUnavailableException>()).Which.InnerException.Should().BeSameAs(fault);
+    }
+
+    [Fact]
+    public async Task A_database_fault_that_is_not_transient_surfaces_as_the_defect_it_is()
+    {
+        var defect = new InvalidOperationException("a defect");
+        var service = new FederationBrokerOperations(new ThrowingScope(defect), new Scripted());
+
+        var report = async () => await service.ReportAsync(Admission(PlatformOperations.FederationReport), null, 5);
+
+        (await report.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(defect);
     }
 
     [Theory]
@@ -377,18 +617,26 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
     private FederationBrokerOperations Service(Scripted operations, bool failIntent = false, bool failResult = false) =>
         new(Scope(failIntent, failResult), operations);
 
-    private PlatformAdminScope Scope(bool failIntent, bool failResult)
+    private PlatformAdminScope Scope(bool failIntent, bool failResult, Func<Task>? afterIntent = null)
     {
         var platform = LearnStack.Api.Composition.PersistenceCompositionExtensions.BuildPlatformDataSource(database.PlatformConnectionString);
         var store = AuditStore();
         return new PlatformAdminScope(
             new PrivilegedDataSource(() => platform), new AuditCatalog([new TenancyAuditCatalogSource()]),
-            failIntent || failResult ? new FailingStore(store, failIntent, failResult) : store,
+            failIntent || failResult || afterIntent is not null ? new FailingStore(store, failIntent, failResult, afterIntent) : store,
             new SystemClock(), new SystemGuidFactory(), NullLogger<PlatformAdminScope>.Instance);
     }
 
     private static PlatformAdmission Admission(PlatformOperation operation, string? ticket = null) => TestPlatformAdmissions.Admission(
         operation, ticket, correlationId: "00-federation-" + Guid.NewGuid().ToString("N"));
+
+    private async Task<long> ScalarAsync(string sql, Guid id)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(database.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("id", id);
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
 
     private async Task<List<AuditRow>> RowsAsync(string correlation)
     {
@@ -460,36 +708,50 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
         }
     }
 
+    /// <summary>A scope whose database cannot be reached: entering it fails with the fault it was given.</summary>
+    private sealed class ThrowingScope(Exception fault) : IPlatformAdminScope
+    {
+        public Task<IPlatformAdminScopeHandle> EnterAsync(
+            PlatformAdmission admission, CancellationToken cancellationToken = default,
+            [System.Runtime.CompilerServices.CallerMemberName] string? callerMember = null,
+            [System.Runtime.CompilerServices.CallerFilePath] string? callerFile = null,
+            [System.Runtime.CompilerServices.CallerLineNumber] int callerLine = 0) => throw fault;
+    }
+
     private sealed record AuditRow(string Operation, string Outcome, Guid Tenant, string Metadata, string Before, string After, string EntityId);
 
     /// <summary>Fails the intent or the completion row of the operator, as an outage at that moment would.</summary>
-    private sealed class FailingStore(IServiceScopeFactory inner, bool failIntent, bool failResult) : IServiceScopeFactory
+    private sealed class FailingStore(IServiceScopeFactory inner, bool failIntent, bool failResult, Func<Task>? afterIntent = null)
+        : IServiceScopeFactory
     {
-        public IServiceScope CreateScope() => new Scope(inner.CreateScope(), failIntent, failResult);
+        public IServiceScope CreateScope() => new Scope(inner.CreateScope(), failIntent, failResult, afterIntent);
 
-        private sealed class Scope(IServiceScope inner, bool failIntent, bool failResult) : IServiceScope, IServiceProvider
+        private sealed class Scope(IServiceScope inner, bool failIntent, bool failResult, Func<Task>? afterIntent) : IServiceScope, IServiceProvider
         {
             public IServiceProvider ServiceProvider => this;
 
             public object? GetService(Type type) => type == typeof(IAuditStore)
-                ? new Decorator(inner.ServiceProvider.GetRequiredService<IAuditStore>(), failIntent, failResult)
+                ? new Decorator(inner.ServiceProvider.GetRequiredService<IAuditStore>(), failIntent, failResult, afterIntent)
                 : inner.ServiceProvider.GetService(type);
 
             public void Dispose() => inner.Dispose();
         }
 
-        private sealed class Decorator(IAuditStore store, bool failIntent, bool failResult) : IAuditStore
+        private sealed class Decorator(IAuditStore store, bool failIntent, bool failResult, Func<Task>? afterIntent) : IAuditStore
         {
             public Task WritePlatformScopeAsync(AuditEntryDraft entry, System.Data.Common.DbConnection connection,
                 System.Data.Common.DbTransaction transaction, CancellationToken cancellationToken = default) =>
                 store.WritePlatformScopeAsync(entry, connection, transaction, cancellationToken);
 
-            public Task WritePlatformOperatorIntentAsync(AuditEntryDraft entry, PlatformAdmission admission,
+            public async Task WritePlatformOperatorIntentAsync(AuditEntryDraft entry, PlatformAdmission admission,
                 System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction transaction,
-                CancellationToken cancellationToken = default) =>
-                failIntent
-                    ? throw new AuditWriteFailedException("forced intent failure")
-                    : store.WritePlatformOperatorIntentAsync(entry, admission, connection, transaction, cancellationToken);
+                CancellationToken cancellationToken = default)
+            {
+                if (failIntent) throw new AuditWriteFailedException("forced intent failure");
+                await store.WritePlatformOperatorIntentAsync(entry, admission, connection, transaction, cancellationToken);
+                // Between the intent and the provider call, as a tenant that commits a row at that moment would.
+                if (afterIntent is not null) await afterIntent();
+            }
 
             public Task WritePlatformOperatorResultAsync(AuditEntryDraft entry, PlatformAdmission admission,
                 System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction transaction,
@@ -533,6 +795,8 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
         public FederationOperatorOutcome RemoveOutcome { get; set; } = FederationOperatorOutcome.Applied;
         public FederationOperatorOutcome DisableOutcome { get; set; } = FederationOperatorOutcome.Applied;
         public Func<Task>? BeforeRemove { get; set; }
+        public Dictionary<string, int?> MapperCounts { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> MapperDeadlines { get; } = new(StringComparer.Ordinal);
         public List<string> Calls { get; } = [];
         public List<int> Offsets { get; } = [];
         public List<string> MapperCalls { get; } = [];
@@ -549,7 +813,7 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
             return Task.FromResult(new FederationBrokerPage(FederationOperatorStatus.Ok, page, 0, page.Count));
         }
 
-        public Task<FederationBrokerInspection> InspectAsync(string alias, CancellationToken cancellationToken = default)
+        public Task<FederationBrokerInspection> InspectAsync(string brokerAlias, CancellationToken cancellationToken = default)
         {
             Calls.Add("inspect");
             return Task.FromResult(InspectedStatus switch
@@ -566,7 +830,8 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
             Calls.Add("mappers");
             Events?.Add("mappers");
             MapperCalls.Add(owner.Alias);
-            return Task.FromResult<int?>(0);
+            if (MapperDeadlines.Contains(owner.Alias)) throw new OperationCanceledException("the page's time ran out");
+            return Task.FromResult(MapperCounts.TryGetValue(owner.Alias, out var count) ? count : 0);
         }
 
         public async Task<FederationOperatorOutcome> RemoveAsync(FederationBrokerOwner owner, CancellationToken cancellationToken = default)

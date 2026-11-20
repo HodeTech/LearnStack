@@ -200,8 +200,8 @@ federation report, remove or disable logs a Warning with event 7001 and the text
 match the text too); the onboarding acts and the two recovery acts do not enter the
 platform scope and log no 7001. Event 7109 (Warning)
 is an onboarding act the request pipeline itself refused as forbidden, which is a
-defect. Event 7110 (Warning) is a recovery or an inspection the owner could not finish,
-with whether its commit's outcome is unknown; see the [recovery
+defect. Event 7110 (Warning) is a recovery, an inspection or a federation call the owner
+could not finish, with whether its commit's outcome is unknown; see the [recovery
 runbook](operator-recovery.md#a-503-that-does-not-clear). A refused operator leaves no database row; the one exception is an
 onboarding act an admitted operator had refused for a business reason, which writes a
 `failed` row in the tenant.

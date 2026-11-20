@@ -54,12 +54,12 @@ internal sealed partial class KeycloakFederationProvider
     }
 
     /// <inheritdoc />
-    public async Task<FederationBrokerInspection> InspectAsync(string alias, CancellationToken cancellationToken = default)
+    public async Task<FederationBrokerInspection> InspectAsync(string brokerAlias, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(alias);
+        ArgumentNullException.ThrowIfNull(brokerAlias);
         return await RunAsync(FederationBrokerInspection.Unavailable, async (bearer, token) =>
         {
-            var probe = await ProbeAsync(alias, bearer, token).ConfigureAwait(false);
+            var probe = await ProbeAsync(brokerAlias, bearer, token).ConfigureAwait(false);
             try
             {
                 switch (probe.Kind)
@@ -183,11 +183,19 @@ internal sealed partial class KeycloakFederationProvider
     /// </summary>
     private static byte[] DisabledRepresentation(byte[] returned)
     {
-        if (JsonNode.Parse(returned) is not JsonObject representation) throw Fault();
-        representation.Remove("internalId");
-        representation.Remove("types");
-        representation["enabled"] = false;
-        return JsonSerializer.SerializeToUtf8Bytes(representation);
+        try
+        {
+            if (JsonNode.Parse(returned) is not JsonObject representation) throw Fault();
+            representation.Remove("internalId");
+            representation.Remove("types");
+            representation["enabled"] = false;
+            return JsonSerializer.SerializeToUtf8Bytes(representation);
+        }
+        // A body that is not JSON, or an object that repeats a member, is not a representation to send back.
+        catch (Exception failure) when (failure is JsonException or ArgumentException or InvalidOperationException)
+        {
+            throw Fault();
+        }
     }
 
     private async Task<int> CountMappersCoreAsync(FederationBrokerOwner owner, string bearer, CancellationToken token)

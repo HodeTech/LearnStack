@@ -15,9 +15,9 @@ internal sealed record FederationActBody(
     [property: RegularExpression(TicketPattern.Value)]
     string? Ticket);
 
-/// <summary>One page of the federation report.</summary>
+/// <summary>One page of the federation report; <c>MappersUnread</c> counts healthy-looking brokers whose mappers were not read.</summary>
 internal sealed record FederationReportResponse(
-    IReadOnlyList<FederationBrokerReportItem> Items, InspectionPageInfo PageInfo, int Scanned, int Ignored);
+    IReadOnlyList<FederationBrokerReportItem> Items, InspectionPageInfo PageInfo, int Scanned, int Ignored, int MappersUnread);
 
 /// <summary>What an applied or repeated federation act answers; the account review is the operator's to start.</summary>
 internal sealed record FederationActResponse(
@@ -50,9 +50,11 @@ internal static partial class PlatformOperatorEndpoints
                 .WithName("PlatformFederationRemove")
                 .WithSummary("Remove an orphaned or unreadable owned broker at the provider; the provider deletes its federated links.")
                 .WithDescription(
-                    "Refused while a live connection row names the broker. An absent broker is already removed. The tenant's "
+                    "Refused while a live connection row names a broker that reads; an unreadable owned broker is removed even "
+                    + "with a live row, because nothing else can. An absent broker is already removed. The tenant's "
                     + "intent and completion rows are written around the provider call; the delegated-account review is the "
-                    + "operator's, by runbook. A ticket is checked and not stored."),
+                    + "operator's, by runbook. A ticket is checked and recorded only on the platform scope's entry row, never "
+                    + "on a tenant's row."),
             typeof(FederationActResponse));
         Describe(
             group.MapPost(FederationPrefix + "/{alias}/disable", DisableFederationAsync)
@@ -60,7 +62,8 @@ internal static partial class PlatformOperatorEndpoints
                 .WithSummary("Disable a nonconforming or unreadable owned broker at the provider only; the tenant's row is left to its next readback.")
                 .WithDescription(
                     "Sets enabled to false and nothing else, on an instance whose owner marker is proven. A healthy broker with "
-                    + "a live row is refused. A ticket is checked and not stored."),
+                    + "a live row is refused. A ticket is checked and recorded only on the platform scope's entry row, never on "
+                    + "a tenant's row."),
             typeof(FederationActResponse));
     }
 
@@ -99,7 +102,7 @@ internal static partial class PlatformOperatorEndpoints
             {
                 FederationReportOutcome.Ok => Results.Ok(new FederationReportResponse(
                     result.Items, new InspectionPageInfo(result.NextCursor, null, result.NextCursor is not null, false),
-                    result.Scanned, result.Ignored)),
+                    result.Scanned, result.Ignored, result.Unread)),
                 FederationReportOutcome.InvalidCursor => InvalidParameter(http, "cursor"),
                 _ => UnavailableProblem(http, loggers, operation, new OperatorRecoveryUnavailableException()),
             };
@@ -107,6 +110,12 @@ internal static partial class PlatformOperatorEndpoints
         catch (AuditWriteFailedException failure)
         {
             return AuditUnavailableProblem(http, loggers, operation, failure);
+        }
+        catch (OperatorRecoveryUnavailableException failure)
+        {
+            // A database fault the owner translated: nothing was changed, and the cause is in the log.
+            PlatformOperatorMetrics.Federation(operation, "unavailable");
+            return UnavailableProblem(http, loggers, operation, failure);
         }
     }
 
@@ -159,13 +168,20 @@ internal static partial class PlatformOperatorEndpoints
                 FederationActOutcome.NotApplicable => ResultProblem(http, Rule("class", "lockey_not_applicable")),
                 FederationActOutcome.Refused => ResultProblem(http, Rule("provider", "lockey_provider_refused")),
                 FederationActOutcome.Unavailable => UnavailableProblem(http, loggers, operation, new OperatorRecoveryUnavailableException()),
-                _ => UnavailableProblem(
+                FederationActOutcome.Uncertain => UnavailableProblem(
                     http, loggers, operation, new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true)),
+                _ => throw new InvalidOperationException("A federation outcome the route does not answer."),
             };
         }
         catch (AuditWriteFailedException failure)
         {
             return AuditUnavailableProblem(http, loggers, operation, failure);
+        }
+        catch (OperatorRecoveryUnavailableException failure)
+        {
+            // A database fault the owner translated: nothing was changed, and the cause is in the log.
+            PlatformOperatorMetrics.Federation(operation, "unavailable");
+            return UnavailableProblem(http, loggers, operation, failure);
         }
     }
 
@@ -184,6 +200,7 @@ internal static partial class PlatformOperatorEndpoints
         FederationActOutcome.NotApplicable => "not_applicable",
         FederationActOutcome.Refused => "refused",
         FederationActOutcome.Unavailable => "unavailable",
-        _ => "uncertain",
+        FederationActOutcome.Uncertain => "uncertain",
+        _ => throw new InvalidOperationException("A federation outcome the route does not count."),
     };
 }

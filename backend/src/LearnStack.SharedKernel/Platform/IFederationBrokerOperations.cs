@@ -34,8 +34,14 @@ public enum FederationReportOutcome
 /// <param name="NextCursor">The opaque position of the next page, or null after the last.</param>
 /// <param name="Scanned">How many instances the provider returned for the page.</param>
 /// <param name="Ignored">How many of them are not LearnStack's: no marker, a foreign marker or a marker that does not match its row.</param>
+/// <param name="Unread">
+/// How many brokers that read as healthy and live had no mapper count, because the provider failed or the page's time ran
+/// out: an extra mapper is drift only a mapper read shows, so these are unknown and not clean, and the next page of the
+/// same size may read them.
+/// </param>
 public sealed record FederationReportResult(
-    FederationReportOutcome Outcome, IReadOnlyList<FederationBrokerReportItem> Items, string? NextCursor, int Scanned, int Ignored)
+    FederationReportOutcome Outcome, IReadOnlyList<FederationBrokerReportItem> Items, string? NextCursor, int Scanned, int Ignored,
+    int Unread = 0)
 {
     public static FederationReportResult Of(FederationReportOutcome outcome) => new(outcome, [], null, 0, 0);
 }
@@ -55,7 +61,10 @@ public enum FederationActOutcome
     /// <summary>The instance's marker does not name a tenant and a connection of LearnStack's, or its row names another tenant.</summary>
     NotOwned,
 
-    /// <summary>A live connection row names the broker, so a remove refuses; the tenant's own Delete retires it.</summary>
+    /// <summary>
+    /// A live connection row names a broker that reads, so a remove refuses; the tenant's own Delete retires the pair. An
+    /// unreadable owned broker is removed even with a live row (ADR-0099 Amendment 12).
+    /// </summary>
     LiveConnection,
 
     /// <summary>A disable found a healthy owned broker with a live row: nothing about it needs an operator.</summary>
@@ -92,9 +101,9 @@ public interface IFederationBrokerOperations
 
     /// <summary>Removes an orphaned or unreadable owned broker after an intent row, and records the completion.</summary>
     /// <exception cref="LearnStack.SharedKernel.Audit.AuditWriteFailedException">A MUST row could not be written; the effect did not start or its outcome is recorded by the intent row alone.</exception>
-    Task<FederationActResult> RemoveAsync(PlatformAdmission admission, string alias, CancellationToken cancellationToken = default);
+    Task<FederationActResult> RemoveAsync(PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken = default);
 
     /// <summary>Disables a nonconforming or unreachable owned broker at the provider only, with the same two rows.</summary>
     /// <exception cref="LearnStack.SharedKernel.Audit.AuditWriteFailedException">A MUST row could not be written; the effect did not start or its outcome is recorded by the intent row alone.</exception>
-    Task<FederationActResult> DisableAsync(PlatformAdmission admission, string alias, CancellationToken cancellationToken = default);
+    Task<FederationActResult> DisableAsync(PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken = default);
 }

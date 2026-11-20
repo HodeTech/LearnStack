@@ -670,7 +670,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         call.Admission.Operation.Should().BeSameAs(PlatformOperations.FederationReport);
         call.Admission.Ticket.Should().Be("CHG-5");
         var text = await response.Content.ReadAsStringAsync();
-        text.Should().Contain("\"items\":[]").And.Contain("\"nextCursor\":\"next\"").And.Contain("\"scanned\":3").And.Contain("\"ignored\":1");
+        text.Should().Contain("\"items\":[]").And.Contain("\"nextCursor\":\"next\"").And.Contain("\"scanned\":3").And.Contain("\"ignored\":1")
+            .And.Contain("\"mappersUnread\":4");
     }
 
     [Theory]
@@ -738,21 +739,39 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(FederationActOutcome.AlreadyApplied, HttpStatusCode.OK, "already_applied")]
-    [InlineData(FederationActOutcome.NotFound, HttpStatusCode.NotFound, "not_found")]
-    [InlineData(FederationActOutcome.NotOwned, HttpStatusCode.Conflict, "lockey_not_owned")]
-    [InlineData(FederationActOutcome.LiveConnection, HttpStatusCode.Conflict, "lockey_live_connection")]
-    [InlineData(FederationActOutcome.NotApplicable, HttpStatusCode.Conflict, "lockey_not_applicable")]
-    [InlineData(FederationActOutcome.Refused, HttpStatusCode.Conflict, "lockey_provider_refused")]
-    public async Task A_Federation_Act_Answers_Each_Outcome_With_Its_Status_And_The_Reason_On_The_Field_It_Concerns(
-        FederationActOutcome outcome, HttpStatusCode status, string expected)
+    [InlineData(FederationActOutcome.NotOwned, "owner", "lockey_not_owned")]
+    [InlineData(FederationActOutcome.LiveConnection, "connection", "lockey_live_connection")]
+    [InlineData(FederationActOutcome.NotApplicable, "class", "lockey_not_applicable")]
+    [InlineData(FederationActOutcome.Refused, "provider", "lockey_provider_refused")]
+    public async Task A_Federation_Act_Refusal_Is_A_409_With_Its_Reason_On_The_Field_It_Concerns(
+        FederationActOutcome outcome, string field, string reason)
     {
         _brokers.Act = new FederationActResult(outcome);
 
         var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}");
 
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("code").GetString().Should().Be("business_rule_violation");
+        var reasons = body.RootElement.GetProperty("errors").EnumerateObject().ToDictionary(
+            property => property.Name, property => property.Value[0].GetProperty("key").GetString());
+        reasons.Should().Equal(new Dictionary<string, string?> { [field] = reason }, "the reason is on the field it concerns, and only there");
+    }
+
+    [Theory]
+    [InlineData(FederationActOutcome.AlreadyApplied, HttpStatusCode.OK, "already_applied", false)]
+    [InlineData(FederationActOutcome.NotFound, HttpStatusCode.NotFound, null, false)]
+    public async Task A_Federation_Act_Answers_A_Repeat_Or_A_Missing_Alias_Without_Owing_An_Account_Review(
+        FederationActOutcome outcome, HttpStatusCode status, string? token, bool owed)
+    {
+        _brokers.Act = new FederationActResult(outcome);
+
+        var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/disable", Valid(), "{}");
+
         response.StatusCode.Should().Be(status);
-        (await response.Content.ReadAsStringAsync()).Should().Contain(expected);
+        if (token is null) return;
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        (body.RootElement.GetProperty("outcome").GetString(), body.RootElement.GetProperty("accountReviewOwed").GetBoolean()).Should().Be((token, owed));
     }
 
     [Fact]
@@ -776,12 +795,54 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     [Fact]
     public async Task A_Failed_Federation_Audit_Write_Is_The_Retryable_Audit_503_And_Is_Counted()
     {
+        using var counted = Counted();
         _brokers.Failure = new AuditWriteFailedException("forced");
 
-        var response = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}");
+        var act = await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}");
+        var report = await Call(HttpMethod.Get, Fed, Valid());
+
+        foreach (var response in new[] { act, report })
+        {
+            response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+            await AssertProblem(response, "audit_unavailable");
+        }
+
+        counted.AuditFailures.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("report")]
+    [InlineData("remove")]
+    public async Task A_Database_Fault_The_Federation_Owner_Translates_Is_A_Retryable_503_Without_An_Unknown_Outcome(string act)
+    {
+        using var federation = new FederationListener();
+        _brokers.Failure = new OperatorRecoveryUnavailableException(cause: new InvalidOperationException("the database is not reachable"));
+
+        var response = act == "report"
+            ? await Call(HttpMethod.Get, Fed, Valid())
+            : await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}");
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        await AssertProblem(response, "audit_unavailable");
+        response.Headers.RetryAfter.Should().NotBeNull();
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("code").GetString().Should().Be("dependency_unavailable");
+        body.RootElement.TryGetProperty("errors", out _).Should().BeFalse("nothing was changed, so no unknown outcome is named");
+        federation.Calls.Should().Equal([(act == "report" ? "platform.federation.report" : "platform.federation.remove", "unavailable")]);
+    }
+
+    [Fact]
+    public async Task The_Federation_Counter_Is_Labelled_By_The_Operation_Slug_And_A_Closed_Outcome_And_Counts_Only_Calls_That_Reached_The_Owner()
+    {
+        using var federation = new FederationListener();
+
+        (await Call(HttpMethod.Get, Fed, Valid())).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.OK);
+        _brokers.Act = new FederationActResult(FederationActOutcome.AlreadyApplied);
+        (await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/disable", Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Call(HttpMethod.Get, Fed + "?limit=0", Valid())).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        federation.Calls.Should().Equal(
+            ("platform.federation.report", "ok"), ("platform.federation.remove", "applied"), ("platform.federation.disable", "already_applied"));
     }
 
     [Theory]
@@ -1356,10 +1417,44 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         }
     }
 
+    /// <summary>Captures the <c>operation</c> and <c>outcome</c> labels of every federation call counted while it is alive.</summary>
+    private sealed class FederationListener : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        private readonly ConcurrentQueue<(string Operation, string Outcome)> _calls = new();
+
+        public FederationListener()
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName && instrument.Name == PlatformOperatorMetrics.FederationCounterName)
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            _listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+            {
+                string? operation = null, outcome = null;
+                foreach (var tag in tags)
+                {
+                    if (tag.Key == "operation") operation = tag.Value as string;
+                    if (tag.Key == "outcome") outcome = tag.Value as string;
+                }
+
+                _calls.Enqueue((operation ?? string.Empty, outcome ?? string.Empty));
+            });
+            _listener.Start();
+        }
+
+        public IReadOnlyList<(string Operation, string Outcome)> Calls => [.. _calls];
+
+        public void Dispose() => _listener.Dispose();
+    }
+
     private sealed class RecordingBrokers : IFederationBrokerOperations
     {
         public List<(string Operation, PlatformAdmission Admission, string? Argument, int Limit)> Calls { get; } = [];
-        public FederationReportResult Report { get; set; } = new(FederationReportOutcome.Ok, [], "next", 3, 1);
+        public FederationReportResult Report { get; set; } = new(FederationReportOutcome.Ok, [], "next", 3, 1, 4);
         public FederationActResult Act { get; set; } = new(FederationActOutcome.Applied, Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002501"),
             Guid.Parse("019a1929-5450-7bbb-8df1-516e8e002502"));
         public Exception? Failure { get; set; }
@@ -1371,11 +1466,11 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             return Failure is not null ? Task.FromException<FederationReportResult>(Failure) : Task.FromResult(Report);
         }
 
-        public Task<FederationActResult> RemoveAsync(PlatformAdmission admission, string alias, CancellationToken cancellationToken = default) =>
-            Record("remove", admission, alias);
+        public Task<FederationActResult> RemoveAsync(PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken = default) =>
+            Record("remove", admission, brokerAlias);
 
-        public Task<FederationActResult> DisableAsync(PlatformAdmission admission, string alias, CancellationToken cancellationToken = default) =>
-            Record("disable", admission, alias);
+        public Task<FederationActResult> DisableAsync(PlatformAdmission admission, string brokerAlias, CancellationToken cancellationToken = default) =>
+            Record("disable", admission, brokerAlias);
 
         private Task<FederationActResult> Record(string operation, PlatformAdmission admission, string alias)
         {

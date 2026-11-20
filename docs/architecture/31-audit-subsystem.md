@@ -271,6 +271,11 @@ dead-lettered row is a sibling seam, `WriteOperatorRecoveryAsync`
 carries the admitted operator and the fence before and after, the row names the real
 event tenant with no actor and no ticket, and the outbox role needs no new policy arm
 because it bypasses row security and already holds `INSERT`.
+Absent optional causal IDs are valid and do not alone invalidate the stored trace.
+Closed terminal values use bounded metadata; `Reason` stays for platform entry.
+Audit failure retains terminal work for retry without delivery; uncertain COMMIT
+is reconciled before retry and cannot duplicate a completed terminal audit.
+
 The platform scope's intent seam, `WritePlatformOperatorIntentAsync`
 ([ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md)), is the sibling for an
 operator act whose effect is outside the database: the scope handle's checkpoint writes
@@ -278,10 +283,6 @@ the intent row on the operation's attempt slug with the outcome `indeterminate`,
 it, and only then lets the provider be called; the result row follows on a fresh
 transaction. An effect that fails afterwards leaves the intent row standing, and the
 result row is refused before an intent that its operation declares.
-Absent optional causal IDs are valid and do not alone invalidate the stored trace.
-Closed terminal values use bounded metadata; `Reason` stays for platform entry.
-Audit failure retains terminal work for retry without delivery; uncertain COMMIT
-is reconciled before retry and cannot duplicate a completed terminal audit.
 
 The existing outbox role gains audit INSERT-only in the Audit chain, with exact
 grants owned by [Database Standards](../standards/05-database.md#grant-matrix).

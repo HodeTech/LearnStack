@@ -58,16 +58,28 @@ public sealed partial class FederationProviderTests
         try
         {
             var owned = new Dictionary<string, FederationBrokerFacts>(StringComparer.Ordinal);
+            var seen = new List<string>();
             var ignored = 0;
+            var scanned = 0;
             for (var offset = 0; ; offset += 2)
             {
                 var page = await op.ListAsync(offset, 2);
                 page.Status.Should().Be(FederationOperatorStatus.Ok, "the federation client's one role is enough to list");
                 page.Scanned.Should().BeLessThanOrEqualTo(2);
-                foreach (var facts in page.Owned) owned[facts.Owner.Alias] = facts;
+                foreach (var facts in page.Owned)
+                {
+                    owned[facts.Owner.Alias] = facts;
+                    seen.Add(facts.Owner.Alias);
+                }
+
                 ignored += page.Ignored;
+                scanned += page.Scanned;
                 if (page.Scanned < 2) break;
             }
+
+            // The pages are disjoint and complete: nothing is listed twice, and every instance the realm holds is scanned once.
+            seen.Should().OnlyHaveUniqueItems("offset paging must not repeat an instance across pages");
+            scanned.Should().Be((await admin.GetAsync("identity-provider/instances")).GetArrayLength());
 
             owned[healthy.Alias].Should().Match<FederationBrokerFacts>(facts => facts.Readable && facts.Conforms && facts.Enabled,
                 "the pinned provider masks the secret in the listing, so a healthy broker reads as conforming");
@@ -147,8 +159,9 @@ public sealed partial class FederationProviderTests
 
             var after = JsonNode.Parse((await admin.GetAsync("identity-provider/instances/" + broken.Alias)).GetRawText())!.AsObject();
             after["enabled"]!.GetValue<bool>().Should().BeFalse();
-            after["config"]!["clientSecret"]!.GetValue<string>().Should().Be(FederationClientSecret.MaskLiteral,
-                "the provider kept the stored secret when it read its own mask back");
+            // The administrative read masks the secret whether or not it was kept, so this asserts the shape only; the next
+            // test proves the secret was kept, by signing a person in through the broker afterwards.
+            after["config"]!["clientSecret"]!.GetValue<string>().Should().Be(FederationClientSecret.MaskLiteral);
             // Nothing else moved: compare everything the provider computes on each read away.
             foreach (var key in new[] { "internalId", "types" })
             {
@@ -164,5 +177,34 @@ public sealed partial class FederationProviderTests
         {
             await admin.DeleteAsync("identity-provider/instances/" + broken.Alias);
         }
+    }
+
+    [Fact]
+    public async Task The_operator_disable_keeps_the_stored_secret_so_a_person_can_sign_in_through_the_broker_once_it_is_enabled_again()
+    {
+        var owner = federation.OwnerA;
+        await EnableAsync(owner, "federation-idp-a", FederationKeycloakFixture.IdpSecretA);
+        using var op = OperatorAdapter();
+        using var admin = await Keycloak.CreateAdminClientAsync();
+        const string person = "demo-admin@tenant-a.test";
+
+        // Control: the broker reaches the link confirmation, which needs its client secret at the identity provider.
+        using (var before = Keycloak.Browser())
+            (await before.BrokeredAuthorizeAsync(owner.Alias, person, KeycloakFixture.IdentityProviderPassword, null, null, Callback,
+                confirmLink: false)).Stop.Should().Be(BrokeredStop.ConfirmationAbandoned);
+
+        (await op.DisableAsync(owner)).Should().Be(FederationOperatorOutcome.Applied);
+        using (var disabled = Keycloak.Browser())
+            (await disabled.BrokeredAuthorizeAsync(owner.Alias, person, KeycloakFixture.IdentityProviderPassword, null, null, Callback,
+                confirmLink: false)).Stop.Should().NotBe(BrokeredStop.ConfirmationAbandoned, "a disabled broker signs nobody in");
+
+        // Enabled again out of band, with the representation the provider returns and its mask. If the operator's write had
+        // stored the mask literal as the secret, this write would keep it so, and the sign-in below could not succeed.
+        var returned = JsonNode.Parse((await admin.GetAsync("identity-provider/instances/" + owner.Alias)).GetRawText())!.AsObject();
+        returned["enabled"] = true;
+        (await admin.PutAsync("identity-provider/instances/" + owner.Alias, returned)).Should().Be(HttpStatusCode.NoContent);
+        using var after = Keycloak.Browser();
+        (await after.BrokeredAuthorizeAsync(owner.Alias, person, KeycloakFixture.IdentityProviderPassword, null, null, Callback,
+            confirmLink: false)).Stop.Should().Be(BrokeredStop.ConfirmationAbandoned, "the stored secret survived the disable");
     }
 }

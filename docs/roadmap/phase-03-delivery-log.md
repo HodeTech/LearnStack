@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,008 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,075 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -523,6 +523,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 4 — review round 1 and its fixes (2026-11-20)](#p03-9-step-4--review-round-1-and-its-fixes-2026-11-20) — 49 lines
   - [P03-9 Step 4 — review round 2 and its fixes (2026-11-20)](#p03-9-step-4--review-round-2-and-its-fixes-2026-11-20) — 39 lines
   - [P03-9 Step 5 — federation operator steps (2026-11-20)](#p03-9-step-5--federation-operator-steps-2026-11-20) — 71 lines
+  - [P03-9 Step 5 — review round 1 and its fixes (2026-11-20)](#p03-9-step-5--review-round-1-and-its-fixes-2026-11-20) — 67 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25188,3 +25189,70 @@ and the refused columns; each route's statuses, bodies and permission held alone
 the route, port-holder and raw-reader censuses with their planted violations. A
 mutation sweep over the new guards killed every mutant but one equivalent: a marker
 length check that the marker's round trip makes redundant.
+
+### P03-9 Step 5 — review round 1 and its fixes (2026-11-20)
+
+Three read-only reviews ran over the Step 5 commit, one per lens: goal conformance,
+authority and security; correctness, the audit checkpoint and robustness; tests,
+censuses, documentation and standards fidelity. Each finding was verified against the
+code before it was acted on. The first full run of the heavy architecture suite had
+already failed three lifecycle-census tests, and the full integration run one
+isolation test, for two causes recorded below.
+
+Fixed, with the proof that now catches each:
+
+- **A completion lost after a change read as "nothing changed".** The completion row
+  is written on a bounded three-second token detached from the request. A caller that
+  leaves while the provider works is recorded `uncertain`, and a completion that cannot
+  be written after a change that landed or may have answers the unknown outcome with
+  the intent row standing. Owner tests fail the completion after an applied remove, an
+  uncertain remove and an applied disable, fail it when nothing changed (still the audit
+  failure), and abort the caller inside the provider call.
+- **An unread mapper count made a drifted broker vanish.** The report carries
+  `mappersUnread`, the healthy-looking live brokers it could not clear. Owner tests
+  return a count, `null` and a deadline from the scripted provider.
+- **A database fault was a raw 500.** The owner translates a transient fault to the
+  unavailable owner with its cause for the log, the route answers `503`, and any
+  failure to commit the intent row now stops the act. The fault classifier became
+  public for it. Owner and route tests cover each act.
+- **An unreadable owned broker with a live row could be removed by nobody.** The
+  tenant's Delete reports it foreign and fails, and the operator remove refused the
+  live row. The maintainer chose to admit the operator remove for exactly that class;
+  ADR-0099 Amendment 12 records it with an erratum beside Amendment 11 item 5. Owner
+  tests refuse a readable pair, remove an unreadable one with its row untouched, and
+  refuse a delete whose row turned live after the intent.
+- **Record against behaviour.** The ticket is recorded on the entry row, never on a
+  tenant row; the grant sat in the wrong column of the Standard 05 matrix; the runbook's
+  metric labels, step order, class count and `accountReviewOwed` were wrong; the served
+  contract named too few reasons and fields; Standard 21 still counted three raw
+  readers and two scope holders; the glossary, the provider specification and the
+  audit documents lagged. Each is corrected, and Amendment 12 records the decisions
+  that were implicit (the audit outcome of a completion row is `success`, and an
+  applied disable owes the review too).
+- **Test gaps.** Marker and row disagreeing on remove and disable, every non-applied
+  disable outcome, an uninspectable alias, the route's field-level reasons, the
+  counter's labels, a report's audit failure, the real-provider paging being disjoint
+  and complete, and a real brokered sign-in after a disable that proves the provider
+  kept the stored secret. The port-holder census now also finds a holder of the
+  concrete owner, with planted controls, and the listing's one exact query is pinned.
+
+Two causes outside the findings: the new checkpoint is a `CommitAsync` owner the
+delivery-lifecycle census had to name, and the new audit-writing service tests moved to
+an isolated database because `audit_log` is append-only and the shared schema's
+isolation census counts the rows each seeded tenant sees.
+
+Decided and not changed:
+
+- **The audit outcome of a completion row.** It stays `success`; the provider outcome
+  is `after_state.outcome` (Amendment 12 item 5). A query for non-success rows misses a
+  refused or uncertain provider call, which is the open question for the maintainer.
+- **An applied disable owes the review** (Amendment 12 item 6), as Amendment 10 item 6
+  says.
+- **The marker's tenant is not checked against `tenants`.** Amendment 11 item 3 decides
+  it, and planting a marker needs realm-console rights, which exceed a tenant
+  administrator's.
+- **No batched mapper read.** The operator pipeline's per-call timeout bounds one call,
+  so one token over a batch would not be sound; the page's ten seconds and
+  `mappersUnread` bound the cost, and the runbook says so.
+- **The disable reads the row once.** Amendment 11 item 8 accepts the read-and-write
+  interleave; the effect fails closed.
