@@ -6394,10 +6394,10 @@ transaction. Authority qualification and the User-creation admission take the **
 form first and always before the subject lock, so the order is fixed and the tool,
 which takes only this key, cannot form a cycle.
 
-- **Qualification** takes it after `SET TRANSACTION READ ONLY` and before its read; under
-  `READ COMMITTED` the next statement sees the rebind it waited for and compares against
-  the new issuer. It sets no `lock_timeout`, so a start that overlaps a rebind waits
-  until the command timeout (thirty seconds) and then fails with the fixed
+- **Qualification** takes it after `SET TRANSACTION READ ONLY` and before its read;
+  under `READ COMMITTED` the next statement sees the rebind it waited for and compares
+  against the new issuer. It sets no `lock_timeout`, so a start that overlaps a rebind
+  waits until the command timeout (thirty seconds) and then fails with the fixed
   qualification message, which stays failed until the process restarts.
 - **The creation admission** takes it under its two-second `lock_timeout` and then reads
   the stored authority and issuer, refusing with `IdentityAuthorityChangedException`
@@ -6415,14 +6415,32 @@ which takes only this key, cannot form a cycle.
 
 Server-side, as the role: `session_user` and `current_user` are the role; it is not
 `INHERIT`, `BYPASSRLS`, superuser, `CREATEDB`, `CREATEROLE` or `REPLICATION`; it has no
-membership either way and no schema or database `CREATE`; it holds no privilege, table
-or column, on any other relation; and on the three it uses it holds exactly the declared
-grants, compared column by column in both directions, so an extra column privilege and a
-missing declared one both refuse. Any other posture refuses the run before the lock. The
-freeze check counts sessions of the application, outbox, ingress and platform roles in
-the database other than its own, from `pg_stat_activity`, which shows another role's
+membership either way, owns no relation, function or schema, and has no schema or
+database `CREATE`; it holds no privilege, table, column or sequence, including the
+maintenance privilege of PostgreSQL 17, on any other relation of `public`; and on the
+three it uses it holds exactly the declared grants, compared column by column in both
+directions, so an extra column privilege and a missing declared one both refuse. A
+relation that belongs to an extension (`pg_depend` type `e`) is not counted, so the
+`PUBLIC`-readable views of `pg_stat_statements` do not lock the tool out; any other
+relation in `public` that the role can reach, a privilege through `PUBLIC` included, is.
+The session's own `lock_timeout`, `statement_timeout` and
+`idle_in_transaction_session_timeout` are read back from `pg_settings` and must be what
+the tool asked for, so a connection pooler that drops startup options refuses the run
+instead of silently removing the lock wait and the idle fence. A check the catalog
+cannot answer is a failed check. Any other posture refuses the run before the lock, and
+the refusal names the first check that failed as a closed `detail`.
+
+The freeze check counts sessions of the application, outbox, ingress and platform roles
+in the database other than its own, from `pg_stat_activity`, which shows another role's
 session with its role and database even where the statement is hidden. It runs before
-the new realm is read and again immediately before the change.
+the new realm is read and again immediately before the change. The server serves that
+view from one snapshot per transaction, so each count first calls
+`pg_stat_clear_snapshot()`, which every role may execute; without it the second count
+would repeat the first and a host that starts while the proof runs, and never takes the
+rebind lock, would not be seen. The tool turns Npgsql's application keepalive off and
+asks the operating system for TCP probes instead: a client keepalive is a message, and
+every message the server receives restarts its idle-in-transaction clock, so the
+fifteen-minute fence that frees a hung tool's lock would never fire.
 
 ### Proof
 

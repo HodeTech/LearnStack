@@ -14,7 +14,10 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <!-- The operator token validator lives in Infrastructure so the API scheme and the offline rebind tool share one
-         definition (ADR-0101 § 7, ADR-0104 § 3). The versions are the ones JwtBearer already resolves. -->
+         definition (ADR-0101 § 7, ADR-0104 § 3). The versions are the ones JwtBearer already resolves.
+         JwtBearer requires Protocols.OpenIdConnect at its own floor: raising JwtBearer past 10.0.12
+         can raise that floor above these pins, and restore then fails with NU1605 in every project
+         that references Infrastructure. Raise the two pins with it. -->
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.19.2" />
 

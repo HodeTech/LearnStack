@@ -56,10 +56,10 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
     }
 
     [Theory]
-    [InlineData("no-token", "refused_input")]
-    [InlineData("argument", "refused_input")]
-    [InlineData("no-realm-credential", "refused_input")]
-    [InlineData("no-mode", "refused_input")]
+    [InlineData("no-token", "refused_input detail=operator_token")]
+    [InlineData("argument", "refused_input detail=arguments")]
+    [InlineData("no-realm-credential", "refused_input detail=realm_client")]
+    [InlineData("no-mode", "refused_input detail=deployment_mode")]
     [InlineData("wrong-audience", "refused_operator_token_token_audience")]
     [InlineData("wrong-issuer", "refused_operator_token_token_issuer")]
     [InlineData("expired", "refused_operator_token_token_expired")]
@@ -76,10 +76,12 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
         var result = await run.ExecuteAsync(scenario);
 
         result.Code.Should().Be(2);
-        (result.Out + result.Error).Should().Contain(expected);
+        result.Out.Should().StartWith("rebind: outcome=" + expected);
+        result.Out.Trim().Split('\n').Should().ContainSingle("one fixed line, on standard output and nowhere else");
+        result.Error.Should().BeEmpty();
         run.AssertNoValueLeaked(result);
         (await run.IssuerAsync()).Should().Be(run.OldIssuer);
-        (await run.RebindRowsAsync()).Should().Be(0, "a refusal at the gate is a counter and a log, never a durable row");
+        (await run.RebindRowsAsync()).Should().Be(0, "a refusal at the gate writes no durable row: the line and the counter are its record");
     }
 
     [Fact]
@@ -90,7 +92,7 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
         var result = await run.ExecuteAsync(token: run.Token(), tokenOnInput: false, connection: run.AppConnection);
 
         result.Code.Should().Be(2);
-        (result.Out + result.Error).Should().Contain("refused_input", "the connection string is not the rebind role's");
+        result.Out.Should().StartWith("rebind: outcome=refused_input detail=connection_string", "the string is not the rebind role's");
         run.AssertNoValueLeaked(result);
         (await run.IssuerAsync()).Should().Be(run.OldIssuer);
     }
@@ -123,6 +125,50 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
         (await run.IssuerAsync()).Should().Be(run.OldIssuer);
     }
 
+    [Fact]
+    public async Task A_New_Realm_That_Refuses_The_Client_Names_The_Step_And_Never_The_Address()
+    {
+        await using var run = await Run.StartAsync(parent);
+        run.Realm.Fail("token-denied");
+
+        var result = await run.ExecuteAsync(token: run.Token(), tokenOnInput: false);
+
+        result.Code.Should().Be(2);
+        result.Out.Should().StartWith("rebind: outcome=refused_new_realm_unavailable correlation=rebind-")
+            .And.EndWith(" detail=realm_token" + Environment.NewLine.TrimEnd('\r'), "the step is named, nothing else");
+        result.Error.Should().BeEmpty();
+        run.AssertNoValueLeaked(result);
+        (await run.IssuerAsync()).Should().Be(run.OldIssuer);
+    }
+
+    [Theory]
+    [InlineData("TERM")]
+    [InlineData("HUP")]
+    public async Task A_Signal_During_The_Realm_Read_Rolls_Back_Reports_Cancelled_And_Keeps_The_Intent_Row(string signal)
+    {
+        await using var run = await Run.StartAsync(parent);
+        run.Realm.Fail("discovery-hang");
+
+        // The intent row is written only after the signal handlers are in place, so its appearance is the readiness
+        // the signal waits for: no sleep guesses how long the runtime takes to start.
+        // A process started under `nohup` inherits an ignored hang-up and keeps ignoring it, as it should, so the case
+        // starts the tool with the default disposition restored: a tool the operator runs in tmux has it.
+        var result = await run.ExecuteAsync(token: run.Token(), tokenOnInput: false, resetHangUp: signal == "HUP", whileRunning: async child =>
+        {
+            await run.WaitForRebindRowAsync(TimeSpan.FromSeconds(60));
+            using var kill = Process.Start("kill", ["-" + signal, child.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)])!;
+            await kill.WaitForExitAsync();
+        });
+
+        result.Code.Should().Be(2, result.Text);
+        result.Out.Should().StartWith("rebind: outcome=refused_cancelled correlation=rebind-");
+        result.Out.Trim().Split('\n').Should().ContainSingle();
+        result.Error.Should().BeEmpty();
+        (await run.IssuerAsync()).Should().Be(run.OldIssuer);
+        var correlation = result.Out.Split("correlation=")[1].Split(' ')[0].Trim();
+        (await run.OperationsAsync(correlation)).Should().Equal("identity.authority.rebind_attempt");
+    }
+
     private sealed record Result(int Code, string Out, string Error)
     {
         internal string Text => Out + Error;
@@ -148,6 +194,8 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
         internal string NewIssuer => _realm.Issuer;
 
         internal string AppConnection => _database.AppConnectionString;
+
+        internal FakeKeycloakRealm Realm => _realm;
 
         internal static async Task<Run> StartAsync(PublicReadFixture parent, int reportedUsers = 2)
         {
@@ -202,9 +250,10 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
 
         internal async Task<Result> ExecuteAsync(
             string? token, bool tokenOnInput, string? argument = null, bool realmCredential = true, string? mode = "Development",
-            string? grant = Grant, bool operatorIssuer = true, string? connection = null)
+            string? grant = Grant, bool operatorIssuer = true, string? connection = null,
+            Func<Process, Task>? whileRunning = null, bool resetHangUp = false)
         {
-            var start = new ProcessStartInfo("dotnet")
+            var start = new ProcessStartInfo(resetHangUp ? "perl" : "dotnet")
             {
                 WorkingDirectory = AppContext.BaseDirectory,
                 RedirectStandardOutput = true,
@@ -212,6 +261,13 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
                 RedirectStandardInput = true,
                 UseShellExecute = false,
             };
+            if (resetHangUp)
+            {
+                start.ArgumentList.Add("-e");
+                start.ArgumentList.Add("$SIG{HUP} = 'DEFAULT'; exec @ARGV");
+                start.ArgumentList.Add("dotnet");
+            }
+
             start.ArgumentList.Add("exec");
             start.ArgumentList.Add("--runtimeconfig");
             start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "LearnStack.Tests.Integration.runtimeconfig.json"));
@@ -256,7 +312,11 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
             if (token is not null && tokenOnInput) await child.StandardInput.WriteLineAsync(token);
             child.StandardInput.Close();
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-            try { await child.WaitForExitAsync(deadline.Token); }
+            try
+            {
+                if (whileRunning is not null) await whileRunning(child);
+                await child.WaitForExitAsync(deadline.Token);
+            }
             finally
             {
                 if (!child.HasExited)
@@ -301,6 +361,16 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
             await using var command = new NpgsqlCommand(
                 "SELECT count(*) FROM public.audit_log WHERE operation LIKE 'identity.authority.rebind%'", connection);
             return (long)(await command.ExecuteScalarAsync())!;
+        }
+
+        internal async Task WaitForRebindRowAsync(TimeSpan within)
+        {
+            var clock = Stopwatch.StartNew();
+            while (await RebindRowsAsync() == 0)
+            {
+                if (clock.Elapsed > within) throw new TimeoutException("The tool never wrote its intent row.");
+                await Task.Delay(100);
+            }
         }
 
         internal async Task<List<string>> OperationsAsync(string correlation)

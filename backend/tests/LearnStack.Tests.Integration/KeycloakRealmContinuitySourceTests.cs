@@ -143,17 +143,17 @@ public sealed class KeycloakRealmContinuitySourceTests
     }
 
     [Theory]
-    [InlineData("jwks-other-origin")]
-    [InlineData("token-other-origin")]
-    [InlineData("token-denied")]
-    [InlineData("admin-denied")]
-    [InlineData("users-redirect")]
-    [InlineData("discovery-redirect")]
-    [InlineData("users-not-an-array")]
-    [InlineData("user-without-id")]
-    [InlineData("count-not-a-number")]
-    [InlineData("oversized-token-answer")]
-    public async Task Any_Transport_Or_Shape_Failure_Is_One_Fixed_Refusal_That_Names_Nothing(string failure)
+    [InlineData("jwks-other-origin", NewRealmStep.Discovery)]
+    [InlineData("token-other-origin", NewRealmStep.Discovery)]
+    [InlineData("discovery-redirect", NewRealmStep.Discovery)]
+    [InlineData("token-denied", NewRealmStep.Token)]
+    [InlineData("oversized-token-answer", NewRealmStep.Token)]
+    [InlineData("admin-denied", NewRealmStep.UserCount)]
+    [InlineData("count-not-a-number", NewRealmStep.UserCount)]
+    [InlineData("users-redirect", NewRealmStep.UserList)]
+    [InlineData("users-not-an-array", NewRealmStep.UserList)]
+    [InlineData("user-without-id", NewRealmStep.UserList)]
+    public async Task Any_Transport_Or_Shape_Failure_Is_One_Fixed_Refusal_That_Names_Only_The_Step(string failure, NewRealmStep step)
     {
         await using var realm = await FakeKeycloakRealm.StartAsync(3);
         realm.Fail(failure);
@@ -161,6 +161,7 @@ public sealed class KeycloakRealmContinuitySourceTests
         var act = async () => await realm.ReadAsync();
 
         var thrown = (await act.Should().ThrowAsync<NewRealmUnavailableException>()).Which;
+        thrown.Step.Should().Be(step, "the refusal says where the read stopped, which is all an operator needs to look");
         thrown.Message.Should().Be("The new realm could not be read completely.");
         thrown.Message.Should().NotContain(ClientSecret).And.NotContain("127.0.0.1").And.NotContain("realm-token");
         thrown.InnerException.Should().BeNull("no transport exception is carried out");

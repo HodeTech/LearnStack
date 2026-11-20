@@ -249,12 +249,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// Every caller reverts what it did in a <c>finally</c>: the cluster is shared,
     /// and an isolation suite running against a bypass role is vacuous.
     /// </remarks>
-    public async Task ExecuteAsSuperuserAsync(string sql)
+    /// <param name="sql">The statement batch.</param>
+    /// <param name="database">A database other than the container's own, for an object that belongs to one database.</param>
+    public async Task ExecuteAsSuperuserAsync(string sql, string? database = null)
     {
         const int timeoutSeconds = 30;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
         var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
         {
+            Database = database ?? new NpgsqlConnectionStringBuilder(_container.GetConnectionString()).Database,
             // This helper retains the container superuser privately. Every call
             // owns a physical connection, outside any caller's ambient transaction.
             Pooling = false,

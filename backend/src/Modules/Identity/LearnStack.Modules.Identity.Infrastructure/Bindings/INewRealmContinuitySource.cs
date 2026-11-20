@@ -25,6 +25,36 @@ public interface INewRealmContinuitySource
     Task<NewRealmSnapshot> ReadAsync(string issuer, CancellationToken cancellationToken = default);
 }
 
-/// <summary>The new realm could not be read completely. A fixed message: no address, credential or body is retained.</summary>
-public sealed class NewRealmUnavailableException()
-    : Exception("The new realm could not be read completely.");
+/// <summary>Where in the read of the new realm a refusal happened: a step, never a value.</summary>
+public enum NewRealmStep
+{
+    /// <summary>Not attributed to one step.</summary>
+    Unspecified = 0,
+
+    /// <summary>The discovery document, or the issuer's own path.</summary>
+    Discovery,
+
+    /// <summary>The published key set.</summary>
+    KeySet,
+
+    /// <summary>The read-only client's token.</summary>
+    Token,
+
+    /// <summary>The administration API's user count.</summary>
+    UserCount,
+
+    /// <summary>The administration API's user list.</summary>
+    UserList,
+}
+
+/// <summary>
+/// The new realm could not be read completely. A fixed message: no address, credential or body is retained, only the
+/// step that refused.
+/// </summary>
+/// <param name="step">The step of the read that refused.</param>
+public sealed class NewRealmUnavailableException(NewRealmStep step = NewRealmStep.Unspecified)
+    : Exception("The new realm could not be read completely.")
+{
+    /// <summary>The step of the read that refused.</summary>
+    public NewRealmStep Step { get; } = step;
+}

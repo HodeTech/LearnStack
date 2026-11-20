@@ -175,10 +175,10 @@ LearnStack runs **two Keycloak realms** per
   ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md)) is not an HTTP route at
   all: an offline tool validates the same operator token with the same validator, admits
   the act against the same per-act grant (`platform.identity_authority.admin`) and then
-  uses a sixth, confined database role whose credential exists only in the tool's
-  environment ([Database Standards](05-database.md#controlled-issuer-rebind-storage)).
-  Its realm credential is an operator-supplied `view-users` client for the new realm,
-  created for the run and deleted after it; it is not a LearnStack runtime or federation
+  uses a sixth, confined database role
+  ([§ Confined identity-rebind role](#confined-identity-rebind-role)). Its realm
+  credential is an operator-supplied `view-users` client for the new realm, created for
+  the run and deleted after it; it is not a LearnStack runtime or federation
   credential, and [ADR-0099](../decisions/0099-confined-tenant-federation.md)'s refusal
   of user-level authority for LearnStack is unaffected.
 
@@ -598,10 +598,13 @@ ordinary tenant arm, so the tenant a session announces does not widen its rows.
 **Residual.** The operator token, the grant and the attribution in the audit rows are
 checked by the tool, and the database does not force them: whoever holds the role's
 password can change the issuer without the tool and write a rebind row of the admitted
-shape. The role's password is therefore held apart from the operator's identity, and
-retired after the window ([runbook](../runbooks/identity-issuer-rebind.md#after-it)). A
+shape, and the platform and outbox roles, which bypass row security, can write such a
+row too. The grant and the password sit in the tool's one environment, so keeping the
+person who writes it apart from the operator is a practice, and the password is retired
+after the window ([runbook](../runbooks/identity-issuer-rebind.md#two-people)). A
 database-enforced pairing of the change and its result row would need a confined
-definer that reads `audit_log`, and is the maintainer's decision.
+definer that reads `audit_log`, and is the maintainer's decision
+([ADR-0104 Amendment 1](../decisions/0104-controlled-issuer-rebind.md), item 10).
 [Database Standards](05-database.md#controlled-issuer-rebind-storage) owns the grants,
 policies, trigger and lock.
 

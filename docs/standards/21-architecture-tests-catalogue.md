@@ -5918,7 +5918,8 @@ structural test proves — and what it does not.
 - **Asserts:** the source files that name `PlatformOperatorTokenProfile` are exactly the
   profile's own file, the API scheme's boundary
   (`LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs`) and the offline
-  validator (`LearnStack.Infrastructure/PlatformOperator/PlatformOperatorTokenValidator.cs`);
+  validator
+  (`LearnStack.Infrastructure/PlatformOperator/PlatformOperatorTokenValidator.cs`);
   the files that call its `TryRead` are exactly the scheme boundary and the offline
   validator, the two callers of ADR-0101 § 7 through one validator; and the only file
   that names `PlatformOperatorWitness.Minter` is the profile's own, where the one
@@ -5935,14 +5936,18 @@ structural test proves — and what it does not.
 
 - **Asserts:** by IL, the callers of `PlatformOperatorTokenProfile.TryRead` in every
   production assembly are exactly the API scheme's validated event
-  (`PlatformOperatorEvents.TokenValidated`) and `PlatformOperatorTokenValidator.ValidateAsync`,
-  and the callers of the offline validator's constructor and `ValidateAsync` are exactly
-  the rebind tool's `RebindTool.RunAdmittedAsync`. `TryRead` and the validator accept the
-  two executor constants and refuse any other.
-- **Why it matters:** the validator and the profile are public so that the API scheme and the
-  tool share one definition, and the witness they mint is evidence that a token passed
-  the closed profile. Pinning the callers keeps a second public door from becoming a
-  second place a witness can be made ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 7).
+  (`PlatformOperatorEvents.TokenValidated`) and
+  `PlatformOperatorTokenValidator.ValidateAsync`, and the callers of the offline
+  validator's constructor and `ValidateAsync` are exactly the rebind tool's
+  `RebindTool.RunAdmittedAsync`. `TryRead` and the validator accept the two executor
+  constants and refuse any other.
+- **Why it matters:** the validator and the profile are public so that the API scheme
+  and the tool share one definition, and the witness they mint is evidence that a token
+  passed the closed profile. Before the move the compiler confined the profile to the
+  API project; now these rules do, for the production assemblies, and a test assembly
+  or reflection is outside them. Pinning the callers keeps a second public door from
+  becoming a second place a witness can be made
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 7).
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and
   [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 3.
 - **Type:** xUnit + IL scan. **Kind:** structural.
@@ -5969,13 +5974,15 @@ structural test proves — and what it does not.
 
 #### `Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock`
 
-- **Asserts:** by IL, the callers of `IdentityAdvisoryLockKey.ForAuthorityRebind` in every
-  production assembly are exactly `NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync`,
+- **Asserts:** by IL, the callers of `IdentityAdvisoryLockKey.ForAuthorityRebind` in
+  every production assembly are exactly
+  `NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync`,
   `IdentityAuthorityQualification.QualifyCoreAsync`, `IdentityIssuerRebind.CommitAsync`
   (the reconciliation of an unknown COMMIT, which waits behind the original
   transaction) and `IdentityIssuerRebind.RunCoreAsync`.
-- **Why it matters:** the exclusive form is the freeze and the shared form is what a start or a
-  creation waits behind; a further taker is a further party that can hold or wait on it.
+- **Why it matters:** the exclusive form is the freeze and the shared form is what a
+  start or a creation waits behind; a further taker is a further party that can hold or
+  wait on it.
 - **Source:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 5.
 - **Type:** xUnit + IL scan. **Kind:** structural.
 - **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3).

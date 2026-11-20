@@ -54,6 +54,8 @@ internal sealed class KeycloakRealmContinuitySource(HttpClient client, string cl
 
     public async Task<NewRealmSnapshot> ReadAsync(string issuer, CancellationToken cancellationToken = default)
     {
+        // The step the read has reached, so a refusal names where it stopped and never what was being read.
+        var step = NewRealmStep.Discovery;
         try
         {
             var origin = new Uri(issuer);
@@ -66,14 +68,19 @@ internal sealed class KeycloakRealmContinuitySource(HttpClient client, string cl
                 return new NewRealmSnapshot(discovery.Issuer, 0, false, []);
             }
 
+            step = NewRealmStep.KeySet;
             var keys = await CountKeysAsync(discovery.KeySet, cancellationToken);
+            step = NewRealmStep.Token;
             var session = new AdminSession(discovery.TokenEndpoint);
             session.Token = await ObtainTokenAsync(session.TokenEndpoint, cancellationToken);
 
             var admin = new Uri(origin, realm.AdminPath);
+            step = NewRealmStep.UserCount;
             var before = await ReadCountAsync(admin, session, cancellationToken);
+            step = NewRealmStep.UserList;
             var first = await EnumerateAsync(admin, session, cancellationToken);
             var second = await EnumerateAsync(admin, session, cancellationToken);
+            step = NewRealmStep.UserCount;
             var after = await ReadCountAsync(admin, session, cancellationToken);
             var complete = before == after && first.Count == before && second.Count == before
                 && first.Distinct(StringComparer.Ordinal).Count() == first.Count
@@ -83,14 +90,14 @@ internal sealed class KeycloakRealmContinuitySource(HttpClient client, string cl
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // A request that timed out: refused like any transport failure. The run's own deadline propagates.
-            throw new NewRealmUnavailableException();
+            throw new NewRealmUnavailableException(step);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException or JsonException
             or InvalidOperationException or UriFormatException or FormatException or ArgumentException
             or KeyNotFoundException)
         {
             // One fixed refusal: no address, credential or body is carried out of the transport.
-            throw new NewRealmUnavailableException();
+            throw new NewRealmUnavailableException(step);
         }
     }
 

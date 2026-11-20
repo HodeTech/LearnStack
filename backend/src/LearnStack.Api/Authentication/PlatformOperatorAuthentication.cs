@@ -86,7 +86,7 @@ internal static class PlatformOperatorAuthentication
                 options.AutomaticRefreshInterval = PlatformOperatorValidation.AutomaticRefreshInterval;
                 options.RefreshInterval = PlatformOperatorValidation.RefreshInterval;
                 options.ConfigurationManager = PlatformOperatorValidation.CreateConfigurationManager(
-                    settings, backchannel, health, loggerFactory.CreateLogger("LearnStack.Infrastructure.PlatformOperator.PlatformOperatorDocumentRetriever"));
+                    settings, backchannel, health, loggerFactory);
                 options.TokenValidationParameters = PlatformOperatorValidation.CreateParameters(settings);
                 options.Events = new PlatformOperatorEvents(settings, clock, health, logger);
             });

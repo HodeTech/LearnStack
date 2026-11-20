@@ -69,6 +69,14 @@ internal static class RebindTool
             // already rolled back and reported it.
             return Refuse(output, "cancelled", correlation);
         }
+#pragma warning disable CA1031 // The tool emits one fixed line, never an exception payload that could carry a credential.
+        catch (Exception failure) when (failure is not OutOfMemoryException)
+#pragma warning restore CA1031
+        {
+            // Nothing the run can throw reaches here after its commit: the database half reports an unknown commit as
+            // such. So the state is unchanged, and the correlation finds the intent row if one was written.
+            return Refuse(output, "unexpected", correlation);
+        }
     }
 
     private static async Task<int> RunAdmittedAsync(
@@ -82,7 +90,7 @@ internal static class RebindTool
         var clock = new SystemClock();
         using var backchannel = new PlatformOperatorBackchannel();
         var health = new PlatformOperatorMetadataHealth(clock);
-        var manager = PlatformOperatorValidation.CreateConfigurationManager(settings, backchannel, health, NullLogger.Instance);
+        var manager = PlatformOperatorValidation.CreateConfigurationManager(settings, backchannel, health, NullLoggerFactory.Instance);
         var validation = await new PlatformOperatorTokenValidator(settings, manager, health, clock).ValidateAsync(
             input.OperatorToken, PlatformOperatorSettings.RebindToolExecutor, correlation, cancellationToken);
         if (!validation.IsValid)
@@ -140,6 +148,11 @@ internal static class RebindTool
     {
         var line = new StringBuilder("rebind: outcome=").Append(IdentityRebindMetrics.Label(outcome))
             .Append(" correlation=").Append(correlation);
+        if (outcome.Detail != IdentityRebindDetail.None)
+        {
+            line.Append(" detail=").Append(IdentityRebindDetails.Token(outcome.Detail));
+        }
+
         if (outcome.LiveSessions is { } sessions)
         {
             line.Append(" sessions=").Append(sessions);
@@ -157,9 +170,23 @@ internal static class RebindTool
         return line.ToString();
     }
 
+    /// <summary>
+    /// Refuses before the database half began, under a closed reason. The reason is also the label the run is counted
+    /// under, once the process exports meters; the line is what an operator keeps either way.
+    /// </summary>
     internal static int Refuse(TextWriter output, string reason, string? correlation = null)
     {
-        output.WriteLine("rebind: outcome=refused_" + reason + (correlation is null ? string.Empty : " correlation=" + correlation));
+        var label = "refused_" + reason;
+        IdentityRebindMetrics.RecordToolRefusal(label);
+        output.WriteLine("rebind: outcome=" + label + (correlation is null ? string.Empty : " correlation=" + correlation));
+        return Refused;
+    }
+
+    /// <summary>Refuses an input before anything was read from it: the setting's closed name, never its value.</summary>
+    internal static int RefuseInput(TextWriter output, string field)
+    {
+        IdentityRebindMetrics.RecordToolRefusal("refused_input");
+        output.WriteLine("rebind: outcome=refused_input detail=" + field);
         return Refused;
     }
 

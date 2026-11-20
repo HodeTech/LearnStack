@@ -199,3 +199,11 @@ onboarding act an admitted operator had refused for a business reason, which wri
 A refusal at the gate leaves no record in the audit log, only the counter and the log
 line. An operator cannot grant themselves anything: grants are configuration, edited by
 whoever deploys it.
+
+The offline [issuer rebind](identity-issuer-rebind.md) tool reads the same grants from
+its own environment, and it writes no log: a refusal there leaves the printed line and,
+when an OTLP endpoint is set, the counter. Because the grant and the database password
+sit in that one environment, the tool cannot tell who wrote them, so keeping the person
+who writes the environment apart from the operator who signs in is a practice the
+runbook asks for, not a control the tool enforces ([ADR-0104 Amendment
+1](../decisions/0104-controlled-issuer-rebind.md), item 10).

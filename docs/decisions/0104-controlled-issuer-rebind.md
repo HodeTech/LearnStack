@@ -188,9 +188,9 @@ and the runbook follow.
 
 Step 3 of the platform-authority packet implements the decision. Each item below fixes
 something the Decision left open or states where the code meets it. Item 4 widens the
-freeze check beyond the roles § 5 lists and item 10 records a residual the Decision did
-not state; none of them changes the Decision's choice of option, the role's grants or
-the proof's rules.
+freeze check beyond the roles § 5 lists, and items 10 and 11 record residuals the
+Decision did not state; none of them changes the Decision's choice of option, the
+role's grants or the proof's rules.
 
 1. **Where the code lives.** The database half, `IdentityIssuerRebind`, lives in the
    Identity module's Infrastructure `Bindings` namespace so unit and integration
@@ -223,7 +223,10 @@ the proof's rules.
    still a session. The check reports a count and never a session's identity. A pooled
    connection stays a session until its idle lifetime ends, so the runbook's stop step
    includes waiting for it. The check runs before the realm is read and again just
-   before the change.
+   before the change, and each time it first drops the server's per-transaction snapshot
+   of the activity view, which would otherwise return the first count again. A host that
+   never takes the rebind lock (the outbox dispatcher, the ingress poller, the platform
+   role) is held only by this check.
 5. **"Reads the new value" needs a comparison, and "waits" is bounded.** A lock alone
    only makes a creation wait. Authority qualification takes the shared lock and then
    reads under a fresh snapshot, and the User-creation admission takes the shared lock,
@@ -237,39 +240,69 @@ the proof's rules.
    own comparison.
 6. **The role is checked before it is used.** The tool refuses unless the session is the
    rebind role, it holds no inherited, bypass, superuser, creation or replication
-   attribute and no membership, no privilege on any other relation, and exactly the
-   declared grants on the three it uses, compared column by column in both directions.
+   attribute, no membership, no owned object and no privilege on any other relation (a
+   sequence included, and the maintenance privilege of PostgreSQL 17), and exactly the
+   declared grants on the three it uses, compared column by column in both directions. A
+   relation that belongs to an extension is not counted, so a production database that
+   carries `pg_stat_statements` in `public` is not locked out; any other
+   `PUBLIC`-readable relation in `public` is. The tool also reads the session's own
+   `lock_timeout`, `statement_timeout` and `idle_in_transaction_session_timeout` from
+   the server and refuses when they are not what it asked for, as a connection pooler
+   that drops startup options would leave them. A refusal names the check that failed
+   with a closed `detail`, never a value.
 7. **Continuity details the Decision left open.** A Closing user that still holds its
    subject is judged by neither rule, because closure owns that transition; a Closing
    user that holds only its key is judged like a Closed one. A reported subject that
-   cannot be a LearnStack subject is counted and cannot equal any stored one. Presence is
-   the exact ordinal subject. The new realm is read in full twice and the reads must
+   cannot be a LearnStack subject is counted and cannot equal any stored one. Presence
+   is the exact ordinal subject. The new realm is read in full twice and the reads must
    report the same users with none repeated, so a realm that changes while it is read is
    refused; a realm above 200,000 users is refused because the proof cannot finish in
    the tool's ten-minute deadline; a token that expires mid-enumeration is acquired
    again once per request; and the credential is sent only after the realm's discovery
    document names the target issuer.
-8. **Inputs and exit codes.** The operator token comes from the environment or one line of
-   standard input and the ticket, the realm client and its secret from the environment;
-   an argument is refused. The deployment mode is a declared name exactly, because it
-   decides whether a loopback operator issuer and the demo operator's grant are admitted,
-   and outside Development the target issuer must be HTTPS. The tool prints one line of
-   classes and counts to standard output, with the correlation id that finds the rows,
-   and exits `0` for applied or already applied, `2` for a refusal that left the state
-   unchanged and `3` when the commit's outcome could not be read back. An interrupt or a
-   termination signal ends the run as the deadline does.
+8. **Inputs and exit codes.** The operator token comes from the environment or one line
+   of standard input and the ticket, the realm client and its secret from the
+   environment; an argument is refused. The deployment mode is a declared name, read as
+   the API reads it (case and padding do not matter, an ordinal or a list is refused),
+   because it decides whether a loopback operator issuer and the demo operator's grant
+   are admitted, and outside Development the target issuer must be HTTPS. The tool
+   prints one line of classes and counts to standard output, with the correlation id
+   that finds the rows, a closed `detail` where a class has more than one cause, and
+   exits `0` for applied or already applied, `2` for a refusal that left the state
+   unchanged and `3` when the commit's outcome could not be read back. A failure to read
+   back an unknown commit is `unknown`, never a refusal. An interrupt, a termination
+   signal or a hang-up ends the run as the deadline does.
 9. **Signals in a short-lived process.** The counters are defined in the library and
-   exported by the tool only when an OTLP endpoint is configured in its environment;
-   the printed line and the audit rows are the record otherwise.
-10. **What the credential holder can do, and "the same realm path".** The tool checks the
-    operator's token, grant and attribution; the database does not force them. The role
-    holds `UPDATE (issuer)` and can insert a row of the admitted shape, so whoever holds
-    its password can change the issuer, or record a rebind that did not happen, without
-    the tool. The runbook therefore keeps the password apart from the operator's
-    identity and retires it after the window. A database-enforced pairing of the change
-    and its result row would need a confined definer that reads `audit_log`, and is the
-    maintainer's decision. "The same realm path" means the realm name: the issuer must
-    still end in `/realms/learnstack`, and the path before it may change.
+   exported by the tool only when an OTLP endpoint is configured in its environment,
+   under the label the printed line carries, including the refusals that happen before
+   the database is reached. The tool writes no log. The printed line and the audit rows
+   are the record otherwise, and a refusal at the operator gate leaves no row by design,
+   so the line is its only record unless the counter is exported.
+10. **What the credential holder can do, and "the same realm path".** The tool checks
+    the operator's token, grant and attribution; the database does not force them. The
+    role holds `UPDATE (issuer)` and can insert a row of the admitted shape, so whoever
+    holds its password can change the issuer, or record a rebind that did not happen,
+    without the tool. The platform and outbox roles bypass row security and can insert
+    `audit_log` rows too, so the rebind rows are evidence under the same trust as every
+    other platform-sentinel row; no trigger confines these two operations to the rebind
+    role as one confines `identity.user.create`. The runbook keeps the password apart
+    from the operator's identity and retires it after the window; the grant and the
+    password sit in the tool's one environment, so that separation is a practice. A
+    database-enforced pairing of the change and its result row would need a confined
+    definer that reads `audit_log`, and is the maintainer's decision. "The same realm
+    path" means the realm name: the issuer must still end in `/realms/learnstack`, and
+    the path before it may change.
+11. **What the move out of the API project loosened.** The operator token profile's
+    reader, `PlatformOperatorTokenProfile.TryRead`, is a public method of Infrastructure
+    so that the tool can call it, and it mints the witness the operator gate accepts.
+    Before the move the API project kept it internal and the compiler confined it. Its
+    callers are now confined by two census rules, the source census of the witness
+    minter and the IL census of the validator's callers, which cover the production
+    assemblies; a test assembly or reflection is outside them. The tool also leaves the
+    server's idle fence in force: it turns Npgsql's application keepalive off, because a
+    keepalive message restarts the server's idle-in-transaction clock, and asks the
+    operating system for TCP probes instead, so a hung tool is ended at fifteen minutes
+    and its lock freed.
 
 The Decision, Status, Date and prior amendments of this record are unchanged.
 Acceptance of the linked records is not proof that anything they decide is implemented.

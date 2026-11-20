@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Tools.IdentityAuthorityRebind;
@@ -26,8 +27,11 @@ public sealed class RebindToolInputTests
     };
 
     private static bool Read(Dictionary<string, string?> environment, out RebindToolInput? input, string? line = null) =>
+        Read(environment, out input, out _, line);
+
+    private static bool Read(Dictionary<string, string?> environment, out RebindToolInput? input, out string field, string? line = null) =>
         RebindToolInput.TryRead(name => environment.GetValueOrDefault(name), () => line,
-            new ConfigurationBuilder().Build(), out input);
+            new ConfigurationBuilder().Build(), out input, out field);
 
     [Fact]
     public void A_Complete_Environment_Is_Read_And_The_Token_Is_Trimmed()
@@ -42,36 +46,59 @@ public sealed class RebindToolInputTests
     }
 
     [Theory]
-    [InlineData("ConnectionStrings__IdentityRebind")]
-    [InlineData("Identity__AuthorityId")]
-    [InlineData("Authentication__Tenant__Issuer")]
-    [InlineData("Deployment__Mode")]
-    [InlineData("LEARNSTACK_OPERATOR_TOKEN")]
-    [InlineData("LEARNSTACK_REBIND_REALM_CLIENT_ID")]
-    [InlineData("LEARNSTACK_REBIND_REALM_CLIENT_SECRET")]
-    public void Each_Required_Value_Missing_Refuses(string missing)
+    [InlineData("ConnectionStrings__IdentityRebind", "connection_string")]
+    [InlineData("Identity__AuthorityId", "authority_id")]
+    [InlineData("Authentication__Tenant__Issuer", "issuer")]
+    [InlineData("Deployment__Mode", "deployment_mode")]
+    [InlineData("LEARNSTACK_OPERATOR_TOKEN", "operator_token")]
+    [InlineData("LEARNSTACK_REBIND_REALM_CLIENT_ID", "realm_client")]
+    [InlineData("LEARNSTACK_REBIND_REALM_CLIENT_SECRET", "realm_client")]
+    public void Each_Required_Value_Missing_Refuses_Naming_Only_The_Setting(string missing, string field)
     {
         var environment = Valid();
         environment.Remove(missing);
 
-        Read(environment, out _).Should().BeFalse();
+        Read(environment, out _, out var named).Should().BeFalse();
+        named.Should().Be(field);
+        RebindToolInput.Fields.All.Should().Contain(named, "the name is one of the closed set the runbook lists");
+    }
+
+    [Fact]
+    public void The_Closed_Field_Names_Are_Distinct_Lowercase_Tokens()
+    {
+        RebindToolInput.Fields.All.Should().OnlyHaveUniqueItems()
+            .And.OnlyContain(name => name.All(character => char.IsAsciiLetterLower(character) || character == '_'));
     }
 
     [Theory]
     [InlineData("0")]
     [InlineData("1")]
     [InlineData("Development,SaaS")]
-    [InlineData("development")]
-    [InlineData("saas")]
     [InlineData("Production")]
-    [InlineData(" Development")]
-    public void The_Deployment_Mode_Is_A_Declared_Name_Exactly(string mode)
+    [InlineData("")]
+    public void The_Deployment_Mode_Is_A_Declared_Name_And_Never_An_Ordinal_Or_A_List(string mode)
+    {
+        var environment = Valid();
+        environment["Deployment__Mode"] = mode;
+
+        Read(environment, out _, out var field).Should().BeFalse("the API refuses ordinals and lists, so the tool must not guess a mode");
+        field.Should().Be("deployment_mode");
+    }
+
+    [Theory]
+    [InlineData("development", LearnStack.SharedKernel.Hosting.DeploymentMode.Development)]
+    [InlineData("saas", LearnStack.SharedKernel.Hosting.DeploymentMode.SaaS)]
+    [InlineData(" SaaS ", LearnStack.SharedKernel.Hosting.DeploymentMode.SaaS)]
+    [InlineData("SELFHOSTEDAIRGAPPED", LearnStack.SharedKernel.Hosting.DeploymentMode.SelfHostedAirGapped)]
+    public void The_Deployment_Mode_Is_Read_The_Way_The_Api_Reads_It_Without_Regard_To_Case_Or_Padding(
+        string mode, LearnStack.SharedKernel.Hosting.DeploymentMode expected)
     {
         var environment = Valid();
         environment["Deployment__Mode"] = mode;
         environment["Authentication__Tenant__Issuer"] = "https://new.example.test/realms/learnstack";
 
-        Read(environment, out _).Should().BeFalse("the API refuses ordinals and lists, so the tool must not guess a mode");
+        Read(environment, out var input).Should().BeTrue("an API started with this spelling accepts it, so the tool must too");
+        input!.Mode.Should().Be(expected);
     }
 
     [Theory]
@@ -113,6 +140,47 @@ public sealed class RebindToolInputTests
         environment["Deployment__Mode"] = mode;
 
         Read(environment, out _).Should().Be(accepted);
+    }
+
+    [Fact]
+    public void The_Printed_Line_Names_The_Detail_After_The_Correlation_And_Before_The_Counts()
+    {
+        var line = RebindTool.Line(
+            new IdentityRebindOutcome(IdentityRebindResult.Refused, IdentityRebindRefusal.RoleInvalid, null, 2, IdentityRebindDetail.RoleGrants),
+            "rebind-abc");
+
+        line.Should().Be("rebind: outcome=refused_role_invalid correlation=rebind-abc detail=role_grants sessions=2");
+        RebindTool.Line(new IdentityRebindOutcome(IdentityRebindResult.AlreadyApplied), "rebind-abc")
+            .Should().Be("rebind: outcome=already_applied correlation=rebind-abc", "a class with one cause carries no detail");
+    }
+
+    [Fact]
+    public void A_Refusal_Before_The_Database_Is_Printed_And_Counted_Under_The_Same_Label()
+    {
+        var seen = new System.Collections.Concurrent.ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, subscriber) =>
+        {
+            if (instrument.Meter.Name == IdentityRebindMetrics.MeterName) subscriber.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "outcome") seen.Add((string)tag.Value!);
+            }
+        });
+        listener.Start();
+        var output = new StringWriter();
+
+        RebindTool.RefuseInput(output, RebindToolInput.Fields.ConnectionString).Should().Be(RebindTool.Refused);
+        RebindTool.Refuse(output, "operator_missing_permission", "rebind-abc").Should().Be(RebindTool.Refused);
+
+        output.ToString().Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries).Should().Equal(
+            "rebind: outcome=refused_input detail=connection_string",
+            "rebind: outcome=refused_operator_missing_permission correlation=rebind-abc");
+        // The meter is process-wide and other cases record on it too, so the labels are looked for, not counted.
+        seen.Should().Contain(["refused_input", "refused_operator_missing_permission"]);
     }
 
     [Fact]

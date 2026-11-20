@@ -43,6 +43,19 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
     /// <summary>The longest the tool waits for the exclusive lock when none is asked for.</summary>
     public static readonly TimeSpan DefaultLockWait = TimeSpan.FromSeconds(30);
 
+    /// <summary>How long one run may take from its start, proof included; the tool's deadline.</summary>
+    public static readonly TimeSpan RunDeadline = TimeSpan.FromMinutes(10);
+
+    /// <summary>The bound the server puts on any one statement of the run.</summary>
+    public static readonly TimeSpan StatementTimeout = TimeSpan.FromSeconds(120);
+
+    /// <summary>
+    /// How long the server lets the main transaction sit idle before it ends it and frees the lock: the fence for a
+    /// tool that is hung rather than dead. It exceeds <see cref="RunDeadline"/>, so it never ends a run that is still
+    /// inside its own deadline.
+    /// </summary>
+    public static readonly TimeSpan IdleTransactionTimeout = TimeSpan.FromMinutes(15);
+
     /// <summary>Runs one rebind to <paramref name="target"/> and returns how it ended; it never throws for a refusal.</summary>
     /// <param name="connectionString">The rebind role's connection string; any other role is refused.</param>
     /// <param name="target">The stable authority and the new issuer.</param>
@@ -89,7 +102,7 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         var connection = TryNormalize(connectionString, lockWait);
         if (connection is null)
         {
-            return Refused(IdentityRebindRefusal.RoleInvalid);
+            return Refused(IdentityRebindRefusal.RoleInvalid, IdentityRebindDetail.RoleSession);
         }
 
         NpgsqlConnection? main = null;
@@ -97,9 +110,10 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         try
         {
             main = await OpenAsync(connection, cancellationToken);
-            if (!await HasExactPostureAsync(main, cancellationToken))
+            var posture = await CheckPostureAsync(main, lockWait, cancellationToken);
+            if (posture != IdentityRebindDetail.None)
             {
-                return Refused(IdentityRebindRefusal.RoleInvalid);
+                return Refused(IdentityRebindRefusal.RoleInvalid, posture);
             }
 
             transaction = await main.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
@@ -130,10 +144,14 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
                 return new IdentityRebindOutcome(IdentityRebindResult.Refused, IdentityRebindRefusal.LiveSessions, null, sessions);
             }
 
-            var snapshot = await ReadRealmAsync(realm, target.Issuer, cancellationToken);
-            if (snapshot is null)
+            NewRealmSnapshot snapshot;
+            try
             {
-                return Refused(IdentityRebindRefusal.NewRealmUnavailable);
+                snapshot = await realm.ReadAsync(target.Issuer, cancellationToken);
+            }
+            catch (NewRealmUnavailableException failure)
+            {
+                return Refused(IdentityRebindRefusal.NewRealmUnavailable, RealmDetail(failure.Step));
             }
 
             if (!string.Equals(snapshot.DiscoveredIssuer, target.Issuer, StringComparison.Ordinal))
@@ -154,7 +172,8 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
                     IdentityRebindResult.Refused, IdentityRebindRefusal.ContinuityBroken, continuity, sessions);
             }
 
-            // The freeze is asked again at the last moment: the proof may have run for minutes.
+            // The freeze is asked again at the last moment: the proof may have run for minutes, and a host that never
+            // qualifies against the authority (the outbox, the ingress poller, the platform role) is not held by the lock.
             var late = await CountRuntimeSessionsAsync(main, transaction, cancellationToken);
             if (late > 0)
             {
@@ -178,9 +197,9 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         {
             return Refused(IdentityRebindRefusal.RebindInProgress);
         }
-        catch (Exception failure) when (failure is NpgsqlException or TimeoutException or InvalidOperationException)
+        catch (Exception failure) when (failure is NpgsqlException or TimeoutException or StoredAuthorityException)
         {
-            return Refused(IdentityRebindRefusal.DatabaseUnavailable);
+            return Refused(IdentityRebindRefusal.DatabaseUnavailable, Classify(failure));
         }
         catch (OperationCanceledException)
         {
@@ -250,8 +269,10 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
                     ? new IdentityRebindOutcome(IdentityRebindResult.Refused, IdentityRebindRefusal.CommitFailed, continuity)
                     : new IdentityRebindOutcome(IdentityRebindResult.Unknown, Continuity: continuity);
             }
-            catch (Exception reconcile) when (reconcile is NpgsqlException or TimeoutException or InvalidOperationException)
+            catch (Exception reconcile) when (reconcile is not OutOfMemoryException)
             {
+                // Whatever stopped the read, the commit's outcome is not known: never a refusal, which would say
+                // the state is unchanged.
                 return new IdentityRebindOutcome(IdentityRebindResult.Unknown, Continuity: continuity);
             }
         }
@@ -284,17 +305,23 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         builder.IncludeErrorDetail = false;
         builder.LogParameters = false;
         builder.Timeout = 15;
-        builder.CommandTimeout = 120;
+        builder.CommandTimeout = (int)StatementTimeout.TotalSeconds;
         builder.ApplicationName = "learnstack-identity-rebind";
 
-        // The main connection sits idle in its transaction while the new realm is read, so keep it alive through
-        // middleboxes that cut a quiet connection.
+        // The main connection sits idle in its transaction while the new realm is read, so the operating system probes
+        // it: a quiet connection survives a middlebox that cuts one. Npgsql's own KeepAlive is deliberately off: it
+        // sends a message on the idle connection, and every message the server receives restarts the idle-in-
+        // transaction clock, so a hung tool would never be ended by the fence below.
         builder.TcpKeepAlive = true;
-        builder.KeepAlive = 30;
+        builder.TcpKeepAliveTime = 30;
+        builder.TcpKeepAliveInterval = 10;
+        builder.KeepAlive = 0;
         builder.Options = FormattableString.Invariant(
-            $"-c lock_timeout={(int)Math.Max(1, lockWait.TotalMilliseconds)} -c statement_timeout=120000 -c idle_in_transaction_session_timeout=900000");
+            $"-c lock_timeout={LockTimeoutMilliseconds(lockWait)} -c statement_timeout={(long)StatementTimeout.TotalMilliseconds} -c idle_in_transaction_session_timeout={(long)IdleTransactionTimeout.TotalMilliseconds}");
         return builder.ConnectionString;
     }
+
+    private static int LockTimeoutMilliseconds(TimeSpan lockWait) => (int)Math.Max(1, lockWait.TotalMilliseconds);
 
     private static async Task<NpgsqlConnection> OpenAsync(string connectionString, CancellationToken cancellationToken)
     {
@@ -313,9 +340,18 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
 
     /// <summary>
     /// The role is exactly what the migration granted: itself, no attribute that escalates, no membership either way,
-    /// no privilege on any other relation, and on the three it uses exactly the declared table and column grants.
+    /// owning nothing, no privilege on any other relation, and on the three it uses exactly the declared table and
+    /// column grants; and the server applied the session settings the run asked for. Returns the first check that
+    /// failed, or <see cref="IdentityRebindDetail.None"/>.
     /// </summary>
-    private static async Task<bool> HasExactPostureAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    /// <remarks>
+    /// A relation that belongs to an extension (<c>pg_stat_statements</c> and its PUBLIC-readable views, PostGIS
+    /// catalogs) is not one the deployment's own schema put there and is not counted. Every other relation in
+    /// <c>public</c> counts, a privilege held through PUBLIC included, because the role is meant to reach nothing but
+    /// its three tables.
+    /// </remarks>
+    private static async Task<IdentityRebindDetail> CheckPostureAsync(
+        NpgsqlConnection connection, TimeSpan lockWait, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(
             """
@@ -323,13 +359,23 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
                    (r.rolcanlogin AND NOT r.rolinherit AND NOT r.rolbypassrls AND NOT r.rolsuper
                     AND NOT r.rolcreatedb AND NOT r.rolcreaterole AND NOT r.rolreplication) AS attributes_ok,
                    NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid) AS no_membership,
-                   NOT (has_schema_privilege(r.oid, 'public', 'CREATE')
-                        OR has_database_privilege(r.oid, current_database(), 'CREATE')) AS no_creation,
+                   (NOT (has_schema_privilege(r.oid, 'public', 'CREATE')
+                         OR has_database_privilege(r.oid, current_database(), 'CREATE'))
+                    AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class o WHERE o.relowner = r.oid)
+                    AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc o WHERE o.proowner = r.oid)
+                    AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace o WHERE o.nspowner = r.oid)) AS no_creation,
                    (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-                      WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
-                        AND c.relname NOT IN ('identity_authority', 'users', @audit)
-                        AND (has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
-                             OR has_table_privilege(r.oid, c.oid, 'DELETE,TRUNCATE,TRIGGER'))) AS stray_relations,
+                      WHERE n.nspname = 'public' AND c.relname NOT IN ('identity_authority', 'users', @audit)
+                        AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d
+                                         WHERE d.classid = 'pg_catalog.pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
+                        AND CASE
+                              WHEN c.relkind IN ('r', 'p', 'v', 'm', 'f')
+                                THEN has_any_column_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+                                     OR has_table_privilege(r.oid, c.oid, 'DELETE,TRUNCATE,TRIGGER,MAINTAIN')
+                              WHEN c.relkind = 'S'
+                                THEN has_sequence_privilege(r.oid, c.oid, 'USAGE,SELECT,UPDATE')
+                              ELSE false
+                            END) AS stray_relations,
                    (SELECT count(*) FROM pg_catalog.pg_attribute a
                       JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
                       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -345,24 +391,51 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
                          OR (c.relname = @audit
                              AND (has_column_privilege(r.oid, c.oid, a.attnum, 'SELECT,UPDATE,REFERENCES')
                                   OR NOT has_column_privilege(r.oid, c.oid, a.attnum, 'INSERT'))))) AS column_drift,
-                   NOT (has_table_privilege(r.oid, 'public.users', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
-                        OR has_table_privilege(r.oid, 'public.identity_authority', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
+                   NOT (has_table_privilege(r.oid, 'public.users', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')
+                        OR has_table_privilege(r.oid, 'public.identity_authority', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')
                         OR has_table_privilege(r.oid, to_regclass('public.' || quote_ident(@audit)),
-                                               'SELECT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')) AS no_table_grants
+                                               'SELECT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')) AS no_table_grants,
+                   ((SELECT setting::bigint FROM pg_catalog.pg_settings WHERE name = 'lock_timeout') = @lock
+                    AND (SELECT setting::bigint FROM pg_catalog.pg_settings WHERE name = 'statement_timeout') = @statement
+                    AND (SELECT setting::bigint FROM pg_catalog.pg_settings WHERE name = 'idle_in_transaction_session_timeout') = @idle) AS settings_ok
             FROM pg_catalog.pg_roles r WHERE r.rolname = current_user
             """, connection);
         command.Parameters.AddWithValue("role", RoleName);
         command.Parameters.AddWithValue("audit", IdentityRebindAuditInstaller.Table);
+        command.Parameters.AddWithValue("lock", (long)LockTimeoutMilliseconds(lockWait));
+        command.Parameters.AddWithValue("statement", (long)StatementTimeout.TotalMilliseconds);
+        command.Parameters.AddWithValue("idle", (long)IdleTransactionTimeout.TotalMilliseconds);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
-            return false;
+            return IdentityRebindDetail.RoleSession;
         }
 
-        bool Flag(string column) => reader.GetBoolean(reader.GetOrdinal(column));
-        long Count(string column) => reader.GetInt64(reader.GetOrdinal(column));
-        return Flag("session_ok") && Flag("attributes_ok") && Flag("no_membership") && Flag("no_creation")
-            && Count("stray_relations") == 0 && Count("column_drift") == 0 && Flag("no_table_grants");
+        // A check the catalog could not answer is a check that failed: a null never passes.
+        bool Flag(string column) => reader.GetOrdinal(column) is var at && !reader.IsDBNull(at) && reader.GetBoolean(at);
+        long Count(string column) => reader.GetOrdinal(column) is var at && !reader.IsDBNull(at) ? reader.GetInt64(at) : 1;
+
+        if (!Flag("session_ok"))
+        {
+            return IdentityRebindDetail.RoleSession;
+        }
+
+        if (!Flag("attributes_ok"))
+        {
+            return IdentityRebindDetail.RoleAttributes;
+        }
+
+        if (!Flag("no_membership"))
+        {
+            return IdentityRebindDetail.RoleMembership;
+        }
+
+        if (!Flag("no_creation") || Count("stray_relations") != 0 || Count("column_drift") != 0 || !Flag("no_table_grants"))
+        {
+            return IdentityRebindDetail.RoleGrants;
+        }
+
+        return Flag("settings_ok") ? IdentityRebindDetail.None : IdentityRebindDetail.SessionSettings;
     }
 
     private static async Task<(Guid Authority, string Issuer)> ReadAuthorityAsync(
@@ -373,13 +446,13 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
-            throw new InvalidOperationException("No identity authority is installed.");
+            throw new StoredAuthorityException("No identity authority is installed.");
         }
 
         var result = (reader.GetGuid(0), reader.GetString(1));
         if (await reader.ReadAsync(cancellationToken))
         {
-            throw new InvalidOperationException("The identity authority is not a singleton.");
+            throw new StoredAuthorityException("The identity authority is not a singleton.");
         }
 
         return result;
@@ -413,6 +486,10 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
     private static async Task<int> CountRuntimeSessionsAsync(
         NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
     {
+        // The server serves pg_stat_activity from a snapshot it keeps for the rest of the transaction, so a second
+        // count in the same transaction would repeat the first. The snapshot is dropped before every count.
+        await ExecuteAsync(connection, transaction, "SELECT pg_catalog.pg_stat_clear_snapshot()", cancellationToken);
+
         // pg_stat_activity shows another role's session as a row with its role and database even where its query
         // is hidden, which is all the freeze needs: a session of a runtime role, other than this one's own.
         await using var command = new NpgsqlCommand(
@@ -422,19 +499,6 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
             """, connection, transaction);
         command.Parameters.AddWithValue("roles", RuntimeRoles);
         return (int)(long)(await command.ExecuteScalarAsync(cancellationToken))!;
-    }
-
-    private static async Task<NewRealmSnapshot?> ReadRealmAsync(
-        INewRealmContinuitySource realm, string issuer, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await realm.ReadAsync(issuer, cancellationToken);
-        }
-        catch (NewRealmUnavailableException)
-        {
-            return null;
-        }
     }
 
     private static async Task<List<IdentityRebindStoredUser>> ReadUsersAsync(
@@ -450,7 +514,7 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         {
             if (!Enum.TryParse<UserStatus>(reader.GetString(2), ignoreCase: false, out var status) || !Enum.IsDefined(status))
             {
-                throw new InvalidOperationException("A stored user has a status this rebind does not know.");
+                throw new StoredAuthorityException("A stored user has a status this rebind does not know.");
             }
 
             users.Add(new IdentityRebindStoredUser(
@@ -472,7 +536,7 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         command.Parameters.AddWithValue("old", oldIssuer);
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
-            throw new InvalidOperationException("The identity authority issuer did not change as read.");
+            throw new StoredAuthorityException("The identity authority issuer did not change as read.");
         }
     }
 
@@ -523,6 +587,32 @@ public sealed class IdentityIssuerRebind(IAuditStore audit, IClock clock)
         + ",\"reported\":" + counts.Enumerated + ",\"unkeyable\":" + counts.Unkeyable
         + ",\"unbootstrapped\":" + counts.Unbootstrapped + "}";
 
-    private static IdentityRebindOutcome Refused(IdentityRebindRefusal refusal) =>
-        new(IdentityRebindResult.Refused, refusal);
+    private static IdentityRebindOutcome Refused(
+        IdentityRebindRefusal refusal, IdentityRebindDetail detail = IdentityRebindDetail.None) =>
+        new(IdentityRebindResult.Refused, refusal, Detail: detail);
+
+    private static IdentityRebindDetail RealmDetail(NewRealmStep step) => step switch
+    {
+        NewRealmStep.Discovery => IdentityRebindDetail.RealmDiscovery,
+        NewRealmStep.KeySet => IdentityRebindDetail.RealmKeySet,
+        NewRealmStep.Token => IdentityRebindDetail.RealmToken,
+        NewRealmStep.UserCount => IdentityRebindDetail.RealmUserCount,
+        NewRealmStep.UserList => IdentityRebindDetail.RealmUserList,
+        _ => IdentityRebindDetail.None,
+    };
+
+    /// <summary>The kind of database failure, from its SQLSTATE or its type and never from its text.</summary>
+    private static IdentityRebindDetail Classify(Exception failure) => failure switch
+    {
+        PostgresException { SqlState: PostgresErrorCodes.InvalidPassword or PostgresErrorCodes.InvalidAuthorizationSpecification }
+            => IdentityRebindDetail.DatabaseAuthentication,
+        PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege } => IdentityRebindDetail.DatabasePermission,
+        PostgresException { SqlState: PostgresErrorCodes.QueryCanceled } or TimeoutException or NpgsqlException { InnerException: TimeoutException }
+            => IdentityRebindDetail.DatabaseTimeout,
+        NpgsqlException => IdentityRebindDetail.DatabaseConnection,
+        _ => IdentityRebindDetail.AuthorityState,
+    };
+
+    /// <summary>The stored authority or its users are not what the run read, or are not readable as a rebind needs.</summary>
+    private sealed class StoredAuthorityException(string message) : Exception(message);
 }

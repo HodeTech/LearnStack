@@ -556,6 +556,10 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityDeploymentInstaller", "InstallAsync",
                     ["Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation]),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync", [BoundaryCancellation]),
+                // ADR-0104: the offline rebind owns two transactions of its own on its confined role, never business
+                // completion: the intent row commits alone, and the issuer change commits with its result row.
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityIssuerRebind", "CommitAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityIssuerRebind", "TryWriteIntentAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                     ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation]),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
@@ -570,6 +574,8 @@ public sealed partial class OutboxDispatchConventionTests
             ],
             ["database.RollbackAsync"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "RollbackCoreAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "DisposeAsync"),
+                // ADR-0104: a rebind whose target is already stored ends its own read-only transaction, writing nothing.
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityIssuerRebind", "RunCoreAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
                     ["LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation]),
                 // Read-only metadata probes own a separate connection/transaction and join its actual rollback/cleanup.

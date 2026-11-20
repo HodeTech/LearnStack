@@ -29,6 +29,7 @@ permission admission. An attribute, realm role or SystemActor value grants no ro
 | `OperatorInitializeRoleCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | One finite template of the target tenant, before any Membership exists; idempotent on the operator's Role id ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)) |
 | `OperatorCreateFirstAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | The first tenant-wide administrator of a tenant with no Membership history; the person is named by provider subject and must be an Active, bootstrapped User |
 | `OperatorRecoverAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | A replacement administrator while no Active tenant-wide administrator Membership exists; the last-administrator guard is the database's and is unchanged |
+| `IdentityIssuerRebind` (an offline tool, not a command or a route) | Platform `platform.identity_authority.admin`, `PlatformOperator` token | The operator's per-act grant for the rebind operation only, checked by the operator gate in the tool; the write itself runs on the confined `learnstack_identity_rebind` role, with no tenant context ([ADR-0104](../../decisions/0104-controlled-issuer-rebind.md)) |
 
 Scope selection derives from immutable target Membership/validated declaration,
 never a claimed scope string. Finite metadata alternatives count the exact five

@@ -127,6 +127,9 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
     [InlineData(false, "GRANT UPDATE (outcome) ON public.audit_log TO learnstack_identity_rebind", "REVOKE UPDATE (outcome) ON public.audit_log FROM learnstack_identity_rebind")]
     [InlineData(false, "GRANT DELETE ON public.tenants TO learnstack_identity_rebind", "REVOKE DELETE ON public.tenants FROM learnstack_identity_rebind")]
     [InlineData(false, "GRANT TRUNCATE ON public.tenants TO learnstack_identity_rebind", "REVOKE TRUNCATE ON public.tenants FROM learnstack_identity_rebind")]
+    // PostgreSQL 17 added a privilege that locks, vacuums and reindexes a table; it is a grant like any other.
+    [InlineData(false, "GRANT MAINTAIN ON public.tenants TO learnstack_identity_rebind", "REVOKE MAINTAIN ON public.tenants FROM learnstack_identity_rebind")]
+    [InlineData(false, "GRANT MAINTAIN ON public.users TO learnstack_identity_rebind", "REVOKE MAINTAIN ON public.users FROM learnstack_identity_rebind")]
     // A declared grant that is missing is drift too: the proof reads users through four columns and changes one.
     [InlineData(false, "REVOKE UPDATE (issuer) ON public.identity_authority FROM learnstack_identity_rebind", "GRANT UPDATE (issuer) ON public.identity_authority TO learnstack_identity_rebind")]
     [InlineData(false, "REVOKE INSERT ON public.audit_log FROM learnstack_identity_rebind", "GRANT INSERT ON public.audit_log TO learnstack_identity_rebind")]
@@ -141,6 +144,7 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
             var outcome = await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects));
 
             outcome.Refusal.Should().Be(IdentityRebindRefusal.RoleInvalid, escalate);
+            outcome.Detail.Should().NotBe(IdentityRebindDetail.None, "the refusal names which check failed: " + escalate);
         }
         finally
         {
@@ -159,6 +163,121 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
 
             await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.OwnerConnection);
             await IdentityMembershipFixture.ExecuteAsync(owner, null, sql);
+        }
+    }
+
+    [Theory]
+    // What only the superuser can put there, in this test's own database: a sequence the role may use, and the
+    // ownership of a function or a schema, which carry every privilege without any grant to read.
+    [InlineData("CREATE SEQUENCE public.rebind_probe_seq; GRANT USAGE ON SEQUENCE public.rebind_probe_seq TO learnstack_identity_rebind",
+        "DROP SEQUENCE public.rebind_probe_seq")]
+    [InlineData("CREATE FUNCTION public.rebind_probe_fn() RETURNS int LANGUAGE sql AS 'SELECT 1'; ALTER FUNCTION public.rebind_probe_fn() OWNER TO learnstack_identity_rebind",
+        "DROP FUNCTION public.rebind_probe_fn()")]
+    [InlineData("CREATE SCHEMA rebind_probe_schema AUTHORIZATION learnstack_identity_rebind",
+        "DROP SCHEMA rebind_probe_schema")]
+    [InlineData("CREATE VIEW public.rebind_probe_view AS SELECT 1 AS one; GRANT SELECT ON public.rebind_probe_view TO PUBLIC",
+        "DROP VIEW public.rebind_probe_view")]
+    public async Task A_Sequence_An_Owned_Object_Or_A_Public_Readable_Relation_The_Deployment_Added_Is_Refused(string add, string remove)
+    {
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        await parent.Postgres.ExecuteAsSuperuserAsync(add, proof.Database);
+        try
+        {
+            var outcome = await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects));
+
+            outcome.Refusal.Should().Be(IdentityRebindRefusal.RoleInvalid, add);
+            outcome.Detail.Should().Be(IdentityRebindDetail.RoleGrants, add);
+        }
+        finally
+        {
+            await parent.Postgres.ExecuteAsSuperuserAsync(remove, proof.Database);
+        }
+
+        (await proof.IssuerAsync()).Should().Be(proof.OldIssuer);
+    }
+
+    [Fact]
+    public async Task The_Public_Readable_Views_Of_An_Extension_In_The_Public_Schema_Do_Not_Lock_The_Tool_Out()
+    {
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        // pg_stat_statements is the extension a production database most often carries, and it grants its views to PUBLIC.
+        await parent.Postgres.ExecuteAsSuperuserAsync("CREATE EXTENSION pg_stat_statements SCHEMA public", proof.Database);
+        try
+        {
+            var outcome = await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects));
+
+            outcome.Result.Should().Be(IdentityRebindResult.Applied, "an extension's relations are not the deployment's own");
+        }
+        finally
+        {
+            await parent.Postgres.ExecuteAsSuperuserAsync("DROP EXTENSION pg_stat_statements", proof.Database);
+        }
+    }
+
+    [Fact]
+    public async Task A_Session_That_Appears_During_The_Realm_Read_Freezes_The_Run_Before_The_Change()
+    {
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        var admission = RebindProofSupport.Admit();
+        IAsyncDisposable? late = null;
+        var realm = new FixedRealm(async (issuer, _) =>
+        {
+            // A host that never takes the rebind lock starts while the proof runs. The server serves the activity
+            // view from one snapshot per transaction, so only a count that refreshes it can see this session.
+            late = await proof.OpenSessionAsync("learnstack_outbox_admin");
+            return new NewRealmSnapshot(issuer, 2, true, proof.Subjects);
+        });
+
+        try
+        {
+            var outcome = await proof.RunAsync(admission, realm, settle: false);
+
+            outcome.Refusal.Should().Be(IdentityRebindRefusal.LiveSessions);
+            outcome.LiveSessions.Should().Be(1);
+            outcome.Continuity.Should().NotBeNull("the proof had run: it is the last-moment question that refused");
+            (await proof.IssuerAsync()).Should().Be(proof.OldIssuer);
+            (await proof.AuditRowsAsync(admission)).Should().ContainSingle("only the intent row").Which.Operation
+                .Should().Be("identity.authority.rebind_attempt");
+        }
+        finally
+        {
+            if (late is not null) await late.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task The_Idle_Main_Transaction_Is_Never_Touched_By_A_Client_Keepalive_Whatever_The_Connection_String_Asks()
+    {
+        await using var proof = await Proof.CreateAsync(parent, active: 1);
+        // A client keepalive sends a message on the idle connection, and every message the server receives restarts its
+        // idle-in-transaction clock: the fence that frees a hung tool's lock would never fire. The tool turns it off.
+        var asked = new NpgsqlConnectionStringBuilder(proof.RebindConnection) { KeepAlive = 1 }.ConnectionString; // leakwatch:ignore:database-connection-string
+        DateTime? first = null;
+        DateTime? second = null;
+        var realm = new FixedRealm(async (issuer, token) =>
+        {
+            await using var probe = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.RebindConnection, token);
+            first = await StateChangeOfTheMainSessionAsync(probe);
+            await Task.Delay(TimeSpan.FromSeconds(3.5), token);
+            second = await StateChangeOfTheMainSessionAsync(probe);
+            return new NewRealmSnapshot(issuer, 2, true, proof.Subjects);
+        });
+
+        var outcome = await proof.RunAsync(RebindProofSupport.Admit(), realm, connection: asked);
+
+        outcome.Result.Should().Be(IdentityRebindResult.Applied);
+        first.Should().NotBeNull("the main transaction sits idle while the realm is read");
+        second.Should().Be(first, "nothing reached the idle transaction in between");
+
+        static async Task<DateTime?> StateChangeOfTheMainSessionAsync(NpgsqlConnection probe)
+        {
+            await using var command = new NpgsqlCommand(
+                """
+                SELECT state_change FROM pg_catalog.pg_stat_activity
+                WHERE usename = current_user AND application_name = 'learnstack-identity-rebind'
+                  AND state = 'idle in transaction' AND pid <> pg_catalog.pg_backend_pid()
+                """, probe);
+            return (DateTime?)await command.ExecuteScalarAsync() is { } at ? at : null;
         }
     }
 
@@ -363,10 +482,19 @@ public sealed class IdentityAuthorityRebindTests(PublicReadFixture parent)
         await using var proof = await Proof.CreateAsync(parent, active: 1);
         var closedPort = new NpgsqlConnectionStringBuilder(proof.RebindConnection) { Host = "127.0.0.1", Port = 1, Timeout = 2 }.ConnectionString;
 
-        (await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: closedPort))
-            .Refusal.Should().Be(IdentityRebindRefusal.DatabaseUnavailable);
-        (await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: "Host=;;=Username"))
-            .Refusal.Should().Be(IdentityRebindRefusal.RoleInvalid);
+        var wrongPassword = new NpgsqlConnectionStringBuilder(proof.RebindConnection) { Password = "not-the-password" }.ConnectionString; // leakwatch:ignore:database-connection-string
+
+        var unreachable = await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: closedPort);
+        unreachable.Refusal.Should().Be(IdentityRebindRefusal.DatabaseUnavailable);
+        unreachable.Detail.Should().Be(IdentityRebindDetail.DatabaseConnection);
+
+        var refused = await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: wrongPassword);
+        refused.Refusal.Should().Be(IdentityRebindRefusal.DatabaseUnavailable);
+        refused.Detail.Should().Be(IdentityRebindDetail.DatabaseAuthentication, "a credential the server refuses is not an outage");
+
+        var malformed = await proof.RunAsync(RebindProofSupport.Admit(), FixedRealm.Reporting(proof.Subjects), connection: "Host=;;=Username");
+        malformed.Refusal.Should().Be(IdentityRebindRefusal.RoleInvalid);
+        malformed.Detail.Should().Be(IdentityRebindDetail.RoleSession);
     }
 
     [Fact]

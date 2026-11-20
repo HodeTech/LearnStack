@@ -88,6 +88,12 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
                 return Task.CompletedTask;
             }
 
+            if (_failure == "discovery-hang")
+            {
+                // The realm never answers: the request ends only when its caller gives up or goes away.
+                return Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, context.RequestAborted);
+            }
+
             var foreign = ForeignOrigin ?? "http://127.0.0.1:1";
             var jwks = _failure == "jwks-other-origin" ? foreign + "/realms/learnstack/keys" : Issuer + "/keys";
             var token = _failure == "token-other-origin"

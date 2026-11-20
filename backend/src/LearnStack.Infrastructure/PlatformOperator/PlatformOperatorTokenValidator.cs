@@ -59,16 +59,17 @@ public static class PlatformOperatorValidation
         PlatformOperatorSettings settings,
         PlatformOperatorBackchannel backchannel,
         PlatformOperatorMetadataHealth health,
-        ILogger retrieverLogger)
+        ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(backchannel);
         ArgumentNullException.ThrowIfNull(health);
-        ArgumentNullException.ThrowIfNull(retrieverLogger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         return new ConfigurationManager<OpenIdConnectConfiguration>(
             settings.MetadataAddress,
             new OpenIdConnectConfigurationRetriever(),
-            new PlatformOperatorDocumentRetriever(settings, backchannel, health, retrieverLogger),
+            new PlatformOperatorDocumentRetriever(
+                settings, backchannel, health, loggerFactory.CreateLogger<PlatformOperatorDocumentRetriever>()),
             new PlatformOperatorConfigurationValidator(settings))
         {
             AutomaticRefreshInterval = AutomaticRefreshInterval,

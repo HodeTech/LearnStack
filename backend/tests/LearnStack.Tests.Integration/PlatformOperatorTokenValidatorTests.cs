@@ -190,7 +190,7 @@ public sealed class PlatformOperatorTokenValidatorTests : IAsyncLifetime
             DeploymentMode.Development)!;
         var health = new PlatformOperatorMetadataHealth(new SystemClock());
         var manager = PlatformOperatorValidation.CreateConfigurationManager(
-            settings, backchannel ?? _backchannel, health, NullLogger.Instance);
+            settings, backchannel ?? _backchannel, health, NullLoggerFactory.Instance);
         return new PlatformOperatorTokenValidator(settings, manager, health, new SystemClock());
     }
 

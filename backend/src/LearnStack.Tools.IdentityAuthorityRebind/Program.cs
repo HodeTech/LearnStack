@@ -14,44 +14,41 @@ namespace LearnStack.Tools.IdentityAuthorityRebind;
 /// </summary>
 internal static class Program
 {
-    private const string InputRefusal = "rebind: outcome=refused_input";
-    private static readonly TimeSpan Deadline = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan StandardInputWait = TimeSpan.FromSeconds(30);
 
     public static async Task<int> Main(string[] args)
     {
         if (args.Length != 0)
         {
-            Console.Out.WriteLine(InputRefusal);
-            return RebindTool.Refused;
+            return RebindTool.RefuseInput(Console.Out, RebindToolInput.Fields.Arguments);
         }
+
+        // The signals that end a run from outside: an interrupt, a terminate, and the hang-up an SSH session that
+        // drops sends. Each ends it the way the deadline does: through the token, so the run rolls back, the commit's
+        // outcome is still reconciled, and the one line is still printed.
+        using var deadline = new CancellationTokenSource(IdentityIssuerRebind.RunDeadline);
+        ConsoleCancelEventHandler interrupt = (_, signal) =>
+        {
+            signal.Cancel = true;
+            Cancel(deadline);
+        };
+        Console.CancelKeyPress += interrupt;
+        using var terminate = Register(PosixSignal.SIGTERM, deadline);
+        using var hangUp = Register(PosixSignal.SIGHUP, deadline);
 
         try
         {
-            using var deadline = new CancellationTokenSource(Deadline);
-
-            // An interrupt ends the run the way the deadline does: through the token, so the run rolls back, the
-            // commit's outcome is still reconciled, and the one line is still printed.
-            Console.CancelKeyPress += (_, signal) =>
-            {
-                signal.Cancel = true;
-                deadline.Cancel();
-            };
-            using var terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
-            {
-                context.Cancel = true;
-                deadline.Cancel();
-            });
-
             var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             if (!RebindToolInput.TryRead(
                     name => Environment.GetEnvironmentVariable(name),
-                    ReadStandardInputLine,
+                    () => ReadStandardInputLine(deadline.Token),
                     configuration,
-                    out var input))
+                    out var input,
+                    out var field))
             {
-                Console.Out.WriteLine(InputRefusal);
-                return RebindTool.Refused;
+                return deadline.IsCancellationRequested
+                    ? RebindTool.Refuse(Console.Out, "cancelled")
+                    : RebindTool.RefuseInput(Console.Out, field);
             }
 
             using var meters = input!.OtlpEndpoint is null
@@ -70,23 +67,52 @@ internal static class Program
         catch (Exception)
 #pragma warning restore CA1031
         {
-            Console.Out.WriteLine("rebind: outcome=refused_unexpected");
-            return RebindTool.Refused;
+            return RebindTool.Refuse(Console.Out, "unexpected");
+        }
+        finally
+        {
+            Console.CancelKeyPress -= interrupt;
+        }
+    }
+
+    private static PosixSignalRegistration Register(PosixSignal signal, CancellationTokenSource deadline) =>
+        PosixSignalRegistration.Create(signal, context =>
+        {
+            context.Cancel = true;
+            Cancel(deadline);
+        });
+
+    /// <summary>A signal can arrive in the instant the run is ending; it must not fault the process then.</summary>
+    private static void Cancel(CancellationTokenSource source)
+    {
+        try
+        {
+            source.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 
     /// <summary>
-    /// The operator token's line when it is piped: bounded in time, so a pipe that is never closed refuses the run
-    /// instead of holding it before its deadline exists.
+    /// The operator token's line when it is piped: bounded in time and ended by a signal, so a pipe that is never
+    /// closed refuses the run instead of holding it before its deadline exists.
     /// </summary>
-    private static string? ReadStandardInputLine()
+    private static string? ReadStandardInputLine(CancellationToken cancellationToken)
     {
         if (!Console.IsInputRedirected)
         {
             return null;
         }
 
-        var read = Task.Run(Console.In.ReadLine);
-        return read.Wait(StandardInputWait) ? read.Result : null;
+        var read = Task.Run(Console.In.ReadLine, CancellationToken.None);
+        try
+        {
+            return read.Wait(StandardInputWait, cancellationToken) ? read.Result : null;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
     }
 }
