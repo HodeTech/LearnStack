@@ -74,14 +74,15 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
     {
         var byDeadLetter = state == DeliveryInspectionState.DeadLettered;
         return PageAsync(
-            admission, "outbox." + state, cursor, limit, cancellationToken,
+            admission, "outbox." + state, cursor, limit,
             (after, key, size) => new Statement(
                 OutboxSql(state, after is not null),
                 [.. KeyParameters(after, key, Guid.TryParse(key, out var id) ? id : Guid.Empty, size)]),
             reader => MapOutbox(reader),
             row => (byDeadLetter ? row.DeadLetteredAt!.Value : row.AvailableAfter).UtcTicks,
             row => row.EventId.ToString("D"),
-            key => Guid.TryParse(key, out _));
+            key => Guid.TryParse(key, out _),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -90,7 +91,7 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
     {
         var byDeadLetter = state == DeliveryInspectionState.DeadLettered;
         return PageAsync(
-            admission, "delivery." + state, cursor, limit, cancellationToken,
+            admission, "delivery." + state, cursor, limit,
             (after, key, size) =>
             {
                 var parts = key?.Split('|');
@@ -108,14 +109,15 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
             row => (byDeadLetter ? row.DeadLetteredAt!.Value : row.AvailableAfter).UtcTicks,
             row => $"{row.TenantId:D}|{row.SubscriptionId}|{row.EventId:D}",
             key => key.Split('|') is { Length: 3 } parts && Guid.TryParse(parts[0], out _) && Guid.TryParse(parts[2], out _)
-                && OutboxEventRegistry.ValidSubscriptionId(parts[1]));
+                && OutboxEventRegistry.ValidSubscriptionId(parts[1]),
+            cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<InspectionPage<QuarantinedJobInspection>?> InspectJobsAsync(
         PlatformAdmission admission, string? cursor, int limit, CancellationToken cancellationToken = default) =>
         PageAsync(
-            admission, "job.quarantined", cursor, limit, cancellationToken,
+            admission, "job.quarantined", cursor, limit,
             (after, key, size) => new Statement(
                 """
                 SELECT j.id, j.tenant_id, j.organization_id, j.definition_key, j.profile, j.queue, j.capacity_group,
@@ -134,19 +136,20 @@ public sealed class DeliveryInspection(IPlatformAdminScope scope, OutboxEventReg
             reader => MapJob(reader),
             row => row.CreatedAt.UtcTicks,
             row => row.JobId.ToString("D"),
-            key => Guid.TryParse(key, out _));
+            key => Guid.TryParse(key, out _),
+            cancellationToken);
 
     private async Task<InspectionPage<T>?> PageAsync<T>(
         PlatformAdmission admission,
         string scopeKey,
         string? cursor,
         int limit,
-        CancellationToken cancellationToken,
         Func<DateTimeOffset?, string?, int, Statement> statement,
         Func<DbDataReader, T> map,
         Func<T, long> ticksOf,
         Func<T, string> keyOf,
-        Func<string, bool> keyIsValid)
+        Func<string, bool> keyIsValid,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(admission);
         if (!ReferenceEquals(admission.Operation, PlatformOperations.DeliveryInspect))

@@ -42,8 +42,8 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await proof.OutboxAsync(Guid.CreateVersion7(), "processed_at = now()");
         await proof.OutboxAsync(Guid.CreateVersion7(), "attempts = 6, terminal_reason = 'retry_exhausted'");
 
-        var first = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 2);
-        var second = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, first!.NextCursor, 2);
+        var first = await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 2);
+        var second = await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, first!.NextCursor, 2);
 
         first.Items.Select(row => row.EventId).Should().Equal(ids[0], ids[1]);
         first.NextCursor.Should().NotBeNull();
@@ -67,7 +67,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await proof.OutboxAsync(id, "attempts = 6, terminal_reason = 'retry_exhausted'");
         await proof.OutboxAsync(Guid.CreateVersion7(), "attempts = 6, terminal_reason = 'retry_exhausted', dead_lettered_at = now()");
 
-        var page = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, null, 10);
+        var page = await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.TerminalRequested, null, 10);
 
         var row = page!.Items.Should().ContainSingle().Which;
         row.EventId.Should().Be(id);
@@ -84,7 +84,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await proof.DeliveryAsync(replayable, Subscription, "terminal_reason = 'retry_exhausted', dead_lettered_at = '2026-10-01 12:00:00.5+00', replay_count = 2, replayed_at = now()");
         await proof.DeliveryAsync(envelope, Subscription, "terminal_reason = 'invalid_envelope', dead_lettered_at = '2026-10-02 12:00:00+00'");
 
-        var page = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+        var page = await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
 
         page!.Items.Select(row => row.EventId).Should().Equal(replayable, envelope);
         page.Items[0].Should().Match<EventDeliveryInspection>(row => row.ReplayCount == 2 && row.TerminalReason == "retry_exhausted"
@@ -102,7 +102,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
             await SchemaQueries.ExecuteAsync(dispatcher, null,
                 "UPDATE background_jobs SET phase = 'quarantined', quarantine_reason = 'unknown_outcome' WHERE id = @id", ("id", job.Value));
 
-        var page = await proof.Inspection.InspectJobsAsync(proof.Admission(), null, 10);
+        var page = await proof.Inspection.InspectJobsAsync(Proof.Admission(), null, 10);
 
         var row = page!.Items.Should().ContainSingle().Which;
         row.JobId.Should().Be(job.Value);
@@ -118,7 +118,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
     {
         await using var proof = await Proof.CreateAsync(schema.Postgres);
         await proof.OutboxAsync(Guid.CreateVersion7(), "attempts = 6, terminal_reason = 'retry_exhausted', dead_lettered_at = now()");
-        var admission = proof.Admission("INC-103");
+        var admission = Proof.Admission("INC-103");
 
         await proof.Inspection.InspectOutboxAsync(admission, DeliveryInspectionState.DeadLettered, null, 10);
 
@@ -133,10 +133,10 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
     public async Task A_malformed_or_foreign_cursor_answers_null_and_enters_no_scope()
     {
         await using var proof = await Proof.CreateAsync(schema.Postgres);
-        var admission = proof.Admission();
+        var admission = Proof.Admission();
 
         (await proof.Inspection.InspectOutboxAsync(admission, DeliveryInspectionState.DeadLettered, "not-a-cursor", 10)).Should().BeNull();
-        (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered,
+        (await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered,
             Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("v1~outbox.DeadLettered~1~x")), 10)).Should().BeNull("a cursor of another resource is refused");
 
         (await proof.AuditAsync(admission.Operator.CorrelationId!)).Should().BeEmpty();
@@ -202,7 +202,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
                 WHERE j.id IN ('{held.Value}', '{neighbour.Value}');
             """);
 
-        var page = await proof.Inspection.InspectJobsAsync(proof.Admission(), null, 10);
+        var page = await proof.Inspection.InspectJobsAsync(Proof.Admission(), null, 10);
 
         var row = page!.Items.Should().ContainSingle("only the quarantined job is listed").Which;
         row.JobId.Should().Be(held.Value);
@@ -220,17 +220,17 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
             await proof.DeliveryAsync(Guid.CreateVersion7(), Subscription, $"terminal_reason = 'retry_exhausted', dead_lettered_at = '2026-10-0{index} 12:00:00+00'");
         }
 
-        var outbox = (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1))!.NextCursor;
-        var delivery = (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1))!.NextCursor;
+        var outbox = (await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1))!.NextCursor;
+        var delivery = (await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1))!.NextCursor;
         outbox.Should().NotBeNull();
         delivery.Should().NotBeNull();
 
         // Each was issued for the route and state it came from: the same position under another one is refused.
-        (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, outbox, 10)).Should().BeNull();
-        (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, delivery, 10)).Should().BeNull();
-        (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, outbox, 10)).Should().BeNull();
-        (await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, delivery, 10)).Should().BeNull();
-        (await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, outbox, 10)).Should().NotBeNull();
+        (await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.TerminalRequested, outbox, 10)).Should().BeNull();
+        (await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, delivery, 10)).Should().BeNull();
+        (await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, outbox, 10)).Should().BeNull();
+        (await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.TerminalRequested, delivery, 10)).Should().BeNull();
+        (await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, outbox, 10)).Should().NotBeNull();
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         var pages = 0;
         do
         {
-            var page = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, cursor, 2);
+            var page = await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, cursor, 2);
             seen.AddRange(page!.Items.Select(row => row.EventId));
             cursor = page.NextCursor;
             pages++;
@@ -267,8 +267,8 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await proof.OutboxAsync(late, "attempts = 6, terminal_reason = 'retry_exhausted', available_after = '2026-10-03 12:00:00+00'");
         await proof.OutboxAsync(early, "attempts = 6, terminal_reason = 'retry_exhausted', available_after = '2026-10-02 12:00:00+00'");
 
-        var first = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, null, 1);
-        var second = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.TerminalRequested, first!.NextCursor, 1);
+        var first = await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.TerminalRequested, null, 1);
+        var second = await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.TerminalRequested, first!.NextCursor, 1);
 
         first.Items.Single().EventId.Should().Be(early);
         second!.Items.Single().EventId.Should().Be(late);
@@ -306,8 +306,8 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await proof.OutboxAsync(Guid.CreateVersion7(), $"attempts = 6, terminal_reason = 'retry_exhausted', dead_lettered_at = now(), last_error = '{stored}'");
         await proof.DeliveryAsync(Guid.CreateVersion7(), Subscription, $"terminal_reason = 'retry_exhausted', dead_lettered_at = now(), last_error = '{stored}'");
 
-        var outbox = await proof.Inspection.InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
-        var delivery = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+        var outbox = await proof.Inspection.InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+        var delivery = await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
 
         outbox!.Items.Single().LastError.Should().Be(shown);
         delivery!.Items.Single().LastError.Should().Be(shown);
@@ -334,11 +334,11 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
 
         // A retry cannot cure a refused credential, so it surfaces as the defect it is and not as a retryable outage.
         var refused = async () => await proof.InspectionOver(refusedSource)
-            .InspectOutboxAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+            .InspectOutboxAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
         (await refused.Should().ThrowAsync<NpgsqlException>()).Which.IsTransient.Should().BeFalse();
 
         var outage = async () => await proof.InspectionOver(unreachableSource)
-            .InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
+            .InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 10);
         (await outage.Should().ThrowAsync<OperatorRecoveryUnavailableException>()).Which.InnerException.Should().BeAssignableTo<NpgsqlException>();
     }
 
@@ -353,8 +353,8 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
         await proof.DeliveryAsync(larger, "a.first.v1", instant);
         await proof.DeliveryAsync(smaller, "b.second.v1", instant);
 
-        var first = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1);
-        var second = await proof.Inspection.InspectDeliveriesAsync(proof.Admission(), DeliveryInspectionState.DeadLettered, first!.NextCursor, 1);
+        var first = await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, null, 1);
+        var second = await proof.Inspection.InspectDeliveriesAsync(Proof.Admission(), DeliveryInspectionState.DeadLettered, first!.NextCursor, 1);
 
         first.Items.Single().SubscriptionId.Should().Be("a.first.v1");
         second!.Items.Single().SubscriptionId.Should().Be("b.second.v1", "the subscription orders before the event id");
@@ -487,7 +487,7 @@ public sealed class DeliveryInspectionTests(SchemaFixture schema)
             return proof;
         }
 
-        internal PlatformAdmission Admission(string? ticket = null) => TestPlatformAdmissions.Admission(
+        internal static PlatformAdmission Admission(string? ticket = null) => TestPlatformAdmissions.Admission(
             PlatformOperations.DeliveryInspect, ticket, correlationId: "00-inspect-" + Guid.NewGuid().ToString("N"));
 
         internal Task OutboxAsync(Guid id, string assignments) => SqlAsync($"""

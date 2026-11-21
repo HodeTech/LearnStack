@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,171 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,194 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -526,6 +526,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — review round 1 and its fixes (2026-11-20)](#p03-9-step-5--review-round-1-and-its-fixes-2026-11-20) — 67 lines
   - [P03-9 Step 5 — review round 2 and its fixes (2026-11-20)](#p03-9-step-5--review-round-2-and-its-fixes-2026-11-20) — 63 lines
   - [P03-9 Step 5 — verification and closeout (2026-11-21)](#p03-9-step-5--verification-and-closeout-2026-11-21) — 33 lines
+  - [P03-9 Step 5 — hosted CI correction (2026-11-21)](#p03-9-step-5--hosted-ci-correction-2026-11-21) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25354,3 +25355,26 @@ Open for the maintainer, as recorded in Amendments 12 and 13:
 - **The removal of an unreadable owned broker with a live row needs it disabled first.**
   This narrows the choice the maintainer made in review round 1, because the premise
   that an unreadable broker already fails closed was wrong.
+
+### P03-9 Step 5 — hosted CI correction (2026-11-21)
+
+The first hosted run of the pull request failed every backend job at the build, and the
+verification record above did not catch it because the local runs never built with
+`CI=true`. That setting turns analyzer warnings into errors
+(`backend/Directory.Build.props`), so a plain local build shows them as warnings and the
+suites ran against a tree the hosted gate refuses. The frontend, document, OpenAPI,
+demo and secret-scan jobs passed.
+
+Two analyzer errors, both in Step 4 code and both hidden one behind the other, because
+the first stopped the project every later project depends on:
+
+- **CA1068** in `DeliveryInspection.PageAsync<T>`: the cancellation token preceded five
+  delegate parameters. It is now the last parameter.
+- **CA1822** in the delivery-inspection integration test: the `Admission` helper read no
+  instance data. It is now static.
+
+Neither changes behaviour. The corrected tree builds clean with
+`CI=true dotnet build LearnStack.slnx -c Release --no-incremental`, and the 136
+integration tests that exercise delivery inspection and the operator HTTP surface pass.
+The record above stands for what it measured; this entry owns what it did not. The
+build with warnings as errors is now part of the gate before any push of this packet.
