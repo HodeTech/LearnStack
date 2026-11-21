@@ -147,6 +147,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0102 | [Production Tenant Onboarding](0102-production-tenant-onboarding.md) | Accepted 2026-11-19: operator-admitted tenant, host, Role-template, first-administrator and recovery commands on the app role, with a confined operator source and target announcement; the seed stays seed-only. |
 | 0103 | [Operator Recovery of Asynchronous Work](0103-operator-recovery-of-asynchronous-work.md) | Accepted 2026-11-19: metadata inspection on column grants, fenced targeted subscriber replay and a narrow producer reset on a confined outbox-role owner; no job release and no dashboard. |
 | 0104 | [Controlled Issuer Rebind](0104-controlled-issuer-rebind.md) | Accepted 2026-11-19: an offline operator act through a dedicated rebind role, with advisory-lock freeze, a continuity proof over every stored subject key, intent and result audit rows. |
+| 0105 | [CI Selector Filter And Argument Bounds](0105-ci-selector-filter-and-argument-bounds.md) | Accepted 2026-11-21: raises ADR-0063's 32 KiB filter and 64 KiB argument bounds to 64 KiB and 128 KiB after layout B refused a 33,367-byte filter; counts, salt and algorithm unchanged. |
 
 ## Proposed ADRs
 

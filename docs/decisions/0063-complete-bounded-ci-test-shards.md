@@ -503,6 +503,18 @@ exception. The Decision and metadata remain historical. The
 [Phase 03 record](../roadmap/phase-03-delivery-log.md#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06)
 owns the dependent implementation and fresh source-bound qualification.
 
+### Amendment 4 — Larger filter and argument bounds (2026-11-21)
+
+Accepted [ADR-0105](0105-ci-selector-filter-and-argument-bounds.md) raises this
+record's initial bounds, a 32 KiB filter argument and 64 KiB for all argument
+strings of one invocation, to 64 KiB and 128 KiB. An oversize filter or vector is
+still refused before spawning and never split or run unfiltered. Counts, the
+assignment algorithm, the B salt, weights, whole-job ceilings and complete
+two-layout qualification are unchanged, and the larger filters qualify with a
+complete A and B on the same source. The Decision and metadata remain historical.
+The [acceptance record](../roadmap/phase-03-delivery-log.md#adr-0105-acceptance-and-implementation-2026-11-21)
+owns the measurements, implementation and qualification receipts.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).
