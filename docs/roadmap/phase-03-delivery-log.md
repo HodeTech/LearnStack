@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,245 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,275 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -529,6 +529,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — hosted CI correction (2026-11-21)](#p03-9-step-5--hosted-ci-correction-2026-11-21) — 23 lines
   - [P03-9 Step 5 — hosted CI correction, second run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-second-run-2026-11-21) — 27 lines
   - [P03-9 Step 5 — hosted CI correction, third run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-third-run-2026-11-21) — 24 lines
+  - [P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)](#p03-9-step-5--hosted-ci-the-opposite-shard-layout-2026-11-21) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25431,3 +25432,33 @@ only after the row is written and the sessions are counted, so it is the instant
 is meant for, and the test holds no database session while the tool counts. Under the same
 load the hang-up case then passed 40 times in 40. The helper that polled for the row had no
 other caller and is removed. The tool did not change.
+
+### P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)
+
+Head `82d18d8d` passed all 27 jobs in layout A (run attempt 1). Rerunning every job, as
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) requires for the second
+qualification, ran layout B (attempt 2) and failed two producers, for different reasons.
+
+- **`backend-ordinary-11`: `filter_bound`, no test ran.** The filter that lists the
+  shard's selectors came to 33,367 bytes against the 32,768-byte ceiling. It was computed
+  with the repository's own `assign` and `filter_for` over the run's discovery manifest and
+  the committed plan: layout B gives the twelve ordinary shards 21,794 to 33,367 bytes, with
+  `ordinary-7` at 31,989; layout A gives 27,144 to 28,123. Assignment is deterministic from
+  the manifest and the plan, so every layout-B attempt on this source refuses the same way
+  and a rerun cannot pass. The population is 2,052 distinct ordinary selectors; twelve
+  shards at the ceiling hold about 2,300 even when perfectly balanced, so the ceiling
+  binds layout A as well within a modest amount of further growth.
+- **`backend-ordinary-7`: a Keycloak readiness timeout.** `readiness_timeout` at
+  `provider_starting`, 120,002 ms and a TLS readiness outcome at the first fixture,
+  failing the realm tests that share it. This is the hosted start-up flake already
+  recorded on this packet's earlier heads; no code is implicated.
+
+Nothing was changed for the first. ADR-0063 bounds filter arguments to 32 KiB, the
+ordinary shards to eight through twelve (twelve are in use), and requires a reviewed plan
+revision, an assignment diff and fresh qualification for any change of count, bound,
+algorithm or salt. Whether to revise the plan, change the bound or reopen the decision is
+the maintainer's. The candidates are a new B salt (cheap, and a lucky rebalance that the
+next growth undoes), a byte-aware assignment (an algorithm version), a higher bound (which
+the hosted boundary must then qualify) or a thirteenth shard (the envelope's end, which
+reopens the decision). Until one is chosen, layout A is qualified on this source and layout
+B is not.
