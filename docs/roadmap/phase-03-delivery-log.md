@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,138 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,171 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -525,6 +525,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — federation operator steps (2026-11-20)](#p03-9-step-5--federation-operator-steps-2026-11-20) — 71 lines
   - [P03-9 Step 5 — review round 1 and its fixes (2026-11-20)](#p03-9-step-5--review-round-1-and-its-fixes-2026-11-20) — 67 lines
   - [P03-9 Step 5 — review round 2 and its fixes (2026-11-20)](#p03-9-step-5--review-round-2-and-its-fixes-2026-11-20) — 63 lines
+  - [P03-9 Step 5 — verification and closeout (2026-11-21)](#p03-9-step-5--verification-and-closeout-2026-11-21) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25320,3 +25321,36 @@ Decided and not changed:
   timeout applies, and no test showed a hang.
 - **Offset paging.** The cursor stays an offset; the runbook says to read a page again
   after acting on it.
+
+### P03-9 Step 5 — verification and closeout (2026-11-21)
+
+The final head of Step 5 passed every suite: 4,387 unit tests; 500 fast and 180 heavy
+architecture tests, the heavy set including the lifecycle-census tests round 1 had
+extended; and 4,884 integration tests against real PostgreSQL and the pinned Keycloak
+26.7.5. Document lint, the fragment audit and the delivery-log index are clean, and a
+mutation sweep over the guards of both review rounds killed every mutant but one
+equivalent (a marker length check that the marker's round trip makes redundant).
+
+Two full integration runs of this head failed for the host and not for the code, and
+are recorded so a later reader does not read them as a defect. The first lost the
+container runtime's API mid-run (every failure a cancelled Docker request within a
+millisecond); the second could not start its Keycloak fixtures in the fixed two-minute
+window while the workstation was swapping nine of ten gigabytes. The run that counts
+is the third, serialized with `xUnit.ParallelizeTestCollections=false` so that one
+provider container exists at a time, and it took two hours and five minutes where the
+parallel runs took about an hour and a half.
+
+The gate rows G13 and G14 of the decision register now say the implementation is
+delivered, and the Status block says Step 5 is delivered and twice reviewed. What
+remains of the packet is its merge closeout.
+
+Open for the maintainer, as recorded in Amendments 12 and 13:
+
+- **The audit outcome of a completion row is `success` for every closed provider
+  outcome.** A query for non-success rows misses a refused or uncertain provider call;
+  the provider outcome is `after_state.outcome`.
+- **The marker's tenant is not checked against `tenants`.** Planting a marker needs
+  realm-console rights, which exceed a tenant administrator's.
+- **The removal of an unreadable owned broker with a live row needs it disabled first.**
+  This narrows the choice the maintainer made in review round 1, because the premise
+  that an unreadable broker already fails closed was wrong.
