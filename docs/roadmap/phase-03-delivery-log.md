@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,275 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,291 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -530,6 +530,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — hosted CI correction, second run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-second-run-2026-11-21) — 27 lines
   - [P03-9 Step 5 — hosted CI correction, third run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-third-run-2026-11-21) — 24 lines
   - [P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)](#p03-9-step-5--hosted-ci-the-opposite-shard-layout-2026-11-21) — 30 lines
+  - [P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)](#p03-9-step-5--a-local-guard-for-unserializable-theory-data-2026-11-21) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25462,3 +25463,19 @@ next growth undoes), a byte-aware assignment (an algorithm version), a higher bo
 the hosted boundary must then qualify) or a thirteenth shard (the envelope's end, which
 reopens the decision). Until one is chosen, layout A is qualified on this source and layout
 B is not.
+
+### P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)
+
+The maintainer asked for a guard that shows locally what only the hosted discovery
+protocol showed: a theory whose data xUnit cannot serialize. The rule already exists. The
+`xunit.analyzers` package that comes with xUnit 2.9.2 ships `xUnit1044` (the type argument
+is not serializable) and `xUnit1045` (it might not be), both off by default. A scratch
+theory with the two original shapes, a `PlatformOperation` record and an `Exception?` in
+`TheoryData`, fails the build with them at error severity: `xUnit1044` for the first,
+`xUnit1045` for the second. With both set to error in `backend/tests/.editorconfig`, the
+whole solution builds with no warning and no error, so no existing theory breaks the rule.
+
+This replaces the reflection rule the question proposed. An analyzer knows what xUnit can
+serialize, shows the fault in the editor and needs no catalogue entry, and the architecture
+catalogue and its counts are unchanged. Standards 06 states the rule beside the
+discovery protocol it protects.

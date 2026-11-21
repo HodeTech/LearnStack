@@ -22,3 +22,10 @@ dotnet_diagnostic.CA1515.severity = none
 dotnet_diagnostic.CA1034.severity = none
 # `HttpClient.GetAsync(string)` overload is fine in test assertions.
 dotnet_diagnostic.CA2234.severity = none
+# A theory whose data xUnit cannot serialize is discovered as one case and executed as
+# one result per row under that single id, which the hosted discovery protocol refuses
+# (`completed_case_unexpected`, ADR-0063) and no local run shows. Both rules are off by
+# default in xunit.analyzers; an Exception, a record or a delegate in `TheoryData<...>`
+# is the case. Pass a label or a key and build the object inside the test.
+dotnet_diagnostic.xUnit1044.severity = error
+dotnet_diagnostic.xUnit1045.severity = error
