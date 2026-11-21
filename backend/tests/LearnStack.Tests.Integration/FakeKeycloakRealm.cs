@@ -23,6 +23,7 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
     private string? _failure;
     private int _pages;
     private int _firstPageRequests;
+    private readonly TaskCompletionSource _discoveryHung = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private string _prefix = string.Empty;
 
     private FakeKeycloakRealm(WebApplication app, List<string> users)
@@ -49,6 +50,9 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
     internal int? CountAfterRead { get; set; }
 
     internal int Pages => Volatile.Read(ref _pages);
+
+    /// <summary>Completes when a discovery request has arrived at a realm set to never answer it.</summary>
+    internal Task DiscoveryHung => _discoveryHung.Task;
 
     internal List<Dictionary<string, string>> TokenRequests { get; } = [];
 
@@ -91,6 +95,7 @@ internal sealed class FakeKeycloakRealm : IAsyncDisposable
             if (_failure == "discovery-hang")
             {
                 // The realm never answers: the request ends only when its caller gives up or goes away.
+                _discoveryHung.TrySetResult();
                 return Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, context.RequestAborted);
             }
 

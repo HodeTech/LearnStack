@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,221 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,245 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -528,6 +528,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — verification and closeout (2026-11-21)](#p03-9-step-5--verification-and-closeout-2026-11-21) — 33 lines
   - [P03-9 Step 5 — hosted CI correction (2026-11-21)](#p03-9-step-5--hosted-ci-correction-2026-11-21) — 23 lines
   - [P03-9 Step 5 — hosted CI correction, second run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-second-run-2026-11-21) — 27 lines
+  - [P03-9 Step 5 — hosted CI correction, third run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-third-run-2026-11-21) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25406,3 +25407,27 @@ contract). They match, apart from the TRX escaping of surrogate pairs. A paramet
 theory that discovers as one case is the failure to look for, and the sweep over 1,398
 theories found only those two. The gate before any push of this packet is now the build
 with warnings as errors and this comparison.
+
+### P03-9 Step 5 — hosted CI correction, third run (2026-11-21)
+
+The third hosted run passed the build, `backend-base` and every shard but one. The one
+failure, `backend-ordinary-11`, was the hang-up case of
+`IdentityAuthorityRebindToolTests.A_Signal_During_The_Realm_Read_…`, a Step 3 test; its
+terminate case passed. The hosted record keeps no message for it, so the case was run in
+an Ubuntu 24.04 container, the hosted distribution, against a real PostgreSQL. It passed
+alone and ten times in a row, and failed once in ten under CPU load with the tool's own
+line: `refused_live_sessions sessions=1` where the test expected `refused_cancelled`.
+
+The cause is the test, not the tool. The tool writes its intent row, then counts the
+sessions of every runtime role, then reads the realm. The test took the appearance of the
+intent row as the instant to signal, and polled for it as `learnstack_platform`, a role
+the count includes. When a poll connection was still open as the tool counted, the tool
+saw a live session and refused the run, which is what it exists to do. The signal never
+had a chance to cancel a run that was already refused. The race needs load to show, which
+is why every local run passed.
+
+The test now waits for the realm's hung discovery request to arrive. That request is made
+only after the row is written and the sessions are counted, so it is the instant the signal
+is meant for, and the test holds no database session while the tool counts. Under the same
+load the hang-up case then passed 40 times in 40. The helper that polled for the row had no
+other caller and is removed. The tool did not change.

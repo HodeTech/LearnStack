@@ -149,13 +149,16 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
         await using var run = await Run.StartAsync(parent);
         run.Realm.Fail("discovery-hang");
 
-        // The intent row is written only after the signal handlers are in place, so its appearance is the readiness
-        // the signal waits for: no sleep guesses how long the runtime takes to start.
+        // The tool asks the realm only after its handlers are in place, its intent row is written and the sessions of
+        // every runtime role are counted, so the realm's hung request arriving is the instant the signal is meant for:
+        // no sleep guesses how long the runtime takes to start. The intent row is not that instant. It is written
+        // before the count, and a test that polls for it as the platform role holds a session of a runtime role that the
+        // count can see, which refuses the run as live sessions instead of cancelling it.
         // A process started under `nohup` inherits an ignored hang-up and keeps ignoring it, as it should, so the case
         // starts the tool with the default disposition restored: a tool the operator runs in tmux has it.
         var result = await run.ExecuteAsync(token: run.Token(), tokenOnInput: false, resetHangUp: signal == "HUP", whileRunning: async child =>
         {
-            await run.WaitForRebindRowAsync(TimeSpan.FromSeconds(60));
+            await run.Realm.DiscoveryHung.WaitAsync(TimeSpan.FromSeconds(60));
             using var kill = Process.Start("kill", ["-" + signal, child.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)])!;
             await kill.WaitForExitAsync();
         });
@@ -361,16 +364,6 @@ public sealed class IdentityAuthorityRebindToolTests(PublicReadFixture parent)
             await using var command = new NpgsqlCommand(
                 "SELECT count(*) FROM public.audit_log WHERE operation LIKE 'identity.authority.rebind%'", connection);
             return (long)(await command.ExecuteScalarAsync())!;
-        }
-
-        internal async Task WaitForRebindRowAsync(TimeSpan within)
-        {
-            var clock = Stopwatch.StartNew();
-            while (await RebindRowsAsync() == 0)
-            {
-                if (clock.Elapsed > within) throw new TimeoutException("The tool never wrote its intent row.");
-                await Task.Delay(100);
-            }
         }
 
         internal async Task<List<string>> OperationsAsync(string correlation)
