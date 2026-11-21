@@ -127,30 +127,48 @@ public sealed class PlatformOperatorAuthenticationTests
         labels.Should().OnlyHaveUniqueItems().And.OnlyContain(label => label.StartsWith("profile_", StringComparison.Ordinal));
     }
 
-    public static TheoryData<Exception?, string> Failures() => new()
+    // A theory parameter must be one xUnit can serialize: a case holding an Exception is discovered as one
+    // case and executed as many, and the hosted discovery protocol refuses the second completion of one id.
+    // The label is the serializable key; the exception is built inside the test.
+    private static readonly (string Label, Func<Exception?> Failure, string Expected)[] FailureCases =
+    [
+        ("no failure", () => null, "token_missing"),
+        ("profile refusal", () => new PlatformOperatorProfileException("profile_azp"), "profile_azp"),
+        ("expired", () => new SecurityTokenExpiredException("x"), "token_expired"),
+        ("not yet valid", () => new SecurityTokenNotYetValidException("x"), "token_lifetime"),
+        ("no expiration", () => new SecurityTokenNoExpirationException("x"), "token_lifetime"),
+        ("invalid signature", () => new SecurityTokenInvalidSignatureException("x"), "token_signature"),
+        ("signature key not found", () => new SecurityTokenSignatureKeyNotFoundException("x"), "token_signature"),
+        ("invalid issuer", () => new SecurityTokenInvalidIssuerException("x"), "token_issuer"),
+        ("invalid audience", () => new SecurityTokenInvalidAudienceException("x"), "token_audience"),
+        ("invalid algorithm", () => new SecurityTokenInvalidAlgorithmException("x"), "token_algorithm"),
+        ("invalid type", () => new SecurityTokenInvalidTypeException("x"), "token_type"),
+        ("aggregate of expiry and io", () => new AggregateException(new SecurityTokenExpiredException("x"), new IOException()), "token_expired"),
+        ("configuration unobtainable", () => new InvalidOperationException("IDX20803: Unable to obtain configuration."), "metadata_unavailable"),
+        ("wrapped io refusal", () => new InvalidOperationException("wrapped", new IOException("refused")), "metadata_unavailable"),
+        ("http down", () => new HttpRequestException("down"), "metadata_unavailable"),
+        ("other format fault", () => new FormatException("other"), "token_invalid"),
+    ];
+
+    public static TheoryData<string> FailureLabels()
     {
-        { null, "token_missing" },
-        { new PlatformOperatorProfileException("profile_azp"), "profile_azp" },
-        { new SecurityTokenExpiredException("x"), "token_expired" },
-        { new SecurityTokenNotYetValidException("x"), "token_lifetime" },
-        { new SecurityTokenNoExpirationException("x"), "token_lifetime" },
-        { new SecurityTokenInvalidSignatureException("x"), "token_signature" },
-        { new SecurityTokenSignatureKeyNotFoundException("x"), "token_signature" },
-        { new SecurityTokenInvalidIssuerException("x"), "token_issuer" },
-        { new SecurityTokenInvalidAudienceException("x"), "token_audience" },
-        { new SecurityTokenInvalidAlgorithmException("x"), "token_algorithm" },
-        { new SecurityTokenInvalidTypeException("x"), "token_type" },
-        { new AggregateException(new SecurityTokenExpiredException("x"), new IOException()), "token_expired" },
-        { new InvalidOperationException("IDX20803: Unable to obtain configuration."), "metadata_unavailable" },
-        { new InvalidOperationException("wrapped", new IOException("refused")), "metadata_unavailable" },
-        { new HttpRequestException("down"), "metadata_unavailable" },
-        { new FormatException("other"), "token_invalid" },
-    };
+        var labels = new TheoryData<string>();
+        foreach (var row in FailureCases)
+        {
+            labels.Add(row.Label);
+        }
+
+        return labels;
+    }
 
     [Theory]
-    [MemberData(nameof(Failures))]
-    public void An_Authentication_Failure_Maps_To_One_Closed_Label(Exception? failure, string expected) =>
-        PlatformOperatorFailure.Classify(failure).Should().Be(expected);
+    [MemberData(nameof(FailureLabels))]
+    public void An_Authentication_Failure_Maps_To_One_Closed_Label(string label)
+    {
+        var row = FailureCases.Single(candidate => candidate.Label == label);
+
+        PlatformOperatorFailure.Classify(row.Failure()).Should().Be(row.Expected);
+    }
 
     [Theory]
     [InlineData("0")]

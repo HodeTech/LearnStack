@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,194 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,221 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -527,6 +527,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — review round 2 and its fixes (2026-11-20)](#p03-9-step-5--review-round-2-and-its-fixes-2026-11-20) — 63 lines
   - [P03-9 Step 5 — verification and closeout (2026-11-21)](#p03-9-step-5--verification-and-closeout-2026-11-21) — 33 lines
   - [P03-9 Step 5 — hosted CI correction (2026-11-21)](#p03-9-step-5--hosted-ci-correction-2026-11-21) — 23 lines
+  - [P03-9 Step 5 — hosted CI correction, second run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-second-run-2026-11-21) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25378,3 +25379,30 @@ Neither changes behaviour. The corrected tree builds clean with
 integration tests that exercise delivery inspection and the operator HTTP surface pass.
 The record above stands for what it measured; this entry owns what it did not. The
 build with warnings as errors is now part of the gate before any push of this packet.
+
+### P03-9 Step 5 — hosted CI correction, second run (2026-11-21)
+
+With the build repaired, the second hosted run passed the build and 17 of the 19 backend
+jobs, and failed two for different reasons.
+
+- **`backend-base`: `completed_case_unexpected`.** Two Step 1 theories took a parameter
+  xUnit cannot serialize, an `Exception?` and a `PlatformOperation`. Discovery lists such
+  a theory as one case, execution reports one result per data row under that same id,
+  and the hosted protocol refuses the second completion of an id. The last completed case
+  in the log, the first row of the exception theory, is where it stopped, after 395 of
+  5,037 planned cases, so nothing after it had run. Both theories now take a serializable
+  key, a label and an audit slug, and build the object inside the test; discovery lists 16
+  and 5 distinct cases for them. No local run could see this, because a local run reports
+  per row and the check lives in the hosted protocol only.
+- **`backend-ordinary-9`: a Keycloak readiness timeout.** The one failed case,
+  `TenantRealmStockBaselineTests.Historical_stock_ordinary_reconciliation_…`, recorded
+  `readiness_timeout` at `provider_starting`, 120,001 ms and a TLS readiness outcome. It
+  is the hosted start-up flake already seen on this packet's earlier heads, in a test of an
+  older packet that passes locally; no code changed for it.
+
+Before pushing, the names a project discovers were compared with the names it executes for
+all three assemblies of the base partition (4,387 unit, 656 integration without Docker, 13
+contract). They match, apart from the TRX escaping of surrogate pairs. A parameterised
+theory that discovers as one case is the failure to look for, and the sweep over 1,398
+theories found only those two. The gate before any push of this packet is now the build
+with warnings as errors and this comparison.

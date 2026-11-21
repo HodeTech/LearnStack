@@ -25,8 +25,11 @@ public sealed class PlatformOperatorActCatalogTests
 
     [Theory]
     [MemberData(nameof(NonPipelineOperations))]
-    public void An_Operation_That_Runs_Anywhere_But_The_Pipeline_Is_Refused_By_The_Catalog(PlatformOperation operation)
+    public void An_Operation_That_Runs_Anywhere_But_The_Pipeline_Is_Refused_By_The_Catalog(string auditSlug)
     {
+        // The slug, not the operation, is the theory parameter: xUnit cannot serialize a PlatformOperation, and a
+        // case it cannot serialize is discovered as one case and executed as five, which hosted CI refuses.
+        var operation = PlatformOperations.All.Single(candidate => candidate.AuditSlug == auditSlug);
         operation.RunsInPipeline.Should().BeFalse();
 
         var act = () => new PlatformOperatorActCatalog(
@@ -35,13 +38,13 @@ public sealed class PlatformOperatorActCatalogTests
         act.Should().Throw<ArgumentException>();
     }
 
-    public static TheoryData<PlatformOperation> NonPipelineOperations() => new()
+    public static TheoryData<string> NonPipelineOperations() => new()
     {
-        PlatformOperations.KillswitchToggle,
-        PlatformOperations.IdentityAuthorityRebind,
-        PlatformOperations.DeliveryInspect,
-        PlatformOperations.DeliveryReplay,
-        PlatformOperations.DeliveryReset,
+        PlatformOperations.KillswitchToggle.AuditSlug,
+        PlatformOperations.IdentityAuthorityRebind.AuditSlug,
+        PlatformOperations.DeliveryInspect.AuditSlug,
+        PlatformOperations.DeliveryReplay.AuditSlug,
+        PlatformOperations.DeliveryReset.AuditSlug,
     };
 
     [Fact]
