@@ -97,7 +97,7 @@ def validate_plan(plan):
             'architecture_project_invalid')
     require(plan['salt'] == 'LearnStack.CI.B.v1' and integer(plan['defaultMethodMs'], 1, 86400000),
             'plan_estimate_invalid')
-    require(plan['bounds'] == {'filterBytes': 32768, 'argvBytes': 65536}
+    require(plan['bounds'] == {'filterBytes': 65536, 'argvBytes': 131072}
             and all(type(x) is int for x in plan['bounds'].values()), 'plan_bounds_invalid')
     sources = plan['sources']
     require(isinstance(sources, dict) and 0 < len(sources) <= 100, 'weight_sources_invalid')
