@@ -358,23 +358,23 @@ public sealed class AliasedCollectionTests { }
         foreign = copy.deepcopy(cases); foreign[0]['id'] = self.manifest()['native'][0]['id']
         self.refuses('selected_population_mismatch', OWNER.selected_equal, cases, foreign)
         OWNER.validate_argv(['dotnet', '--filter', expression], self.plan)
-        self.refuses('argv_bound', OWNER.validate_argv, ['dotnet', 'x' * 65536], self.plan)
+        self.refuses('argv_bound', OWNER.validate_argv, ['dotnet', 'x' * 131072], self.plan)
         self.refuses('argv_bound', OWNER.validate_argv, ['dotnet', '\0'], self.plan)
 
     def test_filter_and_argv_accept_the_boundary_and_refuse_one_more_byte(self):
-        cases = [self.case('tests', 'Class.' + 'M' * 1900 + str(i), i) for i in range(16)]
+        cases = [self.case('tests', 'Class.' + 'M' * 1900 + str(i), i) for i in range(33)]
         cases.append(self.case('tests', 'Class.Boundary', 99))
         expression = OWNER.filter_for('ordinary-0', 'tests', cases, self.plan)
-        cases[-1]['method'] += 'x' * (32768 - len(expression.encode()))
-        self.assertEqual(32768, len(OWNER.filter_for('ordinary-0', 'tests', cases, self.plan).encode()))
+        cases[-1]['method'] += 'x' * (65536 - len(expression.encode()))
+        self.assertEqual(65536, len(OWNER.filter_for('ordinary-0', 'tests', cases, self.plan).encode()))
         cases[-1]['method'] += 'x'
         self.refuses('filter_bound', OWNER.filter_for, 'ordinary-0', 'tests', cases, self.plan)
-        OWNER.validate_argv(['dotnet', 'x' * (65536 - len('dotnet') - 2)], self.plan)
+        OWNER.validate_argv(['dotnet', 'x' * (131072 - len('dotnet') - 2)], self.plan)
         self.refuses('argv_bound', OWNER.validate_argv,
-                     ['dotnet', 'x' * (65536 - len('dotnet') - 1)], self.plan)
+                     ['dotnet', 'x' * (131072 - len('dotnet') - 1)], self.plan)
 
     def test_oversize_filter_refuses_instead_of_splitting_rows(self):
-        cases = [self.case('tests', 'Class.' + 'M' * 1000 + str(i), i) for i in range(40)]
+        cases = [self.case('tests', 'Class.' + 'M' * 1000 + str(i), i) for i in range(70)]
         self.refuses('filter_bound', OWNER.filter_for, 'ordinary-0', 'tests', cases, self.plan)
 
     def test_complete_aggregate_refuses_missing_extra_and_wrong_owner_despite_equal_union(self):
@@ -716,7 +716,7 @@ public sealed class AliasedCollectionTests { }
     def test_all_shard_dotnet_arguments_are_bounded_before_spawn(self):
         with mock.patch.object(LAUNCHER, 'dotnet', return_value=0) as spawn:
             with self.assertRaises(LAUNCHER.Refusal) as caught:
-                LAUNCHER.shard_dotnet(['x' * 65536], time.monotonic() + 5, '/owned', lambda _: None)
+                LAUNCHER.shard_dotnet(['x' * 131072], time.monotonic() + 5, '/owned', lambda _: None)
             self.assertEqual('argv_bound', caught.exception.reason)
             spawn.assert_not_called()
             self.assertEqual(0, LAUNCHER.shard_dotnet(['--version'], time.monotonic() + 5,

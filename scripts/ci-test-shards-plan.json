@@ -4,8 +4,8 @@
     "learnstack.tests.architecture"
   ],
   "bounds": {
-    "argvBytes": 65536,
-    "filterBytes": 32768
+    "argvBytes": 131072,
+    "filterBytes": 65536
   },
   "counts": {
     "architecture": 6,

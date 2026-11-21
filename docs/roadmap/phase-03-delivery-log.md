@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,291 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,315 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -531,6 +531,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — hosted CI correction, third run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-third-run-2026-11-21) — 24 lines
   - [P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)](#p03-9-step-5--hosted-ci-the-opposite-shard-layout-2026-11-21) — 30 lines
   - [P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)](#p03-9-step-5--a-local-guard-for-unserializable-theory-data-2026-11-21) — 16 lines
+  - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25479,3 +25480,27 @@ This replaces the reflection rule the question proposed. An analyzer knows what 
 serialize, shows the fault in the editor and needs no catalogue entry, and the architecture
 catalogue and its counts are unchanged. Standards 06 states the rule beside the
 discovery protocol it protects.
+
+### ADR-0105 acceptance and implementation (2026-11-21)
+
+The maintainer accepted [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md)
+after the measurements below, choosing a higher bound over a new B salt and over a
+byte-aware assignment. The salt was first proposed as the cheap route and measurement
+overturned it: over 200 candidate B salts on the current population the largest filter has
+a median of 33,070 bytes against the 32,768-byte ceiling, 86 of 200 fit, none stays under
+90 % and the best reaches 91.8 %. The assignment is hash-ordered, so each added selector
+reshuffles it and a salt fitted to today's population is a fresh draw tomorrow.
+
+The change is the two bounds and nothing else: the committed plan carries a 65,536-byte
+filter and a 131,072-byte argument vector, the plan validator pins those values, and the
+four boundary controls of the shard tests move to them. The refusal-at-the-boundary
+controls still pass at the new boundaries, the aggregate and result tests are unchanged,
+and ADR-0063 gains Amendment 4. Counts, salt, algorithm, weights and every job ceiling are
+untouched.
+
+Run against the layout-B-refused population with the new plan, every layout-A filter is
+accepted with the largest at 28,123 bytes and every layout-B filter is accepted with the
+largest at 33,367 bytes, 43 % and 51 % of the new bound, and the two layouts remain
+distinct. The 88 shard tests and 42 result tests pass. What local runs cannot show is how
+the hosted test chain handles a filter above 32 KiB: that is the qualification this record
+leaves open until a complete layout A and a complete layout B pass on the same source.
