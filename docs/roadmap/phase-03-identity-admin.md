@@ -1,15 +1,10 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-19).** P03-0 through P03-8 implementation delivery is complete;
+> **Status (2026-11-21).** P03-0 through P03-9 implementation delivery is complete;
 > Phase 03 remains in progress. Packet closeouts below own the delivered scope.
-> P03-7 is merged in [PR #44](https://github.com/HodeTech/LearnStack/pull/44) under
-> Accepted [ADR-0098](../decisions/0098-session-targeted-back-channel-logout.md).
-> Its [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12)
-> records three steps, reviews/corrections, final-head `dd9721f0` layout B
-> (27/27 jobs) and 25 verified originals. Opposite-layout A/pair qualification
-> remains open before P03-11 exit; merge does not waive it.
-> P03-3/P03-4 final-head B/original-archive follow-ups and P03-6 opposite-layout
-> A/pair qualification also remain open before phase exit. P03-4 has final-source
+> P03-3/P03-4 final-head B/original-archive follow-ups and P03-6/P03-7 opposite-layout
+> A/pair qualification remain open before phase exit; merge waives none (P03-7 merged in
+> [PR #44](https://github.com/HodeTech/LearnStack/pull/44) with final-head layout B only). P03-4 has final-source
 > A only; earlier-source pairs do not close these gaps. P03-5 has verified
 > final-head `b96c2f65` A/B (27/27 each) and fifty originals.
 > P03-3 [manual accessibility evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
@@ -19,12 +14,17 @@
 > P03-6/P03-7 add no new manual UI gate. Earlier intermittent CI causes remain
 > unlocalized except where the dated records establish a specific correction.
 > P03-8 is merged in [PR #45](https://github.com/HodeTech/LearnStack/pull/45) under Accepted
-> [ADR-0099](../decisions/0099-confined-tenant-federation.md) (Amendments 1–9) and
-> [ADR-0100](../decisions/0100-p038-federation-contract-transition.md). Its
-> [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19) records
-> final-head `5eeba2c3` layout A (27/27, attempt 3). Opposite-layout B/pair
-> qualification stays open before P03-11 exit; manual accessibility was not performed.
-> G12 is closed as Accepted; G20 stays Open. P03-10 and P03-11 remain unstarted.
+> [ADR-0099](../decisions/0099-confined-tenant-federation.md) and [ADR-0100](../decisions/0100-p038-federation-contract-transition.md)
+> with final-head layout A only; B/pair qualification stays open before P03-11 exit, manual
+> accessibility was not performed and G12 is closed as Accepted.
+> P03-9 is merged in [PR #46](https://github.com/HodeTech/LearnStack/pull/46) under Accepted
+> [ADR-0101](../decisions/0101-platform-operator-authority.md) to
+> [ADR-0104](../decisions/0104-controlled-issuer-rebind.md), ADR-0099 Amendments 10–13 and
+> ADR-0044 Amendment 18, with final-head layout A only. The layout-B filter ceiling it met is
+> [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md), carried by
+> [PR #47](https://github.com/HodeTech/LearnStack/pull/47); B/pair qualification stays open
+> before P03-11 exit. No manual UI evidence is owed. G13 and G14 are closed as Accepted; G20
+> stays Open. P03-10 and P03-11 remain unstarted.
 >
 > | Packet | Title | State |
 > |---|---|---|
@@ -37,7 +37,7 @@
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-8 | Tenant federation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19); final-head opposite-layout/pair qualification and manual accessibility evidence remain open; the contract-transition items, G20 and the Phase 11 realm items are owned in the closeout |
-> | P03-9 | Platform authority and operational recovery | Decisions Accepted — [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); implementation in progress: Step 1 (operator authority and killswitch), Step 2 (production onboarding), Step 3 (controlled issuer rebind), Step 4 (operator recovery of asynchronous work) and Step 5 (federation operator steps) delivered and twice reviewed; the merge closeout remains |
+> | P03-9 | Platform authority and operational recovery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21); final-head opposite-layout/pair qualification remains open (the layout-B filter ceiling is [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md)); the maintainer items, the P03-10 and Phase 11 constraint and the tooling note are owned in the closeout |
 > | P03-10 | DSAR and global account closure | Not started |
 > | P03-11 | Exit enforcement | Not started |
 
@@ -150,8 +150,8 @@ named part, and the register links each explicit acceptance and vehicle.
 | G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Accepted — 2026-11-11, [ADR-0097 and corrections](phase-03-delivery-log.md#p03-6-maintainer-review-corrections-and-acceptance-2026-11-11); [delivery and evidence record](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12) |
 | G11 | Which back-channel token profile, route and session targets are supported? | Separate OIDC purpose validation, signature/issuer/audience/time/events/no-nonce, replay retention, provider/session indexing and reachability; preserve late-work/accounting fences and unrelated/new session owners | P03-7 | ADR-0070 bounded extension; native route/provider configuration package | Accepted — 2026-11-12, [ADR-0098 and reviewed package](phase-03-delivery-log.md#p03-7-maintainer-review-corrections-and-acceptance-2026-11-12); implementation delivery is merged, with final-source evidence and the remaining pair qualification in the [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12) |
 | G12 | How is realm-level tenant federation confined and safely activated? | Provider ownership, write-only credentials, bounded egress, linking/verified-email trust, MFA assurance, test/activate/rollback and last-login recovery; email/broker claims alone grant no membership | P03-8 | Identity-provider contract under ADR-0004/0064; permission/audit matrices | Accepted — [ADR-0099](../decisions/0099-confined-tenant-federation.md), 2026-11-13, with the [package](phase-03-delivery-log.md#p03-8-proposed-tenant-federation-package-2026-11-13) records; implementation delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19) |
-| G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence, production first-admin/provisioning and exceptional recovery, controlled issuer rebind and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Accepted — 2026-11-19, [ADR-0101](../decisions/0101-platform-operator-authority.md), [ADR-0102](../decisions/0102-production-tenant-onboarding.md) and [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) with the [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); the machine-ingress slice was Accepted earlier under [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md); implementation delivered by P03-9 Steps 1 to 3 and 5 (packet state in the Status block) |
-| G14 | Which dashboard/replay/job-recovery transitions and grants are allowed? | Separate producer reset from targeted subscriber replay; exact permission, reason, stale fences, MUST result audit and runbook; immutable facts and uncertain external reservations survive; dated ADR-0015 disclosure before dashboard admission | P03-9 operational writer | ADR-0046/0047 recovery contract; ADR-0015 disclosure and bounded migrations | Accepted — 2026-11-19, [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) with the [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); no dashboard is admitted; implementation delivered by P03-9 Step 4 (packet state in the Status block) |
+| G13 | How does the operator population authenticate a specific Platform act and retain human attribution? | Resolve ADR-0036's internal-chain rule and undecided platform URL space, tenant/Hub realm separation, no-Hub baseline, service versus human actors, MFA/reason, denied-entry evidence, production first-admin/provisioning and exceptional recovery, controlled issuer rebind and retained-connection lifetime; a new Hub crossing needs a coordinated ADR | P03-9 or first earlier privileged consumer | Operator authority ADR; bounded disclosures/supersession in affected Accepted records; Platform gate contract | Accepted — 2026-11-19, [ADR-0101](../decisions/0101-platform-operator-authority.md), [ADR-0102](../decisions/0102-production-tenant-onboarding.md) and [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) with the [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); the machine-ingress slice was Accepted earlier under [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md); implementation delivered and merged by P03-9 Steps 1 to 3 and 5 ([closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21)) |
+| G14 | Which dashboard/replay/job-recovery transitions and grants are allowed? | Separate producer reset from targeted subscriber replay; exact permission, reason, stale fences, MUST result audit and runbook; immutable facts and uncertain external reservations survive; dated ADR-0015 disclosure before dashboard admission | P03-9 operational writer | ADR-0046/0047 recovery contract; ADR-0015 disclosure and bounded migrations | Accepted — 2026-11-19, [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) with the [record](phase-03-delivery-log.md#p03-9-package-review-dispositions-and-acceptance-2026-11-19); no dashboard is admitted; implementation delivered and merged by P03-9 Step 4 ([closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21)) |
 | G15 | Who may request which person's data in which tenant/org scope and for which recipient/purpose? | Separate self/admin/delegate authority, subject predicates and org boundaries; category is not disclosure authority; resolve third-party data, holds, eligibility and post-erasure status access | P03-10 request writer | Data Protection/Identity request contract and module matrices | Open |
 | G16 | How do exports, closure and privileged redaction finish durably? | Decide artifact delivery/reauthorization/expiry, job/storage prerequisites, participant inventory/write fence, last-membership case and provider finalization; exact erasure grants/order/immutable references, user-reference locators and result-audit/inbox reconciliation | P03-1 only for shared closure-fence invariants; P03-10 workflow | Data Protection and ADR-0044/0046 privileged contract; migrations, module participation and phase package | Accepted shared fence; P03-10 workflow Open |
 | G17 | Which real production subjects and product journeys prove complete phase exit? | All deliverables/criteria, inherited catalogue clauses, no skips/empty censuses, real provider/native/app-role paths, manual accessibility and complete source-bound CI; analyzer escalation stays at exit | P03-11; packets retain their own proof | Phase package, evidence index, catalogue and existing test owners | Open |

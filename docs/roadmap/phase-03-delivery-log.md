@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,291 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,351 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -531,6 +531,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — hosted CI correction, third run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-third-run-2026-11-21) — 24 lines
   - [P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)](#p03-9-step-5--hosted-ci-the-opposite-shard-layout-2026-11-21) — 30 lines
   - [P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)](#p03-9-step-5--a-local-guard-for-unserializable-theory-data-2026-11-21) — 16 lines
+  - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25479,3 +25480,63 @@ This replaces the reflection rule the question proposed. An analyzer knows what 
 serialize, shows the fault in the editor and needs no catalogue entry, and the architecture
 catalogue and its counts are unchanged. Standards 06 states the rule beside the
 discovery protocol it protects.
+
+### P03-9 merge and delivery closeout (2026-11-21)
+
+[PR #46](https://github.com/HodeTech/LearnStack/pull/46) merged into `main` at
+`2026-11-21T14:55:37Z` as `0a2de9bc`, from head `db7776b9`. The packet delivered the
+admitted Platform gate with its killswitch writer, production tenant onboarding, the
+controlled issuer rebind, fenced operator recovery of asynchronous work and the federation
+operator steps, under ADR-0101 to ADR-0104, ADR-0099 Amendments 10 to 13 and ADR-0044
+Amendment 18. No dashboard and no operator CLI or UI exist; the client is the served
+`platform-v1` contract and the runbooks. G13 and G14 are closed as Accepted with their
+implementation delivered; G20 stays Open.
+
+**Final-head evidence.** Head `db7776b9` passed all 27 jobs in layout A on its first
+attempt (run `44895323320`). The local suites on the Step 5 head were 4,387 unit tests, 500
+fast and 180 heavy architecture tests and 4,884 integration tests; the later heads add only
+the corrections below, each verified by the targeted local and hosted runs its record names.
+No original-archive verification was performed for this head, and no manual evidence was
+produced because the packet has no UI.
+
+**What the hosted runs corrected.** The first hosted run of the pull request exposed four
+faults that no local run had shown, recorded in the entries above: two analyzer errors that
+only `CI=true` raises, two theories with parameters xUnit cannot serialize, a rebind-tool
+signal test that polled the database as a role the tool counts as a live session, and a
+layout-B filter above the 32 KiB ceiling. The first three are fixed on `main`. The fourth is
+Accepted as [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md) and
+carried by [PR #47](https://github.com/HodeTech/LearnStack/pull/47). `xUnit1044` and
+`xUnit1045` are now build errors in the test projects, so the second fault cannot recur
+unseen.
+
+**Layout-B and pair qualification stays open.** Layout B for the P03-9 population is
+refused at the filter ceiling, deterministically (33,367 bytes against 32,768; head
+`82d18d8d`, attempt 2). PR #47 raises the bounds; on its source layout B passed 27/27, its
+layout A first attempt failed on two hosted flakes (a Keycloak readiness timeout in
+`ordinary-1` and a frontend development-server test with no frontend file in the diff) and a
+second layout-A attempt was running when this was written. Merging #46 does not waive the
+qualification, which stays open before P03-11 exit.
+
+**Open for the maintainer**, as recorded in the step records and the ADR amendments:
+
+- The completion row's audit outcome is `success` for every closed provider outcome; the
+  provider outcome is `after_state.outcome`.
+- The federation marker's tenant is not checked against `tenants`.
+- Removing an unreadable owned broker with a live row needs it disabled first; this narrows
+  the choice made in review round 1 (ADR-0099 Amendment 13).
+- The Step 2 and Step 4 questions: a user-eligibility-aware recovery predicate, the failure
+  descriptor in the recovery audit row, and the platform role's loss of `SELECT` on the
+  correlation columns of the outbox, which constrains P03-10 and Phase 11.
+- The hosted Keycloak start-up timeout (`readiness_timeout`, TLS, 120 seconds) recurred on
+  this packet's heads in three shards, in both layouts and on #47. Its cause is still
+  unproven and no code is implicated.
+- **Tooling.** `.githooks/pre-commit` runs `git init` and `git config` for its
+  `.leakwatchignore` isolation under the `GIT_DIR` a commit exports. In a linked worktree
+  that `GIT_DIR` is the shared repository, so a worktree commit rewrote the main
+  checkout's configuration (`core.bare = true` and a stray `core.excludesFile`). The
+  settings were restored and the hook is unchanged; clearing `GIT_DIR` for those two calls
+  is the candidate correction, and until then commits belong in a full clone.
+
+P03-10 (subject-scoped DSAR, export, erasure and closure, with G15 and G16 Open) and P03-11
+(complete evidence, gateway scaffold correction, analyzer escalation, with G17 and G18
+Open) remain unstarted.
