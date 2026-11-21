@@ -13,12 +13,10 @@ namespace LearnStack.SharedKernel.Entitlements;
 /// <c>true</c>: a cache outage must not disable every gated path platform-wide.
 /// </para>
 /// <para>
-/// <b>Nothing flips one in this packet.</b> Every toggle runs inside
-/// <c>EnterPlatformAdminScope(reason)</c>, whose registered gate is
-/// <c>DenyAllPlatformAdminGate</c>, so
-/// <see href="../../../../docs/roadmap/phase-03-identity-admin.md">Phase 03</see> owns the
-/// toggle command, its permission and its runbook. Every gated read honours a flipped
-/// switch the day one exists; what is absent is the flipping
+/// <b>One writer flips them.</b> The killswitch toggle service
+/// (<see href="../../../../docs/decisions/0101-platform-operator-authority.md">ADR-0101 § 13</see>)
+/// sets a key from this registry only, inside an admitted platform scope. Every gated read
+/// honours a flipped switch
 /// (<see href="../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
 /// Amendment 1 § 4</see>).
 /// </para>
@@ -61,4 +59,25 @@ public static class KillswitchKeys
             [EmailDispatchEnabled] = true,
             [AnalyticsIngestEnabled] = true,
         }.ToFrozenDictionary();
+
+    private static readonly FrozenDictionary<string, KillswitchKey> ByName =
+        All.Keys.ToFrozenDictionary(key => key.Value, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Resolves a switch the wire names to the registry's own member, so a caller reads a key from here
+    /// and never spells one.
+    /// </summary>
+    /// <param name="name">The key as an operator or a route carries it.</param>
+    /// <param name="key">The registry member when the name is one.</param>
+    /// <returns><c>false</c> for a name the registry does not declare.</returns>
+    public static bool TryResolve(string? name, out KillswitchKey key)
+    {
+        if (name is not null && ByName.TryGetValue(name, out key))
+        {
+            return true;
+        }
+
+        key = default;
+        return false;
+    }
 }

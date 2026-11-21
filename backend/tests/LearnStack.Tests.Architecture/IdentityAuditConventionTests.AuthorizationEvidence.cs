@@ -43,6 +43,7 @@ public sealed partial class IdentityAuditConventionTests
     private const string OrdinaryAuditOwner = "LearnStack.Application.Audit.AuditExecutionCoordinator";
     private static readonly string[] AuthorizationPrimaryKeyFilter = ["23505", "public", "audit_log", "audit_log_pkey"];
     private const string SeedTenancyGuard = "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard";
+    private const string OperatorActGuard = "LearnStack.SharedKernel.Permissions.OperatorActGuard";
     private const string SeedCustomizationGuard = "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard";
     private const string SeedEducationGuard = "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard";
     private const string SeedOriginHandler = "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler";
@@ -99,6 +100,9 @@ public sealed partial class IdentityAuditConventionTests
         (FixedCompletionSource, "HasInvocation", 1),
         (SeedTenancyGuard, "AdmitAsync", 1),
         (SeedTenancyGuard, "RequireCurrent", 1),
+        (OperatorActGuard, "AdmitAsync", 1),
+        (OperatorActGuard, "RequireCurrent", 1),
+        (OperatorActGuard, "RequireLiveAct", 1),
         (SeedTenancyGuard, "AllowsIdentityContinuationAsync", 1),
         (SeedTenancyGuard, "AllowsContentContinuationAsync", 1),
         (SeedTenancyGuard, "<HasPristinePrerequisitesAsync>g__Current|14_0", 1),

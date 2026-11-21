@@ -152,6 +152,31 @@ public static class ApiVersioningExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers the operator contract as its own document, <c>platform-v1</c>, outside the
+    /// pinned tenant document and the tenant SDK (ADR-0101 § 4).
+    /// </summary>
+    /// <remarks>
+    /// Called only when an operator issuer is configured, so a deployment without one serves
+    /// no operator contract. The document includes only <c>api/platform/v1</c> paths, and the
+    /// tenant document's filter includes only <c>api/v1</c>, so neither can carry the other's
+    /// operations.
+    /// </remarks>
+    internal static IServiceCollection AddLearnStackPlatformOperatorOpenApiDocument(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        const string documentName = "platform-v1";
+        RegistryFor(services).Add(documentName);
+        services.AddOpenApi(documentName, options =>
+        {
+            options.ShouldInclude = api =>
+                api.RelativePath?.StartsWith("api/platform/v1/", StringComparison.OrdinalIgnoreCase) == true;
+            options.AddSchemaTransformer(new StronglyTypedIdSchemaTransformer());
+            options.AddDocumentTransformer(new Authentication.PlatformOperatorDocumentTransformer(documentName));
+        });
+        return services;
+    }
+
     private static OpenApiDocumentRegistry RegistryFor(IServiceCollection services)
     {
         if (services.FirstOrDefault(d => d.ServiceType == typeof(OpenApiDocumentRegistry))

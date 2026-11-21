@@ -114,6 +114,7 @@ public sealed partial class GlobalIdentityBindingService(
         catch (NpgsqlException) { result = StorageFailure(owner); }
         catch (AuditWriteFailedException) { result = StorageFailure(owner); }
         catch (UserBindingStorageException) { result = StorageFailure(owner); }
+        catch (IdentityAuthorityChangedException) { result = StorageFailure(owner); }
         catch (IOException) { result = StorageFailure(owner); }
         catch (TimeoutException) { result = StorageFailure(owner); }
         finally { cleanupSucceeded = await DisposeOwnerAsync(owner); }

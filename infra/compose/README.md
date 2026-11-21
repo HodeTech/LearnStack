@@ -56,7 +56,12 @@ Two realms imported on first boot from `infra/keycloak/realms/`:
 - `learnstack` (tenant users) — confidential API and code/S256 web clients, with
   four declared tenant personas. The [realm guide](../keycloak/README.md) owns
   the exact identities, private secret source and callbacks.
-- `learnstack-hub` (operators) — client `learnstack-hub-web` (public PKCE); demo user `demo-operator@learnstack.test` (`demo-dev-secret`). `CONFIGURE_TOTP` required-action present so the MFA flow surfaces in dev.
+- `learnstack-hub` (operators) — clients `learnstack-hub-web` (the portal, public PKCE)
+  and `learnstack-operator` (LearnStack's platform surface, public PKCE with MFA
+  step-up); demo user `demo-operator@learnstack.test` (`demo-dev-secret`).
+  `CONFIGURE_TOTP` is a required action, so the first login sets up the authenticator
+  the step-up needs. A Keycloak volume from before the operator client keeps its old
+  realm; recreate it to import the new one.
 
 See [../keycloak/README.md](../keycloak/README.md) for the realm-isolation
 invariant, non-destructive reconciliation and the Phase 02b/03 wiring notes.
@@ -67,7 +72,7 @@ fresh `postgres-data` volume**:
 | Script | Creates |
 |---|---|
 | `postgres-init/01-create-keycloak-db.sql` | the `keycloak` database Keycloak stores its realm state in |
-| `postgres-init/02-create-roles.sql` | the four baseline database roles plus ADR-0097’s confined `learnstack_identity_ingress` login, reading passwords from `LEARNSTACK_*_PW` in the environment |
+| `postgres-init/02-create-roles.sql` | the four baseline database roles plus ADR-0097’s confined `learnstack_identity_ingress` and ADR-0104’s confined `learnstack_identity_rebind` logins, reading passwords from `LEARNSTACK_*_PW` in the environment |
 
 **A volume created before Phase 02a Packet 6 has no roles**, and nothing will
 tell you: init scripts do not re-run, `make dev` reports healthy, and the first
@@ -80,12 +85,14 @@ docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c
 ```
 
 The script converges passwords, attributes and memberships on every run; it is
-not a no-op. P03-6's forward Identity migration requires the fifth role to exist.
-For a warm volume, set `LEARNSTACK_IDENTITY_INGRESS_PW` in the selected private
-environment, recreate the postgres container with the existing volume to pass
-the new environment value, then apply the roles script above before `make migrate`.
-Do not delete a volume to add the role. No runtime process receives the migration
-password. The [database contract](../../docs/standards/05-database.md#provider-event-intake-storage)
+not a no-op. P03-6's forward Identity migration requires the fifth role to exist,
+and the P03-9 Step 3 Identity migration requires the sixth. For a warm volume, set
+`LEARNSTACK_IDENTITY_INGRESS_PW` and `LEARNSTACK_IDENTITY_REBIND_PW` in the selected
+private environment, recreate the postgres container with the existing volume to pass
+the new environment values, then apply the roles script above before `make migrate`.
+Do not delete a volume to add a role. The sixth role's connection string is never a
+compose or host setting: it exists only in the environment of the offline rebind tool.
+No runtime process receives the migration password. The [database contract](../../docs/standards/05-database.md#provider-event-intake-storage)
 owns the private machine source and its bounds; installing storage alone does
 not activate provider polling.
 

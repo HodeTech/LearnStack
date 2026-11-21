@@ -1,10 +1,12 @@
 using LearnStack.Application.Jobs;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +16,7 @@ using Npgsql;
 namespace LearnStack.Infrastructure.MultiTenancy;
 
 /// <summary>
-/// Opens a <c>learnstack_platform</c> connection, on its own, for one bounded operation.
+/// Opens a <c>learnstack_platform</c> connection, on its own, for one admitted operator act.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,8 +36,13 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// <b>No <c>set_config('app.tenant_id', …)</c>, and no <c>SET TRANSACTION READ ONLY</c>.</b>
 /// The first because there is no policy to announce to — the role bypasses them — which
 /// is also why this is not a ninth out-of-band setter. The second because nothing calls
-/// this path read-only: both named consumers, GDPR redaction and the retention purge,
-/// write.
+/// this path read-only.
+/// </para>
+/// <para>
+/// <b>Admission before entry.</b> The caller holds a <see cref="PlatformAdmission"/> that
+/// <see cref="IPlatformOperatorGate"/> minted after evaluating a grant, so a refused operator
+/// never reaches a connection (ADR-0036, ADR-0101 § 7). Entry no longer asks a gate; the
+/// admission is the proof. An act that needs only the app or outbox role never enters here.
 /// </para>
 /// <para>
 /// <b>Entry is audited, and refusing to record it refuses the entry.</b> Every
@@ -46,13 +53,15 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>).
 /// The scope is a <b>singleton</b> and <c>IAuditStore</c> is <b>scoped</b>, which is why
 /// the store is resolved from a fresh <see cref="IServiceScopeFactory"/> scope per entry
-/// rather than injected: this path is entered from background work as readily as from a
-/// request, so there is not always an ambient scope to capture — and capturing one on a
-/// singleton would hand every later entry the first caller's.
+/// rather than injected.
+/// </para>
+/// <para>
+/// <b>The handle is a facade.</b> It exposes no connection or transaction, because a
+/// reference captured before the commit would run in autocommit on a connection that sees
+/// every tenant. Completion and abandonment close the connection.
 /// </para>
 /// </remarks>
 public sealed class PlatformAdminScope(
-    IPlatformAdminGate gate,
     [FromKeyedServices(PlatformAdminScope.PlatformDataSourceKey)] PrivilegedDataSource dataSource,
     IAuditCatalog catalog,
     IServiceScopeFactory scopeFactory,
@@ -78,8 +87,6 @@ public sealed class PlatformAdminScope(
     /// </remarks>
     public const string EnterOperation = "platform.admin_scope.enter";
 
-    private readonly IPlatformAdminGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
-
     private readonly PrivilegedDataSource _dataSource =
         dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
@@ -100,43 +107,50 @@ public sealed class PlatformAdminScope(
     /// <remarks>
     /// The <c>[Caller*]</c> attributes are restated here and not left to the interface.
     /// C# fills them in from the <b>static type of the receiver</b>, so a caller holding
-    /// the concrete <see cref="PlatformAdminScope"/> — every test that constructs it
-    /// directly, and anything resolving it by implementation type — would otherwise get
-    /// the bare defaults and log <c>&lt;unknown&gt;</c> at <c>&lt;unknown&gt;:0</c>.
-    /// Losing the provenance silently is exactly what this record exists to prevent.
+    /// the concrete <see cref="PlatformAdminScope"/> would otherwise get the bare defaults
+    /// and log <c>&lt;unknown&gt;</c> at <c>&lt;unknown&gt;:0</c>.
     /// </remarks>
     public async Task<IPlatformAdminScopeHandle> EnterAsync(
-        string reason,
+        PlatformAdmission admission,
         CancellationToken cancellationToken = default,
         [CallerMemberName] string? callerMember = null,
         [CallerFilePath] string? callerFile = null,
         [CallerLineNumber] int callerLine = 0)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentNullException.ThrowIfNull(admission);
+        if (!PlatformOperations.IsRegistered(admission.Operation) || !admission.Operation.NeedsPlatformRole)
+        {
+            throw new ArgumentException(
+                "The admission is for an operation that does not use the platform role.", nameof(admission));
+        }
+
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
 
-        // 1. The gate, before anything opens. ADR-0036 asks for the permission to be
-        //    "checked before the scope opens", and a check after the connection exists
-        //    would already have spent a BYPASSRLS connection on a refused caller.
-        if (!await _gate.IsPermittedAsync(reason, cancellationToken))
+        // 0. The admission is short lived and single use. A stale one, or one already spent,
+        //    never reaches a connection: the grant was evaluated for a moment and an act, and
+        //    a kept or replayed proof would turn that into a standing capability.
+        if ((_clock.UtcNow - admission.IssuedAt).Duration() > PlatformAdmission.MaximumAge)
         {
-            throw new PlatformAdminScopeDeniedException(reason);
+            throw new InvalidOperationException(
+                "The platform admission is stale. An act asks the gate again rather than reusing a proof.");
         }
 
-        // 2. The catalogue's own declaration, before the connection. It is what fixes the
-        //    tier and the operation type, so the row and `docs/modules/tenancy/audit.md`
-        //    cannot say different things — and an absent declaration is refused here
-        //    rather than papered over with a hard-coded MUST, because a deployment whose
-        //    catalogue lost this slug must not enter a cross-tenant scope unrecorded.
-        if (!_catalog.TryGetOffPath(EnterOperation, out var declared))
+        if (!admission.TryConsume())
         {
-            throw new AuditWriteFailedException(
-                $"'{EnterOperation}' is not in the audit catalogue, so entry into a "
-                + "cross-tenant scope cannot be recorded and must not happen. It is "
-                + "declared off-path by the Tenancy source (ADR-0044 § 10).");
+            throw new InvalidOperationException(
+                "The platform admission was already used to enter a scope. One admission opens one scope.");
         }
 
-        // 3. The credential. Opening through the guarded facade here is where an absent
+        // 1. The catalogue's own declarations, before the connection. They fix the tier and
+        //    the operation type, so the rows and `docs/modules/tenancy/audit.md` cannot say
+        //    different things, and an absent declaration is refused here rather than papered
+        //    over with a hard-coded MUST: a deployment whose catalogue lost either slug must
+        //    not enter a cross-tenant scope unrecorded.
+        var declaredEntry = Declared(EnterOperation);
+        var declaredResult = Declared(admission.Operation.AuditSlug);
+        var declaredIntent = admission.Operation.AttemptAuditSlug is { } attemptSlug ? Declared(attemptSlug) : null;
+
+        // 2. The credential. Opening through the guarded facade here is where an absent
         //    ConnectionStrings:PlatformAdmin surfaces — on entry, at the first call, with
         //    a message naming the key rather than a container error naming a type.
         var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -144,63 +158,72 @@ public sealed class PlatformAdminScope(
 
         try
         {
-            // 4. The row, BEFORE the privileged work can begin and in a transaction of its
+            // 3. The row, BEFORE the privileged work can begin and in a transaction of its
             //    OWN that commits first — so an operation that later fails, throws, or is
-            //    simply abandoned is still on the record, which is the sentence ADR-0044
-            //    § 10 writes. It rode the business transaction until the review of this
-            //    packet: a caller that read across every tenant on the handle and then threw
-            //    took the only record of that read down with its rollback. Reading one's own
-            //    transaction back is not durability.
-            //
-            //    learnstack_app cannot write under the platform sentinel at all, which is
-            //    why the row cannot ride the request's connection (ADR-0044 § 10). A failure
-            //    here throws out of EnterAsync and the catch below disposes the connection:
-            //    an unrecordable entry is a refused entry, and no business transaction has
-            //    been begun for it.
-            var entry = Compose(reason, declared, callerMember, callerFile, callerLine);
+            //    simply abandoned is still on the record (ADR-0044 § 10). Reading one's own
+            //    transaction back is not durability. learnstack_app cannot write under the
+            //    platform sentinel at all, which is why the row cannot ride the request's
+            //    connection. A failure here throws out of EnterAsync and the catch below
+            //    disposes the connection: an unrecordable entry is a refused entry.
+            var entry = ComposeEntry(admission, declaredEntry, callerMember, callerFile, callerLine);
 
             await RecordAsync(entry, connection, cancellationToken);
 
-            // 5. Only now the transaction the caller works in. A row whose entry then failed
+            // 4. Only now the transaction the caller works in. A row whose entry then failed
             //    to begin one records a permitted, recorded entry that handed nothing out —
-            //    the rarer and the honest side of the trade: the other side is a handed-out
-            //    BYPASSRLS connection with no durable record behind it.
+            //    the honest side of the trade: the other side is a handed-out BYPASSRLS
+            //    connection with no durable record behind it.
             transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-            // 6. And the log line as well, which the row does not replace operationally.
-            //    The row is the durable record a compliance reviewer reads afterwards;
-            //    this is the line an operator alerting at Warning sees while it is
-            //    happening. It carries the row's id, so the two are one another's index.
+            // 5. And the log line as well, which the row does not replace operationally.
             LogEntered(
                 _logger,
-                reason,
+                admission.Operation.ReasonSlug,
                 callerMember ?? "<unknown>",
                 ShortPath(callerFile),
                 callerLine,
                 entry.Id.Value,
                 null);
 
-            return new Handle(connection, transaction, _logger);
+            return new Handle(
+                connection,
+                transaction,
+                (result, current, token) => WriteResultAsync(admission, declaredResult, result, connection, current, token),
+                declaredIntent is null
+                    ? null
+                    : (result, current, token) => WriteIntentAsync(admission, declaredIntent, result, connection, current, token),
+                () => PlatformOperatorMetrics.Result(admission.Operation),
+                _logger);
         }
         catch
         {
-            // The business transaction exists here only if something after its BEGIN threw
-            // — the log line, in practice never — and its disposal is NOT independently
-            // observable, which is better said than implied: disposing the connection rolls
-            // back and clears whatever transaction is open on it. What it buys is not
-            // depending on that, because the rollback-on-close is Npgsql's own behaviour
-            // rather than anything DbTransaction promises. The connection disposal below is
-            // the one the refused-entry case kills, and it is in the same catch because an
-            // entry that threw must not keep the one connection that sees every tenant.
-            if (transaction is not null)
+            // The work transaction exists here only if something after its BEGIN threw, and
+            // its disposal is not independently observable: disposing the connection rolls
+            // back whatever is open on it. The connection disposal below is the one the
+            // refused-entry case kills, and it is in the same catch because an entry that
+            // threw must not keep the one connection that sees every tenant.
+            try
             {
-                await transaction.DisposeAsync();
+                if (transaction is not null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
+            finally
+            {
+                await connection.DisposeAsync();
             }
 
-            await connection.DisposeAsync();
             throw;
         }
     }
+
+    private AuditCatalogEntry Declared(string slug) =>
+        _catalog.TryGetOffPath(slug, out var declared)
+            ? declared
+            : throw new AuditWriteFailedException(
+                $"'{slug}' is not in the audit catalogue, so a cross-tenant act cannot be recorded "
+                + "and must not happen. It is declared off-path by the Tenancy source (ADR-0044 § 10).");
 
     /// <summary>
     /// Writes the entry row on the scope's connection, in a transaction of its own, and
@@ -208,8 +231,8 @@ public sealed class PlatformAdminScope(
     /// </summary>
     /// <remarks>
     /// Disposing the recording transaction uncommitted rolls it back, so a write that fails
-    /// leaves nothing behind — and nothing has been handed out, because the business
-    /// transaction is begun only after this returns.
+    /// leaves nothing behind — and nothing has been handed out, because the work transaction
+    /// is begun only after this returns.
     /// </remarks>
     private async Task RecordAsync(
         AuditEntryDraft entry, NpgsqlConnection connection, CancellationToken cancellationToken)
@@ -227,28 +250,134 @@ public sealed class PlatformAdminScope(
     }
 
     /// <summary>
-    /// The row one entry writes: the sentinel tenant, the catalogue's tier, and the
-    /// caller's provenance.
+    /// Writes the act's MUST result row on the work transaction, through the witness-bound
+    /// method (ADR-0101 § 10).
+    /// </summary>
+    private async Task WriteResultAsync(
+        PlatformAdmission admission,
+        AuditCatalogEntry declared,
+        PlatformResult result,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var draft = ComposeOperatorRow(admission, declared, result, AuditOutcome.Success);
+
+        await using var services = _scopeFactory.CreateAsyncScope();
+        await services.ServiceProvider
+            .GetRequiredService<IAuditStore>()
+            .WritePlatformOperatorResultAsync(draft, admission, connection, transaction, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes the act's MUST intent row on the work transaction, through the witness-bound method; the handle
+    /// commits it before the effect starts (ADR-0099 Amendment 11).
+    /// </summary>
+    private async Task WriteIntentAsync(
+        PlatformAdmission admission,
+        AuditCatalogEntry declared,
+        PlatformResult intent,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var draft = ComposeOperatorRow(admission, declared, intent, AuditOutcome.Indeterminate);
+
+        await using var services = _scopeFactory.CreateAsyncScope();
+        await services.ServiceProvider
+            .GetRequiredService<IAuditStore>()
+            .WritePlatformOperatorIntentAsync(draft, admission, connection, transaction, cancellationToken);
+    }
+
+    private AuditEntryDraft ComposeOperatorRow(
+        PlatformAdmission admission, AuditCatalogEntry declared, PlatformResult result, AuditOutcome outcome)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (!StronglyTypedId.IsAssigned(result.TenantId))
+        {
+            throw new ArgumentException("A result row needs an assigned tenant.", nameof(result));
+        }
+
+        // A caller's state is checked here, as a programming error, before it can reach the database
+        // and come back as a write failure the endpoint would report as an audit outage.
+        RequireJsonState(result.BeforeState, nameof(result.BeforeState));
+        RequireJsonState(result.AfterState, nameof(result.AfterState));
+
+        // The ticket stays out of a row a tenant can read: it appears only under the sentinel.
+        var isSentinel = result.TenantId == TenantId.PlatformSentinel;
+        return new AuditEntryDraft
+        {
+            Id = AuditEntryId.From(_guidFactory.NewUuidV7()),
+            TenantId = result.TenantId,
+            OrganizationId = null,
+            ActorUserId = null,
+            ActorEmail = null,
+            ModuleName = declared.ModuleName,
+            Operation = declared.Operation,
+            OperationType = declared.OperationType,
+            OperationClass = declared.OperationClass,
+            EntityType = result.EntityType ?? declared.EntityType?.Name,
+            EntityId = result.EntityId,
+            Outcome = outcome,
+            ErrorKey = null,
+            Reason = admission.Operation.ReasonSlug,
+            BeforeState = result.BeforeState,
+            AfterState = result.AfterState,
+            Changes = null,
+            CorrelationId = admission.Operator.CorrelationId,
+            IpAddress = null,
+            UserAgent = null,
+            Timestamp = _clock.UtcNow,
+            Metadata = OperatorMetadata(admission, includeTicket: isSentinel, provenance: null),
+        };
+    }
+
+    private const int MaximumStateBytes = 32 * 1024;
+
+    private static void RequireJsonState(string? state, string name)
+    {
+        if (state is null)
+        {
+            return;
+        }
+
+        if (System.Text.Encoding.UTF8.GetByteCount(state) > MaximumStateBytes)
+        {
+            throw new ArgumentException($"The {name} of a result row is larger than {MaximumStateBytes} bytes.", name);
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(state);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            throw new ArgumentException($"The {name} of a result row is not well-formed JSON.", name);
+        }
+    }
+
+    /// <summary>
+    /// The row one entry writes: the sentinel tenant, the catalogue's tier, the operator and
+    /// the caller's provenance.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>The only class of row that carries <see cref="TenantId.PlatformSentinel"/>.</b>
-    /// It is a platform-scope operation with no resolvable tenant, and it is written
-    /// standalone on the scope's own platform-role connection — which is the one place the
-    /// sentinel is legal, every other announcement site refusing it (ADR-0044 § 1, § 10).
+    /// <b>The platform-scope class of ADR-0044 § 1.</b> It is a platform-scope operation
+    /// with no resolvable tenant, written standalone on the scope's own platform-role
+    /// connection — the one place the sentinel is legal, every other announcement site
+    /// refusing it.
     /// </para>
     /// <para>
-    /// <b>No actor and no correlation id.</b> Tenant authentication is live, but this
-    /// scope accepts no operator identity and its platform-permission gate denies all
-    /// callers until Phase 03. Compiler-supplied provenance lands in <c>metadata</c>
-    /// rather than being flattened into <c>reason</c>: the reason is an operator-authored
-    /// slug that a query groups by, and appending a file and a line to it would make every
-    /// group of one. The correlation id is scoped state, and this scope is entered from
-    /// background work as readily as from a request.
+    /// <b>No actor user id, and the operator in metadata.</b> An operator is not a
+    /// <c>users</c> row (ADR-0101 § 9), so the actor column stays NULL and
+    /// <c>metadata.operator</c> carries the issuer, the subject digest, the kind, the
+    /// accepted <c>acr</c> and the executor. Compiler-supplied provenance lands in
+    /// <c>metadata</c> rather than in <c>reason</c>: the reason is a closed slug that a
+    /// query groups by.
     /// </para>
     /// </remarks>
-    private AuditEntryDraft Compose(
-        string reason,
+    private AuditEntryDraft ComposeEntry(
+        PlatformAdmission admission,
         AuditCatalogEntry declared,
         string? callerMember,
         string? callerFile,
@@ -268,34 +397,31 @@ public sealed class PlatformAdminScope(
             EntityId = null,
             Outcome = AuditOutcome.Success,
             ErrorKey = null,
-            Reason = reason,
+            Reason = admission.Operation.ReasonSlug,
             BeforeState = null,
             AfterState = null,
             Changes = null,
-            CorrelationId = null,
+            CorrelationId = admission.Operator.CorrelationId,
             IpAddress = null,
             UserAgent = null,
             Timestamp = _clock.UtcNow,
-            Metadata = Provenance(callerMember, callerFile, callerLine),
+            Metadata = OperatorMetadata(admission, includeTicket: true, Provenance(callerMember, callerFile, callerLine)),
         };
 
-    /// <summary>The calling site, as the row's <c>metadata</c> document.</summary>
-    private static string Provenance(string? callerMember, string? callerFile, int callerLine) =>
-        AuditJson.CapObject(
-            "{\"caller\":{"
-            + "\"member\":" + AuditJson.Quote(callerMember ?? "<unknown>")
-            + ",\"file\":" + AuditJson.Quote(ShortPath(callerFile))
-            + ",\"line\":" + callerLine.ToString(CultureInfo.InvariantCulture)
-            + "}}");
+    private static string OperatorMetadata(PlatformAdmission admission, bool includeTicket, string? provenance) =>
+        "{"
+        + (provenance is null ? string.Empty : "\"caller\":" + provenance + ",")
+        + "\"operator\":"
+        + PlatformOperatorAttribution.From(admission).ToOperatorJson(includeTicket ? admission.Ticket : null)
+        + "}";
 
-    /// <summary>
-    /// The last two segments of a compile-time path.
-    /// </summary>
-    /// <remarks>
-    /// <c>CallerFilePath</c> is the absolute path on the machine that compiled the
-    /// assembly, so logging it whole puts a build-agent directory layout into every
-    /// forwarded line and tells a reader nothing the file name does not.
-    /// </remarks>
+    private static string Provenance(string? callerMember, string? callerFile, int callerLine) =>
+        "{"
+        + "\"member\":" + AuditJson.Quote(callerMember ?? "<unknown>")
+        + ",\"file\":" + AuditJson.Quote(ShortPath(callerFile))
+        + ",\"line\":" + callerLine.ToString(CultureInfo.InvariantCulture)
+        + "}";
+
     private static string ShortPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -307,14 +433,6 @@ public sealed class PlatformAdminScope(
         return segments.Length <= 2 ? string.Join('/', segments) : string.Join('/', segments[^2..]);
     }
 
-    // Warning, because a cross-tenant bypass is not an ordinary event and an operator
-    // filtering at Information must still see it. Still no tenant id: every one of these
-    // rows carries TenantId.PlatformSentinel, so logging it would be a constant.
-    //
-    // The audit entry id is what the line gained in Packet 9. The row is the durable
-    // record and this is the real-time signal, and without the id an operator alerting on
-    // the line has no key to find the row it is about — which is the whole of what the
-    // two are worth together.
     private static readonly Action<ILogger, string, string, string, int, Guid, Exception?> LogEntered =
         LoggerMessage.Define<string, string, string, int, Guid>(
             LogLevel.Warning,
@@ -322,56 +440,195 @@ public sealed class PlatformAdminScope(
             "Platform-admin scope entered: {Reason} (from {Member} at {File}:{Line}). "
             + "Cross-tenant access under learnstack_platform, audit row {AuditEntryId}.");
 
-    /// <summary>One entry's connection and transaction.</summary>
+    /// <summary>
+    /// The bounded facade over one work transaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One statement, a DML verb.</b> A statement must start with <c>SELECT</c>,
+    /// <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c> or <c>WITH</c> and contain no further
+    /// statement, so a caller cannot send <c>COMMIT</c>, <c>SET</c> or <c>BEGIN</c> through the
+    /// facade and end or reshape the transaction the result row is bound to. This is a guard
+    /// against a mistake by trusted code, not a sandbox: the architecture rules decide who may
+    /// hold a handle at all.
+    /// </para>
+    /// <para>
+    /// <b>A result row, and no failed statement, before the commit.</b> A state change that
+    /// commits without its MUST row is the failure this scope exists to prevent, and a
+    /// statement that threw leaves PostgreSQL's transaction aborted, so a later commit would
+    /// silently roll back. A read-only scope has nothing to commit and ends by disposal.
+    /// </para>
+    /// <para>
+    /// <b>The result row is last.</b> A statement after it could change state the row does not
+    /// describe, so the facade refuses one. No statement may name <c>audit_log</c> either: the
+    /// platform role holds audit maintenance rights for retention, and a scope that rewrote the
+    /// record of its own act would defeat it.
+    /// </para>
+    /// <para>
+    /// <b>One owner.</b> A handle is used by the single call that entered it, on one logical
+    /// thread; it is not safe for concurrent use.
+    /// </para>
+    /// </remarks>
     private sealed class Handle(
-        NpgsqlConnection connection, DbTransaction transaction, ILogger logger)
+        NpgsqlConnection connection,
+        NpgsqlTransaction firstTransaction,
+        Func<PlatformResult, NpgsqlTransaction, CancellationToken, Task> writeResult,
+        Func<PlatformResult, NpgsqlTransaction, CancellationToken, Task>? writeIntent,
+        Action onCommitted,
+        ILogger logger)
         : IPlatformAdminScopeHandle
     {
+        private static readonly string[] StatementVerbs = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH"];
+
+        // Replaced once, at the intent checkpoint: the first transaction commits the intent row alone, and the work
+        // that follows runs in a fresh one on the same connection.
+        private NpgsqlTransaction _transaction = firstTransaction;
         private bool _resolved;
         private bool _disposed;
+        private bool _faulted;
+        private bool _intentWritten;
+        private bool _resultWritten;
 
-        public DbConnection Connection
+        public async Task<int> ExecuteAsync(
+            string sql, IReadOnlyList<PlatformSqlParameter>? parameters = null, CancellationToken cancellationToken = default)
         {
-            get
+            EnsureUsable();
+            EnsureStatementsAllowed();
+            await using var command = Build(sql, parameters);
+            try
             {
-                EnsureUsable();
-                return connection;
+                return await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch
+            {
+                _faulted = true;
+                throw;
             }
         }
 
-        public DbTransaction Transaction
+        public async Task<IReadOnlyList<T>> QueryAsync<T>(
+            string sql,
+            IReadOnlyList<PlatformSqlParameter>? parameters,
+            Func<DbDataReader, T> map,
+            CancellationToken cancellationToken = default)
         {
-            get
+            EnsureUsable();
+            EnsureStatementsAllowed();
+            ArgumentNullException.ThrowIfNull(map);
+            await using var command = Build(sql, parameters);
+            try
             {
-                EnsureUsable();
-                return transaction;
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                var rows = new List<T>();
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    rows.Add(map(reader));
+                }
+
+                return rows;
             }
+            catch
+            {
+                _faulted = true;
+                throw;
+            }
+        }
+
+        public async Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default)
+        {
+            EnsureUsable();
+            if (writeIntent is null)
+            {
+                throw new InvalidOperationException("This operation declares no intent checkpoint.");
+            }
+
+            if (_intentWritten || _resultWritten)
+            {
+                throw new InvalidOperationException(
+                    "An intent row is written once, before the result row.");
+            }
+
+            try
+            {
+                await writeIntent(intent, _transaction, cancellationToken);
+            }
+            catch (Exception failure) when (failure is not ArgumentException)
+            {
+                _faulted = true;
+                throw;
+            }
+
+            try
+            {
+                // The row commits alone and before the effect: an effect that later fails, or a process that dies,
+                // leaves it standing. A commit whose outcome is unknown stops the act all the same, because the
+                // effect must not start on an intent nobody can prove was recorded.
+                await _transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception failure) when (failure is not (OutOfMemoryException or AccessViolationException))
+            {
+                // Any failure of the commit, a connection already broken included, stops the effect: it must not start on
+                // an intent nobody can prove was recorded (ADR-0044 Amendment 18).
+                _faulted = true;
+                throw new AuditWriteFailedException(
+                    "The platform operator intent row could not be committed, so the effect must not start.", failure);
+            }
+
+            try
+            {
+                await _transaction.DisposeAsync();
+                _transaction = await connection.BeginTransactionAsync(cancellationToken);
+            }
+            catch
+            {
+                _faulted = true;
+                throw;
+            }
+
+            _intentWritten = true;
+        }
+
+        public async Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
+        {
+            EnsureUsable();
+            if (writeIntent is not null && !_intentWritten)
+            {
+                throw new InvalidOperationException(
+                    "An operation with an intent checkpoint writes its intent row before its result row.");
+            }
+
+            try
+            {
+                await writeResult(result, _transaction, cancellationToken);
+            }
+            catch (Exception failure) when (failure is not ArgumentException)
+            {
+                // An argument the scope refused before it wrote anything leaves the transaction intact;
+                // anything else may have left it aborted.
+                _faulted = true;
+                throw;
+            }
+
+            _resultWritten = true;
         }
 
         public async Task CommitAsync(CancellationToken cancellationToken = default)
         {
             EnsureUsable();
+            if (!_resultWritten)
+            {
+                throw new InvalidOperationException(
+                    "A platform scope commits only after its MUST result row is written. An act with "
+                    + "nothing to record ends by disposal, which rolls back.");
+            }
 
-            // Marked resolved BEFORE the await. Two things depend on the ordering and
-            // only one of them is observable, which is worth saying rather than
-            // implying. A COMMIT that faults at the server —
-            // a deferred constraint, a serialization failure — leaves the outcome
-            // genuinely unknown, and ADR-0033 calls that state Indeterminate rather
-            // than failed. Setting the flag afterwards would leave it false, so
-            // disposal would issue ROLLBACK on a transaction that is already over,
-            // which throws, which skips both disposals, which strands a BYPASSRLS
-            // connection outside the pool for the life of the process — measured, and
-            // it also replaces the caller's real PostgresException with a bookkeeping
-            // one. NpgsqlUnitOfWork nulls its transaction before the same await for the
-            // same reason.
-            //
-            // The catch in DisposeAsync makes that leak impossible on its own, so with
-            // both present this ordering is not independently observable — no test here
-            // fails if it is reverted, and none pretends to. What it still buys is the
-            // semantics: a faulted commit is Indeterminate, and attempting to undo an
-            // outcome nobody knows is a different claim from declining to.
             _resolved = true;
-            await transaction.CommitAsync(cancellationToken);
+            await _transaction.CommitAsync(cancellationToken);
+            onCommitted();
+
+            // The connection closes at completion, not at disposal: nothing may run on a
+            // connection that sees every tenant once its transaction is over.
+            await CloseAsync();
         }
 
         public async ValueTask DisposeAsync()
@@ -381,58 +638,93 @@ public sealed class PlatformAdminScope(
                 return;
             }
 
-            _disposed = true;
-
             try
             {
-                // Only an ABANDONED frame is rolled back. A frame that ended without
-                // resolving has failed, and leaving its writes for a later decision is
-                // how a partial cross-tenant mutation ships. A faulted commit is not
-                // that case and is deliberately left alone.
-                //
-                // The explicit rollback stays rather than relying on disposal: this
-                // field is a DbTransaction, whose base DisposeAsync delegates to an
-                // empty Dispose(bool). Rolling back on dispose is NpgsqlTransaction's
-                // own override, so dropping the line would make a cross-tenant rollback
-                // depend on the runtime type behind a base-class reference.
                 if (!_resolved)
                 {
                     try
                     {
-                        await transaction.RollbackAsync();
+                        await _transaction.RollbackAsync();
                     }
                     catch (Exception failure) when (failure is InvalidOperationException or NpgsqlException)
                     {
-                        // A connection already broken by the failure being cleaned up
-                        // after is the ordinary way here. Logged and swallowed, because
-                        // throwing from disposal replaces whatever the caller was
-                        // actually failing on.
                         LogRollbackFailed(logger, failure);
                     }
                 }
-
-                await transaction.DisposeAsync();
             }
             finally
             {
-                // In a finally. Nothing above may strand the one connection in this
-                // process that sees every tenant.
+                await CloseAsync();
+            }
+        }
+
+        private async ValueTask CloseAsync()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            try
+            {
+                await _transaction.DisposeAsync();
+            }
+            finally
+            {
                 await connection.DisposeAsync();
             }
         }
 
-        /// <summary>
-        /// Refuses a handle that is disposed or already resolved.
-        /// </summary>
-        /// <remarks>
-        /// <b>Resolved is terminal, and fencing <c>Connection</c> is the half that
-        /// matters.</b> Measured: after a successful commit the connection is still
-        /// open, so a statement issued on it runs in <i>autocommit</i> — on a
-        /// <c>BYPASSRLS</c> connection, with no transaction to undo it. A write there
-        /// survives <c>DisposeAsync</c>, which is the exact opposite of what this
-        /// type's contract promises. Fencing only <c>Transaction</c> would leave that
-        /// hole open.
-        /// </remarks>
+        private NpgsqlCommand Build(string sql, IReadOnlyList<PlatformSqlParameter>? parameters)
+        {
+            RequireOneStatement(sql);
+            var command = new NpgsqlCommand(sql, connection, _transaction);
+            if (parameters is not null)
+            {
+                foreach (var parameter in parameters)
+                {
+                    command.Parameters.AddWithValue(parameter.Name, parameter.Value ?? DBNull.Value);
+                }
+            }
+
+            return command;
+        }
+
+        private static void RequireOneStatement(string sql)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sql);
+            var text = sql.AsSpan().Trim();
+            if (text.EndsWith(";"))
+            {
+                text = text[..^1].TrimEnd();
+            }
+
+            var verbEnd = text.IndexOfAny(" \t\r\n(");
+            var verb = (verbEnd < 0 ? text : text[..verbEnd]).ToString();
+            if (text.Contains(';') || !StatementVerbs.Contains(verb, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    "A platform scope statement is a single SELECT, INSERT, UPDATE, DELETE or WITH statement.",
+                    nameof(sql));
+            }
+
+            if (text.Contains("audit_log", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("A platform scope statement cannot name the audit log.", nameof(sql));
+            }
+        }
+
+        private void EnsureStatementsAllowed()
+        {
+            if (_resultWritten)
+            {
+                throw new InvalidOperationException(
+                    "A platform scope's result row is its last write. A statement after it could change "
+                    + "state the row does not describe; run it before the row.");
+            }
+        }
+
         private void EnsureUsable()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -442,8 +734,14 @@ public sealed class PlatformAdminScope(
                 throw new InvalidOperationException(
                     "This platform-admin scope has been resolved and is no longer usable. "
                     + "A caller needing further cross-tenant work takes a fresh scope: the "
-                    + "connection bypasses Row Level Security, and a statement issued after "
-                    + "the commit runs in autocommit, so disposal cannot roll it back.");
+                    + "connection bypasses Row Level Security and is closed at completion.");
+            }
+
+            if (_faulted)
+            {
+                throw new InvalidOperationException(
+                    "A statement of this platform-admin scope failed, so its transaction can only be abandoned. "
+                    + "Dispose the scope; the work rolls back.");
             }
         }
     }

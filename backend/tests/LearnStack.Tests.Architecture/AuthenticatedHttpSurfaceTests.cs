@@ -1027,7 +1027,12 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private sealed record Mapping(MethodDefinition Owner, Instruction Instruction, MethodReference Target);
 
     private static IEnumerable<Mapping> MappingSites(IEnumerable<ModuleDefinition> modules, Func<MethodReference, bool>? predicate = null) =>
-        Types(modules).SelectMany(type => type.Methods).Where(method => method.HasBody)
+        // The platform operator surface is a separate closed surface with its own scheme and its own exact
+        // census (PlatformOperatorHttpTests: the endpoint set, methods and policy). It is not part of the
+        // tenant surface this rule closes, and excluding it is by exact type, so a mapping added anywhere else
+        // is still an offender.
+        Types(modules).Where(type => type.FullName != "LearnStack.Api.Platform.PlatformOperatorEndpoints")
+            .SelectMany(type => type.Methods).Where(method => method.HasBody)
             .SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
                     && (predicate ?? IsEndpointMapping)(target) && !EndpointComposition.IsFixedInfrastructureMetadata(method, instruction))
                 .Select(instruction => new Mapping(method, instruction, (MethodReference)instruction.Operand)));

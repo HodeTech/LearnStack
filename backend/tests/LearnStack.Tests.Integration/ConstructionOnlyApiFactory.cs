@@ -25,6 +25,15 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
     {
         ArgumentNullException.ThrowIfNull(builder);
         InvitationEmailFixtureConfiguration.AddTo(builder);
+        // Development configuration carries an operator issuer for the real developer stack
+        // (ADR-0101 § 12). A test host starts without one, so the tenant boundary is judged on its
+        // own; a case about the operator surface sets the issuer itself, after this line.
+        builder.UseSetting("PlatformOperator:Issuer", string.Empty);
+        // Development also grants the exported demo operator, which the grant validator refuses
+        // outside Development, and these hosts run under several modes. Pointing the one entry at a
+        // subject nobody holds keeps the grant list valid and matches no one.
+        builder.UseSetting("PlatformOperator:Grants:0:Subject", "test-host-matches-no-operator");
+        builder.UseSetting("PlatformOperator:Grants:0:Permissions:0", "platform.killswitch.write");
         ConfigureTestHost(builder);
         builder.ConfigureTestServices(services =>
         {

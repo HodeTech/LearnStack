@@ -475,6 +475,15 @@ backend treat business rejections as system failures.
 | `learnstack_tenant_assertion_unresolved_total` | counter | dimension, source |
 | `learnstack_tenant_subject_admission_rejected_total` | counter | reason (`quota`, `registry_capacity`, `registry_fault`) |
 | `learnstack_tenant_subject_cleanup_failed_total` | counter | none |
+| `learnstack_platform_operator_admissions_total` | counter | outcome (`admitted`, `refused`), operation (a registered slug or `unknown`) |
+| `learnstack_platform_operator_refusals_total` | counter | cause (a closed set: token, profile and gate causes; [runbook](../runbooks/operator-access.md#signals)) |
+| `learnstack_platform_operator_results_total` | counter | operation |
+| `learnstack_platform_operator_federation_total` | counter | operation (`platform.federation.report`, `platform.federation.remove`, `platform.federation.disable`), outcome (a report's `ok`, `invalid_cursor`, `unavailable`; an act's `applied`, `already_applied`, `not_found`, `not_owned`, `live_connection`, `not_applicable`, `refused`, `unavailable`, `uncertain`; [runbook](../runbooks/federation-operator.md#signals)) |
+| `learnstack_platform_operator_recoveries_total` | counter | operation (`platform.delivery.replay`, `platform.delivery.reset`), outcome (`applied`, `stale_fence`, `not_recoverable`, `not_found`, `unavailable`, `commit_unknown`; [runbook](../runbooks/operator-recovery.md#signals)) |
+| `learnstack_platform_operator_audit_failures_total` | counter | operation |
+| `learnstack_platform_operator_metadata_failures_total` | counter | none |
+| `learnstack_identity_rebind_runs_total` | counter | outcome (`applied`, `already_applied`, `unknown`, or a `refused_` class; [runbook](../runbooks/identity-issuer-rebind.md#when-it-refuses)) |
+| `learnstack_identity_rebind_continuity_total` | counter | class (`active`, `closing`, `closed`, `reported`, `unkeyable`, `missing_active`, `reappearing_closed`, `unbootstrapped`) |
 | `learnstack_db_query_duration_seconds` | histogram | module, operation |
 | `learnstack_outbox_pending_count` | gauge | — |
 | `learnstack_outbox_dispatch_duration_seconds` | histogram | event_type |
@@ -523,7 +532,11 @@ backend treat business rejections as system failures.
 
 Accepted ADR-0072/0073/0074 require `lock_kind` closed to `subject`, `user`, `tenant`;
 wait `outcome` closed to `acquired`, `timeout`, `cancelled`, `fault`; and refusal
-`reason` closed to `timeout`, `cancelled`, `fault`. No tenant, actor, subject,
+`reason` closed to `timeout`, `cancelled`, `fault`.
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md) adds `lock_kind=authority`
+for the shared rebind lock a User creation takes, and `reason=mismatch` for a creation
+that waited out a rebind and found the stored issuer was not the one its process
+qualified with. No tenant, actor, subject,
 digest, raw issuer, SQL, correlation or exception text is a label. Typed closed
 binding diagnostic reasons remain separate from public Problem Details and are
 not trusted identity-refusal witnesses. A contextual lock-plan fault increments

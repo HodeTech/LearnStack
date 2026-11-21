@@ -92,7 +92,7 @@ internal static class SeedMembershipCreation
         }
     }
 
-    private static bool IsDeclaredRole(Role? role, TenantId tenant, PermissionScope scope, bool firstAdmin) =>
+    internal static bool IsDeclaredRole(Role? role, TenantId tenant, PermissionScope scope, bool firstAdmin) =>
         role is { Version: 0, UpdatedAt: null, UpdatedBy: null } && role.TenantId == tenant
         && role.CreatedBy == UserId.SystemActor && role.CreatedAt != default
         && role.AdoptedReleaseVersion == 1

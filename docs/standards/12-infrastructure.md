@@ -362,7 +362,9 @@ Budgets are reviewed quarterly. Cost dashboards drive the next review.
 
 - RTO target: 4 hours for production restore.
 - RPO target: 15 minutes (WAL archiving cadence).
-- Runbooks live in `docs/runbooks/` (Phase 11 deliverable).
+- Runbooks live in `docs/runbooks/`. Phase 03 begins them with the platform operator
+  runbooks ([ADR-0101](../decisions/0101-platform-operator-authority.md) to
+  [ADR-0104](../decisions/0104-controlled-issuer-rebind.md)); Phase 11 completes the set.
 - Annual full DR drill required.
 
 ## Forbidden

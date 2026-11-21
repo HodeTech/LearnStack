@@ -55,5 +55,7 @@ public sealed class TenancyOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<AddTenantLocaleCommand>("tenancy.seed.add_locale", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<SetDefaultTenantLocaleCommand>("tenancy.seed.set_locale", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<SetTenantBrandingCommand>("tenancy.seed.set_branding", AuthorizationSourceKind.Seed),
+        OperationPolicy.ForTrusted<OperatorProvisionTenantCommand>("tenancy.operator.provision_tenant", AuthorizationSourceKind.PlatformOperator),
+        OperationPolicy.ForTrusted<OperatorMapHostCommand>("tenancy.operator.map_host", AuthorizationSourceKind.PlatformOperator),
     ];
 }

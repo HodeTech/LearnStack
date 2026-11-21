@@ -1077,3 +1077,230 @@ Decision is unchanged.
 The
 [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#p03-8-pr-review-disposition-2026-11-18)
 holds the review record, each finding's disposition and its proof.
+
+### Amendment 10 — Federation operator steps (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) admits the operator steps this
+record assigns to P03-9. The operator acts through a separate port,
+`IFederationOperator`, held only by the operator service and never by the tenant runner,
+so the rule that the provider port is held only by the runner stands. It uses the same
+`learnstack-federation-admin` client and adds no realm authority. The admitted routes
+grow from four to five by one paged listing of identity-provider instances.
+
+1. **Classes.** An alias that starts with `lsf-` and whose owner marker parses to a
+   tenant and connection is classified. An *orphan* has no live row: the row is absent
+   or a `Deleted` tombstone, so the text "its connection row was removed" is read that
+   way. An *unreadable owned* broker carries the marker but reads as foreign. A
+   *nonconforming* broker is readable and owned but has an extra mapper or a changed
+   profile (Amendment 9 item 5). An unmarked or marker-mismatched broker is never
+   touched.
+2. **Report.** `platform.federation.read` reads the realm list first, then the rows, and
+   writes nothing. Reading the rows first would manufacture false orphans.
+3. **Remove.** `platform.federation.admin` deletes an orphan or an unreadable owned
+   broker by its alias after re-reading its row immediately before the delete, and
+   refuses if a live row exists. Deleting an absent broker is applied. The provider's
+   deletion also removes the federated links, and the runbook says so.
+4. **Disable.** The same permission sets `enabled=false` on a nonconforming broker, or
+   on one the tenant cannot reach, at the provider only and marker-proven. The row is
+   left to the tenant's next readback, which corrects it; until then the sign-in option
+   fails closed.
+5. **Rows read.** `learnstack_platform` receives `SELECT` of `id`, `tenant_id`, `state`
+   and `deleted_at` on `federation_connections`, pinned by a column-privilege test.
+6. **Audit.** Each remove or disable writes a MUST intent row before the provider call
+   and a completion row after it, as Amendment 2 does for the tenant path, under the
+   real tenant, with a closed reason slug, `metadata.operator` and a follow-up note that
+   an account review is owed. A lost completion is found by the next report.
+
+   > **Erratum (2026-11-20, Amendment 11 item 3).** Amendment 2 is the Keycloak pin and
+   > has no intent-first pattern; the pattern the tenant path follows is the Decision's
+   > § Intent-first operations. The platform scope could not write the intent row before
+   > a provider call, so the seam it needed is
+   > [ADR-0044 Amendment 18](0044-audit-write-path.md).
+7. **Account review.** It is a runbook step. No LearnStack credential may enumerate or
+   remove realm users (Decision Q1), Keycloak keeps link events for seven days and no
+   owner notification channel exists before Phase 08a.
+8. **Residual.** No provider-side fence exists, so a tenant create that lands after a
+   sweep produces a new orphan, which the next report finds.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 11 — Federation operator steps: implementation contract (2026-11-20)
+
+Step 5 of the platform-authority packet implements Amendment 10. Each item below fixes
+something the record left open or states where the code corrected it. The maintainer
+approved items 3 and 6 before they were written. None of them changes Amendment 10's
+choice of option, its two permissions, its classes or its refusal to enumerate or remove
+realm users.
+
+1. **Where the code lives.** `IFederationOperator` sits beside the tenant provider port
+   and is held by the operator's owner, `FederationBrokerOperations` (Identity
+   Infrastructure), and by the adapter that implements it, the operator half of the
+   same Keycloak class. A second instance of that class is built with its own
+   resilience pipeline of the fixed shape, so a sweep cannot starve a tenant's calls.
+   The routes are `GET /api/platform/v1/federation/brokers`,
+   `POST .../{alias}/remove` and `POST .../{alias}/disable`, behind the keys
+   [ADR-0101](0101-platform-operator-authority.md) § 5 fixed,
+   `platform.federation.read` and `platform.federation.admin`, and each runs the gate
+   first.
+2. **The grant is an Identity-chain migration.** `federation_connections` is created in
+   the Identity chain, which runs after the Platform chain, so the column grant of item
+   5 is a hand-written forward-only Identity migration. The raw-reader census of
+   Standard 21 admits the operator's one statement beside the three tenant readers,
+   pinned whole: it reads by primary key through the four granted columns and sees
+   tombstones, which the shared live predicate would hide.
+3. **Two rows around the provider call.** The tenant path's pattern is the Decision's
+   § Intent-first operations, not Amendment 2. The platform scope could write one
+   result row and no row before a provider call, so the seam is the scope handle's
+   checkpoint and a fifteenth `IAuditStore` write
+   ([ADR-0044 Amendment 18](0044-audit-write-path.md)): one admission, an intent row
+   with the outcome `indeterminate` on `platform.federation.remove_attempt` or
+   `platform.federation.disable_attempt`, committed before the provider call, and a
+   completion row on `platform.federation.remove` or `platform.federation.disable` with
+   the outcome and whether an account review is owed. The rows name the tenant the owner
+   marker names, never the platform sentinel, even when no `tenants` row exists, and
+   carry closed tokens only: no display name, issuer, configuration or secret, and no
+   ticket. An absent broker on a remove, a disabled broker on a disable, a refusal for a
+   live row, an unowned alias and a provider that is unavailable before any change
+   write no tenant row: the scope's entry row records the call, and nothing is known to
+   name a tenant. A provider that fails after a change was sent is recorded `uncertain`
+   in the completion row and answered `503` with the reason `outcome_unknown`.
+4. **The report.** One call is one page of the provider's listing, from an opaque offset
+   cursor bound to the operation, 1 to 100 instances, in full representation. The realm
+   is read first and the rows second, because a tenant writes its row before it creates
+   the broker; the scope is entered before both, so the admission is spent fresh. A
+   broker is reported when its row is absent or a tombstone (`orphan`), when its
+   marker proves it LearnStack's and its representation does not read as an admitted
+   shape (`unreadable_owned`), or when it reads and differs from the fixed profile or
+   carries a mapper (`nonconforming`); a mapper is drift only a mapper read shows, so
+   the mappers of what looks healthy are counted one after another within the page's
+   ten seconds and an unread count is reported unknown, never zero. An instance with no
+   marker, a marker that does not parse strictly to a tenant and a connection whose
+   derived alias it is, or a marker that disagrees with its row about the tenant, is
+   counted and never named.
+5. **The live-row refusal is literal.** A remove refuses while a live row names the
+   broker, for an unreadable owned broker as well. Such a broker is disabled by the
+   operator and removed by the tenant's own Delete, which this step leaves as the
+   residual Amendment 10 item 3 implies.
+
+   > **Erratum (2026-11-20, Amendment 12 item 1).** The tenant's own Delete does not
+   > remove an unreadable owned broker: the tenant adapter reports it foreign
+   > (Amendment 9 item 5), the runner fails the Delete with an owner mismatch, and the
+   > row stays live. An unreadable owned broker with a live row therefore had no
+   > removal path at all.
+   >
+   > **Correction (2026-11-20, Amendment 13 item 3).** The rule that the tenant adapter
+   > reports a broker foreign when its marker matches and it no longer reads is
+   > Amendment 5 item 5. Amendment 9 item 5 is the readable nonconforming broker.
+6. **Disable sends back what the provider returned.** An unreadable owned broker cannot
+   be rebuilt from the fixed profile, so the operator disable is the one provider write
+   that does not build its body from the allow-list: it reads the instance, proves the
+   marker, drops the two members the provider computes on every read, sets `enabled` to
+   false and writes the rest back, with the secret as the provider's own mask, which the
+   provider reads as "keep the stored value" (Amendment 3). It is confirmed by reading
+   the instance again. This is a bounded exception to the fixed broker profile, limited
+   to the operator port, and Amendment 9 item 5's "repair" is read as this disable.
+   "One the tenant cannot reach" means an unreadable or nonconforming owned broker; a
+   tenant that is archived or deleted with a live row is P03-10's.
+7. **Verified against the pinned provider.** The federation admin client's one role,
+   `manage-identity-providers`, lists instances, the listing carries each member and the
+   owner marker with the secret masked, `first` and `max` page it, a write of the
+   returned representation with `enabled` false is accepted, and deleting a broker
+   deletes its federated links and leaves the account. So the admitted routes grow by
+   the one paged listing of Amendment 10, and "adds no realm authority" holds. The
+   route census admits the listing's collection route with its one exact query.
+8. **Residual.** There is still no provider-side fence, so a tenant create that lands
+   after a sweep produces a new orphan, which the next report finds, and the disable is
+   a read and a write the tenant's own write can interleave with; the tenant's next
+   readback detects the drift. The account review stays a runbook step.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 12 — Federation operator steps: review round 1 corrections (2026-11-20)
+
+The first review round of Step 5 found one dead end and five places where the record
+or the code said less than the behaviour. The maintainer chose item 1; items 2 to 6
+state, without changing Amendment 10's choice of option, what the implementation does.
+
+1. **An unreadable owned broker is removed even with a live row.** Amendment 10 item 3
+   and Amendment 11 item 5 refuse a remove while a live row names the broker, for both
+   classes. The refusal applies to a broker that reads, whose tenant Delete works and
+   retires the pair. An unreadable owned broker is removed by the operator on its
+   marker proof, with a live row or without one: the tenant's Delete cannot reach it
+   (Amendment 9 item 5), it already fails closed, and the tenant's next readback finds
+   it absent, after which the tenant's own Delete tombstones the row. The operator
+   never writes the tenant's row. The rows record the live state found, and the account
+   review is owed as for any remove. Amendment 10 item 3 and Amendment 11 item 5 are
+   read accordingly, and a readable nonconforming broker is still disabled, not removed.
+
+   > **Erratum (2026-11-20, Amendment 13 item 1).** "It already fails closed" is not
+   > supported: an unreadable broker can still be enabled and serving, so the removal
+   > needs it disabled first. The pointer "Amendment 9 item 5" is Amendment 5 item 5
+   > (Amendment 13 item 3).
+2. **An unread mapper count is a page counter.** Amendment 11 item 4 reports an unread
+   count "unknown, never zero". A broker whose only possible class is an extra mapper
+   has no other class to carry the unknown, so the page carries it: `mappersUnread`
+   counts the healthy-looking live brokers whose mappers were not read (the provider
+   failed, its circuit was open or the page's ten seconds ran out). No item names them.
+3. **The completion has its own budget.** After the intent row, the completion row is
+   written and committed on a bounded token of three seconds, detached from the
+   request, as the tenant runner completes on a detached token. A caller that leaves
+   while the provider works is recorded `uncertain`. A completion that cannot be
+   written after a change that landed or may have answers the unknown outcome (`503`
+   `dependency_unavailable` with the reason `outcome_unknown`) and leaves the intent
+   row standing; the account review is then owed if the broker is gone. When nothing
+   changed, a failed completion is the audit failure and is safe to repeat. A transient
+   database fault is a `503` with its cause in the log, and any failure to commit the
+   intent row stops the act.
+4. **The ticket is recorded on the entry row.** Amendment 11 item 3 says the rows carry
+   no ticket. That holds for the intent and completion rows, which the tenant can read.
+   The platform scope's entry row, a row of the platform sentinel, carries the checked
+   ticket, as it does for every scope act.
+5. **The completion row's audit outcome is `success`.** The scope's result row records
+   that the act ran to its end and is written only with that outcome. How the provider
+   call ended is the closed `outcome` of `after_state`, and an alert keys on it.
+6. **An applied disable also owes the review.** Amendment 10 item 6 asks for the
+   follow-up note on both acts: `accountReviewOwed` is true for an applied remove, which
+   deleted the federated links, and for an applied disable, which closed the broker as
+   a sign-in option. An absent or already disabled broker owes none.
+
+The Decision, Status, Date and prior amendments of this record are unchanged, except
+for the inline erratum beside Amendment 11 item 5 that item 1 records. Acceptance of
+the linked records is not proof that anything they decide is implemented.
+
+### Amendment 13 — Federation operator steps: review round 2 corrections (2026-11-20)
+
+The second review round of Step 5 found that Amendment 12 item 1 rests on a premise the
+code does not support, and three places where the behaviour or the record said less
+than it should. The maintainer chose the removal in Amendment 12 item 1; item 1 below
+narrows how it is done and is reported to the maintainer.
+
+1. **An unreadable owned broker is removed with a live row only after it is disabled.**
+   Amendment 12 item 1 said such a broker "already fails closed". It does not:
+   "unreadable" is the shape check of one read, a broker edited in the provider's
+   console can be unreadable and still serve sign-ins, and the tenant's brokered
+   publication does not depend on a provider read. A remove of a broker a live row
+   still names therefore needs it to read as unreadable **and** to be disabled. An
+   unreadable broker that is still enabled is refused (`errors.connection`): the
+   operator disables it, which is reversible, and removes it after. The adapter proves
+   both conditions again when the delete is about to be sent and sends nothing
+   otherwise (`refused`), so an inspection seconds old is not trusted. Amendment 12
+   item 1 is read accordingly, and the tenant's row is still never written.
+2. **A failure after a change is the unknown outcome, with its cause.** Any non-fatal
+   failure after a provider change landed or may have (the provider call itself, the
+   completion row, its commit, the handle's disposal) answers `503`
+   `dependency_unavailable` with the reason `outcome_unknown`, and the failure goes to
+   the route's log (event 7110) and never into a response. An unexpected provider
+   failure or a cancellation is recorded `uncertain` and still completed. Before any
+   change, a transient database fault is the plain `503` and anything else is the
+   defect it is. Amendment 12 item 3 is read accordingly.
+3. **Pointers.** The rule that the tenant adapter reports a broker foreign when its
+   marker matches and it no longer reads is Amendment 5 item 5, and Amendment 9 item 5
+   is the readable nonconforming broker. The erratum beside Amendment 11 item 5 and
+   Amendment 12 item 1 carry inline corrections.
+
+The Decision, Status, Date and prior amendments of this record are unchanged, except for
+the inline errata beside Amendment 10 item 6 (recorded by Amendment 11), Amendment 11
+item 5 and Amendment 12 item 1 (recorded by Amendments 12 and 13). Acceptance of the
+linked records is not proof that anything they decide is implemented.

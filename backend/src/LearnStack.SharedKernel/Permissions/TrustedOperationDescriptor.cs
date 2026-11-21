@@ -1,9 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.SharedKernel.Permissions;
 
-/// <summary>Captures only the current finite seed, delivery or job owner.</summary>
+/// <summary>Captures only the current finite seed, delivery, job or operator-act owner.</summary>
 public interface ITrustedOperationSource
 {
     TrustedOperationDescriptor? Capture(Type requestType, ITenantContext context);
@@ -17,19 +18,28 @@ public sealed class TrustedOperationDescriptor
     private readonly object? _evidence;
 
     private TrustedOperationDescriptor(MintingSource source, AuthorizationSourceKind kind,
-        Type requestType, ITenantContext context, object? evidence)
+        Type requestType, ITenantContext context, object? evidence, PlatformOperatorAttribution? @operator)
     {
         if (kind is not (AuthorizationSourceKind.Seed or AuthorizationSourceKind.IntegrationEvent
-            or AuthorizationSourceKind.BackgroundJob) || requestType.IsAbstract || requestType.ContainsGenericParameters)
+            or AuthorizationSourceKind.BackgroundJob or AuthorizationSourceKind.PlatformOperator)
+            || requestType.IsAbstract || requestType.ContainsGenericParameters
+            || (kind == AuthorizationSourceKind.PlatformOperator) != (@operator is not null))
             throw new ArgumentException("Trusted operation provenance is invalid.");
         _source = source;
         _context = context;
         _evidence = evidence;
         SourceKind = kind;
         RequestType = requestType;
+        Operator = @operator;
     }
 
     public AuthorizationSourceKind SourceKind { get; }
+
+    /// <summary>
+    /// The admitted operator and closed reason of an operator act, present exactly when
+    /// <see cref="SourceKind"/> is <see cref="AuthorizationSourceKind.PlatformOperator"/>.
+    /// </summary>
+    public PlatformOperatorAttribution? Operator { get; }
     public Type RequestType { get; }
     public bool IsActive => _source.IsActive && _source.MatchesEvidence(_evidence);
 
@@ -51,12 +61,13 @@ public sealed class TrustedOperationDescriptor
         protected abstract bool IsEvidenceCurrent(object? evidence);
 
         protected TrustedOperationDescriptor ForOperation(AuthorizationSourceKind kind,
-            Type requestType, ITenantContext context, object? evidence = null)
+            Type requestType, ITenantContext context, object? evidence = null,
+            PlatformOperatorAttribution? @operator = null)
         {
             ArgumentNullException.ThrowIfNull(requestType);
             ArgumentNullException.ThrowIfNull(context);
             ObjectDisposedException.ThrowIf(!IsActive, this);
-            return new(this, kind, requestType, context, evidence);
+            return new(this, kind, requestType, context, evidence, @operator);
         }
 
         public void Dispose()

@@ -28,6 +28,8 @@ using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Infrastructure.PlatformOperator;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -188,9 +190,9 @@ public static class PersistenceCompositionExtensions
         services.AddLearnStackBackgroundJobContracts();
         services.AddInvitationEmailDelivery(configuration);
 
-        // The gate first, so a reader sees that entry is refused before a connection is
-        // opened rather than after. Both are stateless singletons.
-        services.TryAddSingleton<IPlatformAdminGate, DenyAllPlatformAdminGate>();
+        // The scope is a stateless singleton. Admission is not its concern any more: the
+        // caller holds a PlatformAdmission from IPlatformOperatorGate, registered with the
+        // operator authority (ADR-0101), so a refused operator never reaches a connection.
         services.TryAddSingleton<IPlatformAdminScope, PlatformAdminScope>();
 
         // Scoped: one connection per request, owned by this, shared by every
@@ -301,6 +303,12 @@ public static class PersistenceCompositionExtensions
         // and shares the one entry — and the load runs on its own connection, because the
         // cache flight that runs it outlives the caller that started it.
         services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
+        services.TryAddScoped<IKillswitchToggle, KillswitchToggle>();
+        // The operator inspection of asynchronous work reads in the platform scope on column grants (ADR-0103 § 1).
+        services.TryAddScoped<IDeliveryInspection, DeliveryInspection>();
+        // ADR-0099 Amendment 10: the operator's federation report, remove and disable, over the platform scope and the
+        // operator port, which the composition root replaces with the confined adapter when the admin client is configured.
+        services.TryAddScoped<IFederationBrokerOperations, LearnStack.Modules.Identity.Infrastructure.Federation.FederationBrokerOperations>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default
@@ -501,6 +509,16 @@ public static class PersistenceCompositionExtensions
             throw new InvalidOperationException(
                 $"ConnectionStrings:{PlatformConnectionName} is not a valid Npgsql "
                 + "connection string. It must be key/value form, not a URI DSN.", failure);
+        }
+
+        // Session state must not outlive a scope on a pool whose connections see every tenant: the
+        // sibling privileged sources pin these off, and this one refuses a string that turns them on.
+        if (parsed.NoResetOnClose || parsed.Multiplexing)
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} turns on 'No Reset On Close' or 'Multiplexing'. "
+                + "Either would let session state set in one platform scope reach the next on a connection "
+                + "that bypasses row level security, so the credential must leave both off.");
         }
 
         if (!string.Equals(parsed.Username, PlatformRole, StringComparison.Ordinal))

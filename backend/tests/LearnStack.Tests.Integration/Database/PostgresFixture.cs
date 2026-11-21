@@ -90,6 +90,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     private const string PlatformPassword = "platform-test";
     private const string OutboxPassword = "outbox-test";
     private const string IngressPassword = "ingress-test";
+    private const string RebindPassword = "rebind-test";
     private const string ContainerScriptPath = "/tmp/02-create-roles.sql";
 
     // Pinned to the tag infra/compose/dev.yml runs. A fixture on a different major would
@@ -97,7 +98,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18.4-alpine")
         .WithDatabase(Database)
         // Qualification can hold the supported job application (128) and
-        // privileged (158) source boundaries together, plus fixture observers.
+        // privileged (160) source boundaries together, plus fixture observers.
         .WithCommand("-c", "max_connections=300", "-c", "log_error_verbosity=terse",
             "-c", "log_min_error_statement=panic", "-c", "log_statement=none",
             "-c", "log_min_duration_statement=-1", "-c", "log_min_duration_sample=-1",
@@ -110,6 +111,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithEnvironment("LEARNSTACK_PLATFORM_PW", PlatformPassword)
         .WithEnvironment("LEARNSTACK_OUTBOX_PW", OutboxPassword)
         .WithEnvironment("LEARNSTACK_IDENTITY_INGRESS_PW", IngressPassword)
+        .WithEnvironment("LEARNSTACK_IDENTITY_REBIND_PW", RebindPassword)
         // Keep concurrent publishers in one allocator address family, including identity fixtures.
         .WithCreateParameterModifier(parameters => ContainerLoopbackPorts.Configure(parameters, "5432/tcp"))
         .Build();
@@ -127,6 +129,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
     public string IdentityIngressConnectionString => For("learnstack_identity_ingress", IngressPassword);
+
+    /// <summary><c>NOBYPASSRLS</c>; only the offline issuer-rebind tool's equivalent (ADR-0104).</summary>
+    public string IdentityRebindConnectionString => For("learnstack_identity_rebind", RebindPassword);
 
     // An owned auxiliary fixture may attach this database to its disposable Docker network.
     internal string ContainerId => _container.Id;
@@ -167,7 +172,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"Provisioning the four database roles failed (exit {result.ExitCode}).{Environment.NewLine}"
+                $"Provisioning the database roles failed (exit {result.ExitCode}).{Environment.NewLine}"
                 + $"{result.Stderr}{Environment.NewLine}{result.Stdout}");
         }
     }
@@ -244,12 +249,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// Every caller reverts what it did in a <c>finally</c>: the cluster is shared,
     /// and an isolation suite running against a bypass role is vacuous.
     /// </remarks>
-    public async Task ExecuteAsSuperuserAsync(string sql)
+    /// <param name="sql">The statement batch.</param>
+    /// <param name="database">A database other than the container's own, for an object that belongs to one database.</param>
+    public async Task ExecuteAsSuperuserAsync(string sql, string? database = null)
     {
         const int timeoutSeconds = 30;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
         var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
         {
+            Database = database ?? new NpgsqlConnectionStringBuilder(_container.GetConnectionString()).Database,
             // This helper retains the container superuser privately. Every call
             // owns a physical connection, outside any caller's ambient transaction.
             Pooling = false,

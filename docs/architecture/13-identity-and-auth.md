@@ -453,7 +453,9 @@ MFA is a Keycloak responsibility. Enforced for:
 - Tenant admin accounts (configurable, defaults to mandatory).
 - Other roles (tenant choice).
 
-LearnStack does not read the `amr` claim today, and the access-token profile admits no assurance claim. A future MFA-gated operation needs an accepted decision that names its claim and source. Brokered sign-ins carry no LearnStack MFA assurance ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
+LearnStack does not read the `amr` claim today, and the access-token profile admits no assurance claim. A future MFA-gated operation needs an accepted decision that names its claim and source;
+[ADR-0101](../decisions/0101-platform-operator-authority.md) names `acr` and `auth_time` from the
+deployment-controlled operator issuer for Platform operator acts. Brokered sign-ins carry no LearnStack MFA assurance ([ADR-0099](../decisions/0099-confined-tenant-federation.md)).
 
 ## Logout
 

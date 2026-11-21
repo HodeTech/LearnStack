@@ -1,4 +1,5 @@
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Identity;
 using System.Data;
 using Npgsql;
 
@@ -36,6 +37,13 @@ public sealed class IdentityAuthorityQualification(
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             await using (var readOnly = new NpgsqlCommand("SET TRANSACTION READ ONLY", connection, transaction))
                 await readOnly.ExecuteNonQueryAsync(cancellationToken);
+            // Shared and first (ADR-0104 § 5): a start that overlaps a controlled issuer rebind waits for it here,
+            // and the next statement takes a fresh READ COMMITTED snapshot, so it compares against the new value.
+            await using (var rebind = new NpgsqlCommand("SELECT pg_catalog.pg_advisory_xact_lock_shared(@key)", connection, transaction))
+            {
+                rebind.Parameters.AddWithValue("key", IdentityAdvisoryLockKey.ForAuthorityRebind());
+                await rebind.ExecuteNonQueryAsync(cancellationToken);
+            }
             string database;
             await using (var command = new NpgsqlCommand(
                 "SELECT current_user, authority_id, issuer, current_database() FROM public.identity_authority WHERE id = 1", connection, transaction))

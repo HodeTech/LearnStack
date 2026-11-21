@@ -600,3 +600,16 @@ global directory or generic bypass is added.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+## Amendment 14 — Confined identity-rebind role (2026-11-19)
+
+Accepted [ADR-0104](0104-controlled-issuer-rebind.md) adds `learnstack_identity_rebind`,
+a sixth login role without `BYPASSRLS`, beside the fifth role of Amendment 13. It is
+used only by an offline rebind tool. Its grants are `SELECT` and `UPDATE (issuer)` on
+`identity_authority`, `SELECT` of four columns on `users`, and an `INSERT` on
+`audit_log` that a policy limits to the platform sentinel, the identity module and the
+two rebind operations. Its credential is never configured on an API or worker host. The
+grants of the other roles and the canonical policy template are unchanged.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

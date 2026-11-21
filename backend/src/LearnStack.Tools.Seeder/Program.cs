@@ -39,6 +39,17 @@ if (args.Length != 0 && !identityFoundation && !seedAdministrationOrigins)
     return 2;
 }
 
+// The seed capability is a development capability (ADR-0102 § 10). Production tenants are onboarded
+// through the operator surface, so a seeder started anywhere but a Development deployment refuses
+// before it reads a credential or opens a connection.
+if (!string.Equals(Environment.GetEnvironmentVariable("Deployment__Mode"), "Development", StringComparison.Ordinal))
+{
+    Console.Error.WriteLine(
+        "seed: the seeder runs only when Deployment__Mode is Development. Production tenants are "
+        + "onboarded through the operator surface (docs/runbooks/tenant-onboarding.md).");
+    return 2;
+}
+
 // The seeder is a host without an HTTP surface, and it exists so the two demo tenants are
 // written by the same commands a request writes them with — ADR-0042 requires that: a
 // seeder inserting the tenant and its default organization itself would be a second copy

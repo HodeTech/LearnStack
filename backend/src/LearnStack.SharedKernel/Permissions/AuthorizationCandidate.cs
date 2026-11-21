@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace LearnStack.SharedKernel.Permissions;
 
-public enum AuthorizationSourceKind { Http = 1, Seed = 2, IntegrationEvent = 3, BackgroundJob = 4 }
+public enum AuthorizationSourceKind { Http = 1, Seed = 2, IntegrationEvent = 3, BackgroundJob = 4, PlatformOperator = 5 }
 
 /// <summary>A question from an enumerated trusted owner, never authority supplied by a UserId alone.</summary>
 public sealed class AuthorizationCandidate

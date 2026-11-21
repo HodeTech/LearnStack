@@ -55,7 +55,8 @@ public sealed class OperationPolicy
             || (requiresOrglessWrite && alternatives.Any(clause => clause.ReadScope != OperationReadScope.Scoped))
             || (kind == OperationPolicyKind.FiniteTrusted) != !allowedSources.IsDefaultOrEmpty
             || allowedSources.Any(source => source is not (AuthorizationSourceKind.Seed
-                or AuthorizationSourceKind.IntegrationEvent or AuthorizationSourceKind.BackgroundJob))
+                or AuthorizationSourceKind.IntegrationEvent or AuthorizationSourceKind.BackgroundJob
+                or AuthorizationSourceKind.PlatformOperator))
             || allowedSources.Distinct().Count() != allowedSources.Length
             || allowedSources.Contains(AuthorizationSourceKind.IntegrationEvent) != (eventHandler is not null)
             || eventHandler is { IsAbstract: true } or { ContainsGenericParameters: true }

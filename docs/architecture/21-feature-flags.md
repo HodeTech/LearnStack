@@ -399,10 +399,11 @@ CREATE TABLE platform_killswitches (
 - **Policies** are role-qualified in the `platform_host_to_tenant` shape, with the read
   widened rather than keyed — a killswitch is global by construction, and hiding it from
   the role that must honour it would only fail open. Every write is reserved to
-  `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, which
-  is what gives `tenancy.killswitch.toggle` a real actor. The class and its policy DDL
-  live in [Database Standards § Table classes](../standards/05-database.md); the clauses
-  are deliberately not restated here.
+  `learnstack_platform` through the audited, admission-gated platform scope, which is
+  what gives `tenancy.killswitch.toggle` a MUST result row naming the operator. The
+  class and its policy DDL live in
+  [Database Standards § Table classes](../standards/05-database.md); the clauses are
+  deliberately not restated here.
 - **Reads go through the L1 cache**, not to the table per request, and are invalidated on
   toggle. Holding the answer needs a second allowed platform cache-key family,
   `platform:tenancy:killswitch`; `CacheKey.EnsureValid` admits that family and the host
@@ -417,13 +418,14 @@ CREATE TABLE platform_killswitches (
 
 **Packet 9 shipped the table and the read path, and no writer**
 ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
-The reason is reachability rather than scheduling: every killswitch write runs inside
-`EnterPlatformAdminScope(reason)`, and the registered `IPlatformAdminGate` is
-`DenyAllPlatformAdminGate` until the Platform-scope permission arrives with the registry
-in [Phase 03](../roadmap/phase-03-identity-admin.md). A toggle command shipped now would
-be unreachable code with a permission key nothing registers. **Phase 03 owns the toggle
-command, its permission and its runbook**; every gated read honours a flipped switch the
-day one exists, and what is absent until then is the flipping.
+The reason was reachability rather than scheduling: every killswitch write runs inside
+`EnterPlatformAdminScope`, and no Platform gate existed. **P03-9 Step 1 ships the
+writer** as a service entered with an operator admission for
+`platform.killswitch.write`, with a MUST result row on the same transaction and the
+overlay cache entry dropped after the commit
+([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)). Other instances see
+the flip within the overlay's 60-second TTL; the
+[killswitch runbook](../runbooks/killswitch.md) says so, and that the read fails open.
 
 A flippable killswitch pairs with a runbook entry describing when to use it and how to
 restore, and the obligation attaches to the phase that makes it flippable, not to the
@@ -455,12 +457,14 @@ Both surfaces are MUST-audit security-events (see
   the inbound Hub event carries `hub_event_id` and is mirrored into an audit entry
   (`tenancy.entitlement.refresh`) with `before` and `after` snapshots of the
   `features` / `limits` jsonb.
-- Killswitch flips are logged as `tenancy.killswitch.toggle` with the platform-admin
-  actor and a free-text reason field that the operator console makes required. The
-  classification is written ahead of the command: Packet 9 ships no writer, and
-  [Phase 03](../roadmap/phase-03-identity-admin.md) lands the toggle that raises the row
-  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
-  The operation is not a MediatR request, so its catalogue entry is registered by slug
+- Killswitch flips are logged as `tenancy.killswitch.toggle`, a MUST row written on the
+  flip's own transaction by the witness-bound result method. The row names the operator
+  in `metadata.operator` (issuer, subject digest, accepted `acr`, executor) and carries
+  the closed reason slug `killswitch_toggle`; the optional ticket is on the
+  sentinel-tenant row only
+  ([ADR-0101 § 9](../decisions/0101-platform-operator-authority.md),
+  [runbook](../runbooks/killswitch.md)). The operation is not a MediatR request, so its
+  catalogue entry is registered by slug
   ([ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md)).
 
 ## Risks
@@ -503,8 +507,9 @@ Both surfaces are MUST-audit security-events (see
   the `AlterColumn` that makes `valid_until` nullable; `platform_killswitches`, the
   overlay and its cache family, read-only until Phase 03 ships the toggle; the
   architecture tests.
-- **Phase 03** — the killswitch toggle command, its Platform-scope permission, the
-  permitting `IPlatformAdminGate` and the runbook that pairs with a flippable switch.
+- **Phase 03** — the killswitch writer, its Platform-scope permission, the operator gate
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md)) and the runbook that
+  pairs with a flippable switch.
 - **Phase 02c** (parallel Hub Foundation) — `HubEntitlementProvider` and the HTTPS
   projection push (`PUT /api/internal/tenants/{id}/entitlements`) that drives
   `RefreshAsync`. Limit **enforcement** lands here too — the `403` refusal and the

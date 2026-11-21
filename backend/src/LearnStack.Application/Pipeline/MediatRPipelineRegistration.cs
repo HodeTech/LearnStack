@@ -68,6 +68,10 @@ public static class MediatRPipelineRegistration
         services.TryAddScoped<Func<TransactionExecutionCoordinator>>(provider =>
             () => provider.GetRequiredService<TransactionExecutionCoordinator>());
         services.TryAddSingleton<ExplicitReadOnlyRequestCatalog>();
+        // The handler-side check of an operator act (ADR-0102). Registered with the pipeline so every
+        // host that resolves a module's handlers resolves it, and inert unless the operator source minted
+        // the descriptor.
+        services.TryAddScoped<LearnStack.SharedKernel.Permissions.OperatorActGuard>();
 
         // MediatR 12.x throws if no assemblies are registered for handler
         // scanning. Fall back to the LearnStack.Application assembly itself —

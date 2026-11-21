@@ -321,6 +321,17 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 - Confirm-link page copy. The realm ships no localization text or theme, so the page
   that confirms a link is Keycloak's own and does not state the delegation risk; this
   phase owns the production realm theme that does.
+- Platform operator surface
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) to
+  [ADR-0104](../decisions/0104-controlled-issuer-rebind.md)). This phase decides gateway
+  exposure of `/api/platform/v1`, which the scaffold does not route; enforces MFA for
+  the operator client in the production realm, because LearnStack checks the claim but
+  the realm must issue it; builds the database adapter for operator grants on its
+  trigger, audited runtime grant changes; pins the operator OpenAPI document under a
+  gate of its own; decides durable denial evidence if security monitoring requires it;
+  alerts on the operator counters; and owns the read-only dashboard decision, job
+  reconciliation and recurrence recovery that
+  [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) leaves absent.
 - Secret management: Vault rotation cadence (90 days for provider keys, yearly for
   Hub HMAC shared secret + mTLS client certs), no secrets in repo, no secrets in
   env files committed. The Vault adapter itself lands in this phase — see
@@ -460,7 +471,8 @@ not a request to add an unused module, adapter or port.
   `/healthz` proves liveness. Decide whether an unavailable IdP changes whole-instance
   readiness or authenticated-traffic admission, preserving the credential-free public
   contract. Keep IdP state, subject capacity and audit-store failure distinguishable.
-  Platform operations owns runbooks under `docs/runbooks/` for DNS/TLS/metadata failure,
+  Platform operations owns runbooks under `docs/runbooks/` (begun in Phase 03 for the
+  platform operator decisions) for DNS/TLS/metadata failure,
   signing-key rollout and withdrawal, authentication-volume spikes and capacity
   refusal. Each runbook names the signal, diagnostic access, safe recovery and an
   exercised recovery control before production activation.
@@ -677,8 +689,12 @@ new erasure permission.
 - Soft delete and purge jobs.
 - Processed outbox, delivery, inbox and job-history purge decisions against the
   inventory. Among its first-party asynchronous tables, only
-  `outbox_messages` currently grants Platform SELECT/DELETE;
-  inbox, delivery and LearnStack job tables grant Platform no access. Immutable
+  `outbox_messages` grants Platform `DELETE`; Platform reads twelve metadata columns of
+  it, fifteen of `event_deliveries`, twenty-seven of `background_jobs` and every
+  column of `background_job_reservations`
+  ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)), and the
+  inbox grants it no access. A purge predicate that needs another column needs a
+  named grant or another principal. Immutable
   completion/execution facts and no-delete guards remain effective even with
   `BYPASSRLS`. Before the first purge writer, a bounded decision names the exact
   principal, minimum grants and required migration, eligible facts, dependency
@@ -836,12 +852,15 @@ new erasure permission.
   and job alerts keep their own thresholds, and the three are asserted separately, with
   a runbook entry for each.
 - Each failure domain's recovery is asserted on its own path, because the two sides fail
-  independently and the job side is a third: a producer-side replay resets the row and
-  the next poll dispatches it, the consumer's guard absorbing the duplicate; a
-  subscriber-side replay resets one `(event, consumer)` pair, reaches that subscription
-  and no other, and a late success racing it is absorbed by `IInboxGuard`; and a
-  terminal job is recovered by requeue and runs once. Each case names the single effect
-  it expects, and each runs while a second pod holds the lease.
+  independently and the job side is a third: a producer-side reset
+  ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md),
+  `retry_exhausted` rows only) clears the row and the next poll dispatches it, the
+  consumer's guard absorbing the duplicate; a subscriber-side replay resets one
+  `(event, consumer)` pair, reaches that subscription and no other, and a late success
+  racing it is absorbed by `IInboxGuard`; and a terminal job has no operator requeue,
+  because ADR-0103 admits none until a provider can prove quiescence, so its recovery is
+  the domain's own, for example invitation reissue. Each case names the single effect it
+  expects, and each runs while a second pod holds the lease.
 - Each asynchronous-store purge writer satisfies its bounded decision and exact
   migration/grant contract, using a named principal admitted by the required
   audited gate. Existing Platform outbox DELETE is not inbox, delivery or job

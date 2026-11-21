@@ -54,6 +54,7 @@ public sealed partial class BoundedAdministrationHttpTests
         public Task<Membership?> FindAsync(MembershipId id, CancellationToken cancellationToken = default) => actual.FindAsync(id, cancellationToken);
         public Task LockAsync(MembershipId id, CancellationToken cancellationToken = default) => actual.LockAsync(id, cancellationToken);
         public Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default) => actual.HasMembershipHistoryAsync(cancellationToken);
+        public Task<bool> HasActiveTenantAdministratorAsync(CancellationToken cancellationToken = default) => actual.HasActiveTenantAdministratorAsync(cancellationToken);
         public Task AddAsync(Membership aggregate, CancellationToken cancellationToken = default) => actual.AddAsync(aggregate, cancellationToken);
         public Task UpdateAsync(Membership aggregate, CancellationToken cancellationToken = default) => actual.UpdateAsync(aggregate, cancellationToken);
         public async Task ValidateGraphAsync(CancellationToken cancellationToken = default)

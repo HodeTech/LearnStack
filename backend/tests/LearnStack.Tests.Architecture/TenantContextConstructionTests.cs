@@ -174,7 +174,10 @@ public sealed partial class TenantContextConstructionTests
         // handler scope (integration events). HTTP and the acceptance/execution
         // halves of the integration-event scope and the job executor exist today;
         // the rule is written over the whole set so the next writer is a deliberate edit here rather
-        // than a silent addition there.
+        // than a silent addition there. The operator act executor (ADR-0102, ADR-0036 Amendment 22)
+        // is that deliberate edit: a fifth logical writer, which installs the resolved context
+        // of the tenant an admitted operator act names. The method keeps the name three Accepted
+        // ADRs and the catalogue cite.
         //
         // The needle is receiver-agnostic — a future `Activity.Current =` anywhere in
         // backend/src would trip this, which is a false positive to exempt by path
@@ -212,10 +215,11 @@ public sealed partial class TenantContextConstructionTests
                 "LearnStack.Infrastructure/Jobs/JobExecutor.ExternalCheckpoints.cs",
                 "LearnStack.Infrastructure/Jobs/JobExecutor.External.cs",
                 "LearnStack.Infrastructure/Jobs/JobExecutor.Recipients.cs",
+                "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorActExecutor.cs",
             ],
-            "three of the four logical writers have landed — HTTP, jobs and the integration-event "
-            + "acceptance/execution scopes; all JobExecutor partials belong to one logical writer. "
-            + "HubCorrelationMiddleware belongs to its later phase; a fifth writer is how a "
+            "four of the five logical writers have landed — HTTP, jobs, the integration-event "
+            + "acceptance/execution scopes and the operator act executor; all JobExecutor partials belong to one "
+            + "logical writer. HubCorrelationMiddleware belongs to its later phase; a sixth writer is how a "
             + "request runs under a tenant nothing resolved");
     }
 

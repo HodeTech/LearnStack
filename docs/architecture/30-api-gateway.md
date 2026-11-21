@@ -540,10 +540,10 @@ Phase 11 deliverables:
 - [ ] Per-tenant rate-limit override (consumer keys; requires etcd mode).
 - [ ] `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` for Keycloak issuer split (Docker network vs
       browser); document in 13-identity-and-auth.md.
-- [ ] Hangfire dashboard route gated by BasicAuth at the gateway and the
-  application's Platform-scope permission; Phase 03 owns the dated ADR-0015
-  disclosure before mapping, and Phase 11 owns gateway qualification.
-      (backend).
+- [ ] The Hangfire dashboard stays unmapped
+  ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md), ADR-0015
+  Amendment 2). Any future admission needs its own decision and a Platform-scope
+  permission, and Phase 11 owns gateway qualification.
 - [ ] Production CORS allow-list (no `localhost`).
 - [ ] OpenAPI dev route gated by environment (404 in prod).
 - [ ] Real client IP forwarding via `real-ip` configured with trusted L4 LB ranges only.

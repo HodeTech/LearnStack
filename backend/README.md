@@ -22,6 +22,7 @@ backend/
     LearnStack.Infrastructure.Audit/       # ADR-0033 audit pipeline plumbing
     LearnStack.Api/                        # ASP.NET host
     LearnStack.Tools.IdentityAuthorityInstaller/ # deployment-only identity anchor
+    LearnStack.Tools.IdentityAuthorityRebind/    # offline controlled issuer rebind (ADR-0104)
     LearnStack.Tools.Seeder/               # finite development data/adoption
 
     Modules/

@@ -62,10 +62,11 @@ platform-scoped, application-read-only `identity_authority` singleton owns the
 stable authority UUID and current exact issuer URI. The deployment installer
 creates it once with migration credentials before bootstrap; application code
 cannot insert, update or automatically replace it. Configuration issuer drift
-refuses identity admission. P03-9/G13 owns an approved issuer rebind before the
-first change, proving provider continuity and freezing bootstrap and old grants
-while preserving authority, keys, actors and closed tombstones. Until that owner
-is implemented, issuer renaming is unsupported; aliases and email matching supply
+refuses identity admission. The only change is the controlled issuer rebind of
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md), an offline tool on a
+confined role that proves provider continuity against the new realm and freezes starts
+and User creation while it runs, preserving authority, keys, actors and closed
+tombstones. Any other issuer change is unsupported; aliases and email matching supply
 no continuity proof.
 
 The subject key is SHA-256 over domain-separated, length-delimited stable
@@ -227,7 +228,7 @@ remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 <!-- async-store-first-party:start -->
 | Store | Copies and subject linkage | Existing constraint |
 |---|---|---|
-| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL | Platform has SELECT/DELETE, no envelope rewrite grant |
+| `outbox_messages` | `actor_user_id`, identifier-only `payload`, tenant/org, partition/causation/event IDs and `correlation_id`; new producer `metadata` is SQL NULL | Platform has `DELETE` and `SELECT` of twelve metadata columns only ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)), no envelope rewrite grant |
 | `event_deliveries` | Independent per-subscription envelope/`payload` copy with `actor_user_id`, tenant/org, causation/trace/partition, lease, closed failure descriptor and dead-letter/replay state | No DELETE grant to runtime roles; producer cleanup does not erase this copy |
 | `inbox_messages` | `(tenant_id, subscription_id, event_id)` and `recorded_at`; indirect subject linkage without actor, payload or org columns | Immutable completion history; no generic Platform purge |
 | `background_jobs` | `causal_actor_user_id`, identifier-only `parameters`/`plan`, trace/causation, lease, closed failure/terminal descriptors and parent/recipient/operation/final-attempt links | Envelope/prepared facts stay immutable; uncertain effects retain occupancy |
@@ -504,10 +505,14 @@ remains in the phase Status block.
   grants, immutable-fact treatment, dependency/deletion order, replay/deduplication
   floor and evidence of completion. No such authority or policy is chosen by this
   inventory. Ordinary SystemActor delivery and dispatcher credentials supply none.
-- `learnstack_platform` has no grants on inbox, delivery or LearnStack job
-  tables. `BYPASSRLS` bypasses policies, not SQL privileges, no-delete triggers or
-  write-once facts. Any required authority change needs its own bounded decision
-  and migration before the writer ships.
+- `learnstack_platform` has no grant on inbox or delivery payloads, a job's
+  parameters or plan, or any outbox envelope column. It reads named metadata columns
+  of `outbox_messages`, `event_deliveries`, `background_jobs` and
+  `background_job_reservations` for the operator inspection of
+  [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md), and keeps
+  `DELETE` on `outbox_messages` for the retention purge. `BYPASSRLS` bypasses policies,
+  not SQL privileges, no-delete triggers or write-once facts. Any further authority
+  change needs its own bounded decision and migration before the writer ships.
 - Live/uncertain effects, reservation accounting, immutable execution evidence,
   monotonic progress and same-transaction MUST audit remain intact. Erasure,
   elapsed time and operator authority prove neither quiescence nor permission to

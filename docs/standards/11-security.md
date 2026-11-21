@@ -159,10 +159,33 @@ LearnStack runs **two Keycloak realms** per
 - `learnstack` — the tenant-facing realm. All tenant admins, instructors, and learners
   authenticate here. The realm includes the tenant id in token claims; the API
   re-validates against the resolved tenant context.
-- `learnstack-hub` — the **operator realm**, used **only** by the Hub operator portal
-  (`hub.learnstack.dev`). Tenant-facing apps **never** accept `learnstack-hub` tokens;
-  the internal API (`/api/internal/*`) **only** accepts `learnstack-hub` tokens plus
-  the mTLS client certificate.
+- `learnstack-hub` — the **operator realm**, used by the Hub operator portal
+  (`hub.learnstack.dev`) and by LearnStack's platform operator surface
+  (`/api/platform/v1/*`, [ADR-0101](../decisions/0101-platform-operator-authority.md)).
+  Tenant-facing apps and the tenant API **never** accept `learnstack-hub` tokens; the
+  internal API (`/api/internal/*`) **only** accepts `learnstack-hub` tokens plus the
+  mTLS client certificate; and the platform operator prefix accepts operator tokens of
+  its pinned issuer only, for its own audience. The operator's onboarding acts
+  ([ADR-0102](../decisions/0102-production-tenant-onboarding.md)) run on the application
+  role, under row security, through the ordinary pipeline; the `BYPASSRLS` uses of the
+  operator surface are the platform scope's callers (the killswitch writer, the recovery
+  inspections and the federation report, remove and disable of
+  [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md)), each behind
+  an entry row and a per-act admission. The federation acts reach the identity provider
+  only through the confined admin client and its operator port, after an intent row the
+  scope handle commits, and never read or remove a realm user. The executor that
+  installs an act's tenant context accepts only an admission the gate minted for that
+  act within the last 30 seconds and spends it once, and the seeder refuses to run
+  outside a Development deployment. The controlled issuer rebind
+  ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md)) is not an HTTP route at
+  all: an offline tool validates the same operator token with the same validator, admits
+  the act against the same per-act grant (`platform.identity_authority.admin`) and then
+  uses a sixth, confined database role
+  ([§ Confined identity-rebind role](#confined-identity-rebind-role)). Its realm
+  credential is an operator-supplied `view-users` client for the new realm, created for
+  the run and deleted after it; it is not a LearnStack runtime or federation
+  credential, and [ADR-0099](../decisions/0099-confined-tenant-federation.md)'s refusal
+  of user-level authority for LearnStack is unaffected.
 
 General rules:
 
@@ -563,6 +586,32 @@ for the full strategy. Standards-side:
 - The `app.tenant_id` and `app.organization_id` session variables are set with
   `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
   which is the single authority for that placement.
+
+### Confined identity-rebind role
+
+`learnstack_identity_rebind` is the sixth login role and the one login credential that
+can change `identity_authority.issuer`; the owner credential is deploy-only and can
+alter any policy. It is `NOINHERIT` and `NOBYPASSRLS`, holds a handful of column grants
+and one policy arm, and is configured on no API, worker, seeder, web or compose service:
+[`The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`](21-architecture-tests-catalogue.md#the_identity_rebind_credential_is_named_only_by_the_rebind_tool)
+confines the key to the one tool file that reads it, and the tool refuses to use a role
+whose posture is not exactly the declared one. A column grant to a runtime role guarded
+by a transaction setting was rejected, because any session can set the setting. The
+role's `audit_log` access is bounded by a policy arm that excludes the role from the
+ordinary tenant arm, so the tenant a session announces does not widen its rows.
+
+**Residual.** The operator token, the grant and the attribution in the audit rows are
+checked by the tool, and the database does not force them: whoever holds the role's
+password can change the issuer without the tool and write a rebind row of the admitted
+shape, and the platform and outbox roles, which bypass row security, can write such a
+row too. The grant and the password sit in the tool's one environment, so keeping the
+person who writes it apart from the operator is a practice, and the password is retired
+after the window ([runbook](../runbooks/identity-issuer-rebind.md#two-people)). A
+database-enforced pairing of the change and its result row would need a confined
+definer that reads `audit_log`, and is the maintainer's decision
+([ADR-0104 Amendment 1](../decisions/0104-controlled-issuer-rebind.md), item 10).
+[Database Standards](05-database.md#controlled-issuer-rebind-storage) owns the grants,
+policies, trigger and lock.
 
 ### Confined event dispatcher
 

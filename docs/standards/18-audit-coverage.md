@@ -222,13 +222,33 @@ will raise them — which this standard requires it to do.
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**. `tenancy.killswitch.toggle` is
-  `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
-  than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
-  and the read path but no writer —
-  [Phase 03](../roadmap/phase-03-identity-admin.md) owns the toggle command, its
-  Platform-scope permission and its runbook
-  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+- **A row can carry both markers**. `tenancy.entitlement.refresh` is `(off-path)`
+  because its writer is a port method rather than a request, and `(planned)` because no
+  real provider exists yet. `tenancy.killswitch.toggle` carried both until P03-9 Step 1
+  shipped its writer
+  ([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md)); it keeps
+  `(off-path)` because the write runs inside the platform scope rather than through the
+  pipeline. The controlled issuer rebind's two rows,
+  `identity.authority.rebind_attempt` and `identity.authority.rebind`
+  ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 8), are `(off-path)` for
+  the same reason one step further: they are written by an offline tool on its own role
+  through two witness-bound methods, under the platform sentinel, with no actor and the
+  ticket in `metadata.operator`. The operator recovery operations of
+  [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) are
+  `(off-path)` too: `platform.delivery.inspect` is the admitted operation whose
+  reason `delivery_inspect` the platform scope's entry row carries, and
+  `platform.delivery.replay` and `platform.delivery.reset` are
+  written on the dispatcher's outbox-role transaction through one witness-bound method,
+  under the real event tenant, with no actor, the operator attribution and the fence in
+  `metadata`, and no ticket, because a tenant can read the row. The operator federation
+  operations of [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 10
+  and 11 are `(off-path)` as well: `platform.federation.report` is audited by the
+  platform scope's entry row, and `platform.federation.remove` and
+  `platform.federation.disable` each write an intent row on their `_attempt` slug at the
+  scope handle's checkpoint, with the outcome `indeterminate`, committed before the
+  provider call ([ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md)), and a
+  completion row on their own slug. Both rows name the tenant the owner marker names
+  and carry no ticket and no tenant-authored text.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
@@ -318,18 +338,32 @@ Rules:
   member name on the wire and in the column, which is why the example above reads `Create`
   and `Must` where the tables read `create` and **MUST**.
 - `outcome` is one of `success`, `denied`, `failed`, `indeterminate`
-  ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's `is_success boolean`
-  is superseded, because a boolean cannot carry `denied`). `denied` is used when an
-  authorisation check rejects the operation — these MUST be audited so we can detect
-  probing. `indeterminate` is the commit whose server-side outcome is unknown: the
-  standalone re-write carries the **same** `id` as the in-transaction attempt, and the
-  pair is what a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies
-  `occurredAt` from `IClock` — the intent's declaration time in the transaction, a fresh
-  reading for a standalone re-write — which is what keeps that pair legal under the
-  composite primary key `(id, timestamp)`. This describes ordinary resource
-  reconciliation; [trusted denial occurrences](#trusted-authorization-evidence)
-  instead retain one fixed key, timestamp and draft.
-- `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. It is `EnterPlatformAdminScope(reason)`'s short operator-authored slug naming the operation — never caller-supplied text — and it is surfaced in the tenant admin's audit view. A refusal's cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
+  ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's
+  `is_success boolean` is superseded, because a boolean cannot carry `denied`). `denied`
+  is used when an authorisation check rejects the operation — these MUST be audited so
+  we can detect probing. A Platform operator admission refusal is tenantless and outside
+  that population: it leaves a counter and a Warning log
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 11), and an
+  authorization refusal of an operator act inside the pipeline leaves a counted
+  `refused` outcome and a Warning, event 7109, with no durable row
+  ([ADR-0033 Amendment 14](../decisions/0033-audit-durability-model.md)). A business
+  refusal of an admitted operator act writes the ordinary `failed` row in the target
+  tenant, with `actor_user_id` NULL, the closed reason slug and `metadata.operator`.
+  `indeterminate` is the commit whose server-side outcome is unknown: the standalone
+  re-write carries the **same** `id` as the in-transaction attempt, and the pair is what
+  a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies `occurredAt`
+  from `IClock` — the intent's declaration time in the transaction, a fresh reading for
+  a standalone re-write — which is what keeps that pair legal under the composite
+  primary key `(id, timestamp)`. This describes ordinary resource reconciliation;
+  [trusted denial occurrences](#trusted-authorization-evidence) instead retain one fixed
+  key, timestamp and draft.
+- `reason` is required when the operator is a platform admin acting on a tenant they are
+  not a member of. It is the closed reason slug of the registered operator operation
+  (`PlatformOperation.ReasonSlug`) — never caller-supplied text — and it is surfaced in
+  the tenant admin's audit view when the row targets that tenant. Rows under the
+  platform sentinel are visible to no tenant
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 9, § 10). A refusal's
+  cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
 - `changes` is always a JSON **array** of `{ path, before, after }`, never the polymorphic
   object-or-array shape ADR-0016 described. A reader that has to branch on the shape gets

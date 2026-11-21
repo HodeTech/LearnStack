@@ -479,7 +479,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-7 hosted repeat failure and closed diagnostic correction (2026-11-12)](#p03-7-hosted-repeat-failure-and-closed-diagnostic-correction-2026-11-12) — 56 lines
   - [P03-7 faulted test-owner lifetime correction (2026-11-12)](#p03-7-faulted-test-owner-lifetime-correction-2026-11-12) — 73 lines
   - [P03-7 merge and delivery closeout (2026-11-12)](#p03-7-merge-and-delivery-closeout-2026-11-12) — 89 lines
-- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,331 lines
+- [P03-8 — Tenant federation](#p03-8--tenant-federation) — 2,404 lines
   - [P03-8 proposed tenant federation package (2026-11-13)](#p03-8-proposed-tenant-federation-package-2026-11-13) — 109 lines
     - [Maintainer decisions recorded 2026-11-13](#maintainer-decisions-recorded-2026-11-13) — 10 lines
   - [P03-8 proposal review round one and corrections (2026-11-13)](#p03-8-proposal-review-round-one-and-corrections-2026-11-13) — 40 lines
@@ -508,6 +508,29 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0100 maintainer review disposition and acceptance (2026-11-18)](#adr-0100-maintainer-review-disposition-and-acceptance-2026-11-18) — 71 lines
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
+  - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,291 lines
+  - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
+  - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
+  - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
+  - [P03-9 Step 1 — review round 1 and its fixes (2026-11-19)](#p03-9-step-1--review-round-1-and-its-fixes-2026-11-19) — 137 lines
+  - [P03-9 Step 2 — review round 1 and its fixes (2026-11-19)](#p03-9-step-2--review-round-1-and-its-fixes-2026-11-19) — 46 lines
+  - [P03-9 Step 2 — review round 2 and its fixes (2026-11-19)](#p03-9-step-2--review-round-2-and-its-fixes-2026-11-19) — 35 lines
+  - [P03-9 Step 3 — controlled issuer rebind (2026-11-20)](#p03-9-step-3--controlled-issuer-rebind-2026-11-20) — 107 lines
+  - [P03-9 Step 3 — review round 1 and its fixes (2026-11-20)](#p03-9-step-3--review-round-1-and-its-fixes-2026-11-20) — 23 lines
+  - [P03-9 Step 3 — review round 2 and its fixes (2026-11-20)](#p03-9-step-3--review-round-2-and-its-fixes-2026-11-20) — 70 lines
+  - [P03-9 Step 4 — operator recovery of asynchronous work (2026-11-20)](#p03-9-step-4--operator-recovery-of-asynchronous-work-2026-11-20) — 59 lines
+  - [P03-9 Step 4 — review round 1 and its fixes (2026-11-20)](#p03-9-step-4--review-round-1-and-its-fixes-2026-11-20) — 49 lines
+  - [P03-9 Step 4 — review round 2 and its fixes (2026-11-20)](#p03-9-step-4--review-round-2-and-its-fixes-2026-11-20) — 39 lines
+  - [P03-9 Step 5 — federation operator steps (2026-11-20)](#p03-9-step-5--federation-operator-steps-2026-11-20) — 71 lines
+  - [P03-9 Step 5 — review round 1 and its fixes (2026-11-20)](#p03-9-step-5--review-round-1-and-its-fixes-2026-11-20) — 67 lines
+  - [P03-9 Step 5 — review round 2 and its fixes (2026-11-20)](#p03-9-step-5--review-round-2-and-its-fixes-2026-11-20) — 63 lines
+  - [P03-9 Step 5 — verification and closeout (2026-11-21)](#p03-9-step-5--verification-and-closeout-2026-11-21) — 33 lines
+  - [P03-9 Step 5 — hosted CI correction (2026-11-21)](#p03-9-step-5--hosted-ci-correction-2026-11-21) — 23 lines
+  - [P03-9 Step 5 — hosted CI correction, second run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-second-run-2026-11-21) — 27 lines
+  - [P03-9 Step 5 — hosted CI correction, third run (2026-11-21)](#p03-9-step-5--hosted-ci-correction-third-run-2026-11-21) — 24 lines
+  - [P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)](#p03-9-step-5--hosted-ci-the-opposite-shard-layout-2026-11-21) — 30 lines
+  - [P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)](#p03-9-step-5--a-local-guard-for-unserializable-theory-data-2026-11-21) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -24092,3 +24115,1367 @@ mapper-readback statement and Amendment 9 for the rest.
 | `python3 scripts/run-realm-node-tests.py` | 13 files, 498 passing tests |
 | `python3 scripts/test-openapi-ci.py` | 64 tests OK; the other eleven suites in `scripts/` OK; `test-ci-native-provisioning.py` not run |
 | `make docs-index`, `make lint-docs` | index regenerated; 3,845 fragment links resolve; roadmap structure conforms; delivery log indexes current |
+
+### P03-8 merge and delivery closeout (2026-11-19)
+
+The maintainer merges [PR #45](https://github.com/HodeTech/LearnStack/pull/45) at
+02:59:14 Europe/Istanbul on 2026-11-19 (23:59:14 UTC on 2026-11-18). Reviewed head
+`5eeba2c3` and merge commit `02654275` share tree `d43ee66d`; the merge parents are
+`0c7394c7` and `5eeba2c3`. Development fast-forwards to that merge without switching
+branches or changing files.
+
+P03-8 implementation delivery is complete and merged under Accepted ADR-0099 (Amendments
+1–9) and the contract transition ADR-0100: D11 is delivered. Steps 0 to 4, their review
+rounds, the CI triage, the contract transition and the
+[PR review disposition](#p03-8-pr-review-disposition-2026-11-18) are recorded above.
+This closeout changes documentation only and selects no new policy or ADR.
+
+Delivered behavior:
+
+- A tenant administrator configures one SAML or OIDC identity provider per tenant in
+  Studio. LearnStack owns the shared Keycloak broker and fixes every trust, flow, mapper
+  and egress decision; client secrets are write-only and egress is bounded and
+  address-class checked.
+- Provider writes are intent-first and readback-verified: Begin, the provider call
+  outside any transaction, then Complete, each with its own MUST audit row. A lost write
+  settles as uncertain and Resume reconciles it. Drift, an expired test window and an
+  entitlement lapse are corrected at the next readback.
+- The lifecycle is Draft, test window, passed test, Active, Disabled and a Deleted
+  tombstone. The sign-in option appears only for an Active, entitled connection, and
+  brokered sessions are host-bound at every credential publication path.
+- The first-broker flow only links an existing account and creates none. The Keycloak
+  account console is retired, so no realm user has Keycloak self-service, and the realm
+  is pinned to 26.7.5 by digest.
+- The OpenAPI gate approves the exact reviewed snapshot pair under ADR-0100 and is
+  isolated from a pull request's own scripts.
+
+Final-head evidence:
+
+- [Run 44408689473, attempt 3](https://github.com/HodeTech/LearnStack/actions/runs/44408689473/attempts/3)
+  passes 27 jobs with two skipped (the bot reviewers), layout **A**, at reviewed head
+  `5eeba2c3`; every required check is green. Attempt 1 (layout A) failed `ordinary-6`,
+  `ordinary-10` and the integration aggregate; attempt 2 (layout B) failed `ordinary-11`
+  and the aggregate.
+- The failed shards' `ci-proof` artifacts show the Keycloak fixture start-up timeout
+  (`readiness_timeout` at `provider_starting`, TLS readiness not completing within 120
+  seconds) with the failed cases lasting a millisecond, so no test body ran. The cause
+  is not localized, and the later pass does not erase the failed attempts. Only those
+  failed shards' artifacts were read; no original archive set was retained for this
+  head.
+- Merge-triggered main run `44425299178` was queued at this observation and has a
+  different source identity.
+- The local verification of the final tree is in the disposition record's table.
+
+Evidence boundaries and handoff:
+
+- No successful opposite-layout B exists on this final head. Final-head A/B
+  reconciliation remains an open P03-11 evidence follow-up, and the merge does not waive
+  Testing 06's complete-pair requirement.
+- Manual accessibility for the Studio federation page and the sign-in option was not
+  performed (ADR-0099 C20). The full local Integration and Architecture suites were not
+  run; hosted CI ran them.
+- The served-contract changes held for a new transition decision (the
+  `clientAuthentication` read-model field, the operation status descriptions and the
+  bound mismatches), gate G20, the Phase 11 items for the production realm invariants,
+  pre-registered accounts and the confirm-link copy, and the managed launcher's closed
+  inventory stay open as the disposition record lists them.
+
+Next by packet order is P03-9, platform authority and operational recovery (D12/D13,
+C14/C15). G13 and G14 are Open and its decision pass must settle them before the first
+Platform writer. It also owns the ADR-0099 federation operator steps: the orphan-broker
+sweep, the operator disable of a broker the tenant cannot reach and the
+delegated-account review. G20 is decided no later than the first packet that adds an
+assignable permission key. P03-10 DSAR and global closure, which integrates
+`federation_connections` and its broker, and P03-11 exit enforcement remain unstarted.
+Phase 03 stays in progress; this closeout starts no next packet.
+
+## P03-9 — Platform authority and operational recovery
+
+### P03-9 proposed platform authority and recovery package (2026-11-19)
+
+**Status: Proposed.** The maintainer requests P03-9 through `implement-task` on
+`development`, with a review of every existing governing document before
+implementation, explicit approval of any new ADR before its dependent code, and every
+decision that needs the maintainer shown up front. Each implementation step takes a
+commit, a fresh independent review round one, verified fixes and a commit, then a
+different fresh review round two, verified fixes and a commit. The work continues
+between steps without an unnecessary stop. No Fable model is used.
+
+The baseline is clean `development` at `ed454f3a`. The request cites a
+`docs/roadmap/current.md` that does not exist; the scope below comes from the
+[Phase 03](phase-03-identity-admin.md) P03-9 row, gates G13 and G14, deliverables
+D12/D13 and criteria C14/C15/C19. This proposal changes no register status, claims no
+runtime behavior and authorizes no code.
+
+#### Problem, document review and decision boundary
+
+P03-9 delivers the first real Platform authority and the operational recovery that
+privileged execution has waited on since Phase 02a. The gate still refuses everyone, no
+operator is authenticated anywhere, and production has no tenant, first administrator,
+issuer-rebind or recovery path outside the development seed. G13 and G14 are Open.
+
+Four independent read-only reviews compared the P03-9 text with ADR-0004/0015/0033/
+0034/0035/0036/0044/0045/0046/0047/0058/0064/0070/0072/0073/0074/0076/0077/0093/0097/
+0099/0100, Standards 04/05/11/18/19/20/21, Architecture 13/15/23/28/30, the Identity and
+Tenancy module specifications, the realm exports, the Phase 02b/02c/11 text and the
+code at `HEAD`. The maintainer's session re-verified the headline findings: the gate
+and scope signatures, the null actor and correlation in the entry row, the absence of an
+HTTP mapping for `PlatformAdminScopeDeniedException`, the singleton registration, the
+absence of any production caller of `EnterAsync` and `ReplayAsync`, the missing
+`/admin/hangfire` mapping, the platform role's lack of any grant on
+`federation_connections`, and that the tenant OpenAPI document includes only `/api/v1`
+paths. The load-bearing findings are:
+
+| Finding at HEAD | Action |
+|---|---|
+| ADR-0036 routes operators through `/api/internal` under the Hub chain; ADR-0004 says that chain is independent of the operator JWT | ADR-0101 chooses a direct operator scheme; ADR-0004 and ADR-0036 disclosures |
+| Standard 04 writes `/api/v1/platform/...`; ADR-0036 leaves the URL space open | ADR-0101 fixes `/api/platform/v1`; Standard 04 edit |
+| Standard 11 says the hub realm serves only the Hub portal | Standard 11 edit under ADR-0101 |
+| "A real actor" is claimed for the scope row; the row carries null actor and correlation | ADR-0045 disclosure; matrix rewritten with Step 1 |
+| Standard 18 says the scope reason is shown to tenant admins; sentinel rows are tenant-invisible | ADR-0101 § 9 and a Standard 18 clarification |
+| The gate has no principal and is a singleton; its comments call permissions absent | ADR-0101 § 7 and § 8; comments corrected in Step 1 |
+| ADR-0015 still guides a realm-role dashboard gate | ADR-0103 and ADR-0015 Amendment 2 |
+| Phase 11 asserts producer replay and job requeue exist | Conditional rewrite at acceptance |
+| D13 says the dashboard is admitted; its safe admission conditions do not hold | ADR-0103 § 8; D13 reworded |
+| ADR-0099 defines an orphan as a missing row; delete keeps a tombstone | ADR-0099 Amendment 10 covers absent and `Deleted` rows |
+| ADR-0100 expects Platform keys to recur the OpenAPI refusal | A Platform key is non-assignable; disclosure at acceptance |
+| The `(planned)` matrix row fails coverage once its slug is registered | Row and registration change in one commit |
+| `docs/runbooks/` is a Phase 11 deliverable that does not exist; D12/D13 need runbooks | Created in Step 1; Standards 12 and 13 amended |
+| CODEOWNERS is cited as enforcing in four documents; the file is absent | Recorded for G20; not changed here |
+| The Seeder refuses no deployment mode | ADR-0102 § 11 |
+
+#### Choices presented together
+
+- **Operator authentication.** A separate strict scheme at a pinned issuer, by default
+  the `learnstack-hub` realm, audience `learnstack-platform`, MFA by `acr`, human
+  operators only, on `/api/platform/v1/*`. No Hub forwarding and no service operator.
+- **Grants.** A port with a configuration adapter, evaluated per act; a table adapter on
+  a named trigger. Keycloak roles carry no authority.
+- **Denied evidence.** A counter and a log, with no durable row, because a durable row
+  needs a bypass connection for a refused caller or a third sentinel class.
+- **Onboarding.** Operator-admitted acts on the app role through the ordinary pipeline:
+  provision a tenant and map its hosts, create Role templates, create the first
+  administrator, recover. The person is named by provider subject and must have signed
+  in once. The platform role is not used.
+- **Issuer rebind.** An offline operator act through the installer tool: stopped fleet
+  checked by a session test, a continuity proof over every stored subject key, a guarded
+  column and a result row. No HTTP rebind and no runtime freeze.
+- **Recovery.** Metadata-only inspection, targeted subscriber replay with a stale-state
+  fence, and a narrow producer reset limited to `retry_exhausted`, all on a confined
+  outbox-role owner with no new grant.
+- **Not admitted, with owners.** Job requeue and reservation release until a provider
+  can prove quiescence (Phase 08a, Phase 11); recurrence recovery (Phase 11); every
+  dashboard form.
+- **Federation operator steps.** Admitted as ADR-0099 Amendment 10, written at
+  acceptance: a separate operator port that lists marker-bearing brokers, reports each
+  class, removes an orphan or unreadable owned broker and disables a nonconforming
+  readable one at the provider only, with the row left to the tenant readback. The
+  platform role gains a column-limited `SELECT` on `federation_connections` (id, tenant,
+  state, deletion time). The delegated-account review is a runbook, because no
+  LearnStack credential may enumerate or remove realm users and the brokered link events
+  expire after seven days. The result rows of a disable or removal name the review as
+  owed.
+- **G20.** Not triggered. Every P03-9 key is a non-assignable Platform key, no tenant
+  field changes, and the tenant document stays byte-identical. G20 stays Open for the
+  first assignable key.
+- **Operator client.** The served operator document is the contract. This repository
+  ships no operator screen and no command-line client; the Hub operator portal, not
+  started, is the intended interface. Runbooks give the exact requests.
+
+#### Experience, performance and security confirmation
+
+- **Experience.** Every operator write has a report or inspection first. Responses use
+  closed Problem Details types with the next step named: stale fence (re-inspect),
+  bootstrap required (the person signs in first), audit unavailable (retry is safe),
+  forbidden (which permission). Writes accept an idempotency key. Runbooks carry exact
+  requests and the expected rows.
+- **Performance.** Operator routes are low volume and add nothing to tenant requests:
+  no admission read on the authentication hot path and no freeze flag. Grants are
+  in-memory. Inspections are cursor-paged on existing indexes with an enforced page
+  cap, and the federation listing is paged with a deadline.
+- **Security.** Two disjoint schemes and prefixes; admission before any privileged
+  credential; the platform role only for acts that need it; no raw provider connection
+  in the scope handle; every result row in the state's transaction; a Seeder mode
+  refusal. The hazards the reviews found map to the proofs in each ADR.
+
+#### Four implementation steps after approval
+
+1. **Operator authority and killswitch.** Realm client and audience, the scheme,
+   witness, Platform catalogue, grant source, gate, scope redesign, result seam, route
+   census, problem mapping, the killswitch writer, matrix and Standard 19 rows, and the
+   operator-access and killswitch runbooks.
+2. **Production onboarding and issuer rebind.** The operator source and its setter
+   call, the resolver, the four acts and routes, the rebind verb with its guard
+   migration and canonical SQL, the Seeder refusal and the onboarding runbook.
+3. **Operational recovery.** The confined owner, inspection, replay and reset with
+   fences, the two witness seams, census edits, the ADR-0015 and ADR-0046 disclosures
+   and the recovery runbook.
+4. **Federation operator steps.** ADR-0099 Amendment 10, the operator port, report,
+   removal and disable, the column grant, the adapter route census update and
+   the federation operator runbook.
+
+Closeout follows: Status, the register, Phase 11 rewrites and the delivery record. Each
+step ends with its own commit, review rounds and verified fixes before the next begins.
+
+#### Carriers owed at acceptance
+
+Accepting ADR-0101, ADR-0102 and ADR-0103 would close G13 and G14 and name this package
+as their record. Dated disclosures follow in ADR-0004, ADR-0015 (Amendment 2),
+ADR-0036, ADR-0040, ADR-0044, ADR-0045, ADR-0046, ADR-0047, ADR-0072, ADR-0073,
+ADR-0099 (Amendment 10) and ADR-0100; Standards 04, 05, 11, 12, 13, 18, 19, 20 and 21;
+Architecture 13, 28 and 30; the glossary; the Identity and Tenancy module
+specifications; and the Phase 03 and Phase 11 documents. This proposal edits none of
+them.
+
+### P03-9 package review dispositions and acceptance (2026-11-19)
+
+**Status: Accepted.** This record closes gates G13 (human operator authority,
+production provisioning, first administrator, recovery and issuer rebind) and G14, and
+accepts [ADR-0101](../decisions/0101-platform-operator-authority.md),
+[ADR-0102](../decisions/0102-production-tenant-onboarding.md),
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md). Where it differs from the
+[proposed package](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19),
+this record governs: the proposal's single onboarding-and-rebind ADR is split, and its
+four-step plan becomes five.
+
+#### Maintainer decisions
+
+The maintainer chose, on the four forks the proposal presented: no dashboard (the
+inspection set replaces it, and D13's wording changes); the narrow producer reset is
+included; the operator client is the served operator document plus runbooks, with no
+screen and no command-line client in this repository; operator grants come from a
+configuration adapter behind a port, with the table adapter on a named trigger. The
+maintainer then supplied three independent reviews of the Proposed package, asked that
+each finding be analysed against the code and the corpus because the reviewers did not
+know the process, confirmed that the application is in development and not in use so
+no backward compatibility is owed, and asked for acceptance and continued
+implementation once the corrections were made.
+
+#### Verification of the findings
+
+The maintainer's session checked each claim that would change a decision against `HEAD`
+before acting. The following were confirmed: the seed guard demands a single `Seed`
+source, an exact trusted `Seed` source and the fixed declaration, and the API registers
+deny-all seed continuation and foundation admissions; the first-admin command refuses
+any Membership history; authority qualification reads once per process without a lock;
+the route convention exempts only `api/internal`, and the tenant document includes only
+`/api/v1` paths; ADR-0064 registers exactly one tenant bearer scheme; the platform role
+holds no grant on `federation_connections`; the outbox role holds table-wide `SELECT` on
+`outbox_messages` and a lifecycle-column `SELECT` on `tenants`; ADR-0093 says reissue
+does not reconcile the old effect; the stray fragment in Architecture 30 existed; and
+ADR-0040 counts ten logical tenant setters, four context writers and eight definers, not
+eight setters.
+
+#### Dispositions
+
+| Finding (review labels) | Disposition |
+|---|---|
+| Rebind guard is not a control: a platform-role grant plus a settable setting (R2 B1, R1) | Fixed. A dedicated rebind role replaces the platform grant (ADR-0104 § 2) |
+| Freeze window: qualification reads without a lock (R2 B2) | Fixed. Shared advisory lock on qualification and user creation (ADR-0104 § 5) |
+| Seed policies "stay Seed" versus "alongside Seed" (R2 B3, R3 B1) | Fixed. Separate operator commands; the seed guards are untouched (ADR-0102 § 1, § 2) |
+| Recovery is not the first-admin act (R3 B2, R2 M13) | Fixed. Two predicates, both under the ordered locks (ADR-0102 § 7, § 8) |
+| First-admin could escalate a tenant that has administrators (R3 B7) | Fixed. First-admin refuses any Membership history (ADR-0102 § 7) |
+| Target tenant contradicts the no-request-value rule (R3 B3, R2 M3) | Fixed. One confined eleventh setter, disclosed in ADR-0036 and ADR-0040 |
+| Ordinary pipeline cannot carry operator attribution (R3 B4) | Fixed. The audit-composition branch is named (ADR-0102 § 9, ADR-0033 and ADR-0044) |
+| Offline tool cannot mint the witness (R3 B5) | Fixed. One minter, two sanctioned callers (ADR-0101 § 7, ADR-0104 § 3) |
+| Rebind needs `SELECT` and a user-reading credential (R3 B6, R2 M12, M14) | Fixed. Table `SELECT`, a read of four `users` columns, a run-time realm credential, a separate tool project |
+| `/api/platform/v1` does not fit the route and OpenAPI mechanics (R3 B8, R2 M10) | Fixed. Prefix list, own document, census and classifier entries (ADR-0101 § 4); the gateway routes none |
+| Subscriber replay does not filter terminal reasons (R3 B9, R2 M19) | Fixed. `invalid_envelope` always refused (ADR-0103 § 2) |
+| Producer reset claim about every Active subscription is wrong (R3 B10) | Fixed. Only subscriptions with no delivery row are reached (ADR-0103 § 3) |
+| Operator denial versus ADR-0077 and Standard 18 (R3 B11, R2 M1, R1) | Kept the decision, added the disclosures (ADR-0077 Amendment 2, Standard 18) |
+| Ticket, reason, actor and `toggled_by` mapping (R3 B12, R2 M6) | Fixed. Ticket only in sentinel rows; business actor `SystemActor`; `toggled_by` NULL (ADR-0101 § 9) |
+| Issuer may be any OIDC provider (R2 M2) | Fixed. Always a deployment-controlled issuer (ADR-0101 § 1, § 3) |
+| Platform key set omits Standard 19's examples (R2 M4) | Examples stay unregistered; Standard 19 cites the catalogue |
+| Federation keys have no owning ADR (R2 M5) | Fixed. ADR-0099 Amendment 10 |
+| Sentinel class unnamed; "second caller" wrong (R2 M7, M8) | Fixed. The platform-scope class is extended by name; a new method, not a second caller (ADR-0044 Amendment 17) |
+| Demo operator grant reachable in production (R2 M9) | Fixed. Refused unless Development (ADR-0101 § 6) |
+| Tenant id is server-generated, so a lost reply loses it (R2 M11) | Fixed. The operator supplies a UUIDv7 and a slug; the act is idempotent on the pair |
+| Host mapping is not an existing command; DNS unverified (R2 M15) | Fixed. A new operator command; the operator asserts ownership (ADR-0102 § 4) |
+| Grant tests cannot see column privileges (R2 M16) | Fixed. Column-privilege tests are required (ADR-0103, ADR-0104) |
+| No actor identity for operator acts (R2 M17) | Fixed. `SystemActor` in business columns; operator in audit |
+| Inspection reads cross-tenant on a role with table-wide `SELECT` (R2 M18, M21) | Fixed. Inspection moves to the platform scope on named column grants |
+| "Reissue" is not a remedy (R2 M20) | Fixed. Stated as a limit (ADR-0103 § 6) |
+| Operations and routes missing in ADR-0103 (R2 M22) | Fixed. An operation table with permission, principal and audit |
+| Erasure guard is runbook-only (R2 M23) | Fixed. An Active-tenant test until P03-10 |
+| New outbox status writer versus CLAUDE.md (R2 M24) | Fixed. ADR-0046 Amendment 5 and the CLAUDE.md rule name the owner |
+| Carrier lists incomplete or inconsistent (R2 M25, R3, R1) | Fixed. Each ADR lists its full set; the amendments are applied in this commit |
+| ADR-0064 says exactly one scheme (R2 M26) | Fixed. Amendment 9 confines the second scheme |
+| Rebind retry, enumeration time and reload mechanism (R1) | Fixed (ADR-0104 § 9; ADR-0101 § 6) |
+| Permission table broken (R1, R2) | Fixed. My reflow script had wrapped an indented table; it now skips tables |
+| Counters for replay and operator acts (R1) | Fixed. ADR-0101 § 14, ADR-0103 § 10 |
+| Self-Hosted issuer must emit `acr` (R1) | Fixed. ADR-0101 § 3 and the runbook |
+| Producer reset admits only `retry_exhausted` (R2) | Kept; `unknown_type` rows are not recoverable by reset |
+| README placement of Proposed rows (R1) | Moot; all four are Accepted rows in the active table |
+| Review severity labels | Not adopted; each finding was judged on its effect |
+
+Minor wording findings (key names, undefined terms, glossary terms, the 400 versus 403
+for a malformed ticket, "its MUST rows", the "one new realm client" count, the SQL
+confinement wording, `OperationPolicyCatalog`, the dashboard-package wording, the rule
+name) were corrected in the ADRs. The catalogue's dashboard-absence rule and the code
+test that enforces it carry different names; Step 4 reconciles them.
+
+#### Accepted decisions
+
+- Operators authenticate at a deployment-controlled issuer through a second strict
+  scheme on `/api/platform/v1`, with MFA shown by `acr` and `auth_time`. Authority is a
+  LearnStack-held Platform grant evaluated per act. Admission is a witness, and results
+  commit with state.
+- Production onboarding is five operator commands on the app role, a confined operator
+  source and an eleventh logical setter. The seed stays development-only.
+- The issuer rebind is an offline operator act through a dedicated role, a lock, a
+  continuity proof, a guarded row and intent and result audit rows.
+- Recovery is inspection on column grants, fenced subscriber replay and a narrow
+  producer reset. Job recovery, recurrence recovery and every dashboard form stay
+  absent.
+- Federation operator steps are ADR-0099 Amendment 10. G20 is not triggered and stays
+  Open.
+
+#### Five implementation steps
+
+1. **Operator authority and killswitch** (ADR-0101).
+2. **Production onboarding** (ADR-0102).
+3. **Controlled issuer rebind** (ADR-0104).
+4. **Operational recovery** (ADR-0103).
+5. **Federation operator steps** (ADR-0099 Amendment 10).
+
+Each step ends with its own commit, a fresh independent review round and its verified
+fixes, then a different fresh round and its verified fixes, before the next begins.
+Closeout follows with Status, the register and the delivery record.
+
+#### Carriers applied in this commit
+
+Dated disclosures in ADR-0003, 0004, 0015, 0033, 0036, 0040, 0044, 0045, 0046, 0047,
+0064, 0072, 0073, 0074, 0077, 0099 and 0100. Corrections to Standards 04, 11, 12, 13, 18
+and 19, Architecture 13, 28 and 30, the glossary, the Tenancy audit matrix, Phase 03
+(Status, register, section and deliverables), Phase 11 and the CLAUDE.md outbox rule.
+Standard 05 grants and definers, Standard 19 key rows, Standard 21 rules, the permission
+and audit matrices and the runbooks land with the steps that use them. No gate other
+than G13 and G14 changes status, and no behavior is implemented by this record.
+
+### P03-9 Step 1 — operator authority and killswitch (2026-11-19)
+
+Step 1 delivers [ADR-0101](../decisions/0101-platform-operator-authority.md) § 1 to § 14
+for the first Platform operation, the killswitch toggle. The decisions were Accepted in
+`a396f50e`; this record is the implementation and its proof.
+
+Delivered:
+
+- **Contracts** in `LearnStack.SharedKernel`: the Platform permission catalogue
+  (`platform.killswitch.write`), the closed operation registry, the operator witness and
+  the admission, each constructible only through a nested `Minter`, the operator subject
+  digest, the gate and grant-source ports and the ticket grammar.
+- **Gate and grants** in `LearnStack.Infrastructure`: `PlatformOperatorGate`, the
+  configuration grant adapter on `IOptionsMonitor` (valid reloads apply on the next act,
+  an invalid reload refuses everyone), start-time validation of every grant, the
+  demo-operator rule, and the `learnstack.platform_operator` counters.
+- **Scope redesign**: `EnterAsync` takes an admission; the handle is a facade with no
+  connection or transaction member and closes its connection at commit; the entry row
+  carries `metadata.operator`, the closed reason slug and the correlation id with a NULL
+  actor; a new witness-bound `IAuditStore.WritePlatformOperatorResultAsync` writes the
+  MUST result row on the work transaction. `IPlatformAdminGate`,
+  `DenyAllPlatformAdminGate` and `PlatformAdminScopeDeniedException` are removed.
+- **Surface**: the `PlatformOperator` bearer scheme with a closed token profile shared
+  as `PlatformOperatorTokenProfile`, the named policy, minimal endpoints under
+  `/api/platform/v1`, the `platform-v1` OpenAPI document, the prefix added to the host
+  classification and versioned-route exemptions, and absence when no issuer is
+  configured.
+- **Killswitch writer** `KillswitchToggle`: reads the before state under `FOR UPDATE`,
+  upserts, writes the result row, commits, then drops the overlay entry, including after
+  an indeterminate commit. `tenancy.killswitch.toggle` is declared off-path and loses
+  its `(planned)` marker.
+- **Realm**: the `learnstack-operator` client with the `learnstack-platform` audience, a
+  900-second access-token lifespan, no realm roles in the token, the `browser-loa` flow
+  with a level-2 one-time password, `acr.loa.map` `mfa` to 2, and a pinned demo-operator
+  subject. Development configuration accepts `mfa` and grants the demo operator the one
+  key.
+- **Documents**: the operator-access and killswitch runbooks and the runbooks index; the
+  Keycloak README; Standard 19's Platform catalogue; the catalogue entry for
+  `PlatformAdminScope_Entry_Requires_Platform_Permission` and two new rules; the Tenancy
+  permission note; the glossary; the stale "no writer" narratives in Architecture 21 and
+  31, Standard 05 and the code comments.
+
+Findings made while implementing, each fixed:
+
+- The host's default and fallback authorization policies carry only the
+  declared-operation requirement and no authenticated-user requirement, so
+  `[Authorize(AuthenticationSchemes = ...)]` alone authenticated the token and then
+  admitted an anonymous caller. The endpoints use an explicit named policy that requires
+  an authenticated principal from this scheme only. The case that found it asserts the
+  `Bearer` challenge, which only the challenge path sets.
+- The pipeline-order proof treated the endpoint mapper's `MapGroup` as an unverifiable
+  helper; `MapGroup` joins `MapGet` as a framework endpoint leaf and the mapper is
+  declared.
+- The Debug build of the architecture project fails
+  `Authorization_Evidence_Uses_Trusted_Bounded_Provenance`, an IL-shape rule over a type
+  this step does not touch; the Release build that CI uses passes it. Recorded, not
+  changed.
+- Six closed censuses counted the new surface and were updated, each by exact type or
+  name and never by widening a pattern: the authenticated HTTP surface and the
+  job-manifest registration population exclude `PlatformOperatorEndpoints` (its own
+  population is closed by
+  `The_Operator_Surface_Is_Exactly_One_Authorized_Put_Endpoint_Under_Its_Prefix`); the
+  raw-claim authority census admits `PlatformOperatorTokenProfile.TryRead` alone;
+  `IAuditStore` gains its eleventh write; the unversioned-prefix list gains
+  `api/platform`; and Standard 21's published counts move from 377 to 379 test methods
+  and 164 to 166 rules in that assembly.
+- Development configuration now carries an operator issuer and the demo grant, so every
+  test host would have inherited them. The base test factory blanks the issuer and
+  points the one grant at a subject nobody holds; the operator tests set their own.
+  Grants without an issuer validate as inert, because with no issuer there is no scheme
+  and the grant source answers no for everyone.
+- A restored source file kept its old modification time, so an incremental build reused
+  the mutated binaries and three suites failed on stale code. Restored files are touched
+  before the rebuild.
+
+Proof run locally:
+
+| Suite | Result |
+|---|---|
+| Unit | 4,181 passed |
+| Integration, operator and boundary subset (619 cases: route, host classification, authenticated surface, composition, OpenAPI, deployment modes, job manifest, tenant authentication, platform scope, operator HTTP, job admission, idempotency, rate limit, federation) | 619 passed |
+| of which `PlatformOperatorHttpTests` (production Program, controlled RS256 issuer) | 26 passed |
+| of which `PlatformAdminScopeTests` (real PostgreSQL as the platform role) | 24 passed |
+| `PlatformOperatorRealmTests` (pinned Keycloak 26.7.5, real OTP login) | 3 passed |
+| Contract (served tenant document unchanged) | 13 passed |
+| Architecture (Release): scope and evidence rules, API conventions, audit conventions, corpus consistency | passed |
+| Architecture (Release): `OutboxDispatchConventionTests`, `AuthenticationAuthorityTests`, `AuthenticatedHttpSurfaceTests` | were still running at the commit; the result is recorded in the review-round entry |
+
+The real-realm cases show that the shipped export issues an operator token with audience
+`learnstack-platform`, `azp` `learnstack-operator`, `acr` `mfa`, an `auth_time`, a
+lifetime inside 15 minutes and the pinned subject, that the same profile the scheme uses
+accepts it, and that a token from the portal client on the same realm and user does not
+meet it.
+
+Mutation checks, each applied, built, run and restored: the gate skipping the grant, the
+ticket reaching a tenant-visible row, the cache dropped before the commit, a policy
+without an authenticated-user requirement, an ignored `auth_time` age, an unchecked
+`azp` and a result row allowed an actor were all killed. One survived: the scope's
+refusal of a registered operation that does not use the platform role, because the
+registry holds no such operation yet. It is an equivalent mutant today; Step 2 registers
+the first and drives the guard. The unit case that implied it covered the
+unregistered-operation half and was renamed to say so.
+
+Not done here and owned elsewhere: manual accessibility needs no screen in this step;
+the runbooks were written and their requests are the ones the tests make, but no person
+ran them end to end; gateway exposure, production realm MFA enforcement and the grant
+table adapter are in Phase 11's list.
+
+### P03-9 Step 1 — review round 1 and its fixes (2026-11-19)
+
+Three independent reviewers read commit `bfba1228` with no knowledge of the process:
+security and authentication, data and audit durability, and conformance and operability.
+None reported a Blocker. Each finding was checked against the code before it was acted
+on; the ones below changed the code, and the decisions that were recorded instead are
+listed after them.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Authentication | The scheme fetched issuer metadata with the stock transport: redirects, no size cap, any origin named by the discovery document | Its own client: no redirect, five seconds, 256 KB, nothing outside the issuer's origin, no last known good, `TryAllIssuerSigningKeys` off. The tenant scheme's reader is now a shared helper (`BoundedMetadataReader`) with no behavior change |
+| Authentication | `TryRead` was a public door to the witness minter, and the minter was an assembly-wide type | The minter is a private nested class of the profile, and a source census pins that only the authentication boundary names the profile, calls `TryRead` or names the minter base |
+| Authentication | The profile relied on stock validation for `iss`; `iat` and `auth_time` were converted without a range check; path and `Bearer` matching were case-sensitive while routing is not | The profile restates the exact issuer, range-checks both claims, and both matches ignore case |
+| Authentication | Accepted `acr` of `0` or `1`, or an operator issuer equal to the tenant issuer, would have started | Both are refused at start with a message that says why |
+| Authentication | Every refusal was labelled `token_invalid` | A closed cause set from the profile and from the exception type, on the counter and in the Warning log; the response is unchanged |
+| Classifier | The operator metadata alone made an endpoint infrastructure, which the tenant admission middlewares leave alone | Honoured only on a route under `api/platform/v1/`, behind exactly the operator policy and never anonymous |
+| Scope | An admission could be kept and replayed, and a handle could commit a state change with no result row, run `COMMIT` or `SET` through the facade, or commit after a failed statement | The gate stamps the admission; the scope refuses one older than 30 seconds and spends it on entry. The facade takes one `SELECT`, `INSERT`, `UPDATE`, `DELETE` or `WITH` statement, refuses a commit with no result row, and is abandon-only after a failed statement. The result counter moves to the committed result |
+| Audit store | The result row was bound to its admission by a substring search of `metadata` | `metadata.operator.issuer` and `subjectDigest` are parsed and compared, a ticket is accepted only on a sentinel row and only the admitted one, and the correlation id must match |
+| Killswitch writer | Two first toggles of one key both read the registry default, because `FOR UPDATE` locks nothing when no row exists | The row is created at its default with `ON CONFLICT DO NOTHING`, then locked, read and updated. A cache removal failure is logged, and the commit no longer takes the caller's cancellation token |
+| Operator endpoint | A missing `enabled` was answered before admission; a refused audit write left no signal | Admission first. The refusal logs at Error, counts `audit_failures` and carries `Retry-After`. The correlation id falls back to the request id, so a result row always has a handle |
+| Operability | Counters used dotted names and had no row in Standard 10 | `learnstack_platform_operator_*_total`, five rows in Standard 10, and a new counter for failed metadata fetches |
+| Realm | Password reset was on in the operator realm, a second path to a password that does not pass the second factor | `resetPasswordAllowed` is `false`; the README and runbook say so and give the order for a new operator: enrol the authenticator, confirm it, then grant |
+| Tests | A result-row test wrote under a shared fixture tenant; assertions on `reason`, before and after state, `toggled_at`, the sentinel ticket, `issuer` and `executor` were missing; one expectation was inverted | Throwaway tenant id; the missing assertions; the inversion corrected |
+| Docs | Runbooks omitted the full token profile, a decode recipe, executable commands, the audit query and the digest recipe; stale statements said the table had no writer | Runbooks rewritten; the statements corrected in CLAUDE.md, the Tenancy matrix, Standards 05, 18, 19 and 21, Architecture 21, the feature-key skill, the glossary and the compose and Keycloak READMEs |
+
+New cases: the admission age and single use (including 64 racing consumers), a catalogue
+that lost only the operation slug, a grant withdrawn on reload and an invalid reload
+failing closed, the profile cause matrix and the failure labels, the settings guards,
+the classifier guard, redirect, oversized and foreign-origin metadata (the last with a
+second live origin that would validate a token if it were followed), wrong `iss`, `typ`,
+algorithm and signature isolated one at a time, case-insensitive matching,
+`Retry-After`, a commit with no result row, a failed statement, the statement guard
+(twelve refused forms, four accepted), the connection returned at commit with a pool of
+one, the counter on commit only, two racing first toggles, the scripted writer order, an
+indeterminate commit, a cache that cannot remove, and the store's refusal of fourteen
+bound attributes after an accepted control.
+
+#### Recorded, not changed
+
+- **A start-time check that an operator issuer comes with the platform credential.**
+  Added and withdrawn: the closed credential-reader census
+  (`OutboxDispatchConventionTests`) permits no further reader of a connection string,
+  and the existing first-use error already names the key. The runbook lists the
+  credential as required for any act.
+- **Requiring a platform host for `/api/platform`.** The surface is host-independent on
+  purpose (the target tenant is data of the act); the gateway that fronts it is Phase
+  11's.
+- **Keycloak `minimum.acr.value`.** Not adopted: the scheme refuses any `acr` outside
+  the accepted list whatever the flow produced, so a client that asked for a lower level
+  obtains a token that is refused, and an unverified realm attribute would add a second
+  control that nothing proves.
+- **An end-to-end real-Keycloak token through the actual scheme.** The real-realm cases
+  prove the profile on a real token and the controlled-issuer cases prove the scheme on
+  real RS256; the two are not joined. Recorded as a gap, to be closed in Phase 11's
+  gateway proof.
+- **A per-operation target kind** on `PlatformOperation`, so the store can also refuse a
+  tenant-targeted result for a platform-wide operation. Step 2 registers the first
+  tenant-targeted operation and adds it there.
+- **The stock handler reports a disallowed algorithm as a signature failure,** so the
+  `token_algorithm` label is reachable only through a path the handler does not take;
+  the mapping stays for a future handler version and is covered by a unit case.
+- **The marker clause.** The Standard 21 note that no handler carries both
+  `[AllowsUnresolvedTenantContext]` and a platform-scope entry is enforced as the holder
+  census (`Only_The_Operator_Services_Hold_The_Platform_Scope`), by path, because the
+  scope is a service and not a handler; the wording of the note says so.
+
+#### Mutation checks
+
+Eighteen mutations of the fix-pass guards, each applied, built, run and restored with
+the restored file touched so the next build cannot reuse the mutated binary. Seventeen
+were killed: the admission age unchecked, an admission reusable, a commit with no result
+row, a failed statement leaving the scope usable, the statement guard off, the
+connection kept past commit, the result counted when written, an unbound correlation id,
+an unlocked first toggle (killed by the writer-order case; the race case is a regression
+guard and is not deterministic against a plain read), a cancellable commit, an
+unrestated issuer, a classifier trusting the metadata alone, a single-factor `acr`
+allowed, a foreign origin followed, no `Retry-After`, and every cause reported as
+generic.
+
+One mutant survived its first test and was killed after the case was strengthened: a
+ticket accepted on a tenant row. The case's admission carried no ticket, so a second
+condition refused the row for another reason; the admission now carries the ticket, so
+only the sentinel rule can refuse it.
+
+One survives as an equivalent mutant: the scope's own refusal of a background-job frame.
+The privileged data source refuses the same frame when the connection is opened, so the
+property that matters, refusal before the credential is resolved, holds without it. The
+scope's call stays as the named first refusal.
+
+#### Proof run locally
+
+On the final code of the step, after round 2:
+
+| Suite | Result |
+|---|---|
+| Unit | 4,327 passed |
+| Integration, the whole suite (every rebind class: storage as the role and as every other role, the locks, the run end to end, the audit store, the tool as a child process, the realm reader against a loopback realm and the pinned Keycloak 26.7.5, the operator validator, the input rules) | 4,661 passed |
+| Architecture (Release), every class except the five IL-census classes | 495 passed |
+| Architecture (Release), the five IL-census classes | 178 passed, three of them after the lifecycle owner lists were completed (see round 2) |
+| Docs: `make lint-docs` | passed |
+
+What the real-database cases show: each act answers `200` and again `200` on a repeat;
+a changed value under the same identifiers is refused; a reply lost after the commit
+(the outermost behavior fails once the commit is done) and an act interrupted between
+its writes both leave the state the retry then completes once; a grant is judged per act
+and a refused act writes nothing; an unknown tenant is `404`; a taken slug, host or
+identifier is `409`; a tenant with Membership history refuses the first administrator
+and the Role templates; recovery refuses while an administrator is active, succeeds once
+none is, and leaves the database's last-administrator guard as it found it; an
+Organization-scope or another tenant's administrator Role does not qualify; every row
+carries `actor_user_id` NULL, the closed reason slug and the operator's issuer, `acr`,
+executor and subject digest, and never the person's subject, the operator's raw subject
+or the ticket; the correlation id the answer returns finds the rows.
+
+#### Mutation checks
+
+Thirty-two mutations of the new guards, each applied, built, run and restored with the
+restored file touched. Twenty-two were killed at once: the guard accepting a read-only or
+rollback-only unit, a global identity transaction, another tenant's plan or announcement,
+or a lost lock not rolling the act back; the executor ignoring the operation binding,
+admitting the sentinel or a stale or reused admission, or leaving its context installed;
+the source answering in another context or for another operation; the first
+administrator ignoring Membership history; recovery ignoring an active administrator;
+Role templates ignoring history; the resolver returning a non-Active user, accepting
+another authority, another session or a short key; route ids not checked; and a
+provisioning replay accepting any pair. Ten survived. Five exposed gaps in the tests and
+were killed after they were strengthened: the guard allowing a user, an organization or a
+host scope that was already in the context when the act began, the source ignoring the
+policy's sources, and recovery accepting any Role. Five are equivalent mutants: the
+guard's checks of the source kind, the policy's sources and the descriptor's liveness,
+which the coordinator and the invocation already enforce (the invocation can be built
+only by the coordinator, so no test can present a mismatch); the executor's refusal of a
+platform-role operation, which the act catalog refuses first; and the source's
+frame-open check, which the disposal of the source with the scope makes redundant.
+
+### P03-9 Step 2 — review round 1 and its fixes (2026-11-19)
+
+Three independent reviewers, each read-only, read the range from the accepted decisions
+to the implementation: authority and security, correctness and concurrency, and tests,
+censuses and documentation. None reported a Blocker. Each finding was checked against
+the code before it was fixed.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Provisioning | A replay compared only the slug and organization id and answered with the request's organization slug, which was never stored | The replay reads the stored organization and compares the whole request; the answer is what was stored and a changed value is refused |
+| Identity acts | A retry was refused when the person's state or the template had changed after the first run | The Membership and Role replays are judged before the present state, and a template edited by the new administrator no longer unmakes the original act |
+| Host mapping | The retry did not drop the cached resolution again; both flags defaulted to live although the factory defaults them off and no act unmaps a host | The retry invalidates again; both flags are required |
+| Routes | The platform sentinel as a tenant answered 500; a blank or over-long subject was a `409` on the wrong field; ids were checked only at the tenant | The sentinel and every identifier are checked at the route (400); the subject is checked at the route |
+| Resolver | It was called before the act was known to be live | The guard's `RequireLiveAct` is asked first |
+| Storage refusals | Every refusal answered `identity_foundation_refused` | They answer in the sibling handlers' vocabulary: `concurrency_conflict`, `dependency_unavailable`, or the foundation refusal |
+| Signals | § 11 promised per-act counters and none existed; the code comment and Standard 18 claimed a counter and a log for a refusal inside the pipeline | The act counter and event 7109 exist; the documents say what they emit |
+| HTTP/2 | A body without a content length or transfer encoding was read as absent | Only HTTP/1.x reads absence from the headers |
+| Migration | The resolver migration was reversible although every recent Identity head refuses reversal | Forward-only; the rollback census names the new head |
+| Documents | The ADR errata had been mangled by the 88-column reflow and sat after the span they correct | Rewritten in the form [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) prescribes, before the span, with the evidence and the Current authority line |
+| Documents | The runbook promised a retry refusal the code did not give; Standard 05 said "no grant" and "reads no other relation" | Corrected |
+
+New cases: a reply lost after the commit, an act interrupted between its writes,
+sentinel and malformed requests, exact template and scope names, both host flags
+required, a host held by another tenant, a foreign organization, Organization-scope
+templates, another tenant's Role, a retry after the Role was edited, an ineligible
+person, the resolver's remaining refusals, the act counter, and the no-denial-row
+coordinator case with a seed control.
+
+#### Recorded, not changed
+
+- **The user-eligibility recovery predicate.** A 17th definer; the maintainer decides.
+- **The classification of the ADR-0102 § 1 correction.** Inline errata, Decision
+  unchanged and an Amendment; a superseding ADR was weighed and not chosen.
+
+#### Mutation checks
+
+Eleven further mutations after the fixes, each applied, built, run and restored: the
+coordinator's observed-denial skip, a host replay not counted or keeping the stale cache,
+a provisioning replay ignoring the display name or the organization slug, the sentinel
+and any subject accepted at the route, a Role and a Membership replay not counted, and a
+Membership replay judged after the Role's state were all killed. The coordinator's first
+denial skip, in `RecordDenial`, survived and is an equivalent mutant: the observed-denial
+path is reached first and carries its own skip.
+
+### P03-9 Step 2 — review round 2 and its fixes (2026-11-19)
+
+Three further independent reviewers, with lenses different from round 1: composition,
+regression risk and the whole attack surface; SQL, row security, locks, the migration
+and performance; and operability, the API contract, maintainability and the coherence of
+the document set. None reported a Blocker.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Contract | A `503` answered as a result carried no `Retry-After` although the operator document declares it on every `503`; the runbook described a lock timeout as a `409` | The helper that answers a result sets it; the runbook separates the lock the act could not take from the statement that timed out |
+| Contract | The operator document listed a 409 reason that does not exist, a killswitch-only 404 and 400, no 413 or 429, and no required fields for the five bodies | The request records state their required fields, the ticket grammar and the subject length; the status texts are truthful; the test asserts the required members |
+| Routes | `Enum.TryParse` accepted numerals, padded names and comma lists that OR into another member | Exact names only |
+| Resolver | A provider fault or an unqualified authority escaped as an unclassified exception; the definer named a variable `found` and measured a key by `length` | Classified like the sibling stores; renamed; `octet_length` |
+| Census | Standard 05 claimed the resolver's callers were pinned and nothing pinned them | `Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject` |
+| Maintainability | The killswitch route repeated the refusal switch and the audit-503 block; `RequestTypes` had no caller; a summary and a 255 literal were stale or duplicated | One shared helper each; the member is removed; one constant |
+| Documents | The Identity and Tenancy module specifications still said no production first-admin exists; the ADR repeated the setter claim in Context, Consequences, Implementation Notes and Carriers with no erratum; the runbook had no "Not recoverable here" section; the sibling runbooks applied killswitch-only signals to every act; the seeder's rule was missing from the seed skill and README | All corrected; Amendment 1 gains the shared-cores, unrecorded-ticket and request-shape items |
+
+#### Recorded, not changed
+
+- **A lock timeout on a unique-index wait in the Tenancy writes surfaces as a 500**, as
+  when two operators map one host to two tenants at once. The writes classify only a
+  unique violation, the translating save is shared with the seed, and the same request
+  repeated gets the right answer. Amendment 1 item 11 says so.
+- **The ticket is not recorded.** The gate validates it, the five acts store it nowhere,
+  and the runbook says so.
+- **A host mapping needs only that the tenant exists and is not deleted**, where the
+  Identity acts also need Trial or Active. Whether a suspended tenant may be mapped is
+  the maintainer's decision.
+- **A repeated act commits MUST rows with no captured change**, counted as `replayed`; a
+  metadata marker on the row is not built.
+- **A `replayed` flag in the response** would tell an operator resuming a setup without
+  reading the metric; the response shape is the contract and is left as it is.
+
+### P03-9 Step 3 — controlled issuer rebind (2026-11-20)
+
+Step 3 delivers [ADR-0104](../decisions/0104-controlled-issuer-rebind.md): an offline
+tool that moves the identity authority to a new issuer origin under the same realm
+path, on a sixth confined database role, after a freeze and a continuity proof. The
+decision was Accepted in `a396f50e`; this record is the implementation and its proof.
+
+Delivered:
+
+- **The sixth role.** `learnstack_identity_rebind` in the roles script, compose, the
+  environment example and every fixture that runs the script, `NOINHERIT NOBYPASSRLS`,
+  a member of nothing, with its credential in no host configuration. The compose
+  README says how to add it to a warm volume.
+- **The storage.** One forward-only Identity migration: `SELECT` and `UPDATE (issuer)`
+  on `identity_authority`, four `users` columns, a third `identity_authority` policy for
+  the update and the role added to the read policy and to `users_isolation`'s `USING`,
+  and the trigger that refuses any change of `id` or `authority_id` for every role. The
+  `audit_log` grant and the policy arm are installed by a central audit installer,
+  because no module names the table. The definer census stays at sixteen; functions and
+  triggers are thirty.
+- **The freeze.** A fixed advisory key. Authority qualification takes the shared form
+  after `SET TRANSACTION READ ONLY`; the User-creation admission takes it first, under
+  its two-second `lock_timeout`, and then reads the stored authority and issuer and
+  refuses a creation from a process that qualified with other facts.
+- **The seam.** `platform.identity_authority.admin`, the `identity.authority.rebind`
+  operation with its attempt slug, two witness-bound audit methods on `IAuditStore` with
+  throwing defaults and their off-path declarations.
+- **One validator.** The operator validator moved from the API project into
+  Infrastructure: settings, the bounded metadata client, the profile and a new
+  `PlatformOperatorTokenValidator` for the offline caller. The scheme and the tool take
+  the validation parameters and the metadata manager from one factory.
+- **The run.** `IdentityIssuerRebind`, with the continuity proof as a pure function, and
+  the tool project that supplies the operator token, the grant, the new-realm reader and
+  the exit codes. It prints one line of classes and counts.
+- **Documents.** The runbook, ADR-0104 Amendment 1, ADR-0073 Amendment 9, Standard 05's
+  new section and its role, identity-authority and ledger text, Standards 10, 11, 18, 19
+  and 21, the Identity module specifications, the glossary and the local-dev skill.
+
+Findings made while implementing, each fixed or recorded:
+
+- **ADR-0104 § 5's "reads the new value" is not what a lock does.** The creation
+  admission never read the issuer, so a lock would only have delayed a creation from a
+  process that qualified before the rebind. The comparison after the lock is what
+  refuses it; Amendment 1 item 5 records it.
+- **No module may name `audit_log`.** The first migration put the grant and the policy
+  arm in the Identity module's DDL and the architecture rule refused it, so the SQL
+  moved to a central installer beside the creation witness's, and the rebind run names
+  the table only through the installer's constant.
+- **The IL-shape rules are Release rules.** Run in Debug, a rule over the evidence
+  coordinator's IL failed on an unrelated method. The architecture suite is run in
+  Release, as the earlier steps' records say.
+- **A pooled idle connection is still a session.** The freeze check refuses until the
+  pools of the stopped hosts have drained, and the runbook says so.
+- **The role's posture is checked before use.** An escalated attribute, a membership, an
+  extra table grant or a column grant beyond the declared ones refuses the run before
+  the lock, with a test for each.
+- **Step 2 left two Docker classes out of the CI shard plan.**
+  `PlatformOperatorOnboardingTests` and `OperatorSubjectResolverTests` carry xUnit
+  fixtures and were missing from `sharedFixtureClasses`, which the plan test would have
+  failed on. Both are added with the Step 3 classes.
+- **A Step 2 analyzer warning** (`CA2263` in a unit test) would have failed the
+  warnings-as-errors build and is fixed.
+
+#### Proof run locally
+
+| Suite | Result |
+|---|---|
+| Unit | (result below) |
+| Integration, `IdentityAuthorityRebindStorageTests` (real PostgreSQL as the role and as every other role) | 7 passed |
+| Integration, `IdentityAuthorityRebindLockTests` | 6 passed |
+| Integration, `IdentityAuthorityRebindTests` | (result below) |
+| Integration, `IdentityRebindAuditStoreTests`, `IdentityAuthorityRebindToolTests` (child process), `KeycloakRealmContinuitySourceTests`, `PlatformOperatorTokenValidatorTests` | (result below) |
+| Integration, `KeycloakEnumerationTests` (pinned Keycloak 26.7.5) | 1 passed |
+| Architecture (Release), every class except the five IL-census classes | (result below) |
+| Architecture (Release), the five IL-census classes | (result below) |
+| Integration, the whole suite | (result below) |
+
+What the real-database cases show: the role holds exactly its column privileges and
+nothing else and each refusal is raised by the database as that role; the key trigger
+refuses a change of `id` and `authority_id` even with the grant present; a start that
+overlaps a rebind waits for it and then fails or succeeds on the value it left; a
+creation is refused within its two seconds while a rebind runs and after one it did not
+qualify against; a rebind that changes only the issuer leaves every user row identical
+and writes an intent row and a result row, both under the platform sentinel with no
+actor and the ticket in `metadata.operator`; a run whose target is already stored writes
+nothing; every refusal class leaves the issuer where it was and an intent row where the
+run reached the decision; a forced audit failure rolls the change back; a session
+terminated before the commit is reconciled as not applied; a commit whose answer was
+dropped by a relay is reconciled as applied by reading the issuer. The child process
+refuses a missing or malformed input, a bad token, a missing grant and a wrong role with
+one fixed line that names no credential, subject, issuer or address.
+
+#### Mutation checks
+
+More than forty mutations of the guards, each applied, built, run against its owning
+test class and restored: the continuity comparison and its Closed, Closing and ordinal
+rules, the lock and the rollback on audit failure, the posture attributes, the freeze
+check, the policy arms, the operator validator's four validations, the realm reader's
+completeness, origin and paging, and the key trigger. Six survived at first. Four were
+real gaps and are killed by new cases: the audit store's tenant rule, which the ticket
+check masked; the realm reader's origin rule, which was exercised only against a closed
+port; the page loop past a first page boundary; and the sign-in creation path's mapping
+of a changed authority. Two are equivalent and recorded: the audit store's
+operation-identity check, which its off-path catalogue lookup makes redundant, and
+`ValidateIssuerSigningKey`, which governs the key's own validity and not signature
+verification.
+
+### P03-9 Step 3 — review round 1 and its fixes (2026-11-20)
+
+Three independent reviewers, each read-only, read the range from the accepted decisions
+to the implementation: authority, security and the attack surface; correctness,
+concurrency and failure windows; and tests, censuses and documentation. None reported a
+Blocker. Each finding was checked against the code before it was fixed.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Regression | The creation admission's issuer comparison broke two existing integration tests that used an authority other than the installed one, and the lock-signal assertion did not know the new authority kind | Both tests use the installed facts; the signal census knows the kind |
+| Audit | The role's `audit_log` access was open to any tenant it announced through the tenant setting, because the ordinary arm named no role | The ordinary arm excludes the role; a test announces a tenant as the role and is refused |
+| Role posture | The check compared table grants only, so an extra or a missing column privilege passed | It compares the three tables column by column in both directions and sweeps every other relation for any privilege |
+| Commit | A reconciliation of an unknown `COMMIT` could read the issuer before the original transaction had ended and report a false "unchanged" | It takes the shared lock first, so it reads only after the original transaction ends |
+| Freeze | The check ran once, before a proof that can last minutes | It runs again immediately before the change |
+| Outcome | A failure to dispose could replace the outcome of an applied rebind | Disposal never replaces the outcome |
+| Inputs | The target issuer and the deployment mode were read more loosely than the API reads them | The mode is a declared name, the issuer follows the realm grammar, and outside Development it is HTTPS |
+| Realm reader | One pass, no repeat check, no token renewal, the credential sent to any address the discovery document named, and no size bound | Two passes that must agree, repeats refused, one renewal per request, same-origin only and only after the discovery issuer equals the target, and a 200,000-user bound |
+| Tool | An interrupt was not handled, the stdin wait had no bound, an outcome could go to standard error and a refusal carried no correlation | Interrupts end the run through the token, the wait is thirty seconds, everything goes to standard output, every refusal after the input carries its correlation |
+| Census | The validator's and the profile's callers were unpinned and the executor set was open | Two rules pin the callers and the executor set is closed |
+| Documents | The runbook, Amendment 1 and Standards 05, 10, 11, 19 and 21 said things the code did not do | Corrected |
+
+### P03-9 Step 3 — review round 2 and its fixes (2026-11-20)
+
+Three further independent reviewers, with lenses different from round 1: composition,
+regression and the runtime; SQL, row security, locks, the migration and performance; and
+operability, maintainability and the coherence of the document set. None reported a
+Blocker. Each finding was checked against the code before it was fixed.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Freeze | The last-moment session count ran in the same transaction as the first, and the server serves `pg_stat_activity` from one snapshot per transaction, so the second count always repeated the first and a host that never takes the rebind lock could start in between | Each count first calls `pg_stat_clear_snapshot()`; a case opens an outbox session while the realm is read and expects `refused_live_sessions` before the change |
+| Idle fence | Round 1's `KeepAlive` sends a message on the idle connection, and every message restarts the server's idle-in-transaction clock, so a hung tool's lock was never freed at fifteen minutes | The application keepalive is off whatever the connection string says; the operating system's TCP probes stay; a case sets `KeepAlive=1` in the string and watches the idle session's `state_change` stay still |
+| Role posture | A `PUBLIC`-readable relation an extension owns (`pg_stat_statements`) locked the tool out in a way the runbook's remedy could not fix; the maintenance privilege, sequences and owned objects were not checked; a null answer threw | Extension-owned relations are not counted; the maintenance privilege, sequences and ownership of a relation, function or schema are; a null is a failed check; cases for each |
+| Session settings | The three timeouts depend on the connection's startup options, which a pooler drops, and nothing checked they took effect | They are read back from `pg_settings` and refuse the run as `session_settings` |
+| Diagnosis | `refused_input` covered nine causes, `refused_new_realm_unavailable` six and `refused_database_unavailable` swallowed stored-state faults as outages | A closed `detail` names the setting, the step of the realm read, the kind of database failure, or the posture check; it names no value |
+| Exit codes | A failure to read back an unknown commit could escape as `refused_unexpected` and exit 2, which says the state is unchanged; an unexpected failure printed no correlation | Any reconciliation failure is `unknown`; an unexpected failure prints its correlation |
+| Signals | A hang-up (an SSH drop) was unhandled, a signal in the last instant could fault the process, and nothing tested the handlers | Hang-up is handled, a late signal cannot throw, the stdin wait ends on a signal, and child-process cases send TERM and HUP while the realm read hangs and expect `refused_cancelled`, the intent row and no change |
+| Deployment mode | The tool compared the mode exactly while the API ignores case and padding, so a lawful `saas` was an opaque `refused_input` | One `DeploymentModeParser` in the kernel is read by both |
+| Counters | The runbook and Standard 10 said every run is counted, and the refusals before the database were not | They are recorded under the label the line prints |
+| Logs | The runbook and the test comments said the tool logs; it writes none | Said plainly in the runbook, ADR-0104 Amendment 1 item 9 and the operator-access runbook |
+| Runbook | It named no build step, said a rollback was unrecoverable while its own proof allows one before the new realm takes people, deleted the client and retired the password before a sign-in was confirmed, listed one setting where four name the realm, gave no way to enable the role, quoted a password unsafely, and left exit 3 and the continuity counts without a next step | Build, enable and retire steps, a rollback section with its precondition, the full settings table, a quoted example with TLS, the exit-3 read-back and the two shapes of continuity failure |
+| Documents | Eleven prose lines over 88 columns, the rebind's token and role text twice in Standard 11, a missing Identity permissions row, a wrong place for the issuers in the audit specification, and a profile reader that became public without saying what confines it | Wrapped, pointed, added and stated in ADR-0104 Amendment 1 item 11 |
+| Dependencies | The two new package pins are coupled to JwtBearer with nothing saying so | A comment in the props file says so |
+| Logger category | The API named the retriever's category with a hand-typed string | The factory takes an `ILoggerFactory` and owns the category |
+| Magic numbers | The idle fence had to exceed the run deadline and lived as literals in two files | Named constants in the library, with a test that the fence outlasts the deadline |
+| Census | The heavy IL census, never run on Step 3's final code, found three cases of one cause: the lifecycle census enumerates every owner of a database commit and rollback, and the rebind's two transactions and its already-applied rollback were not listed | The three owners are listed with the reason; the census passes |
+
+#### Recorded, not changed
+
+- **No release artifact carries the tool.** The runbook builds it from the deployed
+  commit. A packaging decision belongs to whoever owns releases; none is made here.
+- **A denied operator attempt at the offline tool leaves the printed line and, with an
+  OTLP endpoint, the counter, and no durable server-side trace.** Standard 10 and
+  ADR-0101 § 11 ask a counter and a log; the tool writes none. A stderr log would carry
+  the operator's identity into terminals and logs the tool promises not to write. The
+  maintainer decides whether the line is enough.
+- **The tool does not require TLS to PostgreSQL.** The runbook asks for it. Nothing else
+  in the repository enforces database TLS either.
+- **The platform and outbox roles can write rebind-shaped audit rows**, as they can
+  write every other platform-sentinel row. A trigger that confines the two operations to
+  the rebind role is not built; ADR-0104 Amendment 1 item 10 says so.
+- **`PlatformOperatorTokenProfile.TryRead` is public**, confined by two census rules and
+  not by the compiler; the alternative is `InternalsVisibleTo` for the API project.
+- **`RunCoreAsync` is long**, and `DisposeQuietlyAsync` has two siblings elsewhere. They
+  read as phases and are left alone rather than refactored in a review fix.
+- **Shard weights for about a hundred new Docker cases** are the default until a CI run
+  measures them. The balance, not correctness, is affected.
+- **A 55P03 from the final `UPDATE`'s row wait** reports `refused_rebind_in_progress`;
+  no state changes either way.
+- **ADR-0003 Amendment 14 says the canonical policy template is unchanged**, which
+  holds: the restated `audit_log_isolation` arm is the central installer's, owned by
+  Standard 05.
+
+#### Mutation checks
+
+Sixteen mutations of the round 2 guards, each applied, built, run and restored, and all
+killed: the activity snapshot not refreshed before the count (which also showed the
+reviewer's claim true: without the call the late count repeats the first), the client
+keepalive left to the connection string, extension relations counted, the maintenance
+privilege, sequences, function ownership and schema ownership ignored, a
+`PUBLIC`-readable relation outside an extension tolerated, the session settings not
+compared, an authentication failure classified as a connection failure, the deployment
+mode compared with case, the hang-up not handled, the realm token step not named, tool
+refusals not counted, the detail not printed, and the refused input's field not named.
+Two branches have no case that reaches them and are recorded: the refusal for session
+settings the server did not apply (it needs a pooler in the path), and the stdin wait
+ending on a signal. Both are small, and the first is checked in the positive on every
+run.
+
+### P03-9 Step 4 — operator recovery of asynchronous work (2026-11-20)
+
+Step 4 delivers [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md):
+a metadata-only inspection of dead-lettered work and two fenced transitions, and no
+dashboard and no job recovery. The decision was Accepted in `a396f50e`; this record is
+the implementation and its proof, and ADR-0103 Amendment 1 records where the code
+corrected the Decision.
+
+Delivered:
+
+- **The seam.** `platform.delivery.read` and `platform.delivery.write`, the three
+  operations `platform.delivery.inspect`, `platform.delivery.replay` and
+  `platform.delivery.reset` with their off-path declarations, and an executor kind on
+  every `PlatformOperation` (scope, pipeline, recovery owner, rebind tool) that replaces
+  the earlier pair of booleans.
+- **The inspection.** `IDeliveryInspection` and `DeliveryInspection`: cursor-paged
+  metadata of dead-lettered and terminal-requested outbox rows and deliveries and of
+  quarantined jobs with their reservation occupancy, one entered platform scope per
+  page, on column grants. One forward-only Platform migration revokes the platform
+  role's table-wide `SELECT` on `outbox_messages` and grants twelve, fifteen,
+  twenty-seven and seven named columns of the four tables, and adds two partial indexes.
+- **The two transitions.** `DeliveryDispatchStore.ReplayAsync` and the new
+  `OutboxDispatchStore.ResetAsync`, each a partial-class file: lock, fence, state and
+  tenant checks, one fenced `UPDATE ... RETURNING old.*, new.*` and a MUST row on the
+  same outbox-role transaction through the sibling witness `OperatorRecoveryTransition`
+  and the fourteenth `IAuditStore` write. Each store has a third connection slot for
+  the operator lane (capacity 52 to 54, 158 to 160), and `OperatorRecovery` is the DI
+  owner behind `IOperatorRecovery`.
+- **The routes.** Three `GET` inspections and two `POST` acts under
+  `/api/platform/v1/asynchronous-work`, gate first, served in `platform-v1`.
+- **Signals and documents.** `learnstack_platform_operator_recoveries_total`, the
+  runbook `operator-recovery.md`, ADR-0103 Amendment 1, Standards 05, 10, 18, 19, 20 and
+  21, Architecture 15, 23 and 31, the module documents and the glossary.
+
+Where the code corrected the Decision (ADR-0103 Amendment 1, with inline errata beside
+the statements in the Decision):
+
+- The platform role already held table-wide `SELECT` on `outbox_messages`, so the
+  migration revokes it before it grants twelve columns.
+- The witness is a sibling class with two kinds, not a new kind of the terminal witness
+  whose census pins two factories.
+- The status map is closed, so a stale fence and a refused state are reasons on the
+  fields `fence` and `state` of `business_rule_violation`, and an unknown commit
+  outcome is a reason on the field `outcome` of `dependency_unavailable`.
+- The inspection's entry row carries the operation `platform.admin_scope.enter` and the
+  reason `delivery_inspect`; it does not say which list was read.
+
+Proof, against real PostgreSQL as each role: the current fence applies and every stale
+variant refuses, one microsecond included; a stale fence is reported before a refused
+state; each refused state, a tenant that is not serving and a type the registry has
+retired or no longer knows; a forced audit failure rolls the change back; a wrong,
+stale or spent admission; the operator lane in each store; a lost commit
+acknowledgement and its repeat; the siblings and the inbox byte-identical after a
+replay; the witness refusing each substituted field of its row and a foreign
+transaction, and a reused witness; the real owner counting each outcome under its own
+operation; the inspection's pages, cursors, occupancy counts and exact column
+grants; the eleven routes, their statuses and the served contract; and each delivery
+permission held alone.
+
+### P03-9 Step 4 — review round 1 and its fixes (2026-11-20)
+
+Three independent reviewers, each read-only, read the range from the implementation's
+base to its commit: authority, security and the attack surface; correctness,
+concurrency and failure windows; and tests, censuses and documentation. Each finding
+was checked against the code before it was acted on; the three reports agreed on the
+two that mattered most.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Tests | About forty integration test sites and three unit sites still pinned the old 52-connection floor, so every runtime fixture threw on construction | The sites derive the floor from the production manifest through one constant; the unit sites pin 54 and 53; the fixture comment says 160 |
+| Contract | The unknown-commit `503` carried `status: 500` in its body, because the status map is closed and the reason was a new top-level code | It is `dependency_unavailable` with the reason on the field `outcome`; a test asserts the body's status for every `503` |
+| Authority | Nothing pinned which permission each operation binds, and every HTTP case ran as an operator holding all three keys | A unit theory pins the pair both ways, and an HTTP theory holds each key alone against all five routes |
+| Tests | The real owner ran in no test, its counters were unobserved, and no test showed the witness refusing a substituted field | Owner tests over the real stores read the counters by operation; a ten-field substitution matrix and a reused witness run for each store |
+| Tests | The occupancy assertion was vacuous, the cursor test could not tell a bound scope from an invalid key, deliveries and terminal-requested rows were not paged, the outbox column inventory was open and the outbox operator lane was unproven | Each has its own test, seeded so that the guard decides the outcome |
+| Contract | A `limit` of zero was clamped, a state on the jobs list was ignored, a refused page parameter named nothing, an inspection's database fault was a `500`, and a `503` logged no cause | Zero is refused naming `limit`, the jobs list refuses a state, each refusal names its parameter, the fault is a `503` and the cause is logged and never returned |
+| Failure windows | A fault after the `COMMIT` was sent, the connection's cleanup included, was reported as nothing changed | Any such fault is reported as an unknown outcome; a missing lifecycle projection is a configuration error and no longer a transient `503` |
+| Disclosure | `last_error` is bounded by length only, so stored text could reach the page | The page shows a descriptor-shaped value and `unrecognized` otherwise |
+| Documents | Four documents said the entry row names `platform.delivery.inspect`; the access runbook omitted two credentials; the recovery runbook was wrong about reasons, queuing, refusals and the erasure owner; Standard 05 restated the ADR and claimed proofs that did not exist | Corrected; ADR-0103 carries inline errata beside the false text and Amendment 1 items 6, 7, 9 and 10; Standard 21 records the new consumer |
+| OpenAPI | A read listed `404`, `413` and `415`, the page parameters were free strings and two texts called every act idempotent | Reads list none of the three, the parameters carry their enum, bounds and shape, and the texts say what a repeat answers |
+| Censuses | The reset factory and the outbox reset overload had no mutation twin; two HTTP assertions were loose | Twins added; the assertions name their status |
+
+Mutation checks of the guards this step added: twenty-six single-line mutations of the
+fence comparison, the state and tenant checks, the result row, the operator lane, the
+witness binding, the permission pair, the page rules, the descriptor shape, the
+occupancy counts, the cursor scope and the owner's counters. Three survived at first
+because the fenced `UPDATE` repeats each predicate, so the early comparison only
+decides whether a stale fence is reported before a refused state; one test per store
+now pins that order, and all twenty-six are killed.
+
+#### Not changed
+
+- **`Cache-Control: no-store` on the operator `GET`s.** Steps 1 to 3 answer the same
+  way, and a shared cache does not store a response to a request that carries
+  `Authorization`. A response policy for the whole operator surface is the maintainer's
+  decision, not this step's.
+- **Verb sub-paths `/replay` and `/reset`.** Standard 04 does not forbid them and the
+  decision names no path.
+- **The fence as one opaque token.** The microsecond instant is kept exact, because the
+  comparison is the safety property; a client that truncates it is refused, never
+  wrongly admitted. The runbook says to send it back as returned.
+- **A disposal fault after a successful `COMMIT`.** The code reports it as an unknown
+  outcome; no test can inject it, because Npgsql's disposal does not throw on a dead
+  socket.
+- **A ticket on a replay or a reset.** It is checked and not stored, because the audit
+  row is readable by the tenant; the runbook says to record the correlation id.
+
+### P03-9 Step 4 — review round 2 and its fixes (2026-11-20)
+
+Three fresh read-only reviewers read the range with different lenses from round 1:
+composition and regression; SQL, row-level security, the migration and performance;
+and operability, the operator's experience and the truth of the documents. None
+reported a Blocker or a Major. Each finding was checked against the code before it
+was fixed.
+
+#### Fixed
+
+| Area | Finding | Fix |
+|---|---|---|
+| Operability | The unavailable-owner log line reused event id 7109, which the onboarding runbooks, three ADRs and a test pin as a defect alert | The line is 7110; a test captures the log of the `503` path and asserts the id, the level and the cause |
+| Failure class | Every database fault, a refused credential and a missing grant included, was reported as a retryable `503` | Only a transient fault, a timeout or the server's statement timeout is unavailable; a refused credential or a missing grant surfaces as the `500` it is, with a unit theory over the SQLSTATEs and a real-database test of both |
+| Operator experience | A refused state said only that it was refused, and the unknown-outcome recipe asked the operator to observe an advanced count that a landed act never leaves | A refusal names its rule as the `cause` parameter of its reason; the runbook's unknown-outcome recipe is list again, then the tenant's audit row by the correlation id |
+| Contract | A misspelt query parameter was ignored and answered a different list, a `limit` past the range of an int was refused, the jobs list advertised a `state` it refuses, and the page size was declared again at the edge | An unknown parameter is refused without being echoed, any size above the maximum is clamped, the jobs list does not offer a `state`, and the kernel's constants are used |
+| Documents | Phase 11 and Architecture 23 still said the platform role reads `outbox_messages` whole; the Outbox canonical block lacked its new index; two statements said the two stores share one cleanup seal; the runbooks omitted the log ids, the cause classes of a `503` that does not clear, the response table's other statuses, the audit read recipe, the `#` encoding and the producer-reset wording | Corrected; the runbook now has a section for an unknown outcome and one for a `503` that does not clear; ADR-0103 Amendment 1 items 6, 7, 9 and 10 say what the code does |
+| Tests | The keyset's tie-break columns, the indexes' keys and predicates, the plan of each dead-lettered page, a recovery admission on the platform scope and on the platform result writer, and the previous Platform head's `Down` were unpinned; two stale 52-connection literals remained | Each has a test, and the literals are corrected |
+
+Mutation checks of the guards this round added: the transient classification, the
+refusal tokens, the unknown-parameter and limit rules, the event id, the keyset
+tie-break and the executor kind of the result writer.
+
+#### Not changed
+
+- **A non-concurrent `CREATE INDEX` in the migration.** The two indexes are built in
+  the migration's transaction, as the earlier ledger indexes were, and the tables are
+  small until the retention purge of Phase 11 exists. A concurrent build, or a lock
+  timeout, is a deployment decision for that phase and the maintainer.
+- **A single-row read or a tenant and event filter on the lists.** The recipe for an
+  unknown outcome does not need one, and each page is one audited scope by design;
+  the runbook names it as not here.
+- **The failure descriptor in the audit row.** A reset clears `last_error`, so the
+  descriptor that caused the dead letter is not in the fence's before state. Whether
+  the row should carry it is a maintainer decision.
+- **The platform role's loss of `SELECT` on the correlation and actor columns of
+  `outbox_messages`.** It constrains P03-10 and Phase 11, which need a named grant or
+  another principal for a predicate that reads them; Phase 11's text now says so.
+
+### P03-9 Step 5 — federation operator steps (2026-11-20)
+
+Step 5 delivers [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md):
+a report, a remove and a disable of the identity-provider brokers a tenant's federation
+left orphaned, unreadable or nonconforming, and no way to list or remove a realm user.
+Amendment 11 records where the code corrected Amendment 10, and
+[ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md) records the audit seam it
+needed. The maintainer chose the audit shape (a checkpoint on the platform scope handle,
+a fifteenth `IAuditStore` write) and accepted the bounded raw round trip of the disable
+before any code was written.
+
+Delivered:
+
+- **The seam.** `platform.federation.read` and `platform.federation.admin`; the three
+  operations `platform.federation.report`, `platform.federation.remove` and
+  `platform.federation.disable`, the last two with attempt slugs
+  (`platform.federation.remove_attempt`, `platform.federation.disable_attempt`) declared
+  off-path MUST/SecurityEvent in the Tenancy catalogue.
+- **The audit checkpoint.** `IPlatformAdminScopeHandle.WriteIntentAsync` writes the
+  intent row on the attempt slug with the outcome `indeterminate`, commits it, and
+  continues in a fresh transaction on the same connection, once, and a result row is
+  refused before it. `IAuditStore.WritePlatformOperatorIntentAsync` is the fifteenth
+  write, witness-bound like the result method, refusing a ticket on a tenant-readable
+  row and the identity module's own rows.
+- **The ports.** `IFederationOperator` beside the tenant provider port, with a
+  fail-closed default and a second adapter instance with its own resilience pipeline;
+  `IFederationBrokerOperations` with its closed result types, owned by
+  `FederationBrokerOperations` in Identity Infrastructure. The adapter's route census
+  grows from four builders to six (a bounded page of the listing and a read by derived
+  alias), and the owner marker is parsed strictly: an `lsf-` alias and a
+  `{tenant:D}:{connection:D}` marker that round-trips.
+- **The rows read.** An Identity-chain forward-only migration,
+  `20261120160000_grant_platform_federation_projection`, grants `learnstack_platform`
+  `SELECT` of four columns of `federation_connections`; the raw-reader census admits the
+  operator's one statement, pinned whole.
+- **The routes.** `GET /api/platform/v1/federation/brokers`, and `POST` of
+  `.../{alias}/remove` and `.../{alias}/disable`, gate first, served in `platform-v1`;
+  the counter `learnstack_platform_operator_federation_total`.
+- **Documents.** The runbook `federation-operator.md`, ADR-0044 Amendment 18, ADR-0099
+  Amendment 11 with an erratum beside the item that cited a pattern Amendment 2 does not
+  hold, Standards 04, 05, 10, 11, 18, 19, 20 and 21, Architecture 31, the Identity and
+  Tenancy module documents, the runbooks index, operator access and the glossary.
+
+Where the code corrected Amendment 10 (ADR-0099 Amendment 11):
+
+- The intent-first pattern is the Decision's § Intent-first operations, not
+  Amendment 2, which is the Keycloak pin.
+- A remove refuses while a live row names the broker, an unreadable owned broker
+  included: such a broker is disabled by the operator and deleted by the tenant.
+- The disable of an unreadable broker is the one provider write that sends back what the
+  provider returned, with only `enabled` changed, because the fixed profile cannot be
+  rebuilt from a representation that does not read.
+- A mapper is drift only a mapper read shows, so the mappers of a healthy broker are
+  counted one after another within the page's ten seconds and an unread count is
+  reported unknown, never zero.
+- The report reads the realm first and the rows second, because a tenant writes its row
+  before it creates the broker.
+
+Proof, against real PostgreSQL as each role and the pinned Keycloak 26.7.5: the
+listing's pages, the three classes and the foreign, unmarked and mismatched instances
+that are counted and never named; a remove of an unreadable orphan that deletes the
+federated links and leaves the account and a control broker byte-identical; a disable
+that changes `enabled` alone; the intent row committed before the provider call and
+surviving a failure after it; no tenant row for an absent broker, an unowned alias, a
+live row or an unavailable provider; the result row refused before the intent, the
+intent refused twice and for an operation with no attempt slug; the exact column grant
+and the refused columns; each route's statuses, bodies and permission held alone; and
+the route, port-holder and raw-reader censuses with their planted violations. A
+mutation sweep over the new guards killed every mutant but one equivalent: a marker
+length check that the marker's round trip makes redundant.
+
+### P03-9 Step 5 — review round 1 and its fixes (2026-11-20)
+
+Three read-only reviews ran over the Step 5 commit, one per lens: goal conformance,
+authority and security; correctness, the audit checkpoint and robustness; tests,
+censuses, documentation and standards fidelity. Each finding was verified against the
+code before it was acted on. The first full run of the heavy architecture suite had
+already failed three lifecycle-census tests, and the full integration run one
+isolation test, for two causes recorded below.
+
+Fixed, with the proof that now catches each:
+
+- **A completion lost after a change read as "nothing changed".** The completion row
+  is written on a bounded three-second token detached from the request. A caller that
+  leaves while the provider works is recorded `uncertain`, and a completion that cannot
+  be written after a change that landed or may have answers the unknown outcome with
+  the intent row standing. Owner tests fail the completion after an applied remove, an
+  uncertain remove and an applied disable, fail it when nothing changed (still the audit
+  failure), and abort the caller inside the provider call.
+- **An unread mapper count made a drifted broker vanish.** The report carries
+  `mappersUnread`, the healthy-looking live brokers it could not clear. Owner tests
+  return a count, `null` and a deadline from the scripted provider.
+- **A database fault was a raw 500.** The owner translates a transient fault to the
+  unavailable owner with its cause for the log, the route answers `503`, and any
+  failure to commit the intent row now stops the act. The fault classifier became
+  public for it. Owner and route tests cover each act.
+- **An unreadable owned broker with a live row could be removed by nobody.** The
+  tenant's Delete reports it foreign and fails, and the operator remove refused the
+  live row. The maintainer chose to admit the operator remove for exactly that class;
+  ADR-0099 Amendment 12 records it with an erratum beside Amendment 11 item 5. Owner
+  tests refuse a readable pair, remove an unreadable one with its row untouched, and
+  refuse a delete whose row turned live after the intent.
+- **Record against behaviour.** The ticket is recorded on the entry row, never on a
+  tenant row; the grant sat in the wrong column of the Standard 05 matrix; the runbook's
+  metric labels, step order, class count and `accountReviewOwed` were wrong; the served
+  contract named too few reasons and fields; Standard 21 still counted three raw
+  readers and two scope holders; the glossary, the provider specification and the
+  audit documents lagged. Each is corrected, and Amendment 12 records the decisions
+  that were implicit (the audit outcome of a completion row is `success`, and an
+  applied disable owes the review too).
+- **Test gaps.** Marker and row disagreeing on remove and disable, every non-applied
+  disable outcome, an uninspectable alias, the route's field-level reasons, the
+  counter's labels, a report's audit failure, the real-provider paging being disjoint
+  and complete, and a real brokered sign-in after a disable that proves the provider
+  kept the stored secret. The port-holder census now also finds a holder of the
+  concrete owner, with planted controls, and the listing's one exact query is pinned.
+
+Two causes outside the findings: the new checkpoint is a `CommitAsync` owner the
+delivery-lifecycle census had to name, and the new audit-writing service tests moved to
+an isolated database because `audit_log` is append-only and the shared schema's
+isolation census counts the rows each seeded tenant sees.
+
+Decided and not changed:
+
+- **The audit outcome of a completion row.** It stays `success`; the provider outcome
+  is `after_state.outcome` (Amendment 12 item 5). A query for non-success rows misses a
+  refused or uncertain provider call, which is the open question for the maintainer.
+- **An applied disable owes the review** (Amendment 12 item 6), as Amendment 10 item 6
+  says.
+- **The marker's tenant is not checked against `tenants`.** Amendment 11 item 3 decides
+  it, and planting a marker needs realm-console rights, which exceed a tenant
+  administrator's.
+- **No batched mapper read.** The operator pipeline's per-call timeout bounds one call,
+  so one token over a batch would not be sound; the page's ten seconds and
+  `mappersUnread` bound the cost, and the runbook says so.
+- **The disable reads the row once.** Amendment 11 item 8 accepts the read-and-write
+  interleave; the effect fails closed.
+
+### P03-9 Step 5 — review round 2 and its fixes (2026-11-20)
+
+Three further read-only reviews ran over the round 1 fix commit with different lenses:
+an adversarial analysis of the fixes and of the authority change they carry; contract
+and documentation truth after the round 1 edits; and test adequacy of the fixes with
+fresh eyes on the whole step. Each finding was verified against the code first.
+
+Fixed, with the proof that now catches each:
+
+- **The removal rule rested on a false premise.** Amendment 12 item 1 let the operator
+  remove an unreadable owned broker with a live row because it "already fails closed".
+  It does not: "unreadable" is the shape check of one read, a broker edited in the
+  provider's console can be unreadable and still serve sign-ins, and the tenant's
+  brokered publication does not depend on a provider read. The remove of a broker a
+  live row names now needs it to be unreadable **and disabled**, which the adapter
+  proves again at the delete and refuses to send otherwise. ADR-0099 Amendment 13
+  records it with inline errata beside the false premise and the wrong pointer. The
+  maintainer's choice to make the class removable stands; the rule that narrows it is
+  reported to the maintainer. Owner tests refuse each combination that reads or is
+  enabled and remove an unreadable, disabled one with the live row untouched; adapter
+  tests refuse a readable, an enabled and an unreadable-enabled broker without sending
+  a delete; the real provider refuses an enabled unreadable broker, accepts it once
+  disabled, and a mutation sweep kills the dropped conditions.
+- **A failure after the change could still say "nothing changed".** The owner tracks
+  whether a change may have landed. Any non-fatal failure after that point (the
+  provider call, the completion row, its commit, the handle's disposal, an unexpected
+  provider failure, a cancellation) is the unknown outcome with the failure kept as its
+  cause for warning 7110, and a completion that cannot be written is no longer swallowed
+  silently. The completion budget is injectable, so the owner tests cut a hung write in
+  two hundred milliseconds and otherwise run on a generous one. Tests fail the commit
+  with a connection fault, a closed transaction and a timeout, hang the write, fail the
+  disposal, throw from the provider after the send, abort the caller during a disable,
+  and have the provider find the broker already gone.
+- **A wider intent-commit catch.** It excludes the fatal exceptions, and a test closes
+  the connection between the intent row and its commit.
+- **Public surface.** Only the transient-fault classifier of the recovery fault helper
+  is public.
+- **Record against behaviour.** The runbook's live-row exception, the review a disable
+  owes, the read of one alias that does not exist, the entry-row audit failure, the
+  paging that shifts when a remove shortens the provider's list, the refusal table of
+  operator access, the Standard 05 sentence that said the table is granted to the
+  application role only, the glossary, and the served contract (a description of the
+  report and its unread count, the removal rule, the federation runbook, a pinned
+  document test) are corrected. Three lines over eighty-eight columns are reflowed.
+- **Test gaps.** The composition tests resolve the operator's port closed without the
+  secret and as its own adapter with its own pipeline with it; the tokenizer behind the
+  pinned listing query also refuses a query built through a builder or a property; the
+  `not_found` body, the already-applied-after-intent case, the unread count of the
+  first report test and the listing that runs out of time are asserted.
+
+Decided and not changed:
+
+- **A completion lost after a certainly applied change answers `503`
+  `outcome_unknown`,** not a `200` with a marker: the record is the one thing known to
+  be missing, and the runbook says a repeat answers `already_applied` with no review
+  owed, so the operator keeps their own record.
+- **An unknown enum member in the route throws.** It is a defect to see (a `500`, which
+  the contract says may follow a landed act), and every member is covered today.
+- **The budget's disposal is not bounded** after a failed commit; Npgsql's own command
+  timeout applies, and no test showed a hang.
+- **Offset paging.** The cursor stays an offset; the runbook says to read a page again
+  after acting on it.
+
+### P03-9 Step 5 — verification and closeout (2026-11-21)
+
+The final head of Step 5 passed every suite: 4,387 unit tests; 500 fast and 180 heavy
+architecture tests, the heavy set including the lifecycle-census tests round 1 had
+extended; and 4,884 integration tests against real PostgreSQL and the pinned Keycloak
+26.7.5. Document lint, the fragment audit and the delivery-log index are clean, and a
+mutation sweep over the guards of both review rounds killed every mutant but one
+equivalent (a marker length check that the marker's round trip makes redundant).
+
+Two full integration runs of this head failed for the host and not for the code, and
+are recorded so a later reader does not read them as a defect. The first lost the
+container runtime's API mid-run (every failure a cancelled Docker request within a
+millisecond); the second could not start its Keycloak fixtures in the fixed two-minute
+window while the workstation was swapping nine of ten gigabytes. The run that counts
+is the third, serialized with `xUnit.ParallelizeTestCollections=false` so that one
+provider container exists at a time, and it took two hours and five minutes where the
+parallel runs took about an hour and a half.
+
+The gate rows G13 and G14 of the decision register now say the implementation is
+delivered, and the Status block says Step 5 is delivered and twice reviewed. What
+remains of the packet is its merge closeout.
+
+Open for the maintainer, as recorded in Amendments 12 and 13:
+
+- **The audit outcome of a completion row is `success` for every closed provider
+  outcome.** A query for non-success rows misses a refused or uncertain provider call;
+  the provider outcome is `after_state.outcome`.
+- **The marker's tenant is not checked against `tenants`.** Planting a marker needs
+  realm-console rights, which exceed a tenant administrator's.
+- **The removal of an unreadable owned broker with a live row needs it disabled first.**
+  This narrows the choice the maintainer made in review round 1, because the premise
+  that an unreadable broker already fails closed was wrong.
+
+### P03-9 Step 5 — hosted CI correction (2026-11-21)
+
+The first hosted run of the pull request failed every backend job at the build, and the
+verification record above did not catch it because the local runs never built with
+`CI=true`. That setting turns analyzer warnings into errors
+(`backend/Directory.Build.props`), so a plain local build shows them as warnings and the
+suites ran against a tree the hosted gate refuses. The frontend, document, OpenAPI,
+demo and secret-scan jobs passed.
+
+Two analyzer errors, both in Step 4 code and both hidden one behind the other, because
+the first stopped the project every later project depends on:
+
+- **CA1068** in `DeliveryInspection.PageAsync<T>`: the cancellation token preceded five
+  delegate parameters. It is now the last parameter.
+- **CA1822** in the delivery-inspection integration test: the `Admission` helper read no
+  instance data. It is now static.
+
+Neither changes behaviour. The corrected tree builds clean with
+`CI=true dotnet build LearnStack.slnx -c Release --no-incremental`, and the 136
+integration tests that exercise delivery inspection and the operator HTTP surface pass.
+The record above stands for what it measured; this entry owns what it did not. The
+build with warnings as errors is now part of the gate before any push of this packet.
+
+### P03-9 Step 5 — hosted CI correction, second run (2026-11-21)
+
+With the build repaired, the second hosted run passed the build and 17 of the 19 backend
+jobs, and failed two for different reasons.
+
+- **`backend-base`: `completed_case_unexpected`.** Two Step 1 theories took a parameter
+  xUnit cannot serialize, an `Exception?` and a `PlatformOperation`. Discovery lists such
+  a theory as one case, execution reports one result per data row under that same id,
+  and the hosted protocol refuses the second completion of an id. The last completed case
+  in the log, the first row of the exception theory, is where it stopped, after 395 of
+  5,037 planned cases, so nothing after it had run. Both theories now take a serializable
+  key, a label and an audit slug, and build the object inside the test; discovery lists 16
+  and 5 distinct cases for them. No local run could see this, because a local run reports
+  per row and the check lives in the hosted protocol only.
+- **`backend-ordinary-9`: a Keycloak readiness timeout.** The one failed case,
+  `TenantRealmStockBaselineTests.Historical_stock_ordinary_reconciliation_…`, recorded
+  `readiness_timeout` at `provider_starting`, 120,001 ms and a TLS readiness outcome. It
+  is the hosted start-up flake already seen on this packet's earlier heads, in a test of an
+  older packet that passes locally; no code changed for it.
+
+Before pushing, the names a project discovers were compared with the names it executes for
+all three assemblies of the base partition (4,387 unit, 656 integration without Docker, 13
+contract). They match, apart from the TRX escaping of surrogate pairs. A parameterised
+theory that discovers as one case is the failure to look for, and the sweep over 1,398
+theories found only those two. The gate before any push of this packet is now the build
+with warnings as errors and this comparison.
+
+### P03-9 Step 5 — hosted CI correction, third run (2026-11-21)
+
+The third hosted run passed the build, `backend-base` and every shard but one. The one
+failure, `backend-ordinary-11`, was the hang-up case of
+`IdentityAuthorityRebindToolTests.A_Signal_During_The_Realm_Read_…`, a Step 3 test; its
+terminate case passed. The hosted record keeps no message for it, so the case was run in
+an Ubuntu 24.04 container, the hosted distribution, against a real PostgreSQL. It passed
+alone and ten times in a row, and failed once in ten under CPU load with the tool's own
+line: `refused_live_sessions sessions=1` where the test expected `refused_cancelled`.
+
+The cause is the test, not the tool. The tool writes its intent row, then counts the
+sessions of every runtime role, then reads the realm. The test took the appearance of the
+intent row as the instant to signal, and polled for it as `learnstack_platform`, a role
+the count includes. When a poll connection was still open as the tool counted, the tool
+saw a live session and refused the run, which is what it exists to do. The signal never
+had a chance to cancel a run that was already refused. The race needs load to show, which
+is why every local run passed.
+
+The test now waits for the realm's hung discovery request to arrive. That request is made
+only after the row is written and the sessions are counted, so it is the instant the signal
+is meant for, and the test holds no database session while the tool counts. Under the same
+load the hang-up case then passed 40 times in 40. The helper that polled for the row had no
+other caller and is removed. The tool did not change.
+
+### P03-9 Step 5 — hosted CI, the opposite shard layout (2026-11-21)
+
+Head `82d18d8d` passed all 27 jobs in layout A (run attempt 1). Rerunning every job, as
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) requires for the second
+qualification, ran layout B (attempt 2) and failed two producers, for different reasons.
+
+- **`backend-ordinary-11`: `filter_bound`, no test ran.** The filter that lists the
+  shard's selectors came to 33,367 bytes against the 32,768-byte ceiling. It was computed
+  with the repository's own `assign` and `filter_for` over the run's discovery manifest and
+  the committed plan: layout B gives the twelve ordinary shards 21,794 to 33,367 bytes, with
+  `ordinary-7` at 31,989; layout A gives 27,144 to 28,123. Assignment is deterministic from
+  the manifest and the plan, so every layout-B attempt on this source refuses the same way
+  and a rerun cannot pass. The population is 2,052 distinct ordinary selectors; twelve
+  shards at the ceiling hold about 2,300 even when perfectly balanced, so the ceiling
+  binds layout A as well within a modest amount of further growth.
+- **`backend-ordinary-7`: a Keycloak readiness timeout.** `readiness_timeout` at
+  `provider_starting`, 120,002 ms and a TLS readiness outcome at the first fixture,
+  failing the realm tests that share it. This is the hosted start-up flake already
+  recorded on this packet's earlier heads; no code is implicated.
+
+Nothing was changed for the first. ADR-0063 bounds filter arguments to 32 KiB, the
+ordinary shards to eight through twelve (twelve are in use), and requires a reviewed plan
+revision, an assignment diff and fresh qualification for any change of count, bound,
+algorithm or salt. Whether to revise the plan, change the bound or reopen the decision is
+the maintainer's. The candidates are a new B salt (cheap, and a lucky rebalance that the
+next growth undoes), a byte-aware assignment (an algorithm version), a higher bound (which
+the hosted boundary must then qualify) or a thirteenth shard (the envelope's end, which
+reopens the decision). Until one is chosen, layout A is qualified on this source and layout
+B is not.
+
+### P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)
+
+The maintainer asked for a guard that shows locally what only the hosted discovery
+protocol showed: a theory whose data xUnit cannot serialize. The rule already exists. The
+`xunit.analyzers` package that comes with xUnit 2.9.2 ships `xUnit1044` (the type argument
+is not serializable) and `xUnit1045` (it might not be), both off by default. A scratch
+theory with the two original shapes, a `PlatformOperation` record and an `Exception?` in
+`TheoryData`, fails the build with them at error severity: `xUnit1044` for the first,
+`xUnit1045` for the second. With both set to error in `backend/tests/.editorconfig`, the
+whole solution builds with no warning and no error, so no existing theory breaks the rule.
+
+This replaces the reflection rule the question proposed. An analyzer knows what xUnit can
+serialize, shows the fault in the editor and needs no catalogue entry, and the architecture
+catalogue and its counts are unchanged. Standards 06 states the rule beside the
+discovery protocol it protects.

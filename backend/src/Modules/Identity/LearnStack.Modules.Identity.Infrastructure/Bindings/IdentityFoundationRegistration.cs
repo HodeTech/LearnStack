@@ -43,6 +43,7 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IRoleWriteStore, RoleWriteStore>();
         services.TryAddScoped<IRoleReadStore, RoleReadStore>();
         services.TryAddScoped<IMembershipWriteStore, MembershipWriteStore>();
+        services.TryAddScoped<IOperatorSubjectResolver, OperatorSubjectResolver>();
         services.TryAddScoped<ISeedStateReader, SeedStateReader>();
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();
         services.TryAddScoped<IMembershipAdmissionReader, MembershipAdmissionReader>();
@@ -58,6 +59,8 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<FederationOperationRunner>();
         services.TryAddSingleton(FederationOperationBudgets.Default);
         services.TryAddSingleton<IFederationProvider, UnconfiguredFederationProvider>();
+        // The operator's port (Amendment 10) is its own: the tenant runner never holds it, and it too fails closed.
+        services.TryAddSingleton<IFederationOperator, UnconfiguredFederationOperator>();
         services.TryAddSingleton<IFederationEgressFetcher, UnconfiguredFederationEgressFetcher>();
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetFederationConnectionQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));

@@ -265,11 +265,24 @@ registers `platform.delivery.dead_letter`, both off-path under Tenancy. The
 subscriber witness binds the actual tenant/subscription/event tuple and uses a
 validated attempt trace without causal-envelope or payload SELECT. Outcome success
 describes terminal state, not publication. Producer terminal audit omits invalid
-causal fields in favor of a fresh validated attempt trace.
+causal fields in favor of a fresh validated attempt trace. The operator's reset of a
+dead-lettered row is a sibling seam, `WriteOperatorRecoveryAsync`
+([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)): its witness
+carries the admitted operator and the fence before and after, the row names the real
+event tenant with no actor and no ticket, and the outbox role needs no new policy arm
+because it bypasses row security and already holds `INSERT`.
 Absent optional causal IDs are valid and do not alone invalidate the stored trace.
 Closed terminal values use bounded metadata; `Reason` stays for platform entry.
 Audit failure retains terminal work for retry without delivery; uncertain COMMIT
 is reconciled before retry and cannot duplicate a completed terminal audit.
+
+The platform scope's intent seam, `WritePlatformOperatorIntentAsync`
+([ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md)), is the sibling for an
+operator act whose effect is outside the database: the scope handle's checkpoint writes
+the intent row on the operation's attempt slug with the outcome `indeterminate`, commits
+it, and only then lets the provider be called; the result row follows on a fresh
+transaction. An effect that fails afterwards leaves the intent row standing, and the
+result row is refused before an intent that its operation declares.
 
 The existing outbox role gains audit INSERT-only in the Audit chain, with exact
 grants owned by [Database Standards](../standards/05-database.md#grant-matrix).
@@ -1397,18 +1410,17 @@ guards are specified only in the Database standard:
 | Ordinary unresolved context, not provisioning/global identity | no row — there is no admitted attribution owner | — |
 
 **The third row has exactly one user in Packet 9**: entry into
-`EnterPlatformAdminScope(reason)` itself, which is not a MediatR request and writes its own
-row through the fourth write path. `tenancy.killswitch.toggle` — the operation
+`EnterPlatformAdminScope(reason)` itself, which is not a MediatR request and writes its
+own row through the fourth write path. `tenancy.killswitch.toggle` — the operation
 [ADR-0044 § 1](../decisions/0044-audit-write-path.md) names as the first to be performed
-*inside* that scope — ships no writer here: the registered gate is
-`DenyAllPlatformAdminGate` and the Platform-scope permission arrives with the registry in
-[Phase 03](../roadmap/phase-03-identity-admin.md), which owns the toggle command
-([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+*inside* that scope — shipped no writer in Packet 9; P03-9 Step 1 ships it as a service
+entered with an operator admission
+([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
+[ADR-0045 Amendment 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 [The Tenancy matrix](../modules/tenancy/audit.md) classifies it MUST and marks it
-**both** `(off-path)` and `(planned)`: off-path because the scope is entered by a service
-method rather than by a MediatR request, so there is no request type to key a catalogue
-entry on (§ 13); planned because no writer performs it in this packet. A cell carries
-every marker that applies, and this is the row that carries two.
+`(off-path)`: the scope is entered by a service method rather than by a MediatR request,
+so there is no request type to key a catalogue entry on (§ 13). It carried `(planned)`
+as well until its writer shipped; a cell carries every marker that applies.
 
 The organization column is decided from the same source as the tenant and at the same
 moment, which is what keeps the two paths agreeing. On the in-transaction path the

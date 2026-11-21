@@ -13,6 +13,7 @@
     <Project Path="src/LearnStack.Api/LearnStack.Api.csproj" />
     <Project Path="src/LearnStack.Tools.Seeder/LearnStack.Tools.Seeder.csproj" />
     <Project Path="src/LearnStack.Tools.IdentityAuthorityInstaller/LearnStack.Tools.IdentityAuthorityInstaller.csproj" />
+    <Project Path="src/LearnStack.Tools.IdentityAuthorityRebind/LearnStack.Tools.IdentityAuthorityRebind.csproj" />
   </Folder>
   <Folder Name="/analyzers/">
     <Project Path="analyzers/LearnStack.Analyzers/LearnStack.Analyzers.csproj" />

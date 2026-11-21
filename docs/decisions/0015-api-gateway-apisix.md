@@ -310,3 +310,22 @@ replay/reconciliation permission and surface; Phase 11 retains the edge surround
 
 Platform protection remains required for any later operator surface. No gateway,
 permission or recovery route is implemented by this acceptance.
+
+### Amendment 2 — Hangfire dashboard guidance withdrawn (2026-11-19)
+
+This amendment quotes and withdraws one bullet of the section "Architecture tests / CI
+gates": "Hangfire dashboard route (`/admin/hangfire*`) gated by both APISIX (BasicAuth
+or JWT) and backend (`HangfireAuthFilter.IsInRole("platform-admin")`). Architecture test
+fails if the backend filter is bypassed in any environment." A realm-role gate
+contradicts [Standard 19](../standards/19-permissions.md), the named filter and test do
+not exist, and a gateway BasicAuth credential is shared, so it attributes no human.
+
+[ADR-0103](0103-operator-recovery-of-asynchronous-work.md) replaces it. No dashboard is
+mapped and `/admin/hangfire*` stays absent in every deployment mode. Any future
+admission needs a Platform-scope permission through the operator gate of
+[ADR-0101](0101-platform-operator-authority.md), never a realm role, and its own
+decision. Phase 11 keeps the APISIX surround. Amendment 1 is unaffected. This is a
+withdrawn design statement, not an ADR-0041 correction.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

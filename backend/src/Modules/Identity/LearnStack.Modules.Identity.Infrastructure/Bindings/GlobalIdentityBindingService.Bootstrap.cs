@@ -57,6 +57,7 @@ public sealed partial class GlobalIdentityBindingService
         }
         catch (NpgsqlException) { result = IdentityBootstrapResult.Refused(IdentityCreationRefusal.Unavailable); }
         catch (UserBindingStorageException) { result = IdentityBootstrapResult.Refused(IdentityCreationRefusal.Unavailable); }
+        catch (IdentityAuthorityChangedException) { result = IdentityBootstrapResult.Refused(IdentityCreationRefusal.Unavailable); }
         catch (TimeoutException) { result = IdentityBootstrapResult.Refused(IdentityCreationRefusal.Unavailable); }
         finally { cleanupSucceeded = await DisposeOwnerAsync(frame); }
         return cleanupSucceeded ? result : IdentityBootstrapResult.Refused(IdentityCreationRefusal.Unavailable);

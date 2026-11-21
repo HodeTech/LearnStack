@@ -321,6 +321,12 @@ public sealed partial class OutboxDispatchConventionTests
             var method = AddSqlMethod(store, "AcquireAsync", "UPDATE outbox_messages SET attempts=0");
             return () => store.Methods.Remove(method);
         }, OutboxSqlOffenders);
+        AssertMutation(census, "an extra overload of the operator's producer reset", () =>
+        {
+            var store = census.Types[(InfrastructureAssembly, Store)];
+            var method = AddSqlMethod(store, "ResetCoreAsync", "UPDATE outbox_messages SET attempts=0");
+            return () => store.Methods.Remove(method);
+        }, OutboxSqlOffenders);
         AssertMutation(census, "a missing production mutation path", () =>
         {
             var literal = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == Store)
@@ -372,6 +378,8 @@ public sealed partial class OutboxDispatchConventionTests
         {
             ("LearnStack.Infrastructure.Messaging.PostgresOutbox", "EnqueueAsync"),
             (Store, "AcquireAsync"), (Store, "UpdateAsync"), (Store, "TryTerminalizeAsync"),
+            // ADR-0103: the operator's fenced producer reset is the second writer of dispatcher status.
+            (Store, "ResetCoreAsync"),
             ("LearnStack.Infrastructure.Persistence.Migrations.add_outbox_dispatch_state", "Up"),
         })
         {

@@ -21,7 +21,7 @@ docs/
   roadmap/        phase-NN-topic.md   (with phase-NNa / phase-NNb splits for parallel tracks)
                   phase-NN-delivery-log.md   a phase's dated packet records (ADR-0069)
   standards/      NN-topic.md   engineering rules
-  runbooks/       *.md           operations procedures (Phase 11+)
+  runbooks/       *.md           operations procedures (begun in Phase 03; Phase 11 completes)
   modules/        <module>/     per-module specs (one directory per module, created with its first spec)
   glossary.md     terminology
 ```

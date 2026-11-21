@@ -3,6 +3,7 @@ using LearnStack.Application.Jobs;
 using System.Data.Common;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -11,7 +12,7 @@ using NpgsqlTypes;
 namespace LearnStack.Infrastructure.Messaging;
 
 /// <summary>Short, database-time fenced dispatcher transitions on its confined role.</summary>
-public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
+public sealed partial class OutboxDispatchStore : EventTerminalTransition.MintingSource
 {
     private const string Incomplete = "processed_at IS NULL AND dead_lettered_at IS NULL";
     private const string Normal = Incomplete + " AND terminal_reason IS NULL AND attempts < 6"
@@ -33,9 +34,10 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
     private readonly IClock _clock;
     private readonly IServiceScopeFactory _scopes;
     private readonly object _connectionGate = new();
-    // The main SQL owner and its uncertain-COMMIT reconciliation are the only
-    // simultaneous source users. Slots are retained through actual disposal.
-    private readonly OwnedConnection?[] _connections = new OwnedConnection?[2];
+    // The main SQL owner and its uncertain-COMMIT reconciliation are the only simultaneous dispatcher users, in
+    // slots 0 and 1. Slot 2 belongs to the operator recovery owner alone (ADR-0103), so an operator's reset can never
+    // take the slot the dispatcher's own reconciliation needs. Slots are retained through actual disposal.
+    private readonly OwnedConnection?[] _connections = new OwnedConnection?[3];
     private bool _cleanupUnconfirmed;
 
     /// <summary>Whether actual connection disposal failed; reading opens nothing.</summary>
@@ -44,8 +46,11 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         get { lock (_connectionGate) return _cleanupUnconfirmed; }
     }
 
+    private readonly BackgroundJobLifecycleProjection? _lifecycle;
+
     public OutboxDispatchStore(PrivilegedDataSource source, OutboxEventRegistry registry,
-        OutboxDispatchOptions options, IGuidFactory ids, IClock clock, IServiceScopeFactory scopes)
+        OutboxDispatchOptions options, IGuidFactory ids, IClock clock, IServiceScopeFactory scopes,
+        BackgroundJobLifecycleProjection? lifecycle = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(registry);
@@ -60,6 +65,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         _ids = ids;
         _clock = clock;
         _scopes = scopes;
+        _lifecycle = lifecycle;
     }
 
     public Task<OutboxDispatchClaim?> TryClaimAsync(IReadOnlyCollection<string> blockedPartitions,
@@ -283,7 +289,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         return new(reader.GetInt64(0), reader.GetInt64(1), reader.GetDouble(2));
     }
 
-    private async ValueTask<OwnedConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    private async ValueTask<OwnedConnection> OpenConnectionAsync(CancellationToken cancellationToken, bool operatorLane = false)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         OwnedConnection owned;
@@ -292,7 +298,9 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         {
             if (_cleanupUnconfirmed)
                 throw new InvalidOperationException("The outbox dispatcher connection cleanup remains unconfirmed.");
-            var slot = _connections[0] is null ? 0 : _connections[1] is null ? 1 : -1;
+            var slot = operatorLane
+                ? _connections[2] is null ? 2 : -1
+                : _connections[0] is null ? 0 : _connections[1] is null ? 1 : -1;
             if (slot < 0)
                 throw new InvalidOperationException("The outbox dispatcher SQL ownership bound was exceeded.");
             owned = new OwnedConnection(this, slot);

@@ -28,10 +28,14 @@ the request exists, and off-path events register by slug when their writer lands
 | Resource | Operation | Class | Why |
 |---|---|---|---|
 | User/global immutable subject | `identity.user.create` `(off-path)` | **MUST** (`security-event`) | ADR-0072's confined creation/adoption owner and central non-success reconciliation; success shares the User transaction. Exact global witness, source and retention contract stays there. |
-| Role including grants | `identity.role.initialize` | **MUST** (`security-event`) | `InitializeSeedRole`; one Role transaction, with contained grants. |
+| Role including grants | `identity.role.initialize` | **MUST** (`security-event`) | `InitializeSeedRole` and the operator's `OperatorInitializeRoleCommand` share this slug; one Role transaction, with contained grants. |
 | Membership including Profile/Assignments | `identity.membership.create_first_seed_admin` | **MUST** (`security-event`) | `CreateFirstSeedAdminMembership`; one Membership transaction. |
 | Membership including Profile/Assignments | `identity.membership.create_seed` | **MUST** (`security-event`) | `CreateSeedMembership`; one Membership transaction. |
+| Membership including Profile/Assignments | `identity.membership.create_first_admin` | **MUST** (`security-event`) | `OperatorCreateFirstAdminCommand`, the operator's production first administrator ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)); one Membership transaction on the operator source, `metadata.operator` and the reason slug on the row, refused once the tenant has had any member. |
+| Membership including Profile/Assignments | `identity.membership.recover_admin` | **MUST** (`security-event`) | `OperatorRecoverAdminCommand`, the operator's replacement administrator for a tenant with none active; one Membership transaction on the operator source, refused while any administrator is active. |
 | MembershipProfile, captured under Membership | `identity.membership_profile.set_seed_profile` | **MUST** (`update`) | `SetSeedMembershipProfile`; same Membership transaction. The slug matches the gated sub-resource while the row's subject remains its owning aggregate. |
+| Identity authority | `identity.authority.rebind_attempt` `(off-path)` | **MUST** (`security-event`) | The controlled issuer rebind's intent row ([ADR-0104](../../decisions/0104-controlled-issuer-rebind.md)): committed on the offline tool's own short transaction, by the confined `learnstack_identity_rebind` role, before the main transaction begins, so an aborted attempt is on record. Platform sentinel tenant, outcome `indeterminate`, no actor, `metadata.operator` with the ticket. Written through the witness-bound `WriteIdentityRebindIntentAsync`, never the pipeline. |
+| Identity authority | `identity.authority.rebind` `(off-path)` | **MUST** (`security-event`) | The rebind's result row: written on the same transaction as the one-column issuer change, so it commits with the change or not at all, and a forced audit failure rolls the change back. Outcome `success`; the old and new issuer are in `before_state` and `after_state`, and `metadata` holds the operator attribution and the continuity counts, with no subject. Written through the witness-bound `WriteIdentityRebindResultAsync`. |
 | Authorization decision | `identity.authorization.deny` `(off-path)` | **MUST** (`security-event`) | Central HTTP/application/resource denial owner; one decided invocation event, separate from ordinary plural resource intents. No tenant override or host suppression budget. |
 | Membership directory | `identity.membership.list` | **MUST** (`read-sensitive`) | Internal `ListMembershipsQuery` under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. No HTTP activation follows from its catalogue entry. |
 | Role including grants | `identity.role.change_grants` | **MUST** (`security-event`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and fresh post-lock authority recheck; success/audit share the transaction. |
@@ -271,3 +275,13 @@ baseline provider-credential-rotation row covers `rotate_secret`.
 no personal data. `GetPublicSignInQuery` is an explicit Off public read: it is
 anonymous and returns only the host tenant's Active alias and display name
 ([Standard 18](../../standards/18-audit-coverage.md)).
+
+The platform operator's report, remove and disable of orphaned or broken brokers
+([ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md)) are not
+Identity operations and are not in this table. They run at the platform scope, outside
+the request pipeline, and write the off-path slugs `platform.federation.report`,
+`platform.federation.remove_attempt`, `platform.federation.remove`,
+`platform.federation.disable_attempt` and `platform.federation.disable`, which
+[Tenancy's audit matrix](../tenancy/audit.md) classifies and Tenancy's catalogue source
+registers. Their rows name the tenant the owner marker names and entity
+`FederationConnection`.

@@ -1261,13 +1261,7 @@ public sealed class UnitOfWorkTests
         }
         finally
         {
-            await using var platform = await PostgresFixture.OpenAsync(
-                _schema.Postgres.PlatformConnectionString);
-            await using var cleanup = new NpgsqlCommand(
-                "DELETE FROM outbox_messages WHERE correlation_id = @correlation",
-                (NpgsqlConnection)platform);
-            cleanup.Parameters.AddWithValue("correlation", correlation);
-            await cleanup.ExecuteNonQueryAsync();
+            await DeleteOutboxAsync(correlation);
         }
     }
 
@@ -1632,21 +1626,21 @@ public sealed class UnitOfWorkTests
             """,
             ("tenant", SchemaFixture.TenantA), ("correlation", correlation));
 
+    // The platform role no longer reads correlation_id (ADR-0103 limits it to inspection metadata), and the dispatcher
+    // role cannot delete, so a test's own rows are removed by the container's superuser and counted by the dispatcher
+    // role, which reads the table across tenants.
     private async Task DeleteOutboxAsync(string correlation)
     {
-        await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
-        await using var cleanup = new NpgsqlCommand(
-            "DELETE FROM outbox_messages WHERE correlation_id = @correlation",
-            (NpgsqlConnection)platform);
-        cleanup.Parameters.AddWithValue("correlation", correlation);
-        await cleanup.ExecuteNonQueryAsync();
+        System.Text.RegularExpressions.Regex.IsMatch(correlation, "^[0-9A-Za-z-]+$").Should().BeTrue(
+            "the cleanup statement embeds only a generated identifier");
+        await _schema.Postgres.ExecuteAsSuperuserAsync(
+            $"DELETE FROM outbox_messages WHERE correlation_id = '{correlation}'");
     }
 
     private async Task<long> CountOutboxAsync(string correlation)
     {
         await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            _schema.Postgres.OutboxConnectionString);
         await using var command = new NpgsqlCommand(
             "SELECT count(*) FROM outbox_messages WHERE correlation_id = @correlation",
             (NpgsqlConnection)platform);

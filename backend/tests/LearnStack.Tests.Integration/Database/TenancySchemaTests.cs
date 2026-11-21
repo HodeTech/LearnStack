@@ -1338,7 +1338,7 @@ public sealed partial class TenancySchemaTests
             SELECT grantee || ' ' || table_name || ' ' || string_agg(privilege_type, ',' ORDER BY privilege_type)
             FROM information_schema.table_privileges
             WHERE table_schema = 'public'
-              AND grantee IN ('learnstack_app', 'learnstack_platform', 'learnstack_outbox_admin', 'learnstack_identity_ingress', 'PUBLIC')
+              AND grantee IN ('learnstack_app', 'learnstack_platform', 'learnstack_outbox_admin', 'learnstack_identity_ingress', 'learnstack_identity_rebind', 'PUBLIC')
             GROUP BY grantee, table_name
             """);
 
@@ -1357,7 +1357,9 @@ public sealed partial class TenancySchemaTests
                 "learnstack_app identity_provider_event_targets SELECT",
                 "learnstack_identity_ingress identity_provider_event_receipts SELECT",
                 "learnstack_identity_ingress identity_provider_event_scan INSERT,SELECT",
-                "learnstack_identity_ingress identity_provider_event_problems INSERT,SELECT"]),
+                "learnstack_identity_ingress identity_provider_event_problems INSERT,SELECT",
+                "learnstack_identity_rebind identity_authority SELECT",
+                "learnstack_identity_rebind audit_log INSERT"]),
         "every line is one line of the migration chains' grant matrices, and "
         + "learnstack_outbox_admin holds only declared outbox/delivery scheduling columns "
         + "and terminal audit INSERT");
@@ -1396,7 +1398,8 @@ public sealed partial class TenancySchemaTests
         // that lets anything enter EnterPlatformAdminScope at all.
         "learnstack_platform platform_killswitches DELETE,INSERT,SELECT,UPDATE",
         "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
-        "learnstack_platform outbox_messages DELETE,SELECT",
+        // ADR-0103: the purge keeps its DELETE; the table-wide SELECT is gone, and the inspection reads named columns.
+        "learnstack_platform outbox_messages DELETE",
         "learnstack_platform idempotency_keys DELETE,SELECT",
         "learnstack_app tenant_content_types DELETE,INSERT,SELECT,UPDATE",
         "learnstack_app tenant_level_taxonomies DELETE,INSERT,SELECT,UPDATE",

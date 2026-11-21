@@ -13,8 +13,19 @@ internal static class BackgroundJobGrantExpectations
                     _ => "DELETE,SELECT",
                 })));
 
+    /// <summary>The metadata of a job an operator may inspect: no parameter, plan, trace, causal or capability column.</summary>
+    public const string PlatformJobMetadataColumns =
+        "id tenant_id organization_id definition_key profile queue capacity_group original_due_at created_at phase "
+        + "normal_attempts finalize_attempts available_after ownership_kind ownership_until attempt_deadline probe_after "
+        + "unsuccessful_probes last_error quarantine_reason terminal_reason processed_at dead_lettered_at "
+        + "finalization_status finalization_reason business_finalization_incomplete wake_generation";
+
     public static string[] Columns(string role, string table, string privilege, IEnumerable<string> allColumns)
     {
+        // ADR-0103: the platform role reads every reservation column, and nothing else of the job tables is exposed to it
+        // beyond the named metadata of background_jobs below.
+        if (privilege == "SELECT" && role == "learnstack_platform" && table == "background_job_reservations")
+            return allColumns.ToArray();
         if (privilege == "SELECT" &&
             (role == "learnstack_app" && SchemaTableClasses.JobTenant.Contains(table)
              || role == "learnstack_outbox_admin" && table is "background_job_capacity" or "background_job_reservations"
@@ -26,6 +37,7 @@ internal static class BackgroundJobGrantExpectations
                 "id tenant_id organization_id definition_key profile queue capacity_group parameters original_due_at traceparent causal_actor_user_id causation_event_id parent_job_id recipient_id",
             ("learnstack_app", "background_jobs", "UPDATE") =>
                 "phase normal_attempts finalize_attempts current_attempt_id attempt_deadline plan plan_fingerprint prepared_at operation_id final_outcome_attempt_id finalization_status finalization_reason processed_at terminal_reason dead_lettered_at",
+            ("learnstack_platform", "background_jobs", "SELECT") => PlatformJobMetadataColumns,
             ("learnstack_app", "background_job_attempts", "INSERT") =>
                 "id tenant_id organization_id job_id stage ordinal admission_token deadline final_outcome_attempt_id",
             ("learnstack_app", "background_job_attempts", "UPDATE") =>

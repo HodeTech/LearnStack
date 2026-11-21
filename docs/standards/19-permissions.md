@@ -92,16 +92,49 @@ nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read` | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.killswitch.write`, `platform.tenant.write`, `platform.tenant_bootstrap.write`, `platform.identity_authority.admin`, `platform.delivery.read`, `platform.delivery.write`, `platform.federation.read` and `platform.federation.admin` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
+
+The registered Platform catalogue is `PlatformPermissions` in `LearnStack.SharedKernel`,
+apart from the tenant registry and never assignable, so the served tenant document does
+not change when it grows ([ADR-0101](../decisions/0101-platform-operator-authority.md) §
+5). A key is registered with the operation that has a denied proof for it:
+
+| Key | Operation | Packet |
+|---|---|---|
+| `platform.killswitch.write` | `tenancy.killswitch.toggle` | P03-9 Step 1 |
+| `platform.tenant.write` | `tenancy.tenant.create` (tenant provisioning), `tenancy.hostmapping.write` (host mapping) | P03-9 Step 2 |
+| `platform.tenant_bootstrap.write` | `identity.role.initialize`, `identity.membership.create_first_admin`, `identity.membership.recover_admin` | P03-9 Step 2 |
+| `platform.identity_authority.admin` | `identity.authority.rebind` (the controlled issuer rebind, an offline tool and not a route) | P03-9 Step 3 |
+| `platform.delivery.read` | `platform.delivery.inspect` (metadata-only inspection of dead-lettered work and quarantined jobs, in the platform scope) | P03-9 Step 4 |
+| `platform.delivery.write` | `platform.delivery.replay`, `platform.delivery.reset` (the two fenced transitions, on the dispatcher's outbox role) | P03-9 Step 4 |
+| `platform.federation.read` | `platform.federation.report` (the report of orphaned, unreadable and nonconforming identity-provider brokers, in the platform scope) | P03-9 Step 5 |
+| `platform.federation.admin` | `platform.federation.remove`, `platform.federation.disable` (the two provider changes, each with an intent and a completion row) | P03-9 Step 5 |
+
+The five onboarding acts of
+[ADR-0102](../decisions/0102-production-tenant-onboarding.md) run under the
+`PlatformOperator` authorization source, which is not a Membership candidate: their
+policies are `FiniteTrusted` with that single source, the business actor of every row
+they write is `UserId.SystemActor`, and the operator is recorded in audit only. The
+grant is evaluated by the gate on every act, never cached across acts. The rebind of
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md) is not an act of that executor
+and not a route: the scope refuses an operation that needs no platform role, and the
+executor runs only the closed catalog of five onboarding acts, which refuses the rebind
+operation by construction (`PlatformOperatorActCatalog`). The offline tool that consumes
+the admission validates the same token and evaluates the same grant. The two recovery
+transitions of [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)
+are likewise not pipeline acts: each operation records where it runs
+(`PlatformOperationExecutor`: the pipeline, the platform scope, the offline tool or the
+recovery owner), and the catalog admits only the first.
 
 Tenant permissions are only meaningful inside an admitted tenant scope.
 Organization grants require an eligible Membership for that exact organization.
 An explicit eligible Tenant grant can independently authorize the declared
-operation; same-key pairs never imply one another. Platform admission remains
-P03-9 and requires its privileged authentication/audit contract (see
-[18-audit-coverage.md](18-audit-coverage.md)).
+operation; same-key pairs never imply one another. Platform admission is decided by
+[ADR-0101](../decisions/0101-platform-operator-authority.md) (operator scheme, per-act
+grants held by LearnStack, a separate non-assignable catalogue) and ships in P03-9 with
+its audit contract (see [18-audit-coverage.md](18-audit-coverage.md)).
 
 Registered architecture obligation
 `Permission_Scope_Matches_Resource_Scope` requires permissions registered as

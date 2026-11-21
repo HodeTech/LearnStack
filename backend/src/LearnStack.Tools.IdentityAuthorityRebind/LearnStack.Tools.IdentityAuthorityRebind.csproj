@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LearnStack.Tools.IdentityAuthorityRebind</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The offline issuer-rebind tool (ADR-0104): a console process, never a host, and nothing from LearnStack.Api.
+         It validates the operator's token with the same Infrastructure validator the API scheme uses, drives the
+         Identity module's rebind on the confined database role, and reads the new realm with a credential the
+         operator supplies for the minutes it runs. -->
+    <ProjectReference Include="..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure.Audit\LearnStack.Infrastructure.Audit.csproj" />
+    <ProjectReference Include="..\Modules\Identity\LearnStack.Modules.Identity.Application\LearnStack.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\Modules\Identity\LearnStack.Modules.Identity.Infrastructure\LearnStack.Modules.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The tool's reader of the new realm and its flow are proved in process, against loopback issuers and a real
+         database, as well as through the child process. -->
+    <InternalsVisibleTo Include="LearnStack.Tests.Integration" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The concrete service provider, the configuration binder and the logging abstractions for the closed
+         audit-store graph; the OTLP exporter only when the operator configures an endpoint. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+</Project>

@@ -219,6 +219,9 @@ public sealed partial class PersistenceConventionTests
             "Persistence/EducationDbContextFactory.cs",
             "Persistence/IdentityDbContextFactory.cs",
             "LearnStack.Tools.IdentityAuthorityInstaller/Program.cs",
+            // ADR-0104's controlled issuer rebind opens its own direct, never-pooled connections as the confined
+            // sixth role: the exclusive-lock transaction, the intent-row transaction and the commit reconciliation.
+            "Bindings/IdentityIssuerRebind.cs",
 
             // Both runtime hosts delegate application-role construction to this
             // shared guard; the API retains its separate platform-role builder.

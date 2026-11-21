@@ -379,3 +379,14 @@ provenance or generalized evidence dictionary.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 2 — Operator admission denials (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) § 11 places denials of Platform
+operator admission outside this record's typed denial event population. They are
+tenantless, and this record's rule that a tenantless refusal invents no tenant and uses
+no platform sentinel stands. Their evidence is a counter and a Warning log. The
+reopening trigger is Phase 11 security monitoring that requires durable denial evidence.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

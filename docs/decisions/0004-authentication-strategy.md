@@ -84,3 +84,18 @@ user under the same identity, and vice versa.
 ## Amendment 2 — Federation adapter boundary (2026-11-13)
 
 Accepted [ADR-0099](../decisions/0099-confined-tenant-federation.md) adds the first runtime Keycloak adapter that writes to the Admin REST API, scoped to tenant-brokered identity-provider configuration. Its port is `IFederationProvider`, not the `IIdentityProvider` named in the Consequences above, which remains unimplemented. The domain depends on no provider type, and the adapter lives in `LearnStack.Infrastructure.Identity.Federation`. Realm-level brokering stays the mechanism of Amendment 1; ADR-0099 specifies its confinement. Tenants receive no realm administration authority.
+
+## Amendment 3 — Operator scheme at LearnStack (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) admits Amendment 1's operator
+on LearnStack. A second bearer scheme, `PlatformOperator`, accepts a token from the
+`learnstack-hub` realm, or from another issuer the deployment controls, for audience
+`learnstack-platform` and a public PKCE client, with a lifetime of at most 15 minutes
+and MFA shown by the `acr` and `auth_time` claims. It requires no `scope: "platform"`
+claim and is confined to `/api/platform/v1`, which is what "platform endpoints" means
+here. The Hub service-account chain stays independent of the operator JWT, and the
+tenant scheme still refuses the operator issuer. Realm-level MFA enforcement stays Phase
+11.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.

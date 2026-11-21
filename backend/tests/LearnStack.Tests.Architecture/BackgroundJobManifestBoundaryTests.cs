@@ -248,7 +248,12 @@ public sealed partial class OutboxDispatchConventionTests
         if (offenders.Count != 0) return offenders;
 
         var bodies = OwnedBodies(census).ToArray();
-        var sites = bodies.SelectMany(item => item.Body.Body.Instructions
+        // The platform operator surface (ADR-0101 § 4) is its own closed surface with its own scheme, and it
+        // maps minimal endpoints (a group, one verb, one policy, one fixed metadata) rather than controllers.
+        // It is excluded by exact type, so any other body that registers an endpoint is still counted here;
+        // the operator surface's own population is asserted in PlatformOperatorHttpTests.
+        var sites = bodies.Where(item => item.Owner.DeclaringType.FullName != "LearnStack.Api.Platform.PlatformOperatorEndpoints")
+            .SelectMany(item => item.Body.Body.Instructions
             .Where(instruction => instruction.Operand is MethodReference)
             .Select(instruction => (item.Owner, Instruction: instruction, Target: (MethodReference)instruction.Operand))).ToArray();
         var invitation = types[("LearnStack.Modules.Identity.Infrastructure", typeof(InvitationEmailRegistration).FullName!)];

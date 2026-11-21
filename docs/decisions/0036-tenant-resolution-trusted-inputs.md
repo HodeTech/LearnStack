@@ -1406,3 +1406,51 @@ origin inferred from provider data.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 21 — Platform URL space and confined operator target (2026-11-19)
+
+> **Erratum — 2026-11-19.** The second paragraph below says the target tenant of an
+> admitted operator act is announced "by one confined setter". No setter was added: the
+> operator act executor installs a resolved ambient context for the target and the
+> ordinary transaction behavior announces it; shown by
+> `SetTenant_Callers_Are_The_Enumerated_Four` and `PlatformOperatorActExecutorTests`.
+> The Decision is unchanged. Current authority: Amendment 22 below. Recorded in
+> Amendment 22.
+
+Accepted [ADR-0101](0101-platform-operator-authority.md) fixes the platform URL space
+this record left open: `/api/platform/v1/*`, unclassified by host like `/api/internal`
+and authenticated by the operator scheme. This record's sentence that operator
+cross-tenant work enters through `/api/internal/*` under the Hub chain is read as the
+Hub's machine chain only, which carries no human operator. A human operator act uses the
+platform prefix.
+
+Accepted [ADR-0102](0102-production-tenant-onboarding.md) adds one announcement: the
+target tenant of an admitted operator act, declared by the operation and never taken
+from a header, query, cookie or body of an ordinary route, is announced to the unit of
+work by one confined setter. The rule that no route resolves a tenant from a
+request-supplied override stands for every route that resolves context from a host or a
+claim.
+
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
+### Amendment 22 — The operator target is an executor-installed context (2026-11-19)
+
+Amendment 21 said the target tenant of an admitted operator act is announced by one
+confined setter. As built by [ADR-0102](0102-production-tenant-onboarding.md) there is
+no setter: `PlatformOperatorActExecutor` consumes the single-use admission, opens a
+fresh scope and installs an immutable resolved context with `Ambient` origin, no user,
+no organization and no host scope, for the tenant the operator named in the path of a
+`/api/platform/v1/tenants/{tenantId}` route. It is the fifth writer of
+`ITenantContextAccessor.Current`, alongside the four of Amendment 2, and
+`SetTenant_Callers_Are_The_Enumerated_Four` names its file. The target comes from that
+route's path and from nothing an ordinary route supplies; the rule that no route
+resolves a tenant from a request-supplied override stands for every route that resolves
+context from a host or a claim, and the operator surface resolves none. A request type
+outside the executor's closed catalog, an admission for another operation, the platform
+sentinel and an unassigned tenant are refused before the admission is spent.
+
+The Decision, Status, Date and prior amendments of this record are unchanged, apart from
+the inline erratum beside Amendment 21. Acceptance of the linked records is not proof
+that anything they decide is implemented.

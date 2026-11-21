@@ -148,7 +148,8 @@ public static class AuditDraftComposer
             EntityId = intent.ProviderEvent?.AffectedUserId.Value.ToString("D") ?? subject.EntityId,
             Outcome = outcome,
             ErrorKey = errorKey,
-            Reason = null,
+            // The closed reason slug of an operator act (ADR-0101 § 9); null for every other source.
+            Reason = intent.Authorization?.Operator?.ReasonSlug,
 
             // The subject's EARLIEST capture's before and its LATEST capture's after, nulls
             // included. Skipping nulls looks like tidying and is not: the interceptor sets
@@ -199,6 +200,11 @@ public static class AuditDraftComposer
                 || intent.ActorUserId != authorization.Actor)
                 throw new ArgumentException("Resource audit authorization attribution is invalid.", nameof(intent));
             fields.Add("\"authorization\":" + authorization.ToJson());
+            if (authorization.Operator is { } attribution)
+            {
+                // Attribution only: the ticket never rides on a row a tenant can read.
+                fields.Add("\"operator\":" + attribution.ToOperatorJson());
+            }
         }
         if (intent.CausationId is { } causation)
         {

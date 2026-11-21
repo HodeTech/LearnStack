@@ -524,6 +524,20 @@ general exemption. The producer/subscriber delivery policy, five existing audit
 writes and their shipped receipts remain unchanged. P02b-4 implements the new job
 control/seam and their proof obligations; acceptance claims no job runtime.
 
+### Amendment 5 — Operator replay and reset contract (2026-11-19)
+
+Accepted [ADR-0103](0103-operator-recovery-of-asynchronous-work.md) supplies the
+"separately specified reset/fencing contract" this record requires before any operator
+replay ships. Two transitions run on a confined owner that uses the outbox-role
+credential and is a second status writer beside the dispatcher: targeted subscriber
+replay, fenced and filtered by terminal reason, and a producer reset limited to
+`retry_exhausted`. Neither adds a write grant. "Permanently excluded from dispatch" is
+read as: until an operator reset under that record. Result audit uses two new witness
+kinds.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
 ## References
 
 - [ADR-0006](0006-events-and-outbox.md), [ADR-0010](0010-cross-module-communication.md)

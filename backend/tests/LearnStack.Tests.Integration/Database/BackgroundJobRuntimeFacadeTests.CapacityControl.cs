@@ -32,7 +32,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         }, appConnectionString: proxy.ConnectionString);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, BackgroundJobCapacity.Floor);
         var controlName = "native_capacity_control_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, controlName);
         using var globals = new GlobalFilterSnapshot();

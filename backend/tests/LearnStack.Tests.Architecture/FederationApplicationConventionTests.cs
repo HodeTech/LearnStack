@@ -112,6 +112,19 @@ public sealed class FederationApplicationConventionTests
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/PublicSignInReader.cs",
     ];
 
+    /// <summary>
+    /// The operator's one read of the registry (ADR-0099 Amendment 10 and 11): an orphan is a broker with no row or a
+    /// tombstoned one, so this reader must see tombstones and is exempt from the shared live predicate. It is pinned
+    /// instead to exactly this statement, which names the four columns the platform role may select and reads by
+    /// primary key; a fifth column or another predicate is refused by PostgreSQL and by this census.
+    /// </summary>
+    private const string OperatorRowReader = IdentityInfrastructure + "Federation/FederationBrokerOperations.cs";
+
+    private const string OperatorRowQuery =
+        "SELECT id, tenant_id, state, deleted_at IS NOT NULL FROM federation_connections WHERE id = ANY(@ids)";
+
+    private static readonly string[] AllRawReaders = [.. RawLiveReaders, OperatorRowReader];
+
     [Fact]
     public void Raw_Federation_Reads_Share_The_One_Pinned_Live_Predicate()
     {
@@ -126,7 +139,8 @@ public sealed class FederationApplicationConventionTests
         RawLiveOffenders(sources).Should().BeEmpty(
             "Fix: every raw read of federation_connections lives in one of the three closed readers, and each statement interpolates "
             + "FederationConnectionReads.LiveSql and spells no tombstone predicate of its own");
-        RawReaders(sources).Should().Equal(RawLiveReaders, "the census of raw registry readers is closed at three");
+        RawReaders(sources).Should().Equal(AllRawReaders.Order(StringComparer.Ordinal),
+            "the census of raw registry readers is closed at three tenant readers and the operator's one pinned read");
     }
 
     [Fact]
@@ -141,9 +155,21 @@ public sealed class FederationApplicationConventionTests
             [RawLiveReaders[2]] = "\"\"\"\nSELECT alias FROM public.federation_connections " + Shared + " AND state='Active'\n\"\"\";",
             [IdentityInfrastructure + "Persistence/FederationConnectionStorageDdl.cs"] =
                 "REVOKE ALL ON public.federation_connections FROM PUBLIC; CREATE TRIGGER t BEFORE INSERT OR UPDATE ON public.federation_connections;",
+            [OperatorRowReader] = "private const string RowQuery = \"" + OperatorRowQuery + "\";",
         };
         RawLiveOffenders(clean).Should().BeEmpty();
-        RawReaders(clean).Should().Equal(RawLiveReaders);
+        RawReaders(clean).Should().Equal(AllRawReaders.Order(StringComparer.Ordinal));
+        // The operator's statement is pinned whole: a fifth column, another predicate or a second statement is refused.
+        foreach (var changed in new[]
+        {
+            OperatorRowQuery.Replace("state,", "state, alias,", StringComparison.Ordinal),
+            OperatorRowQuery.Replace("id = ANY(@ids)", "tenant_id = @tenant", StringComparison.Ordinal),
+            OperatorRowQuery + " AND state <> 'Deleted'",
+        })
+        {
+            var widened = new Dictionary<string, string>(clean) { [OperatorRowReader] = "private const string RowQuery = \"" + changed + "\";" };
+            RawLiveOffenders(widened).Should().Equal([OperatorRowReader], "the operator reader is pinned: " + changed);
+        }
         var own = new Dictionary<string, string>(clean)
         {
             [RawLiveReaders[1]] = "SELECT alias FROM public.federation_connections WHERE tenant_id=@tenant AND state='Active' AND deleted_at IS NULL",
@@ -179,7 +205,7 @@ public sealed class FederationApplicationConventionTests
         }
         // A closed reader that is removed leaves the census short.
         var dropped = new Dictionary<string, string>(clean) { [RawLiveReaders[2]] = "public sealed class PublicSignInReader;" };
-        RawReaders(dropped).Should().Equal([RawLiveReaders[0], RawLiveReaders[1]]);
+        RawReaders(dropped).Should().Equal([OperatorRowReader, RawLiveReaders[0], RawLiveReaders[1]]);
     }
 
     private const string IdentityApplication = "Modules/Identity/LearnStack.Modules.Identity.Application/";
@@ -202,7 +228,9 @@ public sealed class FederationApplicationConventionTests
     /// <c>;</c> or string delimiter on either side, must interpolate the shared constant and spell no tombstone predicate.
     /// </summary>
     private static List<string> RawLiveOffenders(IReadOnlyDictionary<string, string> sources) =>
-        [.. sources.Where(pair => RawRead.Matches(pair.Value).Any(match => !RawLiveReaders.Contains(pair.Key, StringComparer.Ordinal)
+        [.. sources.Where(pair => RawRead.Matches(pair.Value).Any(match => pair.Key == OperatorRowReader
+                    ? !string.Equals(Statement(pair.Value, match.Index).Trim(), OperatorRowQuery, StringComparison.Ordinal)
+                    : !RawLiveReaders.Contains(pair.Key, StringComparer.Ordinal)
                 || Statement(pair.Value, match.Index) is var statement
                     && (!statement.Contains("{FederationConnectionReads.LiveSql}", StringComparison.Ordinal)
                         || statement.Contains("deleted_at", StringComparison.OrdinalIgnoreCase)

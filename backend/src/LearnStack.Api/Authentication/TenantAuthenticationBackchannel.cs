@@ -1,7 +1,6 @@
-using System.Text;
+using LearnStack.Infrastructure.Identity;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using OpenTelemetry;
 
 namespace LearnStack.Api.Authentication;
 
@@ -53,40 +52,13 @@ internal sealed class TenantOidcDocumentRetriever(
             throw new IOException("Tenant authentication metadata refused.");
         }
 
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-        deadline.CancelAfter(TenantAuthenticationBackchannel.Timeout);
-        // Suppress metadata HTTP spans. The composition root separately projects
-        // native HTTP/DNS metrics, which do not honor this request-local scope.
-        using var suppression = SuppressInstrumentationScope.Begin();
-        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        using var response = await backchannel.Client.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
-        if (!response.IsSuccessStatusCode
-            || response.Content.Headers.ContentLength > TenantAuthenticationBackchannel.MaximumDocumentBytes)
-        {
-            throw new IOException("Tenant authentication metadata refused.");
-        }
-
-        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
-        using var body = new MemoryStream();
-        var buffer = new byte[8192];
-        while (true)
-        {
-            var remaining = TenantAuthenticationBackchannel.MaximumDocumentBytes - (int)body.Length;
-            var read = await stream.ReadAsync(
-                buffer.AsMemory(0, Math.Min(buffer.Length, remaining + 1)), deadline.Token);
-            if (read == 0)
-            {
-                return Encoding.UTF8.GetString(body.GetBuffer(), 0, (int)body.Length);
-            }
-
-            if (read > remaining)
-            {
-                throw new IOException("Tenant authentication metadata refused.");
-            }
-
-            body.Write(buffer, 0, read);
-        }
+        return await BoundedMetadataReader.ReadAsync(
+            backchannel.Client,
+            uri,
+            TenantAuthenticationBackchannel.Timeout,
+            TenantAuthenticationBackchannel.MaximumDocumentBytes,
+            "Tenant authentication metadata refused.",
+            cancel);
     }
 }
 

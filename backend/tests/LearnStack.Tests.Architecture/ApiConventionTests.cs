@@ -105,6 +105,6 @@ public sealed class ApiConventionTests
         // its contents keeps a silent widening — someone adding "api" to make
         // a route work — visible as a failing test rather than as a hole.
         VersionedRouteConvention.UnversionedRoutePrefixes
-            .Should().Equal("api/internal");
+            .Should().Equal("api/internal", "api/platform");
     }
 }

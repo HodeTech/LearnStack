@@ -1,10 +1,11 @@
 using System.Data.Common;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Platform;
 
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Ten writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Fifteen writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -142,6 +143,109 @@ public interface IAuditStore
         DbConnection connection,
         DbTransaction transaction,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes a platform operator act's MUST result row on the scope's work transaction, so it
+    /// commits with the state change or not at all (ADR-0101 § 10).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A new witness-bound method, not a second caller of <see cref="WritePlatformScopeAsync"/>,
+    /// which keeps its single entry-row caller. The <paramref name="admission"/> binds the
+    /// row: its operation slug, closed reason and operator digest must match the draft, the
+    /// actor user id is NULL because an operator is not a user, and the outcome is success.
+    /// The scope is the only caller.
+    /// </para>
+    /// <para>
+    /// The draft carries the real target tenant for a tenant-targeted act and the platform
+    /// sentinel for a platform-wide one. Like the entry row it is written on the platform-role
+    /// connection, which is why the request's own connection is the wrong place for it.
+    /// </para>
+    /// </remarks>
+    Task WritePlatformOperatorResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write a platform operator result.");
+
+    /// <summary>
+    /// Writes the intent row of a platform-scope act whose effect lies outside the database, on the scope's work
+    /// transaction at its checkpoint, which the scope then commits before the effect (ADR-0099 Amendment 11).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bound like <see cref="WritePlatformOperatorResultAsync"/> to the admission, with three differences: the
+    /// operation is the admitted operation's <see cref="PlatformOperation.AttemptAuditSlug"/>, which only an act with
+    /// a checkpoint has, the outcome is <c>indeterminate</c> because the effect has not happened, and the act's
+    /// completion row is the result row that follows. The scope is the only caller.
+    /// </para>
+    /// <para>
+    /// A tenant-readable row carries no ticket, as for the result row. A refused draft or a failed write requires
+    /// the caller not to start the effect.
+    /// </para>
+    /// </remarks>
+    Task WritePlatformOperatorIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This audit store cannot write a platform operator intent.");
+
+    /// <summary>
+    /// Writes the controlled issuer rebind's intent row on the offline tool's own short transaction, before the
+    /// rebind's main transaction begins (ADR-0104 § 8).
+    /// </summary>
+    /// <remarks>
+    /// A witness-bound method for the one act that runs outside the pipeline and the platform scope. The
+    /// <paramref name="admission"/> binds the row to the rebind operation's attempt slug, its closed reason and
+    /// the admitted operator; the tenant is the platform sentinel, the actor is NULL and the outcome is
+    /// <c>indeterminate</c> because the attempt's end is not yet known. The caller owns the transaction.
+    /// </remarks>
+    Task WriteIdentityRebindIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write an identity rebind intent.");
+
+    /// <summary>
+    /// Writes the controlled issuer rebind's MUST result row on the main transaction, so it commits with the
+    /// issuer change or not at all (ADR-0104 § 8).
+    /// </summary>
+    /// <remarks>
+    /// Bound like <see cref="WriteIdentityRebindIntentAsync"/> to the result slug with the outcome
+    /// <c>success</c>. A refused draft or a failed write requires the caller to roll the issuer change back.
+    /// </remarks>
+    Task WriteIdentityRebindResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write an identity rebind result.");
+
+    /// <summary>
+    /// Inserts an operator's MUST recovery row on the live transaction of the fenced reset it describes
+    /// (ADR-0103 § 5).
+    /// </summary>
+    /// <remarks>
+    /// A witness-bound method like the terminal write, for the second writer of dispatcher status: the
+    /// <paramref name="transition"/> binds the row to the admitted operation, its closed reason, the operator's
+    /// attribution and the fence before and after. The row names the real event tenant and carries no actor and no
+    /// ticket. The operation must be declared off-path as MUST/SecurityEvent. Any mismatch or write failure requires
+    /// the caller to roll the reset back. This seam opens and commits no transaction.
+    /// </remarks>
+    Task WriteOperatorRecoveryAsync(
+        AuditEntryDraft entry,
+        OperatorRecoveryTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This audit store cannot write an operator recovery row.");
 
     /// <summary>Inserts a MUST terminal audit on the successful transition's live transaction.</summary>
     /// <remarks>

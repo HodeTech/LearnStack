@@ -925,9 +925,9 @@ CREATE POLICY platform_killswitches_read ON platform_killswitches
     USING (true);
 
 -- No write policy for learnstack_app, and no write privilege either — see the matrix
--- below. Every toggle runs as learnstack_platform inside
--- EnterPlatformAdminScope(reason), which is what gives tenancy.killswitch.toggle a real
--- actor and a MUST-class audit row. No such caller ships in Packet 9 — see below.
+-- below. Every toggle runs as learnstack_platform inside the admission-gated platform
+-- scope, which is what gives tenancy.killswitch.toggle a MUST-class audit row that names
+-- the operator. Its one writer shipped with P03-9 Step 1 — see below.
 ```
 
 `USING (true)` widens nothing: there is no tenant term to widen, and the `GRANT` is what
@@ -953,16 +953,13 @@ no context, `learnstack_app` reads **all** of `platform_killswitches`, which is 
 `USING (true)` exists to guarantee.
 
 **Packet 9 shipped the table and the read path, and no writer.** The reason is
-reachability rather than scheduling: every toggle runs inside
-`EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate` is
-`DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope
-permission arrives with the registry in
-[Phase 03](../roadmap/phase-03-identity-admin.md) — which owns the toggle command, its
-permission and its runbook
-([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)). The
-`learnstack_platform` write grant in the matrix below is written ahead of its caller,
-and no runtime path puts a row in the table until that phase lands. Every gated read
-honours a flipped switch the day one exists; what is absent is the flipping.
+reachability rather than scheduling: every toggle runs inside the platform scope, and no
+Platform gate existed. P03-9 Step 1 ships the writer, a service entered with an operator
+admission for `platform.killswitch.write`
+([ADR-0101 § 13](../decisions/0101-platform-operator-authority.md),
+[ADR-0045 Amendment 5](../decisions/0045-entitlement-and-feature-flag-socket.md)); an
+architecture rule confines the table's write verbs to it. The `learnstack_platform`
+write grant in the matrix below is that writer's.
 
 The overlay is read through the L1 cache and invalidated on toggle, so the table itself
 is touched on a cache miss rather than on every request
@@ -972,8 +969,10 @@ is touched on a cache miss rather than on every request
 
 The original four roles retain separate login credentials and connection strings.
 [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
-adds only the [confined fifth machine role](#provider-event-intake-storage); the
-role model remains closed.
+adds only the [confined fifth machine role](#provider-event-intake-storage), and
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md) adds only the
+[confined sixth rebind role](#controlled-issuer-rebind-storage); the role model remains
+closed.
 
 | Role | Connection string | Present in | Used by | RLS posture |
 |------|---|---|---------|-------------|
@@ -982,6 +981,7 @@ role model remains closed.
 | `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | API host, worker host | `EnterPlatformAdminScope(reason)` and nothing else | `BYPASSRLS` |
 | `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | API host only; never Seeder or web | confined dispatcher infrastructure only | `BYPASSRLS` |
 | `learnstack_identity_ingress` | `ConnectionStrings:IdentityIngress` | API provider-ingress lane only | fixed minimized intake/claim/retire and scan/problem progress; no business/Audit/outbox grants | `NOINHERIT`, `NOBYPASSRLS` |
+| `learnstack_identity_rebind` | `ConnectionStrings:IdentityRebind` | the offline rebind tool's environment only — **never** an API, worker, seeder or web host | `UPDATE (issuer)` on `identity_authority`, four `users` columns read, two audit rows inserted | `NOINHERIT`, `NOBYPASSRLS` |
 
 Migration **credentials** remain deploy-only. The five [enumerated Identity
 SECURITY DEFINER contracts](#confined-owner-functions) deliberately add runtime
@@ -1025,6 +1025,13 @@ the fence omits and without which the grants add nothing: measured,
 `learnstack_app` could otherwise connect to every database in the cluster. Measured, it works under the entrypoint's `ON_ERROR_STOP=1`, and
 an **unset** variable leaves the placeholder unbound and aborts init rather than
 creating a passwordless superuser-adjacent role — failing loud is the point.
+
+The shipped script also creates the two confined roles after the four, with the same
+shape and `NOINHERIT NOBYPASSRLS` (`ingress_pw` and `rebind_pw`), converges their
+attributes, revokes every membership either holds or is granted, and adds both to the
+`CONNECT` and schema `USAGE` grants. A missing password variable aborts initdb for them
+as for the others. `DatabaseRoleTests` proves both log in, hold the declared attributes
+and are taken back from an escalation. The fence below is the abridged baseline.
 
 ```sql
 -- One-time provisioning, run once per database before the first migration. Ships as
@@ -1093,7 +1100,7 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `membership_role_assignments` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
 | `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
 | `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
-| `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | — | — |
+| `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | `SELECT` of `id`, `tenant_id`, `state` and `deleted_at` only ([ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 11); exact [projection grant](#federation-operator-projection) | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -1105,12 +1112,12 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `platform_killswitches` | `SELECT` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `inbox_messages` | `SELECT`, `INSERT (tenant_id, subscription_id, event_id)` | — | — |
-| `event_deliveries` | `SELECT`, acceptance-column `INSERT`, `UPDATE (processed_at)`; exact lists [below](#inbox) | — | routing/status-column `SELECT`, scheduling/status-column `UPDATE`; exact lists [below](#inbox) |
-| `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after, locked_by, locked_until, terminal_reason, dead_lettered_at)` (P02b-2 Step 1) |
-| `background_jobs` | RLS `SELECT`; envelope `INSERT`, admission/checkpoint `UPDATE` | — | Routing/status `SELECT, UPDATE` |
+| `event_deliveries` | `SELECT`, acceptance-column `INSERT`, `UPDATE (processed_at)`; exact lists [below](#inbox) | inspection-metadata column `SELECT` ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)) | routing/status-column `SELECT`, scheduling/status-column `UPDATE`; exact lists [below](#inbox) |
+| `outbox_messages` | `SELECT, INSERT` | `DELETE`, and `SELECT` of twelve inspection-metadata columns only ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md); the earlier table-wide `SELECT` is revoked) | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after, locked_by, locked_until, terminal_reason, dead_lettered_at)` (P02b-2 Step 1) |
+| `background_jobs` | RLS `SELECT`; envelope `INSERT`, admission/checkpoint `UPDATE` | 27 metadata columns `SELECT`, no parameter, plan, trace, causal or capability column | Routing/status `SELECT, UPDATE` |
 | `background_job_attempts` | RLS `SELECT`; receipt `INSERT`, evidence `UPDATE` | — | Enumerated metadata `SELECT`, excluding outcome DTO |
 | `background_job_capacity` | RLS `SELECT, INSERT`; immutable-column `UPDATE` for row locking | — | `SELECT` |
-| `background_job_reservations` | RLS `SELECT, INSERT`; positive-evidence release `UPDATE` | — | `SELECT` |
+| `background_job_reservations` | RLS `SELECT, INSERT`; positive-evidence release `UPDATE` | `SELECT` of every column, for occupancy | `SELECT` |
 | `background_job_recurrences` | — | — | Manifest `INSERT`, control `SELECT, UPDATE` |
 | `background_job_occurrences` | — | — | Slot `INSERT`, control `SELECT, UPDATE` |
 | `background_job_recipients` | RLS `SELECT`; child receipt `UPDATE` | — | Route `INSERT`, routing `SELECT, UPDATE` |
@@ -1207,11 +1214,14 @@ composition root registers a keyed `PrivilegedDataSource` facade from
 `LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope`. The facade owns the
 separately credentialed lazy Npgsql pool without exposing it. Every synchronous or
 asynchronous acquisition checks the independent ordinary-job ceiling before pool
-creation or reuse, under [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
-`IPlatformAdminScope.EnterAsync(reason, …)` opens a **connection and a transaction** on
-that guarded source and returns an `IAsyncDisposable` handle carrying both;
-disposing without committing rolls back. Module code cannot resolve the data source;
-`Platform_DataSource_Resolved_Only_By_PlatformAdminScope` enforces that.
+creation or reuse, under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+`IPlatformAdminScope.EnterAsync(admission, …)` takes the `PlatformAdmission` the
+operator gate minted (there is no caller-supplied reason), opens a **connection and a
+transaction** on that guarded source and returns an `IAsyncDisposable` facade over both,
+which exposes neither; disposing without committing rolls back. Module code cannot
+resolve the data source; `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
+enforces that.
 
 An earlier wording here — and in the glossary — said the scope opens "a DI scope whose
 `DbContext` is built on that data source". A connection is what shipped, for a reason
@@ -1618,6 +1628,9 @@ CREATE INDEX ix_outbox_messages_recovery
 CREATE INDEX ix_outbox_messages_terminal
     ON outbox_messages (available_after, occurred_at, id)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
+-- ADR-0103: the operator inspection's dead-lettered page, in key order.
+CREATE INDEX ix_outbox_messages_dead_lettered
+    ON outbox_messages (dead_lettered_at, id) WHERE dead_lettered_at IS NOT NULL;
 
 ALTER TABLE outbox_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE outbox_messages FORCE  ROW LEVEL SECURITY;
@@ -1635,7 +1648,10 @@ CREATE POLICY outbox_messages_isolation ON outbox_messages
 -- DELETE; status transitions belong to the dispatcher and purging belongs to the
 -- audited platform scope.
 GRANT SELECT, INSERT ON outbox_messages TO learnstack_app;
-GRANT SELECT, DELETE ON outbox_messages TO learnstack_platform;
+GRANT DELETE ON outbox_messages TO learnstack_platform;
+GRANT SELECT (id, tenant_id, organization_id, occurred_at, type, processed_at, attempts,
+              last_error, available_after, locked_until, terminal_reason, dead_lettered_at)
+    ON outbox_messages TO learnstack_platform;
 GRANT SELECT ON outbox_messages TO learnstack_outbox_admin;
 GRANT UPDATE (processed_at, attempts, last_error, available_after,
               locked_by, locked_until, terminal_reason, dead_lettered_at)
@@ -1826,6 +1842,9 @@ CREATE INDEX ix_event_deliveries_recovery
 CREATE INDEX ix_event_deliveries_terminal
     ON event_deliveries (available_after, occurred_at, event_id, tenant_id, subscription_id)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
+CREATE INDEX ix_event_deliveries_dead_lettered
+    ON event_deliveries (dead_lettered_at, tenant_id, subscription_id, event_id)
+    WHERE dead_lettered_at IS NOT NULL;
 
 ALTER TABLE event_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_deliveries FORCE ROW LEVEL SECURITY;
@@ -1901,6 +1920,10 @@ GRANT SELECT (tenant_id, subscription_id, event_id, organization_id, occurred_at
 GRANT UPDATE (attempts, last_error, available_after, locked_by, locked_until,
               terminal_reason, dead_lettered_at, replay_count, replayed_at)
     ON event_deliveries TO learnstack_outbox_admin;
+GRANT SELECT (tenant_id, subscription_id, event_id, organization_id, occurred_at,
+              type, processed_at, attempts, last_error, available_after, locked_until,
+              terminal_reason, dead_lettered_at, replay_count, replayed_at)
+    ON event_deliveries TO learnstack_platform;
 ```
 
 The app acceptance INSERT excludes all scheduling/completion/terminal columns;
@@ -2144,6 +2167,12 @@ owns current review and qualification state.
   These limits add at most six retained connectors, not six per job or borrower;
   tests may reduce caps, deployment settings cannot widen them. They are bounded
   local concurrency choices, not throughput or fairness guarantees.
+- Neither auxiliary source takes the shared rebind lock that authority qualification
+  and the User-creation admission take
+  ([§ Controlled issuer rebind storage](#controlled-issuer-rebind-storage)): they run
+  under the five-second startup deadline and no business advisory lock, and a start
+  that straddles a rebind already fails at the locking qualification or at their own
+  comparison of the stored issuer.
 - Both auxiliary sources use the same guarded `learnstack_app` role, actual
   database, installed identity authority and tenant/org RLS as business work.
   Neither has a raw general-DI datasource alias, generic SQL/callback API or
@@ -4153,6 +4182,15 @@ GRANT INSERT (id, occurrence_id, tenant_id, organization_id, recurrence_key, rev
     ON background_job_recipients TO learnstack_outbox_admin;
 GRANT UPDATE (available_after, ownership_token, ownership_until, skipped_at, skipped_reason,
     last_error, quarantined_at) ON background_job_recipients TO learnstack_outbox_admin;
+-- ADR-0103: the platform role reads job metadata for operator inspection through named columns only.
+GRANT SELECT (id, tenant_id, organization_id, definition_key, profile, queue, capacity_group,
+    original_due_at, created_at, phase, normal_attempts, finalize_attempts, available_after,
+    ownership_kind, ownership_until, attempt_deadline, probe_after, unsuccessful_probes, last_error,
+    quarantine_reason, terminal_reason, processed_at, dead_lettered_at, finalization_status,
+    finalization_reason, business_finalization_incomplete, wake_generation)
+    ON background_jobs TO learnstack_platform;
+GRANT SELECT (tenant_id, capacity_group, job_id, attempt_id, reserved_at, released_at, release_reason)
+    ON background_job_reservations TO learnstack_platform;
 
 REVOKE ALL ON FUNCTION public.fn_background_job_no_delete() FROM PUBLIC;
 
@@ -4569,21 +4607,25 @@ driver's later no-op into cleanup evidence.
 
 The dispatch and bridge stores retain concrete connections and disposal tasks on
 connection-cleanup failure and seal later acquisitions. Each messaging store has
-two fixed ownership slots for terminal-COMMIT reconciliation; the bridge has one
-serialized SQL slot. These witnesses concern physical-source release, not all
+two fixed ownership slots for terminal-COMMIT reconciliation and a third, reserved
+for the operator recovery owner of [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md),
+so an operator's reset can never take the slot the dispatcher's own reconciliation
+needs and a second concurrent operator call is refused as unavailable; the bridge
+has one serialized SQL slot. These witnesses concern physical-source release, not all
 application callbacks or private driver tasks. Failed opens rely on the pinned
 driver's qualified ordinary unwind; an arbitrary driver-cleanup fault is not a
 release guarantee.
 
 `BackgroundJobPhysicalCapacity` calculates the current Step 8 floor as
-`W + 4P + 2C + 18 + U = 2W + 8P + 2C + 18`, where `W` is total workers, `P` is
+`W + 4P + 2C + 20 + U = 2W + 8P + 2C + 20`, where `W` is total workers, `P` is
 pools, `C` is control pools and `U = W + 4P` is retained invocation owners.
 Each invocation issues at most one privileged routing, recovery acquisition,
 confirmation or checkpoint-history SQL operation at a time, including actual
 cleanup. A clean unavailable history retry follows cleanup in that same slot;
 it does not add another simultaneous checkout.
 The original eleven covers two shared components, four bridge calls, one bridge
-SQL lane and two depth-two messaging lanes. Step 5 adds one batch-renewal slot,
+SQL lane and two depth-two messaging lanes; the operator recovery owner adds one
+lane in each messaging store, which makes thirteen. Step 5 adds one batch-renewal slot,
 one recovery slot plus its fresh-probe slot, and one terminal slot plus its
 fresh-probe slot. Step 8 adds one serialized recurrence SQL lane and one separately
 owned native recurring-manager call. The latter reuses its dedicated provider
@@ -4591,7 +4633,7 @@ connection for its stock lock and write transaction. A held native call cannot
 consume another recurrence SQL slot. Failed cleanup retains the concrete owner
 and seals that lane;
 probes do not recursively acquire another probe. The default topology requires
-**52**; the maximum valid topology requires **158**. Pooled startup refuses a
+**54**; the maximum valid topology requires **160**. Pooled startup refuses a
 lower `MaxPoolSize` before bootstrap, using settings captured from the same
 immutable configuration as the source. Nonpooling remains allowed with the same
 owner bounds; its positive `MaxPoolSize` is not a physical-checkout cap.
@@ -4605,6 +4647,7 @@ peak. Its complete acquisition ledger is:
 | `4P` | Per-generation metadata heartbeat, watchdog, cancellation watcher and lifecycle allowance; retained cleanup still belongs to that one generation. |
 | `2C` | Delayed and recurring schedulers, each with parallelism one and sequential reuse of its outer distributed-lock connection. |
 | Original eleven | Shared expiration and fetched-job heartbeat; four bridge native calls plus serialized SQL; two concrete slots in each messaging store. |
+| Two operator lanes | The third slot of each messaging store, reserved for the operator recovery owner ([ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)); a second concurrent operator call on a store is refused and does not wait. |
 | Five control slots | One batch renewal, control/recovery plus fresh probe, terminal plus fresh probe; unconfirmed cleanup seals each lane. |
 | Two recurrence slots | One serialized SQL flight and one native manager, including actual return and cleanup. |
 | `U` | One privileged routing/recovery/history/status flight per admitted invocation, including retained cleanup; application work uses the separate source. |
@@ -4636,7 +4679,7 @@ including live work and unresolved receipt history; it does not add stock worker
 slots. Adding control pools adds neither terminal nor recipient application owners.
 External Prepare, read, Arm, Outcome, recovery checkpoints and fresh Finalize
 use the same sequential main/auxiliary inventory; their phase count is not a
-connection multiplier. The facade fixture for privileged maximum 158
+connection multiplier. The facade fixture for privileged maximum 160
 has eight pools of four workers, six of them control, and requires 42 application
 connections. Other worker distributions can share the same privileged maximum
 with a different application floor; neither maximum substitutes for calculating
@@ -4719,8 +4762,10 @@ Qualify the anchor/configuration pair before enabling identity admission; the
 request path uses that immutable admitted configuration and performs no anchor
 lookup before the subject quota. A changed pair requires requalification, not
 live replacement of a request's verified authority.
-P03-9/G13 owns a future controlled issuer rebind with verified continuity and a
-freeze boundary; no runtime rebind owner is admitted here.
+Only the controlled issuer rebind of
+[ADR-0104](../decisions/0104-controlled-issuer-rebind.md) changes `issuer`, through the
+[confined sixth role](#controlled-issuer-rebind-storage) used by one offline tool,
+with verified continuity and a freeze boundary; no runtime role has a path to it.
 
 **Canonical subject-key encoding.** Compute SHA-256 over three concatenated
 length-prefixed byte strings: UTF-8 `learnstack.identity.subject.v1`, the stable
@@ -5643,18 +5688,26 @@ rewriting the selected terminal status.
 
 ## Invitation entry and consumption
 
-**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
-Implemented P03-4 contract; the
-[phase Status](../roadmap/phase-03-identity-admin.md) owns qualification and follow-ups. This section extends the earlier global/contextual contracts;
-the earlier eight-function/ten-setter counts describe their historical slices.
-The delivered ADR-0093 baseline is eleven confined definers, eleven logical tenant
-setters and four physical context writers. The [P03-5 extension](#custom-field-and-consent-storage)
-implements twelve definers/twelve logical setters. The
-[provider-event extension](#provider-event-intake-storage) brings the census to
-fifteen definers/thirteen logical setters, preserving those four physical
-writers; qualification remains source-bound in the phase Status. SMTP adds no tenant setter.
-The [federation host-alias read](#federation-host-alias-read) is the fourteenth logical
-setter; it adds no definer and no physical context writer.
+**Derives from:**
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md). Implemented
+P03-4 contract; the [phase Status](../roadmap/phase-03-identity-admin.md) owns
+qualification and follow-ups. This section extends the earlier global/contextual
+contracts; the earlier eight-function/ten-setter counts describe their historical
+slices. The delivered ADR-0093 baseline is eleven confined definers, eleven logical
+tenant setters and four physical context writers. The
+[P03-5 extension](#custom-field-and-consent-storage) implements twelve definers/twelve
+logical setters. The [provider-event extension](#provider-event-intake-storage) brings
+the census to fifteen definers/thirteen logical setters, preserving those four physical
+writers; qualification remains source-bound in the phase Status. SMTP adds no tenant
+setter. The [federation host-alias read](#federation-host-alias-read) is the fourteenth
+logical setter; it adds no definer and no physical context writer. The
+[operator subject resolution](#operator-subject-resolution) is the sixteenth definer; it
+adds no logical tenant setter. The operator act executor that installs an operator act's
+resolved context is a fifth logical writer of the context accessor, beside the four of
+[ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) (the Hub
+correlation writer is the one not yet built); the earlier counts in this section
+describe their own slices
+([ADR-0040 Amendment 25](../decisions/0040-ambient-unit-of-work.md)).
 
 ### Invitation root and constrained transitions
 
@@ -6159,7 +6212,9 @@ owns qualification.
 classes): `[TenantOwned]` only, no organization column, the tenant-wide EF filter,
 `ENABLE` and `FORCE` RLS with the one tenant-only isolation policy of
 [the canonical template](#tenant-owned-and-organization-scoped-tables), and
-`SELECT`, `INSERT`, `UPDATE` to `learnstack_app` only — no `DELETE` grant. It is the
+`SELECT`, `INSERT`, `UPDATE` to `learnstack_app` and a four-column `SELECT` to
+`learnstack_platform` ([below](#federation-operator-projection)); no `DELETE` grant.
+It is the
 eighth member of the `SchemaTableClasses` Identity contextual class. The forward-only
 migration refuses reversal.
 
@@ -6213,6 +6268,26 @@ columns:
   that is NULL because a nullable pending or test column is NULL refuses: the guard
   fails closed.
 
+### Federation operator projection
+
+**Derives from:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment
+10 item 5 and Amendment 11 item 2. The operator's report asks one question of the
+registry, whether a broker the realm lists still has a live row, and reads it as
+`learnstack_platform` through four columns, which the platform role's `BYPASSRLS`
+makes readable across tenants and the grant alone bounds:
+
+```sql
+GRANT SELECT (id, tenant_id, state, deleted_at) ON public.federation_connections TO learnstack_platform;
+```
+
+The platform role receives no other privilege on the table: a statement that names the
+alias, display name, issuer, client identifier, configuration digest or any other column
+is refused by PostgreSQL, and so is every write. The grant is a forward-only migration
+of the Identity chain, because the table is created there after the Platform chain has
+run. The reader is the one statement of the operator's owner, which sees tombstones
+and reads by primary key; the architecture census pins it whole, and tests read the
+granted columns, refuse every other, and read two tenants' rows through the role.
+
 ### Federation host-alias read
 
 **Derives from:** [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
@@ -6241,3 +6316,280 @@ pins its statements, implementation and caller;
 `Out_Of_Band_Setters_Open_Read_Only_Transactions` lists it among the own-connection
 readers.
 
+## Operator onboarding storage
+
+**Derives from:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) and its
+Amendment 1. An operator onboarding act runs on the application role under the ordinary
+tenant announcement, so it adds no table, no policy and no table grant. It adds one
+confined definer.
+
+### Operator subject resolution
+
+`users` is under forced row security keyed by identity settings that every tenant
+announcement blanks, so a tenant transaction cannot read it. The act that names a first
+administrator by provider subject needs the `UserId` of an Active user, so one definer
+answers exactly that:
+
+- **Function.**
+  `public.fn_identity_operator_resolve_user(selected_authority uuid, selected_subject_key bytea) RETURNS uuid`,
+  `LANGUAGE plpgsql STABLE SECURITY DEFINER`, owned by `learnstack_migration` (whose
+  policy branch sees `users`), fixed `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC`,
+  `EXECUTE` to `learnstack_app` only.
+- **Refusals.** Any session user but `learnstack_app`, an empty tenant announcement, a
+  read-only or non-`READ COMMITTED` transaction, a null argument, a key that is not 32
+  bytes, and any authority id other than the one stored in `identity_authority`. Each
+  raises `23514` and reveals nothing.
+- **Answer.** The `id` of the one `users` row with that authority and key whose `status`
+  is `Active` and whose `deleted_at` is null, otherwise null. It reads
+  `identity_authority` for its refusal check and `users` for its answer, and nothing
+  else, and it writes nothing.
+- **Caller.** `OperatorSubjectResolver`, which derives the key with the one
+  `IdentitySubjectKey` implementation under the deployment's qualified authority, so a
+  request supplies the provider subject and nothing else. The body, ACL, owner and
+  volatility are pinned by the definer census (sixteen definers), and the callers of the
+  function and of its port by
+  [`Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`](21-architecture-tests-catalogue.md#only_the_operator_administrator_core_resolves_an_operator_subject).
+
+A Membership written under that answer still passes the ordinary admission guard, which
+re-reads the User's eligibility under the user fence, so the resolver is a lookup and
+not an authority.
+
+**Residual.** The function is executable by `learnstack_app` and checks the session and
+the arguments, not a witness bound to an operator act, as the invitation and consent
+definers do. Any application-role transaction that announces a tenant can ask it whether
+a provider subject is an Active user and receive the `UserId`. The key is an unkeyed
+hash that supplies neither secrecy nor admission authority
+([ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md)), so the answer
+discloses that a person exists, not who they are or what they may do. The handlers check
+that the act is live before they call it; no SQL-level binding is added.
+
+## Controlled issuer rebind storage
+
+**Derives from:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) and its
+Amendment 1. The rebind changes one column of the one `identity_authority` row, from a
+sixth login role used by an offline tool. It adds a role, exact column grants, four
+policy changes, one trigger and one advisory-lock key, and **no** definer: the definer
+census stays at sixteen.
+
+### The role
+
+`learnstack_identity_rebind` is `LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB
+NOCREATEROLE NOREPLICATION`, a member of nothing and with no member. Its credential is
+`ConnectionStrings__IdentityRebind`, read by the tool from its own environment with
+`Environment.GetEnvironmentVariable`, never by `GetConnectionString`, and confined to
+the one tool file that reads it by
+[`The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`](21-architecture-tests-catalogue.md#the_identity_rebind_credential_is_named_only_by_the_rebind_tool).
+No API, worker, seeder, web or compose service receives it. The migration refuses with
+a readable message when the role does not exist, because the roles script is its only
+definition.
+
+A runtime role's membership in either confined role is not detected at runtime start,
+because the guard of a runtime connection asks about bypass attributes. The roles script
+revokes such a membership on every run, and the tool's own posture check refuses a role
+that has one.
+
+### Grants, read from the column view
+
+Table-level views do not show column grants, so the census reads
+`information_schema.column_privileges`, and the table-level census lists only the two
+table-wide grants.
+
+| Object | Privilege |
+|---|---|
+| `identity_authority` | `SELECT`, and `UPDATE (issuer)` only |
+| `users` | `SELECT (authority_id, subject_key, provider_subject, status)` only |
+| `audit_log` | `INSERT` only, on every column; the policy bounds the row |
+
+It holds no function `EXECUTE` of its own, no sequence, no schema `CREATE` and no
+database `CREATE`. `IdentityAuthorityRebindStorageTests` asserts the exact column set,
+the absence of the rest, and each refusal as the role itself.
+
+### Policies
+
+One permissive policy per command is kept. `identity_authority_read` gains the role
+beside the application role and the owner; a third policy, `identity_authority_rebind`,
+admits `UPDATE` of the `id = 1` row to the role and nothing else; `users_isolation`
+gains the role in its `USING` and keeps its `WITH CHECK`, so the role sees every user
+and may write none.
+
+The `audit_log_isolation` policy is restated in its `WITH CHECK`, by the central audit
+installer because no module names the table. The ordinary tenant arm now excludes this
+role: that arm admits whatever tenant a session announces, any session can announce one,
+and an arm that admitted the role there would let it write a row into any tenant's
+trail. The rebind arm admits only the platform sentinel tenant, the identity module, no
+organization, `Must` and `SecurityEvent`, entity type `IdentityAuthority`, reason
+`issuer_rebind`, no actor, mail, address or agent, an operator attribution in
+`metadata`, and exactly `identity.authority.rebind_attempt` with outcome
+`indeterminate` or `identity.authority.rebind` with outcome `success`. The role has no
+`SELECT` on the table, so it cannot read its own rows back.
+
+### The key trigger
+
+`fn_identity_authority_immutable_key()` is a `SECURITY INVOKER` trigger function, owner
+`learnstack_migration`, `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC`, on `BEFORE
+UPDATE` of `identity_authority`. It raises `23514` when `id` or `authority_id` changes,
+for every role, so the stable key the subject keys hash cannot move even where a grant
+would allow it. It is the thirtieth function and thirtieth trigger of the Identity
+chain census. The issuer grammar stays in the tool and in qualification, not in SQL.
+
+### The lock
+
+One bigint advisory key, `IdentityAdvisoryLockKey.ForAuthorityRebind()`, SHA-256 over
+the length-prefixed strings `learnstack.identity.lock.v1` and `authority-rebind`, the
+first eight bytes as a big-endian signed integer, with an independently computed vector
+pinned in `GlobalIdentityKeyTests`. The tool takes it **exclusive**
+(`pg_advisory_xact_lock`) as the first statement of one direct, never-pooled
+transaction. Authority qualification and the User-creation admission take the **shared**
+form first and always before the subject lock, so the order is fixed and the tool,
+which takes only this key, cannot form a cycle.
+
+- **Qualification** takes it after `SET TRANSACTION READ ONLY` and before its read;
+  under `READ COMMITTED` the next statement sees the rebind it waited for and compares
+  against the new issuer. It sets no `lock_timeout`, so a start that overlaps a rebind
+  waits until the command timeout (thirty seconds) and then fails with the fixed
+  qualification message, which stays failed until the process restarts.
+- **The creation admission** takes it under its two-second `lock_timeout` and then reads
+  the stored authority and issuer, refusing with `IdentityAuthorityChangedException`
+  when they are not the facts the process qualified with. A creation during a rebind is
+  therefore refused after two seconds, not held. A lock alone would only delay a
+  creation from a process that qualified before the rebind; the comparison is what
+  refuses it. The refusal answers as the sibling storage failures do and is counted
+  in `learnstack_identity_lock_refusals_total{lock_kind="authority",reason="mismatch"}`.
+- **The tool's reconciliation** of an unknown `COMMIT` takes the shared form too, so it
+  reads the issuer only once the original transaction has ended.
+- [`Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock`](21-architecture-tests-catalogue.md#only_the_rebind_run_and_the_two_freeze_readers_take_the_rebind_lock)
+  pins the takers.
+
+### What the tool checks before it uses the role
+
+Server-side, as the role: `session_user` and `current_user` are the role; it is not
+`INHERIT`, `BYPASSRLS`, superuser, `CREATEDB`, `CREATEROLE` or `REPLICATION`; it has no
+membership either way, owns no relation, function or schema, and has no schema or
+database `CREATE`; it holds no privilege, table, column or sequence, including the
+maintenance privilege of PostgreSQL 17, on any other relation of `public`; and on the
+three it uses it holds exactly the declared grants, compared column by column in both
+directions, so an extra column privilege and a missing declared one both refuse. A
+relation that belongs to an extension (`pg_depend` type `e`) is not counted, so the
+`PUBLIC`-readable views of `pg_stat_statements` do not lock the tool out; any other
+relation in `public` that the role can reach, a privilege through `PUBLIC` included, is.
+The session's own `lock_timeout`, `statement_timeout` and
+`idle_in_transaction_session_timeout` are read back from `pg_settings` and must be what
+the tool asked for, so a connection pooler that drops startup options refuses the run
+instead of silently removing the lock wait and the idle fence. A check the catalog
+cannot answer is a failed check. Any other posture refuses the run before the lock, and
+the refusal names the first check that failed as a closed `detail`.
+
+The freeze check counts sessions of the application, outbox, ingress and platform roles
+in the database other than its own, from `pg_stat_activity`, which shows another role's
+session with its role and database even where the statement is hidden. It runs before
+the new realm is read and again immediately before the change. The server serves that
+view from one snapshot per transaction, so each count first calls
+`pg_stat_clear_snapshot()`, which every role may execute; without it the second count
+would repeat the first and a host that starts while the proof runs, and never takes the
+rebind lock, would not be seen. The tool turns Npgsql's application keepalive off and
+asks the operating system for TCP probes instead: a client keepalive is a message, and
+every message the server receives restarts its idle-in-transaction clock, so the
+fifteen-minute fence that frees a hung tool's lock would never fire.
+
+### Proof
+
+Real PostgreSQL as the role itself and as each other role:
+`IdentityAuthorityRebindStorageTests` (column privileges, the one admitted `UPDATE`,
+the key trigger with the grant present, the `users` read, the two audit rows, every
+refused variant, and the rows a role cannot widen by announcing a tenant),
+`IdentityAuthorityRebindLockTests` (a start that waits for a rebind and then fails or
+passes on the value it left, a creation refused within its timeout, a straggler refused
+after the change), `IdentityAuthorityRebindTests` (the run end to end, every refusal
+class and posture drift, the continuity rules, an audit failure rolling the change back,
+a killed session, a lost commit acknowledgement and a reconciliation that waits) and
+`IdentityAuthorityRebindToolTests` (the offline tool as a child process). The census
+counts are in `GlobalIdentitySchemaTests` (thirty functions, sixteen definers, thirty
+triggers) and the head pin in `MigrationRollbackTests`.
+
+## Operator recovery storage
+
+**Derives from:**
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) and its
+Amendment 1. Operator inspection reads metadata through the platform role's column
+grants, and the two fenced transitions run on the dispatcher's outbox role. The
+canonical SQL of every grant and index named here is in the [Outbox](#outbox),
+[Inbox](#inbox) and Background jobs blocks, which migration tests compare with the
+applied schema, and the head of the Platform chain is pinned in
+`MigrationRollbackTests`.
+
+### The platform role's inspection grants
+
+`learnstack_platform` holds `SELECT` on named columns of four tables and nothing
+wider: twelve columns of `outbox_messages`, fifteen of `event_deliveries`,
+twenty-seven of `background_jobs` and every column of `background_job_reservations`.
+It never reads `payload`, `metadata`, `correlation_id`, `causation_id`,
+`actor_user_id`, `topic`, `partition_key`, `locked_by`, a job's `parameters`, `plan`,
+`plan_fingerprint`, `traceparent`, a causal column, `operation_id` or an ownership
+or bridge token, so a statement that names one is refused by PostgreSQL itself. The
+role kept `DELETE` on `outbox_messages` for the retention purge of
+[Phase 11](../roadmap/phase-11-production-hardening.md), and the table-wide `SELECT`
+it held beside it was revoked, because a column grant next to a table grant excludes
+nothing. Column privileges are read from `information_schema.column_privileges`, as
+for every column-grant table. The database bounds which columns a page can read and
+the length of `last_error`, not its content, so the inspection shows a `last_error`
+only when it has the shape of the dispatcher's descriptors. Two partial indexes,
+`ix_outbox_messages_dead_lettered` and `ix_event_deliveries_dead_lettered`, serve
+the dead-lettered scan the inspection pages by keyset, and a test asks PostgreSQL for
+the plan of the statement the inspection runs. The migration builds them without
+`CONCURRENTLY`, inside its transaction, as the earlier ledger indexes were. The
+migration is forward-only.
+
+### The two transitions
+
+Both run on the outbox role, which already holds the column `UPDATE` grants they
+need, the lifecycle `SELECT` of `tenants` and `INSERT` on `audit_log`: no write
+grant was added. Each locks one row with `FOR UPDATE`, compares the fence the
+operator read, checks the state, and updates under the same predicate with
+`RETURNING old.*` and `new.*`, so the witness is built from what the statement did
+and the row is written on the same transaction before `COMMIT`. Which fences and
+which states are refused is decided by ADR-0103 (§ 2, § 3 and Amendment 1) and is
+not restated here.
+
+- **Replay** fences one `(tenant, subscription, event)` row of `event_deliveries`
+  and writes that table only. The inbox row, the siblings and the producer row are
+  untouched.
+- **Producer reset** fences one `outbox_messages` row and writes that table only.
+  It writes no delivery row.
+
+The timestamp of a fence is `timestamptz` to the microsecond. It is carried and
+compared exactly, and a test presents a fence one microsecond off.
+
+### The operator lane
+
+Each messaging store has two slots for the dispatcher's own SQL owner and its
+uncertain-COMMIT reconciliation and a third, reserved for the operator owner. The
+operator never takes the dispatcher's slots, and a second concurrent operator call
+on a store is refused. The lanes are two of the thirteen messaging and bridge slots
+in the [capacity ledger](#shared-dispatcher-source-lifetime-and-capacity), which is
+54 for the default topology and 160 for the maximum. The stores share one
+unconfirmed-cleanup seal, so a cleanup fault on the operator lane seals the store
+as one on the dispatcher's lanes does.
+
+### Proof
+
+Real PostgreSQL as each role:
+
+- `DeliveryDispatchStoreTests` and `OutboxDispatchStoreTests`: the current fence
+  applies; every stale variant, one microsecond included, refuses and changes
+  nothing; each refused state; a tenant that is not serving; a forced audit failure
+  rolling the change back; an admission for another operation, a stale one or a spent
+  one; the witness refusing each substituted field of the row and a transaction that
+  is not its own, and a witness reused on a later transition; a busy operator lane
+  that leaves the dispatcher's slots alone, in each store; a lost commit
+  acknowledgement; the real `OperatorRecovery` owner reaching the right store and
+  counting each outcome under its own operation; and the siblings and the inbox
+  byte-identical after a replay.
+- `DeliveryInspectionTests`: pages and keyset cursors (equal instants and the
+  tenant, subscription and event tie-break included), a cursor refused under another
+  resource or state, the entry row, the job occupancy counts, the descriptor shape of
+  `last_error`, the exact columns the platform role can and cannot select, the two
+  indexes' keys and predicates and the plan of each dead-lettered page, and a
+  refused credential surfacing as a defect where an unreachable database is a
+  retryable outage.
+- `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their
+  statuses and contract, and the pair of permissions, each held alone.

@@ -8,7 +8,7 @@
   "verifyEmail": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": true,
+  "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
   "bruteForceProtected": true,
   "permanentLockout": false,
@@ -23,6 +23,116 @@
   "internationalizationEnabled": true,
   "supportedLocales": ["en"],
   "defaultLocale": "en",
+  "browserFlow": "browser-loa",
+  "attributes": {
+    "acr.loa.map": "{\"mfa\":\"2\"}"
+  },
+  "authenticationFlows": [
+    {
+      "alias": "browser-loa",
+      "description": "Operator browser flow: password at level 1, OTP at level 2 (ADR-0101 step-up).",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "browser-loa forms",
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-loa forms",
+      "description": "The two authentication levels.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "flowAlias": "browser-loa level-1",
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "browser-loa level-2",
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-loa level-1",
+      "description": "Level 1: username and password.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "loa-1",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-loa level-2",
+      "description": "Level 2: one-time password, asked on every authentication.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "loa-2",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "loa-1",
+      "config": { "loa-condition-level": "1", "loa-max-age": "36000" }
+    },
+    {
+      "alias": "loa-2",
+      "config": { "loa-condition-level": "2", "loa-max-age": "0" }
+    }
+  ],
   "requiredActions": [
     {
       "alias": "CONFIGURE_TOTP",
@@ -77,10 +187,49 @@
         "post.logout.redirect.uris": "http://localhost:3100/*"
       },
       "fullScopeAllowed": true
+    },
+    {
+      "clientId": "learnstack-operator",
+      "name": "LearnStack Platform Operator (public PKCE)",
+      "description": "Operator access to LearnStack's /api/platform surface (ADR-0101). Public client, PKCE-enforced, MFA step-up, access tokens of at most 15 minutes, audience learnstack-platform, no realm roles in the token.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:8765/*",
+        "http://localhost:8765/*"
+      ],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "900",
+        "acr.loa.map": "{\"mfa\":\"2\"}",
+        "default.acr.values": "mfa"
+      },
+      "protocolMappers": [
+        {
+          "name": "learnstack-platform-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "learnstack-platform",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "fullScopeAllowed": false
     }
   ],
   "users": [
     {
+      "id": "5a3c8f0e-2b1d-4c6a-9e47-0d1f6a2b7c93",
       "username": "demo-operator@learnstack.test",
       "email": "demo-operator@learnstack.test",
       "emailVerified": true,

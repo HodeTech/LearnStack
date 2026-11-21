@@ -59,6 +59,33 @@ internal static class KeycloakFederationProfile
     internal static string OwnerMarker(FederationBrokerOwner owner) =>
         owner.TenantId.Value.ToString("D", CultureInfo.InvariantCulture) + ":" + owner.ConnectionId.ToString("D", CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// The strict inverse of <see cref="OwnerMarker"/>: exactly a lowercase tenant identifier, a colon and a lowercase
+    /// UUIDv7 connection identifier, whose derived alias is <paramref name="alias"/>. Anything else, including a nil or
+    /// sentinel tenant, a non-v7 connection or an alias that is not the connection's, is not an owner.
+    /// </summary>
+    internal static bool TryOwnerFromMarker(string? marker, string? alias, out FederationBrokerOwner owner)
+    {
+        owner = null!;
+        if (marker is null || alias is null || marker.Length != 73 || marker[36] != ':'
+            || !Guid.TryParseExact(marker.AsSpan(0, 36), "D", out var tenant)
+            || !Guid.TryParseExact(marker.AsSpan(37, 36), "D", out var connection)
+            || !string.Equals(marker, OwnerMarker(tenant, connection), StringComparison.Ordinal))
+            return false;
+        try
+        {
+            owner = new FederationBrokerOwner(LearnStack.SharedKernel.Identifiers.TenantId.From(tenant), connection, alias);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static string OwnerMarker(Guid tenant, Guid connection) =>
+        tenant.ToString("D", CultureInfo.InvariantCulture) + ":" + connection.ToString("D", CultureInfo.InvariantCulture);
+
     internal static string ProviderId(FederationBrokerProtocol protocol) => protocol switch
     {
         FederationBrokerProtocol.Oidc => "oidc",

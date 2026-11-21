@@ -3,6 +3,7 @@ using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
@@ -40,6 +41,9 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<CreateFirstSeedAdminMembershipCommand>("identity.membership.create_first_seed_admin", OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<CreateSeedMembershipCommand>("identity.membership.create_seed", OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<SetSeedMembershipProfileCommand>("identity.membership_profile.set_seed_profile", OperationType.Update, typeof(Membership));
+        builder.MustAudit<OperatorInitializeRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));
+        builder.MustAudit<OperatorCreateFirstAdminCommand>("identity.membership.create_first_admin", OperationType.SecurityEvent, typeof(Membership));
+        builder.MustAudit<OperatorRecoverAdminCommand>("identity.membership.recover_admin", OperationType.SecurityEvent, typeof(Membership));
         builder.Off<GetRoleSeedStateQuery>();
         builder.Off<GetMembershipSeedStateQuery>();
         builder.MustAudit<ListMembershipsQuery>(IdentityOperationPolicySource.MembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));
@@ -84,5 +88,9 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetPublicSignInQuery>();
         builder.DeclareOffPath("identity.user.create", OperationType.SecurityEvent, OperationClass.Must, typeof(User));
         builder.DeclareOffPath("identity.authorization.deny", OperationType.SecurityEvent, OperationClass.Must);
+        // The controlled issuer rebind (ADR-0104 § 8): an intent row on its own short transaction and a result
+        // row with the change, both from the offline tool's role and neither through the pipeline.
+        builder.DeclareOffPath("identity.authority.rebind_attempt", OperationType.SecurityEvent, OperationClass.Must, typeof(IdentityAuthority));
+        builder.DeclareOffPath("identity.authority.rebind", OperationType.SecurityEvent, OperationClass.Must, typeof(IdentityAuthority));
     }
 }

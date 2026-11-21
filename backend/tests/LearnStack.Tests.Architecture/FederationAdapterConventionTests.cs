@@ -47,10 +47,46 @@ public sealed partial class FederationAdapterConventionTests
         var routes = typeof(FederationAdapterFactory).Assembly.GetType("LearnStack.Infrastructure.Identity.Federation.KeycloakFederationRoutes", true)!;
         routes.GetMethods(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
             .Where(method => method.ReturnType == typeof(Uri)).Select(method => method.Name).Order(StringComparer.Ordinal)
-            .Should().Equal(["Instance", "Instances", "Mappers", "Token"], "the token endpoint, create, one owned instance and its mappers only");
+            .Should().Equal(["Instance", "InstanceOf", "InstancePage", "Instances", "Mappers", "Token"],
+                "the token endpoint, create, the operator's bounded page and one-alias read, one owned instance and its mappers only");
         RouteOffenders(Sources()).Should().BeEmpty(
             "Fix: build every provider route in KeycloakFederationRoutes, which admits only identity-provider/instances[/{alias}[/mappers]] (ADR-0099)");
     }
+
+    [Fact]
+    public void The_one_admitted_query_is_the_listing_page_and_no_provider_file_builds_another()
+    {
+        // ADR-0099 Amendment 11 item 7: the census admits the listing's collection route with its one exact query. The
+        // route builder names the three fragments of it, in order, and no other query fragment exists in the adapter.
+        var adapter = Sources().Where(source => source.Key.StartsWith(AdapterDirectory, StringComparison.Ordinal)).ToList();
+        QueryLiterals(adapter.Single(source => source.Key == RoutesSource).Value).Should().Equal(
+            ["?first=", "&max=", "&briefRepresentation=false"]);
+        adapter.Where(source => source.Key != RoutesSource).SelectMany(source => QueryLiterals(source.Value)).Should().BeEmpty(
+            "Fix: a provider query string is built in KeycloakFederationRoutes alone");
+        // A query built without a literal that holds a separator (a builder, a helper, a property) is not a literal to find.
+        adapter.Where(source => QueryBuilders(source.Value)).Select(source => source.Key).Should().BeEmpty(
+            "Fix: no query is composed through UriBuilder, QueryHelpers or a Query property in the adapter");
+    }
+
+    [Fact]
+    public void The_query_detector_sees_a_planted_fragment()
+    {
+        QueryBuilders("var u = new UriBuilder(uri) { Query = \"search=\" + term };").Should().BeTrue();
+        QueryBuilders("var u = QueryHelpers.AddQueryString(path, \"search\", term);").Should().BeTrue();
+        QueryBuilders("builder.Query = x;").Should().BeTrue();
+        QueryBuilders("var clean = new Uri(options.AdminRealm, \"identity-provider/instances\");").Should().BeFalse();
+        QueryLiterals("var uri = \"identity-provider/instances?search=\" + term; var x = \"&briefRepresentation=false\";")
+            .Should().Equal(["identity-provider/instances?search=", "&briefRepresentation=false"]);
+        QueryLiterals("var clean = \"identity-provider/instances\";").Should().BeEmpty();
+    }
+
+    private static bool QueryBuilders(string source) =>
+        Regex.IsMatch(source, @"\bUriBuilder\b|\bAddQueryString\b|\bQueryHelpers\b|\.Query\s*=");
+
+    /// <summary>The string literals of a source that hold a query separator, with whole-line comments set aside first.</summary>
+    private static List<string> QueryLiterals(string source) =>
+        [.. Regex.Matches(Regex.Replace(source, @"^\s*//.*$", string.Empty, RegexOptions.Multiline), @"""(?:[^""\\\r\n]|\\.)*""")
+            .Select(match => match.Value[1..^1]).Where(literal => literal.Contains('?') || literal.Contains('&'))];
 
     [Fact]
     public void The_route_detector_refuses_planted_routes()
@@ -204,6 +240,12 @@ public sealed partial class FederationAdapterConventionTests
             "JWT bearer metadata and JWKS (ADR-0064): the fixed Authentication:Tenant:Issuer only",
         ["LearnStack.Api/Authentication/CurrentInvitationRecipientReader.cs"] =
             "the invitation recipient's UserInfo read (ADR-0093): the fixed tenant-realm issuer only",
+        ["LearnStack.Infrastructure/Identity/BoundedMetadataReader.cs"] =
+            "the bounded metadata read both bearer schemes and the rebind tool share (ADR-0064, ADR-0101 § 2, ADR-0104): the fixed issuer each caller configures only",
+        ["LearnStack.Infrastructure/PlatformOperator/PlatformOperatorMetadata.cs"] =
+            "the operator validator's metadata and JWKS client, shared by the API scheme and the offline rebind tool (ADR-0101 § 2, ADR-0104 § 3): the one pinned PlatformOperator:Issuer, never a followed redirect",
+        ["LearnStack.Tools.IdentityAuthorityRebind/KeycloakRealmContinuitySource.cs"] =
+            "the offline rebind tool's read of the new realm (ADR-0104 § 4, § 6): the one new issuer's own origin with an operator-supplied view-users credential, never a followed redirect",
         ["LearnStack.Infrastructure/Email/Smtp/SmtpEmailProvider.cs"] =
             "operator-configured SMTP host for invitation mail; not a tenant URL",
     };

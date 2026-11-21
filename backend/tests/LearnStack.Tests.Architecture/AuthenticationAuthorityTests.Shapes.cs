@@ -356,6 +356,23 @@ public sealed partial class AuthenticationAuthorityTests
                 "LearnStack.SharedKernel.Permissions.OperationInvocation", "System.Threading.CancellationToken");
     }
 
+    /// <summary>
+    /// The operator token profile is its own authority (ADR-0101 § 2, § 3) and reads the validated
+    /// operator token's claims by design; the offline validator that the rebind tool drives validates the same
+    /// token with the stock handler before it applies the profile (ADR-0101 § 7, ADR-0104 § 3). Both are exempt by
+    /// exact type and method, so a raw read in any other method of those types, or anywhere else, is still an
+    /// offender.
+    /// </summary>
+    private static bool IsOperatorTokenProfileRead(Call call) =>
+        call.Source.Owner.FullName == OperatorValidation + "PlatformOperatorTokenProfile" && call.Source.Name == "TryRead"
+        // Exact members, so a later edit that reads a claim, a role or an identity in the validator is still flagged:
+        // the stock handler's validation call and the three members of its result the decision needs.
+        || call.Source.Owner.FullName == OperatorValidation + "PlatformOperatorTokenValidator"
+            && (call.Source.Name == "ValidateAsync"
+                && call.Target.Name is "ValidateTokenAsync" or "get_IsValid" or "get_Exception" or "get_SecurityToken"
+                || call.Source.Name == ".cctor"
+                && call.Target.Name is ".ctor" or "set_MapInboundClaims");
+
     private static bool IsClosedRolesAbsenceCheck(Call call)
     {
         if (call.Source.Site != Signature(Authentication + "OperationHttpClassifier", "Classify", Authentication + "HttpOperationClassification",

@@ -25,8 +25,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
     private static BackgroundJobRuntimeFixture Fixture => BackgroundJobRuntimeFixture.Shared;
 
     [Theory]
-    [InlineData(false, 3, 4, 1, 16, 52)]
-    [InlineData(true, 8, 32, 6, 64, 158)]
+    [InlineData(false, 3, 4, 1, 16, 54)]
+    [InlineData(true, 8, 32, 6, 64, 160)]
     public async Task Direct_real_composition_uses_one_pool_manifest_and_joins_all_owners_before_source_disposal(
         bool maximum, int pools, int workers, int controls, int invocations, int connections)
     {

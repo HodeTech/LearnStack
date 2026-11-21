@@ -237,6 +237,11 @@ source of truth; the finite workflow matrix must agree before launch. Actual
 Release discovery supplies assembly, case ID and FullyQualifiedName. Selected
 filters are independently rediscovered before execution; all theory rows stay
 with their selector. Advisory weights never define membership or a wall bound.
+A theory's data must be serializable by xUnit, or discovery lists one case and
+execution completes one id once per row, which the protocol refuses as
+`completed_case_unexpected`; no local run shows it. `xUnit1044` and `xUnit1045` are
+errors in `backend/tests/.editorconfig` for that reason: pass a label or a key and
+build the object inside the test.
 
 `scripts/ci-test-shards.py` and `scripts/ci-test-shard-results.py` implement the
 two always-running aggregates under the unchanged backend/integration required

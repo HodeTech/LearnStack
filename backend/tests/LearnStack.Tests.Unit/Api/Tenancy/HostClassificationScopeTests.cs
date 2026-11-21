@@ -76,7 +76,7 @@ public sealed class HostClassificationScopeTests
         // /healthz and /openapi all start being classified, each of which is a 404
         // for a caller that has no host to resolve.
         HostClassificationMiddleware.UnclassifiedPrefixes.Should().Equal(
-            "/healthz", "/readyz", "/openapi", "/admin/hangfire", "/api/internal");
+            "/healthz", "/readyz", "/openapi", "/admin/hangfire", "/api/internal", "/api/platform");
     }
 
     [Fact]

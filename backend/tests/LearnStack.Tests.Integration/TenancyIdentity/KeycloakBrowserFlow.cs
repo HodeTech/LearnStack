@@ -115,7 +115,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
 
     internal async Task<KeycloakAuthorization> AuthorizeAsync(string username, string password, string redirectUri,
         KeycloakPkce pkce = KeycloakPkce.S256, string clientId = "learnstack-web", string scope = "openid profile email",
-        Func<Task<string>>? otpCode = null)
+        Func<Task<string>>? otpCode = null, IReadOnlyDictionary<string, string>? extraQuery = null)
     {
         var state = RandomValue();
         var verifier = RandomValue();
@@ -129,6 +129,8 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
             ["state"] = state,
             ["nonce"] = nonce,
         };
+        if (extraQuery is not null)
+            foreach (var (name, value) in extraQuery) query[name] = value;
         if (pkce != KeycloakPkce.Missing)
         {
             query["code_challenge"] = pkce == KeycloakPkce.Plain ? verifier

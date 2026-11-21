@@ -11,6 +11,7 @@ using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
+using LearnStack.SharedKernel.Platform;
 
 namespace LearnStack.Infrastructure.Audit;
 
@@ -417,6 +418,241 @@ public sealed partial class PostgresAuditStore : IAuditStore
     }
 
     /// <inheritdoc />
+    public async Task WritePlatformOperatorResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(admission);
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        // The admission binds the row: the operation, the closed reason and the operator
+        // must be the admitted ones, the actor column stays NULL because an operator is not a
+        // user, and only a success is written here. A caller cannot present a different act.
+        if (!StronglyTypedId.IsAssigned(entry.TenantId)
+            || entry.ModuleName == "identity"
+            || !PlatformOperations.IsRegistered(admission.Operation)
+            || !(admission.Operation.RunsInPipeline || admission.Operation.NeedsPlatformRole)
+            || !string.Equals(entry.Operation, admission.Operation.AuditSlug, StringComparison.Ordinal)
+            || !string.Equals(entry.Reason, admission.Operation.ReasonSlug, StringComparison.Ordinal)
+            || entry.ActorUserId is not null
+            || entry.Outcome != AuditOutcome.Success
+            || entry.OperationClass != OperationClass.Must
+            || !string.Equals(entry.CorrelationId, admission.Operator.CorrelationId, StringComparison.Ordinal)
+            || !MetadataNamesAdmittedOperator(entry, admission))
+        {
+            throw new ArgumentException(
+                "The platform operator result row does not match its admission.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+
+            Bind(command.Parameters, entry);
+
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The platform operator result row could not be written, so the act must not "
+                + "commit.",
+                failure);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task WritePlatformOperatorIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(admission);
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        // The admission binds the row exactly as it binds the result row, to the attempt slug instead: only an act
+        // that entered the platform scope and declares a checkpoint can present one, the effect has not happened so
+        // the outcome is indeterminate, and the identity module's own rows are never written here.
+        if (!StronglyTypedId.IsAssigned(entry.TenantId)
+            || entry.ModuleName == "identity"
+            || !PlatformOperations.IsRegistered(admission.Operation)
+            || !admission.Operation.NeedsPlatformRole
+            || admission.Operation.AttemptAuditSlug is not { } attemptSlug
+            || !string.Equals(entry.Operation, attemptSlug, StringComparison.Ordinal)
+            || !string.Equals(entry.Reason, admission.Operation.ReasonSlug, StringComparison.Ordinal)
+            || entry.ActorUserId is not null
+            || entry.Outcome != AuditOutcome.Indeterminate
+            || entry.OperationClass != OperationClass.Must
+            || !string.Equals(entry.CorrelationId, admission.Operator.CorrelationId, StringComparison.Ordinal)
+            || !MetadataNamesAdmittedOperator(entry, admission))
+        {
+            throw new ArgumentException(
+                "The platform operator intent row does not match its admission.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+
+            Bind(command.Parameters, entry);
+
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The platform operator intent row could not be written, so the effect must not start.",
+                failure);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task WriteIdentityRebindIntentAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        WriteIdentityRebindAsync(entry, admission, connection, transaction, result: false, cancellationToken);
+
+    /// <inheritdoc />
+    public Task WriteIdentityRebindResultAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        WriteIdentityRebindAsync(entry, admission, connection, transaction, result: true, cancellationToken);
+
+    private async Task WriteIdentityRebindAsync(
+        AuditEntryDraft entry,
+        PlatformAdmission admission,
+        DbConnection connection,
+        DbTransaction transaction,
+        bool result,
+        CancellationToken cancellationToken)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(admission);
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        // The same facts the role's policy arm restates in SQL, checked first so a caller error is an argument
+        // error rather than a database refusal: the one rebind operation, its attempt or result slug as
+        // declared off-path, the platform sentinel, no actor, no organization, no network or mail attribution,
+        // and the admitted operator and correlation id. The intent is indeterminate; the result is a success.
+        var operation = admission.Operation;
+        var slug = result ? operation.AuditSlug : operation.AttemptAuditSlug;
+        if (!ReferenceEquals(operation, PlatformOperations.IdentityAuthorityRebind)
+            || slug is null
+            || !_catalog.TryGetOffPath(slug, out var declared)
+            || declared.Operation != slug || declared.ModuleName != "identity"
+            || declared.OperationClass != OperationClass.Must || declared.OperationType != OperationType.SecurityEvent
+            || declared.EntityType is null
+            || entry.TenantId != TenantId.PlatformSentinel
+            || entry.OrganizationId is not null
+            || entry.Operation != declared.Operation || entry.ModuleName != declared.ModuleName
+            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType
+            || !string.Equals(entry.EntityType, declared.EntityType.Name, StringComparison.Ordinal)
+            || !string.Equals(entry.Reason, operation.ReasonSlug, StringComparison.Ordinal)
+            || entry.ActorUserId is not null || entry.ActorEmail is not null
+            || entry.IpAddress is not null || entry.UserAgent is not null
+            || entry.Outcome != (result ? AuditOutcome.Success : AuditOutcome.Indeterminate)
+            || !string.Equals(entry.CorrelationId, admission.Operator.CorrelationId, StringComparison.Ordinal)
+            || !MetadataNamesAdmittedOperator(entry, admission))
+        {
+            throw new ArgumentException(
+                "The identity rebind row does not match its admission and its declared operation.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+
+            Bind(command.Parameters, entry);
+
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                result
+                    ? "The identity rebind result row could not be written, so the rebind must not commit."
+                    : "The identity rebind intent row could not be written, so the rebind must not begin.",
+                failure);
+        }
+    }
+
+    /// <summary>
+    /// Whether <c>metadata.operator</c> names exactly the admitted issuer and subject digest,
+    /// and carries a ticket only on a sentinel-tenant row, and only the admitted one.
+    /// </summary>
+    /// <remarks>
+    /// A substring search would accept a row whose digest appeared anywhere, in a field an
+    /// operator can influence; the parse reads the one place the attribution lives.
+    /// </remarks>
+    private static bool MetadataNamesAdmittedOperator(AuditEntryDraft entry, PlatformAdmission admission)
+    {
+        if (entry.Metadata is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(entry.Metadata);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("operator", out var op)
+                || op.ValueKind != JsonValueKind.Object
+                || !StringIs(op, "subjectDigest", admission.Operator.SubjectDigest)
+                || !StringIs(op, "issuer", admission.Operator.Issuer))
+            {
+                return false;
+            }
+
+            if (!op.TryGetProperty("ticket", out _))
+            {
+                return true;
+            }
+
+            // The ticket appears only in sentinel-tenant rows, which no tenant can read.
+            return entry.TenantId == TenantId.PlatformSentinel
+                && admission.Ticket is not null
+                && StringIs(op, "ticket", admission.Ticket);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool StringIs(JsonElement parent, string name, string expected) =>
+        parent.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+        && string.Equals(value.GetString(), expected, StringComparison.Ordinal);
+
+    /// <inheritdoc />
     public async Task WriteEventTerminalAsync(
         AuditEntryDraft entry,
         EventTerminalTransition transition,
@@ -457,6 +693,50 @@ public sealed partial class PostgresAuditStore : IAuditStore
         {
             throw new AuditWriteFailedException(
                 "The terminal audit could not be written; its state transition must roll back.", failure);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task WriteOperatorRecoveryAsync(
+        AuditEntryDraft entry,
+        OperatorRecoveryTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        JobApplicationSourceOwner.RefuseExternalEntry();
+        RefuseGlobalCapture();
+        ArgumentNullException.ThrowIfNull(transition);
+        transition.EnsureMatches(entry, connection, transaction);
+
+        var operation = transition.Kind switch
+        {
+            "replay" => PlatformOperations.DeliveryReplay.AuditSlug,
+            "reset" => PlatformOperations.DeliveryReset.AuditSlug,
+            _ => throw new ArgumentException("The recovery transition kind is not supported.", nameof(transition)),
+        };
+        if (!_catalog.TryGetOffPath(operation, out var declared)
+            || declared.Operation != operation || declared.ModuleName != "platform"
+            || declared.OperationClass != OperationClass.Must
+            || declared.OperationType != OperationType.SecurityEvent || declared.EntityType is not null
+            || entry.Operation != declared.Operation || entry.ModuleName != declared.ModuleName
+            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType)
+        {
+            throw new ArgumentException("The recovery audit requires its declared MUST security event.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+            Bind(command.Parameters, entry);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The recovery audit could not be written; its reset must roll back.", failure);
         }
     }
 

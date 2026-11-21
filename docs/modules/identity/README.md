@@ -74,15 +74,25 @@ serving only anonymous reads, requires both runtime configuration keys and the
 matching installed authority. Startup qualification rejects missing, unavailable
 or mismatched registration before accepting HTTP requests. Direct `dotnet run`
 reads process/.NET configuration, not the root `.env`. Restore the intended
-configuration when it differs from the selected database; an issuer rebind remains
-P03-9/G13 and is not an automatic repair.
+configuration when it differs from the selected database; an issuer change is never an
+automatic repair. It is the controlled rebind of
+[ADR-0104](../../decisions/0104-controlled-issuer-rebind.md), an offline tool on a
+confined sixth database role ([runbook](../../runbooks/identity-issuer-rebind.md)):
+it proves each Active person's subject is still reported by the new realm and no
+closed person's key reappears, preserves `AuthorityId`, keys and actors, and writes an
+intent row and a result row with the change. Authority qualification and the
+User-creation admission wait for it behind a shared advisory lock and then read the
+value it left.
 
 The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented. The directory contract appears below; closure,
-production first-admin and issuer rebind retain their named later owners.
+implemented. The directory contract appears below; closure retains its named later
+owner. Production first-admin, Role-template initialization
+and recovery are the operator acts of
+[ADR-0102](../../decisions/0102-production-tenant-onboarding.md)
+([runbook](../../runbooks/tenant-onboarding.md)).
 
 ### Retained provider-event storage
 
@@ -339,12 +349,19 @@ P03-1 admits only the fixed development-seed capability.
 in API composition. The external seed/demo owner supplies bounded canonical
 manifest facts and actual provider-adoption witnesses to the confined Seeder
 implementation. Email, a realm role or SystemActor alone supplies no admission.
-There is no HTTP entry, operator population or general bootstrap bypass.
+The seed capability has no HTTP entry, operator population or general bootstrap
+bypass.
 
-Production first-admin/provisioning admission is **P03-9/G13**, before a
-production provisioner uses it. Its authority/recovery cannot inherit the seed
-capability. Tenancy's current ProvisionTenant remains the ADR-0042 Tenant/default
-Organization pair; no cross-module transaction or further exception is admitted.
+Production first-admin, Role-template initialization and recovery are the operator
+acts of [ADR-0102](../../decisions/0102-production-tenant-onboarding.md) (P03-9 Step
+2): `OperatorInitializeRoleCommand`, `OperatorCreateFirstAdminCommand` and
+`OperatorRecoverAdminCommand`. They are admitted per act by the platform operator
+gate, run under the `PlatformOperator` authorization source on the application role
+and the ordered locks of ADR-0074, and name the person by provider subject through
+the confined resolver definer. They cannot inherit the seed capability: neither source
+is sufficient for the other's request. Tenancy's ProvisionTenant remains the ADR-0042
+Tenant/default Organization pair; the operator's provisioning is the same handler
+class, and no cross-module transaction or further exception is admitted.
 
 1. The external seed owner completes Tenancy acts and ADR-0072 trusted binding
    adoption, preserving all four actor/provider IDs, credentials and MFA.
@@ -752,6 +769,47 @@ entered on the re-authentication form.
   with unchanged provenance
   ([Security § Federation host binding](../../standards/11-security.md#federation-host-binding)).
 
+### Operator federation steps (P03-9 Step 5)
+
+[ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md) and
+[Amendment 11](../../decisions/0099-confined-tenant-federation.md) give the platform
+operator a report, a remove and a disable of the identity-provider brokers a tenant's
+federation left orphaned, unreadable or nonconforming. The operator's procedure is the
+[federation operator runbook](../../runbooks/federation-operator.md); this section is
+the module's side of it.
+
+- **Two ports, one adapter.** `IFederationOperator` (SharedKernel) sits beside
+  `IFederationProvider` and is held only by `FederationBrokerOperations` (Identity
+  Infrastructure) and the operator half of the Keycloak adapter, never by the tenant
+  runner. The operator adapter is a second instance with its own resilience pipeline,
+  on the same confined client, so a sweep cannot starve a tenant's calls. Its
+  fail-closed default reports every call unavailable until the federation admin client
+  is configured.
+- **One service, three acts.** `FederationBrokerOperations` implements
+  `IFederationBrokerOperations` (SharedKernel). It consumes the operator's
+  `PlatformAdmission` in the platform scope, reads the realm page first and the
+  connection rows second, and classifies each marked broker as `orphan`,
+  `unreadable_owned` or `nonconforming`. A broker whose marker does not parse strictly
+  to a tenant and connection whose derived alias it is, or whose marker disagrees with
+  its row about the tenant, is counted and never named.
+- **Rows read.** `learnstack_platform` holds `SELECT` of `id`, `tenant_id`, `state` and
+  `deleted_at` on `federation_connections` and nothing more
+  ([Standard 05](../../standards/05-database.md#federation-operator-projection)); the
+  Identity migration `20261120160000_grant_platform_federation_projection` carries it.
+  The one statement that reads the table as the platform role reads by primary key and
+  sees tombstones, which `FederationConnectionReads.Live` hides from the tenant paths.
+- **Two rows around the provider call.** A remove or a disable writes an intent row on
+  `platform.federation.remove_attempt` or `platform.federation.disable_attempt` at the
+  platform scope handle's checkpoint
+  ([ADR-0044 Amendment 18](../../decisions/0044-audit-write-path.md)), commits it, calls
+  the provider, and writes the completion row on `platform.federation.remove` or
+  `platform.federation.disable`. Both name the tenant the owner marker names and carry
+  closed tokens only. The audit matrix is in
+  [Tenancy's audit.md](../tenancy/audit.md), whose catalogue holds these slugs.
+- **No realm user is read or removed.** A remove deletes the broker and the provider
+  deletes its federated links; the account review is the realm administrator's, by
+  runbook.
+
 ## Entity-relationship diagram
 
 ```mermaid
@@ -884,13 +942,15 @@ permission cache/session grant cannot replace a fresh check.
 
 ## Risks and open questions
 
-Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own
-live delegation, default deny/revocation, reader handoff and trusted evidence.
-Those mechanisms and the bounded scope transitions/DTOs are implemented, as are the
-verified invitation writers of [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
-[Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification.
-P03-5 dynamic values, P03-9 production first-admin/recovery and P03-10
-closure/locators remain named later writers, not implicit foundation authority.
+Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own live
+delegation, default deny/revocation, reader handoff and trusted evidence. Those
+mechanisms and the bounded scope transitions/DTOs are implemented, as are the verified
+invitation writers of
+[ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
+[Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification. P03-5
+dynamic values and P03-10 closure/locators remain named later writers, not implicit
+foundation authority; P03-9's production first-admin and recovery are the operator acts
+above.
 
 | Subject/control | Current state | Owner / scope |
 |---|---|---|

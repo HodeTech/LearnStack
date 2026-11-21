@@ -147,7 +147,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 observation.Configure(services);
                 services.AddScoped(_ => new FacadeHeldReadCleanup(cleanupSignals));
             });
-            var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
+            var physical = new BackgroundJobPhysicalPoolSettings(true, BackgroundJobCapacity.Floor);
             await using var source = Source(database, physical);
             using var globals = new GlobalFilterSnapshot();
             using var deadline = new CancellationTokenSource(HeartbeatQualificationWait);

@@ -99,14 +99,14 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }, applicationPoolSize: 32, reconcileProbe: reconcile, componentRequests: [transactional.RequestType("Submit")]);
         var lifetime = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         var privilegedConnection = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
-        { Pooling = true, MaxPoolSize = 52 }.ConnectionString;
+        { Pooling = true, MaxPoolSize = BackgroundJobCapacity.Floor }.ConnectionString;
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(privilegedConnection));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var gate = new BackgroundJobRuntimeGate(registry.Infrastructure);
         var ids = new SystemGuidFactory();
         var runtime = new BackgroundJobRuntime(source, registry, BackgroundJobRecurrenceRegistry.CreateEmpty(),
             host.Services.GetRequiredService<JobExecutor>(), new(source, registry, bounds, ids, gate),
-            gate, bounds, ids, TimeProvider.System, new(true, 52), new HangfireBoundedLogProvider(), lifetime);
+            gate, bounds, ids, TimeProvider.System, new(true, BackgroundJobCapacity.Floor), new HangfireBoundedLogProvider(), lifetime);
         // Neither messaging worker starts in the existing construction-only host.
         runtime.BindMessagingLifetime(Task.CompletedTask, Task.CompletedTask);
         var submitted = await Fixture.SubmitAsync(host.Services, Fixture.Parameters(resource, prepared, finalized));
@@ -132,7 +132,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             lifetime.PoolSettings.Should().Be(new BackgroundJobApplicationPoolSettings(true, 32));
             runtime.Snapshot.ApplicationCapacity!.RequiredConnections.Should().Be(32);
             await using (var physical = await source.OpenConnectionAsync(startup.Token))
-                new NpgsqlConnectionStringBuilder(physical.ConnectionString).MaxPoolSize.Should().Be(52);
+                new NpgsqlConnectionStringBuilder(physical.ConnectionString).MaxPoolSize.Should().Be(BackgroundJobCapacity.Floor);
             // Execute and the provider journal commit are real. The native recovery
             // then enters the SDK's post-call barrier, retaining its actual task.
             boundary = "reconcile_wait";

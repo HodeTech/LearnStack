@@ -47,9 +47,9 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 - `platform_killswitches` — one platform-wide switch per key. Platform-scoped and
   tenant-blind: the only table in the schema for which "no tenant context implies zero
   rows" is deliberately false, because a switch the application role cannot read is one
-  that fails open. Shipped read-only in Packet 9 — every toggle runs inside
-  `EnterPlatformAdminScope`, so [Phase 03](../../roadmap/phase-03-identity-admin.md)
-  owns the writer.
+  that fails open. Packet 9 shipped it read-only; its one writer is `KillswitchToggle`
+  (P03-9 Step 1, [ADR-0101 § 13](../../decisions/0101-platform-operator-authority.md),
+  [runbook](../../runbooks/killswitch.md)).
 
 **Two read paths it owns, over tables it does not read directly:**
 
@@ -615,6 +615,15 @@ and calls the handler; the handler inserts `tenants`,
 inserts the default `organizations` row, updates
 `tenants.default_organization_id`, and returns; the behavior completes the scope,
 which commits. One transaction, one connection, one commit point.
+
+**The operator's production provisioning**
+([ADR-0102](../../decisions/0102-production-tenant-onboarding.md)) is
+`OperatorProvisionTenantCommand`, handled by this same class. It carries no
+`IProvisionsTenant` announcement: the operator act executor installs a resolved ambient
+context for the new tenant's id, which the ordinary transaction behavior announces, and
+the self-keyed insert policy admits it the same way. The operator's host mapping
+(`OperatorMapHostCommand`) shares `MapHostToTenantCommandHandler` likewise. Both are
+idempotent on the operator's identifiers and refuse a repeat that changes a value.
 
 **The handler opens nothing and announces nothing.** Both belong to
 `TransactionBehavior`, and the distinction is not stylistic. A

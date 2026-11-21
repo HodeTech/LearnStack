@@ -27,6 +27,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     private readonly string _adminPassword = Guid.NewGuid().ToString("N");
     private readonly string _databasePassword = Guid.NewGuid().ToString("N");
     private readonly string? _tenantRealmJson;
+    private readonly string? _hubRealmJson;
     private INetwork? _network;
     private PostgreSqlContainer? _database;
     private IContainer? _keycloak;
@@ -36,7 +37,11 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     private bool _callbackTrust = true;
 
     public KeycloakFixture() { }
-    private KeycloakFixture(string? tenantRealmJson) => _tenantRealmJson = tenantRealmJson;
+    private KeycloakFixture(string? tenantRealmJson, string? hubRealmJson = null)
+    {
+        _tenantRealmJson = tenantRealmJson;
+        _hubRealmJson = hubRealmJson;
+    }
 
     internal Uri BaseAddress { get; private set; } = null!; // Set only after successful container startup.
     internal string Issuer => IssuerFor("learnstack");
@@ -50,9 +55,10 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     internal string CallbackCertificate => Encoding.ASCII.GetString(_tls!.CallbackCertificatePem);
     internal string CallbackPrivateKey => Encoding.ASCII.GetString(_tls!.CallbackPrivateKeyPem);
 
-    internal static async Task<KeycloakFixture> StartAsync(string? tenantRealmJson = null, bool callbackTrust = true)
+    internal static async Task<KeycloakFixture> StartAsync(
+        string? tenantRealmJson = null, bool callbackTrust = true, string? hubRealmJson = null)
     {
-        var fixture = new KeycloakFixture(tenantRealmJson) { _callbackTrust = callbackTrust };
+        var fixture = new KeycloakFixture(tenantRealmJson, hubRealmJson) { _callbackTrust = callbackTrust };
         await fixture.InitializeAsync();
         return fixture;
     }
@@ -98,7 +104,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             diagnostics.Mark(stage);
             var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
             tenantImport = ConfigureInvitationMailRealm(tenantImport);
-            var hubImport = await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token);
+            var hubImport = _hubRealmJson is null
+                ? await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token)
+                : Encoding.UTF8.GetBytes(_hubRealmJson);
             _keycloak = BuildProvider(tenantImport, hubImport, _callbackTrust);
             _keycloak.Created += (_, _) => { stage = "provider_created"; diagnostics.Mark(stage); };
             _keycloak.Starting += (_, _) => { stage = "provider_starting"; diagnostics.Mark(stage); };
@@ -197,7 +205,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
             tenantImport = ConfigureInvitationMailRealm(tenantImport);
-            var hubImport = await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token);
+            var hubImport = _hubRealmJson is null
+                ? await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token)
+                : Encoding.UTF8.GetBytes(_hubRealmJson);
             await _keycloak.DisposeAsync();
             _keycloak = null;
             _keycloak = BuildProvider(tenantImport, hubImport, callbackTrust: true, publicPort);
@@ -312,16 +322,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         await JsonSerializer.SerializeAsync(destination, input, JsonSerializerOptions.Web, cancellationToken);
     }
 
-    internal static string RealmPath(string realm) => Path.Combine(RepositoryRoot(), "infra", "keycloak", "realms", realm + ".json");
+    internal static string RealmPath(string realm) => RealmFiles.RealmPath(realm);
 
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !(File.Exists(Path.Combine(directory.FullName, "CLAUDE.md"))
-            && Directory.Exists(Path.Combine(directory.FullName, "infra", "keycloak", "realms"))))
-            directory = directory.Parent;
-        return directory?.FullName ?? throw new InvalidOperationException("Keycloak fixture repository root is missing.");
-    }
+    internal static string RepositoryRoot() => RealmFiles.RepositoryRoot();
 
     public async Task DisposeAsync()
     {

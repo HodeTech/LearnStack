@@ -8,9 +8,12 @@ adds the confined terminal-audit seam in P02b-2, not an Audit-module operation.
 `platform.outbox.dead_letter` and P02b-3's `platform.delivery.dead_letter` belong
 to [Tenancy's off-path matrix](../tenancy/audit.md). P02b-2 Step 2 implements
 the producer writer, with both review rounds complete; P02b-3 Step 4 implements
-the subscriber writer with both review rounds complete. Phase 03 owns privileged
-erasure execution and its bounded
-caller contract; Phase 11 owns retention purge.
+the subscriber writer with both review rounds complete. P03-9 Step 4 adds the
+operator's fenced recovery writer, `platform.delivery.replay` and
+`platform.delivery.reset`, on the same off-path matrix
+([ADR-0103](../../decisions/0103-operator-recovery-of-asynchronous-work.md)). Phase 03 owns
+privileged erasure execution and its bounded caller contract; Phase 11 owns retention
+purge.
 
 **The module that owns the log is audited like any other.** Reading someone's audit
 trail is itself a sensitive read; exporting it produces a copy that outlives the

@@ -3,6 +3,7 @@ using System.Net;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.SharedKernel.Audit;
@@ -21,7 +22,7 @@ public sealed class AuthorizationAuditContext
         if (!invocation.IsActive || target is not { } tenant || !StronglyTypedId.IsAssigned(tenant)
             || tenant == TenantId.PlatformSentinel
             || invocation.Actor is { } actor && !StronglyTypedId.IsAssigned(actor)
-            || invocation.Actor is null && invocation.TrustedSource is not { SourceKind: AuthorizationSourceKind.Seed }
+            || invocation.Actor is null && invocation.TrustedSource is not { SourceKind: AuthorizationSourceKind.Seed or AuthorizationSourceKind.PlatformOperator }
             || invocation.Candidate is { } candidate && invocation.Actor != candidate.Actor
             || (decision is not null && (!ReferenceEquals(decision.Invocation, invocation) || !decision.IsActive))
             || (invocation.Candidate is null) == (invocation.TrustedSource is null)
@@ -33,6 +34,7 @@ public sealed class AuthorizationAuditContext
         Actor = invocation.Actor;
         PolicyId = invocation.Policy.Id;
         SourceKind = invocation.Candidate?.SourceKind ?? invocation.TrustedSource!.SourceKind;
+        Operator = invocation.TrustedSource?.Operator;
         MembershipIds = decision?.MembershipIds ?? [];
         RoleIds = decision?.RoleIds ?? [];
         Route = transport?.Route;
@@ -59,6 +61,9 @@ public sealed class AuthorizationAuditContext
     public UserId? Actor { get; }
     public string PolicyId { get; }
     public AuthorizationSourceKind SourceKind { get; }
+
+    /// <summary>The admitted operator and closed reason of an operator act; null for every other source.</summary>
+    public PlatformOperatorAttribution? Operator { get; }
     public ImmutableArray<Guid> MembershipIds { get; }
     public ImmutableArray<Guid> RoleIds { get; }
     public string? Route { get; }
@@ -80,6 +85,7 @@ public sealed class AuthorizationAuditContext
             {
                 AuthorizationSourceKind.Http => "http", AuthorizationSourceKind.Seed => "seed",
                 AuthorizationSourceKind.IntegrationEvent => "event", AuthorizationSourceKind.BackgroundJob => "job",
+                AuthorizationSourceKind.PlatformOperator => "operator",
                 _ => throw new InvalidOperationException("Authorization source is unknown."),
             }),
             "\"memberships\":[" + string.Join(',', MembershipIds.Select(id => AuditJson.Quote(id.ToString("D")))) + "]",

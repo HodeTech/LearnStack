@@ -177,24 +177,23 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**377 test methods run in
+**393 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
-source-boundary, observation and production-manifest companions in Step 9.
-Its nineteen packet obligations are implemented with actual canonical owners and
-complementary structural, native-runtime and PostgreSQL controls. The
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
+Packet 7, Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3,
+P02b-1, P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–8, with further
+source-boundary, observation and production-manifest companions in Step 9. Its nineteen
+packet obligations are implemented with actual canonical owners and complementary
+structural, native-runtime and PostgreSQL controls. The
 [P02b-4 merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
-owns its final review/CI qualification. Authentication, realm and BFF obligations
-have unit/integration/frontend/offline owners in their entries below; the
-[Phase 02b Status block](../roadmap/phase-02b-events-auth.md) links current delivery
-and qualification. The analyzer and asynchronous inventory controls also have
-actual owners; registration alone promotes none of these obligations.
-Methods are not rows:
-a `[Theory]` is one row and many cases,
-and most rows pair a rule with the companion assertion that stops it passing vacuously.
+owns its final review/CI qualification. Authentication, realm and BFF obligations have
+unit/integration/frontend/offline owners in their entries below; the
+[Phase 02b Status block](../roadmap/phase-02b-events-auth.md) links current delivery and
+qualification. The analyzer and asynchronous inventory controls also have actual owners;
+registration alone promotes none of these obligations. Methods are not rows: a
+`[Theory]` is one row and many cases, and most rows pair a rule with the companion
+assertion that stops it passing vacuously.
 
 **Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
 are a second copy of what the repository already knows, and the first version of this section
@@ -218,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**282 rules in this catalogue are Implemented, and 164 of them are in that assembly.**
+**293 rules in this catalogue are Implemented, and 175 of them are in that assembly.**
 The other 118 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -1878,13 +1877,15 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
   its own connection. Under `backend/src`, the configuration/construction scan
-  admits exactly **thirteen** files: six design-time factories, one per migration
+  admits exactly **sixteen** files: six design-time factories, one per migration
   chain; `ModuleDbContextRegistration`, which passes a *connection*;
   `PersistenceCompositionExtensions`, with the guarded platform-role builder;
   `ApplicationDataSource`, shared by the API and one-shot Seeder;
-  ADR-0046's confined `OutboxDispatcherDataSource`; and ADR-0072's deployment-only
-  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`; and ADR-0076/0077's
-  private authorization and evidence source builders. Another construction
+  ADR-0046's confined `OutboxDispatcherDataSource`; ADR-0072's deployment-only
+  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`; ADR-0076/0077's
+  private authorization and evidence source builders; the invitation SMTP and
+  provider-event intake sources; and ADR-0104's `IdentityIssuerRebind`, which opens
+  the rebind role's own direct connections. Another construction
   site requires its owning decision and an explicit allow-list change.
   A context on its own connection never saw the announcement, so every read through
   it returns zero rows under the corrected policy — silently.
@@ -2070,6 +2071,13 @@ diagnostic above row security, not the boundary, as its own note says.
   connection after grant removal, for both direct and transitive membership.
 - **Phase:** 02b, P02b-2.
 
+- **Accepted extension:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)
+  adds exactly one more consumer of the two stores' connections, the operator recovery
+  owner `OperatorRecovery`, which holds no credential and reaches the outbox role only
+  through each store's reserved operator lane. The dispatcher census pins the stores'
+  recovery methods and their parameters, and
+  [OperatorRecoveryBoundaryTests](../../backend/tests/LearnStack.Tests.Architecture/OperatorRecoveryBoundaryTests.cs)
+  closes who may mint the recovery witness and who may write its row.
 - **Accepted extension:** ADR-0047 preserves this canonical name while adding
   enumerated H1 credential consumers and the minimal lifecycle reader. P02b-4
   Step 2 implements role/table grants; Step 4 adds the closed facade, source pin
@@ -2793,10 +2801,13 @@ promotes an unrun proof.
   [source ledger](05-database.md#authorization-and-evidence-source-ledger).
 - **Type:** source/caller/role census plus real app-role PostgreSQL/PgBouncer
   progress and lifetime controls. **Kind:** behavioural and structural.
-- **Test owners:** `IdentityAuthorizationReaderTests`,
-  `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
-  `IdentityAuthorizationConventionTests`, `TrustedOperationSourceConventionTests`,
-  `OperationPolicyOwnershipTests`, `IdentityAuditConventionTests`.
+- **Test owners:** `IdentityAuthorizationReaderTests`, `AuthorizationReadSourceTests`,
+  `AuthorizationPoolProgressTests`, `IdentityAuthorizationConventionTests`,
+  `TrustedOperationSourceConventionTests`, `OperationPolicyOwnershipTests`,
+  `IdentityAuditConventionTests`. `TrustedOperationSourceConventionTests` pins four
+  minting sources, the seed, delivery, job and operator-act owners
+  ([ADR-0102](../decisions/0102-production-tenant-onboarding.md)), and the operator
+  source's one caller and its closed evidence lifetime.
 - **Status:** **Implemented** — `IdentityAuditConventionTests`; source/caller controls
   complement the real PostgreSQL/PgBouncer owners above.
 - **Coverage:** the confined reader/source, actual PostgreSQL/
@@ -3777,9 +3788,13 @@ which decides identity, multiplicity, capture and classification;
   `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
   it must catch and the shapes it must not, because with no offending statement anywhere
   the sweep passes whether it works or matches nothing; and a reflection check,
-  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly eight
-  write methods and no update: the event/job seams ship in Phase 02b, and
-  ADR-0072's two global seams ship in P03-1 Step 3. None
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly fifteen
+  write methods and no update: the event/job seams ship in Phase 02b, ADR-0072's two
+  global seams in P03-1 Step 3, the two trusted authorization seams in P03-2, the
+  operator result seam of ADR-0101 in P03-9 Step 1, the two controlled-rebind seams
+  of ADR-0104 in P03-9 Step 3, the operator recovery seam of ADR-0103 in P03-9
+  Step 4 and the platform scope's intent seam of ADR-0044 Amendment 18 in P03-9
+  Step 5. None
   of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
   11 — so the exemption set ships with the rule **empty**, as exact paths: the first
   site to land adds its own path, so it is exempted by name rather than the pattern
@@ -5703,29 +5718,34 @@ structural test proves — and what it does not.
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
 
 - **Asserts:** `ITenantContextAccessor.Current` is **written** only by the HTTP,
-  internal Hub, job and integration-event boundaries. ADR-0047 names JobExecutor
-  as the sole job-path writer, replacing the unshipped Hangfire JobActivator.
-  `EnterPlatformAdminScope` opens a separate connection and writes no tenant
-  context. Reads are unconstrained; no new writer is admitted before it ships.
+  internal Hub, job, integration-event and operator-act boundaries. ADR-0047 names
+  JobExecutor as the sole job-path writer, replacing the unshipped Hangfire
+  JobActivator; `PlatformOperatorActExecutor` is the operator-act writer
+  ([ADR-0040 Amendment 25](../decisions/0040-ambient-unit-of-work.md)).
+  `EnterPlatformAdminScope` opens a separate connection and writes no tenant context.
+  Reads are unconstrained; no new writer is admitted before it ships.
 - **Source:** ADR-0036 § Rules, second bullet, as corrected by its erratum and
   [Amendments 2 and 12](../decisions/0036-tenant-resolution-trusted-inputs.md).
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a (Packet 7).
 - **Note:** the name predates the correction and is kept. `ITenantContextAccessor`
-  declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant`
-  this row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and
-  keeps the test's spelling, because § Canonical names makes a rename its own
-  liability and the name describes the caller set, which is what ADR-0036 decides.
+  declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant` this
+  row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and keeps the
+  test's spelling, because § Canonical names makes a rename its own liability and the
+  name describes the caller set, which is what ADR-0036 decides. The set is five logical
+  writers since the operator executor landed (ADR-0036 Amendment 22), and the name is
+  kept for the same reason.
 - **Note:** a source scan rather than NetArchTest: NetArchTest resolves *type*
   references and cannot see a write to a property, which is the whole assertion —
   the same reason `Effective_Host_Computed_In_One_Place` is a scan. The needle
   (`.Current =`) is receiver-agnostic, so an unrelated `Activity.Current =` would trip
   it; that is a false positive to exempt by path, never a reason to filter by folder.
-- **Note:** **three of the four logical boundaries exist** — TenantResolverMiddleware,
+- **Note:** **four of the five logical boundaries exist** — TenantResolverMiddleware,
   the integration-event acceptance/execution scope in InProcessEventBus and
-  DeliveryExecutor, and JobExecutor's framework/business partials. The two JobExecutor
-  files are one logical writer. HubCorrelationMiddleware belongs to Phase 02c.
+  DeliveryExecutor, JobExecutor's framework/business partials and the operator act
+  executor. The JobExecutor partials are one logical writer. HubCorrelationMiddleware
+  belongs to Phase 02c.
   The whole-source census also refuses every writer outside the exact file set.
   The first version of the test scanned only files whose path contained `Tenancy`,
   which deleted the `InProcessEventBus` writer from its own expectation *and* let a
@@ -5875,46 +5895,233 @@ structural test proves — and what it does not.
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
-- **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
-- **Source:** ADR-0036 § The platform-admin override is not a resolution source.
-- **Type:** xUnit — reflection, a source scan, and a call to the registered gate.
-  **Kind:** structural (the marker and the scan) + behavioural (the gate refuses).
-- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
-- **Phase:** 02a (Packet 7).
-- **Note:** **the permission clause is live in its mechanism and vacuous in its subject;
-  the marker clause is vacuous outright.** Two Notes previously stood here assigning
-  "live" to opposite clauses — one written when the rule was Registered and one when it
-  landed — and this replaces both.
-
-  *Mechanism, live:* the gate is a real port, the registered implementation refuses
-  everyone, `PlatformAdminScope` consults it, and no second implementation exists in any
-  production assembly — which is how a permissive default actually arrives, registered
-  elsewhere for a demo. The ordering, gate before the credential is touched, is
+- **Asserts:** entering the platform scope takes a `PlatformAdmission` and nothing else,
+  and the censuses that make an admission mean something are closed across every
+  production assembly: `PlatformAdmission.Minter` has exactly one subclass, the operator
+  gate; `PlatformOperatorWitness.Minter` has exactly one, the private nested minter of
+  `PlatformOperatorTokenProfile`; `IPlatformOperatorGate` and
+  `IPlatformOperatorGrantSource` each have exactly one implementation. The census
+  compares full type names and counts abstract subclasses, so a lookalike in another
+  namespace or an abstract stand-in is a failure. A second of any of them is how a
+  permissive default ships.
+- **Source:** ADR-0036 § The platform-admin override is not a resolution source;
+  [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and § 8.
+- **Type:** xUnit — reflection over every production assembly, and behavioural cases
+  without Docker (`PlatformAdminGateTests`) and over HTTP with controlled signed tokens
+  (`PlatformOperatorHttpTests`). **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7;
+  rewritten against the real gate by P03-9 Step 1).
+- **Phase:** 02a (Packet 7); P03-9.
+- **Note:** the rule was live in its mechanism and vacuous in its subject while the
+  registered gate refused everyone. It now has a subject: a Platform permission exists
+  (`PlatformPermissions`), an operator can hold it through a grant, and a permitted
+  entry is exercised. The ordering — admission before the credential is touched — is
   behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
+  The marker clause, that no handler carries both `[AllowsUnresolvedTenantContext]` and
+  a platform-scope entry, is now structural as well:
+  `Only_The_Operator_Services_Hold_The_Platform_Scope` lists every file that may hold
+  the scope, and no request handler is among them.
 
-  *Subject, vacuous:* there is no Platform permission to hold. The canonical
-  `AuthorizationBehavior` uses explicit live policies, while the retained
-  assignable manifest contains only Tenant/Organization pairs. API authentication
-  is delivered under ADR-0064; the Platform-scope permission remains Identity work in
-  [Phase 03](../roadmap/phase-03-identity-admin.md). So
-  nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
-  this packet ships. Packet 9 gives the scope its first real work and inherits the gate:
-  the platform-scope `security-event` row the scope writes on entry through
-  `IAuditStore.WritePlatformScopeAsync`
-  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)). The killswitch toggle is not
-  that caller. Packet 9 ships `platform_killswitches`, its policies, the overlay and the
-  cache family and **no writer at all**: a toggle command would sit behind
-  `DenyAllPlatformAdminGate` carrying a permission key nothing registers, so
-  [Phase 03](../roadmap/phase-03-identity-admin.md) owns the command, its permission and
-  its runbook
-  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
-  Neither is the GDPR redaction handler, which lands in Phase 03 with the `users` table
-  it needs.
+#### `The_Operator_Token_Profile_Is_Called_From_The_Authentication_Boundary_Only`
 
-  *Marker clause, still vacuous — but for a narrower reason since Packet 7 step 9:* no
-  handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
-  `ProvisionTenantCommand` now carries the first, and nothing carries the second, so the
-  conjunction is empty because one half of it is — not because both are.
+- **Asserts:** the source files that name `PlatformOperatorTokenProfile` are exactly the
+  profile's own file, the API scheme's boundary
+  (`LearnStack.Api/Authentication/PlatformOperatorAuthentication.cs`) and the offline
+  validator
+  (`LearnStack.Infrastructure/PlatformOperator/PlatformOperatorTokenValidator.cs`);
+  the files that call its `TryRead` are exactly the scheme boundary and the offline
+  validator, the two callers of ADR-0101 § 7 through one validator; and the only file
+  that names `PlatformOperatorWitness.Minter` is the profile's own, where the one
+  private nested minter lives. A further caller joins by an edit here.
+- **Why it matters:** the witness is evidence that a token passed the closed profile,
+  and `TryRead` is the only door to the minter that makes one.
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1
+  review; widened to the second caller by P03-9 Step 3).
+- **Phase:** P03-9.
+
+#### `The_Operator_Token_Validator_Has_Two_Callers_Of_The_Profile_And_One_Of_Its_Own`
+
+- **Asserts:** by IL, the callers of `PlatformOperatorTokenProfile.TryRead` in every
+  production assembly are exactly the API scheme's validated event
+  (`PlatformOperatorEvents.TokenValidated`) and
+  `PlatformOperatorTokenValidator.ValidateAsync`, and the callers of the offline
+  validator's constructor and `ValidateAsync` are exactly the rebind tool's
+  `RebindTool.RunAdmittedAsync`. `TryRead` and the validator accept the two executor
+  constants and refuse any other.
+- **Why it matters:** the validator and the profile are public so that the API scheme
+  and the tool share one definition, and the witness they mint is evidence that a token
+  passed the closed profile. Before the move the compiler confined the profile to the
+  API project; now these rules do, for the production assemblies, and a test assembly
+  or reflection is outside them. Pinning the callers keeps a second public door from
+  becoming a second place a witness can be made
+  ([ADR-0101](../decisions/0101-platform-operator-authority.md) § 7).
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 7 and
+  [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 3.
+- **Type:** xUnit + IL scan. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3 review).
+- **Phase:** P03-9.
+
+#### `The_Identity_Rebind_Credential_Is_Named_Only_By_The_Rebind_Tool`
+
+- **Asserts:** in code under `backend/src`, comments stripped, none of the spellings
+  `ConnectionStrings__IdentityRebind`, `ConnectionStrings:IdentityRebind` or
+  `GetConnectionString("IdentityRebind")` appears outside
+  `LearnStack.Tools.IdentityAuthorityRebind/RebindToolInput.cs`, which must itself name
+  the first. A planted source file in a temporary directory is found by the same scan,
+  and none of the demo launcher, the migration script or the two compose files carries
+  the key.
+- **Why it matters:** the sixth role is the only credential that can change the issuer,
+  and the claim that no runtime host can change it is exactly the claim that no runtime
+  configuration names it
+  ([ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 2).
+- **Source:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 2.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 3).
+- **Phase:** P03-9.
+
+#### `Only_The_Rebind_Run_And_The_Two_Freeze_Readers_Take_The_Rebind_Lock`
+
+- **Asserts:** by IL, the callers of `IdentityAdvisoryLockKey.ForAuthorityRebind` in
+  every production assembly are exactly
+  `NpgsqlUnitOfWork.AcquireGlobalIdentitySubjectLockAsync`,
+  `IdentityAuthorityQualification.QualifyCoreAsync`, `IdentityIssuerRebind.CommitAsync`
+  (the reconciliation of an unknown COMMIT, which waits behind the original
+  transaction) and `IdentityIssuerRebind.RunCoreAsync`.
+- **Why it matters:** the exclusive form is the freeze and the shared form is what a
+  start or a creation waits behind; a further taker is a further party that can hold or
+  wait on it.
+- **Source:** [ADR-0104](../decisions/0104-controlled-issuer-rebind.md) § 5.
+- **Type:** xUnit + IL scan. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityAuditConventionTests`, P03-9 Step 3).
+- **Phase:** P03-9.
+
+#### `Operator_Recovery_Audit_Identity_Is_Row_Bound`
+
+- **Asserts:** by IL, over every production assembly, that `OperatorRecoveryTransition`
+  is sealed with one private live-reader constructor, readonly state and getter-only
+  properties, in an assembly with no friend; that its nested `MintingSource` is
+  public, abstract and protected-constructed with exactly the two protected static
+  factories (`FromReplayUpdate`, `FromResetUpdate`); that the only subtypes are the
+  private sealed `RecoveryMint` classes nested in `DeliveryDispatchStore` and
+  `OutboxDispatchStore`; that the factories' only callers are those classes' two
+  wrappers, whose only callers are the stores' `ReplayCoreAsync` and `ResetCoreAsync`;
+  that the witness constructor's only callers are the factories; and that
+  `IAuditStore.WriteOperatorRecoveryAsync` is declared on the port and implemented by
+  `PostgresAuditStore` alone, with the two stores' `WriteRecoveryRowAsync` as its only
+  callers. Its companion
+  `Operator_recovery_census_detects_extra_derivers_constructors_and_callers` plants a
+  second subtype, an extra mint helper for each factory, a direct constructor call, an
+  extra writer caller and a helper on the sanctioned stores, and requires the same
+  detector to reject each.
+- **Why it matters:** the witness is evidence that a row was reset under a fence in a
+  live transaction, and it binds the audit row to the admitted operation, the operator
+  and the fence. A second way to make one, or to write the row, is a second way to
+  forge that evidence. The terminal witness could not carry an operator, so this is a
+  sibling, not a third factory on it.
+- **Source:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) § 5
+  and its Amendment 1.
+- **Type:** xUnit + IL scan. **Kind:** structural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`, P03-9 Step 4).
+- **Phase:** P03-9.
+
+#### `Only_The_Recovery_Routes_And_Their_Owners_Name_The_Operator_Recovery_And_Inspection_Ports`
+
+- **Asserts:** the files, by their path under `backend/src`, that name `IOperatorRecovery`
+  are exactly the port, its one implementation, the outbox composition and the recovery
+  routes, and the files that name `IDeliveryInspection` are exactly the port, its
+  implementation, the persistence composition and the recovery routes. Adding a caller
+  is a deliberate edit here, with its denied proof.
+- **Why it matters:** the two transitions are the dispatcher's second writer and the
+  inspection reads across tenants; a handler that held either port would reach a
+  reset or a cross-tenant read from a request path the operator gate does not guard.
+- **Source:** [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) § 4.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 4).
+- **Phase:** P03-9.
+
+#### `Only_The_Federation_Routes_And_Their_Owner_Name_The_Federation_Operator_Ports`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `FederationBrokerOperations` (the port's name contains it, so the owner's class is
+  found too) are exactly the port, its one owner, the persistence composition and the
+  federation routes, and the files that name `IFederationOperator`
+  are exactly the port, the owner, the adapter that implements it, its factory, the
+  federation composition and the Identity foundation registration that gives it a
+  fail-closed default. The tenant runner is in neither list. Adding a caller is a
+  deliberate edit here, with its denied proof.
+- **Why it matters:** the removal and the disable change the realm's identity providers
+  for every tenant, and the tenant's provider port is held by the runner alone; a second
+  holder of the operator port, or a handler that reached the owner, would make a
+  cross-tenant provider change from a path the operator gate does not guard.
+- **Source:** [ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 10.
+- **Type:** xUnit + source scan, with a planted holder of each port and of the
+  concrete owner (`The_Federation_Port_Census_Finds_A_Planted_Holder_Of_Either_Port_Or_The_Concrete_Owner`).
+  **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 5).
+- **Phase:** P03-9.
+
+#### `Only_The_Operator_Services_Hold_The_Platform_Scope`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `IPlatformAdminScope` are exactly the interface, the scope, the persistence
+  composition and the operator services that perform an admitted act (today the
+  killswitch toggle, the delivery inspection and the federation owner). Adding a
+  service is a deliberate edit here, with its denied proof.
+- **Why it matters:** a request handler holding the scope would enter a cross-tenant
+  scope from a tenant request path.
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).
+- **Phase:** P03-9.
+
+#### `Only_The_Operator_Onboarding_Routes_Run_An_Operator_Act`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `PlatformOperatorActExecutor` in code, comments stripped, are exactly the executor,
+  the registration beside the source it enters and the onboarding routes. A second
+  caller is a second route to an act; adding one is a deliberate edit here, with its
+  denied proof.
+- **Why it matters:** the executor installs a tenant context from an admission, so what
+  may call it is what may run an operator act. The admission is the barrier, and this
+  keeps the set of places that can spend one small and visible.
+- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2).
+- **Phase:** P03-9.
+
+#### `Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `fn_identity_operator_resolve_user` in code are exactly the adapter that calls it and
+  the migration helper that installs it, and the files that name
+  `IOperatorSubjectResolver` are exactly the port, the operator administrator core, the
+  registration and the adapter. A second caller is a second way to ask whether a
+  provider subject is an Active user; adding one is a deliberate edit here, with its
+  denied proof.
+- **Why it matters:** the definer is executable by the application role, so what may ask
+  it is what the code, and not the database, confines
+  ([Database Standards § Operator subject resolution](05-database.md#operator-subject-resolution)).
+- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 5.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`IdentityFoundationConventionTests`, P03-9 Step 2).
+- **Phase:** P03-9.
+
+#### `Writes_To_The_Killswitch_Table_Are_Confined_To_The_Writer`
+
+- **Asserts:** the write verbs `INSERT INTO`, `UPDATE`, `DELETE FROM` and `TRUNCATE`
+  against `platform_killswitches` appear only in `KillswitchToggle`, matched in any case
+  with an optional schema, quotes and `ONLY`, and that file uses `INSERT` and `UPDATE`
+  and never the other two. The overlay's reads and a `SELECT … FOR UPDATE` are
+  unaffected. A companion case,
+  `The_Killswitch_Write_Pattern_Can_Fail_And_Catches_The_Ordinary_Spellings`, checks the
+  pattern against shapes it must and must not catch, so a pattern that matches nothing
+  cannot pass the rule.
+- **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 13.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 1).
+- **Phase:** P03-9.
 
 ## P02d-4 public-read obligations
 
@@ -7581,15 +7788,20 @@ sign-in read). The
   `state <> 'Deleted' AND deleted_at IS NULL`; every production source, both Identity
   projects included, that reads `federation_connections` (`FROM` or `JOIN`, any case or
   whitespace, with or without the schema, quoted or through the mapped table-name
-  constant) is exactly `FederationConnectionStore`, `FederationHostAliasReader` or
-  `PublicSignInReader`; and each such statement, not merely its file, interpolates that
-  constant and spells no tombstone predicate of its own, so the three raw reads cannot
-  drift from each other or from the EF `Live` filter silently.
+  constant) is exactly `FederationConnectionStore`, `FederationHostAliasReader`,
+  `PublicSignInReader` or the operator's `FederationBrokerOperations`; each of the
+  three tenant statements, not merely its file, interpolates that constant and spells
+  no tombstone predicate of its own, so the three tenant reads cannot drift from each
+  other or from the EF `Live` filter silently. The operator's read is the one
+  exception: it must see tombstones, so it is pinned whole instead, by primary key
+  through the four columns the platform role may read
+  ([ADR-0099 Amendment 11](../decisions/0099-confined-tenant-federation.md) item 2).
 - **Source:** [ADR-0099 Amendment 1](../decisions/0099-confined-tenant-federation.md#amendment-1--step-1-storage-deviations-2026-11-13)
   (the tombstone) and the P03-8 Step 2 review round 1 (S-D).
 - **Type:** source scan with planted controls: an own predicate, a second statement
   without the constant, an unlisted reader by `JOIN`, without the schema, with other
-  spacing, quoted or through the table-name constant, and a dropped reader.
+  spacing, quoted or through the table-name constant, a dropped reader, and a
+  widened operator statement (a fifth column, another predicate, a second statement).
   **Kind:** structural.
 - **Status:** **Implemented** (`FederationApplicationConventionTests`).
 - **Test owner:** [FederationApplicationConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationApplicationConventionTests.cs).
@@ -7638,12 +7850,19 @@ sign-in read). The
 
 #### `Federation_Adapter_Admits_Only_The_Enumerated_Routes`
 
-- **Asserts:** `KeycloakFederationRoutes` builds exactly four routes (token, the
-  identity-provider collection, one owned instance and its mappers), and no string
-  literal in the adapter namespace names another Admin, identity-provider,
+- **Asserts:** `KeycloakFederationRoutes` builds exactly six routes (token, the
+  identity-provider collection, one bounded page of that collection, one owned instance,
+  one instance by a derived alias and its mappers; the page and the by-alias read serve
+  the operator of
+  [ADR-0099 Amendment 10](../decisions/0099-confined-tenant-federation.md)), and no
+  string literal in the adapter namespace names another Admin, identity-provider,
   authentication, user, client or role path. The unit test
   `KeycloakFederationProviderTests.Every_admitted_request_targets_the_enumerated_routes_only`
-  checks the same set behaviourally against a scripted provider.
+  checks the same set behaviourally against a scripted provider. The listing's one
+  exact query is pinned too: the route builder names the fragments `?first=`, `&max=`
+  and `&briefRepresentation=false`, in that order, and no other file of the adapter
+  builds a query string (`The_one_admitted_query_is_the_listing_page_and_no_provider_file_builds_another`,
+  with a planted fragment).
 - **Source:** [ADR-0099 § Ownership and the confined adapter](../decisions/0099-confined-tenant-federation.md#ownership-and-the-confined-adapter)
   ("the adapter admits only the enumerated calls and aliases").
 - **Type:** reflection plus source scan, with planted routes. **Kind:** structural.

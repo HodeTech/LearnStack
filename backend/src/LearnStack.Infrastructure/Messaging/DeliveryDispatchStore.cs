@@ -3,6 +3,7 @@ using LearnStack.Application.Jobs;
 using System.Data.Common;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -11,7 +12,7 @@ using NpgsqlTypes;
 namespace LearnStack.Infrastructure.Messaging;
 
 /// <summary>Short, database-time fenced dispatcher transitions on its confined role.</summary>
-public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSource
+public sealed partial class DeliveryDispatchStore : EventTerminalTransition.MintingSource
 {
     private const string Incomplete = "processed_at IS NULL AND dead_lettered_at IS NULL";
     private const string Normal = Incomplete + " AND terminal_reason IS NULL AND attempts < 6"
@@ -40,9 +41,10 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
     private readonly IClock _clock;
     private readonly IServiceScopeFactory _scopes;
     private readonly object _connectionGate = new();
-    // The main SQL owner and its uncertain-COMMIT reconciliation are the only
-    // simultaneous source users. Slots are retained through actual disposal.
-    private readonly OwnedConnection?[] _connections = new OwnedConnection?[2];
+    // The main SQL owner and its uncertain-COMMIT reconciliation are the only simultaneous dispatcher users, in
+    // slots 0 and 1. Slot 2 belongs to the operator recovery owner alone (ADR-0103), so an operator's reset can never
+    // take the slot the dispatcher's own reconciliation needs. Slots are retained through actual disposal.
+    private readonly OwnedConnection?[] _connections = new OwnedConnection?[3];
     private bool _cleanupUnconfirmed;
 
     /// <summary>Whether actual connection disposal failed; reading opens nothing.</summary>
@@ -51,8 +53,11 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         get { lock (_connectionGate) return _cleanupUnconfirmed; }
     }
 
+    private readonly BackgroundJobLifecycleProjection? _lifecycle;
+
     public DeliveryDispatchStore(PrivilegedDataSource source, OutboxEventRegistry registry,
-        DeliveryDispatchOptions options, IGuidFactory ids, IClock clock, IServiceScopeFactory scopes)
+        DeliveryDispatchOptions options, IGuidFactory ids, IClock clock, IServiceScopeFactory scopes,
+        BackgroundJobLifecycleProjection? lifecycle = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(registry);
@@ -67,6 +72,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         _ids = ids;
         _clock = clock;
         _scopes = scopes;
+        _lifecycle = lifecycle;
     }
 
     public Task<DeliveryClaim?> TryClaimAsync(IReadOnlyCollection<string> blockedPartitions,
@@ -301,40 +307,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         return new(reader.GetInt64(0), reader.GetInt64(1), reader.GetDouble(2));
     }
 
-    /// <summary>Resets exactly one completed terminal Active ordinary subscription; inbox identity is never reset.</summary>
-    public async Task<bool> ReplayAsync(Guid tenant, string subscription, Guid eventId,
-        CancellationToken cancellationToken = default)
-    {
-        if (tenant == Guid.Empty || tenant == TenantId.PlatformSentinel.Value || eventId == Guid.Empty
-            || !OutboxEventRegistry.ValidSubscriptionId(subscription)) return false;
-        using var deadline = Deadline(cancellationToken);
-        await using var ownedConnection = await OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
-        var connection = ownedConnection.Connection;
-        await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
-        const string replayable = " AND processed_at IS NULL AND dead_lettered_at IS NOT NULL"
-            + " AND terminal_reason IS NOT NULL AND locked_by IS NULL AND locked_until IS NULL";
-        await using var rowLock = new NpgsqlCommand(
-            $"SELECT type FROM event_deliveries WHERE {Identity}{replayable} FOR UPDATE", connection, transaction);
-        Configure(rowLock);
-        AddIdentity(rowLock, tenant, subscription, eventId);
-        if (await rowLock.ExecuteScalarAsync(deadline.Token).ConfigureAwait(false) is not string type
-            || !_registry.IsActiveOrdinarySubscription(type, subscription)) return false;
-        await using var reset = new NpgsqlCommand($"""
-            UPDATE event_deliveries SET terminal_reason = NULL, dead_lettered_at = NULL,
-                attempts = 0, last_error = NULL, locked_by = NULL, locked_until = NULL,
-                available_after = clock_timestamp(), replay_count = replay_count + 1,
-                replayed_at = clock_timestamp()
-            WHERE {Identity}{replayable} AND type = @type
-            """, connection, transaction);
-        Configure(reset);
-        AddIdentity(reset, tenant, subscription, eventId);
-        reset.Parameters.AddWithValue("type", type);
-        var updated = await reset.ExecuteNonQueryAsync(deadline.Token).ConfigureAwait(false) == 1;
-        await transaction.CommitAsync(deadline.Token).ConfigureAwait(false);
-        return updated;
-    }
-
-    private async ValueTask<OwnedConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    private async ValueTask<OwnedConnection> OpenConnectionAsync(CancellationToken cancellationToken, bool operatorLane = false)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         OwnedConnection owned;
@@ -343,7 +316,9 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         {
             if (_cleanupUnconfirmed)
                 throw new InvalidOperationException("The delivery dispatcher connection cleanup remains unconfirmed.");
-            var slot = _connections[0] is null ? 0 : _connections[1] is null ? 1 : -1;
+            var slot = operatorLane
+                ? _connections[2] is null ? 2 : -1
+                : _connections[0] is null ? 0 : _connections[1] is null ? 1 : -1;
             if (slot < 0)
                 throw new InvalidOperationException("The delivery dispatcher SQL ownership bound was exceeded.");
             owned = new OwnedConnection(this, slot);

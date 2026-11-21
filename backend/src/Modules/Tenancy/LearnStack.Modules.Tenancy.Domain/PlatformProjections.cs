@@ -244,14 +244,10 @@ public sealed class PlatformHostMapping : LearnStack.SharedKernel.Audit.IAuditPr
 /// § 5</see>).
 /// </para>
 /// <para>
-/// <b>No writer ships with it, and that is reachability rather than scheduling.</b> Every
-/// toggle runs inside <c>EnterPlatformAdminScope(reason)</c> whose registered gate is
-/// <c>DenyAllPlatformAdminGate</c>, so nothing can enter that scope until the
-/// Platform-scope permission arrives with the registry in
-/// <see href="../../../../../docs/roadmap/phase-03-identity-admin.md">Phase 03</see>,
-/// which owns the toggle command, its permission and its runbook. A command shipped now
-/// would be unreachable code keyed on a permission nothing registers. Every gated read
-/// honours a flipped switch the day one exists; what is absent is the flipping.
+/// <b>The writer is the killswitch toggle service</b>, which runs inside an admitted platform
+/// scope and records a MUST row on the same transaction
+/// (<see href="../../../../../docs/decisions/0101-platform-operator-authority.md">ADR-0101 § 13</see>).
+/// Every gated read honours a flipped switch.
 /// </para>
 /// </remarks>
 public sealed class PlatformKillswitch

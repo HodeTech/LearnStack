@@ -52,8 +52,11 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, owner, "RecordCommitFailure", "System.Void", MethodAttributes.Assembly, "System.Exception");
             RequireBoundaryMethod(offenders, owner, "ConfirmCommitOutcome", "System.Void", MethodAttributes.Assembly);
             var terminal = callers.Single(caller => caller.Contains("::TryTerminalizeAsync(", StringComparison.Ordinal));
+            // ADR-0103: the operator's reset or replay core records its own uncertain COMMIT once.
+            var recovery = callers.Single(caller => caller.Contains("::ReplayCoreAsync(", StringComparison.Ordinal)
+                || caller.Contains("::ResetCoreAsync(", StringComparison.Ordinal));
             CheckCallers(owner, "get_Slot", [release, release, retain]);
-            CheckCallers(owner, "RecordCommitFailure", [terminal, terminal]);
+            CheckCallers(owner, "RecordCommitFailure", [terminal, terminal, recovery]);
             CheckCallers(owner, "ConfirmCommitOutcome", [terminal]);
         }
 

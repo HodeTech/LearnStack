@@ -1,131 +1,112 @@
 using System.Data.Common;
 using System.Runtime.CompilerServices;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Platform;
 
 namespace LearnStack.SharedKernel.Tenancy;
 
 /// <summary>
-/// The one sanctioned path to a connection that bypasses Row Level Security.
+/// Opens an audited, bounded scope on the <c>learnstack_platform</c> role for one admitted
+/// operator act.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A second connection, never <c>SET ROLE</c>.</b>
-/// <see href="../../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md">ADR-0003</see>
-/// gives three reasons and each rules the alternative out on its own:
-/// <c>learnstack_app</c> is not a member of <c>learnstack_platform</c>, and a membership
-/// grant would make the bypass a standing capability of the application role reachable
-/// from any code path that emits raw SQL; a plain <c>SET ROLE</c> survives <c>COMMIT</c>
-/// and would persist on a PgBouncer transaction-pooled server connection into the next
-/// tenant's request; and per-role settings such as <c>statement_timeout</c> are applied
-/// at login and do not follow a role switch.
+/// <b>Admission first.</b> The caller holds a <see cref="PlatformAdmission"/> from
+/// <see cref="IPlatformOperatorGate"/>, so the permission was evaluated before this call
+/// and a refused operator never reaches a connection (ADR-0036, ADR-0101 § 7). The reason,
+/// the operator and the correlation id come from the admission, and the compiler-supplied
+/// caller attributes record where the scope was entered.
 /// </para>
 /// <para>
-/// <b>It is not one of the tenant-context writers, and not a setter of
-/// <c>app.tenant_id</c>.</b> It sets no tenant context at all — there is no policy to
-/// announce to, because the role bypasses them — so it is outside both closed sets:
-/// the four writers of <c>ITenantContextAccessor.Current</c>
-/// (<see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
-/// § Rules</see>, which names it as explicitly not one) and the eight out-of-band
-/// setters (<see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
-/// Amendments 3 and 7</see>, whose closing property is that every one of them connects
-/// as <c>learnstack_app</c>).
+/// <b>Entry is audited, and refusing to record it refuses the entry.</b> One
+/// <c>platform.admin_scope.enter</c> row is written on the scope's own connection in a
+/// transaction that commits before the caller's work begins (ADR-0044 § 10), so an act that
+/// later fails or is abandoned is still on the record. It carries the operator in
+/// <c>metadata.operator</c> and no actor user id, because an operator is not a user.
 /// </para>
 /// <para>
-/// <b>Entry is audited, and an entry that cannot be recorded does not happen.</b> Every
-/// permitted entry writes one <c>platform.admin_scope.enter</c> row — the slug the
-/// Tenancy catalogue source declares off-path at MUST / <c>SecurityEvent</c> — through
-/// <c>IAuditStore.WritePlatformScopeAsync</c>, as <c>learnstack_platform</c>, on the
-/// scope's own connection and in a transaction of its own that <b>commits before</b> the
-/// handle is returned, so an operation that later fails — or is abandoned, or reads across
-/// every tenant and then throws — is still on the record
-/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>).
-/// It is the one class of row carrying <c>TenantId.PlatformSentinel</c>. The row used to
-/// ride the handle's transaction, so rolling the work back erased the only record that
-/// privileged access had happened; the review of Packet 9 measured it, and an entry is now
-/// recorded whatever the work then does.
-/// The permission gate runs first; a refused attempt opens no privileged connection and
-/// writes no entry row.
-/// </para>
-/// <para>
-/// <b>The <c>Warning</c> log line stays, and it is not the record.</b> The row is what a
-/// compliance reviewer reads afterwards; the log line is what an operator alerting at
-/// <c>Warning</c> sees while it is happening, and it carries the row's id so the two are
-/// one another's index. Packet 7 shipped the line alone and said so; Packet 9 added the
-/// row it stood in for.
+/// <b>The handle exposes no connection.</b> A reference to a <c>BYPASSRLS</c> connection
+/// captured before the commit would run in autocommit afterwards, so the handle offers a
+/// bounded facade instead. Completion and abandonment close the connection (ADR-0101 § 8).
 /// </para>
 /// </remarks>
 public interface IPlatformAdminScope
 {
-    /// <summary>
-    /// Opens a platform-role connection and transaction, or refuses.
-    /// </summary>
-    /// <param name="reason">
-    /// Why this cross-tenant access is happening. Required, non-blank, and the value
-    /// the entry row writes durably — so it is a short operator-authored slug naming the
-    /// operation, never a caller-supplied string and never anything carrying personal
-    /// data beyond the identifier the operation is already about.
-    /// </param>
-    /// <param name="cancellationToken">Cancels the open, not an operation already inside.</param>
-    /// <param name="callerMember">Supplied by the compiler; do not pass.</param>
-    /// <param name="callerFile">Supplied by the compiler; do not pass.</param>
-    /// <param name="callerLine">Supplied by the compiler; do not pass.</param>
-    /// <remarks>
-    /// The three <c>Caller*</c> parameters record the calling code. Tenant principals
-    /// do not authorize this bypass: the shipped platform gate denies everyone, and
-    /// this scope accepts no operator identity. Phase 03 owns permission-aware entry
-    /// and actor attribution. Compiler provenance remains distinct from that identity.
-    /// </remarks>
+    /// <summary>Enters the scope for an admitted act.</summary>
+    /// <param name="admission">The gate's proof for one operation that needs the platform role.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <param name="callerMember">Compiler supplied.</param>
+    /// <param name="callerFile">Compiler supplied.</param>
+    /// <param name="callerLine">Compiler supplied.</param>
     Task<IPlatformAdminScopeHandle> EnterAsync(
-        string reason,
+        PlatformAdmission admission,
         CancellationToken cancellationToken = default,
         [CallerMemberName] string? callerMember = null,
         [CallerFilePath] string? callerFile = null,
         [CallerLineNumber] int callerLine = 0);
 }
 
+/// <summary>A positional SQL parameter for the scope's bounded facade.</summary>
+/// <param name="Name">The parameter name, without a prefix.</param>
+/// <param name="Value">The value; null binds SQL NULL.</param>
+public sealed record PlatformSqlParameter(string Name, object? Value);
+
+/// <summary>The state change one act records as its MUST result row.</summary>
+/// <param name="TenantId">
+/// The real target tenant, or <see cref="TenantId.PlatformSentinel"/> for a platform-wide act.
+/// </param>
+/// <param name="EntityType">The affected entity type, when there is one.</param>
+/// <param name="EntityId">The affected entity id, when there is one.</param>
+/// <param name="BeforeState">The before state as JSON, when there is one.</param>
+/// <param name="AfterState">The after state as JSON, when there is one.</param>
+public sealed record PlatformResult(
+    TenantId TenantId,
+    string? EntityType,
+    string? EntityId,
+    string? BeforeState,
+    string? AfterState);
+
 /// <summary>
-/// An open platform-role connection and its transaction, for as long as it is held.
+/// The work one scope entry allows: a transaction on the platform role, as a facade.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>A connection, not a <c>DbContext</c>.</b> ADR-0003 and
-/// <see href="../../../../docs/architecture/09-tenant-isolation.md">architecture/09</see>
-/// both say "a second connection"; two editable carriers said "a DI scope whose
-/// <c>DbContext</c> is built on that data source" and have been corrected to match,
-/// because only this shape compiles against what is already shipped — every module
-/// <c>DbContext</c> is bound to <c>IUnitOfWork.Connection</c>, which comes from the
-/// application data source that the composition root guards to be
-/// <c>learnstack_app</c> by name. Nothing is foreclosed: EF can be built on this
-/// connection by whoever needs it.
-/// </para>
-/// <para>
-/// <b>Disposing without committing rolls back, and the connection is returned whatever
-/// happens.</b> The same posture the ambient unit of work takes, and it matters more
-/// here: a leaked handle holds the one <c>BYPASSRLS</c> connection in the process, and
-/// stranding it outside the pool costs the process rather than the request.
-/// </para>
-/// <para>
-/// <c>System.Data.Common</c> types rather than Npgsql ones because this assembly
-/// references no database driver — the same reason <c>IUnitOfWork.Connection</c> is a
-/// <see cref="DbConnection"/>.
-/// </para>
+/// <b>One scope, one commit, and at most one checkpoint.</b> After <see cref="CommitAsync"/> or
+/// disposal the handle refuses every call and the underlying connection is closed, so nothing a
+/// caller captured can run an autocommit statement on a connection that sees every tenant.
+/// Disposing without committing rolls back. An act whose effect lies outside the database writes its
+/// intent row at <see cref="WriteIntentAsync"/>, which commits the work so far and continues in a fresh
+/// transaction on the same connection; the completion row and <see cref="CommitAsync"/> end the scope.
 /// </remarks>
 public interface IPlatformAdminScopeHandle : IAsyncDisposable
 {
-    /// <summary>The open connection, authenticated as the platform role.</summary>
-    DbConnection Connection { get; }
+    /// <summary>Executes one non-query statement on the work transaction.</summary>
+    Task<int> ExecuteAsync(
+        string sql, IReadOnlyList<PlatformSqlParameter>? parameters = null, CancellationToken cancellationToken = default);
 
-    /// <summary>The transaction every command in this scope runs on.</summary>
-    DbTransaction Transaction { get; }
+    /// <summary>Runs one query on the work transaction and maps each row before the reader closes.</summary>
+    Task<IReadOnlyList<T>> QueryAsync<T>(
+        string sql,
+        IReadOnlyList<PlatformSqlParameter>? parameters,
+        Func<DbDataReader, T> map,
+        CancellationToken cancellationToken = default);
 
-    /// <summary>Commits, and ends the handle's usefulness.</summary>
-    /// <remarks>
-    /// An <b>abandoned</b> frame — disposed without this — is rolled back. A
-    /// <b>faulted</b> commit is not: the server-side outcome is genuinely unknown, and
-    /// ADR-0033 calls that state Indeterminate rather than failed. Either way the handle
-    /// is finished: reading <see cref="Connection"/> or <see cref="Transaction"/>
-    /// afterwards throws, because the connection is still open and a statement issued on
-    /// it would run in autocommit, on a credential that sees every tenant, with nothing
-    /// left to undo it.
-    /// </remarks>
+    /// <summary>
+    /// Writes the act's MUST intent row, commits it, and continues the scope in a fresh work transaction
+    /// (ADR-0099 Amendment 11). Only an operation that declares an attempt slug has one, it is written once and
+    /// before the result row, and nothing after it is rolled back with the effect it announces: a failure here means
+    /// the effect must not start, and an effect that fails afterwards leaves this row standing.
+    /// </summary>
+    /// <exception cref="LearnStack.SharedKernel.Audit.AuditWriteFailedException">
+    /// The row could not be written or committed, so the effect must not start.
+    /// </exception>
+    Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes the act's MUST result row on the work transaction, so it commits with the
+    /// state change or not at all.
+    /// </summary>
+    Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default);
+
+    /// <summary>Commits the work transaction and closes the scope.</summary>
     Task CommitAsync(CancellationToken cancellationToken = default);
 }

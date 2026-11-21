@@ -93,6 +93,16 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             .MustAudit<CreateOrganizationCommand>(
                 "tenancy.organization.create", OperationType.Create, typeof(Organization))
 
+            // The operator's production provisioning writes the same two rows under the same two slugs
+            // (ADR-0102 § 9); the act differs in its source and in the operator it records, not in what
+            // happened, so the matrix keeps one row per operation.
+            .MustAudit<OperatorProvisionTenantCommand>(
+                "tenancy.tenant.create", OperationType.Create, typeof(Domain.Tenant))
+            .MustAudit<OperatorProvisionTenantCommand>(
+                "tenancy.organization.create", OperationType.Create, typeof(Organization))
+            .MustAudit<OperatorMapHostCommand>(
+                "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
+
             .MustAudit<MapHostToTenantCommand>(
                 "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
             .MustAudit<AdoptSeedAdministrationOriginCommand>(
@@ -110,12 +120,38 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             // to name the same one.
             .DeclareOffPath(
                 "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must)
+            // The killswitch flip is written inside an admitted platform scope on its work
+            // transaction (ADR-0101 § 13); the scope is a service, so there is no request type.
+            .DeclareOffPath(
+                "tenancy.killswitch.toggle", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.outbox.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.delivery.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "platform.job.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
+            // The three operator recovery operations of ADR-0103: an inspection is audited by the platform scope's
+            // entry row, whose reason is this slug's, and the two transitions write their own MUST row on the
+            // outbox-role transaction that makes the change.
+            .DeclareOffPath(
+                "platform.delivery.inspect", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.delivery.replay", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.delivery.reset", OperationType.SecurityEvent, OperationClass.Must)
+            // The three operator federation operations of ADR-0099 Amendment 10. A report is audited by the platform
+            // scope's entry row; a remove and a disable write an intent row on their attempt slug at the scope
+            // handle's checkpoint and a completion row on their own slug (Amendment 11), under the real tenant.
+            .DeclareOffPath(
+                "platform.federation.report", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.remove", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.remove_attempt", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.disable", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.federation.disable_attempt", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(

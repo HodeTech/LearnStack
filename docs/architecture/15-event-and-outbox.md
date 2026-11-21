@@ -691,7 +691,10 @@ Normal publication excludes that row permanently. The terminalizer writes
 on one fenced transaction, retaining the envelope for investigation. Audit failure
 retains terminal work for retry without publication; completed terminal rows leave
 pending gauges. A far-future availability time is never a terminal marker.
-Phase 03 must decide producer reset/fencing before any operator replay endpoint.
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) decides it: a
+narrow operator reset admits only a `retry_exhausted` row under the fence
+`(attempts, dead_lettered_at)`, renews its six-attempt budget and writes a MUST row on
+the same transaction. Every other reason is refused.
 
 ### Subscriber side — dispatch succeeded, handling did not
 
@@ -707,8 +710,12 @@ It refuses pending terminalization, completed business deliveries and Pending,
 privileged, unknown or retired subscriptions. The reset clears attempts, bounded
 error and terminal state, invalidates old ownership and makes that tuple due. The
 scheduler later invokes only its executor, never `PublishAsync`. Completed siblings
-remain inbox deduplicated; a completed inbox is never reset. Phase 03 owns operator
-permission, HTTP routes and the separately decided producer replay contract.
+remain inbox deduplicated; a completed inbox is never reset. Operator replay is
+[ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md)'s fenced
+transition: the request carries `(replay_count, dead_lettered_at, terminal_reason)`
+as the inspection showed it, `invalid_envelope` is always refused, the tenant must be
+serving, and the MUST row commits with the reset. The producer reset is a separate
+request with its own fence.
 P02b-8 owns erasure inventory, Phase 03 privileged redaction and Phase 11
 retention purge.
 

@@ -3,6 +3,7 @@ using LearnStack.Application.Audit;
 using LearnStack.Application.Authorization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.Application.Pipeline;
@@ -43,6 +44,34 @@ public sealed class SeedOperationSourceTests
         }, CancellationToken.None);
         result.Error!.Code.Should().Be("forbidden");
         entered.Should().BeFalse();
+        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().HasActiveTransaction.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task The_seed_source_does_not_admit_an_operator_act_before_its_handler()
+    {
+        // ADR-0102 § 1: neither source is sufficient for the other's request. The seed composition mints no
+        // operator descriptor, so an operator command sent through it is refused by the policy it names
+        // before any handler, transaction or database connection.
+        await using var data = Source();
+        await using var provider = SeedComposition.Build(data,
+            new SeedTenantContext(TenantId.From(Guid.CreateVersion7()), null), NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var behavior = scope.ServiceProvider
+            .GetServices<IPipelineBehavior<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>>()
+            .OfType<AuthorizationBehavior<OperatorProvisionTenantCommand, Result<ProvisionedTenantDto>>>().Single();
+        var entered = false;
+        var command = new OperatorProvisionTenantCommand(
+            TenantId.From(Guid.CreateVersion7()), "acme", "Acme", OrganizationId.From(Guid.CreateVersion7()), "main", "Main");
+
+        var result = await behavior.Handle(command, () =>
+        {
+            entered = true;
+            return Task.FromResult(Result.Fail<ProvisionedTenantDto>(new Error(new LocalizedMessage("lockey_forbidden"))));
+        }, CancellationToken.None);
+
+        result.Error!.Code.Should().Be("forbidden");
+        entered.Should().BeFalse("a seed descriptor, or none, is not an operator act");
         scope.ServiceProvider.GetRequiredService<IUnitOfWork>().HasActiveTransaction.Should().BeFalse();
     }
 

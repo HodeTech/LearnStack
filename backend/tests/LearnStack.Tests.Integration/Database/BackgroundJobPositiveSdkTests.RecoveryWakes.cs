@@ -165,14 +165,14 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }, applicationPoolSize: 32);
         var bounds = host.Services.GetRequiredService<BackgroundJobRuntimeOptions>();
         var dispatcherConnection = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
-        { Pooling = true, MaxPoolSize = 52 }.ConnectionString;
+        { Pooling = true, MaxPoolSize = BackgroundJobCapacity.Floor }.ConnectionString;
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(dispatcherConnection));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var gate = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
         var ids = new SystemGuidFactory();
         var runtime = new BackgroundJobRuntime(source, Fixture.Registry, BackgroundJobRecurrenceRegistry.CreateEmpty(),
             host.Services.GetRequiredService<JobExecutor>(), new(source, Fixture.Registry, bounds, ids, gate),
-            gate, bounds, ids, TimeProvider.System, new(true, 52), new HangfireBoundedLogProvider(),
+            gate, bounds, ids, TimeProvider.System, new(true, BackgroundJobCapacity.Floor), new HangfireBoundedLogProvider(),
             host.Services.GetRequiredService<ApplicationDataSourceLifetime>());
         runtime.BindMessagingLifetime(Task.CompletedTask, Task.CompletedTask);
         try
@@ -186,7 +186,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             {
                 var settings = new NpgsqlConnectionStringBuilder(physical.ConnectionString);
                 settings.Pooling.Should().BeTrue();
-                settings.MaxPoolSize.Should().Be(52);
+                settings.MaxPoolSize.Should().Be(BackgroundJobCapacity.Floor);
             }
             var waiting = Stopwatch.StartNew();
             var completionBudget = bounds.HandoffRepairGrace + bounds.TransactionTimeout + bounds.SqlTimeout * 2 + bounds.ControlPoll * 2;

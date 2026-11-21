@@ -57,12 +57,12 @@ specification.
 
 | Boundary | Contract |
 |---|---|
-| Ports | SharedKernel `IFederationProvider` and `IFederationEgressFetcher`; held only by `FederationOperationRunner` |
+| Ports | SharedKernel `IFederationProvider` and `IFederationEgressFetcher`, held only by `FederationOperationRunner`; and `IFederationOperator`, the platform operator's port ([Operator access](#operator-access)), held only by its owner and the adapter |
 | Adapter | Internal sealed `KeycloakFederationProvider` in `LearnStack.Infrastructure.Identity.Federation`; direct HTTP, no SDK |
 | Fetcher | Internal sealed `FederationEgressFetcher` in the same namespace; the only fetcher of a tenant-supplied URL |
 | Selection | API `FederationComposition` replaces the fail-closed defaults only when `Federation:ClientSecret` is configured; `FederationAdapterFactory` is the only entry. The choice is made when the port is first resolved (it follows `ISecretProvider`), so an empty or invalid `Authentication:Tenant:Issuer` with the secret present refuses at that first resolution, not at host startup |
 | Credentials | Client `learnstack-federation-admin`; secret through `ISecretProvider` key `Federation:ClientSecret`; a fresh client-credentials token per port call |
-| Resilience | `IProviderResilience<IFederationProvider>`, configuration `Resilience:federation`: retry disabled, a 2.5 s timeout, circuit breaker on, a bulkhead of exactly 4 with no queue; these are fixed values, and composition refuses any other value at startup. The enabled breaker's parameters are bounded: failure ratio in (0, 1], minimum throughput 2 to 100, sampling duration 1 to 60 s, break duration 1 to 300 s (defaults 0.5, 10, 30 s, 30 s); a value outside a range refuses at startup |
+| Resilience | `IProviderResilience<IFederationProvider>` for the tenant calls and a second instance of the fixed shape, `IProviderResilience<IFederationOperator>`, for the operator's, so a sweep cannot starve a tenant; configuration `Resilience:federation`: retry disabled, a 2.5 s timeout, circuit breaker on, a bulkhead of exactly 4 with no queue; these are fixed values, and composition refuses any other value at startup. The enabled breaker's parameters are bounded: failure ratio in (0, 1], minimum throughput 2 to 100, sampling duration 1 to 60 s, break duration 1 to 300 s (defaults 0.5, 10, 30 s, 30 s); a value outside a range refuses at startup |
 | Failures | Transport faults, 5xx and 429 are `FederationProviderException` (a `ProviderException`) inside the pipeline and leave as `Unavailable`; no provider text crosses the port |
 
 ### Admitted calls
@@ -77,6 +77,8 @@ The adapter builds every route in `KeycloakFederationRoutes`, and only these:
 | `PUT admin/realms/learnstack/identity-provider/instances/{alias}` | Full-state replace of an owned broker. Refused without a call when it would change the stored issuer or SAML entity identifier, or, without a fresh secret, the token endpoint, client identifier or client authentication ([ADR-0099 Amendment 5](../../decisions/0099-confined-tenant-federation.md#amendment-5--step-3-review-egress-adapter-and-linking-decisions-2026-11-14)) |
 | `DELETE admin/realms/learnstack/identity-provider/instances/{alias}` | Delete of an owned broker; an absent alias is already deleted |
 | `GET admin/realms/learnstack/identity-provider/instances/{alias}/mappers` | Mapper count for the readback; any mapper is drift |
+| `GET admin/realms/learnstack/identity-provider/instances?first={n}&max={m}&briefRepresentation=false` | The operator's bounded page of the realm's listing ([Operator access](#operator-access)); no other query member |
+| `GET admin/realms/learnstack/identity-provider/instances/{alias}` (operator) | The operator's read of one derived alias before it knows whose it is; the tenant adapter reads only its own owner's alias |
 
 The `{alias}` is only `lsf-` and the connection identifier's 32 lowercase hexadecimal
 characters, from `FederationBrokerOwner`. No other alias, user, flow, realm, client or
@@ -87,6 +89,40 @@ values the profile consumes and the port carries no metadata document (the deliv
 records the decision). The pinned 26.7.5 parser was observed to return
 `validateSignature=true` for metadata whose `WantAuthnRequestsSigned` is false; the
 adapter never forwards its output either way.
+
+### Operator access
+
+[ADR-0099 Amendment 10](../../decisions/0099-confined-tenant-federation.md) and
+Amendment 11 and 12 give the platform operator four calls on this realm through the
+same confined client, `manage-identity-providers`, and no wider role: a **report** (the
+listing joined to the registry), an **inspection** of one alias, a **remove** of an
+owner-marked broker that the registry no longer holds live or that does not read
+(Amendment 12 item 1), and a **disable** of an owner-marked broker at the provider
+only.
+
+- The operator holds `IFederationOperator`, a port beside `IFederationProvider` that
+  the tenant runner never holds; its adapter is the same internal sealed class with its
+  own resilience pipeline.
+- A broker is the platform's to touch only when its marker parses strictly
+  (`lsf-` alias, `{tenant:D}:{connection:D}`) **and** the alias is the connection's
+  derived one. An unmarked instance, a foreign marker and an alias that is not
+  LearnStack's are counted and never named.
+- A remove deletes by alias and confirms the alias is gone. The provider deletes the
+  federated links of that broker with it and keeps the accounts; the runbook owes an
+  account review. A live row refuses it for a broker that reads and not for one that
+  does not, because the tenant's own Delete cannot reach an unreadable broker.
+- A disable is the one provider write that is not the fixed profile: the broker can be
+  unreadable (that is why it is disabled rather than rewritten), so the adapter reads
+  the raw representation, sets `enabled=false` and puts it back with the secret mask
+  the provider returned. Nothing else in the representation changes, and the pinned
+  provider keeps the stored secret when it reads its own mask back.
+- A report is one page, no larger than the API's cursor limit, and its cursor is the
+  provider offset the next page starts at. A listing the provider cannot answer reports
+  `unavailable`, never an empty realm, and a mapper count that could not be read is
+  counted as unread, never as zero.
+- Federation destinations, secrets, display names, issuers and configuration values
+  never cross the operator port: facts are an alias, an owner, readable, conforming,
+  enabled, protocol and a mapper count.
 
 ### Ownership and readback
 

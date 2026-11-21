@@ -3,7 +3,10 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Application.Seeding;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Errors;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -34,8 +37,10 @@ internal sealed class MapHostToTenantCommandHandler(
     IOrganizationScopeValidator organizations,
     IReservedHostRegistry reservedHosts,
     IHostResolutionInvalidator resolutionCache,
-    ITenantContext tenantContext, SeedTenantWriteGuard seedGuard)
-    : IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>
+    ITenantContext tenantContext, SeedTenantWriteGuard seedGuard, OperatorActGuard operatorGuard,
+    ITenantExistenceReader tenantExistence)
+    : IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>,
+      IRequestHandler<OperatorMapHostCommand, Result<HostMappingDto>>
 {
     public async Task<Result<HostMappingDto>> Handle(
         MapHostToTenantCommand request, CancellationToken cancellationToken)
@@ -56,13 +61,52 @@ internal sealed class MapHostToTenantCommandHandler(
         var admission = await seedGuard.AdmitAsync(request, cancellationToken);
         if (admission.IsFailure) return Result<HostMappingDto>.Fail(admission.Error);
 
+        return await MapAsync(
+            request.Host, request.OrganizationId, request.IsActive, request.IsPubliclyLive,
+            () => seedGuard.VerifyAsync(admission.Value, request, cancellationToken), idempotent: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// The operator's act: the same mapping through the same store and rules, for the tenant the executor
+    /// resolved. The operator asserts ownership of the host; the act is idempotent, so a mapping this
+    /// tenant already holds, identical to the request, is the answer rather than a collision.
+    /// </summary>
+    public async Task<Result<HostMappingDto>> Handle(
+        OperatorMapHostCommand request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!tenantContext.IsResolved)
+        {
+            return Result.FailFor<Result<HostMappingDto>>(TenantContextMissing);
+        }
+
+        var admission = await operatorGuard.AdmitAsync(
+            request, new IdentityMutationLockPlan([], tenantContext.TenantId, IdentityTenantLockMode.Exclusive), cancellationToken);
+        if (admission.IsFailure) return Result<HostMappingDto>.Fail(admission.Error);
+
+        // The tenant must be there: the foreign key would answer 23503, which has no arm in the status
+        // map and would be a 500 after the transaction opened. Read under the tenant's own lock.
+        if (!await tenantExistence.ExistsAsync(cancellationToken))
+        {
+            return Result.FailFor<Result<HostMappingDto>>(new Error(new LocalizedMessage("lockey_not_found")));
+        }
+
+        return await MapAsync(
+            request.Host, request.OrganizationId, request.IsActive, request.IsPubliclyLive,
+            () => Task.FromResult(operatorGuard.RequireCurrent(admission.Value)), idempotent: true, cancellationToken);
+    }
+
+    private async Task<Result<HostMappingDto>> MapAsync(
+        string host, OrganizationId? requestedOrganization, bool isActive, bool isPubliclyLive,
+        Func<Task<Result<None>>> verify, bool idempotent, CancellationToken cancellationToken)
+    {
         // The organization must be one of this tenant's. Nothing else checks it before
         // the insert: the composite foreign key does, but it raises 23503, which has no
         // arm in HttpStatusMap and therefore answers 500 — after the transaction opened
         // and the tenant was announced. Reading it here turns a caller's mistake into a
         // refusal they can act on, and the foreign key stays as the layer that makes the
         // race impossible rather than merely unlikely.
-        if (request.OrganizationId is { } organizationId
+        if (requestedOrganization is { } organizationId
             && !await organizations.BelongsToTenantAsync(
                 tenantContext.TenantId, organizationId, cancellationToken))
         {
@@ -77,11 +121,11 @@ internal sealed class MapHostToTenantCommandHandler(
         }
 
         var mapping = PlatformHostMapping.Create(
-            request.Host,
+            host,
             tenantContext.TenantId,
-            request.OrganizationId,
-            request.IsActive,
-            request.IsPubliclyLive);
+            requestedOrganization,
+            isActive,
+            isPubliclyLive);
 
         // A host on Tenancy:PlatformHosts is classified before the resolver is called at
         // all, so a row naming it would be inert — never read, never logged, never
@@ -101,8 +145,25 @@ internal sealed class MapHostToTenantCommandHandler(
                     }));
         }
 
-        if (await seedGuard.VerifyAsync(admission.Value, request, cancellationToken) is { IsFailure: true } changed)
+        if (await verify() is { IsFailure: true } changed)
             return Result<HostMappingDto>.Fail(changed.Error);
+
+        if (idempotent && await hosts.FindForUpdateAsync(mapping.Host, cancellationToken) is { } existing)
+        {
+            if (existing.OrganizationId != mapping.OrganizationId || existing.IsActive != mapping.IsActive
+                || existing.IsPubliclyLive != mapping.IsPubliclyLive)
+            {
+                return Result.FailFor<Result<HostMappingDto>>(HostTaken());
+            }
+
+            // The retry is also the repair for the one thing the first run could not guarantee: a miss
+            // cached between its invalidation and its commit. Dropping the entry again is idempotent.
+            await resolutionCache.InvalidateAsync(mapping.Host, cancellationToken);
+            operatorGuard.MarkReplayed();
+            return Result.Ok(new HostMappingDto(
+                existing.Host, existing.TenantId, existing.OrganizationId, existing.IsActive, existing.IsPubliclyLive));
+        }
+
         try
         {
             await hosts.AddAsync(mapping, cancellationToken);
@@ -114,14 +175,7 @@ internal sealed class MapHostToTenantCommandHandler(
             // another tenant, which is why the answer says only that it is taken. Naming
             // the holder would turn this endpoint into an oracle for which hostnames
             // belong to which customers.
-            return Result.FailFor<Result<HostMappingDto>>(
-                new Error(
-                    new LocalizedMessage("lockey_business_rule_violation"),
-                    new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
-                    {
-                        [nameof(MapHostToTenantCommand.Host)] =
-                            [new LocalizedMessage("lockey_host_taken")],
-                    }));
+            return Result.FailFor<Result<HostMappingDto>>(HostTaken());
         }
 
         // The negative cache remembers hosts that resolved to nothing, and this host just
@@ -149,6 +203,13 @@ internal sealed class MapHostToTenantCommandHandler(
             mapping.IsActive,
             mapping.IsPubliclyLive));
     }
+
+    private static Error HostTaken() => new(
+        new LocalizedMessage("lockey_business_rule_violation"),
+        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+        {
+            [nameof(MapHostToTenantCommand.Host)] = [new LocalizedMessage("lockey_host_taken")],
+        });
 
     /// <summary>
     /// The pipeline's own answer for an unresolved context, reused rather than restated.

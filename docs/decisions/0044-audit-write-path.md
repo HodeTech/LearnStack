@@ -1309,3 +1309,57 @@ with SystemActor distinct from the affected subject and provider outcome.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+## Amendment 17 — Platform operator rows and witness-bound result writes (2026-11-19)
+
+Accepted [ADR-0101](0101-platform-operator-authority.md),
+[ADR-0103](0103-operator-recovery-of-asynchronous-work.md) and
+[ADR-0104](0104-controlled-issuer-rebind.md) extend the seams of Amendment 14 by name:
+
+- The platform-scope class of § 1 includes a platform-wide MUST result row written on
+  the scope's work transaction through a new witness-bound method.
+  `WritePlatformScopeAsync` keeps its single entry-row caller and the § 10 entry-row
+  rule.
+- Operator audit rows carry `actor_user_id` NULL, a closed reason slug, the correlation
+  id and `metadata.operator` with `issuer`, `subjectDigest`, `kind`, `acr` and
+  `executor`. The ticket appears only in sentinel-tenant rows. `AuditEntryDraft.Reason`
+  stays a closed slug.
+- Two outbox-role witness kinds for targeted replay and producer reset, distinct from
+  the terminal witness, and two rebind methods for `learnstack_identity_rebind`.
+
+The Decision, Status, Date and prior amendments of this record are unchanged. Acceptance
+of the linked records is not proof that anything they decide is implemented.
+
+## Amendment 18 — Platform scope intent checkpoint (2026-11-20)
+
+Accepted [ADR-0099](0099-confined-tenant-federation.md) Amendment 10 gives two operator
+acts an effect outside the database, in the identity provider: a removal and a disable
+of a broker. The maintainer approved this seam before it was written, because the
+platform scope of Amendment 17 writes one result row and closes at commit, which leaves
+nothing durable before such an effect. [ADR-0099](0099-confined-tenant-federation.md)
+Amendment 11 records the implementation.
+
+- **One new witness-bound write, the fifteenth.**
+  `IAuditStore.WritePlatformOperatorIntentAsync` writes the intent row of a
+  platform-scope act on its `PlatformOperation.AttemptAuditSlug`, with the outcome
+  `indeterminate`, the same closed reason, correlation id and `metadata.operator` as
+  the result row, the actor NULL and the class MUST. Like the result method it is bound
+  to the admission, takes the real target tenant, refuses a ticket on a tenant-readable
+  row and refuses the identity module's own rows. An operation with no attempt slug, or
+  one that does not enter the platform scope (the offline rebind, whose intent has its
+  own method), presents none.
+- **A checkpoint on the scope handle.** `IPlatformAdminScopeHandle.WriteIntentAsync`
+  writes that row on the work transaction, commits it, and continues the scope in a
+  fresh transaction on the same connection. It is allowed once, only for an operation
+  that declares an attempt slug, and the result row of such an operation is refused
+  before it. A failure to write or to commit the intent row throws
+  `AuditWriteFailedException` and the effect must not start; an effect that fails
+  afterwards leaves the intent row standing, as § 10 requires of the entry row. The
+  scope still ends at the result row and the commit, or by disposal, which rolls back
+  whatever followed the checkpoint.
+- **Declared like every off-path slug.** The attempt slugs are declared off-path
+  MUST/SecurityEvent in the Tenancy catalogue source beside the entry and result slugs,
+  and the scope refuses entry when any of them is undeclared.
+
+The Decision, Status, Date and prior amendments of this record are unchanged.
+Acceptance of the linked records is not proof that anything they decide is implemented.
