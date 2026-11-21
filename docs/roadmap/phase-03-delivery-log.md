@@ -509,7 +509,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-8 OpenAPI transition implementation and reviews (2026-11-18)](#p03-8-openapi-transition-implementation-and-reviews-2026-11-18) — 54 lines
   - [P03-8 PR review disposition (2026-11-18)](#p03-8-pr-review-disposition-2026-11-18) — 101 lines
   - [P03-8 merge and delivery closeout (2026-11-19)](#p03-8-merge-and-delivery-closeout-2026-11-19) — 73 lines
-- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,375 lines
+- [P03-9 — Platform authority and operational recovery](#p03-9--platform-authority-and-operational-recovery) — 1,432 lines
   - [P03-9 proposed platform authority and recovery package (2026-11-19)](#p03-9-proposed-platform-authority-and-recovery-package-2026-11-19) — 136 lines
   - [P03-9 package review dispositions and acceptance (2026-11-19)](#p03-9-package-review-dispositions-and-acceptance-2026-11-19) — 126 lines
   - [P03-9 Step 1 — operator authority and killswitch (2026-11-19)](#p03-9-step-1--operator-authority-and-killswitch-2026-11-19) — 108 lines
@@ -533,6 +533,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-9 Step 5 — a local guard for unserializable theory data (2026-11-21)](#p03-9-step-5--a-local-guard-for-unserializable-theory-data-2026-11-21) — 16 lines
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
+  - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25565,3 +25566,60 @@ qualification, which stays open before P03-11 exit.
 P03-10 (subject-scoped DSAR, export, erasure and closure, with G15 and G16 Open) and P03-11
 (complete evidence, gateway scaffold correction, analyzer escalation, with G17 and G18
 Open) remain unstarted.
+
+### ADR-0105 merge and hosted qualification (2026-11-22)
+
+[PR #47](https://github.com/HodeTech/LearnStack/pull/47) merged into `main` at
+`2026-11-21T21:31:48Z` as the squash commit `8ac14286`. The reviewed change is the single
+commit `76501822`, which differs from the P03-9 final head `db7776b9` only in the two
+bounds, the shard-test controls, ADR-0105, ADR-0063 Amendment 4 and the acceptance record;
+no backend, frontend or schema file changed. GitHub later added the merge commit `86030d22`
+(`main` into the branch) with a tree identical to `76501822`.
+
+**Hosted qualification of the larger filter.** Run `44909390165` on `76501822`, one source
+in every attempt: layout B (attempt 2) 27/27, including `backend-ordinary-11`, which layout B
+refused at 33,367 bytes before this change; layout A (attempt 3) 27/27. Layout A's first
+attempt failed on two hosted flakes with no file of the change involved: the Keycloak
+readiness timeout in `ordinary-1` and a frontend development-server test. A filter above
+32 KiB therefore passes discovery, independent rediscovery and execution on the hosted
+chain. The largest real filter in those runs is 33,367 bytes, 51 % of the new bound, so the
+hosted evidence does not itself reach the ceiling.
+
+**The ceiling itself.** On the runner's image (`dotnet/sdk:10.0.402-noble`, Ubuntu 24.04),
+`dotnet test --list-tests` and a real run of the unit assembly accepted a shard-shaped
+filter of exactly 65,536 bytes (two real tests plus padding selectors) and one of 131,000
+bytes, and listed and ran exactly the two real tests: nothing was refused, truncated or
+altered. This is a direct check of the claim ADR-0105 leaves to qualification; it is a
+synthetic filter, not a hosted shard.
+
+**Review.** Sourcery raised two findings on the head and no other reviewer posted one. The
+first, that the 64 KiB boundary test fails as `selector_unsupported`, does not reproduce: the
+control builds 33 selectors of about 1,900 characters and pads only the last to 1,860
+characters, under the 2,048-character method grammar, and 88 shard tests pass. (The
+single-padded-method shape it describes does fail that way, which is why the test uses many
+methods.) The second, that a filter above 32 KiB may not survive the hosted chain, is answered
+by the two checks above, and a filter the chain altered would still be refused by the
+population comparison (`selected_population_mismatch`) or by `filter_bound` before spawn.
+Both threads carry these replies; no code changed.
+
+**What the pull request's last runs showed.** The pull-request run on the merge commit
+(`44938380249`) never produced a complete result, and the qualification rests on the
+identical-tree run above. Attempt 1 (layout A) failed `ordinary-9` on a 30-second poll in
+`BackgroundJobRecurrenceStoreTests.Four_actual_recipient_owners_remain_bounded_and_excluded_after_expiry_while_other_recipients_progress`
+(`recurrence_runtime`, a `timeout`); six runs of it under load in the Linux image passed, so
+the cause is unproven and no code is implicated. Attempt 2 (layout B) failed `ordinary-1` on the
+Keycloak readiness timeout (TLS, 120 seconds, fixture ordinal 3). Attempt 3 did not complete:
+its jobs were cancelled around the merge.
+
+**`main` after #46.** The push run for the #46 merge commit `0a2de9bc` (`44916448250`,
+layout A) failed `ordinary-4` and `ordinary-11` on the same Keycloak timeout, once reported
+as `completed_case_unexpected` instead of `tests_failed`. Rerunning it would run layout B
+against the old 32 KiB ceiling and be refused, so it is superseded by the push run for
+`8ac14286` (`44952008120`), whose result this record does not carry.
+
+**Consequence for the open qualification.** The P03-9 code now has a complete layout A and a
+complete layout B on one source, `76501822`, but that source is not the merged P03-9 final
+head `db7776b9`, and the earlier packets' rule keys qualification to the final head. The
+Status block therefore keeps the P03-9 pair gap open and names this run; whether it closes
+the gap is the maintainer's decision. The Keycloak readiness timeout has now recurred in
+both layouts on #46, on #47 and on `main`, with its cause still unproven.

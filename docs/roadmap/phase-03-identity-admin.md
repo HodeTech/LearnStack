@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-21).** P03-0 through P03-9 implementation delivery is complete;
+> **Status (2026-11-22).** P03-0 through P03-9 implementation delivery is complete;
 > Phase 03 remains in progress. Packet closeouts below own the delivered scope.
 > P03-3/P03-4 final-head B/original-archive follow-ups and P03-6/P03-7 opposite-layout
 > A/pair qualification remain open before phase exit; merge waives none (P03-7 merged in
@@ -21,9 +21,9 @@
 > [ADR-0101](../decisions/0101-platform-operator-authority.md) to
 > [ADR-0104](../decisions/0104-controlled-issuer-rebind.md), ADR-0099 Amendments 10–13 and
 > ADR-0044 Amendment 18, with final-head layout A only. The layout-B filter ceiling it met is
-> [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md), carried by
-> [PR #47](https://github.com/HodeTech/LearnStack/pull/47); B/pair qualification stays open
-> before P03-11 exit. No manual UI evidence is owed. G13 and G14 are closed as Accepted; G20
+> [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md), merged in
+> [PR #47](https://github.com/HodeTech/LearnStack/pull/47) and [qualified in both layouts](phase-03-delivery-log.md#adr-0105-merge-and-hosted-qualification-2026-11-22)
+> on its own source; the P03-9 B/pair gap stays open before P03-11 exit. No manual UI evidence is owed. G13 and G14 are closed as Accepted; G20
 > stays Open. P03-10 and P03-11 remain unstarted.
 >
 > | Packet | Title | State |
@@ -37,7 +37,7 @@
 > | P03-6 | Provider event ingress and audit mirror | Complete and merged — [closeout](phase-03-delivery-log.md#p03-6-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-8 | Tenant federation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19); final-head opposite-layout/pair qualification and manual accessibility evidence remain open; the contract-transition items, G20 and the Phase 11 realm items are owned in the closeout |
-> | P03-9 | Platform authority and operational recovery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21); final-head opposite-layout/pair qualification remains open (the layout-B filter ceiling is [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md)); the maintainer items, the P03-10 and Phase 11 constraint and the tooling note are owned in the closeout |
+> | P03-9 | Platform authority and operational recovery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21); final-head opposite-layout/pair qualification remains open (the layout-B filter ceiling was raised by [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md), [qualified](phase-03-delivery-log.md#adr-0105-merge-and-hosted-qualification-2026-11-22)); the maintainer items, the P03-10 and Phase 11 constraint and the tooling note are owned in the closeout |
 > | P03-10 | DSAR and global account closure | Not started |
 > | P03-11 | Exit enforcement | Not started |
 
