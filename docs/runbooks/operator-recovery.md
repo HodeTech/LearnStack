@@ -230,8 +230,8 @@ access](operator-access.md#signals). Each inspection page also logs the scope-en
   delivery, inbox or job row, and a replayed or reset delivery re-runs its handler under
   that handler's own subject rules, which refuse a Closing or Closed User but not a
   tenant-erased person, whose User stays Active. So a replayed delivery about an erased
-  person may write rows for them again, and that is reported as retained transport
-  evidence
+  person may write rows for them again; those rows are retained transport evidence that
+  no report counts
   ([ADR-0107 § 9](../decisions/0107-data-request-fulfillment-and-account-closure.md),
   [Data erasure](data-erasure.md#erasure-never-resets-replay)). Before you replay or
   reset in a tenant where an erasure completed, ask whether the event concerns the

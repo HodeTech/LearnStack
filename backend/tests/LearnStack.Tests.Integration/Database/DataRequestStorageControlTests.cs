@@ -256,20 +256,46 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
         await using var database = await SeededAsync();
         var awaiting = Guid.CreateVersion7();
         var scheduled = Guid.CreateVersion7();
+        const string FanOutInsert = """
+            INSERT INTO public.data_subject_requests(id,tenant_id,organization_id,kind,origin,subject_user_id,requester_user_id,
+                status,membership_snapshot,execute_at,created_at,created_by)
+            VALUES(@id,@tenant,@organization,'erasure','closure_fanout',@subject,NULL,'fulfilling',@snapshot::jsonb,NULL,now(),@system)
+            """;
         await using (var app = await OpenAppAsync(database))
         await using (var transaction = await app.BeginTransactionAsync())
         {
             await FenceAsync(app, transaction, SchemaFixture.TenantB, null, AdminB);
             await InsertRequestAsync(app, transaction, scheduled, SchemaFixture.TenantB, null, AdminB, [AdminMembershipB], "erasure");
-            // A closure's fan-out erasure starts fulfilling, so the job's arrows reach the privileged step without a window.
-            await LockAsync(app, transaction, SchemaFixture.TenantB, PersonB, false);
-            await ScopeAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1);
-            await ExecuteAsync(app, transaction, """
-                INSERT INTO public.data_subject_requests(id,tenant_id,organization_id,kind,origin,subject_user_id,requester_user_id,
-                    status,membership_snapshot,execute_at,created_at,created_by)
-                VALUES(@id,@tenant,@organization,'erasure','closure_fanout',@subject,NULL,'fulfilling',@snapshot::jsonb,NULL,now(),@system)
-                """, ("id", awaiting), ("tenant", SchemaFixture.TenantB), ("organization", SchemaFixture.OrgB1), ("subject", PersonB),
-                ("snapshot", Snapshot(BranchMembershipB)), ("system", SystemActor));
+            await transaction.CommitAsync();
+        }
+
+        // A request is never born fulfilling by the application role: a closure's fan-out has no witness of its own yet, and
+        // such a row would stand in for the erasure the profile clearing of a Revoked Membership requires.
+        await using (var app = await OpenAppAsync(database))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FenceAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1, PersonB);
+            var born = () => ExecuteAsync(app, transaction, FanOutInsert, ("id", awaiting), ("tenant", SchemaFixture.TenantB),
+                ("organization", SchemaFixture.OrgB1), ("subject", PersonB), ("snapshot", Snapshot(BranchMembershipB)), ("system", SystemActor));
+            (await born.Should().ThrowAsync<PostgresException>()).Which.MessageText.Should().Be("Data request initial state refused.");
+        }
+
+        // The fixture row is written by the owner with the guard paused, as a closure's fan-out will arrive in a later step.
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            await using var transaction = await owner.BeginTransactionAsync();
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests DISABLE TRIGGER tg_data_subject_requests_mutation_guard");
+            await ScopeAsync(owner, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1);
+            await ExecuteAsync(owner, transaction, FanOutInsert, ("id", awaiting), ("tenant", SchemaFixture.TenantB),
+                ("organization", SchemaFixture.OrgB1), ("subject", PersonB), ("snapshot", Snapshot(BranchMembershipB)), ("system", SystemActor));
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests ENABLE TRIGGER tg_data_subject_requests_mutation_guard");
+            await transaction.CommitAsync();
+        }
+
+        await using (var app = await OpenAppAsync(database))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FenceAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1, null);
             await StepAsync(app, transaction, awaiting, "result='{\"consent_evidence\":2,\"audit_actor_reference\":9}'");
             await StepAsync(app, transaction, awaiting, "status='awaiting_privileged_step'");
             await transaction.CommitAsync();

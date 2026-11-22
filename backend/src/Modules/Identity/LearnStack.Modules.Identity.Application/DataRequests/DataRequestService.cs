@@ -111,7 +111,10 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             || (caller.Role == DataRequestRole.Subject) != (subject == caller.Actor))
         {
             // The subject files only for themselves; an administrator never for themselves (ADR-0106 § 3).
-            return DataRequestRules.Rule<DataRequestMutationResult>("$", "lockey_business_rule_violation");
+            return DataRequestRules.Rule<DataRequestMutationResult>("$",
+                caller.Role == DataRequestRole.Administrator && subject == caller.Actor
+                    ? "lockey_subject_is_requester"
+                    : "lockey_business_rule_violation");
         }
 
         try
@@ -209,7 +212,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         }
 
         return memberships.Count > DataRequestLimits.MaximumSnapshotMemberships
-            ? DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_business_rule_violation")
+            ? DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_snapshot_too_large")
             : Result.Ok(memberships);
     }
 
@@ -373,7 +376,12 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             var cancelled = request.Cancel(clock.UtcNow, caller.Actor);
             if (cancelled.IsFailure)
             {
-                return Result<DataRequestMutationResult>.Fail(cancelled.Error);
+                // Two closed reasons a person can act on: the window ended (the erasure runs now), or the request is no
+                // longer one a cancellation admits (it already ended, or an export already started).
+                return DataRequestRules.Rule<DataRequestMutationResult>("$",
+                    request.Status == DataRequestStatus.Scheduled && request.ExecuteAt is { } due && clock.UtcNow >= due
+                        ? "lockey_data_request_window_ended"
+                        : "lockey_data_request_not_cancellable");
             }
 
             locks.RequireCurrent(plan);

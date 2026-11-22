@@ -68,9 +68,13 @@ That is the step left to you.
   ([ADR-0106 § 12](../decisions/0106-subject-data-requests-authority-and-status.md)),
   and the window and the job take the first day.
 - A person or a tenant asks why an erasure is not complete.
-- `learnstack_job_failed_total` rises with a `job_name` of an `identity.data_erasure_*`
-  definition, or a quarantined erasure job appears in the
-  [operator recovery](operator-recovery.md) inspection.
+- `learnstack_job_failed_total` rises with a `job_name` of an
+  `identity.data_erasure_*` definition, `learnstack_job_oldest_eligible_age_seconds` or
+  `learnstack_job_state_count` shows an erasure job late or dead, or a quarantined
+  erasure job appears in the [operator recovery](operator-recovery.md) inspection.
+  Nothing alerts on the `awaiting_privileged_step` list itself: a person polls it, and
+  [Phase 11](../roadmap/phase-11-production-hardening.md) owns an automated gauge and
+  its alert rules.
 
 ## Before you complete
 
@@ -101,9 +105,9 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 | `state` | Lists | What to do |
 |---|---|---|
-| `awaiting_privileged_step` (default) | Erasures whose tenant side finished | [Complete](#complete-an-erasure) each |
-| `overdue_scheduled` | Requests still `scheduled` once their window ended (`executeAt`), with no grace | Every erasure is listed here for the moments between the end of its window and its job's pickup. One still listed after a few minutes has a late or dead job: find it in the [operator recovery](operator-recovery.md) inspection and escalate |
-| `stuck_fulfilling` | Requests still `fulfilling` two hours after they fell due (`executeAt`, or `createdAt` when there is no window) | A job commits its whole run in one transaction, so a durable `fulfilling` is a run that died. Two hours outlast the job runtime's whole retry schedule: find the job and escalate |
+| `awaiting_privileged_step` (default) | Erasures whose tenant side finished | [Complete](#complete-an-erasure) each whose `origin` is `self` or `administrator`. A `closure_fanout` item is completed only by its closure and answers `409` here |
+| `overdue_scheduled` | Requests still `scheduled` once their window ended (`executeAt`), with no grace | Every erasure is listed here for the moments between the end of its window and its job's pickup. One still listed after a few minutes has a late or dead job. The [quarantined-jobs inspection](operator-recovery.md) shows only quarantined jobs, not one still retrying or out of attempts, so read the job table as [Data export § A stuck or dead export request](data-export.md#a-stuck-or-dead-export-request) does, with the definition keys `identity.data_erasure_tenant.v1` and `identity.data_erasure_organization.v1`. A dead job's request reads `failed` on the person's receipt and stays `scheduled` here until the person files again, which frees the slot and is the recovery: [tell them so](#when-a-person-asks) and escalate the job |
+| `stuck_fulfilling` | Requests still `fulfilling` two hours after they fell due (`executeAt`, or `createdAt` when there is no window) | An erasure job commits `fulfilling` only together with `awaiting_privileged_step`, so a dead run rolls back to `scheduled` and is listed above, never here. This list holds a request that starts `fulfilling` and whose job then stopped half-way (a closure's fan-out, [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)). Two hours outlast the job runtime's whole retry schedule: find the job and escalate |
 | `expired_artifact` | Export artifacts past `expiresAt` whose purge has not run | See [Data export § An expired artifact whose purge died](data-export.md#an-expired-artifact-whose-purge-died) |
 
 - `limit` is 1 to 100 (default 20; a larger value is clamped, and zero or less is
@@ -166,7 +170,7 @@ The body is `{}` or `{"ticket":"..."}`. In order, and in one transaction:
 | `404` | No request has that identifier, or the identifier is not a UUID at all (the route does not match) |
 | `409`, `errors.kind` = `lockey_data_request_not_erasure` | The request is an export or a closure. Nothing changed |
 | `409`, `errors.origin` = `lockey_data_request_closure_fanout` | The erasure is a closure's fan-out, which only that closure's finalization completes. Nothing changed |
-| `409`, `errors.status` = `lockey_data_request_not_awaiting_privileged_step` | The erasure is not awaiting its privileged step; `params.cause` is its stored status. `scheduled`: its window has not ended, or its job is late (look at `overdue_scheduled`). `fulfilling`: its job is running or died (look at `stuck_fulfilling`). `blocked`, `failed`, `cancelled`: terminal, nothing is left to complete; the person files a new request. Nothing changed |
+| `409`, `errors.status` = `lockey_data_request_not_awaiting_privileged_step` | The erasure is not awaiting its privileged step; `params.cause` is its stored status. `scheduled`: its window has not ended, or its job is late or dead (look at `overdue_scheduled`). `fulfilling`: a closure's fan-out still running or stopped (look at `stuck_fulfilling`). `blocked`, `failed`, `cancelled`: terminal, nothing is left to complete; the person files a new request. Nothing changed |
 | `400` | The request identifier is a UUID but not a UUIDv7 (or is the nil or the sentinel identifier), or the body or the ticket is malformed. A refusal at the gate carries no per-field errors |
 | `401`, `403`, `413`, `415`, `429` | As in [operator recovery](operator-recovery.md#act): the credential, the grant (`platform.data_request.write` for a completion, `platform.data_request.read` for a list), the body size or type, or the request budget |
 | `503`, `audit_unavailable` | The entry row or the result row could not be written: no effect of the act committed (the entry row stays, or was never written). Retry after the delay; error line 7105 is in the API's log |
@@ -193,7 +197,8 @@ connection) rolls the whole act back, and a retry starts again from the beginnin
 gateway that cuts the call off earlier than the act ends can never succeed. Two
 operators who complete the same request at once are serialized on its row: the second
 waits for the first and then answers `already_completed`, unless the first outlasts the
-database's 30-second command timeout, when the second answers `503
+platform connection's command timeout (30 seconds unless `Command Timeout` is set in
+`ConnectionStrings:PlatformAdmin`), when the second answers `503
 dependency_unavailable`: repeat it after the first finished.
 
 ## Reading the result
@@ -219,7 +224,8 @@ pseudonymous identifier that the subject key keeps linkable: **never call the er
 person anonymous**, in a reply to the person, to the tenant or in a ticket. The
 request's other retained kinds are the tenant side's report, and it is a partial list: a
 kind it leaves out is retained and uncounted, never zero. The tenant side counts the
-consent evidence, the invitation records, the request receipts, the attribution
+consent evidence, the invitation records (the offers the person issued or accepted, not
+a pending offer addressed to their address), the request receipts, the attribution
 references, the federation actor references and the provider event records of the group
 ([ADR-0107 § 6](../decisions/0107-data-request-fulfillment-and-account-closure.md)).
 It does not count the transport and execution evidence, the idempotency cache, the
@@ -234,11 +240,59 @@ or last updated writes their identifier again, in a new audit row. Never tell th
 that no row will ever carry their identifier again.
 
 The result row is in the **tenant's** trail. There is no audit API: read it as the
-application role announcing the tenant, by the response's `correlationId`, with the
-query and the digest recipe of
-[Tenant onboarding](tenant-onboarding.md#reading-the-record). Your ticket is not on it,
-because the tenant can read it; it is on the entry row, under the platform sentinel.
-Record the `correlationId` against your own ticket.
+application role announcing the tenant (keep the `tenantId` of the inspection item), by
+the response's `correlationId`, with the digest recipe of
+[Tenant onboarding](tenant-onboarding.md#reading-the-record) and this select list, which
+adds the request and the closed report to it:
+
+```sql
+BEGIN;
+SELECT set_config('app.tenant_id', '<tenantId>', true);
+SELECT timestamp, operation, outcome, reason, entity_id, before_state, after_state,
+       metadata->'operator' AS operator
+FROM audit_log WHERE correlation_id = '<correlationId>' ORDER BY timestamp;
+COMMIT;
+```
+
+`entity_id` is the request, `before_state` the status it was awaiting from and
+`after_state` the report. Your ticket is not on the row, because the tenant can read it;
+it is on the entry row, under the platform sentinel. Record the `correlationId` against
+your own ticket.
+
+## When a person asks
+
+A person or a tenant asks why an erasure is not complete. The person's own receipt is
+the status source: they ask for it under the identifier the request answered with, and
+it shows the status and `executeAt`, the end of the 24-hour window in which they may
+cancel. No e-mail is sent when an erasure finishes
+([ADR-0107 § 10](../decisions/0107-data-request-fulfillment-and-account-closure.md)). A
+request cannot be read by identifier through these routes, and the completion is not a
+read: never call it to look. Say only what is true: the person's name, profile values
+and role assignments in that group were erased, the IP address, user agent and e-mail
+on the audit rows that concern them were removed once the operator step ran, and their
+identifier stays as a pseudonymous reference; never say they are anonymous. A `failed`
+receipt means the job died: the person files again, and the old request stops blocking
+them.
+
+## Deploying
+
+Every API host must run a build that registers the erasure definitions
+(`identity.data_erasure_*`) before anyone files an erasure, and none may roll back to an
+older build while an erasure is `scheduled`: a job is queued 24 hours ahead, and an
+older host that claims one does not know its definition, treats it as an invalid
+envelope and ends it terminal (`invalid_envelope`). A later version of a definition
+keeps the old one registered for at least the window.
+
+## A dead erasure job
+
+A job that exhausted its attempts, or was quarantined, rolled every write back, so its
+request stays stored `scheduled`: the person's receipt reads `failed` (the status is
+derived from the job once its window has ended), the request cannot be cancelled after
+`executeAt`, and the inspection keeps listing it under `overdue_scheduled`. Nothing
+here repairs the job. The recovery is a new filing by the person, or by the
+administrator who filed the first one: it stores the old request `failed` with
+`execution_failed`, frees the one-active slot and schedules a new job. Tell them so, and
+escalate the cause with the request identifier and the job's definition key.
 
 ## Erasure never resets replay
 
@@ -248,7 +302,8 @@ those are retained as `transport_evidence` and `execution_evidence`. A delivery 
 operator replays or resets later re-runs its handler under that handler's own subject
 rules, which refuse a Closing or Closed User but not a tenant-erased person, whose User
 stays Active. So a replayed delivery about the person may write rows for them again in
-that tenant, and that is reported as retained transport evidence, not undone. Before a
+that tenant; those rows are retained transport evidence that no report counts, and they
+are not undone. Before a
 [replay or a producer reset](operator-recovery.md#choose-replay-or-reset) in a tenant
 where an erasure completed, ask whether the event concerns the erased person.
 
@@ -275,8 +330,9 @@ the completions committed, and a repeat that answers `already_completed` is not 
 `learnstack_platform_operator_data_requests_total{operation,outcome}` counts every call
 that reached the owner by how it ended (an inspection's `ok` or `invalid_cursor`; a
 completion's `completed`, `already_completed`, `not_found`, `not_erasure`,
-`closure_fanout` or `not_awaiting`; either's `unavailable`, and a completion's
-`commit_unknown`), so a refused, repeated or unknown-outcome act leaves a signal;
+`closure_fanout` or `not_awaiting`; either's `audit_unavailable`, `unavailable` and
+`failed` (an unexpected failure, answered `500`), and a completion's `commit_unknown`),
+so a refused, repeated or unknown-outcome act leaves a signal;
 `learnstack_platform_operator_audit_failures_total` counts the refusals for an audit
 failure. Each inspection page and each completion logs the scope-entry line 7001, a
 refused audit write the error line 7105, and an unavailable database or redaction the

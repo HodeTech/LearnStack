@@ -51,7 +51,8 @@ public sealed partial class EducationStructureTests
                         AND EXISTS (SELECT 1 FROM public.data_subject_requests AS erasure
                             WHERE erasure.tenant_id = target_tenant AND erasure.subject_user_id = parent_user
                               AND erasure.organization_id IS NOT DISTINCT FROM parent_org
-                              AND erasure.kind = 'erasure' AND erasure.status = 'fulfilling');
+                              AND erasure.kind = 'erasure' AND erasure.status = 'fulfilling'
+                              AND erasure.membership_snapshot @> jsonb_build_array(target_member::text));
                 END IF;
                 IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND erasure_clearing IS NOT TRUE THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';

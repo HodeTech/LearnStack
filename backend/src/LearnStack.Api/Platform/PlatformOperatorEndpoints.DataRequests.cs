@@ -127,12 +127,17 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (AuditWriteFailedException failure)
         {
+            PlatformOperatorMetrics.DataRequest(operation, "audit_unavailable");
             return AuditUnavailableProblem(http, loggers, operation, failure);
         }
         catch (OperatorRecoveryUnavailableException failure)
         {
             PlatformOperatorMetrics.DataRequest(operation, failure.CommitOutcomeUnknown ? "commit_unknown" : "unavailable");
             return UnavailableProblem(http, loggers, operation, failure);
+        }
+        catch (Exception) when (CountFailure(operation))
+        {
+            throw;
         }
     }
 
@@ -178,6 +183,7 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (AuditWriteFailedException failure)
         {
+            PlatformOperatorMetrics.DataRequest(operation, "audit_unavailable");
             return AuditUnavailableProblem(http, loggers, operation, failure);
         }
         catch (OperatorRecoveryUnavailableException failure)
@@ -185,6 +191,17 @@ internal static partial class PlatformOperatorEndpoints
             PlatformOperatorMetrics.DataRequest(operation, failure.CommitOutcomeUnknown ? "commit_unknown" : "unavailable");
             return UnavailableProblem(http, loggers, operation, failure);
         }
+        catch (Exception) when (CountFailure(operation))
+        {
+            throw;
+        }
+    }
+
+    /// <summary>Counts an unexpected failure (a defect or a deployment fault, answered 500) and never swallows it.</summary>
+    private static bool CountFailure(PlatformOperation operation)
+    {
+        PlatformOperatorMetrics.DataRequest(operation, "failed");
+        return false;
     }
 
     private static string ErasureOutcomeToken(ErasureCompletionOutcome outcome) => outcome switch

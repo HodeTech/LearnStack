@@ -186,15 +186,16 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("413", "payload_too_large; request bodies are at most 4 KiB."),
             ("429", "rate_limited by the existing visitor/subject admission."),
             ("500", "internal_error without provider, query, identity, ticket or submitted-value diagnostics."),
-            ("503", "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row."),
+            ("503", "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header)."),
         ], methods);
         if (contract.Body is not null && contract.Shape != Shape.Chunk) operation.Responses["409"] = new OpenApiResponse
         {
             Description = contract.Shape switch
             {
                 Shape.Create when Erasure(contract) => OwnErasureConflict,
-                Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
+                _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 _ when contract.Name.StartsWith("Revoke", StringComparison.Ordinal) => "concurrency_conflict for a valid stale artifact version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
@@ -316,17 +317,18 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("413", "payload_too_large; request bodies are at most 16 KiB."),
             ("429", "rate_limited by the existing visitor/subject admission."),
             ("500", "internal_error without provider, query, identity, ticket or submitted-value diagnostics."),
-            ("503", "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row."),
+            ("503", "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header)."),
         ], methods);
         if (contract.Body is not null) operation.Responses["409"] = new OpenApiResponse
         {
             Description = contract.Shape switch
             {
                 Shape.Create when Erasure(contract) => contract.Own ? OwnErasureConflict : AdministratorErasureConflict,
-                Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
-                Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
                 Shape.Chunk => "Never: a chunk refusal is not_found.",
+                _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
             Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Enum("no-store") } },
@@ -376,14 +378,14 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         $"{DataRequestLimits.CancellationWindow.TotalHours}");
 
     /// <summary>The creation refusals of an erasure the person files (ADR-0106 § 3, § 7): each a closed code in errors.$.</summary>
-    private const string OwnErasureConflict = "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), "
-        + "blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first) or "
-        + "blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+    private const string OwnErasureConflict = "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), "
+        + "lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first) or "
+        + "lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
 
     /// <summary>The creation refusals of an erasure an administrator files for a Membership: the person's own, and its eligibility.</summary>
-    private const string AdministratorErasureConflict = "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), "
-        + "blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
-        + "blocked_hold, or subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); "
+    private const string AdministratorErasureConflict = "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), "
+        + "lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
+        + "lockey_blocked_hold, or lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); "
         + "request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
 
     private static bool Erasure(Contract contract) => contract.Name.Contains("Erasure", StringComparison.Ordinal);
@@ -410,7 +412,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         Shape.Create => "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. Refused while the person holds a readable artifact in the group, of any origin, because the new export would revoke it. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
         Shape.Page when contract.Own => "The subject's own requests in the session's group, newest first. A request whose job died is shown failed. Audit Off. No request body.",
         Shape.Page => "The group's export and erasure requests, newest first: status and counts only, never content, never a closure. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
-        Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds this step counts with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body.",
+        Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body.",
         Shape.Read => "One request of the group: status and counts only, never content. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
         Shape.Mutation when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own
             ? "The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited."
@@ -431,7 +433,9 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("hasNext", new OpenApiSchema { Type = JsonSchemaType.Boolean }), ("hasPrevious", new OpenApiSchema { Type = JsonSchemaType.Boolean })));
         schemas.TryAdd("AdministrationVersionReceipt", Object(("version", Version())));
         var kind = Enum([.. DataRequestCodes.Kinds.Codes]);
-        var status = Enum([.. DataRequestCodes.Statuses.Codes]);
+        var status = With(Enum([.. DataRequestCodes.Statuses.Codes]),
+            "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), "
+            + "and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a 'due, running shortly' state from status and executeAt.");
         var origin = Enum([.. DataRequestCodes.Origins.Codes]);
         schemas["DataRequestAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("export")), ("status", Enum("requested")), ("version", Version()));
         schemas["DataErasureAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("erasure")), ("status", Enum("scheduled")), ("version", Version()));
@@ -446,11 +450,15 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("version", Version()), ("readable", new OpenApiSchema { Type = JsonSchemaType.Boolean }));
         (string, IOpenApiSchema)[] receipt =
         [
-            ("id", Uuid()), ("kind", kind), ("origin", origin), ("status", status), ("createdAt", DateTime()), ("updatedAt", DateTime(true)),
-            ("completedAt", DateTime(true)), ("lastRefusal", Nullable(Enum([.. DataRequestCodes.Refusals.Codes]))),
+            ("id", Uuid()), ("kind", kind), ("origin", origin), ("status", status), ("createdAt", DateTime()),
+            ("updatedAt", With(DateTime(true), "When the request last changed; for a cancelled, blocked or failed request this is when it ended.")),
+            ("completedAt", With(DateTime(true), "Set only for a completed request; a cancelled, blocked or failed request has none (read updatedAt).")),
+            ("lastRefusal", With(Nullable(Enum([.. DataRequestCodes.Refusals.Codes])), "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys.")),
             ("failureReason", Nullable(Enum([.. DataRequestCodes.FailureReasons.Codes]))),
-            ("retained", Array(Ref(document, "DataRequestRetainedResponse"), DataRequestCodes.RetainedKinds.Codes.Length)),
-            ("artifact", NullableRef(document, "DataExportArtifactResponse")), ("version", Version()), ("executeAt", DateTime(true)),
+            ("retained", With(Array(Ref(document, "DataRequestRetainedResponse"), DataRequestCodes.RetainedKinds.Codes.Length),
+                "What the request retains, a partial list: a kind not listed is retained and not counted, never zero. The audit log's kinds appear only once the request is completed. invitation_record counts the offers the person issued or accepted; a pending offer addressed to their e-mail address is retained and not counted, because it is not locatable by person.")),
+            ("artifact", NullableRef(document, "DataExportArtifactResponse")), ("version", Version()),
+            ("executeAt", With(DateTime(true), "An erasure's cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export.")),
         ];
         schemas["OwnDataRequestResponse"] = Object(receipt);
         schemas["OwnDataRequestPage"] = Object(("items", Array(Ref(document, "OwnDataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));
@@ -509,6 +517,12 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         Required = fields.Select(field => field.Name).ToHashSet(StringComparer.Ordinal),
         Properties = fields.ToDictionary(field => field.Name, field => field.Schema, StringComparer.Ordinal),
     };
+
+    private static OpenApiSchema With(OpenApiSchema schema, string description)
+    {
+        schema.Description = description;
+        return schema;
+    }
 
     private static OpenApiSchema Array(IOpenApiSchema item, int maximum) => new() { Type = JsonSchemaType.Array, Items = item, MaxItems = maximum };
     private static OpenApiSchema Count() => new() { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "0", Maximum = "9007199254740991" };

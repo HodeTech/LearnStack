@@ -97,11 +97,13 @@ internal static class DataRequestOperatorDdl
                 IF public.fn_identity_lock_held('user', NEW.subject_user_id, true) IS NOT TRUE THEN
                     RAISE EXCEPTION 'identity mutation plan is unavailable' USING ERRCODE = 'P0301', CONSTRAINT = 'identity_user_fence';
                 END IF;
+                -- A request is never born fulfilling until a closure's fan-out has its own witness (ADR-0107 § 7): such a row
+                -- would stand in for the erasure the profile clearing of a Revoked Membership requires, with no window.
                 IF (NEW.row_version IS DISTINCT FROM 0 OR NEW.updated_at IS NOT NULL OR NEW.updated_by IS NOT NULL
                     OR NEW.progress IS DISTINCT FROM '{}'::jsonb OR NEW.result IS DISTINCT FROM '{}'::jsonb
                     OR NEW.last_refusal IS NOT NULL OR NEW.failure_reason IS NOT NULL OR NEW.completed_at IS NOT NULL
                     OR NEW.status IS DISTINCT FROM (CASE WHEN NEW.kind = 'export' THEN 'requested'
-                        WHEN NEW.origin = 'closure_fanout' THEN 'fulfilling' ELSE 'scheduled' END)
+                        WHEN NEW.origin = 'closure_fanout' THEN NULL ELSE 'scheduled' END)
                     OR NEW.created_by IS DISTINCT FROM COALESCE(NEW.requester_user_id, '00000000-0000-7000-8000-000000000001'::uuid)
                     OR NOT isfinite(NEW.created_at)
                     OR NEW.created_at > transaction_timestamp() + interval '5 minutes'

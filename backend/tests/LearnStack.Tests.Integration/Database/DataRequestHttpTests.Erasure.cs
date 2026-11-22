@@ -46,8 +46,14 @@ public sealed partial class DataRequestHttpTests
         await DataErasureTestKit.BackdateAsync(proof.Database.MigrationConnectionString, tenant, null, due);
         using (var late = await SendAsync(client, learner, OwnPath + "/" + due.ToString("D") + "/cancellations", "POST", "{}",
             version: dueVersion, key: Key()))
-            await ProblemAsync(late, HttpStatusCode.Conflict, "business_rule_violation");
+            (await ProblemAsync(late, HttpStatusCode.Conflict, "business_rule_violation")).GetProperty("errors").GetProperty("$")[0]
+                .GetProperty("key").GetString().Should().Be("lockey_data_request_window_ended", "the person can tell the window ended");
         (await ReceiptAsync(client, learner, due)).GetProperty("status").GetString().Should().Be("scheduled");
+        var cancelledVersion = (await ReceiptAsync(client, learner, id)).GetProperty("version").GetString()!;
+        using (var again = await SendAsync(client, learner, OwnPath + "/" + id.ToString("D") + "/cancellations", "POST", "{}",
+            version: cancelledVersion, key: Key()))
+            (await ProblemAsync(again, HttpStatusCode.Conflict, "business_rule_violation")).GetProperty("errors").GetProperty("$")[0]
+                .GetProperty("key").GetString().Should().Be("lockey_data_request_not_cancellable", "an ended request admits no cancellation");
     }
 
     /// <summary>
@@ -69,6 +75,10 @@ public sealed partial class DataRequestHttpTests
                 .GetProperty("key").GetString().Should().Be("lockey_blocked_last_administrator");
         using (var denied = await SendAsync(client, learner, AdminPath + "/erasures", "POST", body, key: Key()))
             await ProblemAsync(denied, HttpStatusCode.Forbidden, "forbidden");
+        using (var self = await SendAsync(client, admin, AdminPath + "/erasures", "POST",
+            JsonSerializer.Serialize(new { membershipId = SeedData.IdentityMemberships[0].MembershipId }), key: Key()))
+            (await ProblemAsync(self, HttpStatusCode.Conflict, "business_rule_violation")).GetProperty("errors").GetProperty("$")[0]
+                .GetProperty("key").GetString().Should().Be("lockey_subject_is_requester", "an administrator never files for themselves");
         using (var working = await SendAsync(client, admin, AdminPath + "/erasures", "POST", body, key: Key()))
             (await ProblemAsync(working, HttpStatusCode.Conflict, "business_rule_violation")).GetProperty("errors").GetProperty("$")[0]
                 .GetProperty("key").GetString().Should().Be("lockey_subject_membership_current");

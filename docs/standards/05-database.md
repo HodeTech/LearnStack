@@ -5050,9 +5050,12 @@ The one exception to a Revoked Membership's immutability is the erasure's cleari
 the guard passes an `UPDATE` of a Revoked Membership's profile that sets the display
 name and the locale to NULL and the custom values to `[]`, and only while the
 subject's exclusive User fence is held on the connection and that subject's `erasure`
-request for the Membership's group is `fulfilling`; such an update requires the tenant
-key EXCLUSIVE. Every other write under a Revoked parent still raises `P0304`, apart
-from the assignment removals the guard already admitted. `DataErasureGuardTests`
+request for the Membership's group is `fulfilling` and names that Membership in its
+frozen snapshot; such an update requires the tenant key EXCLUSIVE. The request guard
+admits no request born `fulfilling` until a closure's fan-out has its own witness, so
+the application role cannot create that witness itself. Every other write under a
+Revoked parent still raises `P0304`, apart from the assignment removals the guard
+already admitted; the profile's `DELETE` is refused earlier, by the missing grant. `DataErasureGuardTests`
 removes each condition alone as `learnstack_app`, and `EducationStructureTests` pins
 the function body.
 Exclusive User mode retains the adopted per-User admission serialization, rather
@@ -6735,8 +6738,8 @@ nothing else, and only:
 
 - the arrow `erasure: awaiting_privileged_step → completed`; every other arrow, status
   and kind is refused (`Data request transition refused.`);
-- with every column but the status, `row_version`, `completed_at`, `result`,
-  `updated_at` and `updated_by` unchanged as the statement presents them, and
+- with every column but the status, `row_version`, `completed_at` and `result` unchanged
+  as the statement presents them, `updated_at` and `updated_by` included, and
   `row_version` stepped by exactly one (`Data request immutable state refused.`);
 - with `result` changed only in the audit log's four retained kinds,
   `audit_actor_reference`, `audit_entity_reference`, `audit_metadata_reference` and
@@ -6750,8 +6753,8 @@ column grant, so the platform role's `UPDATE` grant stays at the four columns AD
 § 8 lists. The role holds no `INSERT` or `DELETE`; the application role cannot take the
 platform's arrow, and the platform role cannot take one of the application's. The
 arrow refuses an erasure whose origin is `closure_fanout`, which only a closure's
-finalization completes (ADR-0107 § 7); that finalization extends the branch's one arrow
-condition.
+finalization completes (ADR-0107 § 7); that finalization extends the branch's one
+arrow condition.
 
 ### The artifact read
 

@@ -151,7 +151,8 @@ public static class PlatformOperatorMetrics
     /// Counts one data-request call by how it ended: an inspection's <c>ok</c> or <c>invalid_cursor</c>, or a completion's
     /// <c>completed</c>, <c>already_completed</c>, <c>not_found</c>, <c>not_erasure</c>, <c>closure_fanout</c> or
     /// <c>not_awaiting</c>; either may end <c>unavailable</c>, or <c>commit_unknown</c> when a completion's commit may
-    /// have landed.
+    /// have landed. A refused MUST row is <c>audit_unavailable</c> and an unexpected failure (answered 500) is
+    /// <c>failed</c>.
     /// </summary>
     public static void DataRequest(PlatformOperation operation, string outcome) =>
         DataRequestCalls.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),

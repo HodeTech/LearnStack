@@ -846,7 +846,8 @@ classification; the OpenAPI document owns the exact wire shapes.
   own-scope path of ADR-0106 § 9 adds its own request types over the same cores.
 - **Creation.** `IdentityMutationLockPlan([subject], tenant, Shared)` takes the
   subject's exclusive User fence and the shared tenant fence the creation guard demands,
-  then the authority is rechecked. A request whose export job is dead is stored `failed`
+  then the authority is rechecked. A request whose export or erasure job is dead (an
+  erasure's only after its window ended) is stored `failed`
   through `DataRequestFailureReconciler` under the held plan before
   `DataRequestEligibility` (the default `IDataRequestEligibility`) judges the one-active
   rule; the partial unique index is the backstop and maps to the same
@@ -1036,7 +1037,9 @@ record names a person, it writes one closed word instead:
   the [Audit module](../audit/README.md#performance-budget) owns both audit statements'
   bounds.
 - **The retained list is partial.** The tenant side reports `request_receipt`,
-  `invitation_record`, `attribution_reference`, `consent_evidence` and, in the
+  `invitation_record` (the offers the person issued or accepted: a pending offer
+  addressed to their e-mail address is retained and not locatable by person, so it is
+  not counted), `attribution_reference`, `consent_evidence` and, in the
   tenant-wide group, `federation_actor_reference` and `provider_event_record`; the
   operator's completion adds the audit log's four kinds, including `unscoped_audit_rows`
   for an administrator's request. A kind not listed is retained and not counted, which

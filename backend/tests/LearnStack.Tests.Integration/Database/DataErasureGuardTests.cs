@@ -110,6 +110,30 @@ public sealed class DataErasureGuardTests(SchemaFixture fixture)
             "for the profile's DELETE, which the application role holds no grant for");
     }
 
+    /// <summary>
+    /// The witness is bound to the request's frozen snapshot: a Revoked Membership of the same person and group that the
+    /// request does not name (one admitted and revoked again after it was filed) is not cleared by it.
+    /// </summary>
+    [Fact]
+    public async Task A_revoked_Membership_outside_the_request_s_snapshot_is_not_cleared_by_its_witness()
+    {
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
+        var erasure = await ArrangeAsync(database);
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            await using var transaction = await owner.BeginTransactionAsync();
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests DISABLE TRIGGER tg_data_subject_requests_mutation_guard");
+            await ScopeAsync(owner, transaction, SchemaFixture.TenantA, null);
+            await ExecuteAsync(owner, transaction, "UPDATE public.data_subject_requests SET membership_snapshot=@snapshot::jsonb WHERE id=@id",
+                ("id", erasure), ("snapshot", Snapshot(Guid.CreateVersion7())));
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests ENABLE TRIGGER tg_data_subject_requests_mutation_guard");
+            await transaction.CommitAsync();
+        }
+
+        await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive, Clear, LearnerMembershipA, MembershipParentRefusal,
+            "for a Revoked Membership the fulfilling request's snapshot does not name");
+    }
+
     private enum Fence { None, Shared, Exclusive }
 
     private const string RevokeSql = """

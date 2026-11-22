@@ -1603,7 +1603,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         var complete = paths.GetProperty("/api/platform/v1/data-requests/{requestId}/complete-erasure").GetProperty("post");
         complete.GetProperty("description").GetString().Should().Contain("already_completed").And.Contain("actor_user_id");
         complete.GetProperty("responses").GetProperty("409").GetProperty("description").GetString()
-            .Should().Contain("errors.kind").And.Contain("errors.status");
+            .Should().Contain("errors.kind").And.Contain("errors.origin").And.Contain("errors.status");
         document.RootElement.GetProperty("info").GetProperty("description").GetString().Should().Contain("data-erasure.md");
     }
 

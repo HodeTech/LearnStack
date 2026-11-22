@@ -6422,7 +6422,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -6711,7 +6711,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -6847,7 +6847,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7040,7 +7040,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7176,7 +7176,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7369,7 +7369,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7517,7 +7517,7 @@
             }
           },
           "409": {
-            "description": "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7710,7 +7710,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -8051,7 +8051,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -8328,7 +8328,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -8626,7 +8626,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -8758,7 +8758,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -8951,7 +8951,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9082,7 +9082,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9275,7 +9275,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9551,7 +9551,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9585,7 +9585,7 @@
         "tags": [
           "OwnDataRequests"
         ],
-        "description": "The subject\u0027s own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds this step counts with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact\u0027s metadata. No content. Audit Off. No request body.",
+        "description": "The subject\u0027s own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact\u0027s metadata. No content. Audit Off. No request body.",
         "operationId": "GetOwnDataRequest",
         "parameters": [
           {
@@ -9826,7 +9826,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9972,7 +9972,7 @@
             }
           },
           "409": {
-            "description": "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -10165,7 +10165,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -10504,7 +10504,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -10779,7 +10779,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11075,7 +11075,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11206,7 +11206,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11399,7 +11399,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11530,7 +11530,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), blocked_hold, or subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, or lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11723,7 +11723,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11999,7 +11999,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -12274,7 +12274,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -12420,7 +12420,7 @@
             }
           },
           "409": {
-            "description": "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -12613,7 +12613,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -12952,7 +12952,7 @@
             }
           },
           "503": {
-            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row.",
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -30059,7 +30059,8 @@
               "failed",
               "cancelled"
             ],
-            "type": "string"
+            "type": "string",
+            "description": "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a \u0027due, running shortly\u0027 state from status and executeAt."
           },
           "createdAt": {
             "type": "string",
@@ -30070,6 +30071,7 @@
               "null",
               "string"
             ],
+            "description": "When the request last changed; for a cancelled, blocked or failed request this is when it ended.",
             "format": "date-time"
           },
           "completedAt": {
@@ -30077,6 +30079,7 @@
               "null",
               "string"
             ],
+            "description": "Set only for a completed request; a cancelled, blocked or failed request has none (read updatedAt).",
             "format": "date-time"
           },
           "lastRefusal": {
@@ -30089,7 +30092,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys."
           },
           "failureReason": {
             "enum": [
@@ -30107,7 +30111,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DataRequestRetainedResponse"
-            }
+            },
+            "description": "What the request retains, a partial list: a kind not listed is retained and not counted, never zero. The audit log\u0027s kinds appear only once the request is completed. invitation_record counts the offers the person issued or accepted; a pending offer addressed to their e-mail address is retained and not counted, because it is not locatable by person."
           },
           "artifact": {
             "oneOf": [
@@ -30131,6 +30136,7 @@
               "null",
               "string"
             ],
+            "description": "An erasure\u0027s cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export.",
             "format": "date-time"
           },
           "requestedByYou": {
@@ -31885,7 +31891,8 @@
               "failed",
               "cancelled"
             ],
-            "type": "string"
+            "type": "string",
+            "description": "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a \u0027due, running shortly\u0027 state from status and executeAt."
           },
           "createdAt": {
             "type": "string",
@@ -31896,6 +31903,7 @@
               "null",
               "string"
             ],
+            "description": "When the request last changed; for a cancelled, blocked or failed request this is when it ended.",
             "format": "date-time"
           },
           "completedAt": {
@@ -31903,6 +31911,7 @@
               "null",
               "string"
             ],
+            "description": "Set only for a completed request; a cancelled, blocked or failed request has none (read updatedAt).",
             "format": "date-time"
           },
           "lastRefusal": {
@@ -31915,7 +31924,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys."
           },
           "failureReason": {
             "enum": [
@@ -31933,7 +31943,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DataRequestRetainedResponse"
-            }
+            },
+            "description": "What the request retains, a partial list: a kind not listed is retained and not counted, never zero. The audit log\u0027s kinds appear only once the request is completed. invitation_record counts the offers the person issued or accepted; a pending offer addressed to their e-mail address is retained and not counted, because it is not locatable by person."
           },
           "artifact": {
             "oneOf": [
@@ -31957,6 +31968,7 @@
               "null",
               "string"
             ],
+            "description": "An erasure\u0027s cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export.",
             "format": "date-time"
           }
         },
