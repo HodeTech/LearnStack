@@ -291,7 +291,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The subject's own requests in one retained group, newest first, for a Suspended person, a person whose Membership was revoked or a group where only a request survives. A request whose job died is shown failed. Audit Off. No request body. */
+        /** @description The subject's own requests in one retained group, newest first, for a Suspended person or a person whose Membership was revoked. A request whose job died is shown failed. Audit Off. No request body. */
         get: operations["ListRetainedDataRequests"];
         put?: never;
         post?: never;
@@ -1681,7 +1681,7 @@ export interface components {
             index: number;
             /** Format: int32 */
             count: number;
-            /** @description Base64 of one chunk of the decrypted bundle, at most 128 KiB of plaintext. Concatenating every chunk in index order yields the bundle. */
+            /** @description Base64 of one chunk of the decrypted bundle, at most 128 KiB of plaintext. Concatenating every chunk's decoded bytes in index order yields the bundle: one UTF-8 JSON document (application/json; charset=utf-8) whose top-level member schema_version names its format. */
             bytes: string;
         };
         DataExportForSubjectInput: {
@@ -5080,7 +5080,7 @@ export interface operations {
             query?: {
                 /** @description The previous page's nextCursor: the last group's key (tenant or an organization UUIDv7). */
                 cursor?: string;
-                /** @description Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse. */
+                /** @description Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse. Paging is forward only: follow pageInfo.nextCursor; there is no previous page. */
                 limit?: number;
             };
             header?: never;
@@ -5202,7 +5202,7 @@ export interface operations {
                 group: string;
                 /** @description Opaque canonical current-actor/group/operation-bound cursor. Unknown, repeated, blank and oversized values refuse. */
                 cursor?: string;
-                /** @description Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse. */
+                /** @description Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse. Paging is forward only: follow pageInfo.nextCursor; there is no previous page. */
                 limit?: number;
             };
             header?: never;
@@ -5654,7 +5654,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable). */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5675,7 +5675,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact. */
+            /** @description business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact, when the key it was sealed under is no longer in the export key ring, or when the artifact already holds three unconsumed, unexpired tickets (a slot frees when one is consumed by its final chunk or expires after fifteen minutes). */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5745,7 +5745,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. */
+            /** @description One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. Decoding every chunk's bytes and concatenating them in index order yields the bundle: one UTF-8 JSON document, served as application/json; charset=utf-8, whose top-level member schema_version names its format. */
             200: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5786,7 +5786,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable). */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5994,7 +5994,7 @@ export interface operations {
             query?: {
                 /** @description Opaque canonical current-actor/group/operation-bound cursor. Unknown, repeated, blank and oversized values refuse. */
                 cursor?: string;
-                /** @description Canonical positive ASCII decimal Int32, default 20, accepted values above 100 clamp to 100. Signs, leading zeros and repeats refuse. */
+                /** @description Canonical positive ASCII decimal Int32, default 20; a page holds at most 100 items and a larger value is clamped to 100 (API Design § Pagination), unlike the retained entry, whose page size is 1 through 20. Signs, leading zeros and repeats refuse. Paging is forward only: follow pageInfo.nextCursor; there is no previous page. */
                 limit?: number;
             };
             header?: never;
@@ -6376,7 +6376,7 @@ export interface operations {
             header: {
                 /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
                 "Idempotency-Key": string;
-                /** @description One canonical strong quoted decimal artifact version (the receipt's artifact.version). Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409. */
+                /** @description One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409. */
                 "If-Match": string;
             };
             path: {
@@ -6395,7 +6395,7 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description The artifact's version after the revocation. */
+                    /** @description The artifact's version after the revocation (artifact.version), not the request's. */
                     ETag: string;
                     /** @description Present only after fresh original-request disclosure on a replay. */
                     "Idempotency-Replayed"?: "true";
@@ -6568,7 +6568,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            /** @description not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable). */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6589,7 +6589,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact. */
+            /** @description business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact, when the key it was sealed under is no longer in the export key ring, or when the artifact already holds three unconsumed, unexpired tickets (a slot frees when one is consumed by its final chunk or expires after fifteen minutes). */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6659,7 +6659,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. */
+            /** @description One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. Decoding every chunk's bytes and concatenating them in index order yields the bundle: one UTF-8 JSON document, served as application/json; charset=utf-8, whose top-level member schema_version names its format. */
             200: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6700,7 +6700,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            /** @description not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable). */
             404: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6908,7 +6908,7 @@ export interface operations {
             query?: {
                 /** @description Opaque canonical current-actor/group/operation-bound cursor. Unknown, repeated, blank and oversized values refuse. */
                 cursor?: string;
-                /** @description Canonical positive ASCII decimal Int32, default 20, accepted values above 100 clamp to 100. Signs, leading zeros and repeats refuse. */
+                /** @description Canonical positive ASCII decimal Int32, default 20; a page holds at most 100 items and a larger value is clamped to 100 (API Design § Pagination), unlike the retained entry, whose page size is 1 through 20. Signs, leading zeros and repeats refuse. Paging is forward only: follow pageInfo.nextCursor; there is no previous page. */
                 limit?: number;
             };
             header?: never;
@@ -7290,7 +7290,7 @@ export interface operations {
             header: {
                 /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
                 "Idempotency-Key": string;
-                /** @description One canonical strong quoted decimal artifact version (the receipt's artifact.version). Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409. */
+                /** @description One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409. */
                 "If-Match": string;
             };
             path: {
@@ -7309,7 +7309,7 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control": "no-store";
-                    /** @description The artifact's version after the revocation. */
+                    /** @description The artifact's version after the revocation (artifact.version), not the request's. */
                     ETag: string;
                     /** @description Present only after fresh original-request disclosure on a replay. */
                     "Idempotency-Replayed"?: "true";
