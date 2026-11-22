@@ -92,7 +92,7 @@ nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.killswitch.write`, `platform.tenant.write`, `platform.tenant_bootstrap.write`, `platform.identity_authority.admin`, `platform.delivery.read`, `platform.delivery.write`, `platform.federation.read` and `platform.federation.admin` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Platform** | `platform.killswitch.write`, `platform.tenant.write`, `platform.tenant_bootstrap.write`, `platform.identity_authority.admin`, `platform.delivery.read`, `platform.delivery.write`, `platform.federation.read`, `platform.federation.admin`, `platform.data_request.read` and `platform.data_request.write` (registered); the rest of the [ADR-0101 § 5](../decisions/0101-platform-operator-authority.md) catalogue joins with the step that ships the operation using it, never ahead of it | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 
@@ -111,6 +111,8 @@ not change when it grows ([ADR-0101](../decisions/0101-platform-operator-authori
 | `platform.delivery.write` | `platform.delivery.replay`, `platform.delivery.reset` (the two fenced transitions, on the dispatcher's outbox role) | P03-9 Step 4 |
 | `platform.federation.read` | `platform.federation.report` (the report of orphaned, unreadable and nonconforming identity-provider brokers, in the platform scope) | P03-9 Step 5 |
 | `platform.federation.admin` | `platform.federation.remove`, `platform.federation.disable` (the two provider changes, each with an intent and a completion row) | P03-9 Step 5 |
+| `platform.data_request.read` | `platform.data_request.inspect` (the metadata-only inspection of data requests awaiting an operator step, overdue, stuck, and of unpurged expired export artifacts, in the platform scope) | P03-10 Step 2 |
+| `platform.data_request.write` | `audit.redaction.apply` (the completion of an erasure's privileged step: the audit redaction, the request's completion and the result row in one platform transaction, [ADR-0108](../decisions/0108-privileged-audit-redaction.md)) | P03-10 Step 2 |
 
 The five onboarding acts of
 [ADR-0102](../decisions/0102-production-tenant-onboarding.md) run under the

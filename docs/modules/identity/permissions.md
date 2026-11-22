@@ -30,6 +30,8 @@ permission admission. An attribute, realm role or SystemActor value grants no ro
 | `OperatorCreateFirstAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | The first tenant-wide administrator of a tenant with no Membership history; the person is named by provider subject and must be an Active, bootstrapped User |
 | `OperatorRecoverAdminCommand` | Platform `platform.tenant_bootstrap.write`, `PlatformOperator` source | A replacement administrator while no Active tenant-wide administrator Membership exists; the last-administrator guard is the database's and is unchanged |
 | `IdentityIssuerRebind` (an offline tool, not a command or a route) | Platform `platform.identity_authority.admin`, `PlatformOperator` token | The operator's per-act grant for the rebind operation only, checked by the operator gate in the tool; the write itself runs on the confined `learnstack_identity_rebind` role, with no tenant context ([ADR-0104](../../decisions/0104-controlled-issuer-rebind.md)) |
+| `DataRequestOperatorOperations.InspectAsync` (an operator route in the platform scope, not a command) | Platform `platform.data_request.read`, `PlatformOperator` token | The operator's per-act grant for `platform.data_request.inspect`, checked by the operator gate before the scope is entered; a closed-column read of the request and artifact tables across tenants that names no person ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8) |
+| `DataRequestOperatorOperations.CompleteErasureAsync` (an operator route in the platform scope, not a command) | Platform `platform.data_request.write`, `PlatformOperator` token | The per-act grant for `audit.redaction.apply`; one erasure awaiting its privileged step, whose subject, group and Memberships are read from its own row; the audit redaction, the completion through the request guard's platform arm and the result row in one platform transaction ([ADR-0108](../../decisions/0108-privileged-audit-redaction.md)) |
 
 Scope selection derives from immutable target Membership/validated declaration,
 never a claimed scope string. Finite metadata alternatives count the exact five
@@ -45,7 +47,7 @@ adoption supplies identity facts; it does not independently grant seed authority
 | `MembershipProfile` | – | Tenant + Organization | – | – | Exact v1 manifest, bounded contextual fields |
 | `Invitation` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0093's exact invitation operations; no new assignable key |
 | `FederationConnection` | – | – | – | Tenant `identity.federation.admin` | Registry v4; granted to no Role by registration; explicit Tenant Admin adoption only |
-| `DataSubjectRequest` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0106 § 4: the administrator's operations reuse the existing pairs; the subject's own operations carry no key. No assignable key is added |
+| `DataSubjectRequest` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0106 § 4: the administrator's operations reuse the existing pairs; the subject's own operations carry no key. No assignable key is added; the operator's inspection and erasure completion take the non-assignable Platform keys above |
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is

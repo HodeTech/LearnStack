@@ -6066,13 +6066,37 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 5).
 - **Phase:** P03-9.
 
+#### `Only_The_Data_Request_Routes_And_Their_Owner_Name_The_Data_Request_Operator_Port_And_Only_It_Redacts`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `DataRequestOperatorOperations` in code (the port's name contains it, so the owner's
+  class is found too) are exactly the port, its one owner, the persistence composition
+  and the data-request routes; and the files that name the scope handle's
+  `RedactAuditAsync` in code are exactly the handle's interface, the scope and that
+  owner. Adding a caller of either is a deliberate edit here, with its denied proof; a
+  closure's Finalize joins the second list in the commit that registers it.
+- **Why it matters:** the inspection reads data requests across every tenant, and the
+  completion is the one way any code reaches the audit log's redactable columns. The
+  scope also refuses the redaction at run time to every admitted operation but the
+  erasure completion; this rule keeps the set of files that could ask for it closed, so
+  a second caller cannot appear without review.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8;
+  [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 2.
+- **Type:** xUnit + source scan, with a planted holder of the port, of the concrete
+  owner and of a redaction call, and a mention in a comment that is not counted
+  (`The_Data_Request_Port_Census_Finds_A_Planted_Holder_Of_The_Port_The_Owner_Or_The_Redaction`).
+  **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-10 Step 2).
+- **Phase:** P03-10.
+
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
 - **Asserts:** the files, by their path under `backend/src`, that name
   `IPlatformAdminScope` are exactly the interface, the scope, the persistence
   composition and the operator services that perform an admitted act (today the
-  killswitch toggle, the delivery inspection and the federation owner). Adding a
-  service is a deliberate edit here, with its denied proof.
+  killswitch toggle, the delivery inspection, the federation owner and the data-request
+  owner). Adding a service is a deliberate edit here, with its denied proof.
 - **Why it matters:** a request handler holding the scope would enter a cross-tenant
   scope from a tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.

@@ -313,6 +313,9 @@ public static class PersistenceCompositionExtensions
         // ADR-0099 Amendment 10: the operator's federation report, remove and disable, over the platform scope and the
         // operator port, which the composition root replaces with the confined adapter when the admin client is configured.
         services.TryAddScoped<IFederationBrokerOperations, LearnStack.Modules.Identity.Infrastructure.Federation.FederationBrokerOperations>();
+        // ADR-0107 § 8, ADR-0108: the operator's data-request inspection and erasure completion in the platform scope.
+        services.TryAddScoped<IDataRequestOperatorOperations,
+            LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestOperatorOperations>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default

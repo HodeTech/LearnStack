@@ -16,6 +16,16 @@ public static class DataRequestLimits
     public static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(15);
 
     /// <summary>
+    /// How long after it fell due a request may stay <c>fulfilling</c> before the operator inspection lists it as
+    /// stuck (ADR-0107 § 8). An export or an erasure job commits its whole run in one transaction, so a durable
+    /// <c>fulfilling</c> is a closure's fan-out erasure whose job has not finished, or a run that died. Two hours
+    /// outlast the job runtime's whole retry schedule (five waits of about 66 minutes and six attempts of at most five
+    /// minutes each), so a request listed here waits for no retry that is still coming. Only the inspection reads it;
+    /// no database check repeats it.
+    /// </summary>
+    public static readonly TimeSpan StuckFulfillingAfter = TimeSpan.FromHours(2);
+
+    /// <summary>
     /// The most unconsumed, unexpired download tickets one session binding may hold over one artifact: a download
     /// in progress, a retry and one spare. The next mint in that session waits for one to be consumed by its final
     /// chunk or to expire (<see cref="TicketLifetime"/>); a ticket left open by a credential since refreshed does

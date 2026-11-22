@@ -34,6 +34,7 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         "subject_user_id", "status", "membership_snapshot", "execute_at", "progress", "result", "last_refusal", "failure_reason",
         "completed_at", "created_at", "row_version"];
     private static readonly string[] PlatformRequestUpdate = ["status", "row_version", "completed_at", "result"];
+    private static readonly string[] PlatformArtifactSelect = ["id", "tenant_id", "request_id", "status", "expires_at"];
     private static readonly string[] AppTableGrants =
     [
         "data_subject_requests:learnstack_app:INSERT", "data_subject_requests:learnstack_app:SELECT",
@@ -584,32 +585,48 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
             .Concat(AppRequestUpdate.Select(column => $"data_subject_requests.{column}:learnstack_app:UPDATE"))
             .Concat(AppArtifactUpdate.Select(column => $"data_export_artifacts.{column}:learnstack_app:UPDATE"))
             .Concat(PlatformRequestSelect.Select(column => $"data_subject_requests.{column}:learnstack_platform:SELECT"))
-            .Concat(PlatformRequestUpdate.Select(column => $"data_subject_requests.{column}:learnstack_platform:UPDATE"));
+            .Concat(PlatformRequestUpdate.Select(column => $"data_subject_requests.{column}:learnstack_platform:UPDATE"))
+            .Concat(PlatformArtifactSelect.Select(column => $"data_export_artifacts.{column}:learnstack_platform:SELECT"));
         grants.Should().BeEquivalentTo(expected, "PUBLIC, learnstack_outbox_admin and the two Identity machine roles hold nothing, "
-            + "and learnstack_platform holds only its closed request columns");
+            + "and learnstack_platform holds only its closed request columns and the five artifact columns its inspection reads");
         PlatformRequestSelect.Should().NotContain(UnreadActors,
             "the operator read names no actor beyond the subject");
+        PlatformArtifactSelect.Should().NotContain(["subject_user_id", "byte_count", "chunk_count", "key_version", "truncation"],
+            "the inspection of an unpurged artifact names no subject, size, key or truncation");
     }
 
     [Fact]
     public async Task The_platform_role_reads_only_its_closed_columns_and_writes_nothing_its_guard_has_not_admitted()
     {
+        // The seeded rows are exports, which the platform arm never completes; the one arrow it admits, an erasure's
+        // privileged step, is proven on committed erasures in DataRequestStorageControlTests.
         await using var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(schema.Postgres.PlatformConnectionString);
         (await ScalarAsync<long>(platform, null, "SELECT count(*) FROM (SELECT id,tenant_id,status,membership_snapshot FROM public.data_subject_requests) rows"))
             .Should().Be(Rows.Length, "BYPASSRLS reads every tenant's rows; the grant, not a policy, is the bound");
+        (await ScalarAsync<long>(platform, null, "SELECT count(*) FROM (SELECT id,tenant_id,request_id,status,expires_at FROM public.data_export_artifacts) rows"))
+            .Should().Be(Rows.Count(row => row.Artifact is not null), "the inspection's five artifact columns are readable");
         foreach (var statement in new[]
         {
             "SELECT requester_user_id FROM public.data_subject_requests",
+            "SELECT updated_by FROM public.data_subject_requests",
             "SELECT * FROM public.data_subject_requests",
             "INSERT INTO public.data_subject_requests(id) VALUES(uuidv7())",
             "UPDATE public.data_subject_requests SET last_refusal='blocked_hold'",
+            "UPDATE public.data_subject_requests SET updated_at=now()",
             "DELETE FROM public.data_subject_requests",
-            "SELECT count(*) FROM public.data_export_artifacts",
+            "SELECT subject_user_id FROM public.data_export_artifacts",
+            "SELECT organization_id FROM public.data_export_artifacts",
+            "SELECT key_version FROM public.data_export_artifacts",
+            "SELECT purged_at FROM public.data_export_artifacts",
+            "SELECT * FROM public.data_export_artifacts",
             "UPDATE public.data_export_artifacts SET status='revoked'",
+            "DELETE FROM public.data_export_artifacts",
             "SELECT count(*) FROM public.data_export_tickets",
             "UPDATE public.data_export_tickets SET consumed_at=now()",
             "SELECT count(*) FROM public.data_export_chunks",
             "DELETE FROM public.data_export_chunks",
+            "SELECT count(*) FROM public.memberships",
+            "SELECT count(*) FROM public.users",
         })
         {
             await using var transaction = await platform.BeginTransactionAsync();
@@ -617,14 +634,42 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
             (await act.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501", statement);
         }
 
-        await using (var transaction = await platform.BeginTransactionAsync())
+        foreach (var (request, set) in new[]
         {
-            var act = () => ExecuteAsync(platform, transaction,
-                "UPDATE public.data_subject_requests SET status='completed',completed_at=now(),row_version=row_version+1 WHERE id=@id",
-                ("id", BranchB.Request));
+            (BranchB.Request, "status='completed',completed_at=now(),row_version=row_version+1"),
+            (TenantWideA.Request, "status='completed',row_version=row_version+1"),
+            (BranchB.Request, "status='cancelled',row_version=row_version+1"),
+            (BranchB.Request, "status='fulfilling',row_version=row_version+1"),
+        })
+        {
+            await using var transaction = await platform.BeginTransactionAsync();
+            var act = () => ExecuteAsync(platform, transaction, $"UPDATE public.data_subject_requests SET {set} WHERE id=@id", ("id", request));
             var refusal = (await act.Should().ThrowAsync<PostgresException>()).Which;
-            refusal.SqlState.Should().Be("23514", "the grant reaches the guard, which admits no platform arm until Steps 2 and 3 add it");
-            refusal.MessageText.Should().Be("Data request mutation refused.");
+            refusal.SqlState.Should().Be("23514", set);
+            refusal.MessageText.Should().Be("Data request transition refused.",
+                "the grant reaches the platform arm, which admits an erasure's completion and neither an export's nor an application arrow: " + set);
+        }
+    }
+
+    [Fact]
+    public async Task The_platform_role_can_select_exactly_the_five_artifact_columns_its_inspection_reads()
+    {
+        await using var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(schema.Postgres.PlatformConnectionString);
+        var granted = await SchemaQueries.ReadStringsAsync(platform, """
+            SELECT attname FROM pg_attribute
+            WHERE attrelid = 'public.data_export_artifacts'::regclass AND attnum > 0 AND NOT attisdropped
+                AND has_column_privilege('learnstack_platform', 'public.data_export_artifacts', attnum, 'SELECT')
+            ORDER BY attname
+            """);
+
+        granted.Should().Equal(PlatformArtifactSelect.Order(StringComparer.Ordinal), "no subject, size, key version or purge time");
+        foreach (var table in new[] { "data_export_tickets", "data_export_chunks" })
+        {
+            (await SchemaQueries.ReadStringsAsync(platform, $"""
+                SELECT attname FROM pg_attribute
+                WHERE attrelid = 'public.{table}'::regclass AND attnum > 0 AND NOT attisdropped
+                    AND has_column_privilege('learnstack_platform', 'public.{table}', attnum, 'SELECT,UPDATE,INSERT')
+                """)).Should().BeEmpty(table + " stays closed to the platform role");
         }
     }
 

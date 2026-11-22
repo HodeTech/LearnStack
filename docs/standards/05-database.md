@@ -1101,6 +1101,10 @@ Step 3; contextual Membership/Role grants are implemented in Step 4.
 | `roles` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE | — | — |
 | `role_permission_grants` | `SELECT, INSERT, DELETE`; no UPDATE/TRUNCATE | — | — |
 | `federation_connections` | `SELECT, INSERT, UPDATE`; no DELETE/TRUNCATE, because the row ends as a tombstone | `SELECT` of `id`, `tenant_id`, `state` and `deleted_at` only ([ADR-0099](../decisions/0099-confined-tenant-federation.md) Amendment 11); exact [projection grant](#federation-operator-projection) | — |
+| `data_subject_requests` | `SELECT, INSERT`; `UPDATE` of the status, `row_version`, progress, result, refusal, failure, completion and update-stamp columns; no DELETE | `SELECT` of sixteen closed columns, no requester or actor stamp; `UPDATE` of status, `row_version`, `completed_at` and `result`, which the guard's [platform arm](#data-request-operator-storage) admits for one arrow only | — |
+| `data_export_artifacts` | `SELECT, INSERT`; `UPDATE` of status, `purged_at`, `row_version` and the update stamps | `SELECT` of `id`, `tenant_id`, `request_id`, `status` and `expires_at` only ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8) | — |
+| `data_export_tickets` | `SELECT, INSERT`; `UPDATE (consumed_at)` | — | — |
+| `data_export_chunks` | `SELECT, INSERT, DELETE` | — | — |
 | `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -6699,3 +6703,91 @@ dirty probe that states exactly what the arms admit, the request policy against 
 independent canonicalized oracle, the confined lookup, and the setter's captured owner.
 The Membership policy oracle is in `GlobalIdentitySchemaTests`, and the census counts
 are there too; the head pin is in `MigrationRollbackTests`.
+
+## Data-request operator storage
+
+**Derives from:**
+[ADR-0107 § 8](../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 8 and § 9. The operator's
+data-request inspection and erasure completion run on `learnstack_platform` in the
+platform scope. The Identity migration
+`20261122200000_grant_platform_data_request_operations` carries the guard arm, the grant
+and the two indexes below; it is forward-only, and the head of the Identity chain is
+pinned in `MigrationRollbackTests`.
+
+### The request guard's platform arm
+
+`fn_identity_data_request_guard` gains one branch for a session whose `session_user` and
+`current_user` are both `learnstack_platform`, ahead of the application role's arms,
+which are unchanged character for character: a unit test compares them with the
+definition the request storage migration installed. The branch admits an `UPDATE` and
+nothing else, and only:
+
+- the arrow `erasure: awaiting_privileged_step → completed`; every other arrow, status
+  and kind is refused (`Data request transition refused.`);
+- with every column but the status, `row_version`, `completed_at`, `result`,
+  `updated_at` and `updated_by` unchanged, and `row_version` stepped by exactly one
+  (`Data request immutable state refused.`);
+- with `result` changed only in the audit log's four retained kinds,
+  `audit_actor_reference`, `audit_entity_reference`, `audit_metadata_reference` and
+  `unscoped_audit_rows`, so the tenant side's record stays as its participants wrote it
+  (`Data request result refused.`).
+
+The branch stamps `updated_at` from the database clock, never earlier than the row's
+last stamp, `updated_by` as `UserId.SystemActor` and `completed_at` as that
+`updated_at`, whatever the statement said. Columns a trigger assigns need no column
+grant, so the platform role's `UPDATE` grant stays at the four columns ADR-0107 § 8
+lists. The role holds no `INSERT` or `DELETE`; the application role cannot take the
+platform's arrow, and the platform role cannot take one of the application's. A
+closure's Begin and Finalize extend the branch's one arrow condition.
+
+### The artifact read
+
+`learnstack_platform` holds `SELECT` of `id`, `tenant_id`, `request_id`, `status` and
+`expires_at` on `data_export_artifacts`: what the inspection's expired-artifact list
+filters, joins, orders and shows, with the group read from the joined request. No
+subject, size, key version, truncation, actor or purge time is granted, because the
+lifecycle CHECK makes `status IN ('available','expired')` the rows with no `purged_at`,
+and nothing on `data_export_tickets` or `data_export_chunks`. Column privileges are read
+from the attribute ACLs, as for every column-grant table.
+
+### The inspection indexes
+
+```sql
+CREATE INDEX ix_data_subject_requests_operator_due ON public.data_subject_requests
+    (status, (COALESCE(execute_at, created_at)), id)
+    WHERE status IN ('scheduled','fulfilling','awaiting_privileged_step');
+CREATE INDEX ix_data_export_artifacts_unpurged_expiry ON public.data_export_artifacts (expires_at, id)
+    WHERE status IN ('available','expired');
+```
+
+Each request list filters one status and orders by when the request fell due, then by
+its identifier; the artifact list orders by expiry. A keyset cursor seeks past the last
+row. A test asks PostgreSQL for the plan of each statement the inspection runs, with and
+without a cursor, and requires an ordered scan of its index with no sort. The migration
+builds both without `CONCURRENTLY`, inside its transaction, as the earlier operator
+indexes were.
+
+### Proof
+
+Real PostgreSQL as each role:
+
+- `DataRequestStorageControlTests`: on erasures the application role created and moved
+  through its own arrows, the platform role completing one through the arm and the
+  stamps it writes, and each refused variant: a missing or doubled version step, a
+  result that changes, drops or adds a tenant-side kind, every other arrow from the
+  awaiting state, an application arrow on a scheduled erasure, a column outside the
+  grant, a `DELETE` and a second completion; and the application role refused the
+  platform's arrow and a result change.
+- `DataRequestStorageTests`: the exact grant matrix of the four tables, the five
+  artifact columns, and the platform role refused every other column, table and an
+  export's arrow.
+- `DataRequestOperatorOperationsTests`: the four lists and their order, the cursors, the
+  entry row, the plans, and the completion's one transaction from the row's own subject,
+  its result row, its repeat, its refusals, its failures, a lost commit and two
+  concurrent completions.
+- `PlatformAdminScopeTests`: the redaction bound to its operation, on the scope's own
+  transaction and before the result row, faulting the scope when it fails, and refused
+  without an executor.
+- `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their statuses
+  and contract, and the pair of permissions, each held alone.

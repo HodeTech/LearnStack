@@ -264,6 +264,7 @@ public sealed partial class PlatformAdminScopeConventionTests
                     KillswitchWriterFile,
                     DeliveryInspectionFile,
                     FederationOperationsFile,
+                    DataRequestOperationsFile,
                 ],
                 "each new operator service is added here deliberately, with its denied proof");
     }
@@ -362,8 +363,58 @@ public sealed partial class PlatformAdminScopeConventionTests
         }
     }
 
+    [Fact]
+    public void Only_The_Data_Request_Routes_And_Their_Owner_Name_The_Data_Request_Operator_Port_And_Only_It_Redacts()
+    {
+        // ADR-0107 § 8 and ADR-0108 § 2: the inspection and the erasure completion are reachable from the data-request
+        // routes alone, through the one owner, and the scope's redaction is called by that owner and by nothing else. The
+        // first scan names the owner's class, which the port's name contains, so a holder of the concrete owner is found
+        // too. The scope also refuses the redaction to any other admitted operation at run time; this keeps the set of
+        // files that could ask for it closed as well.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "DataRequestOperatorOperations", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.SharedKernel/Platform/IDataRequestOperatorOperations.cs",
+                    DataRequestOperationsFile,
+                    CompositionFile,
+                    "LearnStack.Api/Platform/PlatformOperatorEndpoints.DataRequests.cs",
+                ],
+                "each new caller of a data-request operator act is added here deliberately, with its denied proof");
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "RedactAuditAsync", except: null)
+            .Should().BeEquivalentTo(
+                ["LearnStack.SharedKernel/Tenancy/IPlatformAdminScope.cs", ScopeFile, DataRequestOperationsFile],
+                "the erasure owner is the one caller of the scope's redaction; Step 3's closure Finalize joins it deliberately");
+    }
+
+    [Fact]
+    public void The_Data_Request_Port_Census_Finds_A_Planted_Holder_Of_The_Port_The_Owner_Or_The_Redaction()
+    {
+        var planted = Directory.CreateTempSubdirectory("data-request-holder-");
+        try
+        {
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaPort.cs"), "class A(IDataRequestOperatorOperations operations) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaOwner.cs"), "class B(DataRequestOperatorOperations owner) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaHandle.cs"),
+                "class C { Task R(IPlatformAdminScopeHandle handle, AuditRedactionPlan plan) => handle.RedactAuditAsync(plan); }");
+            File.WriteAllText(Path.Combine(planted.FullName, "Commented.cs"),
+                "class D { /* handle.RedactAuditAsync(plan) and IDataRequestOperatorOperations */ }");
+
+            SourceScan.FilesContaining(planted.FullName, "DataRequestOperatorOperations", except: null)
+                .Should().BeEquivalentTo(["ViaPort.cs", "ViaOwner.cs"]);
+            SourceScan.FilesContaining(planted.FullName, "RedactAuditAsync", except: null).Should().BeEquivalentTo(["ViaHandle.cs"],
+                "a call in code is found and a mention in a comment is not");
+        }
+        finally
+        {
+            planted.Delete(recursive: true);
+        }
+    }
+
     private const string FederationOperationsFile =
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Federation/FederationBrokerOperations.cs";
+
+    private const string DataRequestOperationsFile =
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/DataRequestOperatorOperations.cs";
 
     private const string KillswitchWriterFile =
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchToggle.cs";

@@ -28,17 +28,21 @@ Tenant or Organization and this one is the only Platform key the module declares
 **`event` has no `write`, no `delete` and no `admin`, and the absence is the point.**
 Every other resource in the corpus gets the actions its commands need. This one has no
 command at all: rows arrive from `PostgresAuditStore` on behalf of the operation being
-audited, and the two mutating paths that exist — GDPR redaction, which lands with the
-erasure handler in [Phase 03](../../roadmap/phase-03-identity-admin.md), and the retention
-purge, which lands in [Phase 11](../../roadmap/phase-11-production-hardening.md) — run as
-`learnstack_platform` through `EnterPlatformAdminScope(reason)` and are gated by a
-Platform-scope key rather than a tenant-facing one. **That key is `platform.data_request.write`** ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8,
-[ADR-0108](../../decisions/0108-privileged-audit-redaction.md) § 1), which Phase 03 registers with the permission registry and the redaction executor, in the closed action
-set [Permission Standards](../../standards/19-permissions.md) fixes, and Phase 11's purge
-takes the same key or a sibling Phase 03 names — so no writer of `audit_log` lands with a
-permission nobody has declared. Tenant-facing audit-row creation is not an admitted operation.
-`learnstack_app` holds `SELECT, INSERT` on `audit_log` for the central store; that
-database grant does not create an assignable `audit.event.write` capability.
+audited, and the two mutating paths, GDPR redaction and the retention purge, which lands
+in [Phase 11](../../roadmap/phase-11-production-hardening.md), run as
+`learnstack_platform` in the platform scope an operator's admission opens and are gated
+by a Platform-scope key rather than a tenant-facing one. The redaction's key is
+`platform.data_request.write`
+([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8,
+[ADR-0108](../../decisions/0108-privileged-audit-redaction.md) § 1), registered in the
+Platform catalogue with the operation `audit.redaction.apply`: the scope hands the
+redaction to that operator act alone, through the one Audit-owned executor, in the
+transaction that completes the erasure ([runbook](../../runbooks/data-erasure.md)).
+Phase 11's purge takes the same key or a sibling it names, so no writer of `audit_log`
+lands with a permission nobody has declared. Tenant-facing audit-row creation is not an
+admitted operation. `learnstack_app` holds `SELECT, INSERT` on `audit_log` for the
+central store; that database grant does not create an assignable `audit.event.write`
+capability.
 
 **Export is a sub-resource, because the action set is closed.** `export` is not one of
 `read | write | delete | admin`, and

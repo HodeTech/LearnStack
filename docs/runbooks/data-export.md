@@ -82,10 +82,10 @@ sealed:
    is readable for seven days, so by then every artifact sealed under the old key has
    expired. That wait is the rule. A check confirms it before the key goes; it reads the
    label column only, never `data_export_chunks`. Row level security is forced on the
-   artifact table and `learnstack_platform` holds no grant on it, so a database
-   administrator runs the check as the application role (`learnstack_app`) in each
-   tenant's own announced context (`app.tenant_id`, and `app.scope = 'tenant'` to see
-   its organizations' rows):
+   artifact table and `learnstack_platform` may read only the five metadata columns the
+   operator inspection lists, not the key label, so a database administrator runs the
+   check as the application role (`learnstack_app`) in each tenant's own announced
+   context (`app.tenant_id`, and `app.scope = 'tenant'` to see its organizations' rows):
 
    ```sql
    SELECT count(*) FROM public.data_export_artifacts
@@ -207,10 +207,11 @@ purge ran, so nothing is disclosed. Its chunks still occupy storage until someth
 purges them. There is no operator purge in this step and no sweeper: the automated
 retention sweep is Phase 11's (ADR-0107 § 6).
 
-- Find them by `status IN ('available','expired') AND expires_at <= now()` as the
-  application role in a tenant's context, as above. The platform `inspect` read of
-  ADR-0107 § 8 lists them once the step that registers `platform.data_request.read`
-  ships it.
+- The operator's data-request inspection lists them across every tenant, oldest expiry
+  first: `state=expired_artifact` in [Data erasure § Inspect](data-erasure.md#inspect),
+  under `platform.data_request.read`. Within one tenant, a database administrator finds
+  them by `status IN ('available','expired') AND expires_at <= now()` as the application
+  role in its context, as above.
 - The purge job is retried by the runtime. A quarantined purge job is not requeued by
   [Operator recovery](operator-recovery.md), which only inspects jobs; escalate it with
   that inspection as evidence.

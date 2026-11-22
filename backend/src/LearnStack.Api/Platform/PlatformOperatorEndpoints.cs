@@ -70,6 +70,7 @@ internal static partial class PlatformOperatorEndpoints
         MapOnboarding(group);
         MapRecovery(group);
         MapFederation(group);
+        MapDataRequests(group);
         return app;
     }
 

@@ -892,6 +892,9 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
             public Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default) =>
                 inner.WriteIntentAsync(intent, cancellationToken);
 
+            public Task<AuditRedactionReport> RedactAuditAsync(AuditRedactionPlan plan, CancellationToken cancellationToken = default) =>
+                inner.RedactAuditAsync(plan, cancellationToken);
+
             public Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default) =>
                 inner.WriteResultAsync(result, cancellationToken);
 
@@ -930,6 +933,9 @@ public sealed class FederationBrokerOperationsTests(FederationBrokerOperationsTe
 
             public Task WriteIntentAsync(PlatformResult intent, CancellationToken cancellationToken = default) =>
                 real.WriteIntentAsync(intent, cancellationToken);
+
+            public Task<AuditRedactionReport> RedactAuditAsync(AuditRedactionPlan plan, CancellationToken cancellationToken = default) =>
+                real.RedactAuditAsync(plan, cancellationToken);
 
             public async Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default)
             {

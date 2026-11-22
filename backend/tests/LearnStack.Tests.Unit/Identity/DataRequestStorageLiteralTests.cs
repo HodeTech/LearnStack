@@ -76,12 +76,50 @@ public sealed class DataRequestStorageLiteralTests
                 "how many of a person's records a group holds, and how large their bundle is, describe the person");
     }
 
+    [Fact]
+    public void The_platform_arm_precedes_the_application_arms_which_stay_byte_for_byte_those_of_Step_1()
+    {
+        const string End = "END $guard$;";
+        const string ApplicationArms = "    IF (session_user <> 'learnstack_app'";
+        var original = Ddl("RequestGuard");
+        var replaced = Ddl("RequestGuard", "DataRequestOperatorDdl");
+        original = original[..(original.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+        replaced = replaced[..(replaced.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+
+        replaced.Should().StartWith("CREATE OR REPLACE FUNCTION public.fn_identity_data_request_guard() RETURNS trigger");
+        var header = original[..original.IndexOf(ApplicationArms, StringComparison.Ordinal)];
+        var applicationArms = original[original.IndexOf(ApplicationArms, StringComparison.Ordinal)..];
+        var platformArm = replaced[
+            (header.Length + "OR REPLACE ".Length)..replaced.IndexOf(ApplicationArms, StringComparison.Ordinal)];
+        replaced.Should().Be(header.Replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", StringComparison.Ordinal)
+            + platformArm + applicationArms,
+            "the function's header and every application arm are Step 1's, character for character, after the platform arm");
+        platformArm.Should().Contain("IF session_user = 'learnstack_platform' AND current_user = 'learnstack_platform' THEN")
+            .And.Contain("OLD.kind = 'erasure' AND OLD.status = 'awaiting_privileged_step' AND NEW.status = 'completed'")
+            .And.EndWith("        RETURN NEW;\n    END IF;\n", "the arm returns before the application's arms are reached");
+
+        // The result may change only in the audit log's retained kinds (ADR-0107 § 6): each list the arm names is exactly
+        // those four codes of the closed vocabulary.
+        var auditKinds = new[]
+        {
+            RetainedReferenceKind.AuditActorReference, RetainedReferenceKind.AuditEntityReference,
+            RetainedReferenceKind.AuditMetadataReference, RetainedReferenceKind.UnscopedAuditRows,
+        }.Select(DataRequestCodes.RetainedKinds.ToCode).Order(StringComparer.Ordinal);
+        var lists = System.Text.RegularExpressions.Regex.Matches(platformArm, @"ARRAY\[(?<codes>[^\]]+)\]");
+        lists.Should().HaveCount(2);
+        foreach (System.Text.RegularExpressions.Match list in lists)
+        {
+            list.Groups["codes"].Value.Split(',').Select(code => code.Trim().Trim('\'')).Order(StringComparer.Ordinal)
+                .Should().Equal(auditKinds);
+        }
+    }
+
     private static string Check(IModel model, Type entity, string name) =>
         model.FindEntityType(entity)!.GetCheckConstraints().SingleOrDefault(check => check.Name == name)?.Sql
         ?? throw new InvalidOperationException("The constraint is not in the model: " + name);
 
-    private static string Ddl(string name) => (string)typeof(IdentityDbContext).Assembly
-        .GetType("LearnStack.Modules.Identity.Infrastructure.Persistence.DataRequestStorageDdl", throwOnError: true)!
+    private static string Ddl(string name, string type = "DataRequestStorageDdl") => (string)typeof(IdentityDbContext).Assembly
+        .GetType("LearnStack.Modules.Identity.Infrastructure.Persistence." + type, throwOnError: true)!
         .GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
 
     private static IdentityDbContext Identity() => new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ModelOnly).Options,

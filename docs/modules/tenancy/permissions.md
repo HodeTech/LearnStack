@@ -134,8 +134,14 @@ remove and disable of one
 [runbook](../../runbooks/federation-operator.md)): they run in the platform scope, not
 through the pipeline, and write the off-path slugs `platform.federation.report`,
 `platform.federation.remove_attempt`, `platform.federation.remove`,
-`platform.federation.disable_attempt` and `platform.federation.disable`. Operators hold
-the keys by configuration ([Standard 19](../../standards/19-permissions.md)).
+`platform.federation.disable_attempt` and `platform.federation.disable`. Two more keys,
+`platform.data_request.read` and `platform.data_request.write`, belong to the Identity
+module's operator data-request acts ([permissions](../identity/permissions.md),
+[runbook](../../runbooks/data-erasure.md)); Tenancy's catalogue source declares their
+off-path slugs, `platform.data_request.inspect` and `audit.redaction.apply`, beside the
+other platform slugs, and the first one's row is in [Tenancy's audit matrix](audit.md).
+Operators hold the keys by configuration
+([Standard 19](../../standards/19-permissions.md)).
 
 ## Bounded human administration contract
 

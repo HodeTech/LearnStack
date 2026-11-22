@@ -231,6 +231,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         deliveryInspection.Should().Throw<NotSupportedException>().WithMessage("The platform role's column grants require a reviewed forward migration.");
         Action dataRequestReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_data_request_protected_receipts().DownOperations;
         dataRequestReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained data request receipts require a reviewed forward migration.");
+        Action ownDataRequestScopes = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_own_data_request_scopes().DownOperations;
+        ownDataRequestScopes.Should().Throw<NotSupportedException>().WithMessage("The retained own data-request scope requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
@@ -238,7 +240,7 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
             (platform, "20261120120000_grant_platform_delivery_inspection", PlatformReversibleHead,
                 "20261122160000_add_data_request_protected_receipts", "Retained data request receipts require a reviewed forward migration."),
             (identity, "20261122013001_add_data_subject_requests", IdentityReversibleHead,
-                "20261122140000_add_own_data_request_scopes", "The retained own data-request scope requires a reviewed forward migration."),
+                "20261122200000_grant_platform_data_request_operations", "The platform data-request operations require a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

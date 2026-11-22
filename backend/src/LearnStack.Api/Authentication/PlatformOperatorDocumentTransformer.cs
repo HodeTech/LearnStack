@@ -20,8 +20,9 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         "Operator-only platform operations. Authenticate with a short-lived access token issued by the "
         + "deployment's operator issuer to the client learnstack-operator after a second factor; the token "
         + "profile and the runbooks are in docs/runbooks/operator-access.md, and the recovery of dead-lettered "
-        + "work is explained in docs/runbooks/operator-recovery.md and the federation operator steps in "
-        + "docs/runbooks/federation-operator.md. Authentication grants no "
+        + "work is explained in docs/runbooks/operator-recovery.md, the federation operator steps in "
+        + "docs/runbooks/federation-operator.md and the completion of an erasure in docs/runbooks/data-erasure.md. "
+        + "Authentication grants no "
         + "permission: each operation needs a Platform grant held by LearnStack and evaluated on every act.";
 
     public async Task TransformAsync(
@@ -97,6 +98,7 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
         "PlatformDeliveryReplay" => typeof(Platform.DeliveryReplayBody),
         "PlatformOutboxReset" => typeof(Platform.OutboxResetBody),
         "PlatformFederationRemove" or "PlatformFederationDisable" => typeof(Platform.FederationActBody),
+        "PlatformErasureComplete" => typeof(Platform.DataRequestActBody),
         _ => throw new InvalidOperationException("An operator operation declares no request body: " + operationId),
     };
 
@@ -124,6 +126,15 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
 
             switch (concrete.Name)
             {
+                case "state" when operation.OperationId == "PlatformDataRequestInspect":
+                    var states = Platform.PlatformOperatorEndpoints.DataRequestStates.Select(state => state.Name).ToList();
+                    concrete.Description = states[0] + " (default), " + string.Join(", ", states.Skip(1)) + ".";
+                    concrete.Schema = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String,
+                        Enum = [.. states.Select(state => (JsonNode)JsonValue.Create(state)!)],
+                    };
+                    break;
                 case "state":
                     concrete.Description = "dead_lettered (default) or terminal_requested.";
                     concrete.Schema = new OpenApiSchema
@@ -219,15 +230,15 @@ internal sealed class PlatformOperatorDocumentTransformer(string documentName) :
 
     private static readonly (string Status, string Description)[] Statuses =
     [
-        ("400", "validation_failed: the body is malformed, a required field is missing, an onboarding identifier is not a UUIDv7, a recovery route names the nil or the platform tenant or a malformed subscription, a provider subject is blank or over 255 characters, a template name is not one of the closed set, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -. A refusal at the gate carries no per-field errors; a page parameter that is refused names itself on errors.state, errors.limit, errors.cursor or errors.query (a parameter the route does not take). A federation act names only an alias of the form lsf- and 32 lowercase hexadecimal characters."),
+        ("400", "validation_failed: the body is malformed, a required field is missing, an onboarding identifier is not a UUIDv7, a recovery route names the nil or the platform tenant or a malformed subscription, a provider subject is blank or over 255 characters, a template name is not one of the closed set, or the ticket is not 1 to 64 characters of A-Z a-z 0-9 . _ : / # -. A refusal at the gate carries no per-field errors; a page parameter that is refused names itself on errors.state, errors.limit, errors.cursor or errors.query (a parameter the route does not take). A federation act names only an alias of the form lsf- and 32 lowercase hexadecimal characters, and an erasure completion only a request identifier that is a UUIDv7."),
         ("401", "unauthorized: the credential is missing or does not meet the token profile. One answer for every cause; the cause is in the operator's signals."),
         ("403", "forbidden: the credential is good and this operator holds no grant for the operation."),
-        ("404", "not_found: the killswitch key is not declared, the tenant the route names does not exist, a recovery names no such row, or a federation disable names an alias no identity-provider instance has."),
-        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A recovery answers 409 with the reason on errors.fence (the row no longer shows the fence the inspection returned: read it again) or on errors.state (the fence holds and the row is not one the act may take; the rule that refused it is the reason's cause parameter: processed, leased, invalid_envelope, reason_refused, subscription_not_active, type_not_dispatchable or tenant_not_serving). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200. A federation act answers 409 with the reason on errors.owner (the instance's owner marker is not LearnStack's, or names another tenant than its row), errors.connection (a live connection row still names the broker and it reads or is still enabled: a remove is refused; disable an unreadable one first, and it is then removed even with the live row), errors.class (a disable found a healthy broker with a live row) or errors.provider (the provider definitively refused the change; nothing changed). A repeat of a federation act that had landed answers 200 already_applied and writes no row of its own, and does not say that a remove owes the account review."),
+        ("404", "not_found: the killswitch key is not declared, the tenant the route names does not exist, a recovery names no such row, a federation disable names an alias no identity-provider instance has, or an erasure completion names no request."),
+        ("409", "business_rule_violation: the act refuses the state it found; the reason is in errors (an identifier or slug is taken, the host is taken or reserved, the person has not signed in, the Role is not an initialized administrator Role, the tenant has Membership history or an administrator exists, or another change won). A recovery answers 409 with the reason on errors.fence (the row no longer shows the fence the inspection returned: read it again) or on errors.state (the fence holds and the row is not one the act may take; the rule that refused it is the reason's cause parameter: processed, leased, invalid_envelope, reason_refused, subscription_not_active, type_not_dispatchable or tenant_not_serving). A repeat that changes a value under the same identifiers is refused; an exact repeat answers 200. A federation act answers 409 with the reason on errors.owner (the instance's owner marker is not LearnStack's, or names another tenant than its row), errors.connection (a live connection row still names the broker and it reads or is still enabled: a remove is refused; disable an unreadable one first, and it is then removed even with the live row), errors.class (a disable found a healthy broker with a live row) or errors.provider (the provider definitively refused the change; nothing changed). A repeat of a federation act that had landed answers 200 already_applied and writes no row of its own, and does not say that a remove owes the account review. An erasure completion answers 409 with the reason on errors.kind (the request is not an erasure) or errors.status (the erasure is not awaiting its privileged step; its stored status is the reason's cause parameter), and writes nothing; a repeat of a completion that had landed answers 200 already_completed and writes no second row."),
         ("413", "payload_too_large: the body is over 4096 bytes."),
         ("415", "unsupported_media_type: the body is not application/json."),
         ("429", "rate_limited: the caller exceeded the per-peer request budget."),
-        ("500", "internal_error: an unexpected failure. An act's final commit may have landed: read the state before changing it. An exact repeat of an onboarding act answers 200; a repeat of a recovery that had landed answers 409 on errors.fence."),
-        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written, a connection or an ordered lock could not be taken, or a read failed, so nothing changed. Retry after the delay. A recovery's dependency_unavailable can carry errors.outcome = lockey_outcome_unknown: its commit may have landed, so inspect the row before repeating, because a landed recovery answers a repeat 409 on errors.fence. A federation act's dependency_unavailable carries it when a provider change was sent and its completion could not be recorded or its answer was lost: read the report or the alias before repeating."),
+        ("500", "internal_error: an unexpected failure. An act's final commit may have landed: read the state before changing it. An exact repeat of an onboarding act answers 200; a repeat of a recovery that had landed answers 409 on errors.fence, and of an erasure completion 200 already_completed."),
+        ("503", "audit_unavailable or dependency_unavailable: the audit row could not be written, a connection or an ordered lock could not be taken, or a read failed, so nothing changed. Retry after the delay. A recovery's dependency_unavailable can carry errors.outcome = lockey_outcome_unknown: its commit may have landed, so inspect the row before repeating, because a landed recovery answers a repeat 409 on errors.fence. A federation act's dependency_unavailable carries it when a provider change was sent and its completion could not be recorded or its answer was lost: read the report or the alias before repeating. An erasure completion's dependency_unavailable carries it when its commit was sent and the answer was lost; a repeat is safe and answers 200 already_completed if the commit had landed, and the redaction is idempotent if it had not."),
     ];
 }

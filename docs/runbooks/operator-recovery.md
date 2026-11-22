@@ -226,10 +226,17 @@ access](operator-access.md#signals). Each inspection page also logs the scope-en
 
 ## Limits
 
-- **Erasure.** The rule that the tenant is serving is the guard until P03-10 (G16)
-  defines what a replay may reach after a tenant's data is erased; it re-verifies these
-  transitions. The check is not locked against a suspension that commits at the same
-  moment. Do not reset anything for a tenant that is being erased.
+- **Erasure never resets replay.** An erasure never rewrites or deletes an outbox,
+  delivery, inbox or job row, and a replayed or reset delivery re-runs its handler under
+  that handler's own subject rules, which refuse a Closing or Closed User but not a
+  tenant-erased person, whose User stays Active. So a replayed delivery about an erased
+  person may write rows for them again, and that is reported as retained transport
+  evidence
+  ([ADR-0107 § 9](../decisions/0107-data-request-fulfillment-and-account-closure.md),
+  [Data erasure](data-erasure.md#erasure-never-resets-replay)). Before you replay or
+  reset in a tenant where an erasure completed, ask whether the event concerns the
+  erased person. The rule that the tenant is serving still applies, and it is not locked
+  against a suspension that commits at the same moment.
 - **The invitation path.** A stuck or unknown outbound invitation email is a *job*, and
   nothing here releases it. Reissuing an invitation helps only while the tenant has a
   free slot; it neither reconciles nor releases the old effect, and four unresolved

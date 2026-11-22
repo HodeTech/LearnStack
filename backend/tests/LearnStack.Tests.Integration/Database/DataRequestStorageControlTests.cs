@@ -245,6 +245,116 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
     }
 
     /// <summary>
+    /// ADR-0107 § 8 and ADR-0108 § 8: the guard's platform arm, on erasures the application role created and moved through
+    /// its own arrows. <c>learnstack_platform</c> takes exactly <c>awaiting_privileged_step → completed</c>, with the version
+    /// step, the audit log's retained kinds as the only change to the result, and the completion stamped by the guard; the
+    /// application role cannot take that arrow, and the platform role cannot take one of the application's.
+    /// </summary>
+    [Fact]
+    public async Task The_platform_arm_admits_exactly_an_erasure_s_completion_and_each_role_keeps_to_its_own_arrows()
+    {
+        await using var database = await SeededAsync();
+        var awaiting = Guid.CreateVersion7();
+        var scheduled = Guid.CreateVersion7();
+        await using (var app = await OpenAppAsync(database))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FenceAsync(app, transaction, SchemaFixture.TenantB, null, AdminB);
+            await InsertRequestAsync(app, transaction, scheduled, SchemaFixture.TenantB, null, AdminB, [AdminMembershipB], "erasure");
+            // A closure's fan-out erasure starts fulfilling, so the job's arrows reach the privileged step without a window.
+            await LockAsync(app, transaction, SchemaFixture.TenantB, PersonB, false);
+            await ScopeAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1);
+            await ExecuteAsync(app, transaction, """
+                INSERT INTO public.data_subject_requests(id,tenant_id,organization_id,kind,origin,subject_user_id,requester_user_id,
+                    status,membership_snapshot,execute_at,created_at,created_by)
+                VALUES(@id,@tenant,@organization,'erasure','closure_fanout',@subject,NULL,'fulfilling',@snapshot::jsonb,NULL,now(),@system)
+                """, ("id", awaiting), ("tenant", SchemaFixture.TenantB), ("organization", SchemaFixture.OrgB1), ("subject", PersonB),
+                ("snapshot", Snapshot(BranchMembershipB)), ("system", SystemActor));
+            await StepAsync(app, transaction, awaiting, "result='{\"consent_evidence\":2,\"audit_actor_reference\":9}'");
+            await StepAsync(app, transaction, awaiting, "status='awaiting_privileged_step'");
+            await transaction.CommitAsync();
+        }
+
+        await using (var app = await OpenAppAsync(database))
+        {
+            foreach (var (set, reason) in new[]
+            {
+                ("status='completed',completed_at=now()", "Data request transition refused."),
+                ("result='{\"consent_evidence\":2,\"audit_actor_reference\":4}'", "Data request result refused."),
+            })
+            {
+                await using var transaction = await app.BeginTransactionAsync();
+                await FenceAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1, null);
+                var act = () => StepAsync(app, transaction, awaiting, set);
+                (await act.Should().ThrowAsync<PostgresException>()).Which.MessageText.Should().Be(reason,
+                    "the application's arms are unchanged and never take the operator's step: " + set);
+            }
+        }
+
+        await using var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.PlatformConnectionString);
+        async Task<PostgresException> RefusedAsync(string sql, params (string Name, object? Value)[] values)
+        {
+            await using var transaction = await platform.BeginTransactionAsync();
+            var act = () => ExecuteAsync(platform, transaction, sql, values);
+            return (await act.Should().ThrowAsync<PostgresException>(sql)).Which;
+        }
+
+        const string Complete = "UPDATE public.data_subject_requests SET {0} WHERE id=@id";
+        foreach (var (target, set, reason) in new[]
+        {
+            (awaiting, "status='completed'", "Data request immutable state refused."),
+            (awaiting, "status='completed',row_version=row_version+2", "Data request immutable state refused."),
+            (awaiting, "status='completed',row_version=row_version+1,result='{\"consent_evidence\":3,\"audit_actor_reference\":4}'",
+                "Data request result refused."),
+            (awaiting, "status='completed',row_version=row_version+1,result='{\"audit_actor_reference\":4}'", "Data request result refused."),
+            (awaiting, "status='completed',row_version=row_version+1,result='{\"consent_evidence\":2,\"request_receipt\":1}'",
+                "Data request result refused."),
+            (awaiting, "status='cancelled',row_version=row_version+1", "Data request transition refused."),
+            (awaiting, "status='failed',row_version=row_version+1", "Data request transition refused."),
+            (awaiting, "status='fulfilling',row_version=row_version+1", "Data request transition refused."),
+            (scheduled, "status='fulfilling',row_version=row_version+1", "Data request transition refused."),
+            (scheduled, "status='cancelled',row_version=row_version+1", "Data request transition refused."),
+            (scheduled, "status='completed',row_version=row_version+1", "Data request transition refused."),
+        })
+        {
+            var refusal = await RefusedAsync(string.Format(System.Globalization.CultureInfo.InvariantCulture, Complete, set), ("id", target));
+            refusal.SqlState.Should().Be("23514", set);
+            refusal.MessageText.Should().Be(reason, set);
+        }
+
+        (await RefusedAsync("UPDATE public.data_subject_requests SET last_refusal='blocked_hold' WHERE id=@id", ("id", awaiting)))
+            .SqlState.Should().Be("42501", "a column outside the grant never reaches the guard");
+        (await RefusedAsync("DELETE FROM public.data_subject_requests WHERE id=@id", ("id", awaiting))).SqlState.Should().Be("42501");
+
+        // The one arrow. The statement's own completion time is replaced by the database clock the guard stamps.
+        await using (var transaction = await platform.BeginTransactionAsync())
+        {
+            var completedAt = await ScalarAsync<DateTime>(platform, transaction, """
+                UPDATE public.data_subject_requests SET status='completed',completed_at='2001-01-01T00:00:00Z',row_version=row_version+1,
+                    result='{"consent_evidence":2,"audit_actor_reference":4,"unscoped_audit_rows":1}'
+                WHERE id=@id RETURNING completed_at
+                """, ("id", awaiting));
+            completedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1), "no caller supplies the completion time");
+            await transaction.CommitAsync();
+        }
+
+        await using (var app = await OpenAppAsync(database))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await ScopeAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1);
+            (await ScalarAsync<string>(app, transaction, """
+                SELECT status || ':' || row_version || ':' || (completed_at = updated_at)::text || ':' || updated_by::text || ':'
+                    || (result = '{"consent_evidence":2,"audit_actor_reference":4,"unscoped_audit_rows":1}'::jsonb)::text
+                FROM public.data_subject_requests WHERE id=@id
+                """, ("id", awaiting))).Should().Be($"completed:3:true:{SystemActor}:true",
+                "the arm stamps the completion and the system actor, steps the version once and keeps the tenant side's kinds");
+        }
+
+        (await RefusedAsync("UPDATE public.data_subject_requests SET status='completed',row_version=row_version+1 WHERE id=@id",
+            ("id", awaiting))).MessageText.Should().Be("Data request transition refused.", "a completed erasure is terminal");
+    }
+
+    /// <summary>
     /// ADR-0107 § 4: a chunk written while a revocation of its artifact is in flight waits for it and then meets the
     /// committed status, so ciphertext never lands on a withdrawn artifact (which nothing would clean afterwards).
     /// </summary>

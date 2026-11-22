@@ -7,6 +7,7 @@ using FluentAssertions;
 using LearnStack.Api.Authentication;
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Platform;
 using Microsoft.AspNetCore.Hosting;
@@ -49,6 +50,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     private RecordingRecovery _recovery = null!;
     private RecordingInspection _inspection = null!;
     private RecordingBrokers _brokers = null!;
+    private RecordingDataRequests _dataRequests = null!;
     private CapturingLogs _logs = null!;
     private HttpClient _client = null!;
 
@@ -60,6 +62,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         _recovery = new RecordingRecovery();
         _inspection = new RecordingInspection();
         _brokers = new RecordingBrokers();
+        _dataRequests = new RecordingDataRequests();
         _logs = new CapturingLogs();
         _factory = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
             services: registrations =>
@@ -69,6 +72,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 registrations.AddSingleton<IOperatorRecovery>(_recovery);
                 registrations.AddScoped<IDeliveryInspection>(_ => _inspection);
                 registrations.AddScoped<IFederationBrokerOperations>(_ => _brokers);
+                registrations.AddScoped<IDataRequestOperatorOperations>(_ => _dataRequests);
             });
         _client = _factory.CreateClient();
     }
@@ -572,6 +576,10 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         ParameterOf(outbox, "limit").GetProperty("minimum").GetRawText().Trim('"').Should().Be("1");
         ParameterOf(outbox, "cursor").GetProperty("maxLength").GetInt32().Should().Be(512);
         ParameterOf(outbox, "ticket").GetProperty("pattern").GetString().Should().Be(@"^[A-Za-z0-9._:/#-]{1,64}$");
+        ParameterOf(DataRequests, "state").GetProperty("enum").EnumerateArray().Select(value => value.GetString())
+            .Should().Equal(["awaiting_privileged_step", "overdue_scheduled", "stuck_fulfilling", "expired_artifact"],
+                "the data-request inspection offers its own closed lists, not the recovery's");
+        ParameterOf(DataRequests, "limit").GetProperty("minimum").GetRawText().Trim('"').Should().Be("1");
     }
 
     private const string Work = "/api/platform/v1/asynchronous-work";
@@ -1203,15 +1211,22 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         "/api/platform/v1/federation/brokers",
         "/api/platform/v1/federation/brokers/{alias}/remove",
         "/api/platform/v1/federation/brokers/{alias}/disable",
+        "/api/platform/v1/data-requests",
+        "/api/platform/v1/data-requests/{requestId}/complete-erasure",
     ];
 
-    /// <summary>The verb each operator route answers: reads are GET, recovery acts are POST, the rest are idempotent PUTs.</summary>
+    /// <summary>
+    /// The verb each operator route answers: reads are GET, recovery, federation and data-request acts are POST, the rest
+    /// are idempotent PUTs.
+    /// </summary>
     private static string VerbOf(string route) =>
         route.Contains("/asynchronous-work/", StringComparison.Ordinal)
             ? route.EndsWith("/replay", StringComparison.Ordinal) || route.EndsWith("/reset", StringComparison.Ordinal) ? "post" : "get"
             : route.Contains("/federation/", StringComparison.Ordinal)
                 ? route.EndsWith("/remove", StringComparison.Ordinal) || route.EndsWith("/disable", StringComparison.Ordinal) ? "post" : "get"
-                : "put";
+                : route.Contains("/data-requests", StringComparison.Ordinal)
+                    ? route.EndsWith("/complete-erasure", StringComparison.Ordinal) ? "post" : "get"
+                    : "put";
 
     [Fact]
     public async Task Without_An_Issuer_The_Surface_And_Its_Document_Do_Not_Exist()
@@ -1246,7 +1261,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public void The_Operator_Surface_Is_Exactly_The_Fourteen_Authorized_Endpoints_Under_Its_Prefix()
+    public void The_Operator_Surface_Is_Exactly_The_Sixteen_Authorized_Endpoints_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
         // its population is closed here instead: every routed endpoint under /api/platform (whatever
@@ -1262,7 +1277,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
         endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Should().BeEquivalentTo(
             OperatorRoutes.Select(route => route.Replace("{tenantId}", "{tenantId:guid}").Replace("{roleId}", "{roleId:guid}")
-                .Replace("{membershipId}", "{membershipId:guid}").Replace("{eventId}", "{eventId:guid}")),
+                .Replace("{membershipId}", "{membershipId:guid}").Replace("{eventId}", "{eventId:guid}")
+                .Replace("{requestId}", "{requestId:guid}")),
             "the operator population is closed: a new route is a reviewed act with its own policy, grant and audit slug");
         foreach (var endpoint in endpoints)
         {
@@ -1274,6 +1290,302 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                     "an operator endpoint without the authenticated-operator policy would admit an anonymous caller: " + route);
             endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>().Should().BeNull(route);
         }
+    }
+
+    private const string DataRequests = "/api/platform/v1/data-requests";
+    private const string ErasureRequest = "019a1929-5450-7bbb-8df1-516e8e002503";
+    private const string CompletePath = DataRequests + "/" + ErasureRequest + "/complete-erasure";
+
+    [Fact]
+    public async Task A_Data_Request_Inspection_Passes_Its_List_And_Page_On_Under_An_Admission_For_The_Inspection()
+    {
+        var response = await Call(HttpMethod.Get, DataRequests + "?state=stuck_fulfilling&limit=500&cursor=abc&ticket=CHG-7", Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var (admission, query, requestId) = _dataRequests.Calls.Should().ContainSingle().Which;
+        requestId.Should().BeNull();
+        query!.State.Should().Be(DataRequestInspectionState.StuckFulfilling);
+        query.Cursor.Should().Be("abc");
+        query.Limit.Should().Be(100, "a limit above the maximum is clamped, as Standard 04 says");
+        admission.Operation.Should().BeSameAs(PlatformOperations.DataRequestInspect);
+        admission.Ticket.Should().Be("CHG-7");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"items\":[").And.Contain("\"requestId\":\"" + ErasureRequest + "\"").And.Contain("\"nextCursor\":\"next-cursor\"")
+            .And.Contain("\"hasNext\":true");
+    }
+
+    [Theory]
+    [InlineData("", DataRequestInspectionState.AwaitingPrivilegedStep)]
+    [InlineData("?state=awaiting_privileged_step", DataRequestInspectionState.AwaitingPrivilegedStep)]
+    [InlineData("?state=overdue_scheduled", DataRequestInspectionState.OverdueScheduled)]
+    [InlineData("?state=stuck_fulfilling", DataRequestInspectionState.StuckFulfilling)]
+    [InlineData("?state=expired_artifact", DataRequestInspectionState.ExpiredArtifact)]
+    public async Task A_Data_Request_Inspection_Reads_The_Closed_List_It_Names_And_The_Awaiting_One_By_Default(
+        string query, DataRequestInspectionState expected)
+    {
+        var response = await Call(HttpMethod.Get, DataRequests + query, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        _dataRequests.Calls.Should().ContainSingle().Which.Query!.State.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("state=bogus", "state")]
+    [InlineData("state=AWAITING_PRIVILEGED_STEP", "state")]
+    [InlineData("state=dead_lettered", "state")]
+    [InlineData("limit=0", "limit")]
+    [InlineData("limit=abc", "limit")]
+    [InlineData("limt=5", "query")]
+    [InlineData("subject=019a1929-5450-7bbb-8df1-516e8e002504", "query")]
+    public async Task A_Data_Request_Inspection_Refuses_A_Bad_Or_Unknown_Parameter_And_Names_It_Without_Echo(string query, string field)
+    {
+        var response = await Call(HttpMethod.Get, DataRequests + "?" + query, Valid());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var text = await response.Content.ReadAsStringAsync();
+        using var body = JsonDocument.Parse(text);
+        body.RootElement.GetProperty("errors").TryGetProperty(field, out _).Should().BeTrue(field);
+        text.Should().NotContain("limt").And.NotContain("subject").And.NotContain("bogus");
+        _dataRequests.Calls.Should().BeEmpty("a refused parameter enters no scope");
+    }
+
+    [Fact]
+    public async Task A_Cursor_The_Data_Request_Owner_Refuses_Is_A_Validation_Failure_And_Its_Faults_Are_Retryable_503s()
+    {
+        _dataRequests.RefuseCursor = true;
+        var refused = await Call(HttpMethod.Get, DataRequests + "?cursor=forged", Valid());
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using (var body = JsonDocument.Parse(await refused.Content.ReadAsStringAsync()))
+        {
+            body.RootElement.GetProperty("errors").TryGetProperty("cursor", out _).Should().BeTrue();
+        }
+
+        _dataRequests.RefuseCursor = false;
+        foreach (var (failure, code) in new (Exception, string)[]
+                 {
+                     (new AuditWriteFailedException("forced"), "audit_unavailable"),
+                     (new OperatorRecoveryUnavailableException(cause: new TimeoutException("forced")), "dependency_unavailable"),
+                 })
+        {
+            _dataRequests.Failure = failure;
+            var response = await Call(HttpMethod.Get, DataRequests, Valid());
+
+            response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, code);
+            response.Headers.RetryAfter.Should().NotBeNull(code);
+            await AssertProblem(response, code);
+            (await response.Content.ReadAsStringAsync()).Should().NotContain("forced", "the cause is for the log, never the response");
+        }
+    }
+
+    [Fact]
+    public async Task An_Erasure_Completion_Runs_Under_An_Admission_For_Exactly_That_Operation_And_Answers_The_Closed_Report()
+    {
+        var response = await Call(HttpMethod.Post, CompletePath, Valid(), """{"ticket":"CHG-11"}""");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var (admission, query, requestId) = _dataRequests.Calls.Should().ContainSingle().Which;
+        query.Should().BeNull();
+        requestId.Should().Be(Guid.Parse(ErasureRequest));
+        admission.Operation.Should().BeSameAs(PlatformOperations.ErasureComplete);
+        admission.Ticket.Should().Be("CHG-11");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = body.RootElement;
+        root.GetProperty("outcome").GetString().Should().Be("completed");
+        root.GetProperty("requestId").GetString().Should().Be(ErasureRequest);
+        root.GetProperty("tenantId").GetString().Should().Be(RowTenant);
+        root.GetProperty("rowsSelected").GetInt64().Should().Be(7);
+        root.GetProperty("redacted").EnumerateObject().Select(column => column.Name).Should().BeEquivalentTo(
+            ["ip_address", "user_agent", "actor_email", "before_state", "after_state", "changes"], "every column is reported, zero or not");
+        root.GetProperty("redacted").GetProperty("ip_address").GetInt64().Should().Be(3);
+        root.GetProperty("retained").GetProperty("audit_actor_reference").GetInt64().Should().Be(4);
+        root.GetProperty("retained").GetProperty("consent_evidence").GetInt64().Should().Be(1);
+        root.GetProperty("correlationId").GetString().Should().Be(admission.Operator.CorrelationId);
+    }
+
+    [Fact]
+    public async Task A_Repeat_Of_A_Landed_Completion_Answers_Already_Completed_With_The_Recorded_Result_And_No_Counts()
+    {
+        _dataRequests.Completion = new ErasureCompletionResult(
+            ErasureCompletionOutcome.AlreadyCompleted, Guid.Parse(RowTenant), "completed", DateTimeOffset.UnixEpoch,
+            new Dictionary<string, long> { ["audit_actor_reference"] = 4 });
+
+        var response = await Call(HttpMethod.Post, CompletePath, Valid(), "{}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("outcome").GetString().Should().Be("already_completed");
+        body.RootElement.GetProperty("retained").GetProperty("audit_actor_reference").GetInt64().Should().Be(4);
+        body.RootElement.TryGetProperty("redacted", out var redacted).Should().BeTrue();
+        redacted.ValueKind.Should().Be(JsonValueKind.Null, "a repeat redacted nothing and the first call's counts are in the audit row");
+        body.RootElement.GetProperty("rowsSelected").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Theory]
+    [InlineData(ErasureCompletionOutcome.NotErasure, "kind", "lockey_data_request_not_erasure", null)]
+    [InlineData(ErasureCompletionOutcome.NotAwaiting, "status", "lockey_data_request_not_awaiting_privileged_step", "scheduled")]
+    public async Task A_Refused_Completion_Is_A_409_With_Its_Reason_On_The_Field_It_Concerns(
+        ErasureCompletionOutcome outcome, string field, string reason, string? cause)
+    {
+        _dataRequests.Completion = new ErasureCompletionResult(outcome, Guid.Parse(RowTenant), cause ?? "completed");
+
+        var response = await Call(HttpMethod.Post, CompletePath, Valid(), "{}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("code").GetString().Should().Be("business_rule_violation");
+        var errors = body.RootElement.GetProperty("errors");
+        errors.EnumerateObject().Select(property => property.Name).Should().Equal([field], "the reason is on the field it concerns, and only there");
+        errors.GetProperty(field)[0].GetProperty("key").GetString().Should().Be(reason);
+        if (cause is not null)
+        {
+            errors.GetProperty(field)[0].GetProperty("params").GetProperty("cause").GetString().Should().Be(cause,
+                "the stored status that refused it, a closed code, is the reason's cause");
+        }
+    }
+
+    [Fact]
+    public async Task A_Completion_That_Names_No_Request_Is_Not_Found()
+    {
+        _dataRequests.Completion = new ErasureCompletionResult(ErasureCompletionOutcome.NotFound);
+
+        var response = await Call(HttpMethod.Post, CompletePath, Valid(), "{}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        await AssertProblem(response, "not_found");
+    }
+
+    [Theory]
+    [InlineData("/data-requests/not-a-guid/complete-erasure", HttpStatusCode.NotFound)]
+    [InlineData("/data-requests/00000000-0000-0000-0000-000000000000/complete-erasure", HttpStatusCode.BadRequest)]
+    [InlineData("/data-requests/00000000-0000-7000-8000-000000000002/complete-erasure", HttpStatusCode.BadRequest)]
+    [InlineData("/data-requests/4f9c5a3e-2b7d-4c1a-9e8f-0a1b2c3d4e5f/complete-erasure", HttpStatusCode.BadRequest)]
+    public async Task A_Completion_Naming_No_Real_Request_Is_Refused_Without_Calling_The_Owner(string suffix, HttpStatusCode expected)
+    {
+        // A request identifier that is not a UUID matches no route; the nil value, the platform sentinel and a version-4
+        // identifier match it and are refused by the route's own check, after the gate.
+        var response = await Call(HttpMethod.Post, "/api/platform/v1" + suffix, Valid(), "{}");
+
+        response.StatusCode.Should().Be(expected);
+        _dataRequests.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Completion_Without_A_Body_Or_With_A_Bad_Ticket_Or_Media_Type_Is_Answered_Only_To_A_Granted_Operator()
+    {
+        (await Call(HttpMethod.Post, CompletePath, Valid())).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await Call(HttpMethod.Post, CompletePath, Valid(), """{"ticket":"has space"}""")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var wrongType = new HttpRequestMessage(HttpMethod.Post, CompletePath)
+        {
+            Headers = { { "Authorization", "Bearer " + Valid() } },
+            Content = new StringContent("{}", System.Text.Encoding.UTF8, "text/plain"),
+        };
+        (await _client.SendAsync(wrongType)).StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
+        (await Call(HttpMethod.Post, CompletePath, Sign(("sub", "someone-else")), "not json")).StatusCode.Should().Be(
+            HttpStatusCode.Forbidden, "an operator without the grant learns nothing about the body");
+        (await Call(HttpMethod.Post, CompletePath, "not-a-token", "{}")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        _dataRequests.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Completion_Whose_Audit_Or_Database_Failed_Or_Whose_Commit_Is_Unknown_Is_A_Retryable_503_With_Its_Own_Reason()
+    {
+        using var counted = Counted();
+        foreach (var (failure, reason) in new (Exception, string)[]
+                 {
+                     (new AuditWriteFailedException("forced"), "audit_unavailable"),
+                     (new OperatorRecoveryUnavailableException(cause: new TimeoutException("forced")), "dependency_unavailable"),
+                     (new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true, cause: new TimeoutException("forced")), "outcome_unknown"),
+                 })
+        {
+            _dataRequests.Failure = failure;
+
+            var response = await Call(HttpMethod.Post, CompletePath, Valid(), "{}");
+
+            response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, reason);
+            response.Headers.RetryAfter.Should().NotBeNull(reason);
+            var text = await response.Content.ReadAsStringAsync();
+            text.Should().NotContain("forced");
+            using var body = JsonDocument.Parse(text);
+            body.RootElement.GetProperty("status").GetInt32().Should().Be(503, reason);
+            body.RootElement.GetProperty("code").GetString().Should().Be(reason == "outcome_unknown" ? "dependency_unavailable" : reason);
+            body.RootElement.TryGetProperty("errors", out var errors).Should().Be(reason == "outcome_unknown",
+                "only a commit that may have landed names the unknown outcome: " + reason);
+            if (reason == "outcome_unknown") errors.GetProperty("outcome").ToString().Should().Contain("outcome_unknown");
+        }
+
+        counted.AuditFailures.Should().Be(1, "a refused audit write is a signal an alert can watch");
+        _logs.Entries.Count(line => line.Id == 7110).Should().Be(2, "each unavailable owner logs its cause under its own event id");
+    }
+
+    [Theory]
+    [InlineData(DataRequestKey.None)]
+    [InlineData(DataRequestKey.Read)]
+    [InlineData(DataRequestKey.Write)]
+    public async Task The_Data_Request_Read_And_Write_Keys_Admit_Only_Their_Own_Routes_And_The_Other_Platform_Keys_Neither(
+        DataRequestKey held)
+    {
+        // ADR-0107 § 8: every other case here holds every key, so none can tell which key a route asks for. Each case holds
+        // exactly one, and None holds every other registered Platform key: none of them admits either route.
+        string[] keys = held switch
+        {
+            DataRequestKey.Read => [PlatformPermissions.DataRequestRead.Key],
+            DataRequestKey.Write => [PlatformPermissions.DataRequestWrite.Key],
+            _ => PlatformPermissions.All
+                .Where(key => key != PlatformPermissions.DataRequestRead && key != PlatformPermissions.DataRequestWrite)
+                .Select(key => key.Key).ToArray(),
+        };
+        var operations = new RecordingDataRequests();
+        await using var single = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
+            services: registrations => registrations.AddScoped<IDataRequestOperatorOperations>(_ => operations),
+            permissions: keys);
+        using var client = single.CreateClient();
+
+        async Task<HttpStatusCode> Send(HttpMethod method, string path, string? json)
+        {
+            using var request = new HttpRequestMessage(method, path) { Headers = { { "Authorization", "Bearer " + Valid() } } };
+            if (json is not null) request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return (await client.SendAsync(request)).StatusCode;
+        }
+
+        (await Send(HttpMethod.Get, DataRequests, null)).Should().Be(held == DataRequestKey.Read ? HttpStatusCode.OK : HttpStatusCode.Forbidden);
+        (await Send(HttpMethod.Post, CompletePath, "{}")).Should().Be(held == DataRequestKey.Write ? HttpStatusCode.OK : HttpStatusCode.Forbidden);
+        operations.Calls.Count.Should().Be(held == DataRequestKey.None ? 0 : 1);
+    }
+
+    public enum DataRequestKey
+    {
+        None,
+        Read,
+        Write,
+    }
+
+    [Fact]
+    public async Task The_Production_Composition_Resolves_The_Data_Request_Owner_Over_The_Platform_Scope()
+    {
+        // The doubles above replace the port, so this builds the host the way production does and asks for it: a
+        // registration that is missing or cannot be constructed would otherwise surface only on the first operator call.
+        await using var production = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject);
+        using var client = production.CreateClient();
+
+        using var scope = production.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IDataRequestOperatorOperations>()
+            .Should().BeOfType<LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestOperatorOperations>();
+    }
+
+    [Fact]
+    public async Task The_Served_Contract_Documents_The_Inspection_Lists_And_The_Completion_s_Refusals_And_Repeat()
+    {
+        using var document = JsonDocument.Parse(await _client.GetStringAsync("/openapi/platform-v1.json"));
+        var paths = document.RootElement.GetProperty("paths");
+
+        var inspect = paths.GetProperty(DataRequests).GetProperty("get");
+        inspect.GetProperty("description").GetString().Should().Contain("stuck_fulfilling").And.Contain("2 hours")
+            .And.Contain("never the subject");
+        var complete = paths.GetProperty("/api/platform/v1/data-requests/{requestId}/complete-erasure").GetProperty("post");
+        complete.GetProperty("description").GetString().Should().Contain("already_completed").And.Contain("actor_user_id");
+        complete.GetProperty("responses").GetProperty("409").GetProperty("description").GetString()
+            .Should().Contain("errors.kind").And.Contain("errors.status");
+        document.RootElement.GetProperty("info").GetProperty("description").GetString().Should().Contain("data-erasure.md");
     }
 
     private string Header(string alg, string typ) => JsonSerializer.Serialize(new { alg, typ, kid = _operator.CurrentKey.Kid });
@@ -1575,6 +1887,39 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         }
     }
 
+    private sealed class RecordingDataRequests : IDataRequestOperatorOperations
+    {
+        public List<(PlatformAdmission Admission, DataRequestInspectionQuery? Query, Guid? RequestId)> Calls { get; } = [];
+        public bool RefuseCursor { get; set; }
+        public Exception? Failure { get; set; }
+        public ErasureCompletionResult Completion { get; set; } = new(
+            ErasureCompletionOutcome.Completed, Guid.Parse(RowTenant), "completed", DateTimeOffset.UnixEpoch,
+            new Dictionary<string, long> { ["audit_actor_reference"] = 4, ["consent_evidence"] = 1 },
+            new AuditRedactionReport(
+                7, new Dictionary<AuditRedactedColumn, long> { [AuditRedactedColumn.IpAddress] = 3 },
+                [new RetainedReferenceCount(RetainedReferenceKind.AuditActorReference, 4)]));
+
+        public Task<InspectionPage<DataRequestInspectionItem>?> InspectAsync(
+            PlatformAdmission admission, DataRequestInspectionQuery query, CancellationToken cancellationToken = default)
+        {
+            Calls.Add((admission, query, null));
+            if (Failure is not null) return Task.FromException<InspectionPage<DataRequestInspectionItem>?>(Failure);
+            return Task.FromResult<InspectionPage<DataRequestInspectionItem>?>(RefuseCursor
+                ? null
+                : new InspectionPage<DataRequestInspectionItem>(
+                    [new DataRequestInspectionItem(Guid.Parse(ErasureRequest), Guid.Parse(RowTenant), null, "erasure", "self",
+                        "awaiting_privileged_step", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1), null, null, null, null)],
+                    "next-cursor"));
+        }
+
+        public Task<ErasureCompletionResult> CompleteErasureAsync(
+            PlatformAdmission admission, Guid requestId, CancellationToken cancellationToken = default)
+        {
+            Calls.Add((admission, null, requestId));
+            return Failure is not null ? Task.FromException<ErasureCompletionResult>(Failure) : Task.FromResult(Completion);
+        }
+    }
+
     private sealed class PlatformOperatorApiFactory(
         TenantAuthenticationIssuer tenant,
         TenantAuthenticationIssuer @operator,
@@ -1598,7 +1943,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 [
                     PlatformPermissions.KillswitchWrite.Key, PlatformPermissions.DeliveryRead.Key,
                     PlatformPermissions.DeliveryWrite.Key, PlatformPermissions.FederationRead.Key,
-                    PlatformPermissions.FederationAdmin.Key,
+                    PlatformPermissions.FederationAdmin.Key, PlatformPermissions.DataRequestRead.Key,
+                    PlatformPermissions.DataRequestWrite.Key,
                 ];
                 for (var index = 0; index < held.Length; index++)
                 {
