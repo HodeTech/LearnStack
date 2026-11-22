@@ -32,9 +32,17 @@ namespace LearnStack.Tests.Architecture;
 /// the capture leaves it out, so its members' references are the paths <c>Navigation/*/Property</c>.
 /// </para>
 /// <para>
-/// A reference the grammar cannot express (inside a contained single navigation, or one level deeper) fails the census
+/// A reference the grammar cannot express (inside a contained single navigation, one level deeper, or in a contained
+/// member's own key, which the capture writes as a JSON object key and a <c>changes</c> path segment) fails the census
 /// until the grammar grows. An array of identifiers held in a <c>jsonb</c> property is invisible to a type census, so an
 /// <c>Elements</c> declaration is instead checked to name a mapped <c>jsonb</c> property.
+/// </para>
+/// <para>
+/// <b>No unclassified identifier.</b> A name is a weak signal, so every other plain <see cref="Guid"/> of an audited
+/// entity or of what it contains fails as an unclassified identifier unless it is its entity's or member's own
+/// single-column key or is on <see cref="NotAPerson"/>, the explicit list of identifiers that name no person. A retained
+/// reference must be its entity's whole single-column key: a part of a composite key is not the row's
+/// <c>entity_id</c>.
 /// </para>
 /// </remarks>
 public sealed class UserReferenceLocatorCensusTests
@@ -66,21 +74,34 @@ public sealed class UserReferenceLocatorCensusTests
                 .And.Contain(offender => offender.StartsWith("Undeclared person reference: ", StringComparison.Ordinal));
         }
 
-        // Planted: a synthetic module whose audited entity holds a typed, an untyped and a contained person reference and
-        // registers no locator; then one that declares them with a wrong kind, a stale path and another module's entity.
-        var planted = new ModuleModel("Planted", PlantedModel(), [typeof(PlantedAggregate)]);
-        Offenders([.. models, planted], locators, catalog).Should()
+        // Planted: a synthetic module whose audited entities hold a typed, an untyped and a contained person reference, a
+        // plain Guid no name classifies, a contained collection keyed by a person and a composite key holding a person,
+        // and that registers no locator; then one that declares them with a wrong kind, a stale path and another module's
+        // entity, and retains the person part of the composite key as if it were the entity's own key.
+        var planted = new ModuleModel("Planted", PlantedModel(), [typeof(PlantedAggregate), typeof(PlantedGrant)]);
+        var unplanted = Offenders([.. models, planted], locators, catalog);
+        unplanted.Should()
             .Contain("Missing user reference locator: Planted")
             .And.Contain("Undeclared person reference: PlantedAggregate.Owner")
             .And.Contain("Undeclared person reference: PlantedAggregate.DelegateMembershipId")
             .And.Contain("Undeclared person reference: PlantedAggregate.Members/*/Reviewer")
-            .And.Contain("Person reference outside the path grammar: PlantedAggregate.Lead/Approver");
+            .And.Contain("Person reference outside the path grammar: PlantedAggregate.Lead/Approver")
+            .And.Contain("Unclassified identifier: PlantedAggregate.ReviewedBy")
+            .And.Contain("Unclassified identifier: PlantedGrant.ScopeId")
+            .And.Contain("Person reference in a contained member's key, outside the path grammar: PlantedAggregate.Seats/Holder")
+            .And.Contain("Undeclared person reference: PlantedGrant.Holder");
+        unplanted.Should().NotContain(offender => offender.Contains(".Members/*/Id", StringComparison.Ordinal)
+            || offender.Contains(".Lead/Id", StringComparison.Ordinal) || offender.EndsWith("PlantedAggregate.Id", StringComparison.Ordinal),
+            "an entity's or a contained member's own single-column key is its identity, not a reference");
         var wrong = new RegisteredLocator("Planted", new PlantedLocator());
         Offenders([.. models, planted], [.. locators, wrong],
                 new UserReferenceCatalog([.. locators.Select(locator => locator.Instance), wrong.Instance])).Should()
             .Contain("Wrong kind for PlantedAggregate.Owner: Membership, the model holds User")
             .And.Contain("Stale declaration: PlantedAggregate.Retired")
             .And.Contain("Locator of Planted declares another module's entity: Membership")
+            .And.Contain("Retained reference is not the entity's own key: PlantedGrant.Holder")
+            .And.Contain("Person reference in a contained member's key, outside the path grammar: PlantedAggregate.Seats/Holder",
+                "a declared member key is still refused: the key text stays in the JSON object key and the changes path")
             .And.NotContain("Missing user reference locator: Planted");
         Offenders(models, [.. locators, locators[0] with { }], catalog).Should()
             .Contain("More than one user reference locator: " + locators[0].Module);
@@ -111,6 +132,18 @@ public sealed class UserReferenceLocatorCensusTests
     private static readonly string[] Legs = ["Domain", "Application.Contracts", "Application", "Infrastructure"];
 
     private static readonly string[] ReferencingModules = ["Customization", "Education", "Identity", "Tenancy"];
+
+    /// <summary>
+    /// The plain <see cref="Guid"/> properties of audited entities that name no person, each with why. Every other plain
+    /// <see cref="Guid"/> that is not its entity's (or contained member's) own single-column key is a person reference
+    /// until it is declared or listed here, so a <c>ReviewedBy</c> added as a <see cref="Guid"/> fails the census. Read
+    /// from the models: strongly typed identifiers (tenant, organization, role, definitions) are not plain
+    /// <see cref="Guid"/>s and need no entry.
+    /// </summary>
+    private static readonly Dictionary<string, string> NotAPerson = new(StringComparer.Ordinal)
+    {
+        ["MembershipFieldConsent.DefinitionId"] = "the custom field definition the consent is for, a tenant definition",
+    };
 
     /// <summary>Every locator the API composition registers, Identity's and the root's own, with its module.</summary>
     private static List<RegisteredLocator> RegisteredLocators()
@@ -215,6 +248,12 @@ public sealed class UserReferenceLocatorCensusTests
             offenders.Add("Missing user reference locator: " + module);
         }
 
+        var identifiers = models.SelectMany(model => model.Identifiers).ToHashSet(StringComparer.Ordinal);
+        offenders.AddRange(identifiers.Where(identifier => !NotAPerson.ContainsKey(identifier)).Order(StringComparer.Ordinal)
+            .Select(identifier => "Unclassified identifier: " + identifier));
+        offenders.AddRange(NotAPerson.Keys.Where(identifier => !identifiers.Contains(identifier)).Order(StringComparer.Ordinal)
+            .Select(identifier => "Stale identifier allowance: " + identifier));
+
         return offenders;
     }
 
@@ -232,17 +271,22 @@ public sealed class UserReferenceLocatorCensusTests
                 continue;
             }
 
+            var ownKey = OwnKey(entity.FindPrimaryKey()?.Properties ?? []);
             foreach (var property in entity.GetProperties())
             {
                 if (KindOf(property) is { } kind)
                 {
-                    yield return new PersonReference(model.Module, type, property.Name, kind, property.IsPrimaryKey());
+                    yield return new PersonReference(model.Module, type, property.Name, kind, property == ownKey);
+                }
+                else if (IsIdentifier(property) && property != ownKey)
+                {
+                    model.Identifiers.Add(type.Name + "." + property.Name);
                 }
             }
 
             foreach (var navigation in Containments(entity))
             {
-                foreach (var reference in Contained(model.Module, type, navigation, navigation.Name, depth: 1, offenders))
+                foreach (var reference in Contained(model, type, navigation, navigation.Name, depth: 1, offenders))
                 {
                     yield return reference;
                 }
@@ -250,20 +294,43 @@ public sealed class UserReferenceLocatorCensusTests
         }
     }
 
-    private static IEnumerable<PersonReference> Contained(string module, Type owner, IReadOnlyNavigation navigation, string path,
+    /// <summary>A key's one property, or none when the key is composite: only a whole single-column key is an own key.</summary>
+    private static IReadOnlyProperty? OwnKey(IReadOnlyList<IReadOnlyProperty> key) => key.Count == 1 ? key[0] : null;
+
+    /// <summary>A plain <see cref="Guid"/>: an identifier no type names, which only its declaration or an allowance classifies.</summary>
+    private static bool IsIdentifier(IReadOnlyProperty property) =>
+        (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid);
+
+    private static IEnumerable<PersonReference> Contained(ModuleModel model, Type owner, IReadOnlyNavigation navigation, string path,
         int depth, List<string> offenders)
     {
         var member = navigation.TargetEntityType;
+
+        // The member's own key, as the capture computes it: its key without the foreign key to the owner. A collection's
+        // members are keyed by it as JSON object keys and as segments of each changes path, which no declaration reaches.
+        var local = (member.FindPrimaryKey()?.Properties ?? []).Where(property => !navigation.ForeignKey.Properties.Contains(property))
+            .ToList();
+        var ownKey = OwnKey(local);
+        var shape = depth == 1 && navigation.IsCollection ? "/*/" : "/";
         foreach (var property in member.GetProperties().Where(property => !navigation.ForeignKey.Properties.Contains(property)))
         {
             if (KindOf(property) is not { } kind)
             {
+                if (IsIdentifier(property) && property != ownKey)
+                {
+                    model.Identifiers.Add(owner.Name + "." + path + shape + property.Name);
+                }
+
                 continue;
             }
 
-            if (depth == 1 && navigation.IsCollection)
+            if (navigation.IsCollection && local.Contains(property))
             {
-                yield return new PersonReference(module, owner, UserReferencePath.Member(navigation.Name, property.Name).ToString(),
+                offenders.Add($"Person reference in a contained member's key, outside the path grammar: {owner.Name}.{path}/{property.Name}");
+            }
+            else if (depth == 1 && navigation.IsCollection)
+            {
+                yield return new PersonReference(model.Module, owner, UserReferencePath.Member(navigation.Name, property.Name).ToString(),
                     kind, IsKey: false);
             }
             else
@@ -277,7 +344,7 @@ public sealed class UserReferenceLocatorCensusTests
         {
             foreach (var inner in Containments(member))
             {
-                foreach (var reference in Contained(module, owner, inner, path + "/" + inner.Name, depth + 1, offenders))
+                foreach (var reference in Contained(model, owner, inner, path + "/" + inner.Name, depth + 1, offenders))
                 {
                     yield return reference;
                 }
@@ -358,19 +425,43 @@ public sealed class UserReferenceLocatorCensusTests
 
     private sealed record RegisteredLocator(string? Module, IUserReferenceLocator Instance);
 
-    private sealed record ModuleModel(string Module, IModel Model, IReadOnlyCollection<Type> Audited);
+    private sealed record ModuleModel(string Module, IModel Model, IReadOnlyCollection<Type> Audited)
+    {
+        /// <summary>The plain <see cref="Guid"/> paths the census found that no type classifies, filled as it walks.</summary>
+        public HashSet<string> Identifiers { get; } = new(StringComparer.Ordinal);
+    }
 
     private sealed record PersonReference(string Module, Type Entity, string Path, UserReferenceKind Kind, bool IsKey);
 }
 
-/// <summary>A synthetic audited aggregate: a typed, an untyped and a contained person reference, and one the grammar cannot reach.</summary>
+/// <summary>
+/// A synthetic audited aggregate: a typed, an untyped and a contained person reference, one the grammar cannot reach, a
+/// plain <see cref="Guid"/> no name classifies, and a contained collection keyed by a person.
+/// </summary>
 internal sealed class PlantedAggregate
 {
     public Guid Id { get; set; }
     public UserId Owner { get; set; }
     public Guid DelegateMembershipId { get; set; }
+    public Guid ReviewedBy { get; set; }
     public List<PlantedMember> Members { get; } = [];
     public PlantedLead? Lead { get; set; }
+    public List<PlantedSeat> Seats { get; } = [];
+}
+
+/// <summary>A contained member keyed by a person: its key is the JSON object key and a changes path segment.</summary>
+internal sealed class PlantedSeat
+{
+    public Guid PlantedAggregateId { get; set; }
+    public UserId Holder { get; set; }
+    public int Row { get; set; }
+}
+
+/// <summary>A synthetic audited aggregate whose composite key holds a person: no part of it is the entity's own key.</summary>
+internal sealed class PlantedGrant
+{
+    public Guid ScopeId { get; set; }
+    public UserId Holder { get; set; }
 }
 
 internal sealed class PlantedMember
@@ -387,7 +478,10 @@ internal sealed class PlantedLead
     public UserId Approver { get; set; }
 }
 
-/// <summary>Declares the planted references wrongly: a wrong kind, a path the model does not hold, another module's entity.</summary>
+/// <summary>
+/// Declares the planted references wrongly: a wrong kind, a path the model does not hold, another module's entity, and a
+/// retained part of a composite key.
+/// </summary>
 internal sealed class PlantedLocator : IUserReferenceLocator
 {
     public IReadOnlyCollection<UserReferenceDeclaration> Redactable { get; } =
@@ -397,7 +491,11 @@ internal sealed class PlantedLocator : IUserReferenceLocator
         new(typeof(IdentityDomain.Membership), UserReferencePath.Of("Planted"), UserReferenceKind.User),
     ];
 
-    public IReadOnlyCollection<RetainedUserReference> Retained { get; } = [];
+    public IReadOnlyCollection<RetainedUserReference> Retained { get; } =
+    [
+        new(typeof(PlantedGrant), UserReferencePath.Of(nameof(PlantedGrant.Holder)), RetainedReferenceKind.AuditEntityReference,
+            "Planted: the person part of a composite key is not the row's entity_id."),
+    ];
 }
 
 internal sealed class PlantedContext : DbContext
@@ -412,6 +510,17 @@ internal sealed class PlantedContext : DbContext
             aggregate.Property(entity => entity.Owner).HasConversion(id => id.Value, value => UserId.From(value));
             aggregate.HasMany(entity => entity.Members).WithOne().HasForeignKey(member => member.PlantedAggregateId);
             aggregate.HasOne(entity => entity.Lead).WithOne().HasForeignKey<PlantedLead>(lead => lead.PlantedAggregateId);
+            aggregate.HasMany(entity => entity.Seats).WithOne().HasForeignKey(seat => seat.PlantedAggregateId);
+        });
+        modelBuilder.Entity<PlantedSeat>(seat =>
+        {
+            seat.Property(member => member.Holder).HasConversion(id => id.Value, value => UserId.From(value));
+            seat.HasKey(member => new { member.PlantedAggregateId, member.Holder });
+        });
+        modelBuilder.Entity<PlantedGrant>(grant =>
+        {
+            grant.Property(entity => entity.Holder).HasConversion(id => id.Value, value => UserId.From(value));
+            grant.HasKey(entity => new { entity.ScopeId, entity.Holder });
         });
         modelBuilder.Entity<PlantedMember>().Property(member => member.Reviewer).HasConversion(id => id.Value, value => UserId.From(value));
         modelBuilder.Entity<PlantedLead>().Property(lead => lead.Approver).HasConversion(id => id.Value, value => UserId.From(value));

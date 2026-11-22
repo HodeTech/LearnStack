@@ -118,13 +118,16 @@ public sealed class AuditRedactionExecutorTests
     private const string SanctionRefusal = "*does not name an operation that may redact*";
 
     /// <summary>Expects the named refusal, so a test cannot pass on a later check that also refuses.</summary>
+    /// <remarks>
+    /// This proves which check refuses, not that no statement ran: the executor builds its <c>NpgsqlCommand</c>s itself and
+    /// would never ask this double for one. That nothing runs before a refusal is proved against PostgreSQL by
+    /// <c>AuditRedactionCanaryTests.A_refused_admission_or_plan_runs_no_statement</c> (the transaction's JIT setting and
+    /// rows unchanged, and the same transaction still usable).
+    /// </remarks>
     private static async Task Refused(AuditRedactionPlan plan, PlatformAdmission admission, StatementlessConnection connection,
-        string message, string because)
-    {
+        string message, string because) =>
         await FluentActions.Awaiting(() => Executor.RedactAsync(plan, admission, connection, connection.Transaction))
             .Should().ThrowAsync<InvalidOperationException>(because).WithMessage(message);
-        connection.Commands.Should().Be(0, "a refusal runs no statement ({0})", because);
-    }
 
     private static PlatformAdmission Spent(PlatformOperation operation)
     {
@@ -137,15 +140,13 @@ public sealed class AuditRedactionExecutorTests
         new(new UserDataSubject(Guid.CreateVersion7(), kind, DataRequestOrigin.Self, UserId.From(Guid.CreateVersion7()),
             new DataRequestScopeGroup(TenantId.From(Guid.CreateVersion7()), null), [Guid.CreateVersion7()]));
 
-    /// <summary>An open connection that counts the commands asked of it and runs none.</summary>
+    /// <summary>An open connection that is not the platform scope's: it runs nothing.</summary>
     [SuppressMessage("Reliability", "CA2213:Disposable fields should be disposed", Justification = "The transaction owns nothing.")]
     private sealed class StatementlessConnection : DbConnection
     {
         public StatementlessConnection() => Transaction = new StatementlessTransaction(this);
 
         public DbTransaction Transaction { get; }
-
-        public int Commands { get; private set; }
 
         [AllowNull]
         public override string ConnectionString { get; set; } = string.Empty;
@@ -170,11 +171,7 @@ public sealed class AuditRedactionExecutorTests
 
         protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) => throw new NotSupportedException();
 
-        protected override DbCommand CreateDbCommand()
-        {
-            Commands++;
-            throw new NotSupportedException("A refusal runs no statement.");
-        }
+        protected override DbCommand CreateDbCommand() => throw new NotSupportedException("A refusal runs no statement.");
     }
 
     private sealed class StatementlessTransaction(DbConnection connection) : DbTransaction

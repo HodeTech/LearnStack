@@ -3812,26 +3812,37 @@ which decides identity, multiplicity, capture and classification;
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
 
-- **Asserts:** every person reference an audited entity carries into its audit snapshot
-  is declared by its own module's registered `IUserReferenceLocator`, as redactable or
-  as an explicit retained reference, and every module that has one registers exactly one
-  locator from inside its own boundary
+- **Asserts:** every person reference the census can see in an audited entity's audit
+  snapshot is declared by its own module's registered `IUserReferenceLocator`, as
+  redactable or as an explicit retained reference, and every module that has one
+  registers exactly one locator from inside its own boundary
   ([ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md),
   [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md)). The audited entities
   are the declared types of the merged audit catalogue; their references are read from
   each module's mapped model by CLR type (`UserId`, Identity's `MembershipId`) and, for
   a reference stored as a plain `Guid` such as the consent's `[PiiSensitive]`
-  Membership, by a name ending in `UserId` or `MembershipId`. Contained collections are
-  walked by the capture's own containment rule, without the foreign key to the owner, so
-  a member's reference is the path `Navigation/*/Property`. A declaration must match a
-  reference of the same kind (an `Elements` path names a mapped `jsonb` property
-  instead, because a type census cannot see inside one), a retained reference must be
-  the entity's own key, and a reference the closed grammar cannot express fails until
-  the grammar grows.
+  Membership, by a name ending in `UserId` or `MembershipId`. Every other plain `Guid`
+  of an audited entity or of what it contains fails as an unclassified identifier unless
+  it is that entity's or member's own single-column key or is on the census's explicit
+  allowance list of non-person identifiers, each entry with its reason (one today, the
+  consent's definition); an allowance no model holds fails as stale. Contained
+  collections are walked by the capture's own containment rule, without the foreign key
+  to the owner, so a member's reference is the path `Navigation/*/Property`; a person
+  reference in a member's own key fails, declared or not, because the key is a JSON
+  object key and a `changes` path segment that no declaration reaches. A declaration
+  must match a reference of the same kind (an `Elements` path names a mapped `jsonb`
+  property instead, because a type census cannot see inside one), a retained reference
+  must be the entity's whole single-column key (never a part of a composite one), and a
+  reference the closed grammar cannot express fails until the grammar grows. A person
+  reference held in a `string` or inside a `jsonb` document other than a declared
+  `Elements` path is invisible to the census.
 - **Planted violations:** each module's locator removed in turn; a synthetic module
-  whose audited entity holds a typed, an untyped, a contained and an unexpressible
-  reference with no locator; the same module with a wrong kind, a stale path and another
-  module's entity; and a second locator in one module.
+  whose audited entities hold a typed, an untyped, a contained and an unexpressible
+  reference, an unclassified plain `Guid`, a collection keyed by a person and a
+  composite key holding a person, with no locator; the same module with a wrong kind, a
+  stale path, another module's entity and a retained part of the composite key; and a
+  second locator in one module. The allowance list is checked against the real models,
+  so removing its entry fails the census.
 - **Canary coverage:** `AuditRedactionCanaryTests` generates, for every declaration of
   every registered locator, a row in the capture's shape holding the subject's
   identifier beside another person's at the declared path, runs the executor as

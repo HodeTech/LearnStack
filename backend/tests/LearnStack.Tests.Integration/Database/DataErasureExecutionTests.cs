@@ -355,12 +355,13 @@ public sealed partial class DataErasureExecutionTests(SchemaFixture fixture)
     private async Task<DisposableSchemaDatabase> OpenDatabaseAsync() =>
         _database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
 
-    private WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure = null) =>
+    private WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure = null, bool platform = false) =>
         new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(Environments.Development);
             builder.UseSetting("ConnectionStrings:Default", _database!.AppConnectionString);
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", _database!.OutboxConnectionString);
+            if (platform) builder.UseSetting("ConnectionStrings:PlatformAdmin", _database!.PlatformConnectionString);
             if (configure is not null) builder.ConfigureTestServices(configure);
         });
 

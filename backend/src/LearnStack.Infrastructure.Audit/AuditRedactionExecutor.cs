@@ -30,11 +30,21 @@ namespace LearnStack.Infrastructure.Audit;
 /// tenant-wide group). A row is selected when its actor is the subject, its <c>entity_id</c> is the subject or a frozen
 /// Membership, or a declared path of its entity type holds one of them. The actor and entity branches are
 /// index-served (<c>ix_audit_log_actor_user_id_timestamp</c>; <c>ix_audit_log_tenant_id_entity_type_entity_id_timestamp</c>
-/// by a skip scan over the entity types). A payload reference has no index, so the tenant's rows are read in batches of
-/// <see cref="BatchRows"/> along <c>ix_audit_log_tenant_id_timestamp</c>, each batch one bounded statement: a cheap
-/// filter walks each payload column once for either canonical spelling of the identifiers, and only a row it keeps is
-/// rewritten to decide whether a declared path holds one. That test is the redaction itself, so a row is selected for its
-/// payload exactly when the redaction changes its payload.
+/// by a skip scan over the entity types). A payload reference has no index, so the tenant's rows are read in batches,
+/// newest first along <c>ix_audit_log_tenant_id_timestamp</c>, each batch one statement: a cheap filter walks each
+/// payload column once for either canonical spelling of the identifiers, and only a row it keeps is rewritten to decide
+/// whether a declared path holds one. That test is the redaction itself, so a row is selected for its payload exactly
+/// when the redaction changes its payload.
+/// </para>
+/// <para>
+/// <b>Batches.</b> A batch is a half-open range of the key <c>("timestamp", id)</c>, descending: the next batch's upper
+/// end is this batch's lower end, excluded, so the batches partition the tenant's rows and no row is read twice or
+/// skipped, rows sharing a timestamp included (they are ordered by <c>id</c>, so a boundary may fall inside them). Its
+/// lower end is the first row, newest first, at which the batch holds <see cref="BatchRows"/> rows or the stored size of
+/// its three payload columns reaches <see cref="BatchBytes"/> (<c>pg_column_size</c>, which reads a stored value's
+/// compressed or out-of-line size without detoasting it). A batch therefore holds at most <see cref="BatchRows"/> rows
+/// and less than <see cref="BatchBytes"/> plus one row's payload, and a single row larger than the budget is a batch of
+/// its own.
 /// </para>
 /// <para>
 /// <b>Redaction (ADR-0108 § 5).</b> On every selected row <c>ip_address</c>, <c>user_agent</c> and <c>actor_email</c>
@@ -58,25 +68,42 @@ namespace LearnStack.Infrastructure.Audit;
 /// </para>
 /// <para>
 /// <b>Bounds.</b> Every statement runs under <see cref="StatementTimeout"/>; a statement that does not finish fails
-/// the act, whose transaction the scope then discards. Each batch holds at most <see cref="BatchRows"/> rows of the
-/// tenant and each <c>UPDATE</c> at most <see cref="UpdateRows"/> keys, so memory and statement time stay bounded
-/// whatever the tenant's size; only the number of batches grows with it.
+/// the act, whose transaction the scope then discards. A selection statement's work grows with the rows and the stored
+/// payload bytes of its batch, which both budgets cap, and each <c>UPDATE</c> rewrites at most <see cref="UpdateRows"/>
+/// rows of one batch, so its payload is within the same byte budget; the number of batches, and the act's total time,
+/// grow with the tenant's stored payload. What the budgets do not cap is one row: a payload column holds at most
+/// <see cref="AuditJson.MaxBytes"/> (256 KiB) before it is elided, so a row is at most about 768 KiB. The budget was
+/// chosen from measurement so a batch stays far inside the timeout (Audit module performance budget).
 /// </para>
 /// </remarks>
 public sealed class AuditRedactionExecutor : IAuditRedactor
 {
     /// <summary>
-    /// The wall-clock bound of one statement. Measured on 1.5 million rows of one tenant (about 1.5 GB of compressed
-    /// payload), a batch of <see cref="BatchRows"/> rows took well under a second and each <c>UPDATE</c> milliseconds;
-    /// thirty seconds leaves a degraded database room without letting one statement hold the operator's scope open for
-    /// long (Audit module performance budget).
+    /// The wall-clock bound of one statement. Measured with the budgets below, no statement took more than 2 s: about
+    /// 0.45 s at 1.5 million ordinary rows of one tenant (1.5 GB stored) and about 2 s at 150,000 rows of 100 KiB of
+    /// incompressible payload (14 GB stored); each <c>UPDATE</c> took milliseconds. Thirty seconds leaves a degraded
+    /// database room without letting one statement hold the operator's scope open for long (Audit module performance
+    /// budget).
     /// </summary>
     public static readonly TimeSpan StatementTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>How many of the tenant's rows one selection statement reads, newest first.</summary>
+    /// <summary>The most of the tenant's rows one selection statement reads, newest first.</summary>
     public const int BatchRows = 100_000;
 
-    /// <summary>How many selected rows one <c>UPDATE</c> rewrites.</summary>
+    /// <summary>
+    /// The stored payload bytes (<c>before_state</c>, <c>after_state</c> and <c>changes</c>, as <c>pg_column_size</c>
+    /// reports them) at which a batch ends before <see cref="BatchRows"/>.
+    /// </summary>
+    /// <remarks>
+    /// 64 MiB, from measurement: the selection read stored payload at about 35–70 MB a second when every row carried
+    /// 100 KiB of incompressible text (a batch of about 650 rows took at most 2 s) and faster on ordinary rows, so a
+    /// batch stays near two seconds, under five on a disk twice as slow, and far inside <see cref="StatementTimeout"/>.
+    /// Without it a batch of <see cref="BatchRows"/> such rows held about 10 GB and its statement ran past the timeout on
+    /// every attempt. A smaller budget only adds batches: at 1.5 million ordinary rows it already draws 24 instead of 16.
+    /// </remarks>
+    public const long BatchBytes = 64L * 1024 * 1024;
+
+    /// <summary>The most selected rows one <c>UPDATE</c> rewrites.</summary>
     public const int UpdateRows = 1_000;
 
     private const string PlatformRole = "learnstack_platform";
@@ -92,9 +119,11 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
           AND (@whole_tenant OR (@organization IS NULL AND a.organization_id IS NULL) OR a.organization_id = @organization)
         """;
 
-    // One batch of the tenant's rows: [lower, upper) on the timestamp, along ix_audit_log_tenant_id_timestamp.
+    // One batch of the tenant's rows: [lower, upper) on the key ("timestamp", id). The plain range on the timestamp is
+    // what ix_audit_log_tenant_id_timestamp serves; the two id terms then split the rows that share a boundary's timestamp.
     private const string Batch = """
-        a."timestamp" >= @lower AND a."timestamp" < @upper
+        a."timestamp" >= @lower AND a."timestamp" <= @upper
+          AND (a."timestamp" > @lower OR a.id >= @lower_id) AND (a."timestamp" < @upper OR a.id < @upper_id)
         """;
 
     // The redaction of one value at a declared path, by the declaration's kind: a string equal to an identifier of its
@@ -207,13 +236,27 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
 
     private const string JitOnSql = "SET LOCAL jit = on";
 
-    // The next batch's lower bound: the timestamp BatchRows rows below the upper one, newest first, read from
-    // ix_audit_log_tenant_id_timestamp alone. NULL once fewer rows remain, and the last batch is open below.
+    // The next batch's lower bound: newest first below the upper one, the first row at which the batch holds
+    // @batch_rows rows or its stored payload reaches @batch_bytes. The inner query reads the rows in order from
+    // ix_audit_log_tenant_id_timestamp (ties sorted by id incrementally) and sizes each row where it reads it, so the
+    // sort carries a key and a number, never a payload; pg_column_size reads a TOASTed value's stored size from its
+    // pointer, never the value. Its LIMIT is the row cap no batch exceeds, which keeps the inner query a top-N that the
+    // index serves in order. The running sums stream, so the statement stops at the boundary. No row once fewer rows and bytes remain, and
+    // the last batch is open below.
     private const string BoundarySql = """
-        SELECT a."timestamp" FROM public.audit_log AS a
-        WHERE a.tenant_id = @tenant AND a."timestamp" < @upper
-        ORDER BY a."timestamp" DESC
-        OFFSET @offset LIMIT 1
+        SELECT b."timestamp", b.id FROM (
+            SELECT s."timestamp", s.id, count(*) OVER batch AS n, sum(s.bytes) OVER batch AS bytes
+            FROM (
+                SELECT a."timestamp", a.id, COALESCE(pg_column_size(a.before_state), 0)
+                    + COALESCE(pg_column_size(a.after_state), 0) + COALESCE(pg_column_size(a.changes), 0) AS bytes
+                FROM public.audit_log AS a
+                WHERE a.tenant_id = @tenant AND a."timestamp" <= @upper AND (a."timestamp" < @upper OR a.id < @upper_id)
+                ORDER BY a."timestamp" DESC, a.id DESC
+                LIMIT @batch_rows) AS s
+            WINDOW batch AS (ORDER BY s."timestamp" DESC, s.id DESC ROWS UNBOUNDED PRECEDING)) AS b
+        WHERE b.n >= @batch_rows OR b.bytes >= @batch_bytes
+        ORDER BY b."timestamp" DESC, b.id DESC
+        LIMIT 1
         """;
 
     // What a matched row reports, read from the row itself: whether it is selected (its actor, its entity or a declared
@@ -264,7 +307,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         JOIN public.audit_log AS a ON a.id = t.id AND a."timestamp" = t."timestamp"
         WHERE a.tenant_id = @tenant
         FOR UPDATE OF a)
-        UPDATE audit_log AS a
+        UPDATE public.audit_log AS a
         SET ip_address = NULL, user_agent = NULL, actor_email = NULL,
             before_state = l.before_state, after_state = l.after_state, changes = l.changes
         FROM locked AS l
@@ -277,16 +320,31 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             old.changes IS DISTINCT FROM new.changes
         """));
 
-    // The open ends of the first and the last batch: infinity and -infinity on the wire.
-    private static readonly DateTime OpenUpper = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
-    private static readonly DateTime OpenLower = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
+    // The open ends of the first and the last batch: infinity and -infinity on the wire, which every row's timestamp is
+    // strictly inside, so the id beside them is never compared.
+    private static readonly Key OpenUpper = new(DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc), Guid.Empty);
+    private static readonly Key OpenLower = new(DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc), Guid.Empty);
 
     private readonly string _declarations;
+    private readonly int _batchRows;
+    private readonly long _batchBytes;
+    private readonly int _updateRows;
 
     /// <summary>Merges and checks every registered locator's declarations once, and binds them as one map.</summary>
     /// <exception cref="ArgumentException">The declarations are empty, duplicated or ambiguous (<see cref="UserReferenceCatalog"/>).</exception>
     public AuditRedactionExecutor(IEnumerable<IUserReferenceLocator> locators)
+        : this(locators, BatchRows, BatchBytes, UpdateRows)
     {
+    }
+
+    /// <summary>The same executor with other batch and chunk sizes, so a test proves the batching with a few rows.</summary>
+    /// <exception cref="ArgumentException">The declarations are empty, duplicated or ambiguous.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A size is not positive.</exception>
+    internal AuditRedactionExecutor(IEnumerable<IUserReferenceLocator> locators, int batchRows, long batchBytes, int updateRows)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchRows);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchBytes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(updateRows);
         var catalog = new UserReferenceCatalog(locators);
         if (catalog.Redactable.IsEmpty)
         {
@@ -294,6 +352,9 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         }
 
         _declarations = DeclarationMap(catalog);
+        _batchRows = batchRows;
+        _batchBytes = batchBytes;
+        _updateRows = updateRows;
     }
 
     /// <inheritdoc />
@@ -417,6 +478,9 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     private static string Format(string template, string value, string? kind = null) =>
         template.Replace("$VALUE$", value, StringComparison.Ordinal).Replace("$KIND$", kind ?? "$KIND$", StringComparison.Ordinal);
 
+    /// <summary>One end of a batch: a row's key in the batches' order, newest first.</summary>
+    private readonly record struct Key(DateTime Timestamp, Guid Id);
+
     /// <summary>The counts one redaction accumulates over its batches.</summary>
     private sealed class Tally
     {
@@ -480,18 +544,21 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             var upper = OpenUpper;
             while (true)
             {
-                DateTime? boundary;
+                Key? boundary = null;
                 await using (var command = Command(BoundarySql))
                 {
-                    command.Parameters.AddWithValue("upper", NpgsqlDbType.TimestampTz, upper);
-                    command.Parameters.AddWithValue("offset", BatchRows - 1);
-                    boundary = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is DateTime found
-                        ? DateTime.SpecifyKind(found, DateTimeKind.Utc)
-                        : null;
+                    Bind(command, "upper", upper);
+                    command.Parameters.AddWithValue("batch_rows", NpgsqlDbType.Bigint, (long)executor._batchRows);
+                    command.Parameters.AddWithValue("batch_bytes", NpgsqlDbType.Bigint, executor._batchBytes);
+                    await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                    if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        boundary = new Key(DateTime.SpecifyKind(reader.GetDateTime(0), DateTimeKind.Utc), reader.GetGuid(1));
+                    }
                 }
 
                 var selected = await SelectAsync(boundary ?? OpenLower, upper, tally, cancellationToken).ConfigureAwait(false);
-                foreach (var chunk in selected.Chunk(UpdateRows))
+                foreach (var chunk in selected.Chunk(executor._updateRows))
                 {
                     await RedactAsync(chunk, tally, cancellationToken).ConfigureAwait(false);
                 }
@@ -505,13 +572,13 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             }
         }
 
-        private async Task<List<(Guid Id, DateTime Timestamp)>> SelectAsync(DateTime lower, DateTime upper, Tally tally,
+        private async Task<List<(Guid Id, DateTime Timestamp)>> SelectAsync(Key lower, Key upper, Tally tally,
             CancellationToken cancellationToken)
         {
             var selected = new List<(Guid Id, DateTime Timestamp)>();
             await using var command = Command(SelectionSql);
-            command.Parameters.AddWithValue("lower", NpgsqlDbType.TimestampTz, lower);
-            command.Parameters.AddWithValue("upper", NpgsqlDbType.TimestampTz, upper);
+            Bind(command, "lower", lower);
+            Bind(command, "upper", upper);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -579,5 +646,12 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
 
         private static NpgsqlParameter Texts(string name, string[] values) =>
             new(name, NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = values };
+
+        /// <summary>Binds one end of a batch as <c>@name</c> and <c>@name_id</c>.</summary>
+        private static void Bind(NpgsqlCommand command, string name, Key key)
+        {
+            command.Parameters.AddWithValue(name, NpgsqlDbType.TimestampTz, key.Timestamp);
+            command.Parameters.AddWithValue(name + "_id", NpgsqlDbType.Uuid, key.Id);
+        }
     }
 }

@@ -19,8 +19,9 @@ namespace LearnStack.SharedKernel.DataProtection;
 /// <para>
 /// <b>Every reference is either redactable or retained.</b> The architecture census reads each module's mapped
 /// model: every person-reference property of an audited entity, and of what that entity contains, is in exactly one
-/// of the two lists, and every path a module declares has a canary that embeds a reference there and proves the
-/// executor removes it.
+/// of the two lists; a plain <see cref="Guid"/> that is neither, nor its entity's own single-column key, fails it unless
+/// the census lists it as naming no person; and every path a module declares has a canary that embeds a reference there
+/// and proves the executor removes it.
 /// </para>
 /// </remarks>
 public interface IUserReferenceLocator
@@ -160,9 +161,10 @@ public sealed record UserReferenceDeclaration
 
 /// <summary>A person reference deliberately kept by the redaction, with the reported kind that already counts it.</summary>
 /// <remarks>
-/// Only an entity's own key qualifies: a payload copy of the row's <c>entity_id</c>, which ADR-0108 § 6 retains and
-/// the report counts as <see cref="RetainedReferenceKind.AuditEntityReference"/>. Redacting the copy would hide
-/// nothing the row's own column does not still show.
+/// Only an entity's own key qualifies, the whole of a single-column key: a payload copy of the row's <c>entity_id</c>,
+/// which ADR-0108 § 6 retains and the report counts as <see cref="RetainedReferenceKind.AuditEntityReference"/>.
+/// Redacting the copy would hide nothing the row's own column does not still show. A part of a composite key is not
+/// one: the row's <c>entity_id</c> is then every part joined, so the copy would survive unmatched (the census refuses it).
 /// </remarks>
 public sealed record RetainedUserReference
 {

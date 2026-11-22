@@ -76,10 +76,11 @@ public sealed partial class AuditRedactionCanaryTests
                 INSERT INTO public.audit_log (id, "timestamp", tenant_id, organization_id, actor_user_id, actor_email, module, operation,
                     operation_type, operation_class, entity_type, entity_id, outcome, before_state, after_state, changes, correlation_id,
                     ip_address, user_agent, metadata)
-                VALUES (@id, clock_timestamp(), @tenant, @organization, @actor, @email, 'canary', 'canary.redaction.row', 'Update', 'Must',
+                VALUES (@id, COALESCE(@at, clock_timestamp()), @tenant, @organization, @actor, @email, 'canary', 'canary.redaction.row', 'Update', 'Must',
                     @entity_type, @entity_id, 'success', @before, @after, @changes, @correlation, @address, @agent, @metadata)
                 """, scope.Connection, scope.Transaction);
             command.Parameters.AddWithValue("id", row.Id);
+            command.Parameters.AddWithValue("at", NpgsqlDbType.TimestampTz, (object?)row.At ?? DBNull.Value);
             command.Parameters.AddWithValue("tenant", row.Tenant);
             command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)row.Organization ?? DBNull.Value);
             command.Parameters.AddWithValue("actor", NpgsqlDbType.Uuid, (object?)row.Actor ?? DBNull.Value);
@@ -135,10 +136,13 @@ public sealed partial class AuditRedactionCanaryTests
         JsonNode? Before, JsonNode? After, JsonNode? Changes, string? Metadata, bool Selected, JsonNode? ExpectedBefore,
         JsonNode? ExpectedAfter, JsonNode? ExpectedChanges)
     {
-        public Guid Id { get; } = Guid.CreateVersion7();
+        public Guid Id { get; init; } = Guid.CreateVersion7();
 
         /// <summary>Whether the row carries an address, an agent and an e-mail, as a row with an authenticated actor does.</summary>
         public bool Attributed { get; init; } = true;
+
+        /// <summary>The row's timestamp; the insert's clock when none is given.</summary>
+        public DateTime? At { get; init; }
     }
 
     /// <summary>A row as read back: the six columns, and the rest canonical, so two readings compare by value.</summary>

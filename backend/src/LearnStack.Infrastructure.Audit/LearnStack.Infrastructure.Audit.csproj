@@ -29,4 +29,9 @@
     <PackageReference Include="Npgsql" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The redaction executor's batch and chunk sizes, shrunk so a few rows prove its batching against PostgreSQL. -->
+    <InternalsVisibleTo Include="LearnStack.Tests.Integration" />
+  </ItemGroup>
+
 </Project>
