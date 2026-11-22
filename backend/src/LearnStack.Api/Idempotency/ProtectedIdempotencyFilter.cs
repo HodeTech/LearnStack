@@ -271,7 +271,7 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         if (stored.Body is null || stored.Headers is null
             || stored.ReplayTarget is not { } target || target.Kind != descriptor.TargetKind || target.Id == Guid.Empty || target.Id.Version != 7
             || target.Kind == IdempotencyReplayTargetKind.Tenant && target.Id != tenant.Value
-            || stored.StatusCode != (descriptor.Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK)
+            || stored.StatusCode != descriptor.SuccessStatus
             || stored.ContentType != "application/json; charset=utf-8" || stored.Body.Length > MaxReceiptBytes
             || !stored.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(descriptor, target.Id, version))) return false;
         if (descriptor.Creates ? !TryHeader(stored, "Location", out var location)

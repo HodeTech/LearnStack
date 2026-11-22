@@ -7,6 +7,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Idempotency;
 
@@ -38,6 +39,12 @@ public enum ProtectedAdministrationOperation
     SetOwnCustomFields = 21,
     GrantOwnFieldConsent = 22,
     WithdrawOwnFieldConsent = 23,
+    CreateOwnDataExport = 24,
+    CreateDataExportForSubject = 25,
+    CancelOwnDataRequest = 26,
+    CancelDataRequest = 27,
+    RevokeOwnDataExport = 28,
+    RevokeDataExport = 29,
 }
 
 internal sealed record ProtectedAdministrationDescriptor(
@@ -49,6 +56,16 @@ internal sealed record ProtectedAdministrationDescriptor(
         or ProtectedAdministrationOperation.SetMemberCustomFields or ProtectedAdministrationOperation.SetOwnCustomFields
         or ProtectedAdministrationOperation.GrantOwnFieldConsent or ProtectedAdministrationOperation.WithdrawOwnFieldConsent;
     internal bool IsConsent => Operation is ProtectedAdministrationOperation.GrantOwnFieldConsent or ProtectedAdministrationOperation.WithdrawOwnFieldConsent;
+
+    /// <summary>
+    /// ADR-0106 § 10: a data-request creation is accepted, not finished — 202 with the request's initial resource, its
+    /// <c>Location</c> and its <c>ETag</c>. Every other keyed creation answers 201 and every other mutation 200.
+    /// </summary>
+    internal bool IsDataRequestCreation => Operation is ProtectedAdministrationOperation.CreateOwnDataExport
+        or ProtectedAdministrationOperation.CreateDataExportForSubject;
+
+    internal int SuccessStatus => IsDataRequestCreation ? StatusCodes.Status202Accepted
+        : Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
     private static readonly ProtectedAdministrationDescriptor[] Descriptors =
         Enum.GetValues<ProtectedAdministrationOperation>().Select(For).ToArray();
 
@@ -84,6 +101,12 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.SetOwnCustomFields => new(operation, typeof(SetOwnMembershipCustomFieldsCommand), IdempotencyReplayTargetKind.Membership),
         ProtectedAdministrationOperation.GrantOwnFieldConsent => new(operation, typeof(GrantOwnMembershipFieldConsentCommand), IdempotencyReplayTargetKind.MembershipFieldConsent),
         ProtectedAdministrationOperation.WithdrawOwnFieldConsent => new(operation, typeof(WithdrawOwnMembershipFieldConsentCommand), IdempotencyReplayTargetKind.MembershipFieldConsent),
+        ProtectedAdministrationOperation.CreateOwnDataExport => new(operation, typeof(CreateOwnDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CreateDataExportForSubject => new(operation, typeof(CreateDataExportForSubjectCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CancelOwnDataRequest => new(operation, typeof(CancelOwnDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CancelDataRequest => new(operation, typeof(CancelDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.RevokeOwnDataExport => new(operation, typeof(RevokeOwnDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.RevokeDataExport => new(operation, typeof(RevokeDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -112,6 +135,12 @@ internal sealed record ProtectedAdministrationDescriptor(
         SetOwnMembershipCustomFieldsCommand => ProtectedAdministrationOperation.SetOwnCustomFields,
         GrantOwnMembershipFieldConsentCommand => ProtectedAdministrationOperation.GrantOwnFieldConsent,
         WithdrawOwnMembershipFieldConsentCommand => ProtectedAdministrationOperation.WithdrawOwnFieldConsent,
+        CreateOwnDataExportCommand => ProtectedAdministrationOperation.CreateOwnDataExport,
+        CreateDataExportForSubjectCommand => ProtectedAdministrationOperation.CreateDataExportForSubject,
+        CancelOwnDataRequestCommand => ProtectedAdministrationOperation.CancelOwnDataRequest,
+        CancelDataRequestCommand => ProtectedAdministrationOperation.CancelDataRequest,
+        RevokeOwnDataExportCommand => ProtectedAdministrationOperation.RevokeOwnDataExport,
+        RevokeDataExportCommand => ProtectedAdministrationOperation.RevokeDataExport,
         _ => null,
     };
 
@@ -137,6 +166,11 @@ internal sealed record ProtectedAdministrationDescriptor(
         DiscardCustomFieldDefinitionDraftCommand command => command.ExpectedVersion,
         SetMembershipCustomFieldsCommand command => command.ExpectedVersion,
         SetOwnMembershipCustomFieldsCommand command => command.ExpectedVersion,
+        CreateOwnDataExportCommand or CreateDataExportForSubjectCommand => null,
+        CancelOwnDataRequestCommand command => command.ExpectedVersion,
+        CancelDataRequestCommand command => command.ExpectedVersion,
+        RevokeOwnDataExportCommand command => command.ExpectedArtifactVersion,
+        RevokeDataExportCommand command => command.ExpectedArtifactVersion,
         _ => throw new ArgumentException("The protected operation is not registered.", nameof(request)),
     };
     internal bool TryReadPrecondition(HttpRequest request, out long? expected)
@@ -155,6 +189,8 @@ internal sealed record ProtectedAdministrationDescriptor(
     {
         ProtectedAdministrationOperation.CreateInvitation => "/api/v1/identity/invitations/" + id.ToString("D"),
         ProtectedAdministrationOperation.RegisterCustomFieldDefinition => "/api/v1/customization/custom-field-definitions/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateOwnDataExport => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateDataExportForSubject => "/api/v1/identity/data-requests/" + id.ToString("D"),
         _ => OrganizationLocationFor(id),
     };
     internal static string OrganizationLocationFor(Guid id) => "/api/v1/tenancy/organizations/" + id.ToString("D");

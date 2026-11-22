@@ -124,6 +124,10 @@ public sealed class IdentityFoundationConventionTests
             // guard requires of every request write; neither admits a Membership.
             "LearnStack.Modules.Identity.Application.DataRequests.DataExportJobHandlers.ExportAsync",
             "LearnStack.Modules.Identity.Application.DataRequests.DataRequestFailureReconciler.ReconcileAsync",
+            // ADR-0106 § 7: creation fences the subject's User and the shared tenant before it judges the one-active rule;
+            // cancellation holds the shared tenant fence the request guard requires.
+            "LearnStack.Modules.Identity.Application.DataRequests.DataRequestService.CreateExportAsync",
+            "LearnStack.Modules.Identity.Application.DataRequests.DataRequestService.CancelAsync",
         ];
         // A retained-plan check is not another acquisition: the guards, bounded
         // reader and two separately confined source/witness pairs must recheck it.
@@ -153,6 +157,11 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.SharedKernel.Permissions.SeedPrerequisiteReadWitness.RequireCurrent",
             "LearnStack.SharedKernel.Permissions.SeedCompletionReadWitness.RequireCurrent",
             "LearnStack.Modules.Identity.Application.Federation.FederationCommandHandlers.ActAsync",
+            // The data-request writers recheck their own plan after the authority recheck; the reconciler proves a plan
+            // the creation path hands it instead of acquiring a second one.
+            "LearnStack.Modules.Identity.Application.DataRequests.DataRequestService.CreateExportAsync",
+            "LearnStack.Modules.Identity.Application.DataRequests.DataRequestService.CancelAsync",
+            "LearnStack.Modules.Identity.Application.DataRequests.DataRequestFailureReconciler.ReconcileAsync",
         ];
         // Exact set controls detect a missing named site and an unrelated borrower.
         static bool SameSites(IEnumerable<string> actual, IEnumerable<string> expected) =>

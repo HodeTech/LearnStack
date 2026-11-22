@@ -8,6 +8,7 @@ using System.Text;
 using LearnStack.Api.Common;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Identifiers;
@@ -83,8 +84,21 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             SetOwnMembershipCustomFieldsCommand command => Membership(await sender.Send(command, cancellationToken), null),
             GrantOwnMembershipFieldConsentCommand command => Consent(await sender.Send(command, cancellationToken), true),
             WithdrawOwnMembershipFieldConsentCommand command => Consent(await sender.Send(command, cancellationToken), false),
+            CreateOwnDataExportCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            CreateDataExportForSubjectCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            CancelOwnDataRequestCommand command => DataRequest(await sender.Send(command, cancellationToken), command.RequestId),
+            CancelDataRequestCommand command => DataRequest(await sender.Send(command, cancellationToken), command.RequestId),
+            RevokeOwnDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
+            RevokeDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
             _ => throw new InvalidOperationException("The protected operation is not registered."),
         };
+
+        // ADR-0106 § 10: the replay target of every data-request receipt is the request; an artifact revocation's
+        // version is the artifact's, which its ETag and the next If-Match carry.
+        IActionResult DataRequest(Result<DataRequestMutationResult> result, Guid? requested) => result.IsFailure
+            ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.RequestId, result.Value.Version, requested);
+        IActionResult Artifact(Result<DataExportArtifactMutationResult> result, Guid requested) => result.IsFailure
+            ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.RequestId, result.Value.Version, requested);
 
         IActionResult Definition(Result<CustomFieldDefinitionDto> result, Guid target) => result.IsFailure
             ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.DefinitionId, result.Value.Version, target);
@@ -122,7 +136,9 @@ internal sealed class ProtectedAdministrationResult : IActionResult
     internal static byte[] BodyFor(long version) => Encoding.UTF8.GetBytes(
         "{\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
     internal static byte[] BodyFor(ProtectedAdministrationDescriptor descriptor, Guid id, long version) =>
-        !descriptor.UsesCustomFieldFingerprint ? BodyFor(version) : Encoding.UTF8.GetBytes(descriptor.IsConsent
+        descriptor.IsDataRequestCreation ? Encoding.UTF8.GetBytes("{\"id\":\"" + id.ToString("D")
+            + "\",\"kind\":\"export\",\"status\":\"requested\",\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}")
+        : !descriptor.UsesCustomFieldFingerprint ? BodyFor(version) : Encoding.UTF8.GetBytes(descriptor.IsConsent
             ? "{\"evidenceId\":\"" + id.ToString("D") + "\",\"sequence\":\"" + version.ToString(CultureInfo.InvariantCulture)
                 + "\",\"isGranted\":" + (descriptor.Operation == ProtectedAdministrationOperation.GrantOwnFieldConsent ? "true" : "false") + "}"
             : "{\"id\":\"" + id.ToString("D") + "\",\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
@@ -132,7 +148,7 @@ internal sealed class ProtectedAdministrationResult : IActionResult
     {
         ArgumentNullException.ThrowIfNull(context);
         var response = context.HttpContext.Response;
-        response.StatusCode = Descriptor.Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
+        response.StatusCode = Descriptor.SuccessStatus;
         response.ContentType = "application/json; charset=utf-8";
         if (!Descriptor.IsConsent) response.Headers.ETag = EntityTag.For(Version);
         if (Descriptor.Creates) response.Headers.Location = Descriptor.LocationFor(Target.Id);

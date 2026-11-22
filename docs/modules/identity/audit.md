@@ -88,6 +88,29 @@ race returns conflict with truthful failed-attempt evidence, never another
 successful acceptance row. No provider attempt receipt or UI poll declares a
 successful Membership mutation.
 
+## Data request bindings
+
+The live-session request API of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
+§ 13 and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4.
+Every creation, cancellation and revocation is a MUST row about its aggregate on the
+business transaction. An administrator's read of the group's requests and every ticket
+mint and chunk read are MUST `read-sensitive` rows written before the disclosure commits,
+so an audit row that cannot be written refuses the disclosure (`audit_unavailable`). The
+subject's own list, receipt and replay-receipt reads (`ListOwnDataRequestsQuery`,
+`GetOwnDataRequestQuery`, `ReadOwnDataRequestReceiptQuery`) are explicit Off registrations,
+as the other own reads are.
+
+| Resource | Operation | Class | Why |
+|---|---|---|---|
+| DataSubjectRequest | `identity.data_request.create_export` | **MUST** (`create`) | `CreateOwnDataExportCommand` (the subject) and `CreateDataExportForSubjectCommand` (an administrator) share this slug; one row about the new request with its frozen Membership snapshot, on the transaction that also submits its export job. A refused creation (`request_already_active`, `blocked_hold`) writes the row with its refusal and stores nothing. |
+| DataSubjectRequest | `identity.data_request.cancel` | **MUST** (`update`) | `CancelOwnDataRequestCommand` and `CancelDataRequestCommand`; `requested → cancelled` under the shared tenant fence with the expected version. |
+| DataExportArtifact | `identity.data_export.revoke` | **MUST** (`delete`) | `RevokeOwnDataExportCommand` and `RevokeDataExportCommand`; the unexpired artifact becomes `revoked` and its chunks are deleted on the same transaction. Ciphertext is never tracked, so no chunk reaches the row. |
+| DataExportTicket | `identity.data_export.mint_ticket` | **MUST** (`read-sensitive`) | `MintOwnDataExportTicketCommand`; one row about the new ticket. Its digest and session-binding digest are `[PiiSensitive]` and redacted in the capture; the ticket itself exists only in the response. |
+| DataExportTicket | `identity.data_export.read_chunk` | **MUST** (`read-sensitive`) | `ReadOwnDataExportChunkCommand`; one row per chunk read, about the ticket that authorized it; the final chunk's row also carries the ticket's consumption. No plaintext, ciphertext or ticket enters the row. |
+| Data request directory | `identity.data_request.list` | **MUST** (`read-sensitive`) | `ListDataRequestsQuery`: the group's export and erasure requests, status and counts only, never a closure. |
+| DataSubjectRequest | `identity.data_request.read` | **MUST** (`read-sensitive`) | `GetDataRequestQuery`: an administrator's read of another person's request (ADR-0106 § 13), status and counts only. |
+| Original DataSubjectRequest outcome | `identity.data_request.read_receipt` | **MUST** (`read-sensitive`) | `ReadDataRequestReceiptQuery`: fresh disclosure admission of the original request before an administrator's keyed replay; never reruns the mutation. |
+
 `AcceptInvitationCommandHandler` is the only added two-root exception: central
 plural MUST intents for Invitation and the actual Membership share one ordinary
 unit of work. No User/provider transaction joins it. A missing required row or

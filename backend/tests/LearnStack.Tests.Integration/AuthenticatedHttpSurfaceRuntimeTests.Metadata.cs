@@ -51,7 +51,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         expected.Add(Framework(produces.FullName!, 30, 0, 0) with
         {
             Status = approved.Protected is ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation
-            or ProtectedAdministrationOperation.RegisterCustomFieldDefinition ? 201 : 200,
+            or ProtectedAdministrationOperation.RegisterCustomFieldDefinition ? 201
+            : approved.Protected is ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CreateDataExportForSubject ? 202 : 200,
             ResponseType = response
         });
         actual.Should().Equal(expected, "Fix: preserve the exact effective action filters, factories, ordering and declared response metadata");

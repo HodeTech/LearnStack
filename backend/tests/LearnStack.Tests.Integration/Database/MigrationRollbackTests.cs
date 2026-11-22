@@ -227,12 +227,16 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         dataRequests.Should().Throw<NotSupportedException>().WithMessage("Data request storage requires a reviewed forward migration.");
         Action protectedReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_custom_field_protected_receipts().DownOperations;
         protectedReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained custom field receipts require a reviewed forward migration.");
+        Action deliveryInspection = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.grant_platform_delivery_inspection().DownOperations;
+        deliveryInspection.Should().Throw<NotSupportedException>().WithMessage("The platform role's column grants require a reviewed forward migration.");
+        Action dataRequestReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_data_request_protected_receipts().DownOperations;
+        dataRequestReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained data request receipts require a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
-            (platform, "20261110013140_add_custom_field_protected_receipts", PlatformReversibleHead,
-                "20261120120000_grant_platform_delivery_inspection", "The platform role's column grants require a reviewed forward migration."),
+            (platform, "20261120120000_grant_platform_delivery_inspection", PlatformReversibleHead,
+                "20261122160000_add_data_request_protected_receipts", "Retained data request receipts require a reviewed forward migration."),
             (identity, "20261122013001_add_data_subject_requests", IdentityReversibleHead,
                 "20261122140000_add_own_data_request_scopes", "The retained own data-request scope requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,

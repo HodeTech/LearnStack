@@ -94,4 +94,8 @@ export const ADMINISTRATION_GET_CONTRACTS = Object.freeze({
   '/api/v1/identity/invitations/{id}': 'GetInvitation',
   '/api/v1/identity/invitable-roles': 'ListInvitableRoles',
   '/api/v1/tenancy/settings/invitation-policy': 'GetTenantInvitationPolicy',
+  '/api/v1/identity/me/data-requests': 'ListOwnDataRequests',
+  '/api/v1/identity/me/data-requests/{id}': 'GetOwnDataRequest',
+  '/api/v1/identity/data-requests': 'ListDataRequests',
+  '/api/v1/identity/data-requests/{id}': 'GetDataRequest',
 } as const);

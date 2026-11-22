@@ -1,3 +1,4 @@
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using FluentAssertions;
 using LearnStack.Api.Idempotency;
 using LearnStack.Application.Authorization;
@@ -37,6 +38,7 @@ public sealed partial class IdempotencyConventionTests
         typeof(ReadRoleReceiptQuery), typeof(ReadOrganizationReceiptQuery), typeof(ReadDefaultOrganizationReceiptQuery),
         typeof(ReadInvitationReceiptQuery), typeof(ReadInvitationPolicyReceiptQuery), typeof(ReadCustomFieldDefinitionReceiptQuery),
         typeof(ReadOwnGrantedFieldConsentReceiptQuery), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
+        typeof(ReadOwnDataRequestReceiptQuery), typeof(ReadDataRequestReceiptQuery),
     ];
 
     [Fact]
@@ -49,6 +51,7 @@ public sealed partial class IdempotencyConventionTests
         {
             catalog.TryGet(receipt, out var policy).Should().BeTrue("Fix: classify every receipt read explicitly");
             policy.Kind.Should().Be(receipt == typeof(ReadOwnWithdrawnFieldConsentReceiptQuery) ? OperationPolicyKind.OwnConsentEntry
+                : receipt == typeof(ReadOwnDataRequestReceiptQuery) ? OperationPolicyKind.OwnDataRequest
                 : receipt == typeof(ReadOwnMembershipProfileReceiptQuery) || receipt == typeof(ReadInvitationPolicyReceiptQuery)
                     || receipt == typeof(ReadOwnGrantedFieldConsentReceiptQuery) ? OperationPolicyKind.OwnMembershipRead : OperationPolicyKind.Protected);
             policy.RequiresOrglessWrite.Should().BeFalse("disclosure is not the original mutation's eligibility");
@@ -225,6 +228,12 @@ public sealed partial class IdempotencyConventionTests
         [ProtectedAdministrationOperation.SetOwnCustomFields] = typeof(ReadOwnMembershipProfileReceiptQuery),
         [ProtectedAdministrationOperation.GrantOwnFieldConsent] = typeof(ReadOwnGrantedFieldConsentReceiptQuery),
         [ProtectedAdministrationOperation.WithdrawOwnFieldConsent] = typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
+        [ProtectedAdministrationOperation.CreateOwnDataExport] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CancelOwnDataRequest] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.RevokeOwnDataExport] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateDataExportForSubject] = typeof(ReadDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CancelDataRequest] = typeof(ReadDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.RevokeDataExport] = typeof(ReadDataRequestReceiptQuery),
     };
 
     private static string[] AdmissionOffenders(ModuleDefinition[] modules)

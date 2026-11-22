@@ -251,6 +251,43 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Tenancy.InvitationPolicyController", "Set", "PUT", "tenancy/settings/invitation-policy", null,
             "SetTenantInvitationLifetime", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.SetTenantInvitationLifetimeCommand), "LearnStackOperation:tenancy.setting.write_invitation_lifetime",
             typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 14, new(OperationClass.Must, OperationType.Update, "tenancy.setting.write", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting))),
+        // ADR-0106, ADR-0107 § 4: the subject's key-less own data requests and the administrator's status-only view.
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Create", "POST", "identity/me/data-requests", "exports",
+            "CreateOwnDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnDataExportCommand), "LearnStackOperation:identity.data_request.create_own_export",
+            typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 24, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "List", "GET", "identity/me/data-requests", null,
+            "ListOwnDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListOwnDataRequestsQuery), "LearnStackOperation:identity.data_request.list_own",
+            typeof(LearnStack.Api.Identity.OwnDataRequestPage), 200, null, new()),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Get", "GET", "identity/me/data-requests", "{id}",
+            "GetOwnDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.GetOwnDataRequestQuery), "LearnStackOperation:identity.data_request.read_own",
+            typeof(LearnStack.Api.Identity.OwnDataRequestResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Cancel", "POST", "identity/me/data-requests", "{id}/cancellations",
+            "CancelOwnDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelOwnDataRequestCommand), "LearnStackOperation:identity.data_request.cancel_own",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 26, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "Revoke", "POST", "identity/me/data-requests", "{id}/artifact/revocations",
+            "RevokeOwnDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeOwnDataExportCommand), "LearnStackOperation:identity.data_request.revoke_own_export",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 28, new(OperationClass.Must, OperationType.Delete, "identity.data_export.revoke", typeof(LearnStack.Modules.Identity.Domain.DataExportArtifact))),
+        new("LearnStack.Api.Identity.OwnDataExportTicketsController", "MintTicket", "POST", "identity/me/data-requests", "{id}/artifact/tickets",
+            "MintOwnDataExportTicket", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.MintOwnDataExportTicketCommand), "LearnStackOperation:identity.data_request.mint_export_ticket",
+            typeof(LearnStack.Api.Identity.DataExportTicketResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.mint_ticket", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
+        new("LearnStack.Api.Identity.OwnDataExportChunksController", "ReadChunk", "POST", "identity/me/data-requests", "{id}/artifact/chunks",
+            "ReadOwnDataExportChunk", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ReadOwnDataExportChunkCommand), "LearnStackOperation:identity.data_request.read_export_chunk",
+            typeof(LearnStack.Api.Identity.DataExportChunkResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.read_chunk", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Create", "POST", "identity/data-requests", "exports",
+            "CreateDataExportForSubject", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateDataExportForSubjectCommand), "LearnStackOperation:identity.data_request.create_export",
+            typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 25, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "List", "GET", "identity/data-requests", null,
+            "ListDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListDataRequestsQuery), "LearnStackOperation:identity.data_request.list",
+            typeof(LearnStack.Api.Identity.DataRequestPage), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_request.list", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Get", "GET", "identity/data-requests", "{id}",
+            "GetDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.GetDataRequestQuery), "LearnStackOperation:identity.data_request.read",
+            typeof(LearnStack.Api.Identity.DataRequestResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_request.read", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Cancel", "POST", "identity/data-requests", "{id}/cancellations",
+            "CancelDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelDataRequestCommand), "LearnStackOperation:identity.data_request.cancel",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 27, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "Revoke", "POST", "identity/data-requests", "{id}/artifact/revocations",
+            "RevokeDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeDataExportCommand), "LearnStackOperation:identity.data_request.revoke_export",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 29, new(OperationClass.Must, OperationType.Delete, "identity.data_export.revoke", typeof(LearnStack.Modules.Identity.Domain.DataExportArtifact))),
         // ADR-0099: the protected federation operations hand off to the one runner, without Idempotency-Key.
         new("LearnStack.Api.Identity.FederationController", "Get", "GET", "identity/federation", null,
             "GetFederationConnection", typeof(LearnStack.Modules.Identity.Application.Contracts.Federation.GetFederationConnectionQuery), "LearnStackOperation:identity.federation.read",
@@ -305,9 +342,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         errors.Should().BeEmpty(
             "Fix: retain the exact ADR-0064/0076 reads and ADR-0078/0079 finite entry/administration union; all findings: {0}", string.Join("\n", errors));
         // The totals Standard 21 publishes for this rule; Violations binds the production surface to this literal census.
-        Endpoints.Should().HaveCount(72, "the census closes the surface at 72 MVC actions");
-        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(67,
-            "Standard 21 publishes 67 distinct IRequest roots for the 72 actions");
+        Endpoints.Should().HaveCount(84, "the census closes the surface at 84 MVC actions");
+        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(79,
+            "Standard 21 publishes 79 distinct IRequest roots for the 84 actions");
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
@@ -459,7 +496,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(46, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, and the federation commands share one handler class beside its two query handlers");
+        handlers.Should().HaveCount(58, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, the federation commands share one handler class beside its two query handlers, and each of the twelve data-request requests has its own thin handler");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);

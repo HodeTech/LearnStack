@@ -159,7 +159,7 @@ public sealed class DataExportJobHandlers(IDataRequestStore store, IIdentityMuta
             throw new InvalidOperationException("The stored export artifact does not match its request.");
         }
 
-        await scheduler.SchedulePurgeAsync(DataExportArtifactId.From(artifactId), stored.ExpiresAt, cancellationToken)
+        await scheduler.SchedulePurgeAsync(artifactId, stored.ExpiresAt, cancellationToken)
             .ConfigureAwait(false);
     }
 

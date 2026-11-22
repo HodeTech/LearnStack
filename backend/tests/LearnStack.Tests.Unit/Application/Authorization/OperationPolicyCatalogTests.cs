@@ -36,10 +36,19 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(136, actual.Length);
+        Assert.Equal(154, actual.Length);
         Assert.Equal(5, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(61, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        Assert.Equal(67, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        // ADR-0106 § 4: eight own live-session data-request operations carry no key and no grant.
+        Assert.All(catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequest), policy =>
+        {
+            Assert.StartsWith("identity.data_request.", policy.Id, StringComparison.Ordinal);
+            Assert.Null(policy.RequiredPermission);
+            Assert.Empty(policy.Alternatives);
+            Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
+        });
+        Assert.Equal(8, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.OwnDataRequest));
         var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
         Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery), typeof(ReadOwnGrantedFieldConsentReceiptQuery),
             typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
@@ -64,7 +73,7 @@ public sealed class OperationPolicyCatalogTests
         Assert.Equal(new[] { typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal),
             catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnConsentEntry).Select(policy => policy.RequestType));
-        Assert.Equal(51, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        Assert.Equal(55, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
         var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);

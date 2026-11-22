@@ -3,6 +3,7 @@ using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.DataRequests;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
@@ -45,6 +46,24 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<RunOrganizationDataExportCommand>("identity.data_export.store", OperationType.SecurityEvent, typeof(DataExportArtifact));
         builder.MustAudit<PurgeTenantDataExportCommand>("identity.data_export.purge", OperationType.Delete, typeof(DataExportArtifact));
         builder.MustAudit<PurgeOrganizationDataExportCommand>("identity.data_export.purge", OperationType.Delete, typeof(DataExportArtifact));
+        // ADR-0106 § 13, ADR-0107 § 4: every creation, cancellation and revocation is a MUST row about its aggregate; an
+        // administrator's read of the group's requests and every ticket mint and chunk read are MUST read-sensitive rows
+        // that refuse the disclosure when they cannot be written. The ticket rows name the ticket, whose digests the
+        // capture redacts; no row carries a ticket, plaintext or ciphertext. The subject's own reads are Off.
+        builder.MustAudit<CreateOwnDataExportCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CreateDataExportForSubjectCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CancelOwnDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
+        builder.MustAudit<CancelDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
+        builder.MustAudit<RevokeOwnDataExportCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
+        builder.MustAudit<RevokeDataExportCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
+        builder.MustAudit<MintOwnDataExportTicketCommand>("identity.data_export.mint_ticket", OperationType.ReadSensitive, typeof(DataExportTicket));
+        builder.MustAudit<ReadOwnDataExportChunkCommand>("identity.data_export.read_chunk", OperationType.ReadSensitive, typeof(DataExportTicket));
+        builder.MustAudit<ListDataRequestsQuery>("identity.data_request.list", OperationType.ReadSensitive, typeof(DataSubjectRequest));
+        builder.MustAudit<GetDataRequestQuery>("identity.data_request.read", OperationType.ReadSensitive, typeof(DataSubjectRequest));
+        builder.MustAudit<ReadDataRequestReceiptQuery>("identity.data_request.read_receipt", OperationType.ReadSensitive, typeof(DataSubjectRequest));
+        builder.Off<ListOwnDataRequestsQuery>();
+        builder.Off<GetOwnDataRequestQuery>();
+        builder.Off<ReadOwnDataRequestReceiptQuery>();
         builder.MustAudit<AdmitNativeSessionScopeCommand>(IdentityOperationPolicySource.NativeSessionAdmissionOperation,
             OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<InitializeSeedRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));

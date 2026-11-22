@@ -6,6 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.DataRequests;
@@ -41,6 +42,23 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public static PermissionDefinition MembershipAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.MembershipAdmin);
     public static PermissionDefinition RoleAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
     public const string FederationReadOperation = "identity.federation.read";
+
+    // ADR-0106 § 4: the subject's own live-session data-request operations carry no key (OwnDataRequest, whose
+    // operation ids share this prefix); the administrator's reuse the identity.membership.admin alternatives.
+    public const string OwnDataExportCreateOperation = "identity.data_request.create_own_export";
+    public const string OwnDataRequestListOperation = "identity.data_request.list_own";
+    public const string OwnDataRequestReadOperation = "identity.data_request.read_own";
+    public const string OwnDataRequestCancelOperation = "identity.data_request.cancel_own";
+    public const string OwnDataExportRevokeOperation = "identity.data_request.revoke_own_export";
+    public const string OwnDataExportTicketOperation = "identity.data_request.mint_export_ticket";
+    public const string OwnDataExportChunkOperation = "identity.data_request.read_export_chunk";
+    public const string OwnDataRequestReceiptOperation = "identity.data_request.read_own_receipt";
+    public const string DataExportCreateOperation = "identity.data_request.create_export";
+    public const string DataRequestListOperation = "identity.data_request.list";
+    public const string DataRequestReadOperation = "identity.data_request.read";
+    public const string DataRequestCancelOperation = "identity.data_request.cancel";
+    public const string DataExportRevokeOperation = "identity.data_request.revoke_export";
+    public const string DataRequestReceiptOperation = "identity.data_request.read_receipt";
     public const string PublicSignInOperation = "identity.public_sign_in.read";
     /// <summary>Virtual Portal Public definition for the anonymous sign-in read; never a stored Role grant.</summary>
     public static PermissionDefinition PublicSignIn { get; } = new(PermissionScope.Tenant, "identity.public_sign_in.read");
@@ -65,6 +83,20 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<RunOrganizationDataExportCommand>("identity.data_request.fulfill_organization_export", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<PurgeTenantDataExportCommand>("identity.data_export.purge_tenant", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<PurgeOrganizationDataExportCommand>("identity.data_export.purge_organization", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForOwnDataRequest<CreateOwnDataExportCommand>(OwnDataExportCreateOperation),
+        OperationPolicy.ForOwnDataRequest<ListOwnDataRequestsQuery>(OwnDataRequestListOperation),
+        OperationPolicy.ForOwnDataRequest<GetOwnDataRequestQuery>(OwnDataRequestReadOperation),
+        OperationPolicy.ForOwnDataRequest<CancelOwnDataRequestCommand>(OwnDataRequestCancelOperation),
+        OperationPolicy.ForOwnDataRequest<RevokeOwnDataExportCommand>(OwnDataExportRevokeOperation),
+        OperationPolicy.ForOwnDataRequest<MintOwnDataExportTicketCommand>(OwnDataExportTicketOperation),
+        OperationPolicy.ForOwnDataRequest<ReadOwnDataExportChunkCommand>(OwnDataExportChunkOperation),
+        OperationPolicy.ForOwnDataRequest<ReadOwnDataRequestReceiptQuery>(OwnDataRequestReceiptOperation),
+        OperationPolicy.ForProtected<CreateDataExportForSubjectCommand>(DataExportCreateOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ListDataRequestsQuery>(DataRequestListOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<GetDataRequestQuery>(DataRequestReadOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<CancelDataRequestCommand>(DataRequestCancelOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<RevokeDataExportCommand>(DataExportRevokeOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ReadDataRequestReceiptQuery>(DataRequestReceiptOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ListInvitationsQuery>("identity.invitation.list", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<GetInvitationQuery>("identity.invitation.read", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ListInvitableRolesQuery>("identity.invitation.list_invitable_roles", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),

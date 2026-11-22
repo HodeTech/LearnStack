@@ -18,6 +18,7 @@ using LearnStack.Modules.Identity.Application.Federation;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -115,6 +116,19 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         new("tenancy/membership-field-consents/withdrawals", "POST", typeof(ConsentSubjectController), "Withdraw", typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ConsentWithdrawalResponse), "tenancy.membership_field_consent.withdraw", ProtectedAdministrationOperation.WithdrawOwnFieldConsent),
         new("tenancy/membership-field-consents/own", "GET", typeof(OwnFieldConsentController), "Current", typeof(GetOwnMembershipFieldConsentQuery), typeof(OwnFieldConsentCurrentResponse), "tenancy.membership_field_consent.get_own"),
         new("tenancy/membership-field-consents/grants", "POST", typeof(OwnFieldConsentController), "Grant", typeof(GrantOwnMembershipFieldConsentCommand), typeof(FieldConsentReceiptResponse), "tenancy.membership_field_consent.grant", ProtectedAdministrationOperation.GrantOwnFieldConsent),
+        // ADR-0106, ADR-0107 § 4: the subject's own data requests and the administrator's status-only view.
+        new("identity/me/data-requests/exports", "POST", typeof(OwnDataRequestsController), "Create", typeof(CreateOwnDataExportCommand), typeof(DataRequestAcceptedResponse), "identity.data_request.create_own_export", ProtectedAdministrationOperation.CreateOwnDataExport),
+        new("identity/me/data-requests", "GET", typeof(OwnDataRequestsController), "List", typeof(ListOwnDataRequestsQuery), typeof(OwnDataRequestPage), "identity.data_request.list_own"),
+        new("identity/me/data-requests/{id}", "GET", typeof(OwnDataRequestsController), "Get", typeof(GetOwnDataRequestQuery), typeof(OwnDataRequestResponse), "identity.data_request.read_own"),
+        new("identity/me/data-requests/{id}/cancellations", "POST", typeof(OwnDataRequestsController), "Cancel", typeof(CancelOwnDataRequestCommand), typeof(AdministrationVersionReceipt), "identity.data_request.cancel_own", ProtectedAdministrationOperation.CancelOwnDataRequest),
+        new("identity/me/data-requests/{id}/artifact/revocations", "POST", typeof(OwnDataRequestsController), "Revoke", typeof(RevokeOwnDataExportCommand), typeof(AdministrationVersionReceipt), "identity.data_request.revoke_own_export", ProtectedAdministrationOperation.RevokeOwnDataExport),
+        new("identity/me/data-requests/{id}/artifact/tickets", "POST", typeof(OwnDataExportTicketsController), "MintTicket", typeof(MintOwnDataExportTicketCommand), typeof(DataExportTicketResponse), "identity.data_request.mint_export_ticket"),
+        new("identity/me/data-requests/{id}/artifact/chunks", "POST", typeof(OwnDataExportChunksController), "ReadChunk", typeof(ReadOwnDataExportChunkCommand), typeof(DataExportChunkResponse), "identity.data_request.read_export_chunk"),
+        new("identity/data-requests/exports", "POST", typeof(DataRequestsController), "Create", typeof(CreateDataExportForSubjectCommand), typeof(DataRequestAcceptedResponse), "identity.data_request.create_export", ProtectedAdministrationOperation.CreateDataExportForSubject),
+        new("identity/data-requests", "GET", typeof(DataRequestsController), "List", typeof(ListDataRequestsQuery), typeof(DataRequestPage), "identity.data_request.list"),
+        new("identity/data-requests/{id}", "GET", typeof(DataRequestsController), "Get", typeof(GetDataRequestQuery), typeof(DataRequestResponse), "identity.data_request.read"),
+        new("identity/data-requests/{id}/cancellations", "POST", typeof(DataRequestsController), "Cancel", typeof(CancelDataRequestCommand), typeof(AdministrationVersionReceipt), "identity.data_request.cancel", ProtectedAdministrationOperation.CancelDataRequest),
+        new("identity/data-requests/{id}/artifact/revocations", "POST", typeof(DataRequestsController), "Revoke", typeof(RevokeDataExportCommand), typeof(AdministrationVersionReceipt), "identity.data_request.revoke_export", ProtectedAdministrationOperation.RevokeDataExport),
         new("public/sign-in", "GET", typeof(PublicSignInController), "Get", typeof(GetPublicSignInQuery), typeof(PublicSignIn)),
         new("public/sign-in", "HEAD", typeof(PublicSignInController), "Head", typeof(GetPublicSignInQuery), typeof(void)),
         // ADR-0099: the federation controller holds only FederationOperationRunner; the census observes the runner's sends.
@@ -131,7 +145,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         new("identity/federation/resumption", "POST", typeof(FederationController), "Resume", typeof(ResumeFederationOperationCommand), typeof(FederationOperationResponse), "identity.federation.resume"),
     ];
     private static readonly Type[] ContextControllers =
-        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController), typeof(InvitationsController), typeof(InvitationPolicyController), typeof(MembershipCustomFieldsController), typeof(ConsentSubjectController), typeof(OwnFieldConsentController)];
+        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController), typeof(InvitationsController), typeof(InvitationPolicyController), typeof(MembershipCustomFieldsController), typeof(ConsentSubjectController), typeof(OwnFieldConsentController),
+            typeof(OwnDataRequestsController), typeof(DataRequestsController)];
     private const string CensusTarget = "018f4d40-0000-7000-8000-000000000011";
 
     private static SurfaceAction Approved(ControllerActionDescriptor action) => ApprovedActions.Single(expected =>
@@ -315,7 +330,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     private static void AssertActionInventory(IEnumerable<ControllerActionDescriptor> actions)
     {
         var actual = actions.ToArray();
-        actual.Should().HaveCount(72);
+        actual.Should().HaveCount(84);
         actual.Select(action => action.ControllerTypeInfo.FullName + "." + action.MethodInfo.Name).Order(StringComparer.Ordinal)
             .Should().Equal(ApprovedActions.Select(expected => expected.Controller.FullName + "." + expected.Action).Order(StringComparer.Ordinal),
                 "every convention must reach exactly the approved controller/action multiset");
@@ -451,7 +466,10 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             context.Request.QueryString = new QueryString("?membershipId=" + CensusTarget + "&definitionId=" + CensusTarget + "&definitionVersion=1");
         var body = expected.Protected is { } operation ? CensusBody(operation)
             : controllerType == typeof(NativeSessionAdmissionController) ? "{}"
-            : controllerType == typeof(FederationController) ? FederationCensusBody(expected.Action) : string.Empty;
+            : controllerType == typeof(FederationController) ? FederationCensusBody(expected.Action)
+            : controllerType == typeof(OwnDataExportTicketsController) ? "{}"
+            : controllerType == typeof(OwnDataExportChunksController)
+                ? "{\"ticket\":\"" + new string('A', 43) + "\",\"index\":0}" : string.Empty;
         using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(body));
         context.Request.Body = input;
         context.Request.ContentLength = input.Length;
@@ -463,7 +481,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             context.Request.Headers["Idempotency-Key"] = "census-command-key";
             if (expected.Protected is not (ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation
                 or ProtectedAdministrationOperation.RegisterCustomFieldDefinition or ProtectedAdministrationOperation.GrantOwnFieldConsent
-                or ProtectedAdministrationOperation.WithdrawOwnFieldConsent)) context.Request.Headers.IfMatch = "\"7\"";
+                or ProtectedAdministrationOperation.WithdrawOwnFieldConsent or ProtectedAdministrationOperation.CreateOwnDataExport
+                or ProtectedAdministrationOperation.CreateDataExportForSubject)) context.Request.Headers.IfMatch = "\"7\"";
         }
         // Federation mutations carry no Idempotency-Key; the connection revision converges them. Configure without
         // If-Match is the first configuration, the strictest closed input.
@@ -569,6 +588,10 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         ProtectedAdministrationOperation.SetMemberCustomFields or ProtectedAdministrationOperation.SetOwnCustomFields => "{\"set\":[],\"remove\":[]}",
         ProtectedAdministrationOperation.GrantOwnFieldConsent => "{\"definitionId\":\"" + CensusTarget + "\",\"definitionVersion\":1,\"noticeLocale\":\"en\",\"expectedNoticeHash\":\"" + new string('a', 64) + "\",\"expectedSequence\":0,\"expectedEvidenceId\":null,\"confirmed\":true}",
         ProtectedAdministrationOperation.WithdrawOwnFieldConsent => "{}",
+        ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CancelOwnDataRequest
+            or ProtectedAdministrationOperation.RevokeOwnDataExport or ProtectedAdministrationOperation.CancelDataRequest
+            or ProtectedAdministrationOperation.RevokeDataExport => "{}",
+        ProtectedAdministrationOperation.CreateDataExportForSubject => "{\"membershipId\":\"" + CensusTarget + "\"}",
         _ => throw new InvalidOperationException("Unclassified protected census input"),
     };
 
@@ -584,8 +607,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 
     private static void AssertUnion(IEnumerable<string> actual)
     {
-        ApprovedActions.Should().HaveCount(72);
-        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(23);
+        ApprovedActions.Should().HaveCount(84);
+        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(29);
         ApprovedActions.Count(expected => expected.Controller == typeof(FederationController)).Should().Be(11);
         ApprovedActions.Count(expected => expected.Policy is null).Should().Be(10, "eight public site and course reads plus the sign-in GET and HEAD");
         ApprovedActions.Where(expected => expected.Reads is not null).Select(expected => expected.Action)

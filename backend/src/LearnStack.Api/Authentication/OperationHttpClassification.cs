@@ -14,6 +14,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -210,6 +211,18 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(InvitableRolesController), nameof(InvitableRolesController.List)) => (typeof(ListInvitableRolesQuery), "ListInvitableRoles", "GET"),
         var pair when pair == (typeof(InvitationPolicyController), nameof(InvitationPolicyController.Get)) => (typeof(GetTenantInvitationPolicyQuery), "GetTenantInvitationPolicy", "GET"),
         var pair when pair == (typeof(InvitationPolicyController), nameof(InvitationPolicyController.Set)) => (typeof(SetTenantInvitationLifetimeCommand), "SetTenantInvitationLifetime", "PUT"),
+        var pair when pair == (typeof(OwnDataRequestsController), nameof(OwnDataRequestsController.Create)) => (typeof(CreateOwnDataExportCommand), "CreateOwnDataExport", "POST"),
+        var pair when pair == (typeof(OwnDataRequestsController), nameof(OwnDataRequestsController.List)) => (typeof(ListOwnDataRequestsQuery), "ListOwnDataRequests", "GET"),
+        var pair when pair == (typeof(OwnDataRequestsController), nameof(OwnDataRequestsController.Get)) => (typeof(GetOwnDataRequestQuery), "GetOwnDataRequest", "GET"),
+        var pair when pair == (typeof(OwnDataRequestsController), nameof(OwnDataRequestsController.Cancel)) => (typeof(CancelOwnDataRequestCommand), "CancelOwnDataRequest", "POST"),
+        var pair when pair == (typeof(OwnDataRequestsController), nameof(OwnDataRequestsController.Revoke)) => (typeof(RevokeOwnDataExportCommand), "RevokeOwnDataExport", "POST"),
+        var pair when pair == (typeof(OwnDataExportTicketsController), nameof(OwnDataExportTicketsController.MintTicket)) => (typeof(MintOwnDataExportTicketCommand), "MintOwnDataExportTicket", "POST"),
+        var pair when pair == (typeof(OwnDataExportChunksController), nameof(OwnDataExportChunksController.ReadChunk)) => (typeof(ReadOwnDataExportChunkCommand), "ReadOwnDataExportChunk", "POST"),
+        var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Create)) => (typeof(CreateDataExportForSubjectCommand), "CreateDataExportForSubject", "POST"),
+        var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.List)) => (typeof(ListDataRequestsQuery), "ListDataRequests", "GET"),
+        var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Get)) => (typeof(GetDataRequestQuery), "GetDataRequest", "GET"),
+        var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Cancel)) => (typeof(CancelDataRequestCommand), "CancelDataRequest", "POST"),
+        var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Revoke)) => (typeof(RevokeDataExportCommand), "RevokeDataExport", "POST"),
         var pair when pair == (typeof(FederationController), nameof(FederationController.Get)) => (typeof(GetFederationConnectionQuery), "GetFederationConnection", "GET"),
         var pair when pair == (typeof(FederationController), nameof(FederationController.Configure)) => (typeof(BeginConfigureFederationCommand), "ConfigureFederation", "PUT"),
         var pair when pair == (typeof(FederationController), nameof(FederationController.RotateSecret)) => (typeof(BeginRotateFederationSecretCommand), "RotateFederationSecret", "POST"),

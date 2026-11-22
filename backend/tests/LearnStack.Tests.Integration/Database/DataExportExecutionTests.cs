@@ -256,7 +256,7 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
         {
             var (reconciler, reader, store) = Reconciler(scope);
             var loaded = (await store.FindLockedAsync(DataSubjectRequestId.From(request), CancellationToken.None))!;
-            (await reader.ReadAsync(loaded, CancellationToken.None)).Should().Be(DataRequestJobPhase.Pending);
+            (await reader.ReadAsync(loaded.Id, loaded.Kind, CancellationToken.None)).Should().Be(DataRequestJobPhase.Pending);
             DataRequestFailureReconciler.EffectiveStatus(loaded, DataRequestJobPhase.Pending).Should().Be(DataRequestStatus.Requested);
             (await reconciler.ReconcileAsync(loaded, CancellationToken.None)).Should().BeFalse("a live job may still finish");
             await scope.Frame.FailAsync();
@@ -270,7 +270,7 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
         {
             var (reconciler, reader, store) = Reconciler(scope);
             var loaded = (await store.FindLockedAsync(DataSubjectRequestId.From(request), CancellationToken.None))!;
-            var phase = await reader.ReadAsync(loaded, CancellationToken.None);
+            var phase = await reader.ReadAsync(loaded.Id, loaded.Kind, CancellationToken.None);
             phase.Should().Be(DataRequestJobPhase.Dead);
             DataRequestFailureReconciler.EffectiveStatus(loaded, phase).Should().Be(DataRequestStatus.Failed,
                 "the receipt shows failed without writing");

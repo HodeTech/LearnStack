@@ -19,6 +19,7 @@ using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
@@ -120,6 +121,18 @@ public sealed class OperationHttpClassificationTests
         new(typeof(ConsentSubjectController), "Withdraw", "WithdrawOwnMembershipFieldConsent", "POST", "tenancy/membership-field-consents/withdrawals", typeof(WithdrawOwnMembershipFieldConsentCommand), "tenancy.membership_field_consent.withdraw", Protected: ProtectedAdministrationOperation.WithdrawOwnFieldConsent),
         new(typeof(OwnFieldConsentController), "Current", "GetOwnMembershipFieldConsent", "GET", "tenancy/membership-field-consents/own", typeof(GetOwnMembershipFieldConsentQuery), "tenancy.membership_field_consent.get_own"),
         new(typeof(OwnFieldConsentController), "Grant", "GrantOwnMembershipFieldConsent", "POST", "tenancy/membership-field-consents/grants", typeof(GrantOwnMembershipFieldConsentCommand), "tenancy.membership_field_consent.grant", Protected: ProtectedAdministrationOperation.GrantOwnFieldConsent),
+        new(typeof(OwnDataRequestsController), "Create", "CreateOwnDataExport", "POST", "identity/me/data-requests/exports", typeof(CreateOwnDataExportCommand), "identity.data_request.create_own_export", Protected: ProtectedAdministrationOperation.CreateOwnDataExport),
+        new(typeof(OwnDataRequestsController), "List", "ListOwnDataRequests", "GET", "identity/me/data-requests", typeof(ListOwnDataRequestsQuery), "identity.data_request.list_own"),
+        new(typeof(OwnDataRequestsController), "Get", "GetOwnDataRequest", "GET", "identity/me/data-requests/{id}", typeof(GetOwnDataRequestQuery), "identity.data_request.read_own"),
+        new(typeof(OwnDataRequestsController), "Cancel", "CancelOwnDataRequest", "POST", "identity/me/data-requests/{id}/cancellations", typeof(CancelOwnDataRequestCommand), "identity.data_request.cancel_own", Protected: ProtectedAdministrationOperation.CancelOwnDataRequest),
+        new(typeof(OwnDataRequestsController), "Revoke", "RevokeOwnDataExport", "POST", "identity/me/data-requests/{id}/artifact/revocations", typeof(RevokeOwnDataExportCommand), "identity.data_request.revoke_own_export", Protected: ProtectedAdministrationOperation.RevokeOwnDataExport),
+        new(typeof(OwnDataExportTicketsController), "MintTicket", "MintOwnDataExportTicket", "POST", "identity/me/data-requests/{id}/artifact/tickets", typeof(MintOwnDataExportTicketCommand), "identity.data_request.mint_export_ticket"),
+        new(typeof(OwnDataExportChunksController), "ReadChunk", "ReadOwnDataExportChunk", "POST", "identity/me/data-requests/{id}/artifact/chunks", typeof(ReadOwnDataExportChunkCommand), "identity.data_request.read_export_chunk"),
+        new(typeof(DataRequestsController), "Create", "CreateDataExportForSubject", "POST", "identity/data-requests/exports", typeof(CreateDataExportForSubjectCommand), "identity.data_request.create_export", Protected: ProtectedAdministrationOperation.CreateDataExportForSubject),
+        new(typeof(DataRequestsController), "List", "ListDataRequests", "GET", "identity/data-requests", typeof(ListDataRequestsQuery), "identity.data_request.list"),
+        new(typeof(DataRequestsController), "Get", "GetDataRequest", "GET", "identity/data-requests/{id}", typeof(GetDataRequestQuery), "identity.data_request.read"),
+        new(typeof(DataRequestsController), "Cancel", "CancelDataRequest", "POST", "identity/data-requests/{id}/cancellations", typeof(CancelDataRequestCommand), "identity.data_request.cancel", Protected: ProtectedAdministrationOperation.CancelDataRequest),
+        new(typeof(DataRequestsController), "Revoke", "RevokeDataExport", "POST", "identity/data-requests/{id}/artifact/revocations", typeof(RevokeDataExportCommand), "identity.data_request.revoke_export", Protected: ProtectedAdministrationOperation.RevokeDataExport),
     ];
 
     [Fact]
@@ -161,10 +174,10 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(72, ExpectedActions.Length);
-        Assert.Equal(23, ExpectedActions.Count(expected => expected.Protected is not null));
+        Assert.Equal(84, ExpectedActions.Length);
+        Assert.Equal(29, ExpectedActions.Count(expected => expected.Protected is not null));
         var actualActions = endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        Assert.Equal(72, actualActions.Length);
+        Assert.Equal(84, actualActions.Length);
         Assert.Equal(ExpectedActions.Select(expected => expected.Name).Order(StringComparer.Ordinal), actualActions
             .Select(endpoint => endpoint.Metadata.GetRequiredMetadata<IEndpointNameMetadata>().EndpointName).Order(StringComparer.Ordinal));
         foreach (var endpoint in endpoints)
@@ -301,7 +314,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var classifier = new OperationHttpClassifier(Catalog());
         var protectedActions = ExpectedActions.Where(expected => expected.Protected is not null).ToArray();
-        Assert.Equal(23, protectedActions.Length);
+        Assert.Equal(29, protectedActions.Length);
         foreach (var expected in protectedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);
@@ -330,7 +343,7 @@ public sealed class OperationHttpClassificationTests
             Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
         var unkeyedActions = ExpectedActions.Where(expected => expected.Protected is null).ToArray();
-        Assert.Equal(49, unkeyedActions.Length);
+        Assert.Equal(55, unkeyedActions.Length);
         foreach (var expected in unkeyedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);

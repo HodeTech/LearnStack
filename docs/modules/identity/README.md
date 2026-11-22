@@ -810,6 +810,78 @@ the module's side of it.
   deletes its federated links; the account review is the realm administrator's, by
   runbook.
 
+### Subject data request API (P03-10 Step 1)
+
+The live-session API of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
+and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4. The
+[permission matrix](permissions.md#subject-data-request-bindings) owns who may call each operation and
+the [audit matrix](audit.md#data-request-bindings) its classification; the OpenAPI document owns the
+exact wire shapes.
+
+| Route (under `/api/v1`) | Operation | Request |
+|---|---|---|
+| `POST identity/me/data-requests/exports` | `identity.data_request.create_own_export` | `CreateOwnDataExportCommand` |
+| `GET identity/me/data-requests` | `identity.data_request.list_own` | `ListOwnDataRequestsQuery` |
+| `GET identity/me/data-requests/{id}` | `identity.data_request.read_own` | `GetOwnDataRequestQuery` |
+| `POST identity/me/data-requests/{id}/cancellations` | `identity.data_request.cancel_own` | `CancelOwnDataRequestCommand` |
+| `POST identity/me/data-requests/{id}/artifact/revocations` | `identity.data_request.revoke_own_export` | `RevokeOwnDataExportCommand` |
+| `POST identity/me/data-requests/{id}/artifact/tickets` | `identity.data_request.mint_export_ticket` | `MintOwnDataExportTicketCommand` |
+| `POST identity/me/data-requests/{id}/artifact/chunks` | `identity.data_request.read_export_chunk` | `ReadOwnDataExportChunkCommand` |
+| (keyed replay only) | `identity.data_request.read_own_receipt` | `ReadOwnDataRequestReceiptQuery` |
+| `POST identity/data-requests/exports` | `identity.data_request.create_export` | `CreateDataExportForSubjectCommand` |
+| `GET identity/data-requests` | `identity.data_request.list` | `ListDataRequestsQuery` |
+| `GET identity/data-requests/{id}` | `identity.data_request.read` | `GetDataRequestQuery` |
+| `POST identity/data-requests/{id}/cancellations` | `identity.data_request.cancel` | `CancelDataRequestCommand` |
+| `POST identity/data-requests/{id}/artifact/revocations` | `identity.data_request.revoke_export` | `RevokeDataExportCommand` |
+| (keyed replay only) | `identity.data_request.read_receipt` | `ReadDataRequestReceiptQuery` |
+
+- **The group is the context's.** Every read and write names the announced tenant and
+  `organization_id IS NOT DISTINCT FROM` the announced organization: the canonical row
+  policy also shows an organization context the tenant-wide group's rows, so the predicate
+  keeps each group's requests out of the other's pages. One handler core serves each
+  operation; the request types are thin admissions over it, so the retained own-scope path
+  of ADR-0106 § 9 adds its own request types over the same cores.
+- **Creation.** `IdentityMutationLockPlan([subject], tenant, Shared)` takes the subject's
+  exclusive User fence and the shared tenant fence the creation guard demands, then the
+  authority is rechecked. A request whose export job is dead is stored `failed` through
+  `DataRequestFailureReconciler` under the held plan before `DataRequestEligibility` (the
+  default `IDataRequestEligibility`) judges the one-active rule; the partial unique index is
+  the backstop and maps to the same `409 business_rule_violation` with
+  `errors.$ = lockey_request_already_active`. The frozen snapshot is every Membership of the
+  subject in the group, of any status, and the export job is submitted on the creating
+  transaction. The answer is `202` with `{id, kind, status, version}`, the `Location` of the
+  receipt and its `ETag`. An administrator names the subject by a Membership of the group,
+  of any status, and never themselves.
+- **Receipts.** Identity, kind, origin, status, timestamps, the recorded refusal or failure
+  code, the closed retained-reference kinds and counts, and the artifact's status, expiry,
+  byte and chunk counts and truncation statement. A request whose job is dead is displayed
+  `failed` (`execution_failed`) without a write, and an artifact past its expiry is displayed
+  `expired`. The administrator's view adds the frozen Membership identifiers and
+  `requestedByYou`; neither view holds content, a key version or the subject's `UserId`.
+- **Cancellation and revocation.** Each needs `If-Match` (the request's version for a
+  cancellation, the artifact's for a revocation) and an `Idempotency-Key`. The subject
+  cancels or revokes any request about them; an administrator only one they filed.
+  Revocation goes through `IDataExportArtifactStore.PurgeAsync(Revoked)`, which deletes the
+  chunks at once, and is refused for an artifact already past its expiry.
+- **Download.** A ticket is 32 random bytes returned once as 43 base64url characters and
+  stored only as a domain-separated SHA-256 digest beside a session-binding digest:
+  `HttpDataExportSessionBinding` hashes the group, the actor, the verified issuer and
+  subject and the digest of the exact bearer credential the request presented. The ticket
+  travels only in a request body; neither ticket operation is keyed or conditional. While
+  the ticket is unconsumed, unexpired (fifteen minutes) and presented in its own session,
+  it authorizes reads of any index below the chunk count; serving the final chunk
+  (`count - 1`) consumes it on the same transaction, and a resumed or repeated download
+  mints a new ticket. Every refusal of a chunk read is the same `404 not_found`. The chunk
+  is written as `{index, count, bytes}` straight from its plaintext buffer, which is then
+  zeroed; responses are `no-store`.
+- **One root per executor.** `DataRequestService` writes only `DataSubjectRequest`, through
+  `IDataRequestStore`; `DataExportDownloadService` writes only `DataExportTicket`, through
+  `IDataExportTicketStore`. Both derive the typed aggregate write store, the readers
+  (`IDataRequestReader`, `IDataRequestJobPhaseReader`) take typed keys through enumerated
+  read methods only, and the fulfilment scheduler takes plain values, so the
+  cross-aggregate census of [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+  counts every data-request handler as a single-root writer.
+
 ## Entity-relationship diagram
 
 ```mermaid

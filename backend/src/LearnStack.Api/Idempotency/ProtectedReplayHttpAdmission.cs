@@ -7,6 +7,7 @@ using LearnStack.Api.Common;
 using LearnStack.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Identifiers;
@@ -139,6 +140,10 @@ internal static class ProtectedReplayHttpAdmission
             or ProtectedAdministrationOperation.DiscardCustomFieldDraft => typeof(ReadCustomFieldDefinitionReceiptQuery),
         ProtectedAdministrationOperation.GrantOwnFieldConsent => typeof(ReadOwnGrantedFieldConsentReceiptQuery),
         ProtectedAdministrationOperation.WithdrawOwnFieldConsent => typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
+        ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CancelOwnDataRequest
+            or ProtectedAdministrationOperation.RevokeOwnDataExport => typeof(ReadOwnDataRequestReceiptQuery),
+        ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CancelDataRequest
+            or ProtectedAdministrationOperation.RevokeDataExport => typeof(ReadDataRequestReceiptQuery),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 

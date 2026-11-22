@@ -45,6 +45,7 @@ adoption supplies identity facts; it does not independently grant seed authority
 | `MembershipProfile` | – | Tenant + Organization | – | – | Exact v1 manifest, bounded contextual fields |
 | `Invitation` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0093's exact invitation operations; no new assignable key |
 | `FederationConnection` | – | – | – | Tenant `identity.federation.admin` | Registry v4; granted to no Role by registration; explicit Tenant Admin adoption only |
+| `DataSubjectRequest` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0106 § 4: the administrator's operations reuse the existing pairs; the subject's own operations carry no key. No assignable key is added |
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is
@@ -175,6 +176,28 @@ work and remains opt-in. Membership success still requires ordinary explicit
 session admission. Private SMTP source custody/job execution is finite trusted
 infrastructure admission, not a human permission or SystemActor bypass; Standard
 05 and the module specification own its exact source/lease consumers.
+
+## Subject data request bindings
+
+**Accepted under [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 3–§ 4
+and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4.** No assignable
+key is added and the grant union's bytes do not change. The subject's live-session operations use the
+key-less `OwnDataRequest` kind (an Active Membership in exactly the announced group; operation ids under
+`identity.data_request.`); the administrator's are Protected on the existing
+`[identity.membership.admin at Tenant, at Organization]` alternatives. Every operation is confined to the
+announced group, and a request of another group, person or tenant is absent (`not_found`). The
+[audit matrix](audit.md#data-request-bindings) owns the classifications.
+
+| Application consumer | Capability / exact authority | Boundary |
+|---|---|---|
+| `CreateOwnDataExportCommand` | `OwnDataRequest` | The subject files for themselves under their exclusive User fence and the shared tenant fence; one active export per subject and group |
+| `ListOwnDataRequestsQuery`, `GetOwnDataRequestQuery`, `ReadOwnDataRequestReceiptQuery` | `OwnDataRequest` | Only requests about the actor, in the group; Off |
+| `CancelOwnDataRequestCommand` | `OwnDataRequest` | The subject cancels a request about them, whoever filed it, with `If-Match` |
+| `RevokeOwnDataExportCommand` | `OwnDataRequest` | The subject revokes an unexpired artifact of a request about them, including one an administrator filed |
+| `MintOwnDataExportTicketCommand`, `ReadOwnDataExportChunkCommand` | `OwnDataRequest` and the session binding | Subject only; the ticket binds the credential of the session that minted it. An administrator never gets a ticket or content |
+| `CreateDataExportForSubjectCommand` | Applicable membership-admin covering the group | For the person who holds or held the named Membership of any status in the group; never for oneself; a Tenant holder files in the announced group, an Organization holder only in their organization's |
+| `ListDataRequestsQuery`, `GetDataRequestQuery`, `ReadDataRequestReceiptQuery` | Same | The group's exports and erasures, status and counts only, never a closure; MUST sensitive read |
+| `CancelDataRequestCommand`, `RevokeDataExportCommand` | Same, and the actor filed the request | Another administrator reads the request but cannot cancel it or revoke its artifact |
 
 ## Proof ownership
 

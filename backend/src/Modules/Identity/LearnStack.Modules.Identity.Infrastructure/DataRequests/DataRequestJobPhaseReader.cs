@@ -23,23 +23,15 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </remarks>
 public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext tenant) : IDataRequestJobPhaseReader
 {
-    public async Task<DataRequestJobPhase> ReadAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+    public async Task<DataRequestJobPhase> ReadAsync(DataSubjectRequestId requestId, DataRequestKind kind, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (!unit.HasActiveTransaction || unit.IsRollbackOnly
-            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
-            || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId
-            || request.TenantId != tenant.TenantId || request.OrganizationId != tenant.OrganizationId)
-        {
-            throw new InvalidOperationException("A data request job phase requires its existing announced owner.");
-        }
-
-        if (request.Kind != DataRequestKind.Export)
+        RequireOwner();
+        if (kind != DataRequestKind.Export)
         {
             return DataRequestJobPhase.Unavailable;
         }
 
-        var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(request.Id.Value),
+        var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(requestId.Value),
             typeof(DataExportJobParameters), BackgroundJobPayloadKind.Parameters);
         await using var command = new NpgsqlCommand("""
             SELECT phase, quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
@@ -51,7 +43,8 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
             """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
-        command.Parameters.AddWithValue("definition", DataExportJobKeys.ExportFor(request.Group).Value);
+        command.Parameters.AddWithValue("definition",
+            DataExportJobKeys.ExportFor(new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId)).Value);
         command.Parameters.AddWithValue("parameters", parameters);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(TimeSpan.FromSeconds(5));
@@ -71,6 +64,76 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
         {
             unit.MarkRollbackOnly();
             throw new InfrastructureException("Data request job phase unavailable.");
+        }
+    }
+
+    public async Task<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>> ReadManyAsync(
+        IReadOnlyCollection<DataSubjectRequestId> exportRequestIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exportRequestIds);
+        RequireOwner();
+        if (exportRequestIds.Count > 101)
+        {
+            throw new InvalidOperationException("A data request job phase page reads at most 101 requests.");
+        }
+
+        var phases = exportRequestIds.Distinct().ToDictionary(id => id, _ => DataRequestJobPhase.Unavailable);
+        var exports = phases.Keys
+            .ToDictionary(id => BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(id.Value),
+                typeof(DataExportJobParameters), BackgroundJobPayloadKind.Parameters), id => id, StringComparer.Ordinal);
+        if (exports.Count == 0)
+        {
+            return phases;
+        }
+
+        // One statement for the page, newest job per request, by the same exact route as the single read.
+        await using var command = new NpgsqlCommand("""
+            SELECT DISTINCT ON (parameters) parameters, phase,
+                quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
+            FROM public.background_jobs
+            WHERE tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
+              AND definition_key = @definition AND profile = 'transactional' AND parameters = ANY(@parameters)
+            ORDER BY parameters, created_at DESC, id DESC
+            """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
+        command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
+        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
+        command.Parameters.AddWithValue("definition",
+            DataExportJobKeys.ExportFor(new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId)).Value);
+        command.Parameters.AddWithValue("parameters", exports.Keys.ToArray());
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            await using var row = await command.ExecuteReaderAsync(budget.Token).ConfigureAwait(false);
+            while (await row.ReadAsync(budget.Token).ConfigureAwait(false))
+            {
+                if (exports.TryGetValue(row.GetString(0), out var id))
+                {
+                    phases[id] = Classify(row.GetString(1), row.GetBoolean(2));
+                }
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && budget.IsCancellationRequested)
+        {
+            unit.MarkRollbackOnly();
+            throw new InfrastructureException("Data request job phase unavailable.");
+        }
+        catch (NpgsqlException)
+        {
+            unit.MarkRollbackOnly();
+            throw new InfrastructureException("Data request job phase unavailable.");
+        }
+
+        return phases;
+    }
+
+    private void RequireOwner()
+    {
+        if (!unit.HasActiveTransaction || unit.IsRollbackOnly
+            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
+            || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId)
+        {
+            throw new InvalidOperationException("A data request job phase requires its existing announced owner.");
         }
     }
 

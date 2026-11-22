@@ -26,7 +26,7 @@ public sealed class DataRequestFulfillmentSchedulerTests
         var jobs = new RecordingScheduler();
         var request = Request(DataRequestKind.Export, organization);
 
-        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(request, CancellationToken.None);
+        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(request.Id.Value, request.Kind, request.Status, request.Group, CancellationToken.None);
 
         jobs.Submitted.Should().ContainSingle().Which.Should().Be((key, (object)new DataExportJobParameters(request.Id.Value), (DateTimeOffset?)null));
     }
@@ -52,7 +52,7 @@ public sealed class DataRequestFulfillmentSchedulerTests
 
         var context = new Context(variant == "other_group" ? Organization : null);
 
-        await FluentActions.Awaiting(() => new DataRequestFulfillmentScheduler(jobs, context).SubmitAsync(request, CancellationToken.None).AsTask())
+        await FluentActions.Awaiting(() => new DataRequestFulfillmentScheduler(jobs, context).SubmitAsync(request.Id.Value, request.Kind, request.Status, request.Group, CancellationToken.None).AsTask())
             .Should().ThrowAsync<InvalidOperationException>();
         jobs.Submitted.Should().BeEmpty();
     }
@@ -67,11 +67,11 @@ public sealed class DataRequestFulfillmentSchedulerTests
         var artifact = DataExportArtifactId.From(Guid.CreateVersion7());
         var due = At + DataRequestLimits.ArtifactLifetime;
 
-        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SchedulePurgeAsync(artifact, due, CancellationToken.None);
+        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SchedulePurgeAsync(artifact.Value, due, CancellationToken.None);
 
         jobs.Submitted.Should().ContainSingle().Which.Should().Be((key, (object)new DataExportPurgeParameters(artifact.Value), (DateTimeOffset?)due));
         await FluentActions.Awaiting(() => new DataRequestFulfillmentScheduler(jobs, new Context(organization))
-            .SchedulePurgeAsync(DataExportArtifactId.From(Guid.NewGuid()), due, CancellationToken.None).AsTask())
+            .SchedulePurgeAsync(Guid.NewGuid(), due, CancellationToken.None).AsTask())
             .Should().ThrowAsync<InvalidOperationException>("an artifact identity is a UUIDv7");
     }
 

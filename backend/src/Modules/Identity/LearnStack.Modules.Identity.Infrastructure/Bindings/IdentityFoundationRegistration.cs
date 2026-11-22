@@ -16,6 +16,7 @@ using LearnStack.Modules.Identity.Application.Federation;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.Modules.Identity.Infrastructure.DataRequests;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Results;
@@ -96,6 +97,17 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IRequestHandler<PurgeOrganizationDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
         services.TryAddScoped<MembershipFieldRevisionReader>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, IdentityUserDataParticipant>());
+        // ADR-0106 § 7, ADR-0107 § 4: the live-session request API. The default eligibility checks structure only; the
+        // hold source is the composition root's NoHoldSource. The session binding answers nothing until the API
+        // composition replaces it with the validated-credential binding, so no other host mints or honours a ticket.
+        services.TryAddScoped<IDataRequestReader, DataRequestReader>();
+        services.TryAddScoped<IDataRequestEligibility, DataRequestEligibility>();
+        services.TryAddSingleton<IDataExportSessionBinding, UnavailableDataExportSessionBinding>();
+        services.TryAddScoped<DataRequestAuthorization>();
+        services.TryAddScoped<LiveDataRequestAdmission>();
+        services.TryAddScoped<DataRequestService>();
+        services.TryAddScoped<IDataExportTicketStore, DataExportTicketStore>();
+        services.TryAddScoped<DataExportDownloadService>();
     }
 
     /// <summary>Registers internal consumers only; qualification is an explicit startup act before admission activation.</summary>

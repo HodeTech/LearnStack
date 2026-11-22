@@ -27,10 +27,13 @@ public sealed partial class OperationPolicyOwnershipTests
     private const string InvitationEvaluator = "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization";
     private const string InvitationPolicyEvaluator = "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers";
     private const string FederationEvaluator = "LearnStack.Modules.Identity.Application.Federation.FederationAuthorization";
+    private const string DataRequestEvaluator = "LearnStack.Modules.Identity.Application.DataRequests.DataRequestAuthorization";
     private static readonly (string Type, string Method, string Target, string Name)[] InvitationChecks =
     [
         (InvitationEvaluator, "RecheckAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
         (InvitationPolicyEvaluator, "OwnAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
+        // ADR-0106 § 4: the data-request writers recheck the live invocation under their fences the same way.
+        (DataRequestEvaluator, "RecheckAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
     ];
     private static readonly (string Type, string Method, string Target, string Name)[] MemberChecks =
     [
@@ -308,7 +311,7 @@ public sealed partial class OperationPolicyOwnershipTests
             (InvitationEvaluator, "RecheckAsync", 1), (InvitationPolicyEvaluator, "OwnAsync", 1),
             (DefinitionEvaluator, "RecheckAsync", 1), (OwnConsentEvaluator, "AdmitGrantAsync", 1),
             (ConsentReceiptEvaluator, "RecheckAsync", 1), (ConsentReadEvaluator, "AuthorizedAsync", 1),
-            (FederationEvaluator, "RecheckAsync", 1)]);
+            (FederationEvaluator, "RecheckAsync", 1), (DataRequestEvaluator, "RecheckAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 2)]);
         Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),

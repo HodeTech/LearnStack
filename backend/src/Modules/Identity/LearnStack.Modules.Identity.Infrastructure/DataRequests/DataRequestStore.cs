@@ -3,11 +3,13 @@ using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -25,6 +27,13 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
         typeof(PurgeTenantDataExportCommand), typeof(PurgeOrganizationDataExportCommand),
     ];
 
+    private const string ActiveIndex = "ux_data_subject_requests_active";
+
+    private NpgsqlCommand Command(string sql) => DataRequestSql.Command(unit, tenant, sql);
+
+    private Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> statement, CancellationToken cancellationToken) =>
+        DataRequestSql.ExecuteAsync(unit, statement, cancellationToken);
+
     public BackgroundJobId RequireCurrentJob()
     {
         var origin = producer.CaptureJobOrigin(unit);
@@ -40,7 +49,7 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
 
     public async Task<DataSubjectRequest?> FindLockedAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken)
     {
-        RequireOwner();
+        Admit();
         await using var command = new NpgsqlCommand("""
             SELECT id FROM public.data_subject_requests
             WHERE id=@id AND tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization FOR UPDATE
@@ -112,6 +121,120 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
             unit.MarkRollbackOnly();
             throw new InvalidOperationException("Data request storage unavailable.");
         }
+    }
+
+    public async Task<IReadOnlyList<MembershipId>> ReadSubjectMembershipsAsync(UserId subject, CancellationToken cancellationToken)
+    {
+        Admit();
+        // Exactly the creation guard's predicate (ADR-0106 § 8): every status, Revoked tombstones included, of this group only.
+        await using var command = Command("""
+            SELECT id FROM public.memberships
+            WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND user_id=@subject
+            ORDER BY id LIMIT @limit
+            """);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        command.Parameters.AddWithValue("limit", DataRequestLimits.MaximumSnapshotMemberships + 1);
+        return await ExecuteAsync(async token =>
+        {
+            var found = new List<MembershipId>();
+            await using var row = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await row.ReadAsync(token).ConfigureAwait(false))
+            {
+                found.Add(MembershipId.From(row.GetGuid(0)));
+            }
+
+            return (IReadOnlyList<MembershipId>)found;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DataSubjectRequest?> FindActiveLockedAsync(UserId subject, DataRequestKind kind, CancellationToken cancellationToken)
+    {
+        Admit();
+        // The one-active partial unique index holds at most one such row (ADR-0106 § 7).
+        await using var command = Command("""
+            SELECT id FROM public.data_subject_requests
+            WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND subject_user_id=@subject AND kind=@kind
+              AND status IN ('requested','scheduled','fulfilling','awaiting_privileged_step')
+            FOR UPDATE
+            """);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        command.Parameters.AddWithValue("kind", DataRequestCodes.Kinds.ToCode(kind));
+        var found = await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false);
+        if (found is not Guid id)
+        {
+            return null;
+        }
+
+        var requestId = DataSubjectRequestId.From(id);
+        return await db.DataSubjectRequests.SingleAsync(request => request.Id == requestId
+            && request.TenantId == tenant.TenantId && request.OrganizationId == tenant.OrganizationId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>The aggregate port's insertion: a creation refused by the one-active index is a storage refusal here.</summary>
+    async Task IAggregateWriteStore<DataSubjectRequest, DataSubjectRequestId>.AddAsync(DataSubjectRequest aggregate,
+        CancellationToken cancellationToken)
+    {
+        if (!await TryAddAsync(aggregate, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InfrastructureException("Data request already active.");
+        }
+    }
+
+    public async Task<bool> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        Admit();
+        if (request.TenantId != tenant.TenantId || request.OrganizationId != tenant.OrganizationId)
+        {
+            throw new InvalidOperationException("A data request is filed only in its own announced group.");
+        }
+
+        db.DataSubjectRequests.Add(request);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (DbUpdateException failure) when (failure.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: ActiveIndex,
+        })
+        {
+            // ADR-0106 § 7: two concurrent creations cannot both pass. Nothing was stored and the transaction is aborted.
+            db.Entry(request).State = EntityState.Detached;
+            unit.MarkRollbackOnly();
+            return false;
+        }
+        catch (DbUpdateException)
+        {
+            unit.MarkRollbackOnly();
+            throw new InfrastructureException("Data request storage unavailable.");
+        }
+    }
+
+    private async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException)
+        {
+            unit.MarkRollbackOnly();
+            throw new InfrastructureException("Data request storage unavailable.");
+        }
+    }
+
+    /// <summary>
+    /// The announced writable owner, with the Identity context re-enrolled on its transaction: the scoped context may
+    /// have been created on an earlier transaction of the same request (the authorization read), and a clean context is
+    /// re-enrolled only on the same connection's freshly announced tenant owner.
+    /// </summary>
+    private void Admit()
+    {
+        RequireOwner();
+        ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);
     }
 
     private void RequireOwner()

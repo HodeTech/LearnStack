@@ -34,7 +34,16 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new(21, "SetOwnCustomFields", 0, "Membership", "ExpectedVersion"),
         new(22, "GrantOwnFieldConsent", 7, "MembershipFieldConsent", null),
         new(23, "WithdrawOwnFieldConsent", 7, "MembershipFieldConsent", null),
+        new(24, "CreateOwnDataExport", 8, "DataSubjectRequest", null),
+        new(25, "CreateDataExportForSubject", 8, "DataSubjectRequest", null),
+        new(26, "CancelOwnDataRequest", 8, "DataSubjectRequest", "ExpectedVersion"),
+        new(27, "CancelDataRequest", 8, "DataSubjectRequest", "ExpectedVersion"),
+        new(28, "RevokeOwnDataExport", 8, "DataSubjectRequest", "ExpectedArtifactVersion"),
+        new(29, "RevokeDataExport", 8, "DataSubjectRequest", "ExpectedArtifactVersion"),
     ];
+
+    /// <summary>The keyed creations: the three 201 creations and ADR-0106 § 10's two 202 data-request creations.</summary>
+    private static bool Creates(int operation) => operation is 7 or 11 or 15 or 24 or 25;
 
     private static readonly Lazy<string[]> ProtectedSourceBaseline = new(() => ProtectedSourceOffenders(
         File.ReadAllText(Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api/Idempotency/ProtectedAdministrationOperation.cs")),
@@ -63,7 +72,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var endpoint = Endpoints.SingleOrDefault(entry => entry.Request.FullName == request.FullName && entry.ProtectedOperation is not null);
             var shape = ProtectedShapes.SingleOrDefault(item => item.Operation == endpoint?.ProtectedOperation);
             if (shape is null || Integer(Argument(factory, creation, 2)) != shape.Kind
-                || Integer(Argument(factory, creation, 3)) != (shape.Operation is 7 or 11 or 15 ? 1 : 0))
+                || Integer(Argument(factory, creation, 3)) != (Creates(shape.Operation) ? 1 : 0))
                 yield return "Unexpected protected descriptor: target kind/creation mismatch for " + request.FullName;
         }
         var expected = Endpoints.Where(entry => entry.ProtectedOperation is not null)
@@ -108,7 +117,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 var request = Endpoints.Single(entry => entry.ProtectedOperation == shape.Operation).Request.Name;
                 return name switch
                 {
-                    "For" => "ProtectedAdministrationOperation." + shape.Name + "=>new(operation,typeof(" + request + "),IdempotencyReplayTargetKind." + shape.Target + (shape.Operation is 7 or 11 or 15 ? ",true" : "") + ")",
+                    "For" => "ProtectedAdministrationOperation." + shape.Name + "=>new(operation,typeof(" + request + "),IdempotencyReplayTargetKind." + shape.Target + (Creates(shape.Operation) ? ",true" : "") + ")",
                     "OperationFor" => request + "=>ProtectedAdministrationOperation." + shape.Name,
                     _ => request + (shape.Version is null ? "=>null" : "command=>command." + shape.Version)
                 };
@@ -116,7 +125,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             if (name == "ExpectedVersion") expected = expected.Where(arm => arm is not ("CreateManagedOrganizationCommand=>null" or "CreateInvitationCommand=>null"))
                 .Where(arm => arm is not ("RegisterCustomFieldDefinitionCommand=>null" or "GrantOwnMembershipFieldConsentCommand=>null" or "WithdrawOwnMembershipFieldConsentCommand=>null"))
                 .Append("CreateManagedOrganizationCommandorCreateInvitationCommand=>null")
-                .Append("RegisterCustomFieldDefinitionCommandorGrantOwnMembershipFieldConsentCommandorWithdrawOwnMembershipFieldConsentCommand=>null").ToArray();
+                .Append("RegisterCustomFieldDefinitionCommandorGrantOwnMembershipFieldConsentCommandorWithdrawOwnMembershipFieldConsentCommand=>null")
+                .Where(arm => arm is not ("CreateOwnDataExportCommand=>null" or "CreateDataExportForSubjectCommand=>null"))
+                .Append("CreateOwnDataExportCommandorCreateDataExportForSubjectCommand=>null").ToArray();
             var fallback = name switch
             {
                 "For" => "_=>thrownewArgumentOutOfRangeException(nameof(operation))",
@@ -148,6 +159,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 21 => "Membership(awaitsender.Send(command,cancellationToken),null)",
                 22 => "Consent(awaitsender.Send(command,cancellationToken),true)",
                 23 => "Consent(awaitsender.Send(command,cancellationToken),false)",
+                24 or 25 => "DataRequest(awaitsender.Send(command,cancellationToken),null)",
+                26 or 27 => "DataRequest(awaitsender.Send(command,cancellationToken),command.RequestId)",
+                28 or 29 => "Artifact(awaitsender.Send(command,cancellationToken),command.RequestId)",
                 _ => throw new InvalidOperationException("Unknown expected protected operation")
             };
             return request + "command=>" + result;

@@ -82,6 +82,8 @@
     "LearnStack.Tests.Integration.Database.DataExportArtifactStoreTests",
     "LearnStack.Tests.Integration.Database.DataExportExecutionTests",
     "LearnStack.Tests.Integration.Database.DataExportParticipantTests",
+    "LearnStack.Tests.Integration.Database.DataRequestHttpTests",
+    "LearnStack.Tests.Integration.Database.DataRequestServiceStorageTests",
     "LearnStack.Tests.Integration.Database.DataRequestStorageControlTests",
     "LearnStack.Tests.Integration.Database.DataRequestStorageTests",
     "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests",

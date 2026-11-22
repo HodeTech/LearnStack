@@ -6,6 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Identifiers;
@@ -46,6 +47,10 @@ internal sealed class ProtectedReceiptReplayDispatcher(ISender sender, HttpConte
             ProtectedAdministrationOperation.WithdrawOwnFieldConsent when http?.Features.Get<ConsentSubjectSource>()?.Request is ReadOwnWithdrawnFieldConsentReceiptQuery request
                 && request.EvidenceId == target.Id => sender.Send(request, cancellationToken),
             ProtectedAdministrationOperation.WithdrawOwnFieldConsent => Task.FromResult(Result<None>.Fail(new Error(LocalizedMessage.Of("lockey_forbidden")))),
+            ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CancelOwnDataRequest
+                or ProtectedAdministrationOperation.RevokeOwnDataExport => sender.Send(new ReadOwnDataRequestReceiptQuery(target.Id), cancellationToken),
+            ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CancelDataRequest
+                or ProtectedAdministrationOperation.RevokeDataExport => sender.Send(new ReadDataRequestReceiptQuery(target.Id), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor)),
         };
     }

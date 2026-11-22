@@ -38,42 +38,48 @@ public static class DataExportJobKeys
 public interface IDataRequestFulfillmentScheduler
 {
     /// <summary>Submits the job of the request's kind and group; only an <c>export</c> has one in this step.</summary>
+    /// <remarks>
+    /// Takes the request's identity, kind, status and group as values rather than the aggregate: submitting a job writes
+    /// no request, and the aggregate write port stays the one the census counts.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// The request is not a <c>requested</c> export of the announced group: a programming error, because the creation
     /// path decides the kind and the group before it submits.
     /// </exception>
-    ValueTask SubmitAsync(DataSubjectRequest request, CancellationToken cancellationToken);
+    ValueTask SubmitAsync(Guid requestId, DataRequestKind kind, DataRequestStatus status, DataRequestScopeGroup group,
+        CancellationToken cancellationToken);
 
     /// <summary>Schedules the purge of an artifact's chunks at <paramref name="dueAt"/>, its expiry (ADR-0107 § 4).</summary>
-    ValueTask SchedulePurgeAsync(DataExportArtifactId artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken);
+    ValueTask SchedulePurgeAsync(Guid artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken);
 }
 
 /// <summary>The default <see cref="IDataRequestFulfillmentScheduler"/>, over the typed job scheduler.</summary>
 public sealed class DataRequestFulfillmentScheduler(IBackgroundJobScheduler scheduler, ITenantContext tenant)
     : IDataRequestFulfillmentScheduler
 {
-    public async ValueTask SubmitAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+    public async ValueTask SubmitAsync(Guid requestId, DataRequestKind kind, DataRequestStatus status, DataRequestScopeGroup group,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.Kind != DataRequestKind.Export || request.Status != DataRequestStatus.Requested
-            || request.TenantId != tenant.TenantId || request.OrganizationId != tenant.OrganizationId)
+        ArgumentNullException.ThrowIfNull(group);
+        if (requestId == Guid.Empty || requestId.Version != 7 || kind != DataRequestKind.Export || status != DataRequestStatus.Requested
+            || group.TenantId != tenant.TenantId || group.OrganizationId != tenant.OrganizationId)
         {
             throw new InvalidOperationException("Only a requested export of the announced group has a fulfilment job in this step.");
         }
 
-        await scheduler.EnqueueAsync(DataExportJobKeys.ExportFor(request.Group),
-            new DataExportJobParameters(request.Id.Value), cancellationToken).ConfigureAwait(false);
+        await scheduler.EnqueueAsync(DataExportJobKeys.ExportFor(group), new DataExportJobParameters(requestId), cancellationToken)
+            .ConfigureAwait(false);
     }
 
-    public async ValueTask SchedulePurgeAsync(DataExportArtifactId artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken)
+    public async ValueTask SchedulePurgeAsync(Guid artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken)
     {
-        if (artifactId.Value == Guid.Empty || artifactId.Value.Version != 7 || dueAt == default)
+        if (artifactId == Guid.Empty || artifactId.Version != 7 || dueAt == default)
         {
             throw new InvalidOperationException("A purge is scheduled for an artifact at its expiry.");
         }
 
         var key = tenant.OrganizationId is null ? DataExportJobKeys.TenantPurge : DataExportJobKeys.OrganizationPurge;
-        await scheduler.ScheduleAsync(key, new DataExportPurgeParameters(artifactId.Value), dueAt, cancellationToken)
+        await scheduler.ScheduleAsync(key, new DataExportPurgeParameters(artifactId), dueAt, cancellationToken)
             .ConfigureAwait(false);
     }
 }

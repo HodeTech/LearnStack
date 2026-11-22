@@ -47,7 +47,20 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
     /// transaction, so the row is locked against a job that is, after all, still committing.
     /// </remarks>
     /// <returns>Whether the request was moved to <c>failed</c>.</returns>
-    public async Task<bool> ReconcileAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+    public Task<bool> ReconcileAsync(DataSubjectRequest request, CancellationToken cancellationToken) =>
+        ReconcileAsync(request, null, cancellationToken);
+
+    /// <summary>
+    /// Stores <c>failed</c> for a tracked, non-terminal request whose job is dead, on a transaction whose caller already
+    /// holds the Identity tenant fence through <paramref name="heldPlan"/>.
+    /// </summary>
+    /// <remarks>
+    /// A transaction holds one lock plan (<see cref="IIdentityMutationLocks"/>), so a creation path that took the
+    /// subject's User fence and the tenant fence before it judges the one-active rule (ADR-0106 § 7) hands its plan in
+    /// and this proves the plan is still current instead of acquiring a second one.
+    /// </remarks>
+    public async Task<bool> ReconcileAsync(DataSubjectRequest request, IdentityMutationLockPlan? heldPlan,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.IsTerminal || !CanFail(request) || request.TenantId != tenant.TenantId
@@ -56,13 +69,25 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
             return false;
         }
 
-        if (await phases.ReadAsync(request, cancellationToken).ConfigureAwait(false) != DataRequestJobPhase.Dead)
+        if (await phases.ReadAsync(request.Id, request.Kind, cancellationToken).ConfigureAwait(false) != DataRequestJobPhase.Dead)
         {
             return false;
         }
 
-        await locks.AcquireAsync(new IdentityMutationLockPlan([], tenant.TenantId, IdentityTenantLockMode.Shared), cancellationToken)
-            .ConfigureAwait(false);
+        if (heldPlan is null)
+        {
+            await locks.AcquireAsync(new IdentityMutationLockPlan([], tenant.TenantId, IdentityTenantLockMode.Shared), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else if (heldPlan.TenantId != tenant.TenantId)
+        {
+            throw new InvalidOperationException("A held lock plan must fence the request's own tenant.");
+        }
+        else
+        {
+            locks.RequireCurrent(heldPlan);
+        }
+
         var now = clock.UtcNow;
         var actor = tenant.UserId ?? UserId.SystemActor;
         if (request.Status == DataRequestStatus.Requested)

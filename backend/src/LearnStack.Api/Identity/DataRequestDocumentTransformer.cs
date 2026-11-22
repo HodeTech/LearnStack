@@ -1,0 +1,309 @@
+using System.Text.Json.Nodes;
+using LearnStack.Api.Authentication;
+using LearnStack.Api.Idempotency;
+using LearnStack.Api.PublicReads;
+using LearnStack.SharedKernel.DataProtection;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.OpenApi;
+
+namespace LearnStack.Api.Identity;
+
+/// <summary>
+/// The exact wire contract of the live-session data-request API (ADR-0106 § 10, ADR-0107 § 4): the subject's own
+/// requests, their artifact and its ticketed download under <c>identity/me/data-requests</c>, and the administrator's
+/// status-only view under <c>identity/data-requests</c>. Request bodies are read without MVC binding.
+/// </summary>
+internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransformer
+{
+    private enum Shape { Read, Page, Create, Mutation, Ticket, Chunk }
+
+    private static readonly string[] SuccessStatuses = ["200", "201", "202"];
+
+    private sealed record Contract(string Path, HttpMethod Method, string Name, Shape Shape, string Response, string? Body, bool Own);
+
+    private static readonly Contract[] Contracts =
+    [
+        new("identity/me/data-requests/exports", HttpMethod.Post, "CreateOwnDataExport", Shape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput", true),
+        new("identity/me/data-requests", HttpMethod.Get, "ListOwnDataRequests", Shape.Page, "OwnDataRequestPage", null, true),
+        new("identity/me/data-requests/{id}", HttpMethod.Get, "GetOwnDataRequest", Shape.Read, "OwnDataRequestResponse", null, true),
+        new("identity/me/data-requests/{id}/cancellations", HttpMethod.Post, "CancelOwnDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
+        new("identity/me/data-requests/{id}/artifact/revocations", HttpMethod.Post, "RevokeOwnDataExport", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
+        new("identity/me/data-requests/{id}/artifact/tickets", HttpMethod.Post, "MintOwnDataExportTicket", Shape.Ticket, "DataExportTicketResponse", "EmptyAdministrationInput", true),
+        new("identity/me/data-requests/{id}/artifact/chunks", HttpMethod.Post, "ReadOwnDataExportChunk", Shape.Chunk, "DataExportChunkResponse", "DataExportChunkInput", true),
+        new("identity/data-requests/exports", HttpMethod.Post, "CreateDataExportForSubject", Shape.Create, "DataRequestAcceptedResponse", "DataExportForSubjectInput", false),
+        new("identity/data-requests", HttpMethod.Get, "ListDataRequests", Shape.Page, "DataRequestPage", null, false),
+        new("identity/data-requests/{id}", HttpMethod.Get, "GetDataRequest", Shape.Read, "DataRequestResponse", null, false),
+        new("identity/data-requests/{id}/cancellations", HttpMethod.Post, "CancelDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", false),
+        new("identity/data-requests/{id}/artifact/revocations", HttpMethod.Post, "RevokeDataExport", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", false),
+    ];
+
+    public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (context.DocumentName != "v1" || !document.Paths.ContainsKey("/api/v1/identity/me/data-requests")) return Task.CompletedTask;
+        document.Components ??= new();
+        document.Components.Schemas ??= new Dictionary<string, IOpenApiSchema>();
+        Schemas(document);
+        foreach (var contract in Contracts)
+        {
+            if (!document.Paths.TryGetValue("/api/v1/" + contract.Path, out var path)
+                || path.Operations?.TryGetValue(contract.Method, out var operation) != true || operation is null) continue;
+            Describe(document, path, operation, contract);
+        }
+        return Task.CompletedTask;
+    }
+
+    private static void Describe(OpenApiDocument document, IOpenApiPathItem path, OpenApiOperation operation, Contract contract)
+    {
+        operation.OperationId = contract.Name;
+        operation.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference(TenantAuthenticationRegistration.Scheme, document)] = [] }];
+        operation.Description = Description(contract);
+        operation.Parameters = [];
+        if (contract.Path.Contains("{id}", StringComparison.Ordinal)) operation.Parameters.Add(new OpenApiParameter
+        {
+            Name = "id",
+            In = ParameterLocation.Path,
+            Required = true,
+            Schema = Uuid(),
+            Description = "Canonical lowercase RFC UUIDv7 of a request of the context's group. Another group's request is absent.",
+        });
+        if (contract.Shape == Shape.Page)
+        {
+            operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "cursor",
+                In = ParameterLocation.Query,
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 1024 },
+                Description = "Opaque canonical current-actor/group/operation-bound cursor. Unknown, repeated, blank and oversized values refuse.",
+            });
+            operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "limit",
+                In = ParameterLocation.Query,
+                Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "2147483647", Default = JsonValue.Create(20) },
+                Description = "Canonical positive ASCII decimal Int32, default 20, accepted values above 100 clamp to 100. Signs, leading zeros and repeats refuse.",
+            });
+        }
+        if (contract.Body is not null)
+        {
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Required = true,
+                Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = new() { Schema = Ref(document, contract.Body) } },
+            };
+            if (contract.Shape is Shape.Create or Shape.Mutation) operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = IdempotentAttribute.HeaderName,
+                In = ParameterLocation.Header,
+                Required = true,
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 8, MaxLength = 128, Pattern = "^[!-~]{8,128}$" },
+                Description = "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            });
+            if (contract.Shape == Shape.Mutation) operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "If-Match",
+                In = ParameterLocation.Header,
+                Required = true,
+                Schema = EntityTag(),
+                Description = contract.Name.StartsWith("Revoke", StringComparison.Ordinal)
+                    ? "One canonical strong quoted decimal artifact version (the receipt's artifact.version). Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409."
+                    : "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.",
+            });
+        }
+        else operation.RequestBody = null;
+
+        operation.Responses ??= [];
+        var status = contract.Shape == Shape.Create ? "202" : "200";
+        foreach (var other in SuccessStatuses.Where(code => code != status)) operation.Responses.Remove(other);
+        operation.Responses[status] = new OpenApiResponse
+        {
+            Description = contract.Shape switch
+            {
+                Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the Location for its status.",
+                Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
+                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext.",
+                Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
+                _ => "Current receipt-safe projection: status and counts, never content.",
+            },
+            Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = new() { Schema = Ref(document, contract.Response) } },
+        };
+        var methods = string.Join(", ", path.Operations!.Keys.Select(method => method.Method).Order(StringComparer.Ordinal));
+        PublicReadDocumentTransformer.DocumentResponses(document, operation, contract.Method,
+        [
+            ("400", "validation_failed for malformed or noncanonical input, extra or repeated query, an unexpected body, an invalid key or precondition, or a key or precondition on a ticket operation."),
+            ("401", "unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge."),
+            ("403", contract.Own ? "forbidden when the request carries no live session the ticket can bind."
+                : "forbidden without current identity.membership.admin covering the context's group."),
+            ("404", contract.Own ? "not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike."
+                : "not_found for noncoverage, for a request or Membership of another group, a closure, or a request another administrator filed (cancel, revoke)."),
+            ("405", "method_not_allowed after earlier host, credential and scope gates."),
+            ("413", "payload_too_large; request bodies are at most 16 KiB."),
+            ("429", "rate_limited by the existing visitor/subject admission."),
+            ("500", "internal_error without provider, query, identity, ticket or submitted-value diagnostics."),
+            ("503", "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row."),
+        ], methods);
+        if (contract.Body is not null) operation.Responses["409"] = new OpenApiResponse
+        {
+            Description = contract.Shape switch
+            {
+                Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Ticket => "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact.",
+                Shape.Chunk => "Never: a chunk refusal is not_found.",
+                _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            },
+            Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Enum("no-store") } },
+            Content = new Dictionary<string, OpenApiMediaType> { ["application/problem+json"] = new() { Schema = Ref(document, "ProblemDetails") } },
+        };
+        if (contract.Shape == Shape.Chunk) operation.Responses.Remove("409");
+        if (operation.Responses["503"] is OpenApiResponse unavailable) unavailable.Headers?.Remove("Retry-After");
+        if (operation.Responses[status] is not OpenApiResponse success) return;
+        success.Headers ??= new Dictionary<string, IOpenApiHeader>();
+        if (contract.Shape is Shape.Read or Shape.Create or Shape.Mutation) success.Headers["ETag"] = new OpenApiHeader
+        {
+            Required = true,
+            Schema = EntityTag(),
+            Description = contract.Name.StartsWith("Revoke", StringComparison.Ordinal) ? "The artifact's version after the revocation." : "The request's version.",
+        };
+        if (contract.Shape is Shape.Create or Shape.Mutation) success.Headers[IdempotentAttribute.ReplayedHeaderName] = new OpenApiHeader
+        {
+            Required = false,
+            Schema = Enum("true"),
+            Description = "Present only after fresh original-request disclosure on a replay.",
+        };
+        if (contract.Shape == Shape.Create) success.Headers["Location"] = new OpenApiHeader
+        {
+            Required = true,
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Pattern = "^/api/v1/identity/" + (contract.Own ? "me/data-requests" : "data-requests")
+                    + "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            },
+            Description = "Exact same-API relative location of the new request's receipt.",
+        };
+    }
+
+    private static string Description(Contract contract) => contract.Shape switch
+    {
+        Shape.Create when contract.Own => "The subject files an export of their own data in the session's group (ADR-0106 § 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject's Memberships of any status in the group and its job is submitted on the same transaction. Strict empty JSON object. MUST audited.",
+        Shape.Create => "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
+        Shape.Page when contract.Own => "The subject's own requests in the session's group, newest first. A request whose job died is shown failed. Audit Off. No request body.",
+        Shape.Page => "The group's export and erasure requests, newest first: status and counts only, never content, never a closure. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
+        Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds and counts and the artifact's metadata. No content. Audit Off. No request body.",
+        Shape.Read => "One request of the group: status and counts only, never content. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
+        Shape.Mutation when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own
+            ? "The subject cancels a requested export (requested to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited."
+            : "The administrator who filed an export cancels it while it is still requested. Strict empty JSON object. MUST audited.",
+        Shape.Mutation => contract.Own
+            ? "The subject revokes an unexpired available artifact of a request about them, which deletes its chunks at once; the metadata stays as the receipt. Strict empty JSON object. MUST audited."
+            : "The administrator who filed an export revokes its unexpired available artifact, which deletes its chunks at once. Strict empty JSON object. MUST audited.",
+        Shape.Ticket => "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact, bound to the credential of this session; an administrator never gets one. Stored only as a digest; not keyed and never replayed; no If-Match. Strict empty JSON object. MUST read-sensitive audited; refused when the row cannot be written.",
+        _ => "Reads one decrypted chunk through a ticket presented in the body, never the URL, in the session that minted it. Any index below count may be read while the ticket is unconsumed and unexpired; serving the final chunk (count - 1) consumes it, and a resumed download mints a new ticket. Every refusal is the same not_found. Not keyed. MUST read-sensitive audited per read; refused when the row cannot be written.",
+    };
+
+    private static void Schemas(OpenApiDocument document)
+    {
+        var schemas = document.Components!.Schemas!;
+        schemas.TryAdd("ProblemDetails", PublicReadDocumentTransformer.Problem());
+        schemas.TryAdd("EmptyAdministrationInput", Object());
+        schemas.TryAdd("PageInfo", Object(("nextCursor", Text(true)), ("previousCursor", Text(true)),
+            ("hasNext", new OpenApiSchema { Type = JsonSchemaType.Boolean }), ("hasPrevious", new OpenApiSchema { Type = JsonSchemaType.Boolean })));
+        schemas.TryAdd("AdministrationVersionReceipt", Object(("version", Version())));
+        var kind = Enum([.. DataRequestCodes.Kinds.Codes]);
+        var status = Enum([.. DataRequestCodes.Statuses.Codes]);
+        var origin = Enum([.. DataRequestCodes.Origins.Codes]);
+        schemas["DataRequestAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("export")), ("status", Enum("requested")), ("version", Version()));
+        schemas["DataRequestRetainedResponse"] = Object(("kind", Enum([.. DataRequestCodes.RetainedKinds.Codes])),
+            ("count", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "0" }));
+        schemas["DataExportTruncationResponse"] = Object(("collection", Text(false, 65)), ("included", Count()), ("total", Count()));
+        schemas["DataExportArtifactResponse"] = Object(("id", Uuid()), ("status", Enum([.. DataRequestCodes.ArtifactStatuses.Codes])),
+            ("expiresAt", DateTime()), ("purgedAt", DateTime(true)),
+            ("byteCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "1", Maximum = DataRequestLimits.MaximumBundleBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
+            ("chunkCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = DataRequestLimits.MaximumChunkCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
+            ("truncations", Array(Ref(document, "DataExportTruncationResponse"), DataRequestLimits.MaximumTruncatedCollections)),
+            ("version", Version()), ("readable", new OpenApiSchema { Type = JsonSchemaType.Boolean }));
+        (string, IOpenApiSchema)[] receipt =
+        [
+            ("id", Uuid()), ("kind", kind), ("origin", origin), ("status", status), ("createdAt", DateTime()), ("updatedAt", DateTime(true)),
+            ("completedAt", DateTime(true)), ("lastRefusal", Nullable(Enum([.. DataRequestCodes.Refusals.Codes]))),
+            ("failureReason", Nullable(Enum([.. DataRequestCodes.FailureReasons.Codes]))),
+            ("retained", Array(Ref(document, "DataRequestRetainedResponse"), DataRequestCodes.RetainedKinds.Codes.Length)),
+            ("artifact", NullableRef(document, "DataExportArtifactResponse")), ("version", Version()),
+        ];
+        schemas["OwnDataRequestResponse"] = Object(receipt);
+        schemas["OwnDataRequestPage"] = Object(("items", Array(Ref(document, "OwnDataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));
+        schemas["DataRequestResponse"] = Object([.. receipt, ("requestedByYou", new OpenApiSchema { Type = JsonSchemaType.Boolean }),
+            ("membershipIds", Array(Uuid(), DataRequestLimits.MaximumSnapshotMemberships))]);
+        schemas["DataRequestPage"] = Object(("items", Array(Ref(document, "DataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));
+        schemas["DataExportForSubjectInput"] = Object(("membershipId", Uuid()));
+        schemas["DataExportTicketResponse"] = Object(("ticket", Ticket()), ("expiresAt", DateTime()),
+            ("chunkCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = DataRequestLimits.MaximumChunkCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
+            ("byteCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "1", Maximum = DataRequestLimits.MaximumBundleBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) }));
+        schemas["DataExportChunkInput"] = Object(("ticket", Ticket()),
+            ("index", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "0", Maximum = (DataRequestLimits.MaximumChunkCount - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) }));
+        schemas["DataExportChunkResponse"] = Object(
+            ("index", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "0" }),
+            ("count", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1" }),
+            ("bytes", new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                ContentEncoding = "base64",
+                MinLength = 4,
+                MaxLength = 174764,
+                Description = "Base64 of one chunk of the decrypted bundle, at most 128 KiB of plaintext. Concatenating every chunk in index order yields the bundle."
+            }));
+    }
+
+    private static OpenApiSchema Ticket() => new()
+    {
+        Type = JsonSchemaType.String,
+        MinLength = 43,
+        MaxLength = 43,
+        Pattern = "^[A-Za-z0-9_-]{43}$",
+        Description = "Sensitive opaque download ticket: canonical unpadded base64url of 32 bytes. Body only; never a route, query or log.",
+    };
+
+    private static OpenApiSchemaReference Ref(OpenApiDocument document, string name) => new(name, document);
+    private static OpenApiSchema NullableRef(OpenApiDocument document, string name) =>
+        new() { OneOf = [Ref(document, name), new OpenApiSchema { Type = JsonSchemaType.Null }] };
+
+    private static OpenApiSchema Nullable(OpenApiSchema schema)
+    {
+        schema.Type |= JsonSchemaType.Null;
+        schema.Enum?.Add(null!);
+        return schema;
+    }
+
+    private static OpenApiSchema Object(params (string Name, IOpenApiSchema Schema)[] fields) => new()
+    {
+        Type = JsonSchemaType.Object,
+        AdditionalPropertiesAllowed = false,
+        Required = fields.Select(field => field.Name).ToHashSet(StringComparer.Ordinal),
+        Properties = fields.ToDictionary(field => field.Name, field => field.Schema, StringComparer.Ordinal),
+    };
+
+    private static OpenApiSchema Array(IOpenApiSchema item, int maximum) => new() { Type = JsonSchemaType.Array, Items = item, MaxItems = maximum };
+    private static OpenApiSchema Count() => new() { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "0", Maximum = "9007199254740991" };
+    private static OpenApiSchema Text(bool nullable = false, int? maximum = null) => new()
+    { Type = nullable ? JsonSchemaType.String | JsonSchemaType.Null : JsonSchemaType.String, MaxLength = maximum };
+    private static OpenApiSchema Uuid() => new()
+    {
+        Type = JsonSchemaType.String,
+        Format = "uuid",
+        Pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    };
+    private static OpenApiSchema Version() => new()
+    {
+        Type = JsonSchemaType.String,
+        MinLength = 1,
+        MaxLength = 19,
+        Pattern = "^(0|[1-9][0-9]{0,18})$",
+        Description = "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number.",
+    };
+    private static OpenApiSchema DateTime(bool nullable = false) => new()
+    { Type = nullable ? JsonSchemaType.String | JsonSchemaType.Null : JsonSchemaType.String, Format = "date-time" };
+    private static OpenApiSchema EntityTag() => new()
+    { Type = JsonSchemaType.String, MinLength = 3, MaxLength = 21, Pattern = "^\"(0|[1-9][0-9]{0,18})\"$" };
+    private static OpenApiSchema Enum(params string[] values) => new()
+    { Type = JsonSchemaType.String, Enum = values.Select(value => (JsonNode)JsonValue.Create(value)!).ToList() };
+}

@@ -88,6 +88,9 @@ internal static class IdentitySelfEntryRegistration
         services.AddScoped<Func<IFederationHostAliasReader>>(provider => () => provider.GetRequiredService<IFederationHostAliasReader>());
         services.Replace(ServiceDescriptor.Scoped<IIdentitySelfEntryAdmission>(provider => provider.GetRequiredService<HttpIdentitySelfEntryAdmission>()));
         services.Replace(ServiceDescriptor.Scoped<INativeSessionAssociationSource>(provider => provider.GetRequiredService<HttpIdentitySelfEntryAdmission>()));
+        // ADR-0107 § 4: a download ticket binds the validated credential of the request that minted it.
+        services.Replace(ServiceDescriptor.Scoped<LearnStack.Modules.Identity.Application.Contracts.DataRequests.IDataExportSessionBinding,
+            HttpDataExportSessionBinding>());
         services.AddSingleton(provider => new NativeEntryOriginOptions(provider.GetRequiredService<IConfiguration>()));
         return services;
     }
