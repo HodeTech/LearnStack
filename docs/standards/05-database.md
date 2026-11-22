@@ -6358,7 +6358,7 @@ answers exactly that:
 - **Caller.** `OperatorSubjectResolver`, which derives the key with the one
   `IdentitySubjectKey` implementation under the deployment's qualified authority, so a
   request supplies the provider subject and nothing else. The body, ACL, owner and
-  volatility are pinned by the definer census (sixteen definers), and the callers of the
+  volatility are pinned by the definer census in `GlobalIdentitySchemaTests`, and the callers of the
   function and of its port by
   [`Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`](21-architecture-tests-catalogue.md#only_the_operator_administrator_core_resolves_an_operator_subject).
 
@@ -6515,8 +6515,7 @@ after the change), `IdentityAuthorityRebindTests` (the run end to end, every ref
 class and posture drift, the continuity rules, an audit failure rolling the change back,
 a killed session, a lost commit acknowledgement and a reconciliation that waits) and
 `IdentityAuthorityRebindToolTests` (the offline tool as a child process). The census
-counts are in `GlobalIdentitySchemaTests` (thirty functions, sixteen definers, thirty
-triggers) and the head pin in `MigrationRollbackTests`.
+counts are in `GlobalIdentitySchemaTests` and the head pin in `MigrationRollbackTests`.
 
 ## Operator recovery storage
 
@@ -6697,5 +6696,5 @@ request-only group retained, every refused state and argument, the function's AC
 owner, the two arms shut to a session and to every other role, a dirty probe that states
 exactly what the arms admit, the request policy against an independent canonicalized
 oracle, the confined lookup, and the setter's captured owner. The Membership policy
-oracle is in `GlobalIdentitySchemaTests`, and the census counts are there too
-(thirty-nine functions, seventeen definers); the head pin is in `MigrationRollbackTests`.
+oracle is in `GlobalIdentitySchemaTests`, and the census counts are there too; the head
+pin is in `MigrationRollbackTests`.

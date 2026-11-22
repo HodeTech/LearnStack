@@ -229,13 +229,31 @@ public sealed class AggregateWriteTests
             .Where(type => type.Namespace == typeof(DataRequestService).Namespace && IsMessageHandler(type)
                 && type != typeof(DataExportJobHandlers))
             .ToList();
-        handlers.Should().HaveCount(14, "the fourteen live-session data-request operations each have one thin handler");
-        foreach (var handler in handlers)
+        static List<Type> ParameterTypes(Type handler) =>
+            handler.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType).ToList();
+        var live = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(LiveDataRequestAdmission))).ToList();
+        var retained = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(RetainedDataRequestAdmission))).ToList();
+        live.Should().HaveCount(14, "the fourteen live-session data-request operations each have one thin handler");
+        retained.Should().HaveCount(7, "the seven retained-entry data-request operations each have one thin handler");
+        handlers.Should().BeEquivalentTo(live.Concat(retained),
+            "every data-request handler is admitted by exactly one of the two admissions");
+        foreach (var handler in live)
         {
-            var parameters = handler.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType).ToList();
+            var parameters = ParameterTypes(handler);
             parameters.Should().HaveCount(2).And.Contain(typeof(LiveDataRequestAdmission), handler.Name);
             parameters.Should().ContainSingle(type => type == typeof(DataRequestService) || type == typeof(DataExportDownloadService),
                 $"{handler.Name} delegates only to one countable single-root executor");
+        }
+
+        foreach (var handler in retained)
+        {
+            var parameters = ParameterTypes(handler);
+            parameters.Should().ContainSingle(type => type == typeof(RetainedDataRequestAdmission), handler.Name);
+            parameters.Count(type => type == typeof(DataRequestService) || type == typeof(DataExportDownloadService))
+                .Should().BeLessThanOrEqualTo(1, $"{handler.Name} delegates to at most one countable single-root executor");
+            parameters.Should().OnlyContain(type => type == typeof(RetainedDataRequestAdmission)
+                || type == typeof(DataRequestService) || type == typeof(DataExportDownloadService),
+                $"{handler.Name} takes no write port of its own");
         }
     }
 
