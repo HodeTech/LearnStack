@@ -7980,8 +7980,9 @@ sign-in read). The
 
 ## P03-10 data request controls
 
-**Derives from:** [ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md)
-and [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md). Canonical
+**Derives from:**
+[ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) and
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md). Canonical
 names for the package's obligations are assigned with the step that introduces them.
 
 #### `Own_Data_Request_Scope_Is_Host_And_Subject_Confined`
@@ -7994,27 +7995,29 @@ names for the package's obligations are assigned with the step that introduces t
   its own read-only owner. Its two owner arms admit only the function's own entry state
   and stay shut to every session and every other role. The `OwnDataRequestEntry` kind is
   admitted only by a live `OwnDataRequestScopeWitness` under the
-  `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter consumes
-  on a fresh owner announcing exactly the witness's group; the `OwnDataRequest` kind
-  requires the actor's Active Membership in exactly the announced group. The native
+  `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter
+  consumes on a fresh owner announcing exactly the witness's group; the `OwnDataRequest`
+  kind requires the actor's Active Membership in exactly the announced group. The native
   retained-entry operations (P03-10 Step 1, unit 4b) close the chain: exactly six
   selector-free operations and the receipt read of their two keyed ones carry the
-  `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the one minter and the one
-  registered `IOwnDataRequestScopeSource`, the one caller of the lookup and the one source of
-  the captured request feature; `TenantResolverMiddleware` is the one builder of the context;
-  and through the actual Program a Suspended person, a person whose only Membership is
-  Revoked and a person in several groups list, file, cancel and download in exactly their own
-  groups on the real host, while another person's request, an unretained group, a selector, a
-  missing native source, a non-Active binding and a ticket of the other path are refused.
-- **Source:** [ADR-0106 § 4 and § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
+  `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the one minter and the
+  one registered `IOwnDataRequestScopeSource`, the one caller of the lookup and the one
+  source of the captured request feature; `TenantResolverMiddleware` is the one builder
+  of the context; and through the actual Program a Suspended person, a person whose only
+  Membership is Revoked and a person in several groups list, file, cancel and download
+  in exactly their own groups on the real host, while another person's request, an
+  unretained group, a selector, a missing native source, a non-Active binding and a
+  ticket of the other path are refused.
+- **Source:**
+  [ADR-0106 § 4 and § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
   [Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope),
   [Security § The out-of-band setters](11-security.md#the-out-of-band-setters).
 - **Type:** real app-role PostgreSQL behaviour, refusals, ACL and policy oracle with a
-  dirty probe of the arms; compiled minter, binder, owner and caller censuses with planted
-  minters and binders; coordinator and evaluator behaviour for both kinds; the retained
-  entry's syntax-confined authority exceptions with substituted values, its request-feature
-  binding with planted replacements, its closed paths and strict input, and its HTTP
-  behaviour end to end. **Kind:** both.
+  dirty probe of the arms; compiled minter, binder, owner and caller censuses with
+  planted minters and binders; coordinator and evaluator behaviour for both kinds; the
+  retained entry's syntax-confined authority exceptions with substituted values, its
+  request-feature binding with planted replacements, its closed paths and strict input,
+  and its HTTP behaviour end to end. **Kind:** both.
 - **Status:** **Implemented** (`OwnDataRequestScopeTests`); companion owners below.
 - **Test owners:**
   [OwnDataRequestScopeTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/OwnDataRequestScopeTests.cs),
@@ -8033,7 +8036,8 @@ names for the package's obligations are assigned with the step that introduces t
   composition root, from inside its own boundary. A module that stops registering, a
   second participant in one module and a participant outside every module are each named
   by a planted violation.
-- **Source:** [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Source:**
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
 - **Type:** composition-root census over the compiled registrations with planted
   violations. **Kind:** both.
 - **Status:** **Implemented** (`UserDataParticipantCensusTests`).
@@ -8047,7 +8051,8 @@ names for the package's obligations are assigned with the step that introduces t
   the participant registrations stay outside the four cross-module mechanisms of
   [ADR-0010](../decisions/0010-cross-module-communication.md). A planted reference from
   one module to another's participant assembly is named.
-- **Source:** [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Source:**
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
 - **Type:** compiled assembly-reference census with a planted violation. **Kind:** both.
 - **Status:** **Implemented** (`UserDataParticipantCensusTests`).
 - **Test owners:**

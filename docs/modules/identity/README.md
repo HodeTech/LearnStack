@@ -812,11 +812,12 @@ the module's side of it.
 
 ### Subject data request API (P03-10 Step 1)
 
-The live-session API of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
-and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4. The
-[permission matrix](permissions.md#subject-data-request-bindings) owns who may call each operation and
-the [audit matrix](audit.md#data-request-bindings) its classification; the OpenAPI document owns the
-exact wire shapes.
+The live-session API of
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) and
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4.
+The [permission matrix](permissions.md#subject-data-request-bindings) owns who may call
+each operation and the [audit matrix](audit.md#data-request-bindings) its
+classification; the OpenAPI document owns the exact wire shapes.
 
 | Route (under `/api/v1`) | Operation | Request |
 |---|---|---|
@@ -837,67 +838,72 @@ exact wire shapes.
 
 - **The group is the context's.** Every read and write names the announced tenant and
   `organization_id IS NOT DISTINCT FROM` the announced organization: the canonical row
-  policy also shows an organization context the tenant-wide group's rows, so the predicate
-  keeps each group's requests out of the other's pages. One handler core serves each
-  operation; the request types are thin admissions over it, so the retained own-scope path
-  of ADR-0106 § 9 adds its own request types over the same cores.
-- **Creation.** `IdentityMutationLockPlan([subject], tenant, Shared)` takes the subject's
-  exclusive User fence and the shared tenant fence the creation guard demands, then the
-  authority is rechecked. A request whose export job is dead is stored `failed` through
-  `DataRequestFailureReconciler` under the held plan before `DataRequestEligibility` (the
-  default `IDataRequestEligibility`) judges the one-active rule; the partial unique index is
-  the backstop and maps to the same `409 business_rule_violation` with
-  `errors.$ = lockey_request_already_active`. The frozen snapshot is every Membership of the
-  subject in the group, of any status, and the export job is submitted on the creating
-  transaction. The answer is `202` with `{id, kind, status, version}`, the `Location` of the
-  receipt and its `ETag`. An administrator names the subject by a Membership of the group,
-  of any status, and never themselves.
-- **Receipts.** Identity, kind, origin, status, timestamps, the recorded refusal or failure
-  code, the closed retained-reference kinds and counts, and the artifact's status, expiry,
-  byte and chunk counts and truncation statement. A request whose job is dead is displayed
-  `failed` (`execution_failed`) without a write, and an artifact past its expiry is displayed
-  `expired`. The administrator's view adds the frozen Membership identifiers and
-  `requestedByYou`; neither view holds content, a key version or the subject's `UserId`.
+  policy also shows an organization context the tenant-wide group's rows, so the
+  predicate keeps each group's requests out of the other's pages. One handler core
+  serves each operation; the request types are thin admissions over it, so the retained
+  own-scope path of ADR-0106 § 9 adds its own request types over the same cores.
+- **Creation.** `IdentityMutationLockPlan([subject], tenant, Shared)` takes the
+  subject's exclusive User fence and the shared tenant fence the creation guard demands,
+  then the authority is rechecked. A request whose export job is dead is stored `failed`
+  through `DataRequestFailureReconciler` under the held plan before
+  `DataRequestEligibility` (the default `IDataRequestEligibility`) judges the one-active
+  rule; the partial unique index is the backstop and maps to the same
+  `409 business_rule_violation` with `errors.$ = lockey_request_already_active`. The
+  frozen snapshot is every Membership of the subject in the group, of any status, and
+  the export job is submitted on the creating transaction. The answer is `202` with
+  `{id, kind, status, version}`, the `Location` of the receipt and its `ETag`. An
+  administrator names the subject by a Membership of the group, of any status, and never
+  themselves.
+- **Receipts.** Identity, kind, origin, status, timestamps, the recorded refusal or
+  failure code, the closed retained-reference kinds and counts, and the artifact's
+  status, expiry, byte and chunk counts and truncation statement. A request whose job is
+  dead is displayed `failed` (`execution_failed`) without a write, and an artifact past
+  its expiry is displayed `expired`. The administrator's view adds the frozen Membership
+  identifiers and `requestedByYou`; neither view holds content, a key version or the
+  subject's `UserId`.
 - **Cancellation and revocation.** Each needs `If-Match` (the request's version for a
   cancellation, the artifact's for a revocation) and an `Idempotency-Key`. The subject
   cancels or revokes any request about them; an administrator only one they filed.
-  Revocation goes through `IDataExportArtifactStore.PurgeAsync(Revoked)`, which deletes the
-  chunks at once, and is refused for an artifact already past its expiry.
+  Revocation goes through `IDataExportArtifactStore.PurgeAsync(Revoked)`, which deletes
+  the chunks at once, and is refused for an artifact already past its expiry.
 - **Download.** A ticket is 32 random bytes returned once as 43 base64url characters and
   stored only as a domain-separated SHA-256 digest beside a session-binding digest:
   `HttpDataExportSessionBinding` hashes the group, the actor, the verified issuer and
-  subject and the digest of the exact bearer credential the request presented. The ticket
-  travels only in a request body; neither ticket operation is keyed or conditional. While
-  the ticket is unconsumed, unexpired (fifteen minutes) and presented in its own session,
-  it authorizes reads of any index below the chunk count; serving the final chunk
-  (`count - 1`) consumes it on the same transaction, and a resumed or repeated download
-  mints a new ticket. Every refusal of a chunk read is the same `404 not_found`; a chunk the
-  store cannot open (its key left the ring, or it fails authentication) is answered the same
-  way and logged at critical severity with identifiers only. The chunk is written as
-  `{index, count, bytes}` straight from its plaintext buffer, which is then zeroed, and the
-  ticket and chunk request bodies are read into a buffer that is zeroed once parsed (best
-  effort: managed strings are beyond reach); responses are `no-store`.
+  subject and the digest of the exact bearer credential the request presented. The
+  ticket travels only in a request body; neither ticket operation is keyed or
+  conditional. While the ticket is unconsumed, unexpired (fifteen minutes) and presented
+  in its own session, it authorizes reads of any index below the chunk count; serving
+  the final chunk (`count - 1`) consumes it on the same transaction, and a resumed or
+  repeated download mints a new ticket. Every refusal of a chunk read is the same
+  `404 not_found`; a chunk the store cannot open (its key left the ring, or it fails
+  authentication) is answered the same way and logged at critical severity with
+  identifiers only. The chunk is written as `{index, count, bytes}` straight from its
+  plaintext buffer, which is then zeroed, and the ticket and chunk request bodies are
+  read into a buffer that is zeroed once parsed (best effort: managed strings are beyond
+  reach); responses are `no-store`.
 - **Ticket bound.** Ticket rows and their MUST audit rows are permanent, so a mint is
-  bounded: under the artifact's row lock, an artifact that already holds three unconsumed,
-  unexpired tickets, or whose key the export key ring no longer holds, is refused with the
-  same `409 data_export_unavailable` as an artifact that is gone. A slot frees when a ticket
-  is consumed by its final chunk or expires after fifteen minutes. The bound is
-  `DataExportDownloadService.MaximumOpenTickets`.
-- **One root per executor.** `DataRequestService` writes only `DataSubjectRequest`, through
-  `IDataRequestStore`; `DataExportDownloadService` writes only `DataExportTicket`, through
-  `IDataExportTicketStore`. Both derive the typed aggregate write store, the readers
-  (`IDataRequestReader`, `IDataRequestJobPhaseReader`) take typed keys through enumerated
-  read methods only, and the fulfilment scheduler takes plain values, so the
-  cross-aggregate census of [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+  bounded: under the artifact's row lock, an artifact that already holds three
+  unconsumed, unexpired tickets, or whose key the export key ring no longer holds, is
+  refused with the same `409 data_export_unavailable` as an artifact that is gone. A
+  slot frees when a ticket is consumed by its final chunk or expires after fifteen
+  minutes. The bound is `DataExportDownloadService.MaximumOpenTickets`.
+- **One root per executor.** `DataRequestService` writes only `DataSubjectRequest`,
+  through `IDataRequestStore`; `DataExportDownloadService` writes only
+  `DataExportTicket`, through `IDataExportTicketStore`. Both derive the typed aggregate
+  write store, the readers (`IDataRequestReader`, `IDataRequestJobPhaseReader`) take
+  typed keys through enumerated read methods only, and the fulfilment scheduler takes
+  plain values, so the cross-aggregate census of
+  [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
   counts every data-request handler as a single-root writer.
 
 #### Retained own-scope native entry (P03-10 Step 1)
 
-The retained own scope of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
-§ 9, modelled on the consent subject's entry: a person reads and files data requests after their
-Membership is gone, and a Suspended person does so at all. The
-[permission matrix](permissions.md#subject-data-request-bindings) owns who may call each operation, the
-[audit matrix](audit.md#data-request-bindings) its classification, and
+The retained own scope of
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 9,
+modelled on the consent subject's entry: a person reads and files data requests after
+their Membership is gone, and a Suspended person does so at all. The
+[permission matrix](permissions.md#subject-data-request-bindings) owns who may call each
+operation, the [audit matrix](audit.md#data-request-bindings) its classification, and
 [Database Standards § Retained own data-request scope](../../standards/05-database.md#retained-own-data-request-scope)
 the definer and the setter.
 
@@ -911,40 +917,48 @@ the definer and the setter.
 | `POST chunks?group=` | `identity.data_request.read_retained_export_chunk` | `ReadRetainedDataExportChunkCommand` |
 | (keyed replay only) | `identity.data_request.read_retained_receipt` | `ReadRetainedDataRequestReceiptQuery` |
 
-- **Entry.** The six paths are the closed set `OwnDataRequestOperation.ForPath`: exact path, method,
-  action and request type. `NativeSessionSourceMiddleware` admits them selector-free (a tenant or
-  organization header is `400`) with the separate native session credential, `ValidatedOwnDataRequestCredential`
-  captures the stock-validated bearer credential of exactly these requests, and binding normalization
-  must find an existing Active global binding, so a Closing, Closed or unknown binding is `401`.
-- **Group.** Every purpose but discovery names one group in the single `group` query value: `tenant`
-  for the real host's tenant-wide group or an organization's canonical UUIDv7. Before any context exists,
-  `OwnDataRequestSubjectSource.PrepareAsync` reads the strict input (`OwnDataRequestHttpInput`), and the
-  confined lookup proves the group for the normalized actor under the host ceiling (on an organization
-  host only that organization's group). `TenantResolverMiddleware` then builds the context with
-  `TenantContextFactory.CreateForOwnDataRequestScope`. A group the person does not retain is `404`;
-  discovery pages at most twenty groups with the last group's key as `nextCursor`.
-- **Captured request.** Each action sends exactly the request the source captured, read from its
-  `OwnDataRequestEntryRequest` feature; the source mints the witness only for that request object on
-  that endpoint, and the thin handlers (`RetainedDataRequestAdmission`) consume only that witness on its
-  physical owner, build the subject's caller and hand over to the same cores as the live path.
-- **Keyed operations.** Creation and cancellation are `ProtectedAdministrationOperation`s 30 and 31.
-  Creation answers `202` with `{id, kind, status, version}` and its `ETag` and no `Location` (there is no
-  per-request route); cancellation needs `If-Match`. A replay rereads the captured input, selects the
-  witness's own receipt read and discloses the stored receipt only through it; a completed key found
-  only at claim time answers `request_in_progress`, as the consent withdrawal does.
-- **Download binding.** `HttpDataExportSessionBinding` binds a retained-entry ticket under its own domain
-  (`learnstack.data_export.retained_session.v1`) to the group, the actor, the verified issuer and subject
-  and the digest of the exact `Authorization` header the retained credential capture recorded, and only
-  while the source is current on a ticket or chunk purpose. A ticket minted here is never honoured on the
-  live path, nor the reverse. When the BFF's entry handle refreshes the credential the binding no longer
-  matches, that download's cursor ends, and the resumed download mints a new ticket.
+- **Entry.** The six paths are the closed set `OwnDataRequestOperation.ForPath`: exact
+  path, method, action and request type. `NativeSessionSourceMiddleware` admits them
+  selector-free (a tenant or organization header is `400`) with the separate native
+  session credential, `ValidatedOwnDataRequestCredential` captures the stock-validated
+  bearer credential of exactly these requests, and binding normalization must find an
+  existing Active global binding, so a Closing, Closed or unknown binding is `401`.
+- **Group.** Every purpose but discovery names one group in the single `group` query
+  value: `tenant` for the real host's tenant-wide group or an organization's canonical
+  UUIDv7. Before any context exists, `OwnDataRequestSubjectSource.PrepareAsync` reads
+  the strict input (`OwnDataRequestHttpInput`), and the confined lookup proves the group
+  for the normalized actor under the host ceiling (on an organization host only that
+  organization's group). `TenantResolverMiddleware` then builds the context with
+  `TenantContextFactory.CreateForOwnDataRequestScope`. A group the person does not
+  retain is `404`; discovery pages at most twenty groups with the last group's key as
+  `nextCursor`.
+- **Captured request.** Each action sends exactly the request the source captured, read
+  from its `OwnDataRequestEntryRequest` feature; the source mints the witness only for
+  that request object on that endpoint, and the thin handlers
+  (`RetainedDataRequestAdmission`) consume only that witness on its physical owner,
+  build the subject's caller and hand over to the same cores as the live path.
+- **Keyed operations.** Creation and cancellation are
+  `ProtectedAdministrationOperation`s 30 and 31. Creation answers `202` with
+  `{id, kind, status, version}` and its `ETag` and no `Location` (there is no
+  per-request route); cancellation needs `If-Match`. A replay rereads the captured
+  input, selects the witness's own receipt read and discloses the stored receipt only
+  through it; a completed key found only at claim time answers `request_in_progress`, as
+  the consent withdrawal does.
+- **Download binding.** `HttpDataExportSessionBinding` binds a retained-entry ticket
+  under its own domain (`learnstack.data_export.retained_session.v1`) to the group, the
+  actor, the verified issuer and subject and the digest of the exact `Authorization`
+  header the retained credential capture recorded, and only while the source is current
+  on a ticket or chunk purpose. A ticket minted here is never honoured on the live path,
+  nor the reverse. When the BFF's entry handle refreshes the credential the binding no
+  longer matches, that download's cursor ends, and the resumed download mints a new
+  ticket.
 
 #### Export bundle sections (P03-10 Step 1)
 
 What each participant writes into the bundle of
-[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 3, in the
-order the bundle carries them. Every identifier but the request's own is written `self` or
-`third_party`; the envelope and the bounds are `DataExportBundleBuilder`'s.
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 3, in
+the order the bundle carries them. Every identifier but the request's own is written
+`self` or `third_party`; the envelope and the bounds are `DataExportBundleBuilder`'s.
 
 | Section | Collection | Contents |
 |---|---|---|
@@ -957,30 +971,30 @@ order the bundle carries them. Every identifier but the request's own is written
 | `tenancy` | `field_consents` | The subject's consent acts for the snapshot Memberships of the group, `recorded_by` as a closed word |
 
 - **The audit reach is what the row policy shows.** The export job runs on its group's
-  ordinary transaction, which holds no tenant-wide read witness, so `audit_log_isolation`
-  bounds what it can read. `reach` is one of three closed words:
-  `organization_and_tenant_level` (a self-requested export in an organization group: that
-  organization's rows and the tenant-level rows), `organization_only` (an administrator's
-  request in an organization group, ADR-0108 § 4) and `tenant_level_only` (any request in
-  the tenant-wide group). A self-requested export therefore does **not** reach the rows
-  recorded in the person's other organizations, which ADR-0107 § 3 and ADR-0108 § 4 call
-  "the whole tenant": each organization's activity is in that organization's own export,
-  and the Step 4 screens say so from `reach`. A tenant-wide read for the export job needs
-  its own decision.
-- **A cap truncates, whatever the ceiling.** The builder clamps every declared section and
-  collection cap to half of `DataExport:MaxBytes`, so at the 1 MiB minimum the audit
+  ordinary transaction, which holds no tenant-wide read witness, so
+  `audit_log_isolation` bounds what it can read. `reach` is one of three closed words:
+  `organization_and_tenant_level` (a self-requested export in an organization group:
+  that organization's rows and the tenant-level rows), `organization_only` (an
+  administrator's request in an organization group, ADR-0108 § 4) and
+  `tenant_level_only` (any request in the tenant-wide group). A self-requested export
+  therefore does **not** reach the rows recorded in the person's other organizations,
+  which ADR-0107 § 3 and ADR-0108 § 4 call "the whole tenant": each organization's
+  activity is in that organization's own export, and the Step 4 screens say so from
+  `reach`. A tenant-wide read for the export job needs its own decision.
+- **A cap truncates, whatever the ceiling.** The builder clamps every declared section
+  and collection cap to half of `DataExport:MaxBytes`, so at the 1 MiB minimum the audit
   section and `invitations_issued` still truncate, stated in `truncated` and on the
   artifact receipt; `export_too_large` remains for a bundle the uncapped sections fill.
 - **Retained counts.** `attribution_reference` counts **rows**: a row of a tenant-owned
   entity whose `UserId` columns name the subject counts once, whichever and however many
-  of those columns do, a non-`AuditableEntity` updater such as a feature flag's included.
-  A participant names the columns that are the row's subject or party instead
+  of those columns do, a non-`AuditableEntity` updater such as a feature flag's
+  included. A participant names the columns that are the row's subject or party instead
   (a Membership's `UserId`, an invitation's inviter and acceptor, the federation and
   provider-event actors) and the types reported under another kind (the request
-  receipts, and the consent table, whose `ck_membership_field_consents_actor` makes every
-  act its own subject's). `audit_metadata_reference` is exact up to a scan window and a
-  lower bound past it; the [Audit module](../audit/README.md#performance-budget) owns
-  both audit statements' bounds.
+  receipts, and the consent table, whose `ck_membership_field_consents_actor` makes
+  every act its own subject's). `audit_metadata_reference` is exact up to a scan window
+  and a lower bound past it; the [Audit module](../audit/README.md#performance-budget)
+  owns both audit statements' bounds.
 
 ## Entity-relationship diagram
 

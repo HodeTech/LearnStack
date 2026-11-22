@@ -423,14 +423,15 @@ Two budget-shaped facts that are not latency:
   retention purge in this packet, deliberately — audit correctness cannot be added later
   and audit scale can, and the platform has no rows yet to scale
   ([ADR-0028's 2026-09-07 amendment](../../decisions/0028-audit-log-partition-management.md)).
-- **Six indexes, still not the template's `(tenant_id, organization_id)`.** The canonical
-  organization-scoped template carries an index on `(tenant_id, organization_id)`; this
-  table does not take it, because it is a write cost paid on every row for a predicate arm
-  the shipped readers do not take. The reasoning is in
-  [Audit Subsystem § 7](../../architecture/31-audit-subsystem.md), and Phase 03's admin
-  API is where to revisit it against a measured plan. P03-10 added the two data-request
-  indexes measured above: the entity index takes an entry for every row, the
-  person-reference index only for rows carrying a causal-actor or affected-user key.
+- **Six indexes, still not the template's `(tenant_id, organization_id)`.** The
+  canonical organization-scoped template carries an index on
+  `(tenant_id, organization_id)`; this table does not take it, because it is a write
+  cost paid on every row for a predicate arm the shipped readers do not take. The
+  reasoning is in [Audit Subsystem § 7](../../architecture/31-audit-subsystem.md), and
+  Phase 03's admin API is where to revisit it against a measured plan. P03-10 added the
+  two data-request indexes measured above: the entity index takes an entry for every
+  row, the person-reference index only for rows carrying a causal-actor or affected-user
+  key.
 
 ## Risks and open questions
 

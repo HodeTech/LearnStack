@@ -320,8 +320,8 @@ expired (seven days); a ticket is refused with `data_export_unavailable` while t
 lacks an artifact's key. The [data export runbook](../../runbooks/data-export.md) owns
 rotation, key loss, stuck requests, unpurged artifacts and dump handling. The bundle
 ceiling `DataExport:MaxBytes` is an optional whole number of bytes from 1 MiB to 64 MiB,
-16 MiB when absent; any other value refuses composition. The paired launcher selects both
-keys for the API alone, with the same single-line, 8 KiB bound.
+16 MiB when absent; any other value refuses composition. The paired launcher selects
+both keys for the API alone, with the same single-line, 8 KiB bound.
 
 The paired local API launcher selects the seven email configuration keys above and
 the two data export keys, and no other provider setting, from matching

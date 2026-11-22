@@ -663,9 +663,9 @@ A subject's own data requests use two key-less policy kinds
 ([ADR-0106 § 4](../decisions/0106-subject-data-requests-authority-and-status.md)).
 `OwnDataRequest` requires the actor's own Active Membership in exactly the announced
 group (a tenant-wide Membership does not cover an organization's group, nor the
-reverse), through a live session, and consults no grant or Role.
-`OwnDataRequestEntry` is the retained own scope: it is admitted only by the subject's
-own scope witness under the `HostAndOwnDataRequestScope` origin
+reverse), through a live session, and consults no grant or Role. `OwnDataRequestEntry`
+is the retained own scope: it is admitted only by the subject's own scope witness under
+the `HostAndOwnDataRequestScope` origin
 ([Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope)),
 so it also serves a Suspended person and a person whose Membership is gone, and it
 supplies no Membership authority. Administrator requests are `Protected` with the

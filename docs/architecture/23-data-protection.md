@@ -136,8 +136,9 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
   Tenancy and Audit export sections, Customization and Education only describe
   `attribution_reference`. Every identifier in the bundle but the request's own is
   written `self` or `third_party`. The ceiling is `DataExport:MaxBytes`, the chunks are
-  sealed under the `DataExport:KeyRing` secret, both checked at API startup, and a capped
-  section is stated in the bundle and in the artifact's `truncation` receipt column.
+  sealed under the `DataExport:KeyRing` secret, both checked at API startup, and a
+  capped section is stated in the bundle and in the artifact's `truncation` receipt
+  column.
 - Plaintext in memory is cleared on a best-effort basis only: the buffers the export
   and download code own (the bundle's segments, each decrypted chunk, the parsed
   ticket and chunk request bodies) are overwritten with zeros, but managed strings,
@@ -156,8 +157,8 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
     export. The "whole tenant" reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered
     and needs its own decision.
   - Every declared section or collection cap is at most half the bundle ceiling, so a
-    long audit history or a long list of issued invitations is truncated and stated, not a
-    failed request.
+    long audit history or a long list of issued invitations is truncated and stated, not
+    a failed request.
   - `attribution_reference` counts rows: a retained row whose `UserId` attribution
     columns name the person counts once, whatever entity type carries them.
     `audit_metadata_reference` is exact up to a bounded scan window of the rows carrying

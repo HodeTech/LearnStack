@@ -90,15 +90,16 @@ successful Membership mutation.
 
 ## Data request bindings
 
-The live-session request API of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
-§ 13 and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4.
+The live-session request API of
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 13 and
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4.
 Every creation, cancellation and revocation is a MUST row about its aggregate on the
 business transaction. An administrator's read of the group's requests and every ticket
-mint and chunk read are MUST `read-sensitive` rows written before the disclosure commits,
-so an audit row that cannot be written refuses the disclosure (`audit_unavailable`). The
-subject's own list, receipt and replay-receipt reads (`ListOwnDataRequestsQuery`,
-`GetOwnDataRequestQuery`, `ReadOwnDataRequestReceiptQuery`) are explicit Off registrations,
-as the other own reads are.
+mint and chunk read are MUST `read-sensitive` rows written before the disclosure
+commits, so an audit row that cannot be written refuses the disclosure
+(`audit_unavailable`). The subject's own list, receipt and replay-receipt reads
+(`ListOwnDataRequestsQuery`, `GetOwnDataRequestQuery`, `ReadOwnDataRequestReceiptQuery`)
+are explicit Off registrations, as the other own reads are.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
@@ -113,18 +114,21 @@ as the other own reads are.
 
 ### Retained own-scope entry
 
-The retained own-scope native entry of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
-§ 9 writes exactly the live path's rows under the same names: its creation, cancellation, ticket mint and
-chunk read register the operations above (`CreateRetainedDataExportCommand` →
-`identity.data_request.create_export`, `CancelRetainedDataRequestCommand` → `identity.data_request.cancel`,
+The retained own-scope native entry of
+[ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 9
+writes exactly the live path's rows under the same names: its creation, cancellation,
+ticket mint and chunk read register the operations above
+(`CreateRetainedDataExportCommand` → `identity.data_request.create_export`,
+`CancelRetainedDataRequestCommand` → `identity.data_request.cancel`,
 `MintRetainedDataExportTicketCommand` → `identity.data_export.mint_ticket`,
-`ReadRetainedDataExportChunkCommand` → `identity.data_export.read_chunk`), each MUST with the same class,
-on the transaction of the group the witness proved. Its group discovery, its group's request list and its
-replay-receipt read (`ListRetainedDataRequestScopesQuery`, `ListRetainedDataRequestsQuery`,
-`ReadRetainedDataRequestReceiptQuery`) are explicit Off registrations, as the subject's own live reads are.
-The transport provenance of each row is the retained entry's own: `HttpAuthorizationTransportSource`
-captures it only while the request's `OwnDataRequestSubjectSource` is current for the invocation's actor
-and group.
+`ReadRetainedDataExportChunkCommand` → `identity.data_export.read_chunk`), each MUST
+with the same class, on the transaction of the group the witness proved. Its group
+discovery, its group's request list and its replay-receipt read
+(`ListRetainedDataRequestScopesQuery`, `ListRetainedDataRequestsQuery`,
+`ReadRetainedDataRequestReceiptQuery`) are explicit Off registrations, as the subject's
+own live reads are. The transport provenance of each row is the retained entry's own:
+`HttpAuthorizationTransportSource` captures it only while the request's
+`OwnDataRequestSubjectSource` is current for the invocation's actor and group.
 
 `AcceptInvitationCommandHandler` is the only added two-root exception: central
 plural MUST intents for Invitation and the actual Membership share one ordinary

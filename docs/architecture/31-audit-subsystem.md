@@ -1348,15 +1348,16 @@ CREATE INDEX ix_audit_log_tenant_id_person_reference_timestamp
 
 **Six indexes, and deliberately not the org-scoped template's
 `(tenant_id, organization_id)`.** The canonical template carries
-`ix_<table>_tenant_id_organization_id` so the organization arm of the policy has an index
-to read. This table does not take it. Every read the admin API issues is tenant-scope —
-`audit.event.read` is a Tenant-scope permission ([§ 11](#11-querying-audit-log)) — so
-the arm that fires is `current_setting('app.scope') = 'tenant'`, which no index serves,
-and the indexes above all lead with a column those queries filter on. Such an index on a
-high-volume append-only table is a write cost paid on every row for a predicate arm the
-shipped readers do not take. Phase 03's admin API is the place to revisit it, against a
-measured plan rather than this paragraph. The two P03-10 indexes serve the subject
-data-request statements, measured in the
+`ix_<table>_tenant_id_organization_id` so the organization arm of the policy has an
+index to read. This table does not take it. Every read the admin API issues is
+tenant-scope — `audit.event.read` is a Tenant-scope permission
+([§ 11](#11-querying-audit-log)) — so the arm that fires is
+`current_setting('app.scope') = 'tenant'`, which no index serves, and the indexes above
+all lead with a column those queries filter on. Such an index on a high-volume
+append-only table is a write cost paid on every row for a predicate arm the shipped
+readers do not take. Phase 03's admin API is the place to revisit it, against a measured
+plan rather than this paragraph. The two P03-10 indexes serve the subject data-request
+statements, measured in the
 [Audit module's performance budget](../modules/audit/README.md#performance-budget). The
 person-reference index orders the keyed rows rather than indexing the person: under the
 row policy PostgreSQL applies a non-leakproof qual, and every JSON operator is one, only
@@ -1378,9 +1379,9 @@ The primary key is `audit_log_pkey` rather than `pk_audit_log`, because
 [ADR-0033](../decisions/0033-audit-durability-model.md) and
 [ADR-0016](../decisions/0016-audit-log-subsystem.md) both write it that way and two
 Accepted records fix a name. The three `CHECK`s and the six indexes take the standard's
-`ck_<table>_<rule>` and `ix_<table>_<columns>` forms, and so does the `TRUNCATE` trigger;
-the only other divergence on this table is `audit_log_append_only_guard`, which two
-Accepted records fix in the same way.
+`ck_<table>_<rule>` and `ix_<table>_<columns>` forms, and so does the `TRUNCATE`
+trigger; the only other divergence on this table is `audit_log_append_only_guard`, which
+two Accepted records fix in the same way.
 
 The ordinary tenant policy shape is [Database Standards § Table classes](../standards/05-database.md)'s.
 Its [accepted global audit extension](../standards/05-database.md#proposed-global-central-audit-branch)
