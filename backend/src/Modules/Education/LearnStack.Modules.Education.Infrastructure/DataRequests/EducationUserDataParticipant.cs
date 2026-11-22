@@ -22,13 +22,14 @@ public sealed class EducationUserDataParticipant(EducationDbContext db, ITenantC
     public override string Key => "education";
 }
 
-/// <summary>Registers the Education module's participant from its own boundary (ADR-0107 § 1).</summary>
+/// <summary>Registers the Education module's participant and user-reference locator from its own boundary (ADR-0107 § 1, ADR-0108 § 7).</summary>
 public static class EducationDataRequestRegistration
 {
     public static IServiceCollection AddEducationUserDataParticipant(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, EducationUserDataParticipant>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IUserReferenceLocator, EducationUserReferenceLocator>());
         return services;
     }
 }

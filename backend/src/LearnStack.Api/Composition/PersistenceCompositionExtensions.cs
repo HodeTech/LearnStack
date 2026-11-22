@@ -343,6 +343,9 @@ public static class PersistenceCompositionExtensions
         services.AddHealthChecks().AddCheck<AuditHealthCheck>(AuditHealthCheck.Name);
 
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
+        // ADR-0108 § 2: the one redaction executor, a singleton over every module's IUserReferenceLocator, which the
+        // platform scope resolves for the act it admitted; LearnStack.Infrastructure never references it.
+        services.TryAddSingleton<IAuditRedactor, AuditRedactionExecutor>();
         services.TryAddScoped<IOutbox, PostgresOutbox>();
         services.TryAddScoped<PostgresDeliveryAcceptance>();
         services.TryAddScoped<IInboxGuard, PostgresInboxGuard>();

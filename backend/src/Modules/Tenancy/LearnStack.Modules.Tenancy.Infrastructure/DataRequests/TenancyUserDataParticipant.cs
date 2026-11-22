@@ -113,13 +113,14 @@ public sealed class TenancyUserDataParticipant(TenancyDbContext db, ITenantConte
     private void RequireGroup(UserDataSubject subject) => UserDataParticipantGuard.RequireGroup(subject, tenant);
 }
 
-/// <summary>Registers the Tenancy module's participant from its own boundary (ADR-0107 § 1).</summary>
+/// <summary>Registers the Tenancy module's participant and user-reference locator from its own boundary (ADR-0107 § 1, ADR-0108 § 7).</summary>
 public static class TenancyDataRequestRegistration
 {
     public static IServiceCollection AddTenancyUserDataParticipant(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, TenancyUserDataParticipant>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IUserReferenceLocator, TenancyUserReferenceLocator>());
         return services;
     }
 }

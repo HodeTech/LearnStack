@@ -101,6 +101,7 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IRequestHandler<PurgeOrganizationDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
         services.TryAddScoped<MembershipFieldRevisionReader>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, IdentityUserDataParticipant>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IUserReferenceLocator, IdentityUserReferenceLocator>());
         // ADR-0106 § 7, ADR-0107 § 4: the live-session request API. The default eligibility checks structure only; the
         // hold source is the composition root's NoHoldSource. The session binding answers nothing until the API
         // composition replaces it with the validated-credential binding, so no other host mints or honours a ticket.

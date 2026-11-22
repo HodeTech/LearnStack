@@ -39,6 +39,7 @@
     "LearnStack.Tests.Integration.Database.AuditCaptureWiringTests",
     "LearnStack.Tests.Integration.Database.AuditConfigServiceTests",
     "LearnStack.Tests.Integration.Database.AuditPipelineTests",
+    "LearnStack.Tests.Integration.Database.AuditRedactionCanaryTests",
     "LearnStack.Tests.Integration.Database.AuditSchemaTests",
     "LearnStack.Tests.Integration.Database.AuditStoreTests",
     "LearnStack.Tests.Integration.Database.AuditWorkflowTests",

@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**401 test methods run in
+**405 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**296 rules in this catalogue are Implemented, and 177 of them are in that assembly.**
+**299 rules in this catalogue are Implemented, and 180 of them are in that assembly.**
 The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -3711,23 +3711,24 @@ which decides identity, multiplicity, capture and classification;
 #### `Modules_Do_Not_Write_AuditLog_Directly`
 
 - **Asserts:** no module assembly **other than `LearnStack.Modules.Audit.*`** names the
-  `audit_log` table or the `AuditEntry` type, with one further exclusion — a module's
-  registered `IUserReferenceLocator`, whose column-restricted redaction `UPDATE`s are
-  enumerated by [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly). `IAuditStore` —
-  implemented by `PostgresAuditStore` in `LearnStack.Infrastructure.Audit` — is the only
-  path by which a module writes an audit row of its own. Inside the Audit module, direct
-  `audit_log` SQL is confined to `LearnStack.Modules.Audit.Infrastructure` and bounded by
-  that same closed list.
-- **Why the exclusions are named.** `AuditEntry`, `AuditConfig` and `AuditDbContext` live
-  in the Audit module ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)), so a rule
-  reading "no module assembly, outside `LearnStack.Infrastructure.Audit`" forbade the
-  assembly the corpus puts the aggregate in — and contradicted the entry below,
-  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), which names the sites where a
-  mutating statement may appear. The locators are the second exclusion and the one the
-  Audit-module wording alone would miss: each lives in the module whose snapshots carry
-  the user reference, so a rule bounded by `LearnStack.Modules.Audit.*` would fail on the
-  first locator [Phase 03](../roadmap/phase-03-identity-admin.md) lands. Naming both makes
-  the pair say one thing; widening the list past them requires an ADR.
+  `audit_log` table or the `AuditEntry` type. A module's registered
+  `IUserReferenceLocator` is no exclusion: it only declares where its references live
+  and never names the table, and the one redaction executor sits in
+  `LearnStack.Infrastructure.Audit`, outside every module, named by
+  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly)
+  ([ADR-0108 § 2, § 7](../decisions/0108-privileged-audit-redaction.md)). `IAuditStore`
+  — implemented by `PostgresAuditStore` in `LearnStack.Infrastructure.Audit` — is the
+  only path by which a module writes an audit row of its own. Inside the Audit module,
+  direct `audit_log` SQL is confined to `LearnStack.Modules.Audit.Infrastructure`.
+- **Why the exclusion is named.** `AuditEntry`, `AuditConfig` and `AuditDbContext` live
+  in the Audit module ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)), so a
+  rule reading "no module assembly, outside `LearnStack.Infrastructure.Audit`" forbade
+  the assembly the corpus puts the aggregate in — and contradicted the entry below,
+  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), which names the site where a
+  mutating statement may appear. The locators once stood here as a second exclusion,
+  because the corpus had each module redact its own snapshots; ADR-0108 § 7 has them
+  declare paths that the Audit-owned executor applies, so no module but Audit has a
+  reason to name the table. Widening the exclusion requires an ADR.
 - **Out of scope:** `AuditEntryId` and everything in `LearnStack.SharedKernel.Audit` — the
   ports (`IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent`) and the
   value types those ports carry (`OperationType`, `OperationClass`, `AuditOutcome`,
@@ -3764,18 +3765,21 @@ which decides identity, multiplicity, capture and classification;
 #### `AuditEntry_Is_AppendOnly`
 
 - **Asserts:** no `UPDATE` or `DELETE` statement targets `audit_log` anywhere in the
-  codebase or in any migration **except** at three named sites: the GDPR redaction
-  handler and the retention purge job, both in `LearnStack.Modules.Audit.Infrastructure`,
-  and a module's registered `IUserReferenceLocator`, which redacts the payload columns of
-  its own module's snapshots and therefore lives in that module rather than in the Audit
-  one ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)). Every such
-  site must be inside an `IPlatformAdminScope` block. `IAuditStore` is asserted to expose
-  no update method at all.
+  codebase or in any migration **except** at one named site: the redaction executor,
+  `LearnStack.Infrastructure.Audit/AuditRedactionExecutor.cs`, which the platform scope
+  reaches through `IAuditRedactor` for the act it admitted and which updates the six
+  granted columns and never deletes
+  ([ADR-0108 § 2](../decisions/0108-privileged-audit-redaction.md)). Phase 11's
+  retention purge adds its own path when it lands. Each sanctioned site must exist and
+  carry the `UPDATE` it is sanctioned for, and none may carry a `DELETE`. `IAuditStore`
+  is asserted to expose no update method at all.
 - **Why the exception list is closed and named:** the earlier phrasing ("anywhere in the
   codebase") contradicted paths the corpus ships by design and would have failed on its
-  first green run. Naming the three sites keeps the rule enforceable and gives
-  [`Modules_Do_Not_Write_AuditLog_Directly`](#modules_do_not_write_auditlog_directly) the
-  same sites to exclude; widening the list requires an ADR. The database-level guard is
+  first green run. The list first named three sites (a redaction handler, each module's
+  `IUserReferenceLocator`, the purge job); ADR-0108 replaced the first two with one
+  Audit-owned executor that applies the locators' declarations. Naming the site keeps
+  the rule enforceable and makes "who can redact" a one-line census; widening the list
+  requires an ADR. The database-level guard is
   [`AuditLog_Update_Is_Column_Restricted`](#auditlog_update_is_column_restricted), which
   is what actually constrains *which columns* may change.
 - **Source:** ADR-0033 (carried from ADR-0016);
@@ -3794,43 +3798,70 @@ which decides identity, multiplicity, capture and classification;
   operator result seam of ADR-0101 in P03-9 Step 1, the two controlled-rebind seams
   of ADR-0104 in P03-9 Step 3, the operator recovery seam of ADR-0103 in P03-9
   Step 4 and the platform scope's intent seam of ADR-0044 Amendment 18 in P03-9
-  Step 5. None
-  of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
-  11 — so the exemption set ships with the rule **empty**, as exact paths: the first
-  site to land adds its own path, so it is exempted by name rather than the pattern
-  widened. (A substring predicate stood there first, and exempted any Audit-module file
-  whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also
-  asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO
-  audit_log` — because with no offender anywhere, a sweep that read nothing passed as
-  well.
+  Step 5. The exemption set holds exact paths, so a site is exempted by name rather than
+  the pattern widened (a substring predicate stood there first, and exempted any
+  Audit-module file whose path contained "Redaction"); it shipped empty and holds the
+  redaction executor since P03-10 Step 2. The sweep also asserts that each listed path
+  exists and carries an `UPDATE` of the log, so an entry a rename leaves behind cannot
+  later exempt another file, and refuses a `DELETE` at a redaction site; its companion
+  feeds that pattern the shapes it must and must not catch. Since the fifth review of
+  Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s
+  own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read
+  nothing passed as well.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
 
-- **Asserts:** every module whose audit payloads carry a user reference registers an
-  `IUserReferenceLocator` implementation. A module that stores such a reference and ships
-  no locator leaves rows a GDPR erasure cannot reach — the redaction handler redacts the
-  actor columns centrally and delegates the payload columns to the module that knows
-  which JSON paths in its own snapshots name a user
-  ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)).
-- **Registered here, asserted in Phase 03.** The
-  [packet plan](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
-  assigns the applicable locator census and privileged redaction handler to
-  P03-10. P03-1's User foundation supplies their identity prerequisite; it does
-  not itself deliver the erasure workflow. This refines the phase-level timing in
-  [ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md),
-  without granting a redaction writer. Until that implementation there is no
-  locator population to count. Reserving the
-  name now is what [§ How to add an entry](#how-to-add-an-entry) prescribes for a rule
-  that is agreed and not yet written: the row carries **Registered** and the phase that
-  owes the code, and the alternative — a rule that lives only in an architecture
-  section's prose — is how a second spelling starts.
-- **Source:** [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md);
-  [ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md).
-- **Type:** xUnit + reflection over the registered locators, cross-checked against the
-  modules whose audit payloads carry a user reference. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 03 — the phase that lands the interface and the handler that drives it.
+- **Asserts:** every person reference an audited entity carries into its audit snapshot
+  is declared by its own module's registered `IUserReferenceLocator`, as redactable or
+  as an explicit retained reference, and every module that has one registers exactly one
+  locator from inside its own boundary
+  ([ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md),
+  [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md)). The audited entities
+  are the declared types of the merged audit catalogue; their references are read from
+  each module's mapped model by CLR type (`UserId`, Identity's `MembershipId`) and, for
+  a reference stored as a plain `Guid` such as the consent's `[PiiSensitive]`
+  Membership, by a name ending in `UserId` or `MembershipId`. Contained collections are
+  walked by the capture's own containment rule, without the foreign key to the owner, so
+  a member's reference is the path `Navigation/*/Property`. A declaration must match a
+  reference of the same kind (an `Elements` path names a mapped `jsonb` property
+  instead, because a type census cannot see inside one), a retained reference must be
+  the entity's own key, and a reference the closed grammar cannot express fails until
+  the grammar grows.
+- **Planted violations:** each module's locator removed in turn; a synthetic module
+  whose audited entity holds a typed, an untyped, a contained and an unexpressible
+  reference with no locator; the same module with a wrong kind, a stale path and another
+  module's entity; and a second locator in one module.
+- **Canary coverage:** `AuditRedactionCanaryTests` generates, for every declaration of
+  every registered locator, a row in the capture's shape holding the subject's
+  identifier beside another person's at the declared path, runs the executor as
+  `learnstack_platform` and asserts exactly the subject's is redacted; its census fact
+  fails when a module with a locator has no canary run, and a shape its generator cannot
+  build fails the run. A real-capture case drives the interceptor for each shape.
+- **Source:** [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md);
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md);
+  [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
+- **Type:** model and composition-root census with planted violations, backed by the
+  integration canaries. **Kind:** both.
+- **Status:** **Implemented** (`UserReferenceLocatorCensusTests`, P03-10 Step 2).
+- **Test owners:**
+  [UserReferenceLocatorCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserReferenceLocatorCensusTests.cs),
+  [AuditRedactionCanaryTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/AuditRedactionCanaryTests.cs).
+- **Phase:** 03 (P03-10).
+
+#### `No_Module_References_Another_Modules_User_Reference_Locator`
+
+- **Asserts:** no module assembly references another module's locator assembly, so the
+  locator registrations stay outside the four cross-module mechanisms of
+  [ADR-0010](../decisions/0010-cross-module-communication.md), as the participants do. A
+  planted reference from one module to another's locator assembly is named.
+- **Source:** [ADR-0108 § 7](../decisions/0108-privileged-audit-redaction.md);
+  [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** compiled assembly-reference census with a planted violation. **Kind:** both.
+- **Status:** **Implemented** (`UserReferenceLocatorCensusTests`).
+- **Test owners:**
+  [UserReferenceLocatorCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserReferenceLocatorCensusTests.cs).
+- **Phase:** 03 (P03-10).
 
 #### `OperationType_Enum_Matches_Catalog`
 

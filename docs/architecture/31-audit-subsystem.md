@@ -1760,9 +1760,9 @@ Every module that stores user references in audit payloads registers an
 owns its applicable-module census and the handler above; P03-1 supplies their
 global User prerequisite. Neither creating that table nor its PII census grants
 the privileged redaction writer. The rule
-`Every_PII_Module_RegistersUserReferenceLocator` is registered in
-[the catalogue](../standards/21-architecture-tests-catalogue.md) against that phase —
-unasserted until then, because a rule naming a phase's absent types would only fail.
+`Every_PII_Module_RegistersUserReferenceLocator` in
+[the catalogue](../standards/21-architecture-tests-catalogue.md) asserts the census, and
+each declared path has a canary that proves the executor redacts it.
 
 ## 11. Querying audit log
 
@@ -1916,12 +1916,9 @@ update it constrains.
     **owner**, whom only the two triggers stop — `UPDATE` by the row guard and `TRUNCATE`
     by the statement guard.
 
-`Every_PII_Module_RegistersUserReferenceLocator` is registered in the catalogue against
-[Phase 03](../roadmap/phase-03-identity-admin.md) and is deliberately **unasserted** until
-P03-10 supplies the locators and erasure handler, consuming P03-1's User foundation.
-A rule naming types no packet has built could only fail. It is absent from the Packet 9
-list above for that reason and no other — the catalogue row, not this list, is where its
-status lives.
+`Every_PII_Module_RegistersUserReferenceLocator` is absent from the Packet 9 list above
+because P03-10 supplies the locators and the redaction executor it asserts, consuming
+P03-1's User foundation; the catalogue row, not this list, is where its status lives.
 
 `Audit_Config_Failure_Rejects_Operation` from the earlier draft is **withdrawn**, not
 renamed: under ADR-0033 as settled, a tenant-override read failure falls back to the

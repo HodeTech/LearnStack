@@ -23,13 +23,14 @@ public sealed class CustomizationUserDataParticipant(CustomizationDbContext db, 
     public override string Key => "customization";
 }
 
-/// <summary>Registers the Customization module's participant from its own boundary (ADR-0107 § 1).</summary>
+/// <summary>Registers the Customization module's participant and user-reference locator from its own boundary (ADR-0107 § 1, ADR-0108 § 7).</summary>
 public static class CustomizationDataRequestRegistration
 {
     public static IServiceCollection AddCustomizationUserDataParticipant(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, CustomizationUserDataParticipant>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IUserReferenceLocator, CustomizationUserReferenceLocator>());
         return services;
     }
 }

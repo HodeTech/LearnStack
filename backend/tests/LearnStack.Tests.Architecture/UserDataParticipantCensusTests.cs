@@ -112,7 +112,11 @@ public sealed class UserDataParticipantCensusTests
         return offenders;
     }
 
-    private static List<string> ReferenceOffenders(IReadOnlyCollection<Type> participants,
+    /// <summary>
+    /// Each module assembly that references another module's assembly holding one of <paramref name="participants"/>;
+    /// the locator census applies the same rule to <c>IUserReferenceLocator</c> types.
+    /// </summary>
+    internal static List<string> ReferenceOffenders(IReadOnlyCollection<Type> participants,
         IReadOnlyDictionary<string, IReadOnlyCollection<string>> references)
     {
         var offenders = new List<string>();
