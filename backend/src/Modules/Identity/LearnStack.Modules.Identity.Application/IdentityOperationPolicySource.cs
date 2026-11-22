@@ -47,6 +47,7 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     // operation ids share this prefix); the administrator's reuse the identity.membership.admin alternatives.
     public const string OwnDataExportCreateOperation = "identity.data_request.create_own_export";
     public const string OwnDataErasureCreateOperation = "identity.data_request.create_own_erasure";
+    public const string OwnAccountClosureCreateOperation = "identity.data_request.create_own_closure";
     public const string OwnDataRequestListOperation = "identity.data_request.list_own";
     public const string OwnDataRequestReadOperation = "identity.data_request.read_own";
     public const string OwnDataRequestCancelOperation = "identity.data_request.cancel_own";
@@ -67,6 +68,7 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public const string RetainedDataRequestListOperation = "identity.data_request.list_retained";
     public const string RetainedDataExportCreateOperation = "identity.data_request.create_retained_export";
     public const string RetainedDataErasureCreateOperation = "identity.data_request.create_retained_erasure";
+    public const string RetainedAccountClosureCreateOperation = "identity.data_request.create_retained_closure";
     public const string RetainedDataExportRevokeOperation = "identity.data_request.revoke_retained_export";
     public const string RetainedDataRequestCancelOperation = "identity.data_request.cancel_retained";
     public const string RetainedDataExportTicketOperation = "identity.data_request.mint_retained_export_ticket";
@@ -100,6 +102,7 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<RunOrganizationDataErasureCommand>("identity.data_request.fulfill_organization_erasure", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForOwnDataRequest<CreateOwnDataExportCommand>(OwnDataExportCreateOperation),
         OperationPolicy.ForOwnDataRequest<CreateOwnDataErasureCommand>(OwnDataErasureCreateOperation),
+        OperationPolicy.ForOwnDataRequest<CreateOwnAccountClosureCommand>(OwnAccountClosureCreateOperation),
         OperationPolicy.ForOwnDataRequest<ListOwnDataRequestsQuery>(OwnDataRequestListOperation),
         OperationPolicy.ForOwnDataRequest<GetOwnDataRequestQuery>(OwnDataRequestReadOperation),
         OperationPolicy.ForOwnDataRequest<CancelOwnDataRequestCommand>(OwnDataRequestCancelOperation),
@@ -111,6 +114,7 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForOwnDataRequestEntry<ListRetainedDataRequestsQuery>(RetainedDataRequestListOperation),
         OperationPolicy.ForOwnDataRequestEntry<CreateRetainedDataExportCommand>(RetainedDataExportCreateOperation),
         OperationPolicy.ForOwnDataRequestEntry<CreateRetainedDataErasureCommand>(RetainedDataErasureCreateOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CreateRetainedAccountClosureCommand>(RetainedAccountClosureCreateOperation),
         OperationPolicy.ForOwnDataRequestEntry<RevokeRetainedDataExportCommand>(RetainedDataExportRevokeOperation),
         OperationPolicy.ForOwnDataRequestEntry<CancelRetainedDataRequestCommand>(RetainedDataRequestCancelOperation),
         OperationPolicy.ForOwnDataRequestEntry<MintRetainedDataExportTicketCommand>(RetainedDataExportTicketOperation),

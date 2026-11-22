@@ -258,6 +258,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.OwnDataRequestsController", "CreateErasure", "POST", "identity/me/data-requests", "erasures",
             "CreateOwnDataErasure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnDataErasureCommand), "LearnStackOperation:identity.data_request.create_own_erasure",
             typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 32, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "CreateClosure", "POST", "identity/me/data-requests", "closures",
+            "CreateOwnAccountClosure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnAccountClosureCommand), "LearnStackOperation:identity.data_request.create_own_closure",
+            typeof(LearnStack.Api.Identity.AccountClosureAcceptedResponse), 202, 36, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_closure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
         new("LearnStack.Api.Identity.OwnDataRequestsController", "List", "GET", "identity/me/data-requests", null,
             "ListOwnDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListOwnDataRequestsQuery), "LearnStackOperation:identity.data_request.list_own",
             typeof(LearnStack.Api.Identity.OwnDataRequestPage), 200, null, new()),
@@ -307,6 +310,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.DataRequestEntryController", "CreateErasure", "POST", "identity/data-request-entry", "erasures",
             "CreateRetainedDataErasure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataErasureCommand), "LearnStackOperation:identity.data_request.create_retained_erasure",
             typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 34, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "CreateClosure", "POST", "identity/data-request-entry", "closures",
+            "CreateRetainedAccountClosure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedAccountClosureCommand), "LearnStackOperation:identity.data_request.create_retained_closure",
+            typeof(LearnStack.Api.Identity.AccountClosureAcceptedResponse), 202, 37, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_closure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
         new("LearnStack.Api.Identity.DataRequestEntryController", "Cancel", "POST", "identity/data-request-entry", "cancellations",
             "CancelRetainedDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelRetainedDataRequestCommand), "LearnStackOperation:identity.data_request.cancel_retained",
             typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 31, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
@@ -373,9 +379,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         errors.Should().BeEmpty(
             "Fix: retain the exact ADR-0064/0076 reads and ADR-0078/0079 finite entry/administration union; all findings: {0}", string.Join("\n", errors));
         // The totals Standard 21 publishes for this rule; Violations binds the production surface to this literal census.
-        Endpoints.Should().HaveCount(94, "the census closes the surface at 94 MVC actions");
-        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(89,
-            "Standard 21 publishes 89 distinct IRequest roots for the 94 actions");
+        Endpoints.Should().HaveCount(96, "the census closes the surface at 96 MVC actions");
+        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(91,
+            "Standard 21 publishes 91 distinct IRequest roots for the 96 actions");
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
@@ -527,7 +533,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(68, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, the federation commands share one handler class beside its two query handlers, and each of the twenty-two data-request requests (fourteen live, eight retained-entry) has its own thin handler");
+        handlers.Should().HaveCount(70, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, the federation commands share one handler class beside its two query handlers, and each of the twenty-four data-request requests (fifteen live, nine retained-entry) has its own thin handler");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);

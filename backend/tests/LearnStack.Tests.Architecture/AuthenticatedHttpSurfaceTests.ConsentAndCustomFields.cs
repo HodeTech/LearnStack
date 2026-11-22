@@ -50,6 +50,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 "Requests" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListRetainedDataRequestsQuery),
                 "CreateExport" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataExportCommand),
                 "CreateErasure" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataErasureCommand),
+                "CreateClosure" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedAccountClosureCommand),
                 "Cancel" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelRetainedDataRequestCommand),
                 "RevokeExport" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeRetainedDataExportCommand),
                 "MintTicket" => typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.MintRetainedDataExportTicketCommand),

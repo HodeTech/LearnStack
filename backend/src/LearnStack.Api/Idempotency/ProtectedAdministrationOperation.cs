@@ -51,6 +51,8 @@ public enum ProtectedAdministrationOperation
     CreateDataErasureForSubject = 33,
     CreateRetainedDataErasure = 34,
     RevokeRetainedDataExport = 35,
+    CreateOwnAccountClosure = 36,
+    CreateRetainedAccountClosure = 37,
 }
 
 internal sealed record ProtectedAdministrationDescriptor(
@@ -67,7 +69,7 @@ internal sealed record ProtectedAdministrationDescriptor(
     /// ADR-0106 § 10: a data-request creation is accepted, not finished — 202 with the request's initial resource, its
     /// <c>Location</c> and its <c>ETag</c>. Every other keyed creation answers 201 and every other mutation 200.
     /// </summary>
-    internal bool IsDataRequestCreation => IsDataExportCreation || IsDataErasureCreation;
+    internal bool IsDataRequestCreation => IsDataExportCreation || IsDataErasureCreation || IsAccountClosureCreation;
 
     internal bool IsDataExportCreation => Operation is ProtectedAdministrationOperation.CreateOwnDataExport
         or ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateRetainedDataExport;
@@ -77,16 +79,23 @@ internal sealed record ProtectedAdministrationDescriptor(
         or ProtectedAdministrationOperation.CreateDataErasureForSubject or ProtectedAdministrationOperation.CreateRetainedDataErasure;
 
     /// <summary>
+    /// ADR-0106 § 11, ADR-0107 § 7: a closure is accepted <c>scheduled</c>; the person alone files it, so it has no
+    /// administrator operation.
+    /// </summary>
+    internal bool IsAccountClosureCreation => Operation is ProtectedAdministrationOperation.CreateOwnAccountClosure
+        or ProtectedAdministrationOperation.CreateRetainedAccountClosure;
+
+    /// <summary>
     /// ADR-0106 § 9: the retained own-scope entry has no per-request route a Location could name; its receipt is read
     /// through the group's request list, so its creation answers 202 with the resource and ETag and no Location.
     /// </summary>
     internal bool HasLocation => Creates && Operation is not (ProtectedAdministrationOperation.CreateRetainedDataExport
-        or ProtectedAdministrationOperation.CreateRetainedDataErasure);
+        or ProtectedAdministrationOperation.CreateRetainedDataErasure or ProtectedAdministrationOperation.CreateRetainedAccountClosure);
 
     /// <summary>The retained own-scope entry's keyed operations, whose replay reads only through their own witness.</summary>
     internal bool IsRetainedDataRequest => Operation is ProtectedAdministrationOperation.CreateRetainedDataExport
-        or ProtectedAdministrationOperation.CreateRetainedDataErasure or ProtectedAdministrationOperation.CancelRetainedDataRequest
-        or ProtectedAdministrationOperation.RevokeRetainedDataExport;
+        or ProtectedAdministrationOperation.CreateRetainedDataErasure or ProtectedAdministrationOperation.CreateRetainedAccountClosure
+        or ProtectedAdministrationOperation.CancelRetainedDataRequest or ProtectedAdministrationOperation.RevokeRetainedDataExport;
 
     internal int SuccessStatus => IsDataRequestCreation ? StatusCodes.Status202Accepted
         : Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
@@ -137,6 +146,8 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.CreateDataErasureForSubject => new(operation, typeof(CreateDataErasureForSubjectCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
         ProtectedAdministrationOperation.CreateRetainedDataErasure => new(operation, typeof(CreateRetainedDataErasureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
         ProtectedAdministrationOperation.RevokeRetainedDataExport => new(operation, typeof(RevokeRetainedDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CreateOwnAccountClosure => new(operation, typeof(CreateOwnAccountClosureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CreateRetainedAccountClosure => new(operation, typeof(CreateRetainedAccountClosureCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -177,6 +188,8 @@ internal sealed record ProtectedAdministrationDescriptor(
         CreateDataErasureForSubjectCommand => ProtectedAdministrationOperation.CreateDataErasureForSubject,
         CreateRetainedDataErasureCommand => ProtectedAdministrationOperation.CreateRetainedDataErasure,
         RevokeRetainedDataExportCommand => ProtectedAdministrationOperation.RevokeRetainedDataExport,
+        CreateOwnAccountClosureCommand => ProtectedAdministrationOperation.CreateOwnAccountClosure,
+        CreateRetainedAccountClosureCommand => ProtectedAdministrationOperation.CreateRetainedAccountClosure,
         _ => null,
     };
 
@@ -213,6 +226,8 @@ internal sealed record ProtectedAdministrationDescriptor(
         CreateDataErasureForSubjectCommand => null,
         CreateRetainedDataErasureCommand => null,
         RevokeRetainedDataExportCommand command => command.ExpectedArtifactVersion,
+        CreateOwnAccountClosureCommand => null,
+        CreateRetainedAccountClosureCommand => null,
         _ => throw new ArgumentException("The protected operation is not registered.", nameof(request)),
     };
     internal bool TryReadPrecondition(HttpRequest request, out long? expected)
@@ -235,7 +250,9 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.CreateDataExportForSubject => "/api/v1/identity/data-requests/" + id.ToString("D"),
         ProtectedAdministrationOperation.CreateOwnDataErasure => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
         ProtectedAdministrationOperation.CreateDataErasureForSubject => "/api/v1/identity/data-requests/" + id.ToString("D"),
-        ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure =>
+        ProtectedAdministrationOperation.CreateOwnAccountClosure => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure
+            or ProtectedAdministrationOperation.CreateRetainedAccountClosure =>
             throw new InvalidOperationException("The retained entry has no request location."),
         _ => OrganizationLocationFor(id),
     };

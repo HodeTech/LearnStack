@@ -18,6 +18,7 @@ public sealed partial class OpenApiContractTests
     [
         new("/api/v1/identity/me/data-requests/exports", "post", "CreateOwnDataExport", DataRequestShape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/me/data-requests/erasures", "post", "CreateOwnDataErasure", DataRequestShape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput"),
+        new("/api/v1/identity/me/data-requests/closures", "post", "CreateOwnAccountClosure", DataRequestShape.Create, "AccountClosureAcceptedResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/me/data-requests", "get", "ListOwnDataRequests", DataRequestShape.Read, "OwnDataRequestPage", null),
         new("/api/v1/identity/me/data-requests/{id}", "get", "GetOwnDataRequest", DataRequestShape.Read, "OwnDataRequestResponse", null),
         new("/api/v1/identity/me/data-requests/{id}/cancellations", "post", "CancelOwnDataRequest", DataRequestShape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput"),
@@ -41,6 +42,7 @@ public sealed partial class OpenApiContractTests
         new("/api/v1/identity/data-request-entry/requests", "get", "ListRetainedDataRequests", DataRequestShape.Read, "OwnDataRequestPage", null),
         new("/api/v1/identity/data-request-entry/exports", "post", "CreateRetainedDataExport", DataRequestShape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/data-request-entry/erasures", "post", "CreateRetainedDataErasure", DataRequestShape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput"),
+        new("/api/v1/identity/data-request-entry/closures", "post", "CreateRetainedAccountClosure", DataRequestShape.Create, "AccountClosureAcceptedResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/data-request-entry/cancellations", "post", "CancelRetainedDataRequest", DataRequestShape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput"),
         new("/api/v1/identity/data-request-entry/revocations", "post", "RevokeRetainedDataExport", DataRequestShape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput"),
         new("/api/v1/identity/data-request-entry/tickets", "post", "MintRetainedDataExportTicket", DataRequestShape.Ticket, "DataExportTicketResponse", "RetainedDataRequestTargetInput"),
@@ -131,7 +133,8 @@ public sealed partial class OpenApiContractTests
 
     private static readonly string[] DataRequestSchemaNames =
     [
-        "DataRequestAcceptedResponse", "DataErasureAcceptedResponse", "DataRequestRetainedResponse", "DataExportTruncationResponse",
+        "DataRequestAcceptedResponse", "DataErasureAcceptedResponse", "AccountClosureAcceptedResponse", "DataRequestRetainedResponse",
+        "DataExportTruncationResponse",
         "DataExportArtifactResponse",
         "OwnDataRequestResponse", "OwnDataRequestPage", "DataRequestResponse", "DataRequestPage", "DataExportForSubjectInput",
         "DataExportTicketResponse", "DataExportChunkInput", "DataExportChunkResponse",
@@ -184,6 +187,14 @@ public sealed partial class OpenApiContractTests
         foreach (var name in DataRequestSchemaNames)
             if (document["components"]?["schemas"]?[name] is not JsonObject schema || schema["additionalProperties"]?.GetValue<bool>() != false)
                 errors.Add("data-request-schema:" + name);
+        // ADR-0107 § 7: the person alone files a closure; its accepted resource is a scheduled closure and nothing else, and
+        // the administrator's surface has no closure route.
+        if (document["components"]?["schemas"]?["AccountClosureAcceptedResponse"]?["properties"] is not JsonObject closure
+            || closure["kind"]?["enum"] is not JsonArray { Count: 1 } kind || kind[0]?.GetValue<string>() != "closure"
+            || closure["status"]?["enum"] is not JsonArray { Count: 1 } scheduled || scheduled[0]?.GetValue<string>() != "scheduled"
+            || document["paths"]?.AsObject().Any(path => path.Key.StartsWith("/api/v1/identity/data-requests", StringComparison.Ordinal)
+                && path.Key.Contains("closure", StringComparison.Ordinal)) != false)
+            errors.Add("data-request-closure");
         // The subject's receipt names no internal identifier; only the administrator's view names the frozen Memberships.
         if (document["components"]?["schemas"]?["OwnDataRequestResponse"]?["properties"]?["membershipIds"] is not null
             || document["components"]?["schemas"]?["DataRequestResponse"]?["properties"]?["membershipIds"] is null)
@@ -216,6 +227,15 @@ public sealed partial class OpenApiContractTests
         var cancel = unconditional["paths"]!["/api/v1/identity/me/data-requests/{id}/cancellations"]!["post"]!["parameters"]!.AsArray();
         cancel.Remove(cancel.Single(parameter => parameter!["name"]!.GetValue<string>() == "If-Match"));
         DataRequestContractErrors(unconditional).Should().Contain("data-request-parameters:CancelOwnDataRequest");
+
+        var widened = clean.DeepClone();
+        widened["components"]!["schemas"]!["AccountClosureAcceptedResponse"]!["properties"]!["kind"]!["enum"]!.AsArray().Add("erasure");
+        DataRequestContractErrors(widened).Should().Contain("data-request-closure");
+
+        var administered = clean.DeepClone();
+        administered["paths"]!.AsObject().Add("/api/v1/identity/data-requests/closures",
+            clean["paths"]!["/api/v1/identity/me/data-requests/closures"]!.DeepClone());
+        DataRequestContractErrors(administered).Should().Contain("data-request-closure");
 
         var disclosed = clean.DeepClone();
         disclosed["components"]!["schemas"]!["OwnDataRequestResponse"]!["properties"]!["membershipIds"] = new JsonObject { ["type"] = "array" };

@@ -96,6 +96,8 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             CreateDataErasureForSubjectCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
             CreateRetainedDataErasureCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
             RevokeRetainedDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
+            CreateOwnAccountClosureCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            CreateRetainedAccountClosureCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
             _ => throw new InvalidOperationException("The protected operation is not registered."),
         };
 
@@ -143,7 +145,9 @@ internal sealed class ProtectedAdministrationResult : IActionResult
         "{\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
     internal static byte[] BodyFor(ProtectedAdministrationDescriptor descriptor, Guid id, long version) =>
         descriptor.IsDataRequestCreation ? Encoding.UTF8.GetBytes("{\"id\":\"" + id.ToString("D")
-            + (descriptor.IsDataErasureCreation ? "\",\"kind\":\"erasure\",\"status\":\"scheduled\"" : "\",\"kind\":\"export\",\"status\":\"requested\"")
+            + (descriptor.IsDataErasureCreation ? "\",\"kind\":\"erasure\",\"status\":\"scheduled\""
+                : descriptor.IsAccountClosureCreation ? "\",\"kind\":\"closure\",\"status\":\"scheduled\""
+                : "\",\"kind\":\"export\",\"status\":\"requested\"")
             + ",\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}")
         : !descriptor.UsesCustomFieldFingerprint ? BodyFor(version) : Encoding.UTF8.GetBytes(descriptor.IsConsent
             ? "{\"evidenceId\":\"" + id.ToString("D") + "\",\"sequence\":\"" + version.ToString(CultureInfo.InvariantCulture)

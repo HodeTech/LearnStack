@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 namespace LearnStack.Api.Authentication;
 
 /// <summary>
-/// The closed HTTP purposes of the retained own data-request scope (ADR-0106 § 9): exactly eight selector-free native
+/// The closed HTTP purposes of the retained own data-request scope (ADR-0106 § 9): exactly nine selector-free native
 /// entry operations, each one exact path, method, action and request type. Any other path is not this entry.
 /// </summary>
 internal sealed class OwnDataRequestOperation(string path, string method, string action, Type requestType, OwnDataRequestPurpose purpose)
@@ -18,6 +18,7 @@ internal sealed class OwnDataRequestOperation(string path, string method, string
     private static readonly OwnDataRequestOperation Requests = new(Root + "/requests", "GET", nameof(DataRequestEntryController.Requests), typeof(ListRetainedDataRequestsQuery), OwnDataRequestPurpose.Read);
     private static readonly OwnDataRequestOperation Exports = new(Root + "/exports", "POST", nameof(DataRequestEntryController.CreateExport), typeof(CreateRetainedDataExportCommand), OwnDataRequestPurpose.Create);
     private static readonly OwnDataRequestOperation Erasures = new(Root + "/erasures", "POST", nameof(DataRequestEntryController.CreateErasure), typeof(CreateRetainedDataErasureCommand), OwnDataRequestPurpose.Create);
+    private static readonly OwnDataRequestOperation Closures = new(Root + "/closures", "POST", nameof(DataRequestEntryController.CreateClosure), typeof(CreateRetainedAccountClosureCommand), OwnDataRequestPurpose.Create);
     private static readonly OwnDataRequestOperation Revocations = new(Root + "/revocations", "POST", nameof(DataRequestEntryController.RevokeExport), typeof(RevokeRetainedDataExportCommand), OwnDataRequestPurpose.Revoke);
     private static readonly OwnDataRequestOperation Cancellations = new(Root + "/cancellations", "POST", nameof(DataRequestEntryController.Cancel), typeof(CancelRetainedDataRequestCommand), OwnDataRequestPurpose.Cancel);
     private static readonly OwnDataRequestOperation Tickets = new(Root + "/tickets", "POST", nameof(DataRequestEntryController.MintTicket), typeof(MintRetainedDataExportTicketCommand), OwnDataRequestPurpose.Ticket);
@@ -29,6 +30,7 @@ internal sealed class OwnDataRequestOperation(string path, string method, string
         Root + "/requests" => Requests,
         Root + "/exports" => Exports,
         Root + "/erasures" => Erasures,
+        Root + "/closures" => Closures,
         Root + "/cancellations" => Cancellations,
         Root + "/revocations" => Revocations,
         Root + "/tickets" => Tickets,

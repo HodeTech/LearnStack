@@ -5582,16 +5582,17 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the production census closes the finite HTTP surface at 94 MVC
-  actions and 89 distinct `IRequest` roots (both totals asserted on the literal census
+- **Asserts:** the production census closes the finite HTTP surface at 96 MVC
+  actions and 91 distinct `IRequest` roots (both totals asserted on the literal census
   that the rule binds to production), including the public and authenticated
-  reads, the anonymous sign-in read, 35 protected keyed writes, native
+  reads, the anonymous sign-in read, 37 protected keyed writes, native
   session-scope admission, the eleven ADR-0099 federation actions, which reach
-  their requests only through `FederationOperationRunner`, the fourteen live
-  ADR-0106/ADR-0107 data-request actions (eight of them keyed; the ticket mint and
-  the chunk read each sit on a controller of their own, unkeyed), and the eight
-  ADR-0106 § 9 retained-entry actions on one controller (four keyed), each of which
-  sends exactly the request its source captured. It also
+  their requests only through `FederationOperationRunner`, the fifteen live
+  ADR-0106/ADR-0107 data-request actions (nine of them keyed, the person's account
+  closure filing among them; the ticket mint and the chunk read each sit on a
+  controller of their own, unkeyed), and the nine ADR-0106 § 9 retained-entry actions
+  on one controller (five keyed), each of which sends exactly the request its source
+  captured. It also
   checks the separate three exact GlobalSelf middleware routes. The canonical
   name is historical: administration includes writes, and sensitive reads can
   require a ReadWrite owner to commit MUST audit evidence. AccountSite and public
@@ -8147,16 +8148,16 @@ names for the package's obligations are assigned with the step that introduces t
   `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter
   consumes on a fresh owner announcing exactly the witness's group; the `OwnDataRequest`
   kind requires the actor's Active Membership in exactly the announced group. The native
-  retained-entry operations (P03-10 Step 1, unit 4b) close the chain: exactly eight
-  selector-free operations and the receipt read of their four keyed ones carry the
-  `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the one minter and the
-  one registered `IOwnDataRequestScopeSource`, the one caller of the lookup and the one
-  source of the captured request feature; `TenantResolverMiddleware` is the one builder
-  of the context; and through the actual Program a Suspended person, a person whose only
-  Membership is Revoked and a person in several groups list, file, cancel and download
-  in exactly their own groups on the real host, while another person's request, an
-  unretained group, a selector, a missing native source, a non-Active binding and a
-  ticket of the other path are refused.
+  retained-entry operations (P03-10 Step 1, unit 4b; the closure filing, Step 3) close
+  the chain: exactly nine selector-free operations and the receipt read of their five
+  keyed ones carry the `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the
+  one minter and the one registered `IOwnDataRequestScopeSource`, the one caller of the
+  lookup and the one source of the captured request feature; `TenantResolverMiddleware`
+  is the one builder of the context; and through the actual Program a Suspended person,
+  a person whose only Membership is Revoked and a person in several groups list, file,
+  cancel and download in exactly their own groups on the real host, while another
+  person's request, an unretained group, a selector, a missing native source, a
+  non-Active binding and a ticket of the other path are refused.
 - **Source:**
   [ADR-0106 § 4 and § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
   [Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope),

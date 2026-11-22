@@ -242,8 +242,8 @@ public sealed class AggregateWriteTests
             handler.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType).ToList();
         var live = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(LiveDataRequestAdmission))).ToList();
         var retained = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(RetainedDataRequestAdmission))).ToList();
-        live.Should().HaveCount(16, "the sixteen live-session data-request operations each have one thin handler");
-        retained.Should().HaveCount(9, "the nine retained-entry data-request operations each have one thin handler");
+        live.Should().HaveCount(17, "the seventeen live-session data-request operations each have one thin handler");
+        retained.Should().HaveCount(10, "the ten retained-entry data-request operations each have one thin handler");
         handlers.Should().BeEquivalentTo(live.Concat(retained),
             "every data-request handler is admitted by exactly one of the two admissions");
         foreach (var handler in live)

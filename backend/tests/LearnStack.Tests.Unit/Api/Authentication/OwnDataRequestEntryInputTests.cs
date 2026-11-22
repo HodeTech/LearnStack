@@ -26,6 +26,7 @@ public sealed class OwnDataRequestEntryInputTests
     [InlineData("requests", "GET", nameof(DataRequestEntryController.Requests))]
     [InlineData("exports", "POST", nameof(DataRequestEntryController.CreateExport))]
     [InlineData("erasures", "POST", nameof(DataRequestEntryController.CreateErasure))]
+    [InlineData("closures", "POST", nameof(DataRequestEntryController.CreateClosure))]
     [InlineData("cancellations", "POST", nameof(DataRequestEntryController.Cancel))]
     [InlineData("revocations", "POST", nameof(DataRequestEntryController.RevokeExport))]
     [InlineData("tickets", "POST", nameof(DataRequestEntryController.MintTicket))]
@@ -153,8 +154,8 @@ public sealed class OwnDataRequestEntryInputTests
     }
 
     /// <summary>
-    /// The creation purpose has two routes; each route's own request type decides what is filed, so the erasure route never
-    /// files an export. The revocation binds the artifact version its If-Match carries.
+    /// The creation purpose has three routes; each route's own request type decides what is filed, so neither the erasure
+    /// nor the closure route files another kind. The revocation binds the artifact version its If-Match carries.
     /// </summary>
     [Fact]
     public async Task Each_creation_route_files_its_own_kind_and_a_revocation_binds_its_artifact_version()
@@ -162,6 +163,11 @@ public sealed class OwnDataRequestEntryInputTests
         var erasure = await OwnDataRequestHttpInput.ReadAsync(Http(Root + "erasures", "?group=" + Organization, "{}"),
             OwnDataRequestOperation.ForPath(Root + "erasures")!);
         Assert.Equal(new CreateRetainedDataErasureCommand(OrganizationId.From(Guid.Parse(Organization))), erasure!.Request);
+        var closure = await OwnDataRequestHttpInput.ReadAsync(Http(Root + "closures", "?group=" + Organization, "{}"),
+            OwnDataRequestOperation.ForPath(Root + "closures")!);
+        Assert.Equal(new CreateRetainedAccountClosureCommand(OrganizationId.From(Guid.Parse(Organization))), closure!.Request);
+        Assert.Null(await OwnDataRequestHttpInput.ReadAsync(Http(Root + "closures", "?group=tenant", "{\"requestId\":\"" + Request + "\"}"),
+            OwnDataRequestOperation.ForPath(Root + "closures")!));
         var export = await OwnDataRequestHttpInput.ReadAsync(Http(Root + "exports", "?group=tenant", "{}"),
             OwnDataRequestOperation.ForPath(Root + "exports")!);
         Assert.Equal(new CreateRetainedDataExportCommand(null), export!.Request);

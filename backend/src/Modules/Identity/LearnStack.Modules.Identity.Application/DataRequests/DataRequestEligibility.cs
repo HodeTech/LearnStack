@@ -26,8 +26,12 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 /// it asks, so this judgment sees the stored outcome. The partial unique index remains the race's backstop.
 /// </para>
 /// <para>
-/// <b>No closure yet.</b> The closure's structure is P03-10 Step 3's; asked about that kind this refuses to answer rather
-/// than call it eligible.
+/// <b>A closure is judged here only at its creation</b> (ADR-0107 § 7): the subject holds a Membership of any status in
+/// the originating group, no other closure of the subject is active in that group, and no hold applies. It is never
+/// refused for the last administrator here: that check is its Begin's, across every participant tenant, which this
+/// port cannot read. For the same reason a closure's execution is not judged here: asked at
+/// <see cref="DataRequestEligibilityStage.Execution"/> about that kind this refuses to answer rather than call it
+/// eligible.
 /// </para>
 /// </remarks>
 public sealed class DataRequestEligibility(IDataRequestStore store, IDataRequestHoldSource holds, ITenantContext tenant)
@@ -41,9 +45,9 @@ public sealed class DataRequestEligibility(IDataRequestStore store, IDataRequest
             throw new InvalidOperationException("Eligibility is judged only inside the request's own announced group.");
         }
 
-        if (query.Kind == DataRequestKind.Closure)
+        if (query.Kind == DataRequestKind.Closure && query.Stage != DataRequestEligibilityStage.Creation)
         {
-            throw new InvalidOperationException("Closure eligibility lands with its own step (ADR-0107 § 7).");
+            throw new InvalidOperationException("A closure's execution is judged by its Begin across every participant tenant (ADR-0107 § 7).");
         }
 
         var memberships = await store.ReadSubjectMembershipsAsync(query.SubjectUserId, cancellationToken).ConfigureAwait(false);

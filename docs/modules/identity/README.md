@@ -835,6 +835,7 @@ classification; the OpenAPI document owns the exact wire shapes.
 |---|---|---|
 | `POST identity/me/data-requests/exports` | `identity.data_request.create_own_export` | `CreateOwnDataExportCommand` |
 | `POST identity/me/data-requests/erasures` | `identity.data_request.create_own_erasure` | `CreateOwnDataErasureCommand` |
+| `POST identity/me/data-requests/closures` | `identity.data_request.create_own_closure` | `CreateOwnAccountClosureCommand` |
 | `GET identity/me/data-requests` | `identity.data_request.list_own` | `ListOwnDataRequestsQuery` |
 | `GET identity/me/data-requests/{id}` | `identity.data_request.read_own` | `GetOwnDataRequestQuery` |
 | `POST identity/me/data-requests/{id}/cancellations` | `identity.data_request.cancel_own` | `CancelOwnDataRequestCommand` |
@@ -944,13 +945,14 @@ the definer and the setter.
 | `GET requests?group=` | `identity.data_request.list_retained` | `ListRetainedDataRequestsQuery` |
 | `POST exports?group=` | `identity.data_request.create_retained_export` | `CreateRetainedDataExportCommand` |
 | `POST erasures?group=` | `identity.data_request.create_retained_erasure` | `CreateRetainedDataErasureCommand` |
+| `POST closures?group=` | `identity.data_request.create_retained_closure` | `CreateRetainedAccountClosureCommand` |
 | `POST revocations?group=` | `identity.data_request.revoke_retained_export` | `RevokeRetainedDataExportCommand` |
 | `POST cancellations?group=` | `identity.data_request.cancel_retained` | `CancelRetainedDataRequestCommand` |
 | `POST tickets?group=` | `identity.data_request.mint_retained_export_ticket` | `MintRetainedDataExportTicketCommand` |
 | `POST chunks?group=` | `identity.data_request.read_retained_export_chunk` | `ReadRetainedDataExportChunkCommand` |
 | (keyed replay only) | `identity.data_request.read_retained_receipt` | `ReadRetainedDataRequestReceiptQuery` |
 
-- **Entry.** The eight paths are the closed set `OwnDataRequestOperation.ForPath`: exact
+- **Entry.** The nine paths are the closed set `OwnDataRequestOperation.ForPath`: exact
   path, method, action and request type. `NativeSessionSourceMiddleware` admits them
   selector-free (a tenant or organization header is `400`) with the separate native
   session credential, `ValidatedOwnDataRequestCredential` captures the stock-validated
@@ -970,15 +972,15 @@ the definer and the setter.
   that request object on that endpoint, and the thin handlers
   (`RetainedDataRequestAdmission`) consume only that witness on its physical owner,
   build the subject's caller and hand over to the same cores as the live path.
-- **Keyed operations.** Export creation, cancellation, erasure creation and artifact
-  revocation are `ProtectedAdministrationOperation`s 30, 31, 34 and 35. Creation
-  answers `202` with `{id, kind, status, version}` and its `ETag` and no `Location`
-  (there is no per-request route); an erasure's answer is `scheduled` and its receipt
-  shows `executeAt`, the end of the cancellable window; cancellation needs `If-Match`,
-  and a revocation's `If-Match` is the artifact's version. A replay rereads the captured
-  input, selects the witness's own receipt read and discloses the stored receipt only
-  through it; a completed key found only at claim time answers `request_in_progress`, as
-  the consent withdrawal does.
+- **Keyed operations.** Export creation, cancellation, erasure creation, artifact
+  revocation and closure filing are `ProtectedAdministrationOperation`s 30, 31, 34, 35
+  and 37. Creation answers `202` with `{id, kind, status, version}` and its `ETag` and
+  no `Location` (there is no per-request route); an erasure's answer is `scheduled` and
+  its receipt shows `executeAt`, the end of the cancellable window; cancellation needs
+  `If-Match`, and a revocation's `If-Match` is the artifact's version. A replay rereads
+  the captured input, selects the witness's own receipt read and discloses the stored
+  receipt only through it; a completed key found only at claim time answers
+  `request_in_progress`, as the consent withdrawal does.
 - **Download binding.** `HttpDataExportSessionBinding` binds a retained-entry ticket
   under its own domain (`learnstack.data_export.retained_session.v1`) to the group, the
   actor, the verified issuer and subject and the digest of the exact `Authorization`
@@ -987,6 +989,46 @@ the definer and the setter.
   nor the reverse. When the BFF's entry handle refreshes the credential the binding no
   longer matches, that download's cursor ends, and the resumed download mints a new
   ticket.
+
+#### Account closure filing (P03-10 Step 3)
+
+The person files the global account closure of
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7
+from one group, its originating group: through a live session
+(`POST identity/me/data-requests/closures`, `ProtectedAdministrationOperation` 36) or
+the retained entry (`POST closures?group=`, 37). The closure itself is global; its row
+lives in the originating tenant. Begin, the per-group fan-out and Finalize are operator
+acts, and the operator documentation owns them.
+
+- **The person alone.** Both routes are the subject's own (`OwnDataRequest`,
+  `OwnDataRequestEntry`); `DataRequestService.CreateClosureAsync` refuses an
+  administrator caller before it takes a fence, and the administrator surface has no
+  closure route, list row, read or cancellation (`DataRequestRules.Reaches` and
+  `Mutates` exclude the kind, and the reader's administrator page filters it out).
+- **Creation.** The erasure's creation path with the kind `closure`: the subject's
+  exclusive User fence and the shared tenant fence, the authority recheck, the frozen
+  snapshot of the subject's Memberships of any status in the group, `audit.Designate`
+  and the one-active insert. `DataRequestEligibility` judges a closure only at its
+  creation: a Membership of any status in the group (`404 not_found` otherwise), no
+  other active closure of the subject in the group
+  (`lockey_request_already_active`) and the hold port (`lockey_blocked_hold`). It is
+  never refused for the last administrator: Begin judges that across every participant
+  tenant. Asked about a closure's execution, the port refuses to answer.
+- **No job.** The request is `scheduled` with `executeAt` 24 hours after its creation.
+  `DataRequestFulfillmentScheduler` accepts a scheduled closure explicitly and submits
+  nothing; the receipt never reads a job phase for it and
+  `DataRequestFailureReconciler` never fails it, so a closure is never shown or stored
+  `failed`.
+- **Cancellation.** The subject cancels a scheduled closure through the ordinary
+  cancellation routes until its Begin commits, also after `executeAt`, which is the
+  earliest Begin and not a cancellation deadline. Begin holds the fence of every tenant
+  where the person holds a Membership, the originating tenant included, so a
+  cancellation either commits first or finds the closure `fulfilling` and is refused
+  with `lockey_data_request_not_cancellable`.
+- **Receipt.** The ordinary receipt: `status`, `executeAt`, and `lastRefusal` when a
+  Begin was refused (`blocked_window`, `blocked_hold`, `blocked_last_administrator`).
+  Once begun the account no longer admits a session, so no in-product status remains;
+  the receipt descriptions of the OpenAPI document say so.
 
 #### Export bundle sections
 

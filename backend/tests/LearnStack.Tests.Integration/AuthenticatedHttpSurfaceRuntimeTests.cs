@@ -119,6 +119,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         // ADR-0106, ADR-0107 § 4: the subject's own data requests and the administrator's status-only view.
         new("identity/me/data-requests/exports", "POST", typeof(OwnDataRequestsController), "Create", typeof(CreateOwnDataExportCommand), typeof(DataRequestAcceptedResponse), "identity.data_request.create_own_export", ProtectedAdministrationOperation.CreateOwnDataExport),
         new("identity/me/data-requests/erasures", "POST", typeof(OwnDataRequestsController), "CreateErasure", typeof(CreateOwnDataErasureCommand), typeof(DataErasureAcceptedResponse), "identity.data_request.create_own_erasure", ProtectedAdministrationOperation.CreateOwnDataErasure),
+        new("identity/me/data-requests/closures", "POST", typeof(OwnDataRequestsController), "CreateClosure", typeof(CreateOwnAccountClosureCommand), typeof(AccountClosureAcceptedResponse), "identity.data_request.create_own_closure", ProtectedAdministrationOperation.CreateOwnAccountClosure),
         new("identity/me/data-requests", "GET", typeof(OwnDataRequestsController), "List", typeof(ListOwnDataRequestsQuery), typeof(OwnDataRequestPage), "identity.data_request.list_own"),
         new("identity/me/data-requests/{id}", "GET", typeof(OwnDataRequestsController), "Get", typeof(GetOwnDataRequestQuery), typeof(OwnDataRequestResponse), "identity.data_request.read_own"),
         new("identity/me/data-requests/{id}/cancellations", "POST", typeof(OwnDataRequestsController), "Cancel", typeof(CancelOwnDataRequestCommand), typeof(AdministrationVersionReceipt), "identity.data_request.cancel_own", ProtectedAdministrationOperation.CancelOwnDataRequest),
@@ -136,6 +137,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         new("identity/data-request-entry/requests", "GET", typeof(DataRequestEntryController), "Requests", typeof(ListRetainedDataRequestsQuery), typeof(OwnDataRequestPage), "identity.data_request.list_retained"),
         new("identity/data-request-entry/exports", "POST", typeof(DataRequestEntryController), "CreateExport", typeof(CreateRetainedDataExportCommand), typeof(DataRequestAcceptedResponse), "identity.data_request.create_retained_export", ProtectedAdministrationOperation.CreateRetainedDataExport),
         new("identity/data-request-entry/erasures", "POST", typeof(DataRequestEntryController), "CreateErasure", typeof(CreateRetainedDataErasureCommand), typeof(DataErasureAcceptedResponse), "identity.data_request.create_retained_erasure", ProtectedAdministrationOperation.CreateRetainedDataErasure),
+        new("identity/data-request-entry/closures", "POST", typeof(DataRequestEntryController), "CreateClosure", typeof(CreateRetainedAccountClosureCommand), typeof(AccountClosureAcceptedResponse), "identity.data_request.create_retained_closure", ProtectedAdministrationOperation.CreateRetainedAccountClosure),
         new("identity/data-request-entry/cancellations", "POST", typeof(DataRequestEntryController), "Cancel", typeof(CancelRetainedDataRequestCommand), typeof(AdministrationVersionReceipt), "identity.data_request.cancel_retained", ProtectedAdministrationOperation.CancelRetainedDataRequest),
         new("identity/data-request-entry/revocations", "POST", typeof(DataRequestEntryController), "RevokeExport", typeof(RevokeRetainedDataExportCommand), typeof(AdministrationVersionReceipt), "identity.data_request.revoke_retained_export", ProtectedAdministrationOperation.RevokeRetainedDataExport),
         new("identity/data-request-entry/tickets", "POST", typeof(DataRequestEntryController), "MintTicket", typeof(MintRetainedDataExportTicketCommand), typeof(DataExportTicketResponse), "identity.data_request.mint_retained_export_ticket"),
@@ -341,7 +343,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     private static void AssertActionInventory(IEnumerable<ControllerActionDescriptor> actions)
     {
         var actual = actions.ToArray();
-        actual.Should().HaveCount(94);
+        actual.Should().HaveCount(96);
         actual.Select(action => action.ControllerTypeInfo.FullName + "." + action.MethodInfo.Name).Order(StringComparer.Ordinal)
             .Should().Equal(ApprovedActions.Select(expected => expected.Controller.FullName + "." + expected.Action).Order(StringComparer.Ordinal),
                 "every convention must reach exactly the approved controller/action multiset");
@@ -468,6 +470,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
                 "Requests" => new ListRetainedDataRequestsQuery(organization, null, 20),
                 "CreateExport" => new CreateRetainedDataExportCommand(organization),
                 "CreateErasure" => new CreateRetainedDataErasureCommand(organization),
+                "CreateClosure" => new CreateRetainedAccountClosureCommand(organization),
                 "Cancel" => new CancelRetainedDataRequestCommand(organization, Guid.Parse(CensusTarget), 7),
                 "RevokeExport" => new RevokeRetainedDataExportCommand(organization, Guid.Parse(CensusTarget), 7),
                 "MintTicket" => new MintRetainedDataExportTicketCommand(organization, Guid.Parse(CensusTarget)),
@@ -512,7 +515,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
                 or ProtectedAdministrationOperation.WithdrawOwnFieldConsent or ProtectedAdministrationOperation.CreateOwnDataExport
                 or ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateRetainedDataExport
                 or ProtectedAdministrationOperation.CreateOwnDataErasure or ProtectedAdministrationOperation.CreateDataErasureForSubject
-                or ProtectedAdministrationOperation.CreateRetainedDataErasure))
+                or ProtectedAdministrationOperation.CreateRetainedDataErasure or ProtectedAdministrationOperation.CreateOwnAccountClosure
+                or ProtectedAdministrationOperation.CreateRetainedAccountClosure))
                 context.Request.Headers.IfMatch = "\"7\"";
         }
         // Federation mutations carry no Idempotency-Key; the connection revision converges them. Configure without
@@ -622,7 +626,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CancelOwnDataRequest
             or ProtectedAdministrationOperation.RevokeOwnDataExport or ProtectedAdministrationOperation.CancelDataRequest
             or ProtectedAdministrationOperation.RevokeDataExport or ProtectedAdministrationOperation.CreateRetainedDataExport
-            or ProtectedAdministrationOperation.CreateOwnDataErasure or ProtectedAdministrationOperation.CreateRetainedDataErasure => "{}",
+            or ProtectedAdministrationOperation.CreateOwnDataErasure or ProtectedAdministrationOperation.CreateRetainedDataErasure
+            or ProtectedAdministrationOperation.CreateOwnAccountClosure or ProtectedAdministrationOperation.CreateRetainedAccountClosure => "{}",
         ProtectedAdministrationOperation.CancelRetainedDataRequest or ProtectedAdministrationOperation.RevokeRetainedDataExport =>
             "{\"requestId\":\"" + CensusTarget + "\"}",
         ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateDataErasureForSubject =>
@@ -642,8 +647,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 
     private static void AssertUnion(IEnumerable<string> actual)
     {
-        ApprovedActions.Should().HaveCount(94);
-        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(35);
+        ApprovedActions.Should().HaveCount(96);
+        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(37);
         ApprovedActions.Count(expected => expected.Controller == typeof(FederationController)).Should().Be(11);
         ApprovedActions.Count(expected => expected.Policy is null).Should().Be(10, "eight public site and course reads plus the sign-in GET and HEAD");
         ApprovedActions.Where(expected => expected.Reads is not null).Select(expected => expected.Action)

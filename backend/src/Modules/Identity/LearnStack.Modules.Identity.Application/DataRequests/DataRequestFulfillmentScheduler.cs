@@ -62,11 +62,13 @@ public interface IDataRequestFulfillmentScheduler
 {
     /// <summary>
     /// Submits the job of the request's kind and group: a requested export's at once, a scheduled erasure's at its
-    /// execution time, the end of the cancellable window (ADR-0107 § 2). A closure has no job in this step.
+    /// execution time, the end of the cancellable window (ADR-0107 § 2). A scheduled closure is accepted and submits
+    /// nothing: it has no job, because its execution is the operator's Begin (ADR-0107 § 7).
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// The request is neither a <c>requested</c> export nor a <c>scheduled</c> erasure with its execution time, of the
-    /// announced group: a programming error, because the creation path decides the kind and the group before it submits.
+    /// The request is not a <c>requested</c> export, nor a <c>scheduled</c> erasure or closure with its execution time,
+    /// of the announced group: a programming error, because the creation path decides the kind and the group before it
+    /// submits.
     /// </exception>
     ValueTask SubmitAsync(DataRequestFulfillment fulfillment, CancellationToken cancellationToken);
 
@@ -100,9 +102,13 @@ public sealed class DataRequestFulfillmentScheduler(IBackgroundJobScheduler sche
                 await scheduler.ScheduleAsync(DataErasureJobKeys.ErasureFor(group), new DataErasureJobParameters(fulfillment.RequestId),
                     due, cancellationToken).ConfigureAwait(false);
                 return;
+            case { Kind: DataRequestKind.Closure, Status: DataRequestStatus.Scheduled, ExecuteAt: { } begins } when begins != default:
+                // ADR-0107 § 7: a closure is executed by the operator's Begin, an act in the platform scope that no job
+                // holds the authority for; filing one submits nothing.
+                return;
             default:
                 throw new InvalidOperationException(
-                    "Only a requested export or a scheduled erasure of the announced group has a fulfilment job in this step.");
+                    "Only a requested export, or a scheduled erasure or closure, of the announced group is a fulfilment.");
         }
     }
 

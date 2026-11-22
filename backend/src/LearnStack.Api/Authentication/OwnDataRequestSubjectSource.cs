@@ -65,8 +65,8 @@ public sealed class OwnDataRequestSubjectSource(IHttpContextAccessor accessor, I
         if (!IsCurrent(http) || _purpose is not { Purpose: OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke } purpose
             || _input is not
             {
-                Request: CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand
-                or RevokeRetainedDataExportCommand
+                Request: CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CreateRetainedAccountClosureCommand
+                or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand
             } captured) return false;
         var reread = await OwnDataRequestHttpInput.ReadAsync(http, purpose);
         return IsCurrent(http) && reread is not null && reread.Request.GetType() == captured.Request.GetType()
@@ -80,8 +80,8 @@ public sealed class OwnDataRequestSubjectSource(IHttpContextAccessor accessor, I
     internal bool SelectMutationReceipt(HttpContext http, Guid requestId)
     {
         if (!IsCurrent(http) || _purpose?.Purpose is not (OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke)
-            || _request is not (CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand
-                or RevokeRetainedDataExportCommand)
+            || _request is not (CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CreateRetainedAccountClosureCommand
+                or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand)
             || requestId == Guid.Empty || requestId.Version != 7)
             return false;
         var receipt = new ReadRetainedDataRequestReceiptQuery(requestId);

@@ -506,16 +506,13 @@ public sealed class DataRequestServiceTests
     }
 
     [Fact]
-    public async Task Eligibility_judges_only_the_announced_group_refuses_a_closure_and_excludes_the_executing_request()
+    public async Task Eligibility_judges_only_the_announced_group_and_excludes_the_executing_request()
     {
         var store = new Store();
         var context = new Context(Subject);
         var eligibility = new DataRequestEligibility(store, new NoHoldSource(), context);
         var group = new DataRequestScopeGroup(Tenant, null);
 
-        await FluentActions.Awaiting(() => eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Closure,
-            DataRequestOrigin.Self, Subject, group, DataRequestEligibilityStage.Creation), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>(
-            "the closure's structure is P03-10 Step 3's");
         await FluentActions.Awaiting(() => eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export,
             DataRequestOrigin.Self, Subject, new DataRequestScopeGroup(Tenant, OrganizationId.From(Guid.CreateVersion7())),
             DataRequestEligibilityStage.Creation), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>();
@@ -652,6 +649,174 @@ public sealed class DataRequestServiceTests
         dead.Status.Should().Be(DataRequestStatus.Failed);
         dead.FailureReason.Should().Be(DataRequestFailureReason.ExecutionFailed);
         due.Store.Requests.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// ADR-0106 § 7, ADR-0107 § 7: a closure is judged here only at its creation, by the structure of its originating group
+    /// and the hold port: a Membership of any status, one active closure per subject and group, and no hold. It is never
+    /// refused for the last administrator, which its Begin judges across every participant tenant; for the same reason its
+    /// execution is not answered here at all, rather than called eligible.
+    /// </summary>
+    [Fact]
+    public async Task Eligibility_judges_a_closure_at_creation_by_its_group_and_hold_and_refuses_to_judge_its_execution()
+    {
+        var store = new Store();
+        store.SoleAdministrators.Add(Subject);
+        var context = new Context(Subject);
+        var group = new DataRequestScopeGroup(Tenant, null);
+        DataRequestEligibilityQuery Closure(UserId subject, DataRequestEligibilityStage stage = DataRequestEligibilityStage.Creation, Guid? id = null) =>
+            new(DataRequestKind.Closure, DataRequestOrigin.Self, subject, group, stage, id);
+        var eligibility = new DataRequestEligibility(store, new NoHoldSource(), context);
+
+        (await eligibility.EvaluateAsync(Closure(Subject), CancellationToken.None)).IsEligible
+            .Should().BeTrue("the tenant's only eligible administrator may file: the last-administrator check is the Begin's");
+        (await eligibility.EvaluateAsync(Closure(UserId.From(Guid.CreateVersion7())), CancellationToken.None)).Reason
+            .Should().Be(DataRequestIneligibility.NoMembership);
+        (await new DataRequestEligibility(store, new FixedHold(), context).EvaluateAsync(Closure(Subject), CancellationToken.None)).Reason
+            .Should().Be(DataRequestIneligibility.BlockedHold);
+
+        var erasure = DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(Guid.CreateVersion7()), DataRequestKind.Erasure, Subject, group,
+            [SubjectMembership], At).Value!;
+        store.Requests.Add(erasure);
+        (await eligibility.EvaluateAsync(Closure(Subject), CancellationToken.None)).IsEligible
+            .Should().BeTrue("the one-active rule is per kind");
+        var closure = DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(Guid.CreateVersion7()), DataRequestKind.Closure, Subject, group,
+            [SubjectMembership], At).Value!;
+        store.Requests.Add(closure);
+        (await eligibility.EvaluateAsync(Closure(Subject), CancellationToken.None)).Reason
+            .Should().Be(DataRequestIneligibility.RequestAlreadyActive);
+
+        await FluentActions.Awaiting(() => eligibility.EvaluateAsync(Closure(Subject, DataRequestEligibilityStage.Execution, closure.Id.Value),
+            CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>("a closure's execution is its Begin's, across every participant tenant");
+    }
+
+    /// <summary>
+    /// ADR-0106 § 11, ADR-0107 § 7: the person files a closure scheduled, its execution time the end of the 24-hour window,
+    /// under the creation fences, and its fulfilment is the scheduler's explicit no-job case; one active closure per subject
+    /// and group, and it does not conflict with the person's erasure.
+    /// </summary>
+    [Fact]
+    public async Task A_subject_files_a_closure_scheduled_for_the_end_of_its_window_under_the_creation_fences()
+    {
+        var harness = new Harness();
+        (await harness.Service.CreateErasureAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None))
+            .IsSuccess.Should().BeTrue();
+        var fresh = new Harness(harness.Store, harness.Phases);
+
+        var result = await fresh.Service.CreateClosureAsync(fresh.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue("a closure and an erasure of the same group are different kinds");
+        var request = fresh.Store.Requests.Should().ContainSingle(item => item.Kind == DataRequestKind.Closure).Subject;
+        result.Value!.RequestId.Should().Be(request.Id.Value);
+        request.Origin.Should().Be(DataRequestOrigin.Self);
+        request.RequesterUserId.Should().Be(Subject);
+        request.SubjectUserId.Should().Be(Subject);
+        request.Status.Should().Be(DataRequestStatus.Scheduled);
+        request.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
+        request.SnapshotMembershipIds.Should().Equal(SubjectMembership);
+        fresh.Scheduler.Fulfillments.Should().ContainSingle().Which.Should().Be(new DataRequestFulfillment(request.Id.Value,
+            DataRequestKind.Closure, DataRequestStatus.Scheduled, request.Group, At + DataRequestLimits.CancellationWindow));
+        fresh.Locks.Acquired.Should().ContainSingle().Which.UserIds.Should().Equal(Subject);
+        fresh.Locks.Acquired[0].TenantMode.Should().Be(IdentityTenantLockMode.Shared);
+        fresh.Audit.Designated.Should().ContainSingle().Which.Should().BeSameAs(request);
+        fresh.Rechecks.Should().Be(1, "authority is re-evaluated once the fences are held");
+
+        var second = await fresh.Service.CreateClosureAsync(fresh.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        second.Error!.Details!["$"].Single().Key.Should().Be("lockey_request_already_active", "one active closure per subject and group");
+    }
+
+    /// <summary>
+    /// ADR-0106 § 3, ADR-0107 § 7: the person alone files a closure. An administrator's caller is refused before a fence
+    /// or a row is read, also for a subject who is not the administrator; the subject never files for another person.
+    /// </summary>
+    [Fact]
+    public async Task An_administrator_never_files_a_closure_and_a_subject_files_only_their_own()
+    {
+        var harness = new Harness();
+
+        Code(await harness.Service.CreateClosureAsync(harness.Caller(Administrator, DataRequestRole.Administrator), Subject, CancellationToken.None))
+            .Should().Be("forbidden");
+        Code(await harness.Service.CreateClosureAsync(harness.Caller(Administrator, DataRequestRole.Administrator), Administrator,
+            CancellationToken.None)).Should().Be("forbidden");
+        harness.Locks.Acquired.Should().BeEmpty("the refusal precedes every fence");
+        harness.Rechecks.Should().Be(0);
+
+        Code(await harness.Service.CreateClosureAsync(harness.Caller(Subject, DataRequestRole.Subject), Administrator, CancellationToken.None))
+            .Should().Be("business_rule_violation", "a person files a closure only for themselves");
+        harness.Store.Requests.Should().BeEmpty();
+        harness.Scheduler.Submitted.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// ADR-0106 § 7, ADR-0107 § 7: a closure's creation refusals are a response and write nothing: a hold, an active closure
+    /// and no Membership in the group. The tenant's only eligible administrator still files: that check is the Begin's.
+    /// </summary>
+    [Theory]
+    [InlineData("hold", "lockey_blocked_hold")]
+    [InlineData("no_membership", null)]
+    [InlineData("sole_administrator", null)]
+    public async Task A_closure_refused_at_creation_answers_its_closed_code_and_files_nothing(string variant, string? reason)
+    {
+        var harness = new Harness(hold: variant == "hold");
+        harness.Store.SoleAdministrators.Add(Subject);
+        var person = variant == "no_membership" ? UserId.From(Guid.CreateVersion7()) : Subject;
+
+        var result = await harness.Service.CreateClosureAsync(harness.Caller(person, DataRequestRole.Subject), person, CancellationToken.None);
+
+        if (variant == "sole_administrator")
+        {
+            result.IsSuccess.Should().BeTrue("the last-administrator check is the Begin's, across every participant tenant");
+            harness.Store.Requests.Should().ContainSingle().Which.Kind.Should().Be(DataRequestKind.Closure);
+            return;
+        }
+
+        Code(result).Should().Be(reason is null ? "not_found" : "business_rule_violation");
+        if (reason is not null)
+        {
+            result.Error!.Details!["$"].Single().Key.Should().Be(reason);
+        }
+
+        harness.Store.Requests.Should().BeEmpty();
+        harness.Scheduler.Submitted.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// ADR-0106 § 3, § 8, § 11: the subject cancels a scheduled closure before and after its execution time, until its Begin
+    /// commits; once it is fulfilling no cancellation is admitted. An administrator neither reads nor cancels it, and its
+    /// receipt never reads a job's phase, so a closure is never shown failed.
+    /// </summary>
+    [Fact]
+    public async Task A_closure_is_cancellable_until_its_Begin_and_unreachable_to_an_administrator()
+    {
+        var harness = new Harness();
+        await harness.Service.CreateClosureAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        var request = harness.Store.Requests.Single();
+        harness.Phases.Phase[request.Id] = DataRequestJobPhase.Dead;
+        var administrator = harness.Caller(Administrator, DataRequestRole.Administrator);
+
+        Code(await harness.Service.GetAsync(administrator, request.Id.Value, CancellationToken.None)).Should().Be("not_found");
+        Code(await harness.Service.CancelAsync(administrator, request.Id.Value, 0, CancellationToken.None)).Should().Be("not_found");
+        Code(await harness.Service.ReadReceiptAsync(administrator, request.Id.Value, CancellationToken.None)).Should().Be("not_found");
+
+        var view = (await harness.Service.GetAsync(harness.Caller(Subject, DataRequestRole.Subject), request.Id.Value, CancellationToken.None)).Value!;
+        view.Kind.Should().Be("closure");
+        view.Status.Should().Be("scheduled", "a closure has no job, so no job phase makes it failed");
+        view.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
+        harness.Phases.Read.Should().NotContain(request.Id);
+
+        harness.Clock.Now = At + DataRequestLimits.CancellationWindow + TimeSpan.FromHours(1);
+        var cancelled = await harness.Service.CancelAsync(harness.Caller(Subject, DataRequestRole.Subject), request.Id.Value, 0, CancellationToken.None);
+        cancelled.IsSuccess.Should().BeTrue("a closure stays cancellable after its execution time until its Begin commits");
+        request.Status.Should().Be(DataRequestStatus.Cancelled);
+
+        var begun = new Harness(new Store(), harness.Phases);
+        await begun.Service.CreateClosureAsync(begun.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        var started = begun.Store.Requests.Single();
+        started.StartFulfilling(At + DataRequestLimits.CancellationWindow, UserId.SystemActor).IsSuccess.Should().BeTrue();
+        var refused = await begun.Service.CancelAsync(begun.Caller(Subject, DataRequestRole.Subject), started.Id.Value, started.Version,
+            CancellationToken.None);
+        refused.Error!.Details!["$"].Single().Key.Should().Be("lockey_data_request_not_cancellable");
+        started.Status.Should().Be(DataRequestStatus.Fulfilling);
     }
 
     /// <summary>ADR-0106 § 7: an erasure of an organization group is never refused for the tenant-wide administrator rule.</summary>

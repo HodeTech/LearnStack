@@ -49,6 +49,18 @@ public sealed class CreateOwnDataErasureCommandHandler(LiveDataRequestAdmission 
     }
 }
 
+/// <summary>The person files the closure of their account from the session's group (ADR-0107 § 7); an administrator never does.</summary>
+public sealed class CreateOwnAccountClosureCommandHandler(LiveDataRequestAdmission admission, DataRequestService service)
+    : IRequestHandler<CreateOwnAccountClosureCommand, Result<DataRequestMutationResult>>
+{
+    public async Task<Result<DataRequestMutationResult>> Handle(CreateOwnAccountClosureCommand request, CancellationToken cancellationToken)
+    {
+        var caller = await admission.AdmitAsync(request, cancellationToken).ConfigureAwait(false);
+        return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
+            : await service.CreateClosureAsync(caller.Value, caller.Value.Actor, cancellationToken).ConfigureAwait(false);
+    }
+}
+
 public sealed class ListOwnDataRequestsQueryHandler(LiveDataRequestAdmission admission, DataRequestService service)
     : IRequestHandler<ListOwnDataRequestsQuery, Result<Page<DataRequestView>>>
 {

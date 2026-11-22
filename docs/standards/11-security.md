@@ -1957,9 +1957,11 @@ roles and four physical context writers remain unchanged.
 The retained own data-request entry of
 [ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md) is the
 same model for data requests, and the closed native retained-entry set grows by exactly
-its eight operations (list, export and erasure creation, cancel, revoke, ticket,
-chunk, and the discovery of the person's groups) under
-`/api/v1/identity/data-request-entry/`. They are selector-free native requests: the
+its nine operations (list, export, erasure and account-closure creation, cancel, revoke,
+ticket, chunk, and the discovery of the person's groups) under
+`/api/v1/identity/data-request-entry/`; the closure creation is
+[ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)'s
+filing by the person alone. They are selector-free native requests: the
 native session source credential and a stock-validated bearer credential, which
 `ValidatedOwnDataRequestCredential` captures for exactly these requests, and an existing
 Active global binding; a tenant or organization selector header is refused, and a

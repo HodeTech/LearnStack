@@ -96,6 +96,14 @@ public sealed record CreateOwnDataExportCommand : IRequest<Result<DataRequestMut
 /// </summary>
 public sealed record CreateOwnDataErasureCommand : IRequest<Result<DataRequestMutationResult>>;
 
+/// <summary>
+/// The person, and only the person, files the closure of their whole account from the session's group, its
+/// originating group (ADR-0106 § 3, ADR-0107 § 7): <c>scheduled</c>, its execution time 24 hours later. No job is
+/// queued: an operator Begins it at or after that time, and it can be cancelled until that Begin commits (ADR-0106
+/// § 11). Once begun it is irreversible, and no in-product status remains after it completes.
+/// </summary>
+public sealed record CreateOwnAccountClosureCommand : IRequest<Result<DataRequestMutationResult>>;
+
 /// <summary>The person's own requests in the session's group, newest first.</summary>
 public sealed record ListOwnDataRequestsQuery(string? Cursor = null, int Limit = 20) : IRequest<Result<Page<DataRequestView>>>;
 
@@ -103,8 +111,8 @@ public sealed record ListOwnDataRequestsQuery(string? Cursor = null, int Limit =
 public sealed record GetOwnDataRequestQuery(Guid RequestId) : IRequest<Result<DataRequestView>>;
 
 /// <summary>
-/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time, by
-/// the subject (ADR-0106 § 8, § 11).
+/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time
+/// and for a closure until its Begin commits, by the subject (ADR-0106 § 8, § 11).
 /// </summary>
 public sealed record CancelOwnDataRequestCommand(Guid RequestId, long ExpectedVersion) : IRequest<Result<DataRequestMutationResult>>;
 
@@ -199,8 +207,15 @@ public sealed record CreateRetainedDataExportCommand(OrganizationId? Organizatio
 public sealed record CreateRetainedDataErasureCommand(OrganizationId? OrganizationId) : IRequest<Result<DataRequestMutationResult>>;
 
 /// <summary>
-/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time, by
-/// the subject in one retained group (ADR-0106 § 8, § 11).
+/// The subject files the closure of their whole account from one retained group, its originating group (ADR-0106 § 3,
+/// § 9; ADR-0107 § 7): the path of a Suspended person and of one whose Membership was revoked. As
+/// <see cref="CreateOwnAccountClosureCommand"/>, no job is queued.
+/// </summary>
+public sealed record CreateRetainedAccountClosureCommand(OrganizationId? OrganizationId) : IRequest<Result<DataRequestMutationResult>>;
+
+/// <summary>
+/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time
+/// and for a closure until its Begin commits, by the subject in one retained group (ADR-0106 § 8, § 11).
 /// </summary>
 public sealed record CancelRetainedDataRequestCommand(OrganizationId? OrganizationId, Guid RequestId, long ExpectedVersion)
     : IRequest<Result<DataRequestMutationResult>>;

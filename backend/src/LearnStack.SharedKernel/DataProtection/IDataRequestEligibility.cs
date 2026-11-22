@@ -10,8 +10,9 @@ namespace LearnStack.SharedKernel.DataProtection;
 /// <para>
 /// <b>Asked twice.</b> At <see cref="DataRequestEligibilityStage.Creation"/> a refusal is a response
 /// and writes no request; at <see cref="DataRequestEligibilityStage.Execution"/> a refusal ends an
-/// erasure <c>blocked</c> with its code, or leaves a closure <c>scheduled</c> with its
-/// <c>last_refusal</c>.
+/// erasure <c>blocked</c> with its code. A closure is asked only at creation: its execution
+/// re-check is its Begin's, across every participant tenant (ADR-0107 § 7), which leaves it
+/// <c>scheduled</c> with its <c>last_refusal</c>.
 /// </para>
 /// <para>
 /// <b>The default implementation checks structure only, and nothing else:</b>

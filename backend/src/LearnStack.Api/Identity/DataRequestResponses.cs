@@ -15,6 +15,13 @@ public sealed record DataRequestAcceptedResponse(string Id, string Kind, string 
 /// </summary>
 public sealed record DataErasureAcceptedResponse(string Id, string Kind, string Status, string Version);
 
+/// <summary>
+/// The 202 answer to an account closure's filing: the request's initial resource, <c>scheduled</c>; an operator may
+/// Begin it from its execution time, and the person may cancel it until that Begin commits (ADR-0106 § 10, § 11;
+/// ADR-0107 § 7).
+/// </summary>
+public sealed record AccountClosureAcceptedResponse(string Id, string Kind, string Status, string Version);
+
 public sealed record DataRequestRetainedResponse(string Kind, long Count);
 
 public sealed record DataExportTruncationResponse(string Collection, long Included, long Total);
@@ -24,7 +31,10 @@ public sealed record DataExportArtifactResponse(string Id, string Status, string
     int ChunkCount, IReadOnlyList<DataExportTruncationResponse> Truncations, string Version, bool Readable);
 
 /// <summary>The subject's own request receipt (ADR-0106 § 9): no personal data and no internal identifier but the request's.</summary>
-/// <remarks><see cref="ExecuteAt"/> is a scheduled request's execution time, the end of its cancellable window.</remarks>
+/// <remarks>
+/// <see cref="ExecuteAt"/> is a scheduled request's execution time: the end of an erasure's cancellable window, and the
+/// earliest time an operator may Begin a closure, which stays cancellable until that Begin commits.
+/// </remarks>
 public sealed record OwnDataRequestResponse(string Id, string Kind, string Origin, string Status, string CreatedAt, string? UpdatedAt,
     string? CompletedAt, string? LastRefusal, string? FailureReason, IReadOnlyList<DataRequestRetainedResponse> Retained,
     DataExportArtifactResponse? Artifact, string Version, string? ExecuteAt);

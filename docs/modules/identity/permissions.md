@@ -184,7 +184,7 @@ infrastructure admission, not a human permission or SystemActor bypass; Standard
 **Accepted under
 [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 3–§ 4
 and [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) §
-4, § 5.** No assignable key is added and the grant union's bytes do not change. The
+4, § 5, § 7.** No assignable key is added and the grant union's bytes do not change. The
 subject's live-session operations use the key-less `OwnDataRequest` kind (an Active
 Membership in exactly the announced group; operation ids under
 `identity.data_request.`); the administrator's are Protected on the existing
@@ -197,8 +197,9 @@ classifications.
 |---|---|---|
 | `CreateOwnDataExportCommand` | `OwnDataRequest` | The subject files for themselves under their exclusive User fence and the shared tenant fence; one active export per subject and group |
 | `CreateOwnDataErasureCommand` | `OwnDataRequest` | As the export, one active erasure per subject and group; `scheduled`, its job due when the 24-hour window ends; refused while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or a hold applies |
+| `CreateOwnAccountClosureCommand` | `OwnDataRequest` | The person alone files the global account closure from the session's group, its originating group; one active closure per subject and group; `scheduled` with its execution time 24 hours later and no job; refused while a hold applies, never for the last administrator (its Begin judges that). No administrator operation files, lists, reads or cancels a closure, and no Platform permission is involved |
 | `ListOwnDataRequestsQuery`, `GetOwnDataRequestQuery`, `ReadOwnDataRequestReceiptQuery` | `OwnDataRequest` | Only requests about the actor, in the group; Off |
-| `CancelOwnDataRequestCommand` | `OwnDataRequest` | The subject cancels a request about them, whoever filed it, with `If-Match`: an export while requested, an erasure before its execution time |
+| `CancelOwnDataRequestCommand` | `OwnDataRequest` | The subject cancels a request about them, whoever filed it, with `If-Match`: an export while requested, an erasure before its execution time, a closure until its Begin commits |
 | `RevokeOwnDataExportCommand` | `OwnDataRequest` | The subject revokes an unexpired artifact of a request about them, including one an administrator filed |
 | `MintOwnDataExportTicketCommand`, `ReadOwnDataExportChunkCommand` | `OwnDataRequest` and the session binding | Subject only; the ticket binds the credential of the session that minted it. An administrator never gets a ticket or content |
 | `CreateDataExportForSubjectCommand` | Applicable membership-admin covering the group | For the person who holds or held the named Membership of any status in the group; never for oneself; a Tenant holder files in the announced group, an Organization holder only in their organization's |
@@ -208,8 +209,8 @@ classifications.
 
 **Retained own-scope entry
 ([ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 4, §
-9).** Eight further key-less operations use the `OwnDataRequestEntry` kind, plus the
-receipt read of its four keyed ones. No Membership admits them: each is admitted only by
+9).** Nine further key-less operations use the `OwnDataRequestEntry` kind, plus the
+receipt read of its five keyed ones. No Membership admits them: each is admitted only by
 a live `OwnDataRequestScopeWitness` that the one HTTP source,
 `OwnDataRequestSubjectSource`, minted for its exact invocation after
 `fn_identity_own_data_request_scopes` proved the group for the verified subject on the
@@ -227,6 +228,7 @@ under this origin, and no retained operation under any other.
 | `ListRetainedDataRequestsQuery` | `OwnDataRequestEntry` (Read) | Only requests about the actor, in the one selected group; physically read-only; Off |
 | `CreateRetainedDataExportCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnDataExportCommand`, in the selected group; a Revoked tombstone counts as a Membership; keyed, 202 without `Location` |
 | `CreateRetainedDataErasureCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnDataErasureCommand`, in the selected group; the path of a Suspended person and of one whose Membership is Revoked; keyed, 202 without `Location` |
+| `CreateRetainedAccountClosureCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnAccountClosureCommand`, from the selected group as the originating group; the path of a Suspended person and of one whose Membership is Revoked; keyed, 202 without `Location` |
 | `CancelRetainedDataRequestCommand` | `OwnDataRequestEntry` (Cancel) | As `CancelOwnDataRequestCommand`, in the selected group, with `If-Match`; keyed |
 | `RevokeRetainedDataExportCommand` | `OwnDataRequestEntry` (Revoke) | As `RevokeOwnDataExportCommand`, in the selected group, with the artifact version in `If-Match`; keyed |
 | `MintRetainedDataExportTicketCommand`, `ReadRetainedDataExportChunkCommand` | `OwnDataRequestEntry` (Ticket, Chunk) and the retained session binding | Subject only; the ticket binds the retained-entry credential under its own domain and is never honoured on the live path, nor a live ticket here |

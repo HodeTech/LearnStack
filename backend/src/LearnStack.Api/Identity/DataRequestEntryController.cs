@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LearnStack.Api.Identity;
 
 /// <summary>
-/// The retained own-scope native entry of the subject's data requests (ADR-0106 § 9, ADR-0107 § 4, § 5): eight key-less
+/// The retained own-scope native entry of the subject's data requests (ADR-0106 § 9, ADR-0107 § 4, § 5, § 7): nine key-less
 /// <c>OwnDataRequestEntry</c> operations reached only through the selector-free native session source, for a person
 /// whose Membership is Suspended, Revoked or gone. The request each action sends is the exact one the
 /// <see cref="OwnDataRequestSubjectSource"/> captured before authorization, never a fresh binding of the input, so the
@@ -69,6 +69,18 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     public async Task<IActionResult> CreateErasure(CancellationToken cancellationToken)
     {
         if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CreateRetainedDataErasureCommand request) return AdministrationHttpInput.Invalid();
+        return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
+    }
+
+    [HttpPost("closures", Name = "CreateRetainedAccountClosure")]
+    [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
+        Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.RetainedAccountClosureCreateOperation)]
+    [OperationPolicy(typeof(CreateRetainedAccountClosureCommand))]
+    [Idempotent(ProtectedAdministrationOperation.CreateRetainedAccountClosure)]
+    [ProducesResponseType<AccountClosureAcceptedResponse>(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> CreateClosure(CancellationToken cancellationToken)
+    {
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CreateRetainedAccountClosureCommand request) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
     }
 

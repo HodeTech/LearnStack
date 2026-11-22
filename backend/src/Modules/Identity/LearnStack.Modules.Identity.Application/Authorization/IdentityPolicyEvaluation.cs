@@ -11,7 +11,7 @@ namespace LearnStack.Modules.Identity.Application.Authorization;
 internal static class IdentityPolicyEvaluation
 {
     /// <summary>
-    /// The closed set an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry: the nine live-session request
+    /// The closed set an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry: the ten live-session request
     /// types, each with its one operation id, as the consent-grant arm pins its single type. A policy of this kind on any
     /// other type, or under another id, is not covered, so registering one confers nothing.
     /// </summary>
@@ -19,6 +19,7 @@ internal static class IdentityPolicyEvaluation
     {
         [typeof(CreateOwnDataExportCommand)] = IdentityOperationPolicySource.OwnDataExportCreateOperation,
         [typeof(CreateOwnDataErasureCommand)] = IdentityOperationPolicySource.OwnDataErasureCreateOperation,
+        [typeof(CreateOwnAccountClosureCommand)] = IdentityOperationPolicySource.OwnAccountClosureCreateOperation,
         [typeof(ListOwnDataRequestsQuery)] = IdentityOperationPolicySource.OwnDataRequestListOperation,
         [typeof(GetOwnDataRequestQuery)] = IdentityOperationPolicySource.OwnDataRequestReadOperation,
         [typeof(CancelOwnDataRequestCommand)] = IdentityOperationPolicySource.OwnDataRequestCancelOperation,

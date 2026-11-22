@@ -256,6 +256,7 @@ public sealed class BackgroundJobProductionManifestTests
             // P03-10 subject data requests: own, administrator and retained-entry routes; none is a job operator route.
             "identity/me/data-requests/exports|POST|" + typeof(OwnDataRequestsController).FullName + ".Create",
             "identity/me/data-requests/erasures|POST|" + typeof(OwnDataRequestsController).FullName + ".CreateErasure",
+            "identity/me/data-requests/closures|POST|" + typeof(OwnDataRequestsController).FullName + ".CreateClosure",
             "identity/me/data-requests|GET|" + typeof(OwnDataRequestsController).FullName + ".List",
             "identity/me/data-requests/{id}|GET|" + typeof(OwnDataRequestsController).FullName + ".Get",
             "identity/me/data-requests/{id}/cancellations|POST|" + typeof(OwnDataRequestsController).FullName + ".Cancel",
@@ -272,6 +273,7 @@ public sealed class BackgroundJobProductionManifestTests
             "identity/data-request-entry/requests|GET|" + typeof(DataRequestEntryController).FullName + ".Requests",
             "identity/data-request-entry/exports|POST|" + typeof(DataRequestEntryController).FullName + ".CreateExport",
             "identity/data-request-entry/erasures|POST|" + typeof(DataRequestEntryController).FullName + ".CreateErasure",
+            "identity/data-request-entry/closures|POST|" + typeof(DataRequestEntryController).FullName + ".CreateClosure",
             "identity/data-request-entry/cancellations|POST|" + typeof(DataRequestEntryController).FullName + ".Cancel",
             "identity/data-request-entry/revocations|POST|" + typeof(DataRequestEntryController).FullName + ".RevokeExport",
             "identity/data-request-entry/tickets|POST|" + typeof(DataRequestEntryController).FullName + ".MintTicket",

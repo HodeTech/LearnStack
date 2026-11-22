@@ -67,6 +67,8 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<CreateDataExportForSubjectCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CreateOwnDataErasureCommand>("identity.data_request.create_erasure", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CreateDataErasureForSubjectCommand>("identity.data_request.create_erasure", OperationType.Create, typeof(DataSubjectRequest));
+        // ADR-0107 § 7: the person alone files a closure; no administrator operation names the slug.
+        builder.MustAudit<CreateOwnAccountClosureCommand>("identity.data_request.create_closure", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CancelOwnDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
         builder.MustAudit<CancelDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
         builder.MustAudit<RevokeOwnDataExportCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
@@ -82,6 +84,7 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         // ADR-0106 § 9, § 13: the retained own-scope entry writes exactly the live path's rows under the same names.
         builder.MustAudit<CreateRetainedDataExportCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CreateRetainedDataErasureCommand>("identity.data_request.create_erasure", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CreateRetainedAccountClosureCommand>("identity.data_request.create_closure", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CancelRetainedDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
         builder.MustAudit<RevokeRetainedDataExportCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
         builder.MustAudit<MintRetainedDataExportTicketCommand>("identity.data_export.mint_ticket", OperationType.ReadSensitive, typeof(DataExportTicket));

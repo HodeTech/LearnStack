@@ -114,10 +114,12 @@ internal sealed class OwnDataRequestHttpInput
                 var body = json.RootElement;
                 var parsed = purpose switch
                 {
-                    // One purpose, two routes: the operation's own request type says whether an export or an erasure is filed.
+                    // One purpose, three routes: the operation's own request type says whether an export, an erasure or
+                    // an account closure is filed.
                     OwnDataRequestPurpose.Create when AdministrationHttpInput.HasFields(body) =>
-                        operation.RequestType == typeof(CreateRetainedDataErasureCommand)
-                            ? (object)new CreateRetainedDataErasureCommand(organization) : new CreateRetainedDataExportCommand(organization),
+                        operation.RequestType == typeof(CreateRetainedDataErasureCommand) ? new CreateRetainedDataErasureCommand(organization)
+                        : operation.RequestType == typeof(CreateRetainedAccountClosureCommand) ? new CreateRetainedAccountClosureCommand(organization)
+                        : (object)new CreateRetainedDataExportCommand(organization),
                     OwnDataRequestPurpose.Cancel => TryRequestId(body, out var cancelled, "requestId")
                         ? new CancelRetainedDataRequestCommand(organization, cancelled, version) : null,
                     OwnDataRequestPurpose.Revoke => TryRequestId(body, out var revoked, "requestId")
@@ -178,7 +180,7 @@ internal sealed class OwnDataRequestHttpInput
     {
         ListRetainedDataRequestScopesQuery => OwnDataRequestPurpose.List,
         ListRetainedDataRequestsQuery => OwnDataRequestPurpose.Read,
-        CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand => OwnDataRequestPurpose.Create,
+        CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CreateRetainedAccountClosureCommand => OwnDataRequestPurpose.Create,
         CancelRetainedDataRequestCommand => OwnDataRequestPurpose.Cancel,
         RevokeRetainedDataExportCommand => OwnDataRequestPurpose.Revoke,
         MintRetainedDataExportTicketCommand => OwnDataRequestPurpose.Ticket,

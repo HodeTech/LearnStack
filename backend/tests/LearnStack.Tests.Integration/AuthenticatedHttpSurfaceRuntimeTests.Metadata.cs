@@ -54,7 +54,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             or ProtectedAdministrationOperation.RegisterCustomFieldDefinition ? 201
             : approved.Protected is ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CreateDataExportForSubject
                 or ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateOwnDataErasure
-                or ProtectedAdministrationOperation.CreateDataErasureForSubject or ProtectedAdministrationOperation.CreateRetainedDataErasure ? 202 : 200,
+                or ProtectedAdministrationOperation.CreateDataErasureForSubject or ProtectedAdministrationOperation.CreateRetainedDataErasure
+                or ProtectedAdministrationOperation.CreateOwnAccountClosure or ProtectedAdministrationOperation.CreateRetainedAccountClosure ? 202 : 200,
             ResponseType = response
         });
         actual.Should().Equal(expected, "Fix: preserve the exact effective action filters, factories, ordering and declared response metadata");

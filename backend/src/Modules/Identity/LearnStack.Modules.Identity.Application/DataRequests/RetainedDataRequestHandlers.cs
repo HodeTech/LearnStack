@@ -36,8 +36,8 @@ public sealed class RetainedDataRequestAdmission(IOperationInvocationContext inv
     internal OwnDataRequestScopeWitness? For(object request, params OwnDataRequestPurpose[] purposes)
     {
         if (request is not (ListRetainedDataRequestScopesQuery or ListRetainedDataRequestsQuery or CreateRetainedDataExportCommand
-                or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand
-                or MintRetainedDataExportTicketCommand or ReadRetainedDataExportChunkCommand or ReadRetainedDataRequestReceiptQuery)
+                or CreateRetainedDataErasureCommand or CreateRetainedAccountClosureCommand or CancelRetainedDataRequestCommand
+                or RevokeRetainedDataExportCommand or MintRetainedDataExportTicketCommand or ReadRetainedDataExportChunkCommand or ReadRetainedDataRequestReceiptQuery)
             || invocations.CurrentInvocation is not { IsActive: true, EntryKind: OperationEntryKind.Application, TrustedSource: null } invocation
             || !ReferenceEquals(invocation.Operation, request) || !ReferenceEquals(invocation.Context, context)
             || !catalog.TryGet(request.GetType(), out var policy) || !ReferenceEquals(policy, invocation.Policy)
@@ -138,6 +138,22 @@ public sealed class CreateRetainedDataErasureCommandHandler(RetainedDataRequestA
         var caller = admission.Admit(request, request.OrganizationId, OwnDataRequestPurpose.Create);
         return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
             : await service.CreateErasureAsync(caller.Value, caller.Value.Actor, cancellationToken).ConfigureAwait(false);
+    }
+}
+
+/// <summary>
+/// ADR-0107 § 7: the subject files the closure of their account from one retained group, the path of a Suspended person
+/// and of one whose Membership was revoked.
+/// </summary>
+public sealed class CreateRetainedAccountClosureCommandHandler(RetainedDataRequestAdmission admission, DataRequestService service)
+    : IRequestHandler<CreateRetainedAccountClosureCommand, Result<DataRequestMutationResult>>
+{
+    public async Task<Result<DataRequestMutationResult>> Handle(CreateRetainedAccountClosureCommand request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var caller = admission.Admit(request, request.OrganizationId, OwnDataRequestPurpose.Create);
+        return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
+            : await service.CreateClosureAsync(caller.Value, caller.Value.Actor, cancellationToken).ConfigureAwait(false);
     }
 }
 

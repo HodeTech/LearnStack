@@ -35,6 +35,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     [
         new("identity/me/data-requests/exports", HttpMethod.Post, "CreateOwnDataExport", Shape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput", true),
         new("identity/me/data-requests/erasures", HttpMethod.Post, "CreateOwnDataErasure", Shape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput", true),
+        new("identity/me/data-requests/closures", HttpMethod.Post, "CreateOwnAccountClosure", Shape.Create, "AccountClosureAcceptedResponse", "EmptyAdministrationInput", true),
         new("identity/me/data-requests", HttpMethod.Get, "ListOwnDataRequests", Shape.Page, "OwnDataRequestPage", null, true),
         new("identity/me/data-requests/{id}", HttpMethod.Get, "GetOwnDataRequest", Shape.Read, "OwnDataRequestResponse", null, true),
         new("identity/me/data-requests/{id}/cancellations", HttpMethod.Post, "CancelOwnDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
@@ -81,6 +82,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         new("identity/data-request-entry/requests", HttpMethod.Get, "ListRetainedDataRequests", Shape.Page, "OwnDataRequestPage", null, true),
         new("identity/data-request-entry/exports", HttpMethod.Post, "CreateRetainedDataExport", Shape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput", true),
         new("identity/data-request-entry/erasures", HttpMethod.Post, "CreateRetainedDataErasure", Shape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput", true),
+        new("identity/data-request-entry/closures", HttpMethod.Post, "CreateRetainedAccountClosure", Shape.Create, "AccountClosureAcceptedResponse", "EmptyAdministrationInput", true),
         new("identity/data-request-entry/cancellations", HttpMethod.Post, "CancelRetainedDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput", true),
         new("identity/data-request-entry/revocations", HttpMethod.Post, "RevokeRetainedDataExport", Shape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput", true),
         new("identity/data-request-entry/tickets", HttpMethod.Post, "MintRetainedDataExportTicket", Shape.Ticket, "DataExportTicketResponse", "RetainedDataRequestTargetInput", true),
@@ -164,6 +166,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
+                Shape.Create when Closure(contract) => ClosureAccepted + " Read the group's requests for its status while the account still works.",
                 Shape.Create => Erasure(contract)
                     ? "Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its " + WindowHours + "-hour cancellable window ends; read the group's requests for its status."
                     : "Accepted: the request's initial resource. Its export runs as a background job; read the group's requests for its status.",
@@ -193,9 +196,10 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             Description = contract.Shape switch
             {
                 Shape.Create when Erasure(contract) => OwnErasureConflict,
+                Shape.Create when Closure(contract) => ClosureConflict,
                 Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
-                _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => OwnCancelConflict,
                 _ when contract.Name.StartsWith("Revoke", StringComparison.Ordinal) => "concurrency_conflict for a valid stale artifact version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
@@ -223,7 +227,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         "ListRetainedDataRequests" => "The subject's own requests in one retained group, newest first, for a Suspended person or a person whose Membership was revoked. A request whose job died is shown failed. Audit Off. No request body.",
         "CreateRetainedDataExport" => "The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9). Refused when the subject holds no Membership of any status there. Strict empty JSON object. MUST audited.",
         "CreateRetainedDataErasure" => "The subject files an erasure of their own data in one retained group (ADR-0106 § 3, § 9; ADR-0107 § 5): the path of a Suspended person and of one whose Membership was revoked. The request is scheduled and its job runs once the " + WindowHours + "-hour window ends; until then it can be cancelled. Refused when the subject holds no Membership of any status there, while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or while a hold applies. Strict empty JSON object. MUST audited.",
-        "CancelRetainedDataRequest" => "The subject cancels their own request in one retained group: a requested export (requested to cancelled), or a scheduled erasure before its execution time (scheduled to cancelled). Strict JSON object with requestId only. MUST audited.",
+        "CreateRetainedAccountClosure" => "The subject files the closure of their whole account from one retained group, its originating group (ADR-0106 § 3, § 9; ADR-0107 § 7): the path of a Suspended person and of one whose Membership was revoked. " + ClosureEffect + " Refused when the subject holds no Membership of any status there, while another closure of the subject is active in the group, or while a hold applies. Strict empty JSON object. MUST audited.",
+        "CancelRetainedDataRequest" => "The subject cancels their own request in one retained group: a requested export (requested to cancelled), or a scheduled erasure before its execution time (scheduled to cancelled). Strict JSON object with requestId only. MUST audited." + ClosureCancellation,
         "RevokeRetainedDataExport" => "The subject revokes an unexpired available artifact of their own request in one retained group, which deletes its chunks at once; the metadata stays as the receipt (ADR-0107 § 4). If-Match carries the ARTIFACT version: the receipt's artifact.version, not the request's. Strict JSON object with requestId only. MUST audited.",
         "MintRetainedDataExportTicket" => "The subject mints a " + TicketMinutes + "-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
         _ => "Reads one decrypted chunk through a ticket presented in the body, never the URL, with the retained-entry credential that minted it. Serving the final chunk consumes the ticket. Every refusal is the same not_found. Not keyed. MUST read-sensitive audited per read; refused when the row cannot be written.",
@@ -293,6 +298,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
+                Shape.Create when Closure(contract) => ClosureAccepted + " Read the Location for its status while the account still works.",
                 Shape.Create => Erasure(contract)
                     ? "Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its " + WindowHours + "-hour cancellable window ends; read the Location for its status."
                     : "Accepted: the request's initial resource. Its export runs as a background job; read the Location for its status.",
@@ -324,11 +330,12 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             Description = contract.Shape switch
             {
                 Shape.Create when Erasure(contract) => contract.Own ? OwnErasureConflict : AdministratorErasureConflict,
+                Shape.Create when Closure(contract) => ClosureConflict,
                 Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
                 Shape.Chunk => "Never: a chunk refusal is not_found.",
-                _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own ? OwnCancelConflict : CancelConflict,
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
             Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Enum("no-store") } },
@@ -390,6 +397,35 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
 
     private static bool Erasure(Contract contract) => contract.Name.Contains("Erasure", StringComparison.Ordinal);
 
+    private static bool Closure(Contract contract) => contract.Name.Contains("Closure", StringComparison.Ordinal);
+
+    /// <summary>What filing a closure does, stated on both filing routes (ADR-0106 § 11; ADR-0107 § 7).</summary>
+    private static readonly string ClosureEffect = "An account closure ends the person's account in every tenant and organization where they hold a Membership, "
+        + "not only in this group. The request is scheduled with its execution time " + WindowHours + " hours after it is filed and holds the frozen snapshot "
+        + "of the subject's Memberships of any status in the group. No job is queued: an operator confirms the request with the person and Begins it at or "
+        + "after its execution time, and the person can cancel it until that Begin commits. Once begun it is irreversible: the account stops working at "
+        + "once, the person's data is erased group by group, and the sign-in account is removed when an operator finalizes the closure. No in-product "
+        + "status remains afterwards; the person can read the receipt only while the account still works.";
+
+    /// <summary>How the subject cancels a closure, appended to both cancellation routes (ADR-0106 § 11).</summary>
+    private const string ClosureCancellation = " A scheduled closure is cancelled the same way (scheduled to cancelled) until an operator's Begin commits, also after its "
+        + "execution time; a begun closure is fulfilling and cannot be cancelled.";
+
+    /// <summary>The accepted answer of a closure's filing.</summary>
+    private static readonly string ClosureAccepted = "Accepted: the request's initial resource, scheduled. No job runs it: an operator may Begin it from its "
+        + "executeAt, and until that Begin commits it can be cancelled.";
+
+    /// <summary>The creation refusals of a closure: its originating group's structure and a hold; never the last administrator, which its Begin judges.</summary>
+    private const string ClosureConflict = "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still "
+        + "active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+
+    /// <summary>A cancellation's refusals (ADR-0106 § 8, § 11).</summary>
+    private const string CancelConflict = "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+
+    /// <summary>The subject's cancellation also reaches their closure (ADR-0106 § 11, ADR-0107 § 7).</summary>
+    private const string OwnCancelConflict = CancelConflict
+        + " A closure is never window_ended: its not_cancellable means an operator's Begin committed, after which the closure is irreversible.";
+
     /// <summary>The precondition a mutation names: a revocation's is its artifact's version, every other one the request's.</summary>
     private static string IfMatchDescription(Contract contract) => contract.Name.StartsWith("Revoke", StringComparison.Ordinal)
         ? "One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409."
@@ -406,6 +442,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
 
     private static string Description(Contract contract) => contract.Shape switch
     {
+        Shape.Create when Closure(contract) => "The subject files the closure of their whole account from the session's group, its originating group (ADR-0106 § 3; ADR-0107 § 7). Only the person files one; no administrator can file, read or cancel a closure. Requires an Active Membership in exactly that group; no permission key. " + ClosureEffect + " Refused while another closure of the subject is active in the group or while a hold applies. Strict empty JSON object. MUST audited.",
         Shape.Create when contract.Own && Erasure(contract) => "The subject files an erasure of their own data in the session's group (ADR-0106 § 3; ADR-0107 § 5). Requires an Active Membership in exactly that group; no permission key. The request is scheduled, holds the frozen snapshot of the subject's Memberships of any status in the group, and its job is submitted on the same transaction, due when the " + WindowHours + "-hour cancellable window ends. The job then revokes the subject's export artifacts in the group, removes the Membership's role assignments, clears its profile, leaves it as a Revoked tombstone and revokes the pending invitations the subject issued there; the request then awaits the operator's privileged step. Refused while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or while a hold applies. Strict empty JSON object. MUST audited.",
         Shape.Create when Erasure(contract) => "An administrator holding identity.membership.admin over the group files an erasure for the person who held the named Membership in the group, only once that Membership is Revoked: an Active or Suspended member is revoked first, by the separately audited administration act (ADR-0106 § 3). Never for themselves. The request is scheduled and runs when its " + WindowHours + "-hour window ends; the administrator who filed it may cancel it until then. Status and counts only. Strict JSON object with membershipId only. MUST audited.",
         Shape.Create when contract.Own => "The subject files an export of their own data in the session's group (ADR-0106 § 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject's Memberships of any status in the group and its job is submitted on the same transaction. When it completes, it revokes the subject's previous available artifact in the group, whoever filed that one. Strict empty JSON object. MUST audited.",
@@ -415,7 +452,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body.",
         Shape.Read => "One request of the group: status and counts only, never content. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
         Shape.Mutation when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own
-            ? "The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited."
+            ? "The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited." + ClosureCancellation
             : "The administrator who filed a request cancels it: an export while it is still requested, an erasure before its execution time. Strict empty JSON object. MUST audited.",
         Shape.Mutation => contract.Own
             ? "The subject revokes an unexpired available artifact of a request about them, which deletes its chunks at once; the metadata stays as the receipt. Strict empty JSON object. MUST audited."
@@ -432,13 +469,9 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         schemas.TryAdd("PageInfo", Object(("nextCursor", Text(true)), ("previousCursor", Text(true)),
             ("hasNext", new OpenApiSchema { Type = JsonSchemaType.Boolean }), ("hasPrevious", new OpenApiSchema { Type = JsonSchemaType.Boolean })));
         schemas.TryAdd("AdministrationVersionReceipt", Object(("version", Version())));
-        var kind = Enum([.. DataRequestCodes.Kinds.Codes]);
-        var status = With(Enum([.. DataRequestCodes.Statuses.Codes]),
-            "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), "
-            + "and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a 'due, running shortly' state from status and executeAt.");
-        var origin = Enum([.. DataRequestCodes.Origins.Codes]);
         schemas["DataRequestAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("export")), ("status", Enum("requested")), ("version", Version()));
         schemas["DataErasureAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("erasure")), ("status", Enum("scheduled")), ("version", Version()));
+        schemas["AccountClosureAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("closure")), ("status", Enum("scheduled")), ("version", Version()));
         schemas["DataRequestRetainedResponse"] = Object(("kind", Enum([.. DataRequestCodes.RetainedKinds.Codes])),
             ("count", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "0" }));
         schemas["DataExportTruncationResponse"] = Object(("collection", Text(false, 65)), ("included", Count()), ("total", Count()));
@@ -448,21 +481,30 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("chunkCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = DataRequestLimits.MaximumChunkCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
             ("truncations", Array(Ref(document, "DataExportTruncationResponse"), DataRequestLimits.MaximumTruncatedCollections)),
             ("version", Version()), ("readable", new OpenApiSchema { Type = JsonSchemaType.Boolean }));
-        (string, IOpenApiSchema)[] receipt =
+        // The subject's receipt also describes their closure (ADR-0107 § 7); an administrator's never reaches one, so its
+        // schema keeps the erasure and export descriptions alone.
+        (string, IOpenApiSchema)[] Receipt(bool own) =>
         [
-            ("id", Uuid()), ("kind", kind), ("origin", origin), ("status", status), ("createdAt", DateTime()),
+            ("id", Uuid()), ("kind", Enum([.. DataRequestCodes.Kinds.Codes])), ("origin", Enum([.. DataRequestCodes.Origins.Codes])),
+            ("status", With(Enum([.. DataRequestCodes.Statuses.Codes]),
+                "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), "
+                + "and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a 'due, running shortly' state from status and executeAt."
+                + (own ? " A closure has no job: it reads scheduled until an operator Begins it, at or after its executeAt, then fulfilling (the account no longer works, so its owner rarely reads it), and completed once an operator finalizes it; it is never blocked or failed." : ""))),
+            ("createdAt", DateTime()),
             ("updatedAt", With(DateTime(true), "When the request last changed; for a cancelled, blocked or failed request this is when it ended.")),
             ("completedAt", With(DateTime(true), "Set only for a completed request; a cancelled, blocked or failed request has none (read updatedAt).")),
-            ("lastRefusal", With(Nullable(Enum([.. DataRequestCodes.Refusals.Codes])), "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys.")),
+            ("lastRefusal", With(Nullable(Enum([.. DataRequestCodes.Refusals.Codes])), "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys."
+                + (own ? " For a scheduled closure it is the reason an operator's Begin was refused (blocked_window, blocked_hold or blocked_last_administrator: another eligible tenant-wide administrator must be appointed first); the closure stays scheduled and cancellable." : ""))),
             ("failureReason", Nullable(Enum([.. DataRequestCodes.FailureReasons.Codes]))),
             ("retained", With(Array(Ref(document, "DataRequestRetainedResponse"), DataRequestCodes.RetainedKinds.Codes.Length),
                 "What the request retains, a partial list: a kind not listed is retained and not counted, never zero. The audit log's kinds appear only once the request is completed. invitation_record counts the offers the person issued or accepted; a pending offer addressed to their e-mail address is retained and not counted, because it is not locatable by person.")),
             ("artifact", NullableRef(document, "DataExportArtifactResponse")), ("version", Version()),
-            ("executeAt", With(DateTime(true), "An erasure's cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export.")),
+            ("executeAt", With(DateTime(true), "An erasure's cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export."
+                + (own ? " For a closure it is the earliest time an operator may Begin it, not a cancellation deadline: a scheduled closure can be cancelled until that Begin commits." : ""))),
         ];
-        schemas["OwnDataRequestResponse"] = Object(receipt);
+        schemas["OwnDataRequestResponse"] = Object(Receipt(own: true));
         schemas["OwnDataRequestPage"] = Object(("items", Array(Ref(document, "OwnDataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));
-        schemas["DataRequestResponse"] = Object([.. receipt, ("requestedByYou", new OpenApiSchema { Type = JsonSchemaType.Boolean }),
+        schemas["DataRequestResponse"] = Object([.. Receipt(own: false), ("requestedByYou", new OpenApiSchema { Type = JsonSchemaType.Boolean }),
             ("membershipIds", Array(Uuid(), DataRequestLimits.MaximumSnapshotMemberships))]);
         schemas["DataRequestPage"] = Object(("items", Array(Ref(document, "DataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));
         schemas["DataExportForSubjectInput"] = Object(("membershipId", Uuid()));

@@ -114,7 +114,7 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
     /// <summary>
     /// Whether a request of this kind and stored status can have a dead job that left it there: a requested export or a
     /// scheduled erasure, because each job commits <c>fulfilling</c> only together with the status it ends in. A closure
-    /// has no job in this step.
+    /// has no job (ADR-0107 § 7), so it is never failed: its execution is the operator's Begin.
     /// </summary>
     internal static bool CanFail(DataRequestKind kind, DataRequestStatus status) => (kind, status) is
         (DataRequestKind.Export, DataRequestStatus.Requested) or (DataRequestKind.Erasure, DataRequestStatus.Scheduled);

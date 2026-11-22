@@ -99,14 +99,29 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         CancellationToken cancellationToken) => CreateAsync(caller, subject, DataRequestKind.Erasure, cancellationToken);
 
     /// <summary>
+    /// The person files the closure of their whole account from the announced group, its originating group (ADR-0106
+    /// § 3, § 11; ADR-0107 § 7): <c>scheduled</c>, its execution time when the 24-hour window ends. The person alone files
+    /// it, so an administrator caller is refused before anything is read. No job is submitted: the closure is executed by
+    /// the operator's Begin, at or after its execution time, and can be cancelled until that Begin commits.
+    /// </summary>
+    public Task<Result<DataRequestMutationResult>> CreateClosureAsync(DataRequestCaller caller, UserId subject,
+        CancellationToken cancellationToken) => CreateAsync(caller, subject, DataRequestKind.Closure, cancellationToken);
+
+    /// <summary>
     /// Files a request of <paramref name="kind"/> under the subject's exclusive User fence and the shared tenant fence,
-    /// with the frozen Membership snapshot, and submits its job on the same transaction (ADR-0106 § 7, § 8, § 10;
-    /// ADR-0107 § 2): an export's at once, an erasure's at its execution time.
+    /// with the frozen Membership snapshot, and submits its fulfilment on the same transaction (ADR-0106 § 7, § 8, § 10;
+    /// ADR-0107 § 2): an export's job at once, an erasure's at its execution time, and a closure none.
     /// </summary>
     private async Task<Result<DataRequestMutationResult>> CreateAsync(DataRequestCaller caller, UserId subject, DataRequestKind kind,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
+        if (kind == DataRequestKind.Closure && caller.Role != DataRequestRole.Subject)
+        {
+            // ADR-0106 § 3, ADR-0107 § 7: no administrator creates a closure.
+            return DataRequestRules.Fail<DataRequestMutationResult>("lockey_forbidden");
+        }
+
         if (!StronglyTypedId.IsAssigned(subject) || subject == UserId.SystemActor
             || (caller.Role == DataRequestRole.Subject) != (subject == caller.Actor))
         {
@@ -165,7 +180,8 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     }
 
     /// <summary>
-    /// The creation guards, judged under the fences: the subject's eligibility; an administrator's export refused while
+    /// The creation guards, judged under the fences: the subject's eligibility (for a closure the structure of its
+    /// originating group and the hold port; the last-administrator check is its Begin's); an administrator's export refused while
     /// the subject holds a readable artifact, and an administrator's erasure refused unless the subject's Membership in
     /// the group is Revoked; and the Membership snapshot to freeze. A refusal is the failed result and writes nothing.
     /// </summary>
@@ -338,9 +354,11 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     }
 
     /// <summary>
-    /// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time,
-    /// under the shared tenant fence the request guard requires (ADR-0106 § 8, § 11). A running erasure holds the tenant
-    /// fence exclusively, so a cancellation never meets one half-done.
+    /// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time
+    /// and for a closure until its Begin commits, under the shared tenant fence the request guard requires (ADR-0106 § 8,
+    /// § 11). A running erasure holds the tenant fence exclusively, so a cancellation never meets one half-done; a
+    /// closure's Begin holds the fence of every tenant where the person holds a Membership, its originating tenant
+    /// included, so a cancellation either commits before the Begin or finds the closure <c>fulfilling</c>.
     /// </summary>
     public async Task<Result<DataRequestMutationResult>> CancelAsync(DataRequestCaller caller, Guid requestId, long expectedVersion,
         CancellationToken cancellationToken)
@@ -377,7 +395,8 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             if (cancelled.IsFailure)
             {
                 // Two closed reasons a person can act on: the window ended (the erasure runs now), or the request is no
-                // longer one a cancellation admits (it already ended, or an export already started).
+                // longer one a cancellation admits (it already ended, an export already started, or a closure's Begin
+                // committed). A scheduled closure is always cancellable, so it never reaches this refusal.
                 return DataRequestRules.Rule<DataRequestMutationResult>("$",
                     request.Status == DataRequestStatus.Scheduled && request.ExecuteAt is { } due && clock.UtcNow >= due
                         ? "lockey_data_request_window_ended"

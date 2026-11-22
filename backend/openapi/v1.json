@@ -7399,12 +7399,341 @@
         "x-version-introduced": "v1"
       }
     },
+    "/api/v1/identity/data-request-entry/closures": {
+      "post": {
+        "tags": [
+          "DataRequestEntry"
+        ],
+        "description": "The subject files the closure of their whole account from one retained group, its originating group (ADR-0106 \u00A7 3, \u00A7 9; ADR-0107 \u00A7 7): the path of a Suspended person and of one whose Membership was revoked. An account closure ends the person\u0027s account in every tenant and organization where they hold a Membership, not only in this group. The request is scheduled with its execution time 24 hours after it is filed and holds the frozen snapshot of the subject\u0027s Memberships of any status in the group. No job is queued: an operator confirms the request with the person and Begins it at or after its execution time, and the person can cancel it until that Begin commits. Once begun it is irreversible: the account stops working at once, the person\u0027s data is erased group by group, and the sign-in account is removed when an operator finalizes the closure. No in-product status remains afterwards; the person can read the receipt only while the account still works. Refused when the subject holds no Membership of any status there, while another closure of the subject is active in the group, or while a hold applies. Strict empty JSON object. MUST audited.",
+        "operationId": "CreateRetainedAccountClosure",
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "description": "The one retained group the operation acts in: tenant for the real host\u0027s tenant-wide group, or the organization\u0027s canonical UUIDv7. On an organization host only that organization. A group the subject does not retain is not_found.",
+            "required": true,
+            "schema": {
+              "maxLength": 36,
+              "minLength": 6,
+              "pattern": "^(tenant|[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 8,
+              "pattern": "^[!-~]{8,128}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyAdministrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted: the request\u0027s initial resource, scheduled. No job runs it: an operator may Begin it from its executeAt, and until that Begin commits it can be cancelled. Read the group\u0027s requests for its status while the account still works.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "The request\u0027s version.",
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present only after fresh original-request disclosure on a replay.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountClosureAcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed or noncanonical input, a missing or extra group, extra or repeated query, an unexpected body, a tenant or organization selector header, an invalid key or precondition, or a key or precondition on an operation that takes none.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid, expired or undecidable credentials, a missing or invalid native session source, or a binding that is not Active; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden when the request carries no retained-entry credential a ticket can bind, or its witness closed.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; request bodies are at most 4 KiB.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity, ticket or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
     "/api/v1/identity/data-request-entry/cancellations": {
       "post": {
         "tags": [
           "DataRequestEntry"
         ],
-        "description": "The subject cancels their own request in one retained group: a requested export (requested to cancelled), or a scheduled erasure before its execution time (scheduled to cancelled). Strict JSON object with requestId only. MUST audited.",
+        "description": "The subject cancels their own request in one retained group: a requested export (requested to cancelled), or a scheduled erasure before its execution time (scheduled to cancelled). Strict JSON object with requestId only. MUST audited. A scheduled closure is cancelled the same way (scheduled to cancelled) until an operator\u0027s Begin commits, also after its execution time; a begun closure is fulfilling and cannot be cancelled.",
         "operationId": "CancelRetainedDataRequest",
         "parameters": [
           {
@@ -7517,7 +7846,7 @@
             }
           },
           "409": {
-            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. A closure is never window_ended: its not_cancellable means an operator\u0027s Begin committed, after which the closure is irreversible.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9304,6 +9633,330 @@
         "x-version-introduced": "v1"
       }
     },
+    "/api/v1/identity/me/data-requests/closures": {
+      "post": {
+        "tags": [
+          "OwnDataRequests"
+        ],
+        "description": "The subject files the closure of their whole account from the session\u0027s group, its originating group (ADR-0106 \u00A7 3; ADR-0107 \u00A7 7). Only the person files one; no administrator can file, read or cancel a closure. Requires an Active Membership in exactly that group; no permission key. An account closure ends the person\u0027s account in every tenant and organization where they hold a Membership, not only in this group. The request is scheduled with its execution time 24 hours after it is filed and holds the frozen snapshot of the subject\u0027s Memberships of any status in the group. No job is queued: an operator confirms the request with the person and Begins it at or after its execution time, and the person can cancel it until that Begin commits. Once begun it is irreversible: the account stops working at once, the person\u0027s data is erased group by group, and the sign-in account is removed when an operator finalizes the closure. No in-product status remains afterwards; the person can read the receipt only while the account still works. Refused while another closure of the subject is active in the group or while a hold applies. Strict empty JSON object. MUST audited.",
+        "operationId": "CreateOwnAccountClosure",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 8,
+              "pattern": "^[!-~]{8,128}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyAdministrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted: the request\u0027s initial resource, scheduled. No job runs it: an operator may Begin it from its executeAt, and until that Begin commits it can be cancelled. Read the Location for its status while the account still works.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "The request\u0027s version.",
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present only after fresh original-request disclosure on a replay.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "description": "Exact same-API relative location of the new request\u0027s receipt.",
+                "required": true,
+                "schema": {
+                  "pattern": "^/api/v1/identity/me/data-requests/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountClosureAcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed or noncanonical input, extra or repeated query, an unexpected body, an invalid key or precondition, or a key or precondition on a ticket operation.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden when the request carries no live session the ticket can bind.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found without an Active Membership in exactly the context\u0027s group, for a request about another person or of another group, and for every ticket or chunk refusal alike.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; request bodies are at most 16 KiB.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity, ticket or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant\u0027s identity fence behind another person\u0027s running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header).",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
     "/api/v1/identity/me/data-requests": {
       "get": {
         "tags": [
@@ -9860,7 +10513,7 @@
         "tags": [
           "OwnDataRequests"
         ],
-        "description": "The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited.",
+        "description": "The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited. A scheduled closure is cancelled the same way (scheduled to cancelled) until an operator\u0027s Begin commits, also after its execution time; a begun closure is fulfilling and cannot be cancelled.",
         "operationId": "CancelOwnDataRequest",
         "parameters": [
           {
@@ -9972,7 +10625,7 @@
             }
           },
           "409": {
-            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure\u0027s cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. A closure is never window_ended: its not_cancellable means an operator\u0027s Begin committed, after which the closure is irreversible.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -28240,6 +28893,42 @@
   },
   "components": {
     "schemas": {
+      "AccountClosureAcceptedResponse": {
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "closure"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "scheduled"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": "string",
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          }
+        },
+        "additionalProperties": false
+      },
       "AccountSite": {
         "required": [
           "actorId",
@@ -31892,7 +32581,7 @@
               "cancelled"
             ],
             "type": "string",
-            "description": "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a \u0027due, running shortly\u0027 state from status and executeAt."
+            "description": "An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a \u0027due, running shortly\u0027 state from status and executeAt. A closure has no job: it reads scheduled until an operator Begins it, at or after its executeAt, then fulfilling (the account no longer works, so its owner rarely reads it), and completed once an operator finalizes it; it is never blocked or failed."
           },
           "createdAt": {
             "type": "string",
@@ -31925,7 +32614,7 @@
               "null",
               "string"
             ],
-            "description": "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys."
+            "description": "The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys. For a scheduled closure it is the reason an operator\u0027s Begin was refused (blocked_window, blocked_hold or blocked_last_administrator: another eligible tenant-wide administrator must be appointed first); the closure stays scheduled and cancellable."
           },
           "failureReason": {
             "enum": [
@@ -31968,7 +32657,7 @@
               "null",
               "string"
             ],
-            "description": "An erasure\u0027s cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export.",
+            "description": "An erasure\u0027s cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export. For a closure it is the earliest time an operator may Begin it, not a cancellation deadline: a scheduled closure can be cancelled until that Begin commits.",
             "format": "date-time"
           }
         },

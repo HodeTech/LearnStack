@@ -14,8 +14,8 @@ namespace LearnStack.Api.Identity;
 
 /// <summary>
 /// The subject's own data requests through a live session (ADR-0106 § 3, § 9; ADR-0107 § 4, § 5): key-less
-/// <c>OwnDataRequest</c> operations confined to the session's group. An export and an erasure are filed on distinct
-/// routes; reading, listing and cancelling a request are the same for both kinds. The ticket and the chunk travel only in request
+/// <c>OwnDataRequest</c> operations confined to the session's group. An export, an erasure and an account closure are
+/// filed on distinct routes; reading, listing and cancelling a request are the same for every kind. The ticket and the chunk travel only in request
 /// and response bodies, never in a URL, and neither is keyed, so no secret reaches an idempotency receipt.
 /// </summary>
 [Route("identity/me/data-requests")]
@@ -45,6 +45,23 @@ public sealed class OwnDataRequestsController(ISender sender, ITenantContext ten
         using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
         if (body is null) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, new CreateOwnDataErasureCommand(), cancellationToken);
+    }
+
+    /// <summary>
+    /// ADR-0107 § 7: the person alone files the closure of their whole account from the session's group. Distinct from
+    /// an erasure by its route, its operation and its accepted resource; the administrator surface has no closure route.
+    /// </summary>
+    [HttpPost("closures", Name = "CreateOwnAccountClosure")]
+    [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
+        Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.OwnAccountClosureCreateOperation)]
+    [OperationPolicy(typeof(CreateOwnAccountClosureCommand))]
+    [Idempotent(ProtectedAdministrationOperation.CreateOwnAccountClosure)]
+    [ProducesResponseType<AccountClosureAcceptedResponse>(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> CreateClosure(CancellationToken cancellationToken)
+    {
+        using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
+        if (body is null) return AdministrationHttpInput.Invalid();
+        return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, new CreateOwnAccountClosureCommand(), cancellationToken);
     }
 
     [HttpGet(Name = "ListOwnDataRequests")]

@@ -11,8 +11,8 @@ using Xunit;
 namespace LearnStack.Tests.Unit.Identity;
 
 /// <summary>
-/// ADR-0107 § 2: the fulfilment job of a request's kind and group (an export's at once, an erasure's at the end of its
-/// window), and the purge at the artifact's expiry.
+/// ADR-0107 § 2, § 7: the fulfilment job of a request's kind and group (an export's at once, an erasure's at the end of
+/// its window, a closure's none), and the purge at the artifact's expiry.
 /// </summary>
 public sealed class DataRequestFulfillmentSchedulerTests
 {
@@ -49,30 +49,55 @@ public sealed class DataRequestFulfillmentSchedulerTests
             (DateTimeOffset?)(At + DataRequestLimits.CancellationWindow)), "the job is due when the cancellable window ends, never before");
     }
 
+    /// <summary>
+    /// ADR-0107 § 7: a closure has no job. Its execution is the operator's Begin, an act in the platform scope no job holds
+    /// the authority for, so a scheduled closure is an accepted fulfilment that submits nothing.
+    /// </summary>
     [Theory]
-    [InlineData("closure")]
+    [InlineData("tenant")]
+    [InlineData("organization")]
+    public async Task A_scheduled_closure_is_accepted_and_submits_no_job(string scope)
+    {
+        var organization = scope == "tenant" ? (OrganizationId?)null : Organization;
+        var jobs = new RecordingScheduler();
+        var request = Request(DataRequestKind.Closure, organization);
+        request.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
+
+        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(Fulfillment(request), CancellationToken.None);
+
+        jobs.Submitted.Should().BeEmpty("a closure is executed by the operator's Begin, never by a job");
+    }
+
+    [Theory]
     [InlineData("other_group")]
     [InlineData("fulfilling")]
     [InlineData("erasure_without_due_time")]
     [InlineData("export_with_due_time")]
-    public async Task Anything_but_a_requested_export_or_scheduled_erasure_of_the_announced_group_is_a_programming_error(string variant)
+    [InlineData("closure_without_due_time")]
+    [InlineData("closure_fulfilling")]
+    [InlineData("closure_of_another_group")]
+    public async Task Anything_but_a_requested_export_or_scheduled_erasure_or_closure_of_the_announced_group_is_a_programming_error(string variant)
     {
         var jobs = new RecordingScheduler();
         var request = variant switch
         {
-            "closure" => Request(DataRequestKind.Closure, null),
             "erasure_without_due_time" => Request(DataRequestKind.Erasure, null),
+            "closure_without_due_time" or "closure_fulfilling" or "closure_of_another_group" => Request(DataRequestKind.Closure, null),
             _ => Request(DataRequestKind.Export, null),
         };
         if (variant == "fulfilling")
         {
             request.StartFulfilling(At, UserId.SystemActor).IsSuccess.Should().BeTrue();
         }
+        else if (variant == "closure_fulfilling")
+        {
+            request.StartFulfilling(At + DataRequestLimits.CancellationWindow, UserId.SystemActor).IsSuccess.Should().BeTrue();
+        }
 
-        var context = new Context(variant == "other_group" ? Organization : null);
+        var context = new Context(variant is "other_group" or "closure_of_another_group" ? Organization : null);
         var fulfillment = variant switch
         {
-            "erasure_without_due_time" => Fulfillment(request) with { ExecuteAt = null },
+            "erasure_without_due_time" or "closure_without_due_time" => Fulfillment(request) with { ExecuteAt = null },
             "export_with_due_time" => Fulfillment(request) with { ExecuteAt = At },
             _ => Fulfillment(request),
         };

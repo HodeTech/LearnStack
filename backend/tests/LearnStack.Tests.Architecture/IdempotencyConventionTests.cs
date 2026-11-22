@@ -246,6 +246,8 @@ public sealed partial class IdempotencyConventionTests
         [ProtectedAdministrationOperation.CreateDataErasureForSubject] = typeof(ReadDataRequestReceiptQuery),
         [ProtectedAdministrationOperation.CreateRetainedDataErasure] = typeof(ReadRetainedDataRequestReceiptQuery),
         [ProtectedAdministrationOperation.RevokeRetainedDataExport] = typeof(ReadRetainedDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateOwnAccountClosure] = typeof(ReadOwnDataRequestReceiptQuery),
+        [ProtectedAdministrationOperation.CreateRetainedAccountClosure] = typeof(ReadRetainedDataRequestReceiptQuery),
     };
 
     private static string[] AdmissionOffenders(ModuleDefinition[] modules)
