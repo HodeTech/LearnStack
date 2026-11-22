@@ -768,10 +768,12 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The accepted fourteen logical setter paths are
-enumerated below; ADR-0097 adds only the machine provider-recipient owner, and
+`TransactionExecutionCoordinator`. The accepted fifteen logical setter paths are
+enumerated below; ADR-0097 adds only the machine provider-recipient owner,
 [ADR-0099 Amendment 6](../decisions/0099-confined-tenant-federation.md#amendment-6--host-alias-carrier-and-test-record-carrier-2026-11-14)
-only the federation host-alias reader.
+only the federation host-alias reader, and
+[ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md) only the
+retained own data-request scope owner.
 Implementation and source-bound proof are recorded in
 the [phase Status](../roadmap/phase-03-identity-admin.md).
 ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth own-context
@@ -803,6 +805,7 @@ physical unit-of-work writer with the exact operation mode below:
 | `ConsentSubjectScope` | operation-bound existing owner, physical ReadOnly for retained discovery/history or ordinary ReadWrite for withdrawal | Single-use exact operation/actor/subject/real-host/retained-scope/mode witness; no Membership, ordinary native session, custom value or `app.scope` |
 | `ProviderEventRecipient` | actual claimed-target owner, ordinary app ReadWrite | Private source-validated single-use target/EventId/tenant/token/lease witness; only its outbox production; no HTTP, Platform, profile or ordinary protected command authority |
 | `FederationHostAliasReader` | its own short read-only one | The native self read ends before tenant resolution; it announces only the classified host tenant and reads only that tenant's Active federation alias ([Database Standards § Federation host-alias read](05-database.md#federation-host-alias-read)) |
+| `OwnDataRequestScope` | operation-bound fresh owner, physical ReadOnly for list/read or ordinary ReadWrite for create/cancel/ticket/chunk | Single-use exact operation/actor/subject/real-host/retained-group/mode witness built from `fn_identity_own_data_request_scopes`; no Membership, ordinary native session or `app.scope` ([Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope)) |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -827,7 +830,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the fourteen admitted setters connects as `learnstack_app`. A setter that reached
+Every one of the fifteen admitted setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -844,7 +847,7 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the fourteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
+Of the fifteen admitted logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census
@@ -862,7 +865,10 @@ consumes its distinct consent-subject witness after its preliminary owner closes
 its retained history/withdrawal modes cannot be exchanged or reused.
 The fourteenth, `FederationHostAliasReader`, issues raw `NpgsqlCommand`s on a READ ONLY
 connection of its own, like the cached-projection loaders, and announces only the host
-tenant for its one alias read.
+tenant for its one alias read. The fifteenth, `OwnDataRequestScope`, consumes its distinct
+retained data-request witness through the same physical unit-of-work writer after the
+preliminary `fn_identity_own_data_request_scopes` owner closes; it announces exactly the
+witness's group and its list/read and write modes cannot be exchanged or reused.
 `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection

@@ -25,6 +25,7 @@ internal sealed class OperationAuthorizationPolicyProvider(IOptions<Authorizatio
         {
             Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead
             or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry or OperationPolicyKind.OwnFieldConsentGrant
+            or OperationPolicyKind.OwnDataRequest
         }
             ? new AuthorizationPolicy([new OperationPolicyRequirement(policy)], [TenantAuthenticationRegistration.Scheme]) : null);
     }

@@ -9,7 +9,8 @@ public enum ProtectedOperationOutcome { Unavailable = 0, NotCovered = 1, Forbidd
 public sealed class ProtectedOperationDecision
 {
     private ProtectedOperationDecision(OperationInvocation invocation, ProtectedOperationOutcome outcome,
-        ImmutableArray<Guid> membershipIds, ImmutableArray<Guid> roleIds, OperationPolicyClause? matchedClause, OperationReadWitness? readWitness, InvitationEntryScopeWitness? invitationWitness, ConsentSubjectScopeWitness? consentWitness)
+        ImmutableArray<Guid> membershipIds, ImmutableArray<Guid> roleIds, OperationPolicyClause? matchedClause, OperationReadWitness? readWitness, InvitationEntryScopeWitness? invitationWitness, ConsentSubjectScopeWitness? consentWitness,
+        OwnDataRequestScopeWitness? dataRequestWitness)
     {
         Invocation = invocation;
         Outcome = outcome;
@@ -19,6 +20,7 @@ public sealed class ProtectedOperationDecision
         ReadWitness = readWitness;
         InvitationWitness = invitationWitness;
         ConsentWitness = consentWitness;
+        DataRequestWitness = dataRequestWitness;
     }
 
     public OperationInvocation Invocation { get; }
@@ -29,7 +31,9 @@ public sealed class ProtectedOperationDecision
     public OperationReadWitness? ReadWitness { get; }
     public InvitationEntryScopeWitness? InvitationWitness { get; }
     public ConsentSubjectScopeWitness? ConsentWitness { get; }
-    public bool IsActive => Invocation.IsActive && (InvitationWitness?.IsActive ?? true) && (ConsentWitness?.IsActive ?? true);
+    public OwnDataRequestScopeWitness? DataRequestWitness { get; }
+    public bool IsActive => Invocation.IsActive && (InvitationWitness?.IsActive ?? true) && (ConsentWitness?.IsActive ?? true)
+        && (DataRequestWitness?.IsActive ?? true);
     public override string ToString() => nameof(ProtectedOperationDecision);
 
 #pragma warning disable CA1034 // Only the enumerated Identity evaluator derives the decision source.
@@ -39,14 +43,15 @@ public sealed class ProtectedOperationDecision
         protected static ProtectedOperationDecision ForDecision(OperationInvocation invocation, AuthorizationCandidate candidate,
             ProtectedOperationOutcome outcome, IEnumerable<Guid>? membershipIds = null, IEnumerable<Guid>? roleIds = null,
             OperationPolicyClause? matchedClause = null, InvitationEntryScopeWitness? invitationWitness = null,
-            ConsentSubjectScopeWitness? consentWitness = null)
+            ConsentSubjectScopeWitness? consentWitness = null, OwnDataRequestScopeWitness? dataRequestWitness = null)
         {
             ArgumentNullException.ThrowIfNull(invocation);
             ArgumentNullException.ThrowIfNull(candidate);
             if (!Enum.IsDefined(outcome) || !ReferenceEquals(invocation.Candidate, candidate)
                 || invocation.Policy.Kind is not (OperationPolicyKind.AccountRead or OperationPolicyKind.Protected
                     or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry
-                    or OperationPolicyKind.OwnFieldConsentGrant or OperationPolicyKind.OwnConsentEntry))
+                    or OperationPolicyKind.OwnFieldConsentGrant or OperationPolicyKind.OwnConsentEntry
+                    or OperationPolicyKind.OwnDataRequest or OperationPolicyKind.OwnDataRequestEntry))
                 throw new ArgumentException("Protected operation decision provenance is invalid.");
             var members = Snapshot(membershipIds, 2);
             var roles = Snapshot(roleIds, 8);
@@ -60,8 +65,14 @@ public sealed class ProtectedOperationDecision
                     && (consentWitness is not { IsActive: true } || !ReferenceEquals(consentWitness.Invocation, invocation))
                 : consentWitness is not null)
                 throw new InvalidOperationException("Consent operation requires its exact subject witness.");
+            if (invocation.Policy.Kind == OperationPolicyKind.OwnDataRequestEntry
+                ? !members.IsEmpty || !roles.IsEmpty || outcome == ProtectedOperationOutcome.Allowed
+                    && (dataRequestWitness is not { IsActive: true } || !ReferenceEquals(dataRequestWitness.Invocation, invocation))
+                : dataRequestWitness is not null)
+                throw new InvalidOperationException("Own data request entry requires its exact subject witness.");
             if (outcome == ProtectedOperationOutcome.Allowed && (!invocation.IsActive || !candidate.IsActive
-                || invocation.Policy.Kind is not (OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry) && members.IsEmpty))
+                || invocation.Policy.Kind is not (OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry
+                    or OperationPolicyKind.OwnDataRequestEntry) && members.IsEmpty))
                 throw new InvalidOperationException("Protected operation admission has no active membership witness.");
             if (outcome == ProtectedOperationOutcome.Allowed && invocation.Policy.Kind == OperationPolicyKind.Protected)
             {
@@ -73,7 +84,7 @@ public sealed class ProtectedOperationDecision
                 throw new ArgumentException("Protected operation clause is incompatible with its outcome.");
             var read = matchedClause?.ReadScope == OperationReadScope.Tenant
                 ? ForTenantRead(invocation, candidate, matchedClause) : null;
-            return new(invocation, outcome, members, roles, matchedClause, read, invitationWitness, consentWitness);
+            return new(invocation, outcome, members, roles, matchedClause, read, invitationWitness, consentWitness, dataRequestWitness);
         }
 
         private static ImmutableArray<Guid> Snapshot(IEnumerable<Guid>? values, int maximum)

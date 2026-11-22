@@ -3,7 +3,11 @@ using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Permissions;
 
-public enum OperationPolicyKind { PublicRead = 1, AccountRead = 2, Protected = 3, FiniteTrusted = 4, NativeSessionAdmission = 5, OwnMembershipRead = 6, InvitationEntry = 7, OwnFieldConsentGrant = 8, OwnConsentEntry = 9 }
+public enum OperationPolicyKind
+{
+    PublicRead = 1, AccountRead = 2, Protected = 3, FiniteTrusted = 4, NativeSessionAdmission = 5, OwnMembershipRead = 6, InvitationEntry = 7, OwnFieldConsentGrant = 8, OwnConsentEntry = 9,
+    OwnDataRequest = 10, OwnDataRequestEntry = 11
+}
 public enum OperationReadScope { Scoped = 0, Tenant = 1 }
 
 /// <summary>Definition composition is separate from stored grants and operation admission.</summary>
@@ -110,6 +114,20 @@ public sealed class OperationPolicy
 
     public static OperationPolicy ForOwnConsentEntry<TRequest>(string id) =>
         new(typeof(TRequest), id, OperationPolicyKind.OwnConsentEntry, null, OperationReadScope.Scoped, [], false);
+
+    /// <summary>
+    /// The subject's own data request through a live session: an Active Membership of the actor in exactly the
+    /// announced group (ADR-0106 § 4). It carries no assignable key and grants no administration authority.
+    /// </summary>
+    public static OperationPolicy ForOwnDataRequest<TRequest>(string id) =>
+        new(typeof(TRequest), id, OperationPolicyKind.OwnDataRequest, null, OperationReadScope.Scoped, [], false);
+
+    /// <summary>
+    /// The retained own scope of ADR-0106 § 9: admitted only by the subject's own data-request scope witness, so it
+    /// also serves a Suspended person and a person whose Membership is gone. It carries no assignable key.
+    /// </summary>
+    public static OperationPolicy ForOwnDataRequestEntry<TRequest>(string id) =>
+        new(typeof(TRequest), id, OperationPolicyKind.OwnDataRequestEntry, null, OperationReadScope.Scoped, [], false);
 
     public static OperationPolicy ForProtected<TRequest>(string id, PermissionDefinition permission,
         OperationReadScope readScope = OperationReadScope.Scoped, bool requiresOrglessWrite = false, bool requiresOrganization = false) =>

@@ -160,6 +160,7 @@
     "LearnStack.Tests.Integration.Database.OutboxDispatcherRoleGuardTests",
     "LearnStack.Tests.Integration.Database.OutboxProcessorTests",
     "LearnStack.Tests.Integration.Database.OutboxProducerTests",
+    "LearnStack.Tests.Integration.Database.OwnDataRequestScopeTests",
     "LearnStack.Tests.Integration.Database.P02d2FoundationTests",
     "LearnStack.Tests.Integration.Database.PlatformAdminScopeTests",
     "LearnStack.Tests.Integration.Database.PlatformOperatorOnboardingTests",

@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**393 test methods run in
+**397 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,8 +217,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**293 rules in this catalogue are Implemented, and 175 of them are in that assembly.**
-The other 118 are no less binding, and most could not live there. The table says where
+**294 rules in this catalogue are Implemented, and 175 of them are in that assembly.**
+The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -7973,3 +7973,37 @@ sign-in read). The
   [FederationHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/FederationHttpTests.cs),
   [IdentitySelfEntryHttpTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/IdentitySelfEntryHttpTests.cs).
 - **Phase:** 03 (P03-8 Step 4, review round 2).
+
+## P03-10 data request controls
+
+**Derives from:** [ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md)
+and [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md). Canonical
+names for the package's obligations are assigned with the step that introduces them.
+
+#### `Own_Data_Request_Scope_Is_Host_And_Subject_Confined`
+
+- **Asserts:** `fn_identity_own_data_request_scopes` returns only the verified actor's
+  scope groups in the host's tenant (on an organization host, only that organization's
+  group), from Memberships of any status and from requests, and nothing of another
+  person, tenant or branch; it refuses every state and argument outside its two closed
+  modes, executes for `learnstack_app` alone, and has one caller, the confined lookup on
+  its own read-only owner. Its two owner arms admit only the function's own entry state
+  and stay shut to every session and every other role. The `OwnDataRequestEntry` kind is
+  admitted only by a live `OwnDataRequestScopeWitness` under the
+  `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter consumes
+  on a fresh owner announcing exactly the witness's group; the `OwnDataRequest` kind
+  requires the actor's Active Membership in exactly the announced group. Until the
+  native retained-entry operations land with their endpoints, no production type mints
+  the witness, builds the context, observes the groups or registers either kind.
+- **Source:** [ADR-0106 § 4 and § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
+  [Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope),
+  [Security § The out-of-band setters](11-security.md#the-out-of-band-setters).
+- **Type:** real app-role PostgreSQL behaviour, refusals, ACL and policy oracle with a
+  dirty probe of the arms; compiled minter, binder, owner and caller censuses with planted
+  minters and binders; coordinator and evaluator behaviour for both kinds. **Kind:** both.
+- **Status:** **Implemented** (`OwnDataRequestScopeTests`); companion owners below.
+- **Test owners:**
+  [OwnDataRequestScopeTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/OwnDataRequestScopeTests.cs),
+  [OwnDataRequestScopeConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/OwnDataRequestScopeConventionTests.cs),
+  [OwnDataRequestPolicyTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/OwnDataRequestPolicyTests.cs).
+- **Phase:** 03 (P03-10, retained own scope).

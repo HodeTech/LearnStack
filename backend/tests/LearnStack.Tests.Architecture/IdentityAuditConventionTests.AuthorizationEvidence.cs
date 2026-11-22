@@ -386,7 +386,8 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, callerIndex, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
         EvidenceCallers(census, errors, callerIndex, PolicyOwner, "get_CurrentDecision",
             [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1),
-             (PolicyOwner, "get_CurrentInvitationWitness", 1), (PolicyOwner, "get_CurrentConsentWitness", 1)]);
+             (PolicyOwner, "get_CurrentInvitationWitness", 1), (PolicyOwner, "get_CurrentConsentWitness", 1),
+             (PolicyOwner, "get_CurrentDataRequestWitness", 1)]);
         EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
             [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1),
                 (InvitationAuthorization, "RecheckAsync", 1), (FederationAuthorization, "RecheckAsync", 1), (InvitationPolicyAuthorization, "OwnAsync", 1), (CustomFieldAdmission, "RecheckAsync", 1),

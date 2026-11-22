@@ -407,9 +407,11 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(38, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver, the identity authority key guard, "
-            + "and the four data-request guards, their chunk completeness check and three canonical parent-scope checks");
-        functions.Count(function => function.Definer).Should().Be(16);
+        functions.Should().HaveCount(39, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver, the identity authority key guard, "
+            + "the four data-request guards, their chunk completeness check, three canonical parent-scope checks and the retained own data-request scope definer");
+        functions.Count(function => function.Definer).Should().Be(17);
+        functions.Single(function => function.Name == "fn_identity_own_data_request_scopes").Signature
+            .Should().Be("public.fn_identity_own_data_request_scopes(uuid,uuid,uuid,text,uuid,uuid,integer)");
         functions.Single(function => function.Name == "fn_tenancy_own_field_consent_scope").Signature
             .Should().Be("public.fn_tenancy_own_field_consent_scope(uuid,uuid,uuid,text,uuid,uuid,integer)",
                 nameof(MembershipFieldConsentStorageTests.Definer_scope_is_subject_and_host_capped_with_a_closed_bounded_interface));
@@ -424,6 +426,7 @@ public sealed partial class GlobalIdentitySchemaTests
                 ? ProviderForbiddenFunctionBody()
                 : function.Name.StartsWith("fn_invitation_", StringComparison.Ordinal) ? EntryForbiddenFunctionBody()
                 : function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry" or "fn_tenancy_own_field_consent_scope"
+                    or "fn_identity_own_data_request_scopes"
                 ? EntryForbiddenFunctionBody()
                 : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
             forbidden.IsMatch(function.Body).Should().BeFalse(

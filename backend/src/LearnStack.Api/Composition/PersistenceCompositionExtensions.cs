@@ -423,6 +423,8 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IOwnMembershipFieldConsentHistory, OwnMembershipFieldConsentHistory>();
         services.TryAddScoped<IOwnFieldConsentReceiptReader, OwnFieldConsentReceiptReader>();
         services.TryAddScoped<IConsentSubjectScopeLookup, ConsentSubjectScopeLookup>();
+        services.TryAddScoped<LearnStack.Modules.Identity.Application.Contracts.DataRequests.IOwnDataRequestScopeLookup,
+            LearnStack.Modules.Identity.Infrastructure.Persistence.OwnDataRequestScopeLookup>();
         services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IPublicEducationReadStore, PublicEducationReadStore>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.PublicReads.PublicEducationDisplay>();

@@ -29,7 +29,8 @@ public static class IdentityAuthorizationRegistration
         services.TryAddScoped<IProtectedOperationAuthorizer>(provider => new IdentityOperationAuthorizer(
             () => provider.GetRequiredService<IIdentityAuthorizationReader>(), provider.GetRequiredService<IOperationPolicyCatalog>(),
             provider.GetServices<LearnStack.SharedKernel.Identity.IInvitationEntryScopeSource>(),
-            provider.GetServices<LearnStack.SharedKernel.Identity.IConsentSubjectScopeSource>()));
+            provider.GetServices<LearnStack.SharedKernel.Identity.IConsentSubjectScopeSource>(),
+            provider.GetServices<LearnStack.SharedKernel.Identity.IOwnDataRequestScopeSource>()));
         services.TryAddScoped<MembershipAdministrationAuthorization>();
         services.TryAddScoped<IdentityReceiptAuthorization>();
         services.TryAddScoped<IdentityAdministrationReadAuthorization>();

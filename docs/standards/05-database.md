@@ -5711,7 +5711,10 @@ writers; qualification remains source-bound in the phase Status. SMTP adds no te
 setter. The [federation host-alias read](#federation-host-alias-read) is the fourteenth
 logical setter; it adds no definer and no physical context writer. The
 [operator subject resolution](#operator-subject-resolution) is the sixteenth definer; it
-adds no logical tenant setter. The operator act executor that installs an operator act's
+adds no logical tenant setter. The
+[retained own data-request scope](#retained-own-data-request-scope) is the seventeenth
+definer and the fifteenth logical tenant setter, implemented by the same four physical
+writers. The operator act executor that installs an operator act's
 resolved context is a fifth logical writer of the context accessor, beside the four of
 [ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) (the Hub
 correlation writer is the one not yet built); the earlier counts in this section
@@ -6602,3 +6605,94 @@ Real PostgreSQL as each role:
   retryable outage.
 - `PlatformOperatorHttpTests` and `PlatformAdminGateTests`: the routes, their
   statuses and contract, and the pair of permissions, each held alone.
+
+## Retained own data-request scope
+
+**Derives from:**
+[ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
+[ADR-0107 § 8](../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0095 Amendment 5](../decisions/0095-revision-pinned-membership-custom-fields.md).
+A person reads and files data requests after their Membership is gone, and a Suspended
+person does so at all, through the consent subject's model. This section owns the one
+definer, its two owner arms and the setter that consumes its result; the
+[phase Status](../roadmap/phase-03-identity-admin.md) owns the native operations that call
+it and their qualification.
+
+### The function
+
+`public.fn_identity_own_data_request_scopes(p_actor uuid, p_host_tenant uuid,
+p_host_organization uuid, p_mode text, p_organization uuid, p_after_organization uuid,
+p_limit integer)` → rows of `(tenant_id uuid, organization_id uuid)`.
+
+- **Answer.** The scope groups in the host's tenant in which the actor holds a Membership
+  of any status, a Revoked tombstone included, or has any data request; on an
+  organization host only that organization's group, never the tenant-wide group or a
+  sibling branch. Distinct, at most twenty, ordered by organization with the tenant-wide
+  group first under the nil key. No Membership, request, status, profile or provider
+  data, and no write.
+- **Modes.** `list` requires a NULL `p_organization`; its optional
+  `p_after_organization` is the last key of the previous page, the nil UUID standing for
+  the tenant-wide group. `select` proves one exact group (`p_organization` NULL for the
+  tenant-wide group), takes no cursor and a limit of exactly one.
+- **Refusals,** all `23514`: a session user other than `learnstack_app`; any announced
+  `app.tenant_id`, `app.organization_id`, `app.scope`, `app.identity_authority_id` or
+  `app.identity_subject_key`; a transaction that is not READ ONLY and READ COMMITTED; a
+  NULL, nil or SystemActor actor; a NULL, nil or sentinel host tenant; a nil host or
+  selected organization; any mode, limit or argument combination outside the two modes.
+- **Confinement.** `LANGUAGE plpgsql VOLATILE SECURITY DEFINER`, owned by the NOBYPASSRLS
+  `learnstack_migration`, fixed `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC`,
+  `EXECUTE` to `learnstack_app` only. The actor is not authenticated by SQL: as for the
+  consent definer, only normalized verified binding state supplies `p_actor`, and the
+  caller census confines the one caller, `OwnDataRequestScopeLookup`, which runs it on a
+  physically READ ONLY owner in a child scope and closes that owner before any
+  observation escapes.
+
+### The two owner arms
+
+`memberships_isolation` and `data_subject_requests_isolation` each gain one USING arm,
+beside their unchanged application arm and unchanged WITH CHECK; the Membership policy
+keeps its provider-ingress and self-discovery arms. Both arms are written identically:
+
+```sql
+current_user='learnstack_migration' AND session_user='learnstack_app'
+AND NULLIF(current_setting('app.tenant_id',true),'') IS NULL
+AND NULLIF(current_setting('app.organization_id',true),'') IS NULL
+AND NULLIF(current_setting('app.scope',true),'') IS NULL
+AND NULLIF(current_setting('app.identity_authority_id',true),'') IS NULL
+AND NULLIF(current_setting('app.identity_subject_key',true),'') IS NULL
+AND current_setting('transaction_read_only')='on'
+```
+
+An arm admits exactly the state the function requires on entry, and only to code that
+runs as the owner, that is, to a definer body. It is state-bound, not caller-bound: a
+policy cannot see which function is running. No other definer reads either table in that
+state: the self-discovery and creation definers require an identity announcement, the
+Membership guards run inside a tenant's write, the provider definers run for their own
+login role, the consent definer reads only its own table, and no other definer body names
+`data_subject_requests`. The definer census pins every body, so a new definer that would
+read through these arms is a reviewed change. The arms are read-only by their own
+predicate; the artifact, ticket and chunk tables gain none.
+
+### The setter
+
+`OwnDataRequestScope` is the fifteenth logical tenant setter
+([Security § The out-of-band setters](11-security.md#the-out-of-band-setters)). It
+consumes a single-use immutable operation/actor/subject/real-host/group/mode witness
+(`OwnDataRequestScopeWitness`) on a fresh physical owner: `list` and `read` are physical
+READ ONLY, `create`, `cancel`, `ticket` and `chunk` ordinary READ WRITE. It announces
+exactly the witness's group through the one witness-aware core, never joins or
+retargets an owner, and supplies no Membership, ordinary native session or tenant-wide
+`app.scope`. Its context origin, `HostAndOwnDataRequestScope`, reaches only operations
+of the `OwnDataRequestEntry` policy kind.
+
+### Proof
+
+Real PostgreSQL as `learnstack_app` and as each other role, in `OwnDataRequestScopeTests`:
+the subject's exact groups on a tenant and an organization host, paging and selection,
+two tenants and two organizations, Suspended and Revoked Memberships and a
+request-only group retained, every refused state and argument, the function's ACL and
+owner, the two arms shut to a session and to every other role, a dirty probe that states
+exactly what the arms admit, the request policy against an independent canonicalized
+oracle, the confined lookup, and the setter's captured owner. The Membership policy
+oracle is in `GlobalIdentitySchemaTests`, and the census counts are there too
+(thirty-nine functions, seventeen definers); the head pin is in `MigrationRollbackTests`.

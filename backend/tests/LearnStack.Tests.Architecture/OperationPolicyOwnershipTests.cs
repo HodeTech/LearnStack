@@ -300,7 +300,7 @@ public sealed partial class OperationPolicyOwnershipTests
         Exact(Decision, ".ctor", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Witness, ".ctor", [(Witness + "/MintingSource", "ForTenantRead", 1)]);
         Exact(Invocation + "/MintingSource", "ForInvocation", [(Coordinator, "ExecuteAsync", 1)]);
-        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 10),
+        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 12),
             (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1),

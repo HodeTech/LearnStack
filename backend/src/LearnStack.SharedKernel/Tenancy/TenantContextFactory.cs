@@ -172,6 +172,26 @@ public static class TenantContextFactory
     }
 
     /// <summary>
+    /// Pure scope reconciliation for the retained own data-request scope (ADR-0106 § 9). Only the separate
+    /// verified-subject witness supplies authority; this factory enforces the independently known host ceiling:
+    /// a selected group lies in the host tenant and, on an organization host, is exactly that organization's group.
+    /// Without a selection (the list purpose) the context is the host's own scope.
+    /// </summary>
+    public static Result<TenantContext> CreateForOwnDataRequestScope(TenantId hostTenant, OrganizationId? hostOrganization,
+        UserId actor, LearnStack.SharedKernel.DataProtection.DataRequestScopeGroup? selected, string? correlationId)
+    {
+        if (!StronglyTypedId.IsAssigned(hostTenant) || hostTenant == TenantId.PlatformSentinel
+            || !StronglyTypedId.IsAssigned(actor) || actor == UserId.SystemActor
+            || !StronglyTypedId.IsAssignedWhenPresent(hostOrganization)
+            || selected is not null && (selected.TenantId != hostTenant
+                || !StronglyTypedId.IsAssignedWhenPresent(selected.OrganizationId)
+                || hostOrganization is { } branch && selected.OrganizationId != branch))
+            return Result.Fail<TenantContext>(Refused);
+        return Result.Ok(new TenantContext(hostTenant, selected is null ? hostOrganization : selected.OrganizationId, actor,
+            TenantContextOrigin.HostAndOwnDataRequestScope, correlationId, new HostScope(hostTenant, hostOrganization)));
+    }
+
+    /// <summary>
     /// Which signals carried this context — the authority ceiling, decided once.
     /// </summary>
     private static TenantContextOrigin OriginFor(TenantResolutionAttempt attempt)

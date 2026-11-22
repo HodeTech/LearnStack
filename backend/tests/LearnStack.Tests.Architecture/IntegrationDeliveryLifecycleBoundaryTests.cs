@@ -27,6 +27,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleInvitationWitness = "LearnStack.SharedKernel.Identity.InvitationEntryScopeWitness";
     private const string LifecycleConsentWitness = "LearnStack.SharedKernel.Identity.ConsentSubjectScopeWitness";
     private const string LifecycleConsentLookup = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.ConsentSubjectScopeLookup";
+    private const string LifecycleDataRequestWitness = "LearnStack.SharedKernel.Identity.OwnDataRequestScopeWitness";
+    private const string LifecycleDataRequestLookup = "LearnStack.Modules.Identity.Infrastructure.Persistence.OwnDataRequestScopeLookup";
     private const string LifecycleInvitationLookup = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEntryLookup";
     private const string LifecycleReadWitness = "LearnStack.SharedKernel.Permissions.OperationReadWitness";
     private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
@@ -254,7 +256,7 @@ public sealed partial class OutboxDispatchConventionTests
             var readAnnouncements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target
                     && IntegrationLifecycleCapability(target, types) is "unit.announce-wide" or "owned-unit.announce").ToArray();
-            readAnnouncements.Should().HaveCount(5, "the common owner, two fixed public overloads and both entry owners use their exact announcement paths");
+            readAnnouncements.Should().HaveCount(6, "the common owner, two fixed public overloads and the three entry owners use their exact announcement paths");
             foreach (var announcement in readAnnouncements)
             {
                 AssertMutation(census, "a missing actual operation read announcement path", () =>
@@ -270,10 +272,10 @@ public sealed partial class OutboxDispatchConventionTests
                         .Where(pair => pair.instruction.Operand is MethodReference target
                             && target.DeclaringType.FullName == LifecycleAdapter && target.Name == "SetTenantContextCoreAsync"
                             && pair.index >= 3)
-                        .SelectMany(pair => new[] { instructions[pair.index - (item.Owner.Name == "BeginConsentSubjectTransactionAsync" ? 3 : 2)],
-                            instructions[pair.index - 1] });
+                        .SelectMany(pair => CoreWitnessArguments(instructions, pair.index) is { } slots
+                            ? slots.Select(slot => instructions[slot]) : []);
                 }).ToArray();
-            coreForwardingArguments.Should().HaveCount(8, "each of four exact callers supplies both closed entry witness arguments");
+            coreForwardingArguments.Should().HaveCount(15, "each of five exact callers supplies its three closed entry witness arguments");
             foreach (var argument in coreForwardingArguments)
                 AssertMutation(census, "an altered entry witness forwarded to the tenant core", () =>
                     ReplaceInstruction(argument, argument.OpCode == OpCodes.Ldnull ? OpCodes.Ldc_I4_0 : OpCodes.Ldnull, null!),
@@ -369,7 +371,8 @@ public sealed partial class OutboxDispatchConventionTests
         var core = adapter.Methods.Where(method => method.Name == "SetTenantContextCoreAsync").ToArray();
         if (core.Length != 1 || !core[0].IsPrivate || core[0].IsStatic || core[0].HasGenericParameters
             || core[0].ReturnType.FullName != LifecycleTask || !ParametersMatch(core[0],
-                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness]))
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness,
+                    LifecycleDataRequestWitness]))
             offenders.Add("The ordinary tenant setter retains one private witness-aware core");
         // The two ordinary setters may not manufacture either entry witness. Each
         // entry owner forwards only its own captured witness to the private core.
@@ -382,20 +385,20 @@ public sealed partial class OutboxDispatchConventionTests
                     || target.Name != "SetTenantContextCoreAsync") continue;
                 var invitationOwner = item.Owner.Name == "BeginInvitationEntryTransactionAsync";
                 var consentOwner = item.Owner.Name == "BeginConsentSubjectTransactionAsync";
-                // Loading an async captured field also loads the state-machine receiver;
-                // the consent field is last, so its receiver separates the two arguments.
-                var invitationIndex = index - (consentOwner ? 3 : 2);
-                if (invitationIndex < 0) { offenders.Add("Tenant context core witness arguments are missing"); continue; }
-                var invitation = instructions[invitationIndex];
-                var consent = instructions[index - 1];
+                var dataRequestOwner = item.Owner.Name == "BeginOwnDataRequestTransactionAsync";
+                // Loading an async captured field also loads the state-machine receiver, so each
+                // captured witness argument is two instructions and each absent one is one.
+                if (CoreWitnessArguments(instructions, index) is not { } slots)
+                { offenders.Add("Tenant context core witness arguments are missing"); continue; }
                 bool CapturedWitness(int position, string type) => position > 0
                     && instructions[position - 1].OpCode == OpCodes.Ldarg_0
                     && instructions[position].OpCode == OpCodes.Ldfld
                     && instructions[position].Operand is FieldReference field && field.Name == "witness"
                     && field.FieldType.FullName == type && field.DeclaringType.FullName == item.Body.DeclaringType.FullName
                     && item.Owner.Parameters.Count(parameter => parameter.Name == "witness" && parameter.ParameterType.FullName == type) == 1;
-                if (!(invitationOwner ? CapturedWitness(invitationIndex, LifecycleInvitationWitness) : invitation.OpCode == OpCodes.Ldnull)
-                    || !(consentOwner ? CapturedWitness(index - 1, LifecycleConsentWitness) : consent.OpCode == OpCodes.Ldnull))
+                if (!(invitationOwner ? CapturedWitness(slots[0], LifecycleInvitationWitness) : instructions[slots[0]].OpCode == OpCodes.Ldnull)
+                    || !(consentOwner ? CapturedWitness(slots[1], LifecycleConsentWitness) : instructions[slots[1]].OpCode == OpCodes.Ldnull)
+                    || !(dataRequestOwner ? CapturedWitness(slots[2], LifecycleDataRequestWitness) : instructions[slots[2]].OpCode == OpCodes.Ldnull))
                     offenders.Add("Tenant context core must receive only the exact entry owner's witness: " + MethodId(item.Owner));
             }
         }
@@ -501,7 +504,8 @@ public sealed partial class OutboxDispatchConventionTests
             ["unit.begin-mode"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation]),
                 Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync"),
-                Owner("LearnStack.Modules.Tenancy.Infrastructure", LifecycleConsentLookup, "LookupAsync")],
+                Owner("LearnStack.Modules.Tenancy.Infrastructure", LifecycleConsentLookup, "LookupAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleDataRequestLookup, "LookupAsync")],
             ["unit.commit"] = [Owner(InfrastructureAssembly, LifecycleFrame, "CompleteAsync")],
             ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
@@ -512,7 +516,8 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, LifecycleAdapter, "SetTenantContextAsync",
                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation]),
                 Owner(InfrastructureAssembly, LifecycleAdapter, "BeginInvitationEntryTransactionAsync"),
-                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginConsentSubjectTransactionAsync")],
+                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginConsentSubjectTransactionAsync"),
+                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginOwnDataRequestTransactionAsync")],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
                 Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync"),
@@ -520,6 +525,7 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ReadScopesAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", LifecycleConsentLookup, "LookupAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleDataRequestLookup, "LookupAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader", "ReadAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
@@ -617,13 +623,32 @@ public sealed partial class OutboxDispatchConventionTests
         }
     }
 
+    /// <summary>
+    /// The instruction index of each of the core's three trailing entry-witness arguments — invitation, consent,
+    /// own data request, in declaration order — read backwards from the call. An absent witness is one
+    /// <c>ldnull</c>; a captured one is the state-machine receiver and its field load, so it spans two.
+    /// </summary>
+    private static int[]? CoreWitnessArguments(Instruction[] instructions, int call)
+    {
+        var slots = new int[3];
+        var position = call - 1;
+        for (var slot = slots.Length - 1; slot >= 0; slot--)
+        {
+            if (position < 0) return null;
+            slots[slot] = position;
+            position -= instructions[position].OpCode == OpCodes.Ldfld ? 2 : 1;
+        }
+        return slots;
+    }
+
     private static string? IntegrationLifecycleCapability(MethodReference target,
         Dictionary<(string Assembly, string Type), TypeDefinition> types)
     {
         var name = target.Name[(target.Name.LastIndexOf('.') + 1)..];
         var cancellation = ParametersMatch(target, [BoundaryCancellation]);
         if (target.DeclaringType.FullName == LifecycleAdapter && name == "SetTenantContextCoreAsync")
-            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness])
+            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness, LifecycleConsentWitness,
+                    LifecycleDataRequestWitness])
                 && target.ReturnType.FullName == LifecycleTask ? "owned-unit.announce" : "invalid-owned-unit-announce";
         if (types.TryGetValue((InfrastructureAssembly, LifecycleFrame), out var frame)
             && SameType(target.DeclaringType, frame) && name == "FailOwnedAsync")

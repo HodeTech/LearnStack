@@ -92,7 +92,8 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
             if (anonymous.Count != 1 || authorization.Count != 0) return HttpOperationClassification.Refused;
         }
         else if (found.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected
-            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry or OperationPolicyKind.OwnFieldConsentGrant)
+            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry or OperationPolicyKind.OwnFieldConsentGrant
+            or OperationPolicyKind.OwnDataRequest)
         {
             if (anonymous.Count != 0 || authorization.Count != 1
                 || authorization[0].AuthenticationSchemes != TenantAuthenticationRegistration.Scheme

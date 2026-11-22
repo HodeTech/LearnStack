@@ -82,6 +82,13 @@ public sealed partial class TransactionExecutionCoordinator(
                     throw new InvalidOperationException("Consent execution requires its exact fresh owner.");
                 scope = await entry.BeginConsentSubjectTransactionAsync(consent, tenantContext, cancellationToken);
             }
+            else if (authorization?.CurrentDataRequestWitness is { } dataRequest)
+            {
+                if (!openingOwner || dataRequest.Mode != mode || dataRequest.Invocation.Policy.RequestType != operationType
+                    || !ReferenceEquals(dataRequest.Invocation.Operation, operation) || unitOfWork is not IOwnDataRequestUnitOfWork entry)
+                    throw new InvalidOperationException("Own data request execution requires its exact fresh owner.");
+                scope = await entry.BeginOwnDataRequestTransactionAsync(dataRequest, tenantContext, cancellationToken);
+            }
             else scope = await unitOfWork.BeginTransactionAsync(mode, cancellationToken);
         }
         catch
@@ -192,6 +199,11 @@ public sealed partial class TransactionExecutionCoordinator(
             {
                 if (!scope.IsOwner || unitOfWork is not IConsentSubjectUnitOfWork entry || !entry.IsConsentSubjectOwner(consent))
                     throw new InvalidOperationException("Consent execution lost its owner.");
+            }
+            else if (authorization?.CurrentDataRequestWitness is { } dataRequest)
+            {
+                if (!scope.IsOwner || unitOfWork is not IOwnDataRequestUnitOfWork entry || !entry.IsOwnDataRequestOwner(dataRequest))
+                    throw new InvalidOperationException("Own data request execution lost its owner.");
             }
             else if (!tenantContext.IsResolved && provisioning is not null)
             {

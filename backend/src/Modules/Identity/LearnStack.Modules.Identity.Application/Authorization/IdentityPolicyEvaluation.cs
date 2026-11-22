@@ -8,6 +8,9 @@ namespace LearnStack.Modules.Identity.Application.Authorization;
 /// <summary>Pure scoped-pair assessment; only live, separately confined sources mint authority from its result.</summary>
 internal static class IdentityPolicyEvaluation
 {
+    /// <summary>The one operation-id family an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry.</summary>
+    internal const string OwnDataRequestPrefix = "identity.data_request.";
+
     internal static IdentityPolicyAssessment Evaluate(OperationPolicy policy, AuthorizationCandidate candidate,
         IdentityAuthorizationResult facts, IOperationPolicyCatalog catalog)
     {
@@ -23,6 +26,19 @@ internal static class IdentityPolicyEvaluation
         {
             if (policy.RequestType != typeof(GrantOwnMembershipFieldConsentCommand)
                 || policy.Id != "tenancy.membership_field_consent.grant" || candidate.SourceKind != AuthorizationSourceKind.Http)
+                return Refused(ProtectedOperationOutcome.NotCovered);
+            var own = members.Where(member => member.OrganizationId == candidate.OrganizationId).ToArray();
+            return own.Length == 1
+                ? new(ProtectedOperationOutcome.Allowed, [own[0].MembershipId],
+                    [.. own[0].Roles.Select(role => role.RoleId).Distinct()], null)
+                : Refused(ProtectedOperationOutcome.NotCovered);
+        }
+        if (policy.Kind == OperationPolicyKind.OwnDataRequest)
+        {
+            // ADR-0106 § 2 and § 4: the subject's own Active Membership in exactly the announced group, through a live
+            // session. A tenant-wide Membership does not cover an organization's group, nor the reverse, and no grant
+            // or role is consulted: the policy confers no administration authority.
+            if (candidate.SourceKind != AuthorizationSourceKind.Http || !policy.Id.StartsWith(OwnDataRequestPrefix, StringComparison.Ordinal))
                 return Refused(ProtectedOperationOutcome.NotCovered);
             var own = members.Where(member => member.OrganizationId == candidate.OrganizationId).ToArray();
             return own.Length == 1
