@@ -158,12 +158,31 @@ public static class PlatformOperations
         "platform.federation.disable", "federation_disable", PlatformPermissions.FederationAdmin,
         PlatformOperationExecutor.PlatformScope, attemptAuditSlug: "platform.federation.disable_attempt");
 
+    /// <summary>
+    /// Inspect the data requests that await an operator step, overdue scheduled requests, stuck fulfilling requests
+    /// and expired export artifacts not yet purged: read-only in the platform scope on column grants, audited by the
+    /// scope's entry row (ADR-0107 § 8).
+    /// </summary>
+    public static PlatformOperation DataRequestInspect { get; } = new(
+        "platform.data_request.inspect", "data_request_inspect", PlatformPermissions.DataRequestRead,
+        PlatformOperationExecutor.PlatformScope);
+
+    /// <summary>
+    /// Complete an erasure: redact the subject's audit rows, move the request from
+    /// <c>awaiting_privileged_step</c> to <c>completed</c> and write the result row in one platform transaction
+    /// (ADR-0107 § 8, ADR-0108 § 1). The audit slug names the Audit module because the operator result write refuses
+    /// the <c>identity</c> module (ADR-0044 Amendment 17).
+    /// </summary>
+    public static PlatformOperation ErasureComplete { get; } = new(
+        "audit.redaction.apply", "erasure_complete", PlatformPermissions.DataRequestWrite,
+        PlatformOperationExecutor.PlatformScope);
+
     /// <summary>Every registered operation.</summary>
     public static IReadOnlyList<PlatformOperation> All { get; } =
     [
         KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover,
         IdentityAuthorityRebind, DeliveryInspect, DeliveryReplay, DeliveryReset, FederationReport, FederationRemove,
-        FederationDisable,
+        FederationDisable, DataRequestInspect, ErasureComplete,
     ];
 
     /// <summary>Whether <paramref name="operation"/> is one of the registered instances.</summary>

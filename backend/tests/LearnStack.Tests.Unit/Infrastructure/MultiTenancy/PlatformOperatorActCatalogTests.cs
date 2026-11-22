@@ -45,6 +45,8 @@ public sealed class PlatformOperatorActCatalogTests
         PlatformOperations.DeliveryInspect.AuditSlug,
         PlatformOperations.DeliveryReplay.AuditSlug,
         PlatformOperations.DeliveryReset.AuditSlug,
+        PlatformOperations.DataRequestInspect.AuditSlug,
+        PlatformOperations.ErasureComplete.AuditSlug,
     };
 
     [Fact]

@@ -95,6 +95,8 @@ public sealed class PlatformAdminGateTests
     [InlineData("platform.federation.report", "platform.federation.read")]
     [InlineData("platform.federation.remove", "platform.federation.admin")]
     [InlineData("platform.federation.disable", "platform.federation.admin")]
+    [InlineData("platform.data_request.inspect", "platform.data_request.read")]
+    [InlineData("audit.redaction.apply", "platform.data_request.write")]
     public async Task An_Operator_Operation_Is_Admitted_Only_For_Its_Own_Permission(string slug, string permission)
     {
         // ADR-0103 Decision table and ADR-0099 Amendment 10: a read needs the read key and an act needs the write or
