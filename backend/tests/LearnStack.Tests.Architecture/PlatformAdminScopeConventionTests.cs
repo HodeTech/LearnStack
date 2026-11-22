@@ -384,6 +384,18 @@ public sealed partial class PlatformAdminScopeConventionTests
             .Should().BeEquivalentTo(
                 ["LearnStack.SharedKernel/Tenancy/IPlatformAdminScope.cs", ScopeFile, DataRequestOperationsFile],
                 "the erasure owner is the one caller of the scope's redaction; Step 3's closure Finalize joins it deliberately");
+
+        // And the executor behind the scope's redaction is held by the scope alone: its port and its one implementation
+        // are named only where they are declared, by the composition that registers them and by the scope that calls the
+        // port. A module that injected the port would otherwise reach RedactAsync without the scope's handle (the
+        // executor's own run-time checks would still refuse it; this closes the set of files that could try).
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "IAuditRedactor", except: null)
+            .Should().BeEquivalentTo(
+                [AuditRedactionPortFile, AuditRedactionExecutorFile, CompositionFile, ScopeFile],
+                "the redaction port is declared, implemented, registered and called by the scope, and named nowhere else");
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "AuditRedactionExecutor", except: null)
+            .Should().BeEquivalentTo([AuditRedactionExecutorFile, CompositionFile],
+                "the executor is constructed only by the composition root");
     }
 
     [Fact]
@@ -397,12 +409,17 @@ public sealed partial class PlatformAdminScopeConventionTests
             File.WriteAllText(Path.Combine(planted.FullName, "ViaHandle.cs"),
                 "class C { Task R(IPlatformAdminScopeHandle handle, AuditRedactionPlan plan) => handle.RedactAuditAsync(plan); }");
             File.WriteAllText(Path.Combine(planted.FullName, "Commented.cs"),
-                "class D { /* handle.RedactAuditAsync(plan) and IDataRequestOperatorOperations */ }");
+                "class D { /* handle.RedactAuditAsync(plan) and IDataRequestOperatorOperations, IAuditRedactor */ }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaRedactor.cs"), "class E(IAuditRedactor redactor) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaExecutor.cs"),
+                "class F(IEnumerable<IUserReferenceLocator> locators) { object G() => new AuditRedactionExecutor(locators); }");
 
             SourceScan.FilesContaining(planted.FullName, "DataRequestOperatorOperations", except: null)
                 .Should().BeEquivalentTo(["ViaPort.cs", "ViaOwner.cs"]);
             SourceScan.FilesContaining(planted.FullName, "RedactAuditAsync", except: null).Should().BeEquivalentTo(["ViaHandle.cs"],
                 "a call in code is found and a mention in a comment is not");
+            SourceScan.FilesContaining(planted.FullName, "IAuditRedactor", except: null).Should().BeEquivalentTo(["ViaRedactor.cs"]);
+            SourceScan.FilesContaining(planted.FullName, "AuditRedactionExecutor", except: null).Should().BeEquivalentTo(["ViaExecutor.cs"]);
         }
         finally
         {
@@ -412,6 +429,10 @@ public sealed partial class PlatformAdminScopeConventionTests
 
     private const string FederationOperationsFile =
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Federation/FederationBrokerOperations.cs";
+
+    private const string AuditRedactionPortFile = "LearnStack.SharedKernel/Audit/AuditRedaction.cs";
+
+    private const string AuditRedactionExecutorFile = "LearnStack.Infrastructure.Audit/AuditRedactionExecutor.cs";
 
     private const string DataRequestOperationsFile =
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/DataRequestOperatorOperations.cs";

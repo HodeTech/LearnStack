@@ -38,13 +38,16 @@ namespace LearnStack.Infrastructure.Audit;
 /// </para>
 /// <para>
 /// <b>Batches.</b> A batch is a half-open range of the key <c>("timestamp", id)</c>, descending: the next batch's upper
-/// end is this batch's lower end, excluded, so the batches partition the tenant's rows and no row is read twice or
-/// skipped, rows sharing a timestamp included (they are ordered by <c>id</c>, so a boundary may fall inside them). Its
-/// lower end is the first row, newest first, at which the batch holds <see cref="BatchRows"/> rows or the stored size of
-/// its three payload columns reaches <see cref="BatchBytes"/> (<c>pg_column_size</c>, which reads a stored value's
-/// compressed or out-of-line size without detoasting it). A batch therefore holds at most <see cref="BatchRows"/> rows
-/// and less than <see cref="BatchBytes"/> plus one row's payload, and a single row larger than the budget is a batch of
-/// its own.
+/// end is this batch's lower end, excluded, so the batches partition the tenant's rows committed before the act begins
+/// and none of them is read twice or skipped, rows sharing a timestamp included (they are ordered by <c>id</c>, so a
+/// boundary may fall inside them); a row committed while the act runs is read only if its key falls in a batch not yet
+/// read. Its lower end is the first row, newest first, at which the batch holds <see cref="BatchRows"/> rows or the
+/// decompressed size of the three payload columns of its rows in the reach reaches <see cref="BatchBytes"/>: the work of
+/// the selection and the <c>UPDATE</c> is proportional to the decompressed payload they walk, which a highly
+/// compressible value can make tens of times its stored size, and they walk no payload outside the reach. A value stored
+/// uncompressed is sized by <c>pg_column_size</c> without detoasting it; a compressed one is decompressed in memory to
+/// measure it. A batch therefore holds at most <see cref="BatchRows"/> rows and less than <see cref="BatchBytes"/> of
+/// decompressed payload in the reach plus one row's, and a single row larger than the budget is a batch of its own.
 /// </para>
 /// <para>
 /// <b>Redaction (ADR-0108 § 5).</b> On every selected row <c>ip_address</c>, <c>user_agent</c> and <c>actor_email</c>
@@ -61,17 +64,17 @@ namespace LearnStack.Infrastructure.Audit;
 /// <b>Report (ADR-0108 §§ 3, 6).</b> Counts only: the rows selected; the rows changed per column, from the
 /// <c>UPDATE</c>s' own <c>RETURNING</c>; the selected rows that keep the subject as actor
 /// (<c>audit_actor_reference</c>) or as entity (<c>audit_entity_reference</c>); the rows of the reach whose metadata names
-/// the subject, by the Audit participant's predicates, selected or not (<c>audit_metadata_reference</c>, exact, because
-/// the batches read every row of the reach anyway); and, for an administrator's request, the rows outside the group
+/// the subject, by the Audit participant's predicates, selected or not (<c>audit_metadata_reference</c>, exact for the
+/// rows committed before the act begins, because the batches read every such row of the reach anyway); and, for an administrator's request, the rows outside the group
 /// whose actor or entity is the subject or a Membership (<c>unscoped_audit_rows</c>, at least: payloads and metadata
 /// outside the reach are not read).
 /// </para>
 /// <para>
 /// <b>Bounds.</b> Every statement runs under <see cref="StatementTimeout"/>; a statement that does not finish fails
-/// the act, whose transaction the scope then discards. A selection statement's work grows with the rows and the stored
-/// payload bytes of its batch, which both budgets cap, and each <c>UPDATE</c> rewrites at most <see cref="UpdateRows"/>
-/// rows of one batch, so its payload is within the same byte budget; the number of batches, and the act's total time,
-/// grow with the tenant's stored payload. What the budgets do not cap is one row: a payload column holds at most
+/// the act, whose transaction the scope then discards. A selection statement's work grows with the rows and the
+/// decompressed payload bytes of its batch, which both budgets cap, and each <c>UPDATE</c> rewrites at most
+/// <see cref="UpdateRows"/> rows of one batch, so its payload is within the same byte budget; the number of batches, and
+/// the act's total time, grow with the tenant's decompressed payload. What the budgets do not cap is one row: a payload column holds at most
 /// <see cref="AuditJson.MaxBytes"/> (256 KiB) before it is elided, so a row is at most about 768 KiB. The budget was
 /// chosen from measurement so a batch stays far inside the timeout (Audit module performance budget).
 /// </para>
@@ -79,9 +82,8 @@ namespace LearnStack.Infrastructure.Audit;
 public sealed class AuditRedactionExecutor : IAuditRedactor
 {
     /// <summary>
-    /// The wall-clock bound of one statement. Measured with the budgets below, no statement took more than 2 s: about
-    /// 0.45 s at 1.5 million ordinary rows of one tenant (1.5 GB stored) and about 2 s at 150,000 rows of 100 KiB of
-    /// incompressible payload (14 GB stored); each <c>UPDATE</c> took milliseconds. Thirty seconds leaves a degraded
+    /// The wall-clock bound of one statement. Measured with the budgets below, no statement took more than 2 s, on
+    /// ordinary rows, on incompressible and on highly compressible payloads (Audit module performance budget). Thirty seconds leaves a degraded
     /// database room without letting one statement hold the operator's scope open for long (Audit module performance
     /// budget).
     /// </summary>
@@ -91,15 +93,19 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     public const int BatchRows = 100_000;
 
     /// <summary>
-    /// The stored payload bytes (<c>before_state</c>, <c>after_state</c> and <c>changes</c>, as <c>pg_column_size</c>
-    /// reports them) at which a batch ends before <see cref="BatchRows"/>.
+    /// The decompressed payload bytes (<c>before_state</c>, <c>after_state</c> and <c>changes</c>) at which a batch ends
+    /// before <see cref="BatchRows"/>.
     /// </summary>
     /// <remarks>
-    /// 64 MiB, from measurement: the selection read stored payload at about 35–70 MB a second when every row carried
-    /// 100 KiB of incompressible text (a batch of about 650 rows took at most 2 s) and faster on ordinary rows, so a
-    /// batch stays near two seconds, under five on a disk twice as slow, and far inside <see cref="StatementTimeout"/>.
-    /// Without it a batch of <see cref="BatchRows"/> such rows held about 10 GB and its statement ran past the timeout on
-    /// every attempt. A smaller budget only adds batches: at 1.5 million ordinary rows it already draws 24 instead of 16.
+    /// 64 MiB, from measurement. A value stored uncompressed is read at its stored size, and rows of 100 KiB of
+    /// incompressible text were read at about 35–70 MB a second (a batch of about 650 rows took at most 2 s), so a batch
+    /// stays near two seconds, under five on a disk twice as slow, and far inside <see cref="StatementTimeout"/>.
+    /// Compressed payloads were walked at 0.6–5 GB a second decompressed, so their batches take a fraction of a second;
+    /// counted by stored size instead, one batch of 250 KB documents stored as 3 KB held 3.7 GB, which took 1.2 s on the
+    /// measuring host and has no bound on a slower one. An <c>UPDATE</c> rewrote decompressed payload at 17–165 MB a
+    /// second, so a batch whose every row is selected stays within about four seconds. The decompression the boundary
+    /// pays to measure compressed rows is the act's cost of the bound: at 1.5 million ordinary rows it draws 155 batches
+    /// instead of 24 and a whole-tenant act takes about 12.5 s instead of 7.5 s.
     /// </remarks>
     public const long BatchBytes = 64L * 1024 * 1024;
 
@@ -236,19 +242,39 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
 
     private const string JitOnSql = "SET LOCAL jit = on";
 
+    // One payload column's decompressed size: its stored size when it is stored uncompressed, which pg_column_size
+    // reads without detoasting, and the size of the decompressed value when it is compressed. The empty path #> '{}'
+    // hands back the whole document, decompressed by the operator's argument fetch, so pg_column_size measures it in
+    // memory: the decompression the selection pays anyway, without rendering the document as text (measured on 1.5
+    // million rows, 1.9 s against 4.2 s for octet_length(value::text)). NULL is zero.
+    private const string PayloadBytes = """
+        CASE WHEN pg_column_compression($VALUE$) IS NULL THEN COALESCE(pg_column_size($VALUE$), 0)
+             ELSE pg_column_size($VALUE$ #> '{}') END
+        """;
+
     // The next batch's lower bound: newest first below the upper one, the first row at which the batch holds
-    // @batch_rows rows or its stored payload reaches @batch_bytes. The inner query reads the rows in order from
-    // ix_audit_log_tenant_id_timestamp (ties sorted by id incrementally) and sizes each row where it reads it, so the
-    // sort carries a key and a number, never a payload; pg_column_size reads a TOASTed value's stored size from its
-    // pointer, never the value. Its LIMIT is the row cap no batch exceeds, which keeps the inner query a top-N that the
-    // index serves in order. The running sums stream, so the statement stops at the boundary. No row once fewer rows and bytes remain, and
-    // the last batch is open below.
-    private const string BoundarySql = """
+    // @batch_rows rows or the payload of its rows in the reach reaches @batch_bytes. A payload's size is what the
+    // selection and the UPDATE work through, its decompressed size: a value stored uncompressed (inline or out of line)
+    // is sized by pg_column_size, which reads it from the header or the TOAST pointer without detoasting; a compressed one
+    // has no such header, so it is decompressed once to measure it, as the selection then does anyway. A row
+    // outside the reach counts no bytes: the selection reads its key and organization and never its payload, and the
+    // row cap bounds those reads. The inner query reads the
+    // rows in order from ix_audit_log_tenant_id_timestamp (ties sorted by id incrementally) and sizes each row where
+    // it reads it, so the sort carries a key and a number, never a payload. Its LIMIT is the row cap no batch exceeds,
+    // which keeps the inner query a top-N that the index serves in order. The running sums stream, so the statement
+    // stops at the boundary. No row once fewer rows and bytes remain, and the last batch is open below.
+    private static readonly string BoundarySql = Checked(Sql(
+        """
         SELECT b."timestamp", b.id FROM (
             SELECT s."timestamp", s.id, count(*) OVER batch AS n, sum(s.bytes) OVER batch AS bytes
             FROM (
-                SELECT a."timestamp", a.id, COALESCE(pg_column_size(a.before_state), 0)
-                    + COALESCE(pg_column_size(a.after_state), 0) + COALESCE(pg_column_size(a.changes), 0) AS bytes
+                SELECT a."timestamp", a.id,
+                    CASE WHEN @whole_tenant OR (@organization IS NULL AND a.organization_id IS NULL) OR a.organization_id = @organization
+                    THEN
+        """,
+        Format(PayloadBytes, "a.before_state"), "+", Format(PayloadBytes, "a.after_state"), "+", Format(PayloadBytes, "a.changes"),
+        """
+                    ELSE 0 END AS bytes
                 FROM public.audit_log AS a
                 WHERE a.tenant_id = @tenant AND a."timestamp" <= @upper AND (a."timestamp" < @upper OR a.id < @upper_id)
                 ORDER BY a."timestamp" DESC, a.id DESC
@@ -257,15 +283,17 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         WHERE b.n >= @batch_rows OR b.bytes >= @batch_bytes
         ORDER BY b."timestamp" DESC, b.id DESC
         LIMIT 1
-        """;
+        """));
 
     // What a matched row reports, read from the row itself: whether it is selected (its actor, its entity or a declared
     // path names the subject), whether the actor or the entity is the subject, and whether its metadata names the
-    // subject. Every value is the row's own, so a row two branches match is one row of the union.
+    // subject. Every value is the row's own, so a row two branches match is one row of the union. The rewrite that
+    // decides a payload reference runs only where the cheap filter keeps the row, as in the third branch's WHERE: a row
+    // matched for its metadata alone, or by the actor or entity branch, never pays it for nothing.
     private static readonly string Matched = Sql(
         "SELECT a.id, a.\"timestamp\",",
         "CASE WHEN a.actor_user_id = @subject OR a.entity_id = ANY(@identifiers) THEN true",
-        "WHEN", Declarations, "? a.entity_type::text THEN", Holds, "ELSE false END,",
+        "WHEN", Declarations, "? a.entity_type::text AND", MayHold, "THEN", Holds, "ELSE false END,",
         "COALESCE(a.actor_user_id = @subject, false), COALESCE(a.entity_id = ANY(@identifiers), false),",
         NamesSubject,
         "FROM public.audit_log AS a WHERE", Reach, "AND", Batch);
@@ -298,7 +326,8 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     // The redaction of one set of selected rows, by primary key and inside the tenant. Each row is locked and its new
     // payload computed once from the version the lock returns, so a concurrent redaction of the same row is never
     // overwritten; a row changes only where a value differs, and the statement returns which of the six columns it
-    // changed.
+    // changed. A payload column the redaction leaves equal keeps its own stored value, so an unchanged large payload is
+    // not recompressed, rewritten to TOAST and logged again only because the rewrite rebuilt an equal copy.
     private static readonly string RedactSql = Checked(Sql(
         "WITH locked AS MATERIALIZED (",
         "SELECT a.id, a.\"timestamp\",", RedactedBefore, "AS before_state,", RedactedAfter, "AS after_state,", RedactedChanges, "AS changes",
@@ -309,7 +338,9 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         FOR UPDATE OF a)
         UPDATE public.audit_log AS a
         SET ip_address = NULL, user_agent = NULL, actor_email = NULL,
-            before_state = l.before_state, after_state = l.after_state, changes = l.changes
+            before_state = CASE WHEN a.before_state IS DISTINCT FROM l.before_state THEN l.before_state ELSE a.before_state END,
+            after_state = CASE WHEN a.after_state IS DISTINCT FROM l.after_state THEN l.after_state ELSE a.after_state END,
+            changes = CASE WHEN a.changes IS DISTINCT FROM l.changes THEN l.changes ELSE a.changes END
         FROM locked AS l
         WHERE a.id = l.id AND a."timestamp" = l."timestamp"
           AND (a.ip_address IS NOT NULL OR a.user_agent IS NOT NULL OR a.actor_email IS NOT NULL
@@ -320,8 +351,9 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             old.changes IS DISTINCT FROM new.changes
         """));
 
-    // The open ends of the first and the last batch: infinity and -infinity on the wire, which every row's timestamp is
-    // strictly inside, so the id beside them is never compared.
+    // The open ends of the first and the last batch: infinity and -infinity on the wire, so the id beside them is never
+    // compared for a row with a finite timestamp. A row stamped +infinity would be outside the keyset and never read;
+    // no writer produces one (the composer stamps a clock reading), and -infinity is inside the last batch.
     private static readonly Key OpenUpper = new(DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc), Guid.Empty);
     private static readonly Key OpenLower = new(DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc), Guid.Empty);
 

@@ -3825,24 +3825,33 @@ which decides identity, multiplicity, capture and classification;
   of an audited entity or of what it contains fails as an unclassified identifier unless
   it is that entity's or member's own single-column key or is on the census's explicit
   allowance list of non-person identifiers, each entry with its reason (one today, the
-  consent's definition); an allowance no model holds fails as stale. Contained
-  collections are walked by the capture's own containment rule, without the foreign key
-  to the owner, so a member's reference is the path `Navigation/*/Property`; a person
-  reference in a member's own key fails, declared or not, because the key is a JSON
-  object key and a `changes` path segment that no declaration reaches. A declaration
-  must match a reference of the same kind (an `Elements` path names a mapped `jsonb`
-  property instead, because a type census cannot see inside one), a retained reference
-  must be the entity's whole single-column key (never a part of a composite one), and a
-  reference the closed grammar cannot express fails until the grammar grows. A person
-  reference held in a `string` or inside a `jsonb` document other than a declared
-  `Elements` path is invisible to the census.
+  consent's definition); every strongly typed identifier type other than the two person
+  kinds fails the same way unless its type is on a second allowance list (fourteen
+  today: the tenant, organization, role and the other identifiers the models hold, each
+  with its reason); an allowance no model holds fails as stale. Contained collections
+  are walked by the capture's own containment rule, without the foreign key to the
+  owner, so a member's reference is the path `Navigation/*/Property`. A person reference
+  fails, declared or not, where no declaration reaches it: in a member's own key, which
+  is a JSON object key and a `changes` path segment; in a part of an entity's composite
+  key, which the capture joins into `entity_id` and every `changes` path; and in a
+  collection of identifiers (an array or list of `UserId`, `MembershipId` or `Guid`, a
+  `uuid[]` included) unless it is a mapped `jsonb` array an `Elements` declaration
+  covers. A declaration must match a reference of the same kind (an `Elements` path
+  names a mapped `jsonb` property instead, because a type census cannot see inside one),
+  a retained reference must be the entity's whole single-column key (never a part of a
+  composite one), and a reference the closed grammar cannot express fails until the
+  grammar grows. A person reference held in a `string` or inside a `jsonb` document
+  other than a declared `Elements` path is invisible to the census.
 - **Planted violations:** each module's locator removed in turn; a synthetic module
   whose audited entities hold a typed, an untyped, a contained and an unexpressible
-  reference, an unclassified plain `Guid`, a collection keyed by a person and a
-  composite key holding a person, with no locator; the same module with a wrong kind, a
-  stale path, another module's entity and a retained part of the composite key; and a
-  second locator in one module. The allowance list is checked against the real models,
-  so removing its entry fails the census.
+  reference, an unclassified plain `Guid`, a collection keyed by a person, a composite
+  key holding a person, a `uuid[]` and a `jsonb` collection of identifiers and an
+  identifier type no allowance names, with no locator; the same module with a wrong
+  kind, a stale path, another module's entity, the declared person part of the composite
+  key (still refused), the declared `jsonb` collection (accepted) and a retained
+  reference that is not the entity's key; and a second locator in one module. Both
+  allowance lists are checked against the real models, so removing an entry fails the
+  census.
 - **Canary coverage:** `AuditRedactionCanaryTests` generates, for every declaration of
   every registered locator, a row in the capture's shape holding the subject's
   identifier beside another person's at the declared path, runs the executor as

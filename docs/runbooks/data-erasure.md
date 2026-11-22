@@ -198,19 +198,23 @@ never received an answer (a timeout, a gateway error) is in the same position.
 ## How long it takes
 
 The redaction reads the tenant's audit rows in batches of at most 100,000 rows or 64 MiB
-of stored payload, so the act takes time in proportion to the tenant's stored audit
-volume: about ten seconds for 1.5 million ordinary rows (1.5 GB stored), about four
-minutes for a tenant whose rows carry 100 KiB payloads (14 GB stored), and the request
-row stays locked throughout. Each statement stays under a few seconds whatever the
-tenant's size; only the number of batches grows. Use a client with no short timeout. A
-call dropped before the commit (a client or gateway timeout, a closed connection) rolls
-the whole act back, and a retry starts again from the beginning, so a gateway that cuts
-the call off earlier than the act ends can never succeed. Two operators who complete the
-same request at once are serialized on its row: the second waits for the first and then
-answers `already_completed`, unless the first outlasts the platform connection's command
-timeout (30 seconds unless `Command Timeout` is set in
-`ConnectionStrings:PlatformAdmin`), when the second answers `503
-dependency_unavailable`: repeat it after the first finished.
+of payload, measured decompressed and counted only for the rows in the request's reach,
+so the act takes time in proportion to the payload it must read: about twelve seconds
+for 1.5 million ordinary rows (1.5 GB stored), about four seconds for 30,000 rows of
+250 KB that compress well, about four minutes for a tenant whose rows carry 100 KiB of
+incompressible payload (14 GB stored), and the request row stays locked throughout. Each
+statement stays at about two seconds or less whatever the tenant's size; only the number
+of batches grows. The act redacts the rows committed before it begins. Use a client with
+no short timeout. A call dropped before the commit (a client or gateway timeout, a
+closed connection) rolls the whole act back, and a retry starts again from the
+beginning, so a gateway that cuts the call off earlier than the act ends can never
+succeed. Two operators who complete the same request at once are serialized on its row:
+the second waits for the first and then answers `already_completed`, unless the first
+outlasts the platform connection's command timeout (30 seconds unless `Command Timeout`
+is set in `ConnectionStrings:PlatformAdmin`), when the second answers `503
+dependency_unavailable`: repeat it after the first finished. Two requests for the same
+person (one filed by the person, one by an administrator) wait on each other's rows the
+same way, and a deadlock between them answers `503` too: repeat it.
 
 ## Reading the result
 

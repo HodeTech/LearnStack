@@ -32,17 +32,22 @@ namespace LearnStack.Tests.Architecture;
 /// the capture leaves it out, so its members' references are the paths <c>Navigation/*/Property</c>.
 /// </para>
 /// <para>
-/// A reference the grammar cannot express (inside a contained single navigation, one level deeper, or in a contained
-/// member's own key, which the capture writes as a JSON object key and a <c>changes</c> path segment) fails the census
-/// until the grammar grows. An array of identifiers held in a <c>jsonb</c> property is invisible to a type census, so an
-/// <c>Elements</c> declaration is instead checked to name a mapped <c>jsonb</c> property.
+/// A reference the grammar cannot express fails the census, declared or not, until the grammar grows: inside a contained
+/// single navigation or one level deeper; in a contained member's own key, which the capture writes as a JSON object key
+/// and a <c>changes</c> path segment; in a part of an entity's composite key, which the capture joins into
+/// <c>entity_id</c> and every <c>changes</c> path; and in a collection of identifiers (an array or list of
+/// <see cref="UserId"/>, <c>MembershipId</c> or <see cref="Guid"/>, a <c>uuid[]</c> included) unless it is a mapped
+/// <c>jsonb</c> array an <c>Elements</c> declaration covers. An array of identifiers held in a <c>jsonb</c> string is
+/// invisible to a type census, so an <c>Elements</c> declaration is instead checked to name a mapped <c>jsonb</c>
+/// property.
 /// </para>
 /// <para>
 /// <b>No unclassified identifier.</b> A name is a weak signal, so every other plain <see cref="Guid"/> of an audited
 /// entity or of what it contains fails as an unclassified identifier unless it is its entity's or member's own
-/// single-column key or is on <see cref="NotAPerson"/>, the explicit list of identifiers that name no person. A retained
-/// reference must be its entity's whole single-column key: a part of a composite key is not the row's
-/// <c>entity_id</c>.
+/// single-column key or is on <see cref="NotAPerson"/>, the explicit list of identifiers that name no person; every
+/// strongly typed identifier type other than the person kinds fails the same way unless it is on
+/// <see cref="NotAPersonType"/>. A retained reference must be its entity's whole single-column key: a part of a
+/// composite key is not the row's <c>entity_id</c>.
 /// </para>
 /// </remarks>
 public sealed class UserReferenceLocatorCensusTests
@@ -75,9 +80,10 @@ public sealed class UserReferenceLocatorCensusTests
         }
 
         // Planted: a synthetic module whose audited entities hold a typed, an untyped and a contained person reference, a
-        // plain Guid no name classifies, a contained collection keyed by a person and a composite key holding a person,
-        // and that registers no locator; then one that declares them with a wrong kind, a stale path and another module's
-        // entity, and retains the person part of the composite key as if it were the entity's own key.
+        // plain Guid no name classifies, a contained collection keyed by a person, a composite key holding a person, two
+        // collections of identifiers (a uuid[] and a jsonb array) and an identifier type no allowance names, and that
+        // registers no locator; then one that declares them with a wrong kind, a stale path, another module's entity, the
+        // person part of the composite key and the jsonb array, and retains a reference that is not the entity's key.
         var planted = new ModuleModel("Planted", PlantedModel(), [typeof(PlantedAggregate), typeof(PlantedGrant)]);
         var unplanted = Offenders([.. models, planted], locators, catalog);
         unplanted.Should()
@@ -89,7 +95,10 @@ public sealed class UserReferenceLocatorCensusTests
             .And.Contain("Unclassified identifier: PlantedAggregate.ReviewedBy")
             .And.Contain("Unclassified identifier: PlantedGrant.ScopeId")
             .And.Contain("Person reference in a contained member's key, outside the path grammar: PlantedAggregate.Seats/Holder")
-            .And.Contain("Undeclared person reference: PlantedGrant.Holder");
+            .And.Contain("Person reference in an entity's composite key, outside the path grammar: PlantedGrant.Holder")
+            .And.Contain("Identifier collection outside the path grammar: PlantedAggregate.Watchers")
+            .And.Contain("Identifier collection outside the path grammar: PlantedAggregate.Followers")
+            .And.Contain("Unclassified identifier type: PlantedPersonId (PlantedAggregate.Instructor)");
         unplanted.Should().NotContain(offender => offender.Contains(".Members/*/Id", StringComparison.Ordinal)
             || offender.Contains(".Lead/Id", StringComparison.Ordinal) || offender.EndsWith("PlantedAggregate.Id", StringComparison.Ordinal),
             "an entity's or a contained member's own single-column key is its identity, not a reference");
@@ -99,7 +108,13 @@ public sealed class UserReferenceLocatorCensusTests
             .Contain("Wrong kind for PlantedAggregate.Owner: Membership, the model holds User")
             .And.Contain("Stale declaration: PlantedAggregate.Retired")
             .And.Contain("Locator of Planted declares another module's entity: Membership")
-            .And.Contain("Retained reference is not the entity's own key: PlantedGrant.Holder")
+            .And.Contain("Retained reference is not the entity's own key: PlantedAggregate.DelegateMembershipId")
+            .And.Contain("Person reference in an entity's composite key, outside the path grammar: PlantedGrant.Holder",
+                "a declared part of a composite key is still refused: it stays in entity_id and in every changes path")
+            .And.Contain("Identifier collection outside the path grammar: PlantedAggregate.Watchers",
+                "a uuid[] column is no jsonb array a declaration reaches")
+            .And.NotContain("Identifier collection outside the path grammar: PlantedAggregate.Followers",
+                "a jsonb array of identifiers a declaration covers is in the grammar")
             .And.Contain("Person reference in a contained member's key, outside the path grammar: PlantedAggregate.Seats/Holder",
                 "a declared member key is still refused: the key text stays in the JSON object key and the changes path")
             .And.NotContain("Missing user reference locator: Planted");
@@ -137,12 +152,35 @@ public sealed class UserReferenceLocatorCensusTests
     /// The plain <see cref="Guid"/> properties of audited entities that name no person, each with why. Every other plain
     /// <see cref="Guid"/> that is not its entity's (or contained member's) own single-column key is a person reference
     /// until it is declared or listed here, so a <c>ReviewedBy</c> added as a <see cref="Guid"/> fails the census. Read
-    /// from the models: strongly typed identifiers (tenant, organization, role, definitions) are not plain
-    /// <see cref="Guid"/>s and need no entry.
+    /// from the models; strongly typed identifiers are classified by type in <see cref="NotAPersonType"/>.
     /// </summary>
     private static readonly Dictionary<string, string> NotAPerson = new(StringComparer.Ordinal)
     {
         ["MembershipFieldConsent.DefinitionId"] = "the custom field definition the consent is for, a tenant definition",
+    };
+
+    /// <summary>
+    /// The strongly typed identifiers of audited entities that name no person, by type, each with why. Read from the
+    /// models: a type is listed when an audited entity holds it other than as its own key, so a new identifier type an
+    /// entity holds (an <c>InstructorId</c> over a person) fails the census until it is declared a person reference or
+    /// listed here. <see cref="UserId"/> and Identity's <c>MembershipId</c> are person kinds, never listed.
+    /// </summary>
+    private static readonly Dictionary<string, string> NotAPersonType = new(StringComparer.Ordinal)
+    {
+        ["AuditEntryId"] = "an audit row: the User's creation evidence",
+        ["BackgroundJobId"] = "a background job: an invitation's current delivery job",
+        ["CourseId"] = "a course: a lesson's course",
+        ["DataExportArtifactId"] = "an export artifact: a download ticket's artifact",
+        ["DataSubjectRequestId"] = "a data request: an export artifact's request",
+        ["FederationOperationId"] = "a federation connection's pending operation",
+        ["FederationTestAttemptId"] = "a federation connection's test attempt",
+        ["IdentityAuthorityId"] = "an identity authority (issuer) a User or an authority row names",
+        ["InvitationEmailReceiptId"] = "an invitation's delivery receipt",
+        ["InvitationGenerationId"] = "an invitation's generation",
+        ["MembershipFieldConsentId"] = "a consent act: a consent's predecessor",
+        ["OrganizationId"] = "an organization (branch) of the tenant",
+        ["RoleId"] = "a role: an invitation's or an assignment's role",
+        ["TenantId"] = "the tenant",
     };
 
     /// <summary>Every locator the API composition registers, Identity's and the root's own, with its module.</summary>
@@ -248,6 +286,26 @@ public sealed class UserReferenceLocatorCensusTests
             offenders.Add("Missing user reference locator: " + module);
         }
 
+        foreach (var collection in models.SelectMany(model => model.Collections))
+        {
+            var declared = catalog.Redactable.FirstOrDefault(declaration => declaration.EntityType == collection.Entity
+                && declaration.Path.Shape == UserReferenceShape.Elements && declaration.Path.Property == collection.Property);
+            if (!collection.Jsonb || declared is null)
+            {
+                offenders.Add($"Identifier collection outside the path grammar: {collection.Entity.Name}.{collection.Property}");
+            }
+            else if (collection.Kind is { } kind && kind != declared.Kind)
+            {
+                offenders.Add($"Wrong kind for {collection.Entity.Name}.{declared.Path}: {declared.Kind}, the model holds {kind}");
+            }
+        }
+
+        var typed = models.SelectMany(model => model.TypedIdentifiers).ToList();
+        offenders.AddRange(typed.Where(identifier => !NotAPersonType.ContainsKey(identifier.Type.Name))
+            .Select(identifier => $"Unclassified identifier type: {identifier.Type.Name} ({identifier.Path})").Order(StringComparer.Ordinal));
+        offenders.AddRange(NotAPersonType.Keys.Where(name => !typed.Any(identifier => identifier.Type.Name == name))
+            .Order(StringComparer.Ordinal).Select(name => "Stale identifier type allowance: " + name));
+
         var identifiers = models.SelectMany(model => model.Identifiers).ToHashSet(StringComparer.Ordinal);
         offenders.AddRange(identifiers.Where(identifier => !NotAPerson.ContainsKey(identifier)).Order(StringComparer.Ordinal)
             .Select(identifier => "Unclassified identifier: " + identifier));
@@ -271,16 +329,30 @@ public sealed class UserReferenceLocatorCensusTests
                 continue;
             }
 
-            var ownKey = OwnKey(entity.FindPrimaryKey()?.Properties ?? []);
+            var key = entity.FindPrimaryKey()?.Properties ?? [];
+            var ownKey = OwnKey(key);
             foreach (var property in entity.GetProperties())
             {
-                if (KindOf(property) is { } kind)
+                if (CollectionKindOf(property) is { } collection)
                 {
+                    // An array of identifiers is a reference the grammar reaches only as a declared jsonb array (Elements).
+                    model.Collections.Add(new IdentifierCollection(type, property.Name, collection.Kind, IsJsonb(property)));
+                }
+                else if (KindOf(property) is { } kind)
+                {
+                    // A part of a composite key is in entity_id and in every changes path, joined with the other parts,
+                    // where no declaration and no whole-identifier match reaches it.
+                    if (key.Count > 1 && key.Contains(property))
+                    {
+                        offenders.Add($"Person reference in an entity's composite key, outside the path grammar: {type.Name}.{property.Name}");
+                        continue;
+                    }
+
                     yield return new PersonReference(model.Module, type, property.Name, kind, property == ownKey);
                 }
-                else if (IsIdentifier(property) && property != ownKey)
+                else if (property != ownKey)
                 {
-                    model.Identifiers.Add(type.Name + "." + property.Name);
+                    Classify(model, property, type.Name + "." + property.Name);
                 }
             }
 
@@ -301,6 +373,58 @@ public sealed class UserReferenceLocatorCensusTests
     private static bool IsIdentifier(IReadOnlyProperty property) =>
         (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid);
 
+    /// <summary>
+    /// Records a property that is neither a person reference nor its holder's own key when it is an identifier: a plain
+    /// <see cref="Guid"/> by its path, a strongly typed identifier by its type, each to be classified by an allowance.
+    /// </summary>
+    private static void Classify(ModuleModel model, IReadOnlyProperty property, string path)
+    {
+        if (IsIdentifier(property))
+        {
+            model.Identifiers.Add(path);
+        }
+        else if (TypedIdentifierOf(property) is { } type)
+        {
+            model.TypedIdentifiers.Add((type, path));
+        }
+    }
+
+    /// <summary>
+    /// A strongly typed identifier over a <see cref="Guid"/> that no person kind names: any type can hold a person, so
+    /// each is classified by <see cref="NotAPersonType"/>.
+    /// </summary>
+    private static Type? TypedIdentifierOf(IReadOnlyProperty property)
+    {
+        var type = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+        return type != typeof(UserId) && type != typeof(IdentityDomain.MembershipId)
+            && type.GetInterfaces().Contains(typeof(IStronglyTypedId<Guid>)) ? type : null;
+    }
+
+    /// <summary>
+    /// An enumerable of person or plain identifiers (<see cref="UserId"/>, Identity's <c>MembershipId</c>, <see cref="Guid"/>),
+    /// whatever its collection type or column, with the person kind its element type names, if any.
+    /// </summary>
+    private static (UserReferenceKind? Kind, bool Found)? CollectionKindOf(IReadOnlyProperty property)
+    {
+        if (property.ClrType == typeof(string))
+        {
+            return null;
+        }
+
+        var element = (property.ClrType.IsArray ? property.ClrType.GetElementType() : null)
+            ?? property.ClrType.GetInterfaces().Append(property.ClrType)
+                .Where(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                .Select(contract => contract.GetGenericArguments()[0]).FirstOrDefault();
+        element = element is null ? null : Nullable.GetUnderlyingType(element) ?? element;
+        return element == typeof(UserId) ? (UserReferenceKind.User, true)
+            : element == typeof(IdentityDomain.MembershipId) ? (UserReferenceKind.Membership, true)
+            : element == typeof(Guid) ? (null, true)
+            : null;
+    }
+
+    private static bool IsJsonb(IReadOnlyProperty property) =>
+        string.Equals(property.GetColumnType(), "jsonb", StringComparison.OrdinalIgnoreCase);
+
     private static IEnumerable<PersonReference> Contained(ModuleModel model, Type owner, IReadOnlyNavigation navigation, string path,
         int depth, List<string> offenders)
     {
@@ -314,11 +438,17 @@ public sealed class UserReferenceLocatorCensusTests
         var shape = depth == 1 && navigation.IsCollection ? "/*/" : "/";
         foreach (var property in member.GetProperties().Where(property => !navigation.ForeignKey.Properties.Contains(property)))
         {
+            if (CollectionKindOf(property) is not null)
+            {
+                offenders.Add($"Identifier collection outside the path grammar: {owner.Name}.{path}/{property.Name}");
+                continue;
+            }
+
             if (KindOf(property) is not { } kind)
             {
-                if (IsIdentifier(property) && property != ownKey)
+                if (property != ownKey)
                 {
-                    model.Identifiers.Add(owner.Name + "." + path + shape + property.Name);
+                    Classify(model, property, owner.Name + "." + path + shape + property.Name);
                 }
 
                 continue;
@@ -404,11 +534,10 @@ public sealed class UserReferenceLocatorCensusTests
     /// <summary>Whether an <c>Elements</c> declaration names a mapped <c>jsonb</c> string property of its entity.</summary>
     private static bool IsJsonArrayDeclaration(UserReferenceDeclaration declaration, IReadOnlyDictionary<string, ModuleModel> models) =>
         declaration.Path.Shape == UserReferenceShape.Elements
-        && ModuleOf(declaration.EntityType.Assembly) is { } module
-        && models.TryGetValue(module, out var model)
-        && model.Model.FindEntityType(declaration.EntityType)?.FindProperty(declaration.Path.Property) is { } property
-        && property.ClrType == typeof(string)
-        && string.Equals(property.GetColumnType(), "jsonb", StringComparison.OrdinalIgnoreCase);
+        && models.Values.Select(model => model.Model.FindEntityType(declaration.EntityType)).FirstOrDefault(entity => entity is not null)
+            ?.FindProperty(declaration.Path.Property) is { } property
+        && (property.ClrType == typeof(string) || CollectionKindOf(property) is not null)
+        && IsJsonb(property);
 
     private static string? ModuleOf(Assembly assembly)
     {
@@ -429,14 +558,24 @@ public sealed class UserReferenceLocatorCensusTests
     {
         /// <summary>The plain <see cref="Guid"/> paths the census found that no type classifies, filled as it walks.</summary>
         public HashSet<string> Identifiers { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>The strongly typed identifiers the census found, by type and path, filled as it walks.</summary>
+        public HashSet<(Type Type, string Path)> TypedIdentifiers { get; } = [];
+
+        /// <summary>The audited entities' collections of identifiers, filled as the census walks.</summary>
+        public HashSet<IdentifierCollection> Collections { get; } = [];
     }
+
+    /// <summary>A collection of identifiers on an audited entity, with the person kind its element names and its column.</summary>
+    private sealed record IdentifierCollection(Type Entity, string Property, UserReferenceKind? Kind, bool Jsonb);
 
     private sealed record PersonReference(string Module, Type Entity, string Path, UserReferenceKind Kind, bool IsKey);
 }
 
 /// <summary>
 /// A synthetic audited aggregate: a typed, an untyped and a contained person reference, one the grammar cannot reach, a
-/// plain <see cref="Guid"/> no name classifies, and a contained collection keyed by a person.
+/// plain <see cref="Guid"/> no name classifies, a contained collection keyed by a person, a <c>uuid[]</c> and a
+/// <c>jsonb</c> collection of identifiers, and an identifier type no allowance names.
 /// </summary>
 internal sealed class PlantedAggregate
 {
@@ -447,6 +586,15 @@ internal sealed class PlantedAggregate
     public List<PlantedMember> Members { get; } = [];
     public PlantedLead? Lead { get; set; }
     public List<PlantedSeat> Seats { get; } = [];
+    public List<Guid> Watchers { get; set; } = [];
+    public List<UserId> Followers { get; set; } = [];
+    public PlantedPersonId Instructor { get; set; }
+}
+
+/// <summary>A strongly typed identifier over a person that no person kind names.</summary>
+internal readonly record struct PlantedPersonId(Guid Value) : IStronglyTypedId<Guid>
+{
+    public bool IsInitialized() => true;
 }
 
 /// <summary>A contained member keyed by a person: its key is the JSON object key and a changes path segment.</summary>
@@ -479,8 +627,8 @@ internal sealed class PlantedLead
 }
 
 /// <summary>
-/// Declares the planted references wrongly: a wrong kind, a path the model does not hold, another module's entity, and a
-/// retained part of a composite key.
+/// Declares the planted references: wrongly a kind, a path the model does not hold, another module's entity, the person
+/// part of a composite key and a retained reference that is not the entity's key; rightly a jsonb array of identifiers.
 /// </summary>
 internal sealed class PlantedLocator : IUserReferenceLocator
 {
@@ -489,12 +637,14 @@ internal sealed class PlantedLocator : IUserReferenceLocator
         new(typeof(PlantedAggregate), UserReferencePath.Of(nameof(PlantedAggregate.Owner)), UserReferenceKind.Membership),
         new(typeof(PlantedAggregate), UserReferencePath.Of("Retired"), UserReferenceKind.User),
         new(typeof(IdentityDomain.Membership), UserReferencePath.Of("Planted"), UserReferenceKind.User),
+        new(typeof(PlantedGrant), UserReferencePath.Of(nameof(PlantedGrant.Holder)), UserReferenceKind.User),
+        new(typeof(PlantedAggregate), UserReferencePath.Elements(nameof(PlantedAggregate.Followers)), UserReferenceKind.User),
     ];
 
     public IReadOnlyCollection<RetainedUserReference> Retained { get; } =
     [
-        new(typeof(PlantedGrant), UserReferencePath.Of(nameof(PlantedGrant.Holder)), RetainedReferenceKind.AuditEntityReference,
-            "Planted: the person part of a composite key is not the row's entity_id."),
+        new(typeof(PlantedAggregate), UserReferencePath.Of(nameof(PlantedAggregate.DelegateMembershipId)),
+            RetainedReferenceKind.AuditEntityReference, "Planted: a reference that is not the row's entity_id."),
     ];
 }
 
@@ -511,6 +661,9 @@ internal sealed class PlantedContext : DbContext
             aggregate.HasMany(entity => entity.Members).WithOne().HasForeignKey(member => member.PlantedAggregateId);
             aggregate.HasOne(entity => entity.Lead).WithOne().HasForeignKey<PlantedLead>(lead => lead.PlantedAggregateId);
             aggregate.HasMany(entity => entity.Seats).WithOne().HasForeignKey(seat => seat.PlantedAggregateId);
+            aggregate.Property(entity => entity.Followers).HasColumnType("jsonb")
+                .HasConversion(ids => PlantedJson.Write(ids), json => PlantedJson.Read(json));
+            aggregate.Property(entity => entity.Instructor).HasConversion(id => id.Value, value => new PlantedPersonId(value));
         });
         modelBuilder.Entity<PlantedSeat>(seat =>
         {
@@ -525,4 +678,13 @@ internal sealed class PlantedContext : DbContext
         modelBuilder.Entity<PlantedMember>().Property(member => member.Reviewer).HasConversion(id => id.Value, value => UserId.From(value));
         modelBuilder.Entity<PlantedLead>().Property(lead => lead.Approver).HasConversion(id => id.Value, value => UserId.From(value));
     }
+}
+
+/// <summary>The planted jsonb array's conversion: identifiers as an array of strings, as the capture renders them.</summary>
+internal static class PlantedJson
+{
+    public static string Write(List<UserId> ids) => System.Text.Json.JsonSerializer.Serialize(ids.Select(id => id.Value));
+
+    public static List<UserId> Read(string json) =>
+        [.. System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(json)!.Select(UserId.From)];
 }
