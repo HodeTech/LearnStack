@@ -29,7 +29,7 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
     [Fact]
     public async Task Reads_name_exactly_the_announced_group_although_the_row_policy_shows_an_organization_the_tenant_wide_rows()
     {
-        await using var database = await OpenDatabaseAsync();
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, SchemaFixture.OrgA1))
         {
             // The policy alone admits the tenant-wide group's row into an organization context.
@@ -66,7 +66,7 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
     [Fact]
     public async Task The_one_active_index_refuses_a_second_active_export_as_a_mapped_refusal_that_leaves_the_transaction_rollback_only()
     {
-        await using var database = await OpenDatabaseAsync();
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         await using var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantB, SchemaFixture.OrgB1,
             [PersonB]);
         var store = Store(scope);
@@ -91,7 +91,7 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
     [InlineData("chunk_read")]
     public async Task A_wait_past_the_statement_budget_is_the_retryable_storage_failure_and_leaves_the_owner_rollback_only(string wait)
     {
-        await using var database = await OpenDatabaseAsync();
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         await using var holder = (NpgsqlConnection)await PostgresFixture.OpenAsync(wait == "chunk_read"
             ? database.MigrationConnectionString : database.AppConnectionString);
         await using var held = await holder.BeginTransactionAsync();
@@ -128,7 +128,7 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
     [Fact]
     public async Task The_job_phase_read_seeks_the_definition_index_instead_of_the_tenants_job_history()
     {
-        await using var database = await OpenDatabaseAsync();
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         var request = Guid.CreateVersion7();
         var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(request), typeof(DataExportJobParameters),
             BackgroundJobPayloadKind.Parameters);
@@ -198,7 +198,7 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
     [Fact]
     public async Task The_ticket_counts_read_one_bindings_open_tickets_and_every_ticket_ever_minted()
     {
-        await using var database = await OpenDatabaseAsync();
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         var artifact = TenantWideA.Artifact!.Value;
         // The seeded ticket's binding is sha256(uuid_send(artifact)); uuid_send writes the identifier big-endian.
         var seeded = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(artifact.ToByteArray(bigEndian: true)));
@@ -280,12 +280,4 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
 
     private static DataRequestStore Store(DataExportTestKit.GroupScope scope) =>
         new(scope.Db, scope.Unit, new ProducerExecution(scope.Unit), scope.Context);
-
-    private async Task<DisposableSchemaDatabase> OpenDatabaseAsync()
-    {
-        var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
-        await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
-        await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
-        return database;
-    }
 }

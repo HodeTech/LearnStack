@@ -54,8 +54,6 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
     DataExportCipher cipher, IAuditSubject audit, DataExportCustodyRefusals refusals, ILogger<PostgresDataExportArtifactStore> logger)
     : IDataExportArtifactStore
 {
-    private static readonly TimeSpan StatementBudget = TimeSpan.FromSeconds(5);
-
     private static readonly EventId CustodyRefusedEvent = new(3193, "DataExportChunkCustodyRefused");
 
     private static readonly Action<ILogger, Guid, Guid, int, string, Exception?> LogCustodyRefused =
@@ -280,9 +278,7 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
 
     private async Task<DateTimeOffset> DatabaseNowAsync(CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand("SELECT clock_timestamp()",
-            (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
-        { CommandTimeout = 5 };
+        await using var command = DataRequestSql.Statement(unit, "SELECT clock_timestamp()");
         var value = await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false);
         return value switch
         {
@@ -305,17 +301,11 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
         }
     }
 
-    private NpgsqlCommand Command(string sql)
-    {
-        var command = new NpgsqlCommand(sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
-        command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
-        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
-        return command;
-    }
+    private NpgsqlCommand Command(string sql) => DataRequestSql.Command(unit, tenant, sql);
 
     private async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> statement, CancellationToken cancellationToken)
     {
-        using var budget = Budget(cancellationToken);
+        using var budget = DataRequestSql.Budget(cancellationToken);
         try
         {
             return await statement(budget.Token).ConfigureAwait(false);
@@ -332,21 +322,11 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
         }
     }
 
-    private static CancellationTokenSource Budget(CancellationToken cancellationToken)
-    {
-        var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(StatementBudget);
-        return budget;
-    }
-
     private void RequireGroup(DataRequestScopeGroup group, bool writable)
     {
         ArgumentNullException.ThrowIfNull(group);
         if (group.TenantId != tenant.TenantId || group.OrganizationId != tenant.OrganizationId
-            || !unit.HasActiveTransaction || unit.IsRollbackOnly
-            || writable && unit.Mode != TransactionMode.ReadWrite
-            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
-            || announcement.TenantId != group.TenantId || announcement.OrganizationId != group.OrganizationId)
+            || !DataRequestOwner.IsAnnounced(unit, tenant, writable))
         {
             throw Refused();
         }

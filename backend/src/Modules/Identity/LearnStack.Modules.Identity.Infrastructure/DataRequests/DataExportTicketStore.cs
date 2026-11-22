@@ -125,9 +125,7 @@ public sealed class DataExportTicketStore(IdentityDbContext db, IUnitOfWork unit
 
     private void RequireOwner()
     {
-        if (!unit.HasActiveTransaction || unit.IsRollbackOnly || unit.Mode != TransactionMode.ReadWrite
-            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
-            || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId)
+        if (!DataRequestOwner.IsAnnounced(unit, tenant, writable: true))
         {
             throw new InvalidOperationException("Download ticket storage requires its announced writable owner.");
         }

@@ -312,10 +312,6 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
         return database;
     }
 
-    private static async Task<NpgsqlConnection> OpenAppAsync(DisposableSchemaDatabase database)
-    {
-        var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
-        await SchemaQueries.AssertApplicationRoleAsync(app);
-        return app;
-    }
+    private static Task<NpgsqlConnection> OpenAppAsync(DisposableSchemaDatabase database) =>
+        DataExportTestKit.OpenAppAsync(database.AppConnectionString);
 }

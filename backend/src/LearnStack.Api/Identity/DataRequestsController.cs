@@ -71,8 +71,7 @@ public sealed class OwnDataRequestsController(ISender sender, ITenantContext ten
     public async Task<IActionResult> Cancel(string id, CancellationToken cancellationToken)
     {
         using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
-        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version))
-            return AdministrationHttpInput.Invalid();
+        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version)) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant,
             new CancelOwnDataRequestCommand(target, version), cancellationToken);
     }
@@ -86,8 +85,7 @@ public sealed class OwnDataRequestsController(ISender sender, ITenantContext ten
     public async Task<IActionResult> Revoke(string id, CancellationToken cancellationToken)
     {
         using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
-        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version))
-            return AdministrationHttpInput.Invalid();
+        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version)) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant,
             new RevokeOwnDataExportCommand(target, version), cancellationToken);
     }
@@ -109,12 +107,10 @@ public sealed class OwnDataExportTicketsController(ISender sender) : ApiControll
     {
         // The body is the empty object, but it is read through the clearing reader like the chunk body it pairs with.
         using var body = await AdministrationHttpInput.ReadSensitiveObjectAsync(HttpContext);
-        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || DataExportDownloadInput.HasPrecondition(Request))
-            return AdministrationHttpInput.Invalid();
+        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || DataExportDownloadInput.HasPrecondition(Request)) return AdministrationHttpInput.Invalid();
         var result = await sender.Send(new MintOwnDataExportTicketCommand(target), cancellationToken);
         return result.IsFailure ? result.ToActionResult()
-            : Ok(new DataExportTicketResponse(result.Value.Ticket, DataRequestProjection.Instant(result.Value.ExpiresAt),
-                result.Value.ChunkCount, result.Value.ByteCount));
+            : Ok(DataRequestProjection.Ticket(result.Value));
     }
 }
 
@@ -139,8 +135,8 @@ public sealed class OwnDataExportChunksController(ISender sender) : ApiControlle
             || !AdministrationHttpInput.TryText(body.RootElement, "ticket", false, 64, out var ticket)
             || body.RootElement.GetProperty("index") is not { ValueKind: JsonValueKind.Number } index
             || !index.TryGetInt32(out var position) || position < 0
-            || !string.Equals(index.GetRawText(), position.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal))
-            return AdministrationHttpInput.Invalid();
+            || !string.Equals(index.GetRawText(), position.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StringComparison.Ordinal)) return AdministrationHttpInput.Invalid();
         var result = await sender.Send(new ReadOwnDataExportChunkCommand(target, ticket!, position), cancellationToken);
         return result.IsFailure ? result.ToActionResult() : new DataExportChunkResult(result.Value);
     }
@@ -214,8 +210,7 @@ public sealed class DataRequestsController(ISender sender, ITenantContext tenant
     public async Task<IActionResult> Cancel(string id, CancellationToken cancellationToken)
     {
         using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
-        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version))
-            return AdministrationHttpInput.Invalid();
+        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version)) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant,
             new CancelDataRequestCommand(target, version), cancellationToken);
     }
@@ -229,8 +224,7 @@ public sealed class DataRequestsController(ISender sender, ITenantContext tenant
     public async Task<IActionResult> Revoke(string id, CancellationToken cancellationToken)
     {
         using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
-        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version))
-            return AdministrationHttpInput.Invalid();
+        if (body is null || !AdministrationHttpInput.TryId(id, out var target) || !ProtectedEntityTag.TryRead(Request, out var version)) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant,
             new RevokeDataExportCommand(target, version), cancellationToken);
     }

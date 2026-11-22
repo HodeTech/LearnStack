@@ -3,18 +3,12 @@ using LearnStack.Api.Common;
 using LearnStack.Api.Idempotency;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
-using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LearnStack.Api.Identity;
-
-/// <summary>One retained group of the subject on the real host: its tenant and organization, or none for the tenant-wide group.</summary>
-public sealed record RetainedDataRequestScopeResponse(string TenantId, string? OrganizationId);
-
-public sealed record RetainedDataRequestScopePageResponse(IReadOnlyList<RetainedDataRequestScopeResponse> Items, PageInfo PageInfo);
 
 /// <summary>
 /// The retained own-scope native entry of the subject's data requests (ADR-0106 § 9, ADR-0107 § 4): six key-less
@@ -33,8 +27,7 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     [ProducesResponseType<RetainedDataRequestScopePageResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Scopes(CancellationToken cancellationToken)
     {
-        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not ListRetainedDataRequestScopesQuery request)
-            return AdministrationHttpInput.Invalid();
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not ListRetainedDataRequestScopesQuery request) return AdministrationHttpInput.Invalid();
         var result = await sender.Send(request, cancellationToken);
         if (result.IsFailure) return result.ToActionResult();
         return Ok(new RetainedDataRequestScopePageResponse(result.Value.Items.Select(group => new RetainedDataRequestScopeResponse(
@@ -49,8 +42,7 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     [ProducesResponseType<OwnDataRequestPage>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Requests(CancellationToken cancellationToken)
     {
-        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not ListRetainedDataRequestsQuery request)
-            return AdministrationHttpInput.Invalid();
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not ListRetainedDataRequestsQuery request) return AdministrationHttpInput.Invalid();
         var result = await sender.Send(request, cancellationToken);
         return result.IsFailure ? result.ToActionResult()
             : Ok(new OwnDataRequestPage(result.Value.Items.Select(DataRequestProjection.Own).ToArray(), result.Value.PageInfo));
@@ -64,8 +56,7 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     [ProducesResponseType<DataRequestAcceptedResponse>(StatusCodes.Status202Accepted)]
     public async Task<IActionResult> CreateExport(CancellationToken cancellationToken)
     {
-        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CreateRetainedDataExportCommand request)
-            return AdministrationHttpInput.Invalid();
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CreateRetainedDataExportCommand request) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
     }
 
@@ -77,8 +68,7 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     [ProducesResponseType<AdministrationVersionReceipt>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Cancel(CancellationToken cancellationToken)
     {
-        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CancelRetainedDataRequestCommand request)
-            return AdministrationHttpInput.Invalid();
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CancelRetainedDataRequestCommand request) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
     }
 
@@ -89,12 +79,10 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     [ProducesResponseType<DataExportTicketResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> MintTicket(CancellationToken cancellationToken)
     {
-        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not MintRetainedDataExportTicketCommand request)
-            return AdministrationHttpInput.Invalid();
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not MintRetainedDataExportTicketCommand request) return AdministrationHttpInput.Invalid();
         var result = await sender.Send(request, cancellationToken);
         return result.IsFailure ? result.ToActionResult()
-            : Ok(new DataExportTicketResponse(result.Value.Ticket, DataRequestProjection.Instant(result.Value.ExpiresAt),
-                result.Value.ChunkCount, result.Value.ByteCount));
+            : Ok(DataRequestProjection.Ticket(result.Value));
     }
 
     [HttpPost("chunks", Name = "ReadRetainedDataExportChunk")]
@@ -104,8 +92,7 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     [ProducesResponseType<DataExportChunkResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ReadChunk(CancellationToken cancellationToken)
     {
-        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not ReadRetainedDataExportChunkCommand request)
-            return AdministrationHttpInput.Invalid();
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not ReadRetainedDataExportChunkCommand request) return AdministrationHttpInput.Invalid();
         var result = await sender.Send(request, cancellationToken);
         return result.IsFailure ? result.ToActionResult() : new DataExportChunkResult(result.Value);
     }

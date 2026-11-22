@@ -39,8 +39,7 @@ internal static class DataRequestSchemaSeed
 
     internal static async Task SeedAsync(string connectionString)
     {
-        await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
-        await SchemaQueries.AssertApplicationRoleAsync(connection);
+        await using var connection = await DataExportTestKit.OpenAppAsync(connectionString);
         foreach (var row in Rows)
         {
             await using var transaction = await connection.BeginTransactionAsync();

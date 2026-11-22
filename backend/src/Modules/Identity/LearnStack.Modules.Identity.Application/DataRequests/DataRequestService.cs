@@ -6,7 +6,6 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
-using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -97,7 +96,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             || (caller.Role == DataRequestRole.Subject) != (subject == caller.Actor))
         {
             // The subject files only for themselves; an administrator never for themselves (ADR-0106 § 3).
-            return Rule<DataRequestMutationResult>("$", "lockey_business_rule_violation");
+            return DataRequestRules.Rule<DataRequestMutationResult>("$", "lockey_business_rule_violation");
         }
 
         try
@@ -117,46 +116,13 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
                 await reconciler.ReconcileAsync(existing, plan, cancellationToken).ConfigureAwait(false);
             }
 
-            var origin = caller.Role == DataRequestRole.Subject ? DataRequestOrigin.Self : DataRequestOrigin.Administrator;
-            var decision = await eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export, origin, subject,
-                Group, DataRequestEligibilityStage.Creation), cancellationToken).ConfigureAwait(false);
-            if (!decision.IsEligible)
+            var memberships = await CheckCreationAsync(caller, subject, cancellationToken).ConfigureAwait(false);
+            if (memberships.IsFailure)
             {
-                return decision.Reason switch
-                {
-                    DataRequestIneligibility.NoMembership => Fail<DataRequestMutationResult>("lockey_not_found"),
-                    DataRequestIneligibility.RequestAlreadyActive => AlreadyActive<DataRequestMutationResult>(),
-                    DataRequestIneligibility.BlockedHold => Rule<DataRequestMutationResult>("$", "lockey_blocked_hold"),
-                    _ => Rule<DataRequestMutationResult>("$", "lockey_blocked_last_administrator"),
-                };
+                return Result<DataRequestMutationResult>.Fail(memberships.Error);
             }
 
-            // An administrator's export never replaces the subject's own readable artifact (a new export withdraws the
-            // previous one): while the subject holds one in the group, of any origin, it is refused. One active export
-            // per subject and group means no export can store an artifact between this read and the insert below.
-            if (caller.Role == DataRequestRole.Administrator
-                && await store.HoldsReadableArtifactAsync(subject, cancellationToken).ConfigureAwait(false))
-            {
-                return Rule<DataRequestMutationResult>("$", "lockey_subject_export_available");
-            }
-
-            var memberships = await store.ReadSubjectMembershipsAsync(subject, cancellationToken).ConfigureAwait(false);
-            if (memberships.Count == 0)
-            {
-                return Fail<DataRequestMutationResult>("lockey_not_found");
-            }
-
-            if (memberships.Count > DataRequestLimits.MaximumSnapshotMemberships)
-            {
-                return Rule<DataRequestMutationResult>("$", "lockey_business_rule_violation");
-            }
-
-            var id = NewId(ids);
-            var now = clock.UtcNow;
-            var created = caller.Role == DataRequestRole.Subject
-                ? DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(id), DataRequestKind.Export, subject, Group, memberships, now)
-                : DataSubjectRequest.FileForSubject(DataSubjectRequestId.From(id), DataRequestKind.Export, caller.Actor, subject, Group,
-                    memberships, now);
+            var created = FileExport(caller, subject, memberships.Value);
             if (created.IsFailure)
             {
                 return Result<DataRequestMutationResult>.Fail(created.Error);
@@ -167,7 +133,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             locks.RequireCurrent(plan);
             if (!await store.TryAddAsync(request, cancellationToken).ConfigureAwait(false))
             {
-                return AlreadyActive<DataRequestMutationResult>();
+                return DataRequestRules.AlreadyActive<DataRequestMutationResult>();
             }
 
             await scheduler.SubmitAsync(request.Id.Value, request.Kind, request.Status, request.Group, cancellationToken).ConfigureAwait(false);
@@ -175,8 +141,60 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         }
         catch (IdentityMutationLockException)
         {
-            return Fail<DataRequestMutationResult>("lockey_dependency_unavailable");
+            return DataRequestRules.Fail<DataRequestMutationResult>("lockey_dependency_unavailable");
         }
+    }
+
+    /// <summary>
+    /// The creation guards, judged under the fences: the subject's eligibility, an administrator's export refused while the
+    /// subject holds a readable artifact, and the Membership snapshot to freeze. A refusal is the failed result.
+    /// </summary>
+    private async Task<Result<IReadOnlyList<MembershipId>>> CheckCreationAsync(DataRequestCaller caller, UserId subject,
+        CancellationToken cancellationToken)
+    {
+        var origin = caller.Role == DataRequestRole.Subject ? DataRequestOrigin.Self : DataRequestOrigin.Administrator;
+        var decision = await eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export, origin, subject,
+            Group, DataRequestEligibilityStage.Creation), cancellationToken).ConfigureAwait(false);
+        if (!decision.IsEligible)
+        {
+            return decision.Reason switch
+            {
+                DataRequestIneligibility.NoMembership => DataRequestRules.Fail<IReadOnlyList<MembershipId>>("lockey_not_found"),
+                DataRequestIneligibility.RequestAlreadyActive => DataRequestRules.AlreadyActive<IReadOnlyList<MembershipId>>(),
+                DataRequestIneligibility.BlockedHold => DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_blocked_hold"),
+                _ => DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_blocked_last_administrator"),
+            };
+        }
+
+        // An administrator's export never replaces the subject's own readable artifact (a new export withdraws the
+        // previous one): while the subject holds one in the group, of any origin, it is refused. One active export
+        // per subject and group means no export can store an artifact between this read and the insert that follows.
+        if (caller.Role == DataRequestRole.Administrator
+            && await store.HoldsReadableArtifactAsync(subject, cancellationToken).ConfigureAwait(false))
+        {
+            return DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_subject_export_available");
+        }
+
+        var memberships = await store.ReadSubjectMembershipsAsync(subject, cancellationToken).ConfigureAwait(false);
+        if (memberships.Count == 0)
+        {
+            return DataRequestRules.Fail<IReadOnlyList<MembershipId>>("lockey_not_found");
+        }
+
+        return memberships.Count > DataRequestLimits.MaximumSnapshotMemberships
+            ? DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_business_rule_violation")
+            : Result.Ok(memberships);
+    }
+
+    /// <summary>A new export request in its initial state, with the frozen Membership snapshot, filed by the caller's role.</summary>
+    private Result<DataSubjectRequest> FileExport(DataRequestCaller caller, UserId subject, IReadOnlyList<MembershipId> memberships)
+    {
+        var id = DataRequestRules.NewId(ids);
+        var now = clock.UtcNow;
+        return caller.Role == DataRequestRole.Subject
+            ? DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(id), DataRequestKind.Export, subject, Group, memberships, now)
+            : DataSubjectRequest.FileForSubject(DataSubjectRequestId.From(id), DataRequestKind.Export, caller.Actor, subject, Group,
+                memberships, now);
     }
 
     /// <summary>
@@ -190,18 +208,18 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         ArgumentNullException.ThrowIfNull(caller);
         if (caller.Role != DataRequestRole.Administrator)
         {
-            return Fail<DataRequestMutationResult>("lockey_forbidden");
+            return DataRequestRules.Fail<DataRequestMutationResult>("lockey_forbidden");
         }
 
-        if (!ValidId(membershipId))
+        if (!DataRequestRules.ValidId(membershipId))
         {
-            return Fail<DataRequestMutationResult>("lockey_validation_failed");
+            return DataRequestRules.Fail<DataRequestMutationResult>("lockey_validation_failed");
         }
 
         var subject = await reader.FindMembershipSubjectAsync(MembershipId.From(membershipId), cancellationToken).ConfigureAwait(false);
         return subject is { } person
             ? await CreateExportAsync(caller, person, cancellationToken).ConfigureAwait(false)
-            : Fail<DataRequestMutationResult>("lockey_not_found");
+            : DataRequestRules.Fail<DataRequestMutationResult>("lockey_not_found");
     }
 
     /// <summary>The caller's page of the group's requests, newest first, with each one's displayed status.</summary>
@@ -214,14 +232,14 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         Guid? before = null;
         if (limit is < 1 or > CursorPagination.MaxLimit)
         {
-            return Fail<Page<DataRequestView>>("lockey_validation_failed");
+            return DataRequestRules.Fail<Page<DataRequestView>>("lockey_validation_failed");
         }
 
         if (cursor is not null)
         {
             if (!DataRequestCursorCodec.TryDecode(cursor, scope, out var anchor))
             {
-                return Fail<Page<DataRequestView>>("lockey_validation_failed");
+                return DataRequestRules.Fail<Page<DataRequestView>>("lockey_validation_failed");
             }
 
             before = anchor;
@@ -245,10 +263,10 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     public async Task<Result<DataRequestView>> GetAsync(DataRequestCaller caller, Guid requestId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        var request = await FindVisibleAsync(caller, requestId, cancellationToken).ConfigureAwait(false);
+        var request = await DataRequestRules.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
         if (request is null)
         {
-            return Fail<DataRequestView>("lockey_not_found");
+            return DataRequestRules.Fail<DataRequestView>("lockey_not_found");
         }
 
         audit.Designate(request);
@@ -261,16 +279,16 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     public async Task<Result<None>> ReadReceiptAsync(DataRequestCaller caller, Guid requestId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        var request = await FindVisibleAsync(caller, requestId, cancellationToken).ConfigureAwait(false);
+        var request = await DataRequestRules.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
         var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
         if (current.IsFailure)
         {
             return current;
         }
 
-        if (request is null || !Mutates(caller, request))
+        if (request is null || !DataRequestRules.Mutates(caller, request))
         {
-            return Fail<None>("lockey_not_found");
+            return DataRequestRules.Fail<None>("lockey_not_found");
         }
 
         audit.Designate(request);
@@ -282,9 +300,9 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (!ValidId(requestId) || expectedVersion < 0)
+        if (!DataRequestRules.ValidId(requestId) || expectedVersion < 0)
         {
-            return Fail<DataRequestMutationResult>("lockey_validation_failed");
+            return DataRequestRules.Fail<DataRequestMutationResult>("lockey_validation_failed");
         }
 
         try
@@ -298,15 +316,15 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
                 return Result<DataRequestMutationResult>.Fail(current.Error);
             }
 
-            if (request is null || !Mutates(caller, request))
+            if (request is null || !DataRequestRules.Mutates(caller, request))
             {
-                return Fail<DataRequestMutationResult>("lockey_not_found");
+                return DataRequestRules.Fail<DataRequestMutationResult>("lockey_not_found");
             }
 
             audit.Designate(request);
             if (request.Version != expectedVersion)
             {
-                return Fail<DataRequestMutationResult>("lockey_concurrency_conflict");
+                return DataRequestRules.Fail<DataRequestMutationResult>("lockey_concurrency_conflict");
             }
 
             var cancelled = request.Cancel(clock.UtcNow, caller.Actor);
@@ -321,7 +339,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         }
         catch (IdentityMutationLockException)
         {
-            return Fail<DataRequestMutationResult>("lockey_dependency_unavailable");
+            return DataRequestRules.Fail<DataRequestMutationResult>("lockey_dependency_unavailable");
         }
     }
 
@@ -333,13 +351,13 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         long expectedArtifactVersion, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (!ValidId(requestId) || expectedArtifactVersion < 0)
+        if (!DataRequestRules.ValidId(requestId) || expectedArtifactVersion < 0)
         {
-            return Fail<DataExportArtifactMutationResult>("lockey_validation_failed");
+            return DataRequestRules.Fail<DataExportArtifactMutationResult>("lockey_validation_failed");
         }
 
-        var request = await FindVisibleAsync(caller, requestId, cancellationToken).ConfigureAwait(false);
-        var found = request is not null && request.Kind == DataRequestKind.Export && Mutates(caller, request)
+        var request = await DataRequestRules.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
+        var found = request is not null && request.Kind == DataRequestKind.Export && DataRequestRules.Mutates(caller, request)
             ? await reader.FindArtifactLockedAsync(request.Id, cancellationToken).ConfigureAwait(false)
             : null;
         var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
@@ -350,54 +368,27 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
 
         if (found is null)
         {
-            return Fail<DataExportArtifactMutationResult>("lockey_not_found");
+            return DataRequestRules.Fail<DataExportArtifactMutationResult>("lockey_not_found");
         }
 
         var artifact = found.Artifact;
         audit.Designate(artifact);
         if (artifact.Version != expectedArtifactVersion)
         {
-            return Fail<DataExportArtifactMutationResult>("lockey_concurrency_conflict");
+            return DataRequestRules.Fail<DataExportArtifactMutationResult>("lockey_concurrency_conflict");
         }
 
         if (!found.Readable)
         {
-            return Rule<DataExportArtifactMutationResult>("artifact", "lockey_data_export_unavailable");
+            return DataRequestRules.Rule<DataExportArtifactMutationResult>("artifact", "lockey_data_export_unavailable");
         }
 
         var outcome = await artifacts.PurgeAsync(new DataExportArtifactLocator(artifact.Id.Value, Group), DataExportArtifactStatus.Revoked,
             cancellationToken).ConfigureAwait(false);
         return outcome is DataExportArtifactStatus.Revoked or DataExportArtifactStatus.Purged
             ? Result.Ok(new DataExportArtifactMutationResult(request!.Id.Value, artifact.Id.Value, artifact.Version))
-            : Fail<DataExportArtifactMutationResult>("lockey_not_found");
+            : DataRequestRules.Fail<DataExportArtifactMutationResult>("lockey_not_found");
     }
-
-    private Task<DataSubjectRequest?> FindVisibleAsync(DataRequestCaller caller, Guid requestId, CancellationToken cancellationToken) =>
-        FindVisibleAsync(reader, caller, requestId, cancellationToken);
-
-    /// <summary>The request when the caller's role reaches it in the announced group; <see langword="null"/> otherwise.</summary>
-    internal static async Task<DataSubjectRequest?> FindVisibleAsync(IDataRequestReader reader, DataRequestCaller caller, Guid requestId,
-        CancellationToken cancellationToken)
-    {
-        if (!ValidId(requestId))
-        {
-            return null;
-        }
-
-        var request = await reader.FindAsync(DataSubjectRequestId.From(requestId), cancellationToken).ConfigureAwait(false);
-        return request is not null && Reaches(caller, request) ? request : null;
-    }
-
-    /// <summary>A subject reaches requests about them; an administrator every export and erasure of the group, never a closure.</summary>
-    private static bool Reaches(DataRequestCaller caller, DataSubjectRequest request) => caller.Role == DataRequestRole.Subject
-        ? request.SubjectUserId == caller.Actor
-        : request.Kind != DataRequestKind.Closure;
-
-    /// <summary>A subject mutates requests about them; an administrator only an export or erasure they filed.</summary>
-    private static bool Mutates(DataRequestCaller caller, DataSubjectRequest request) => caller.Role == DataRequestRole.Subject
-        ? request.SubjectUserId == caller.Actor
-        : request.Kind != DataRequestKind.Closure && request.Origin == DataRequestOrigin.Administrator
-            && request.RequesterUserId == caller.Actor;
 
     private async Task<DataRequestView[]> ViewsAsync(DataRequestCaller caller, DataRequestReceiptRow[] requests,
         CancellationToken cancellationToken)
@@ -448,21 +439,4 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
                     .Select(member => member.Value).ToArray()
                 : null);
     }
-
-    internal static Guid NewId(IGuidFactory factory)
-    {
-        var id = factory.NewUuidV7();
-        return id != Guid.Empty && id.Version == 7 ? id : throw new InvalidOperationException("The identity factory must return a UUIDv7.");
-    }
-
-    internal static bool ValidId(Guid id) => id != Guid.Empty && id.Version == 7;
-
-    private static Result<T> AlreadyActive<T>() => Rule<T>("$", "lockey_request_already_active");
-
-    /// <summary>A 409 with the reason on the field it concerns; the status map is closed, so the code stays the business rule's.</summary>
-    internal static Result<T> Rule<T>(string field, string reason) => Result<T>.Fail(new Error(
-        LocalizedMessage.Of("lockey_business_rule_violation"),
-        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal) { [field] = [LocalizedMessage.Of(reason)] }));
-
-    internal static Result<T> Fail<T>(string key) => Result<T>.Fail(new Error(LocalizedMessage.Of(key)));
 }

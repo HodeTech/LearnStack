@@ -302,13 +302,8 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
             scope.Context, new SystemClock()), reader, store);
     }
 
-    private async Task<DisposableSchemaDatabase> OpenDatabaseAsync()
-    {
-        _database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
-        await BackgroundJobSchemaSeed.SeedTenantsAsync(_database.AppConnectionString);
-        await SeedSchemaAsync(_database.MigrationConnectionString, _database.AppConnectionString);
-        return _database;
-    }
+    private async Task<DisposableSchemaDatabase> OpenDatabaseAsync() =>
+        _database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
 
     private WebApplicationFactory<Program> Host(Action<IServiceCollection>? configure = null, long? maxBytes = null) =>
         new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
@@ -353,7 +348,7 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
     private async Task<JobBusinessExecutionResult> RunAsync(IServiceProvider services, BackgroundJobId job)
     {
         var executor = services.GetRequiredService<JobExecutor>();
-        var start = await executor.ExecuteAsync(await RoutingClaim.ClaimAsync(_database!.OutboxConnectionString, job), BackgroundJobTestRun.Create());
+        var start = await executor.ExecuteAsync(await DataExportTestKit.RoutingClaim.ClaimAsync(_database!.OutboxConnectionString, job), BackgroundJobTestRun.Create());
         start.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         return await executor.ExecuteBusinessAsync(start.Receipt!, start.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
     }
@@ -494,12 +489,7 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
         await transaction.CommitAsync();
     }
 
-    private async Task<NpgsqlConnection> OpenAppAsync()
-    {
-        var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database!.AppConnectionString);
-        await SchemaQueries.AssertApplicationRoleAsync(app);
-        return app;
-    }
+    private Task<NpgsqlConnection> OpenAppAsync() => DataExportTestKit.OpenAppAsync(_database!.AppConnectionString);
 
     [GeneratedRegex("[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")]
     private static partial Regex Identifier();
@@ -564,24 +554,5 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
 
         public Task<IReadOnlyCollection<RetainedReferenceCount>> DescribeRetainedAsync(UserDataSubject subject,
             CancellationToken cancellationToken) => Task.FromResult<IReadOnlyCollection<RetainedReferenceCount>>([]);
-    }
-
-    private sealed class RoutingClaim : BackgroundJobRoutingClaim.MintingSource
-    {
-        internal static async Task<BackgroundJobRoutingClaim> ClaimAsync(string connectionString, BackgroundJobId job)
-        {
-            await using var dispatcher = (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
-            await using var command = new NpgsqlCommand("""
-                UPDATE background_jobs SET ownership_token=@token,ownership_kind='routing',
-                    ownership_until=clock_timestamp()+interval '4 minutes' WHERE id=@job
-                RETURNING id,tenant_id,organization_id,definition_key,queue,wake_generation,ownership_token,
-                    ownership_until,original_due_at,profile,phase,clock_timestamp()
-                """, dispatcher);
-            command.Parameters.AddWithValue("job", job.Value);
-            command.Parameters.AddWithValue("token", Guid.NewGuid());
-            await using var row = await command.ExecuteReaderAsync();
-            (await row.ReadAsync()).Should().BeTrue();
-            return MintClaim(row);
-        }
     }
 }

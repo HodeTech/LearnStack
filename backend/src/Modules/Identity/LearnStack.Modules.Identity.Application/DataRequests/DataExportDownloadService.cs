@@ -57,10 +57,10 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
         ArgumentNullException.ThrowIfNull(caller);
         if (caller.Role != DataRequestRole.Subject)
         {
-            return Refused(DataRequestService.Fail<DataExportTicketGrant>("lockey_forbidden"));
+            return Refused(DataRequestRules.Fail<DataExportTicketGrant>("lockey_forbidden"));
         }
 
-        var request = await DataRequestService.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
+        var request = await DataRequestRules.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
         var found = request is { Kind: DataRequestKind.Export }
             ? await reader.FindArtifactLockedAsync(request.Id, cancellationToken).ConfigureAwait(false)
             : null;
@@ -72,7 +72,7 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
 
         if (request is null || request.Kind != DataRequestKind.Export)
         {
-            return Refused(DataRequestService.Fail<DataExportTicketGrant>("lockey_not_found"));
+            return Refused(DataRequestRules.Fail<DataExportTicketGrant>("lockey_not_found"));
         }
 
         if (found is null || !found.Readable || found.Artifact.SubjectUserId != caller.Actor)
@@ -88,19 +88,19 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
         var binding = sessions.Capture(caller.Actor, context.TenantId, context.OrganizationId);
         if (binding is null)
         {
-            return Refused(DataRequestService.Fail<DataExportTicketGrant>("lockey_forbidden"));
+            return Refused(DataRequestRules.Fail<DataExportTicketGrant>("lockey_forbidden"));
         }
 
         var counts = await tickets.CountAsync(found.Artifact.Id, binding, cancellationToken).ConfigureAwait(false);
         if (counts.OpenInBinding >= DataRequestLimits.MaximumOpenTicketsPerBinding
             || counts.Minted >= DataRequestLimits.MaximumTicketsPerArtifact)
         {
-            return (DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_ticket_limit"),
+            return (DataRequestRules.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_ticket_limit"),
                 DataExportDownloadOutcome.Limit);
         }
 
         var (ticket, digest) = DataExportTicketCodec.Mint();
-        var minted = DataExportTicket.Mint(DataExportTicketId.From(DataRequestService.NewId(ids)), found.Artifact, digest, binding, clock.UtcNow, caller.Actor);
+        var minted = DataExportTicket.Mint(DataExportTicketId.From(DataRequestRules.NewId(ids)), found.Artifact, digest, binding, clock.UtcNow, caller.Actor);
         if (minted.IsFailure)
         {
             return Refused(Unavailable());
@@ -113,7 +113,7 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
     }
 
     private static Result<DataExportTicketGrant> Unavailable() =>
-        DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
+        DataRequestRules.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
 
     private static (Result<T> Result, DataExportDownloadOutcome Outcome) Refused<T>(Result<T> refusal) =>
         (refusal, DataExportDownloadOutcome.Refused);
@@ -139,40 +139,30 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
     {
         ArgumentNullException.ThrowIfNull(caller);
         var digest = DataExportTicketCodec.TryDigest(ticket);
-        if (digest is null || index < 0 || !DataRequestService.ValidId(requestId))
+        if (digest is null || index < 0 || !DataRequestRules.ValidId(requestId))
         {
-            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_validation_failed"));
+            return Refused(DataRequestRules.Fail<DataExportChunkView>("lockey_validation_failed"));
         }
 
         if (caller.Role != DataRequestRole.Subject)
         {
-            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_forbidden"));
+            return Refused(DataRequestRules.Fail<DataExportChunkView>("lockey_forbidden"));
         }
 
-        var request = await DataRequestService.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
-        var artifact = request is { Kind: DataRequestKind.Export }
-            ? (await reader.ReadArtifactsAsync([request.Id], cancellationToken).ConfigureAwait(false)).GetValueOrDefault(request.Id)
-            : null;
-        var found = artifact is null ? null
-            : await tickets.FindLockedAsync(artifact.Artifact.Id, digest, cancellationToken).ConfigureAwait(false);
-        var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
-        if (current.IsFailure)
+        var held = await LockTicketAsync(caller, requestId, digest, cancellationToken).ConfigureAwait(false);
+        if (held.IsFailure)
         {
-            return Refused(Result<DataExportChunkView>.Fail(current.Error));
+            return Refused(Result<DataExportChunkView>.Fail(held.Error));
         }
 
-        if (found is null)
-        {
-            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_not_found"));
-        }
-
+        var (artifact, found) = held.Value;
         audit.Designate(found);
         var binding = sessions.Capture(caller.Actor, context.TenantId, context.OrganizationId);
         var now = clock.UtcNow;
         if (binding is null || !found.Matches(digest, binding) || found.CreatedBy != caller.Actor || !found.IsUsable(now)
-            || !artifact!.Readable || index >= artifact.Artifact.ChunkCount)
+            || !artifact.Readable || index >= artifact.Artifact.ChunkCount)
         {
-            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_not_found"));
+            return Refused(DataRequestRules.Fail<DataExportChunkView>("lockey_not_found"));
         }
 
         var chunk = await artifacts.ReadChunkAsync(new DataExportArtifactLocator(artifact.Artifact.Id.Value, Group), index, cancellationToken)
@@ -181,9 +171,44 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
         {
             // A readable artifact's chunk inside its count that the store answers as absent could not be opened: its key
             // left the ring or its ciphertext fails authentication (the store logs it). The subject sees not_found.
-            return (DataRequestService.Fail<DataExportChunkView>("lockey_not_found"), DataExportDownloadOutcome.CustodyFailed);
+            return (DataRequestRules.Fail<DataExportChunkView>("lockey_not_found"), DataExportDownloadOutcome.CustodyFailed);
         }
 
+        return await ServeAsync(found, chunk, now, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The ticket row under its lock, with the artifact it names, once the caller's authority is rechecked: the subject's
+    /// own request, its readable-or-not artifact and the ticket the digest selects. Anything absent is the one
+    /// <c>not_found</c> refusal.
+    /// </summary>
+    private async Task<Result<(DataRequestArtifactRow Artifact, DataExportTicket Ticket)>> LockTicketAsync(DataRequestCaller caller, Guid requestId, string digest,
+        CancellationToken cancellationToken)
+    {
+        var request = await DataRequestRules.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
+        var artifact = request is { Kind: DataRequestKind.Export }
+            ? (await reader.ReadArtifactsAsync([request.Id], cancellationToken).ConfigureAwait(false)).GetValueOrDefault(request.Id)
+            : null;
+        var found = artifact is null ? null
+            : await tickets.FindLockedAsync(artifact.Artifact.Id, digest, cancellationToken).ConfigureAwait(false);
+        var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
+        if (current.IsFailure)
+        {
+            return Result<(DataRequestArtifactRow Artifact, DataExportTicket Ticket)>.Fail(current.Error);
+        }
+
+        return found is null
+            ? DataRequestRules.Fail<(DataRequestArtifactRow Artifact, DataExportTicket Ticket)>("lockey_not_found")
+            : Result.Ok((artifact!, found));
+    }
+
+    /// <summary>
+    /// Hands the plaintext to the transport and, for the final chunk, consumes the ticket on the same transaction. Every
+    /// copy of the plaintext that is not returned is cleared.
+    /// </summary>
+    private async Task<(Result<DataExportChunkView> Result, DataExportDownloadOutcome Outcome)> ServeAsync(DataExportTicket found,
+        DataExportPlaintextChunk chunk, DateTimeOffset now, CancellationToken cancellationToken)
+    {
         var bytes = MemoryMarshal.TryGetArray(chunk.Bytes, out var segment) && segment.Offset == 0 && segment.Count == segment.Array!.Length
             ? segment.Array : chunk.Bytes.ToArray();
         try
@@ -194,7 +219,7 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
                 if (consumed.IsFailure)
                 {
                     CryptographicOperations.ZeroMemory(bytes);
-                    return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_not_found"));
+                    return Refused(DataRequestRules.Fail<DataExportChunkView>("lockey_not_found"));
                 }
 
                 await tickets.UpdateAsync(found, cancellationToken).ConfigureAwait(false);

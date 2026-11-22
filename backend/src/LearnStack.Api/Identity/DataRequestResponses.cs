@@ -34,6 +34,11 @@ public sealed record DataRequestResponse(string Id, string Kind, string Origin, 
 
 public sealed record DataRequestPage(IReadOnlyList<DataRequestResponse> Items, PageInfo PageInfo);
 
+/// <summary>One retained group of the subject on the real host: its tenant and organization, or none for the tenant-wide group.</summary>
+public sealed record RetainedDataRequestScopeResponse(string TenantId, string? OrganizationId);
+
+public sealed record RetainedDataRequestScopePageResponse(IReadOnlyList<RetainedDataRequestScopeResponse> Items, PageInfo PageInfo);
+
 /// <summary>A minted download cursor (ADR-0107 § 4). The ticket is returned once and never stored, logged or replayed.</summary>
 public sealed record DataExportTicketResponse
 {
@@ -72,6 +77,9 @@ internal static class DataRequestProjection
         view.FailureReason, Retained(view), Artifact(view.Artifact), AdministrationHttpInput.Version(view.Version), view.RequestedByCaller,
         (view.MembershipIds ?? throw new InvalidOperationException("An administrator view names its Membership snapshot."))
             .Select(id => id.ToString("D")).ToArray());
+
+    internal static DataExportTicketResponse Ticket(DataExportTicketGrant grant) =>
+        new(grant.Ticket, Instant(grant.ExpiresAt), grant.ChunkCount, grant.ByteCount);
 
     private static DataRequestRetainedResponse[] Retained(DataRequestView view) =>
         view.Retained.Select(item => new DataRequestRetainedResponse(item.Kind, item.Count)).ToArray();

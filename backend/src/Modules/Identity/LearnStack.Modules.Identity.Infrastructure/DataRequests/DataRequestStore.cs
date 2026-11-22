@@ -134,10 +134,10 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
     {
         Admit();
         // The one-active partial unique index holds at most one such row (ADR-0106 § 7).
-        await using var command = Command("""
+        await using var command = Command($"""
             SELECT id FROM public.data_subject_requests
             WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND subject_user_id=@subject AND kind=@kind
-              AND status IN ('requested','scheduled','fulfilling','awaiting_privileged_step')
+              AND {DataSubjectRequestConfiguration.ActiveFilter}
             FOR UPDATE
             """);
         command.Parameters.AddWithValue("subject", subject.Value);
@@ -222,9 +222,7 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
 
     private void RequireOwner()
     {
-        if (!unit.HasActiveTransaction || unit.IsRollbackOnly || unit.Mode != TransactionMode.ReadWrite
-            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
-            || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId)
+        if (!DataRequestOwner.IsAnnounced(unit, tenant, writable: true))
         {
             throw new InvalidOperationException("Data request storage requires its announced writable owner.");
         }

@@ -1,7 +1,7 @@
+using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -24,20 +24,20 @@ public sealed class DataRequestAuthorization(IOperationInvocationContext invocat
 {
     internal async Task<Result<OperationInvocation>> AdmitAsync(object request, CancellationToken cancellationToken)
     {
-        if (invocations.CurrentInvocation is not { } invocation || !Matches(request, invocation)) return Fail<OperationInvocation>("lockey_forbidden");
+        if (invocations.CurrentInvocation is not { } invocation || !Matches(request, invocation)) return DataRequestRules.Fail<OperationInvocation>("lockey_forbidden");
         var check = await RecheckAsync(request, invocation, cancellationToken);
         return check.IsFailure ? Result<OperationInvocation>.Fail(check.Error) : Result.Ok(invocation);
     }
 
     internal async Task<Result<None>> RecheckAsync(object request, OperationInvocation invocation, CancellationToken cancellationToken)
     {
-        if (!Matches(request, invocation)) return Fail<None>("lockey_forbidden");
+        if (!Matches(request, invocation)) return DataRequestRules.Fail<None>("lockey_forbidden");
         var decision = await authorizer.AuthorizeAsync(invocation, invocation.Policy, invocation.Candidate!, cancellationToken);
-        if (!Matches(request, invocation) || !decision.IsActive || !ReferenceEquals(decision.Invocation, invocation)) return Fail<None>("lockey_dependency_unavailable");
+        if (!Matches(request, invocation) || !decision.IsActive || !ReferenceEquals(decision.Invocation, invocation)) return DataRequestRules.Fail<None>("lockey_dependency_unavailable");
         if (decision.Outcome == ProtectedOperationOutcome.Allowed) { refusals.ReportRecheck(decision); return Result.Ok(None.Value); }
         if (decision.Outcome is ProtectedOperationOutcome.Forbidden or ProtectedOperationOutcome.NotCovered)
             refusals.ReportResourceRefusal(decision, AuthorizationRefusalReason.Capability);
-        return Fail<None>(decision.Outcome == ProtectedOperationOutcome.Forbidden ? "lockey_forbidden"
+        return DataRequestRules.Fail<None>(decision.Outcome == ProtectedOperationOutcome.Forbidden ? "lockey_forbidden"
             : decision.Outcome == ProtectedOperationOutcome.NotCovered ? "lockey_not_found" : "lockey_dependency_unavailable");
     }
 
@@ -45,9 +45,9 @@ public sealed class DataRequestAuthorization(IOperationInvocationContext invocat
     internal static bool IsAdministration(object request) => request is CreateDataExportForSubjectCommand or ListDataRequestsQuery
         or GetDataRequestQuery or CancelDataRequestCommand or RevokeDataExportCommand or ReadDataRequestReceiptQuery;
 
-    private static bool IsOwn(object request) => request is CreateOwnDataExportCommand or ListOwnDataRequestsQuery or GetOwnDataRequestQuery
-        or CancelOwnDataRequestCommand or RevokeOwnDataExportCommand or MintOwnDataExportTicketCommand
-        or ReadOwnDataExportChunkCommand or ReadOwnDataRequestReceiptQuery;
+    /// <summary>The subject's request types: exactly the closed set an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry.</summary>
+    private static bool IsOwn(object request) =>
+        request is not null && IdentityPolicyEvaluation.OwnDataRequestOperations.ContainsKey(request.GetType());
 
     private bool Matches(object request, OperationInvocation invocation) =>
         (IsAdministration(request) || IsOwn(request))
@@ -65,6 +65,4 @@ public sealed class DataRequestAuthorization(IOperationInvocationContext invocat
         && candidate.Actor == actor && candidate.TenantId == context.TenantId && candidate.OrganizationId == context.OrganizationId
         && invocation.Actor == actor && invocation.TenantId == context.TenantId && invocation.OrganizationId == context.OrganizationId
         && invocations.CurrentDecision is { IsActive: true, Outcome: ProtectedOperationOutcome.Allowed } decision && ReferenceEquals(decision.Invocation, invocation);
-
-    internal static Result<T> Fail<T>(string key) => Result<T>.Fail(new Error(LocalizedMessage.Of(key)));
 }

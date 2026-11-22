@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
+using static LearnStack.Tests.Integration.Database.DataExportTestKit;
 using static LearnStack.Tests.Integration.Database.DataRequestSchemaSeed;
 using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
 
@@ -719,15 +720,6 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
                 updated_at=now(),updated_by=@subject WHERE id=@id
             """, ("id", artifact), ("subject", AdminA));
 
-    /// <summary>Runs a statement expected to fail inside a savepoint, so the transaction continues.</summary>
-    private static async Task<PostgresException> RefuseAsync(NpgsqlTransaction transaction, Func<Task> act)
-    {
-        await transaction.SaveAsync("probe");
-        var refusal = (await act.Should().ThrowAsync<PostgresException>()).Which;
-        await transaction.RollbackAsync("probe");
-        return refusal;
-    }
-
     private static Task<long> CountAsync(NpgsqlConnection app, NpgsqlTransaction transaction, string table, string predicate = "true") =>
         ScalarAsync<long>(app, transaction, $"SELECT count(*) FROM public.{table} WHERE {predicate}");
 
@@ -739,10 +731,5 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         return await command.ExecuteNonQueryAsync();
     }
 
-    private async Task<NpgsqlConnection> OpenAppAsync()
-    {
-        var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(schema.Postgres.AppConnectionString);
-        await SchemaQueries.AssertApplicationRoleAsync(app);
-        return app;
-    }
+    private Task<NpgsqlConnection> OpenAppAsync() => DataExportTestKit.OpenAppAsync(schema.Postgres.AppConnectionString);
 }

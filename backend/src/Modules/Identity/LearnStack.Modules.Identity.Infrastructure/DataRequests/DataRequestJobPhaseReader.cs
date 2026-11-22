@@ -7,7 +7,6 @@ using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 
@@ -56,15 +55,11 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
 
         var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(requestId.Value),
             typeof(DataExportJobParameters), BackgroundJobPayloadKind.Parameters);
-        await using var command = new NpgsqlCommand(SingleStatement, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
-        { CommandTimeout = 5 };
-        command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
-        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
+        await using var command = DataRequestSql.Command(unit, tenant, SingleStatement);
         command.Parameters.AddWithValue("definition",
             DataExportJobKeys.ExportFor(new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId)).Value);
         command.Parameters.AddWithValue("parameters", parameters);
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(TimeSpan.FromSeconds(5));
+        using var budget = DataRequestSql.Budget(cancellationToken);
         try
         {
             await using var row = await command.ExecuteReaderAsync(budget.Token).ConfigureAwait(false);
@@ -104,15 +99,11 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
         }
 
         // One statement for the page, newest job per request, by the same exact route as the single read.
-        await using var command = new NpgsqlCommand(PageStatement, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
-        { CommandTimeout = 5 };
-        command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
-        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
+        await using var command = DataRequestSql.Command(unit, tenant, PageStatement);
         command.Parameters.AddWithValue("definition",
             DataExportJobKeys.ExportFor(new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId)).Value);
         command.Parameters.AddWithValue("parameters", exports.Keys.ToArray());
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(TimeSpan.FromSeconds(5));
+        using var budget = DataRequestSql.Budget(cancellationToken);
         try
         {
             await using var row = await command.ExecuteReaderAsync(budget.Token).ConfigureAwait(false);
@@ -140,9 +131,7 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
 
     private void RequireOwner()
     {
-        if (!unit.HasActiveTransaction || unit.IsRollbackOnly
-            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
-            || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId)
+        if (!DataRequestOwner.IsAnnounced(unit, tenant, writable: false))
         {
             throw new InvalidOperationException("A data request job phase requires its existing announced owner.");
         }

@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Identifiers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
+using static LearnStack.Tests.Integration.Database.DataExportTestKit;
 using static LearnStack.Tests.Integration.Database.DataRequestSchemaSeed;
 using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
 
@@ -136,9 +137,7 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
     public async Task An_artifact_is_reachable_only_from_its_own_group()
     {
         // Committed rows: a disposable copy of the seeded schema, so the shared one keeps its census.
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
-        await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
-        await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(schema.Postgres);
         Guid artifactId;
         await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null, [AdminA]))
         {
@@ -180,9 +179,7 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
     [Fact]
     public async Task A_spliced_or_unopenable_chunk_fails_closed_as_an_absence_and_is_logged_critical_once_with_identifiers_only()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
-        await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
-        await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(schema.Postgres);
         var bundle = Bundle(Size);
         var artifactId = Guid.CreateVersion7();
         await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null, [AdminA]))
@@ -294,14 +291,6 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
             await Task.Yield();
             yield return piece;
         }
-    }
-
-    private static async Task<PostgresException> RefuseAsync(NpgsqlTransaction transaction, Func<Task> act)
-    {
-        await transaction.SaveAsync("probe");
-        var refusal = (await act.Should().ThrowAsync<PostgresException>()).Which;
-        await transaction.RollbackAsync("probe");
-        return refusal;
     }
 
     private sealed record LogEntry(LogLevel Level, EventId EventId, string Message, Exception? Exception);

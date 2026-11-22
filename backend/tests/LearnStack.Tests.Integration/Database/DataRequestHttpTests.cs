@@ -136,7 +136,7 @@ public sealed partial class DataRequestHttpTests(PublicReadFixture parent)
                 builder.ConfigureServices(services => services.AddSingleton(logs));
         });
         var executor = host.Services.GetRequiredService<JobExecutor>();
-        var start = await executor.ExecuteAsync(await RoutingClaim.ClaimAsync(proof.Database.OutboxConnectionString,
+        var start = await executor.ExecuteAsync(await DataExportTestKit.RoutingClaim.ClaimAsync(proof.Database.OutboxConnectionString,
             BackgroundJobId.From(job)), BackgroundJobTestRun.Create());
         start.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         var result = await executor.ExecuteBusinessAsync(start.Receipt!, start.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
@@ -144,12 +144,8 @@ public sealed partial class DataRequestHttpTests(PublicReadFixture parent)
         return result;
     }
 
-    private static async Task<NpgsqlConnection> OpenAppAsync(IdentityAuthorizationHttpProof proof)
-    {
-        var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(proof.Database.AppConnectionString);
-        await SchemaQueries.AssertApplicationRoleAsync(app);
-        return app;
-    }
+    private static Task<NpgsqlConnection> OpenAppAsync(IdentityAuthorizationHttpProof proof) =>
+        DataExportTestKit.OpenAppAsync(proof.Database.AppConnectionString);
 
     /// <summary>A count read as the application role inside one group.</summary>
     private static async Task<long> CountAsync(IdentityAuthorizationHttpProof proof, Guid tenant, Guid? organization, string sql,
@@ -197,25 +193,6 @@ public sealed partial class DataRequestHttpTests(PublicReadFixture parent)
     private static Task<HttpResponseMessage> ChunkAsync(HttpClient client, string token, Guid request, string ticket, int index) =>
         SendAsync(client, token, OwnPath + "/" + request.ToString("D") + "/artifact/chunks", "POST",
             JsonSerializer.Serialize(new { ticket, index }));
-
-    private sealed class RoutingClaim : BackgroundJobRoutingClaim.MintingSource
-    {
-        internal static async Task<BackgroundJobRoutingClaim> ClaimAsync(string connectionString, BackgroundJobId job)
-        {
-            await using var dispatcher = (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
-            await using var command = new NpgsqlCommand("""
-                UPDATE background_jobs SET ownership_token=@token,ownership_kind='routing',
-                    ownership_until=clock_timestamp()+interval '4 minutes' WHERE id=@job
-                RETURNING id,tenant_id,organization_id,definition_key,queue,wake_generation,ownership_token,
-                    ownership_until,original_due_at,profile,phase,clock_timestamp()
-                """, dispatcher);
-            command.Parameters.AddWithValue("job", job.Value);
-            command.Parameters.AddWithValue("token", Guid.NewGuid());
-            await using var row = await command.ExecuteReaderAsync();
-            (await row.ReadAsync()).Should().BeTrue();
-            return MintClaim(row);
-        }
-    }
 
     private static string Version(JsonElement element) => element.GetProperty("version").GetString()!;
 

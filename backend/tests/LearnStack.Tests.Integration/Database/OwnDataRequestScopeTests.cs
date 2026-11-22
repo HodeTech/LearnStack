@@ -263,9 +263,8 @@ public sealed class OwnDataRequestScopeTests(IdentityMembershipFixture fixture) 
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
         await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
-        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString))
         {
-            await SchemaQueries.AssertApplicationRoleAsync(app);
             foreach (var (organization, member, status) in new[]
             {
                 (SchemaFixture.OrgA2, BranchMembershipA2, "Suspended"),

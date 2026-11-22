@@ -12,19 +12,33 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </summary>
 internal static class DataRequestSql
 {
+    /// <summary>The one statement budget of the data-request adapters: the command timeout and the cancellation window.</summary>
+    internal const int StatementBudgetSeconds = 5;
+
+    /// <summary>A statement on the ambient transaction that binds no parameter, under the statement budget.</summary>
+    internal static NpgsqlCommand Statement(IUnitOfWork unit, string sql) =>
+        new(sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = StatementBudgetSeconds };
+
     internal static NpgsqlCommand Command(IUnitOfWork unit, ITenantContext tenant, string sql)
     {
-        var command = new NpgsqlCommand(sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
+        var command = Statement(unit, sql);
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
         return command;
     }
 
+    /// <summary>A cancellation window of the statement budget, linked to the caller's token.</summary>
+    internal static CancellationTokenSource Budget(CancellationToken cancellationToken)
+    {
+        var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(TimeSpan.FromSeconds(StatementBudgetSeconds));
+        return budget;
+    }
+
     internal static async Task<T> ExecuteAsync<T>(IUnitOfWork unit, Func<CancellationToken, Task<T>> statement,
         CancellationToken cancellationToken)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(TimeSpan.FromSeconds(5));
+        using var budget = Budget(cancellationToken);
         try
         {
             return await statement(budget.Token).ConfigureAwait(false);

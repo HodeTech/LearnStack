@@ -143,9 +143,7 @@ public sealed class DataRequestReader(IdentityDbContext db, IUnitOfWork unit, IT
 
     private async Task<DateTimeOffset> DatabaseNowAsync(CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand("SELECT clock_timestamp()", (NpgsqlConnection)unit.Connection,
-            (NpgsqlTransaction)unit.Transaction!)
-        { CommandTimeout = 5 };
+        await using var command = DataRequestSql.Statement(unit, "SELECT clock_timestamp()");
         var value = await Guard(() => command.ExecuteScalarAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
         return value switch
         {
@@ -175,9 +173,7 @@ public sealed class DataRequestReader(IdentityDbContext db, IUnitOfWork unit, IT
     /// </summary>
     private void Admit()
     {
-        if (!unit.HasActiveTransaction || unit.IsRollbackOnly
-            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
-            || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId)
+        if (!DataRequestOwner.IsAnnounced(unit, tenant, writable: false))
         {
             throw new InvalidOperationException("Data request reads require their announced owner.");
         }

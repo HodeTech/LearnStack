@@ -62,12 +62,12 @@ public sealed class RetainedDataRequestAdmission(IOperationInvocationContext inv
     {
         var witness = For(request, purposes);
         if (witness?.Group is not { } group || group.TenantId != context.TenantId || group.OrganizationId != organization)
-            return DataRequestService.Fail<DataRequestCaller>("lockey_forbidden");
+            return DataRequestRules.Fail<DataRequestCaller>("lockey_forbidden");
         return Result.Ok(new DataRequestCaller(witness.Actor, DataRequestRole.Subject, token =>
         {
             token.ThrowIfCancellationRequested();
             return Task.FromResult(ReferenceEquals(For(request, purposes), witness)
-                ? Result.Ok(None.Value) : DataRequestService.Fail<None>("lockey_forbidden"));
+                ? Result.Ok(None.Value) : DataRequestRules.Fail<None>("lockey_forbidden"));
         }));
     }
 
@@ -75,7 +75,7 @@ public sealed class RetainedDataRequestAdmission(IOperationInvocationContext inv
     internal Result<DataRequestCaller> AdmitReceipt(ReadRetainedDataRequestReceiptQuery request) =>
         For(request, OwnDataRequestPurpose.Create, OwnDataRequestPurpose.Cancel) is { Group: { } group }
             ? Admit(request, group.OrganizationId, OwnDataRequestPurpose.Create, OwnDataRequestPurpose.Cancel)
-            : DataRequestService.Fail<DataRequestCaller>("lockey_forbidden");
+            : DataRequestRules.Fail<DataRequestCaller>("lockey_forbidden");
 }
 
 /// <summary>Returns the groups the definer proved for the subject on the real host; it reads nothing more.</summary>
@@ -87,13 +87,13 @@ public sealed class ListRetainedDataRequestScopesQueryHandler(RetainedDataReques
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         if (request.Limit is < 1 or > OwnDataRequestScopeWitness.MaximumPage || request.Cursor is { Length: > 64 })
-            return Task.FromResult(DataRequestService.Fail<RetainedDataRequestScopePage>("lockey_validation_failed"));
+            return Task.FromResult(DataRequestRules.Fail<RetainedDataRequestScopePage>("lockey_validation_failed"));
         var witness = admission.For(request, OwnDataRequestPurpose.List);
         if (witness?.ScopePage is not { } page || page.Items.Length > request.Limit)
-            return Task.FromResult(DataRequestService.Fail<RetainedDataRequestScopePage>("lockey_forbidden"));
+            return Task.FromResult(DataRequestRules.Fail<RetainedDataRequestScopePage>("lockey_forbidden"));
         var items = page.Items.ToArray();
         if (!ReferenceEquals(admission.For(request, OwnDataRequestPurpose.List), witness))
-            return Task.FromResult(DataRequestService.Fail<RetainedDataRequestScopePage>("lockey_forbidden"));
+            return Task.FromResult(DataRequestRules.Fail<RetainedDataRequestScopePage>("lockey_forbidden"));
         return Task.FromResult(Result.Ok(new RetainedDataRequestScopePage(items, page.NextCursor)));
     }
 }
@@ -105,7 +105,7 @@ public sealed class ListRetainedDataRequestsQueryHandler(RetainedDataRequestAdmi
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Limit is < 1 or > OwnDataRequestScopeWitness.MaximumPage)
-            return DataRequestService.Fail<Page<DataRequestView>>("lockey_validation_failed");
+            return DataRequestRules.Fail<Page<DataRequestView>>("lockey_validation_failed");
         var caller = admission.Admit(request, request.OrganizationId, OwnDataRequestPurpose.Read);
         return caller.IsFailure ? Result<Page<DataRequestView>>.Fail(caller.Error)
             : await service.ListAsync(caller.Value, IdentityOperationPolicySource.RetainedDataRequestListOperation, request.Cursor,
