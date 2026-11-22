@@ -62,6 +62,28 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
         (await PersonStateAsync(world)).Should().Be(("Active", "Revoked", "Active", "Active"),
             "the person's User stays Active and only the tenant-wide Membership of the request's group was erased");
 
+        // The operator's completion, through the real platform scope of the API composition, redacts the audit log and
+        // completes the request; it is the last act before a replay, and it too rewrites no transport row.
+        (await RequestStatusAsync(world)).Should().Be("awaiting_privileged_step");
+        var retained = await ObservationAsync(world, world.CompletedFact);
+        retained.Should().NotBeNull("the completed delivery's observation exists before the redaction");
+        await using (var scope = world.Host.Services.CreateAsyncScope())
+        {
+            var completion = await scope.ServiceProvider.GetRequiredService<IDataRequestOperatorOperations>().CompleteErasureAsync(
+                TestPlatformAdmissions.Admission(PlatformOperations.ErasureComplete, "INC-REPLAY-FLOOR",
+                    correlationId: "00-replay-floor-complete-" + Guid.NewGuid().ToString("N")), world.ErasureRequest);
+            completion.Outcome.Should().Be(ErasureCompletionOutcome.Completed);
+            completion.Report!.RowsSelected.Should().BeGreaterThan(0, "the redaction ran over the person's audit rows");
+        }
+
+        (await RequestStatusAsync(world)).Should().Be("completed", "the privileged step finished before the replay");
+        var completed = await TrailAsync(world);
+        completed.Should().BeEquivalentTo(world.Before,
+            "the operator's completion redacts audit payloads and rewrites no outbox, delivery, inbox or job row");
+        (await ObservationsAsync(world, world.CompletedFact)).Should().Be(1, "the completion does not delete the retained observation");
+        (await ObservationsAsync(world, world.FailedFact)).Should().Be(0, "no observation was written by the redaction");
+        (await DeliveryAsync(world)).Should().Be(new DeliveryState(0, "retry_exhausted", true));
+
         var fence = await InspectedFenceAsync(world);
         var replay = await world.Host.Services.GetRequiredService<IOperatorRecovery>().ReplayDeliveryAsync(
             Admission(PlatformOperations.DeliveryReplay), new DeliveryReplayRequest(SchemaFixture.TenantA, Subscription,
@@ -82,6 +104,19 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
         (await ObservationsAsync(world, world.FailedFact)).Should().Be(1,
             "the replay wrote the erased person's audit observation again; it is retained transport evidence");
         (await ObservationsAsync(world, world.CompletedFact)).Should().Be(1, "the completed delivery is not re-run");
+        var written = await ObservationAsync(world, world.FailedFact);
+        written.Should().NotBeNull();
+        written!.EntityType.Should().Be("User");
+        written.EntityId.Should().Be(PersonA.ToString("D"));
+        written.AffectedUser.Should().Be(PersonA.ToString("D"),
+            "the replayed handler writes the person's identifier into its metadata as it always does; the floor is not undone");
+        written.ProviderEvent.Should().Be(world.FailedFact.ToString("D"));
+        written.Kind.Should().Be("Logout");
+        written.TargetId.Should().Be(world.FailedTarget.ToString("D"));
+        written.Operation.Should().Be("audit.provider_event.observe");
+        (await ObservationAsync(world, world.CompletedFact)).Should().Be(retained,
+            "the replay neither rewrites nor re-redacts the observation that was already there");
+        (await RequestStatusAsync(world)).Should().Be("completed", "the replay does not reopen the completed request");
         (await DeliveryAsync(world)).Should().Be(new DeliveryState(1, null, false), "replay advanced once; nothing is dead-lettered or failed");
         var after = await TrailAsync(world);
         after["outbox_messages"].Should().Be(world.Before["outbox_messages"]);
@@ -140,6 +175,7 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
                 }
 
                 world.FailedEvent = await EventOfAsync(world, failed.SourceEventId);
+                world.FailedTarget = await TargetOfAsync(world, failed.SourceEventId);
                 await using (var dispatcher = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString))
                     (await ScalarAsync<long>(dispatcher, null, """
                         WITH moved AS (UPDATE public.event_deliveries SET terminal_reason = 'retry_exhausted',
@@ -158,6 +194,7 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
                         new DataExportJobParameters(TenantWideA.Request), typeof(DataExportJobParameters),
                         BackgroundJobPayloadKind.Parameters));
             var erasure = await FileDueErasureAsync(database);
+            world.ErasureRequest = erasure;
             world.ErasureJob = await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure);
             world.Host = CreateHost(database);
             world.Before = await TrailAsync(world);
@@ -286,6 +323,44 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
             """, ("person", PersonA.ToString("D")), ("id", providerEvent.ToString("D")));
     }
 
+    private sealed record Observation(string Operation, string EntityType, string EntityId, string? AffectedUser, string? ProviderEvent,
+        string? Kind, string? TargetId, string Metadata);
+
+    /// <summary>The one audit observation the mirror handler wrote about person A for a provider fact, or none.</summary>
+    private static async Task<Observation?> ObservationAsync(World world, Guid providerEvent)
+    {
+        await using var app = await DataExportTestKit.OpenAppAsync(world.Database.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        await using var command = new NpgsqlCommand("""
+            SELECT operation, entity_type, entity_id, metadata->'provider_event'->>'affected_user_id',
+                metadata->'provider_event'->>'provider_event_id', metadata->'provider_event'->>'kind',
+                metadata->'provider_event'->>'target_id', metadata::text
+            FROM public.audit_log
+            WHERE operation = 'audit.provider_event.observe' AND entity_type = 'User' AND entity_id = @person
+                AND metadata->'provider_event'->>'provider_event_id' = @id
+            """, app, transaction);
+        command.Parameters.AddWithValue("person", PersonA.ToString("D"));
+        command.Parameters.AddWithValue("id", providerEvent.ToString("D"));
+        await using var row = await command.ExecuteReaderAsync();
+        if (!await row.ReadAsync()) return null;
+        string? Text(int ordinal) => row.IsDBNull(ordinal) ? null : row.GetString(ordinal);
+        var observation = new Observation(row.GetString(0), row.GetString(1), row.GetString(2), Text(3), Text(4), Text(5), Text(6),
+            row.GetString(7));
+        (await row.ReadAsync()).Should().BeFalse("one fact leaves one observation");
+        return observation;
+    }
+
+    /// <summary>The erasure request's stored status.</summary>
+    private static async Task<string> RequestStatusAsync(World world)
+    {
+        await using var app = await DataExportTestKit.OpenAppAsync(world.Database.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        return await ScalarAsync<string>(app, transaction, "SELECT status FROM public.data_subject_requests WHERE id = @id",
+            ("id", world.ErasureRequest));
+    }
+
     private sealed record DeliveryState(int ReplayCount, string? TerminalReason, bool DeadLettered);
 
     private static async Task<DeliveryState> DeliveryAsync(World world)
@@ -314,6 +389,15 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
             SELECT count(*) FROM public.event_deliveries WHERE subscription_id = @subscription AND event_id = @event
                 AND last_error IS NOT NULL AND processed_at IS NULL
             """, ("subscription", Subscription), ("event", eventId!.Value)) == 1;
+    }
+
+    private static async Task<Guid> TargetOfAsync(World world, Guid providerEvent)
+    {
+        await using var app = await DataExportTestKit.OpenAppAsync(world.Database.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        return await ScalarAsync<Guid>(app, transaction, "SELECT id FROM public.identity_provider_event_targets WHERE provider_event_id = @id",
+            ("id", providerEvent));
     }
 
     private static async Task<Guid> EventOfAsync(World world, Guid providerEvent)
@@ -382,6 +466,8 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
         public Guid FailedFact => failedFact;
         public Guid FailedEvent { get; set; }
         public BackgroundJobId ErasureJob { get; set; }
+        public Guid ErasureRequest { get; set; }
+        public Guid FailedTarget { get; set; }
         public WebApplicationFactory<Program> Host { get; set; } = null!;
         public Dictionary<string, string> Before { get; set; } = null!;
         public Dictionary<string, string> After { get; set; } = null!;
