@@ -38,7 +38,7 @@
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-8 | Tenant federation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19); final-head opposite-layout/pair qualification and manual accessibility evidence remain open; the contract-transition items, G20 and the Phase 11 realm items are owned in the closeout |
 > | P03-9 | Platform authority and operational recovery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21); final-head opposite-layout/pair qualification remains open (the layout-B filter ceiling was raised by [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md), [qualified](phase-03-delivery-log.md#adr-0105-merge-and-hosted-qualification-2026-11-22)); the maintainer items, the P03-10 and Phase 11 constraint and the tooling note are owned in the closeout |
-> | P03-10 | DSAR and global account closure | In progress — G15 and the G16 workflow Accepted ([package](phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)); Step 1 not started |
+> | P03-10 | DSAR and global account closure | In progress — G15 and the G16 workflow Accepted ([package](phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)); Step 1 (request core and export) delivered and twice reviewed ([record](phase-03-delivery-log.md#p03-10-step-1--verification-and-closeout-2026-11-22)); Steps 2 to 4 not started |
 > | P03-11 | Exit enforcement | Not started |
 
 ## Goal

@@ -534,8 +534,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 73 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 261 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
+  - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
+  - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
+  - [P03-10 Step 1 — review round 2 and its fixes (2026-11-22)](#p03-10-step-1--review-round-2-and-its-fixes-2026-11-22) — 32 lines
+  - [P03-10 Step 1 — verification and closeout (2026-11-22)](#p03-10-step-1--verification-and-closeout-2026-11-22) — 69 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25698,3 +25702,191 @@ and the glossary. The index rows of ADR-0106 to ADR-0108 are Accepted.
 invitations (retained until Phase 11), the Keycloak `manage-users` exposure, the per-group
 filing for a person in several organizations and the missing closure path for a person with
 no Membership (Phase 11) are recorded in the ADRs as accepted trade-offs.
+
+### P03-10 Step 1 — request core and export (2026-11-22)
+
+Step 1 delivers the request core and the export of
+[ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) and
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md): a person
+files an export of their own data in one scope group, a job builds it, and the person
+downloads it in encrypted chunks under a short-lived ticket. Five units landed in five
+commits (`492f7f9e`, `2929f22f`, `889245c4`, `4fb4fc59`, `33ab8f62`); erasure, closure
+and the web surface are Steps 2 to 4.
+
+Delivered:
+
+- **Storage.** `data_subject_requests`, `data_export_artifacts`, `data_export_tickets`
+  and `data_export_chunks` in the Identity chain
+  (`20261122013001_add_data_subject_requests`), each with the canonical row policy,
+  guards for the status machine, one active request per group by a partial unique index,
+  and column-limited grants; no role may DELETE a request, and a chunk goes only once
+  its artifact is no longer `available`. A Platform migration
+  (`20261122160000_add_data_request_protected_receipts`) lets a keyed data-request
+  mutation retain its receipt and indexes the job-phase read; an Audit migration
+  (`20261122074947_index_audit_log_data_request_selection`) serves the export's audit
+  selection.
+- **Domain and ports.** `DataSubjectRequest`, `DataExportArtifact` and
+  `DataExportTicket` with their closed status vocabularies; the SharedKernel ports
+  `IUserDataParticipant`, `IDataExportArtifactStore`, the eligibility and hold ports and
+  `DataRequestLimits`, the one home of the fixed bounds.
+- **Retained own scope.** `fn_identity_own_data_request_scopes` (SECURITY DEFINER) with
+  owner arms, `TenantContextOrigin.HostAndOwnDataRequestScope`,
+  `OwnDataRequestScopeWitness` and the policy kinds `OwnDataRequest` and
+  `OwnDataRequestEntry`, so a Suspended person or one whose Membership was revoked can
+  still reach their own requests on the real host.
+- **Export engine.** AES-256-GCM chunks of 128 KiB under a versioned key ring
+  (`DataExport:KeyRing`, ceiling `DataExport:MaxBytes`, 16 MiB by default and 64 MiB at
+  most) in encrypted PostgreSQL custody behind `IDataExportArtifactStore`; five
+  participants (Identity, Tenancy, Customization, Education, Audit) that describe and
+  export their section; the export and purge jobs, the fulfilment scheduler and a
+  reconciler that stores `failed` for a request whose job died.
+- **API.** Seven own operations under `/api/v1/identity/me/data-requests` (create, list,
+  read, cancel, revoke, ticket, chunk), five administrator operations under
+  `/api/v1/identity/data-requests` (create for a Membership, list, read, cancel, revoke;
+  a keyed replay reads the original receipt) and six retained-entry operations under
+  `/api/v1/identity/data-request-entry` (`scopes`, `requests`, `exports`,
+  `cancellations`, `tickets`, `chunks`). Administrator operations are `Protected` on
+  `identity.membership.admin`; no assignable key was added, so G20 is untouched. The
+  OpenAPI and SDK changes are additive.
+- **Audit.** `identity.data_request.create_export`, `cancel`, `list`, `read`,
+  `read_receipt` and `fulfill_export`, and `identity.data_export.revoke`, `mint_ticket`
+  and `read_chunk`, all MUST; the ticket and chunk reads are read-sensitive and refuse
+  when the row cannot be written.
+
+Decisions taken in the code that the ADR text does not state (they are owed as
+amendments and listed under the closeout):
+
+- An export reads `requested` until it completes: the job runs `requested`, `fulfilling`
+  and `completed` in one transaction, so `fulfilling` is not observable for an export.
+- A dead job is stored `failed` with `execution_failed` by the reconciler when the
+  create path observes it, because the one-active index frees a slot only for a stored
+  terminal status; a receipt shows `failed` before that.
+- The request's `result` column holds the closed retained-kind vocabulary, so the cap a
+  truncation hit is stated in a closed `truncation` column on the artifact.
+- A request needs at least one Membership snapshot, and Memberships are never deleted,
+  so a person with no Membership of the group cannot file.
+
+### P03-10 Step 1 — review round 1 and its fixes (2026-11-22)
+
+Fresh read-only reviewers read the five commits by lens and every finding was checked
+against the code before it was fixed. The ones that changed code:
+
+- **Storage and guards.** An artifact insert is allowed only while its request is
+  `fulfilling`, and a deferred check requires the exact chunk count at commit; the chunk
+  and ticket guards read the artifact `FOR SHARE`; the group's request page and the
+  job-phase read gained indexes.
+- **Custody and download.** The cipher's dispose and seal race is closed under one gate;
+  a mint is refused when the artifact's key left the ring; open tickets are bounded; a
+  custody refusal answers `not_found` and logs once at Critical; plaintext segments are
+  pooled and cleared, and the ticket and chunk request bodies are read zeroed.
+- **Audit and bundle.** The audit section opens with its reach, its statements are
+  unions of index-served branches under a 15-second budget, the metadata scan is
+  windowed, colliding payload keys are suffixed and the per-collection caps clamp to
+  half the ceiling; `invitations_issued` is capped at 4 MiB, newest first.
+- **Observability and pins.** The `learnstack.data_export` meter and ids-only log events
+  7501 to 7506; the handler, read-only and job-manifest census pins were brought to the
+  new counts after the full architecture suite, run in a clean clone, found what the
+  agents' filters had matched zero tests for.
+
+The fixes are `ae5b7323`, `810d1a46`, `6ff6969a`, `efbdc274` and `a6c731db`.
+
+### P03-10 Step 1 — review round 2 and its fixes (2026-11-22)
+
+Five fresh reviewers (a red team, a regression check of round 1, data protection,
+failure injection and maintainability) read the head of round 1. None found a blocker.
+The maintainer-side triage accepted the verified findings in three groups, each fixed in
+an isolated clone, merged and re-verified in the working tree:
+
+- **The job and the tickets (`a0e560fc`).** The export job read the shared tenant fence
+  first and held it through the bundle build, so an exclusive-fence operation could fail
+  while a large export built; the job now builds the bundle and counts the references
+  with no fence, then takes the fence, re-reads the request and writes. A completed
+  export must own an artifact (a deferred trigger), an administrator's export is refused
+  while the person holds a readable artifact, tickets are bounded per session and per
+  artifact with distinct refusals, a host cancellation is no longer counted as a
+  failure, a participant's database fault is an infrastructure fault, and a clock
+  earlier than the row is floored. Custody refusals, purge failures and downloads are
+  counted. The runbook was rewritten against the code, and the OpenAPI prose is built
+  from the limit constants.
+- **The audit section and the counts (`5ce0fe49`).** The audit metadata statement is
+  split into one statement per branch, each with its own partial index; on 2.3 million
+  rows an organization group's statement fell from 2.2 to 3.4 seconds to about a
+  millisecond. The audit section says its reach as a closed record, receipts are counted
+  by any user column, the stored result columns are classified as audit data, and the
+  describe-only participants share one guard.
+- **Maintainability (`1b0e688b`).** One static class holds the request rules, the
+  creation and chunk read are split at their seams, the statement budget and the
+  active-status filter have one spelling and the integration helpers one home. No
+  behaviour, contract or schema changed.
+
+Two pins followed the fixes: the Platform reversal leaves the four request tables in
+place (`0394de97`) and Identity installs one more function, the completed-export check.
+
+### P03-10 Step 1 — verification and closeout (2026-11-22)
+
+Step 1 is delivered and twice reviewed. The head of round 1 (`a6c731db`) ran the full
+integration suite: 5,003 passed and 28 failed, and none of the 28 is a defect of the
+packet. Twenty-six need the frontend dependencies that the clean clone of that run
+lacked (the native BFF, public rendering and local launch fixtures); one fails only in a
+Release build, because FluentAssertions cannot name the subject without the source path,
+and it passes in Debug (`AuthenticatedHttpSurfaceRuntimeTests`, a federation census);
+and one was a real pin, the Platform reversal's surviving-table list, fixed in
+`0394de97`.
+
+After round 2: the full unit suite passes (4,810), the full architecture suite passes on
+`a0e560fc` (688 tests, 1 hour 20 minutes in a clean clone), the SDK typecheck and tests
+pass (234), the contract suite passes (15) and the OpenAPI document differs from the
+decision-package base only by additions. The targeted integration run found one more
+pin, the Identity function count that the completed-export check raised from 31 to 32,
+fixed in `a0e560fc`. The refactor `1b0e688b` was checked by the unit suite, 341
+integration tests over the request, export, retained-scope and migration classes, the 46
+architecture tests that pin the moved code and an empty OpenAPI diff.
+
+A full integration run on the final head of Step 1 was not repeated: it needs about two
+hours of the workstation, and the head of Step 2 contains all of Step 1's code, so the
+full run there closes both. A failure in the request or export classes at that run
+reopens this record.
+
+Open for the maintainer, as the amendments the code needs and the choices the ADRs left:
+
+- **The audit reach of an export is not tenant-wide.** ADR-0107 § 3 and ADR-0108 § 4 say
+  a self-requested export selects audit rows across the whole tenant. The export job has
+  no tenant-wide read witness, so RLS shows an organization group its own organization's
+  rows plus tenant-level rows, and a tenant-wide group only tenant-level rows; a
+  tenant-wide Membership holder who acted inside an organization has rows no export
+  reaches. The bundle says so in `audit_scope` (`complete: false`). Either amend the
+  sections to the visible reach, or decide a sanctioned tenant-wide read for the job,
+  which needs its own decision because it touches the trusted job policy and the
+  operation read witness.
+- **A ticket reads any chunk index until the final one.** ADR-0107 § 4 says sequential
+  reads; no position column exists because § 8 grants only `consumed_at`. The amendment
+  states the semantics and the bounds this step added: three open tickets per session
+  and artifact, twenty ever minted per artifact.
+- **An administrator's export is refused while the person holds a readable artifact**,
+  because completing it revokes that artifact. A rule the ADRs do not state.
+- **Application grants are wider than the § 8 text** (`last_refusal`, `failure_reason`,
+  `completed_at`, `updated_at`, `updated_by` on requests; `purged_at`, `row_version`,
+  `updated_at`, `updated_by` on artifacts), and the platform grants the ADRs name
+  (`last_refusal`, a column-limited read of artifacts for `inspect`) belong to Steps 2
+  and 3.
+- **A retained person cannot revoke an artifact**, because the retained-entry set has no
+  revoke purpose; ADR-0107 § 4 says the subject may revoke. Decide at Step 2 or 4.
+- **The retained recheck is identity-only.** Step 3 must re-validate the binding and the
+  User status under the User fence on both paths.
+- **No automated sweeper retires expired artifacts.** The purge job runs once per
+  artifact (six attempts over about an hour); `inspect` in Step 2 lists expired
+  artifacts not yet purged, and the sweeper is Phase 11's retention purge.
+- **Four unreleased migrations were edited in place** during review (the Identity
+  request and retained-scope migrations, the Platform receipts migration and the Audit
+  index migration): a development database created from an intermediate commit must be
+  dropped and migrated again.
+- **Pre-existing, not this packet:** `pg_current_xact_id()::text::xid` fails with 22003
+  once a cluster passes its first transaction-id epoch (verified on PostgreSQL 18.4).
+  Step 1 removed its own use; four older sites remain (`TenancyAdministrationDdl`,
+  `TenancyRetainedDefaultDdl`, `ContextualIdentityStorageDdl` twice) and need a
+  follow-up migration owned by the next Identity or Tenancy packet.
+- **Recommendations, not changes:** derive the HTTP-surface census from attributes,
+  consolidate the three credential and input copies (it needs re-pinning the IL checks),
+  and keep port leakage (`CanOpen`, the locking read in the reader) in view in Steps 2
+  to 4.
+
