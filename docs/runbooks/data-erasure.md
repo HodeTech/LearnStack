@@ -194,12 +194,13 @@ of stored payload, so the act takes time in proportion to the tenant's stored au
 volume: about ten seconds for 1.5 million ordinary rows (1.5 GB stored), about four
 minutes for a tenant whose rows carry 100 KiB payloads (14 GB stored), and the request
 row stays locked throughout. Each statement stays under a few seconds whatever the
-tenant's size; only the number of batches grows. Use a client with no short timeout. A call dropped before the commit (a client or gateway timeout, a closed
-connection) rolls the whole act back, and a retry starts again from the beginning, so a
-gateway that cuts the call off earlier than the act ends can never succeed. Two
-operators who complete the same request at once are serialized on its row: the second
-waits for the first and then answers `already_completed`, unless the first outlasts the
-platform connection's command timeout (30 seconds unless `Command Timeout` is set in
+tenant's size; only the number of batches grows. Use a client with no short timeout. A
+call dropped before the commit (a client or gateway timeout, a closed connection) rolls
+the whole act back, and a retry starts again from the beginning, so a gateway that cuts
+the call off earlier than the act ends can never succeed. Two operators who complete the
+same request at once are serialized on its row: the second waits for the first and then
+answers `already_completed`, unless the first outlasts the platform connection's command
+timeout (30 seconds unless `Command Timeout` is set in
 `ConnectionStrings:PlatformAdmin`), when the second answers `503
 dependency_unavailable`: repeat it after the first finished.
 
