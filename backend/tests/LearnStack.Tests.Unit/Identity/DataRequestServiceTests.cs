@@ -183,6 +183,30 @@ public sealed class DataRequestServiceTests
             .Should().Be("business_rule_violation", "a terminal request accepts no transition");
     }
 
+    /// <summary>
+    /// A subject revokes only an artifact about them: another person's request, named with that artifact's real version,
+    /// answers exactly as an absent one and purges nothing; the owner's own revocation purges.
+    /// </summary>
+    [Fact]
+    public async Task A_subject_revokes_only_an_artifact_about_them_and_another_persons_is_not_found_and_purges_nothing()
+    {
+        var harness = new Harness();
+        var request = harness.Completed();
+        var artifact = harness.Store.Artifacts[request.Id].Artifact;
+        var other = UserId.From(Guid.CreateVersion7());
+
+        Code(await harness.Service.RevokeAsync(harness.Caller(other, DataRequestRole.Subject), request.Id.Value, artifact.Version,
+            CancellationToken.None)).Should().Be("not_found", "another person's artifact is no more reachable than an absent request");
+        Code(await harness.Service.RevokeAsync(harness.Caller(Administrator, DataRequestRole.Administrator), request.Id.Value,
+            artifact.Version, CancellationToken.None)).Should().Be("not_found", "an administrator revokes only an export they filed");
+        harness.Artifacts.Purged.Should().BeEmpty("a refused revocation deletes nothing");
+        harness.Audit.Designated.Should().NotContain(artifact, "no artifact is named for the audit row of a request the caller does not reach");
+
+        (await harness.Service.RevokeAsync(harness.Caller(Subject, DataRequestRole.Subject), request.Id.Value, artifact.Version,
+            CancellationToken.None)).IsSuccess.Should().BeTrue();
+        harness.Artifacts.Purged.Should().Equal(artifact.Id.Value);
+    }
+
     [Fact]
     public async Task Only_the_subject_mints_a_ticket_in_a_bound_session_over_a_readable_artifact_and_only_its_digest_is_stored()
     {
@@ -921,8 +945,15 @@ public sealed class DataRequestServiceTests
             return Task.FromResult<DataExportPlaintextChunk?>(new DataExportPlaintextChunk(index, 2, bytes));
         }
 
+        /// <summary>Every artifact the service asked the store to purge.</summary>
+        public List<Guid> Purged { get; } = [];
+
         public Task<DataExportArtifactStatus?> PurgeAsync(DataExportArtifactLocator artifact, DataExportArtifactStatus outcome,
-            CancellationToken cancellationToken) => Task.FromResult<DataExportArtifactStatus?>(outcome);
+            CancellationToken cancellationToken)
+        {
+            Purged.Add(artifact.ArtifactId);
+            return Task.FromResult<DataExportArtifactStatus?>(outcome);
+        }
     }
 
     private sealed class SessionBinding : IDataExportSessionBinding

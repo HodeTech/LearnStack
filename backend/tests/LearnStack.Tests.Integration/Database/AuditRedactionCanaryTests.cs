@@ -82,6 +82,7 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
     {
         var tenant = Guid.CreateVersion7();
         var declarations = Registered.Value.Single(locator => ModuleOf(locator) == module).Redactable;
+        declarations.Should().NotBeEmpty("a locator that lost every declaration would otherwise pass this module vacuously");
         var rows = declarations.SelectMany(declaration => Canary(declaration, tenant)).ToList();
         rows.Should().HaveCount(3 * declarations.Count);
 

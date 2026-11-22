@@ -255,6 +255,37 @@ public sealed partial class DataErasureExecutionTests(SchemaFixture fixture)
     }
 
     /// <summary>
+    /// The lifecycle ADR-0107 § 5 is silent on, beyond Suspended: an Archived tenant is one that "does not allow ordinary
+    /// work" like a Suspended one, and the runtime claims a transactional job of such a tenant like any other, so the due
+    /// erasure of an Archived tenant runs: it erases and waits for the privileged step. This pins what is true today;
+    /// were a tenant lifecycle rule to stop jobs of an Archived tenant, this case is where it would show.
+    /// </summary>
+    [Fact]
+    public async Task A_due_erasure_of_an_archived_tenant_runs_and_waits_for_the_privileged_step_as_a_suspended_tenants_does()
+    {
+        await using var database = await OpenDatabaseAsync();
+        var erasure = await FileDueErasureAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, PersonA, [BranchMembershipA1]);
+        await using (var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            await TenancyLifecycleFixture.LockAsync(app, transaction, SchemaFixture.TenantA);
+            await ExecuteAsync(app, transaction, "UPDATE tenants SET status='Archived' WHERE id=@tenant", ("tenant", SchemaFixture.TenantA));
+            await transaction.CommitAsync();
+        }
+
+        await using var host = Host();
+
+        (await RunAsync(host.Services, await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, SchemaFixture.OrgA1, erasure)))
+            .Committed();
+
+        (await RequestAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, erasure)).Status.Should().Be("awaiting_privileged_step");
+        (await MembershipAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, BranchMembershipA1)).Status.Should().Be("Revoked");
+        (await MembershipAsync(SchemaFixture.TenantA, null, LearnerMembershipA)).Status.Should().Be("Active",
+            "only the request's own group is erased");
+    }
+
+    /// <summary>
     /// ADR-0107 § 5.1: an export filed before the erasure is cancelled by it; its job, running after, reads its own request
     /// cancelled under its fence and discards the bundle it built, so no artifact is stored over the erasure.
     /// </summary>
@@ -350,6 +381,69 @@ public sealed partial class DataErasureExecutionTests(SchemaFixture fixture)
         (await RequestAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, early)).Status.Should().Be("scheduled");
         var next = await FileAsync(SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA], "erasure");
         (await RequestAsync(SchemaFixture.TenantA, null, next)).Status.Should().Be("scheduled", "the stored failure freed the slot");
+    }
+
+    /// <summary>
+    /// ADR-0106 § 8 for a due erasure in each phase of its job: only a dead job stores <c>failed</c>, and only a dead job's
+    /// receipt reads it. A job still queued or retrying after the window (Pending), a request no job is visible for
+    /// (Unavailable) and a job that ran to completion (Completed, whose request now waits for the operator) are each left
+    /// exactly as stored, read as stored, and still hold the group's one active slot; a dead one is stored
+    /// <c>failed</c> with <c>execution_failed</c>, reads <c>failed</c> before and after, and frees the slot.
+    /// </summary>
+    [Theory]
+    [InlineData("pending", DataRequestJobPhase.Pending, "scheduled", false)]
+    [InlineData("unavailable", DataRequestJobPhase.Unavailable, "scheduled", false)]
+    [InlineData("completed", DataRequestJobPhase.Completed, "awaiting_privileged_step", false)]
+    [InlineData("dead", DataRequestJobPhase.Dead, "scheduled", true)]
+    public async Task The_reconciler_stores_failed_for_a_due_erasure_only_when_its_job_is_dead(string variant, DataRequestJobPhase expected,
+        string stored, bool dead)
+    {
+        await using var database = await OpenDatabaseAsync();
+        var request = await FileDueErasureAsync(SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA]);
+        if (variant != "unavailable")
+        {
+            var job = await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, request);
+            if (variant == "dead")
+            {
+                await using var dispatcher = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+                await SchemaQueries.ExecuteAsync(dispatcher, null,
+                    "UPDATE background_jobs SET phase='quarantined', quarantine_reason='unknown_outcome' WHERE id=@id", ("id", job.Value));
+            }
+            else if (variant == "completed")
+            {
+                await using var host = Host();
+                (await RunAsync(host.Services, job)).Committed();
+            }
+        }
+
+        (await RequestAsync(SchemaFixture.TenantA, null, request)).Status.Should().Be(stored, "as filed, or as the finished job left it");
+        DataRequestStatus effective;
+        await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null))
+        {
+            var store = new DataRequestStore(scope.Db, scope.Unit, new ProducerExecution(scope.Unit), scope.Context);
+            var phases = new DataRequestJobPhaseReader(scope.Unit, scope.Context);
+            var reconciler = new DataRequestFailureReconciler(store, phases, new IdentityMutationLocks(scope.Unit), scope.Context,
+                new SystemClock());
+            var loaded = (await store.FindLockedAsync(DataSubjectRequestId.From(request), CancellationToken.None))!;
+            var phase = await phases.ReadAsync(loaded.Id, loaded.Kind, CancellationToken.None);
+            phase.Should().Be(expected);
+            (await phases.ReadManyAsync([loaded.Id], loaded.Kind, CancellationToken.None))[loaded.Id].Should().Be(expected,
+                "the page read answers as the single read does");
+            effective = DataRequestFailureReconciler.EffectiveStatus(loaded, phase);
+            effective.Should().Be(dead ? DataRequestStatus.Failed : DataRequestCodes.Statuses.Parse(stored),
+                "the receipt reads failed only for a dead job, before anything is stored");
+            (await reconciler.ReconcileAsync(loaded, CancellationToken.None)).Should().Be(dead);
+            await scope.Frame.CompleteAsync();
+        }
+
+        var state = await RequestAsync(SchemaFixture.TenantA, null, request);
+        (state.Status, state.Failure).Should().Be(dead ? ("failed", "execution_failed") : (stored, null));
+        var refile = () => FileAsync(SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA], "erasure");
+        if (dead)
+            (await RequestAsync(SchemaFixture.TenantA, null, await refile())).Status.Should().Be("scheduled", "the stored failure freed the slot");
+        else
+            (await refile.Should().ThrowAsync<PostgresException>()).Which.ConstraintName.Should().Be("ux_data_subject_requests_active",
+                "a request that is not stored failed still holds the group's one active slot");
     }
 
     private async Task<DisposableSchemaDatabase> OpenDatabaseAsync() =>

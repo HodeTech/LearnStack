@@ -225,19 +225,22 @@ public sealed partial class DataErasureExecutionTests
         var logs = new ErasureLogCapture();
         // Person A's branch Membership, named by a request of person A's tenant-wide group.
         var erasure = await FileDueErasureAsync(SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA]);
-        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
-        await using (var transaction = await owner.BeginTransactionAsync())
+        async Task CorruptSnapshotAsync(Guid membership)
         {
+            await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+            await using var transaction = await owner.BeginTransactionAsync();
             await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests DISABLE TRIGGER tg_data_subject_requests_mutation_guard");
             await ScopeAsync(owner, transaction, SchemaFixture.TenantA, null);
             (await ScalarAsync<long>(owner, transaction, """
                 WITH moved AS (
                     UPDATE public.data_subject_requests SET membership_snapshot=@snapshot::jsonb WHERE id=@id RETURNING 1)
                 SELECT count(*) FROM moved
-                """, ("id", erasure), ("snapshot", Snapshot(BranchMembershipA1)))).Should().Be(1);
+                """, ("id", erasure), ("snapshot", Snapshot(membership)))).Should().Be(1);
             await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests ENABLE TRIGGER tg_data_subject_requests_mutation_guard");
             await transaction.CommitAsync();
         }
+
+        await CorruptSnapshotAsync(BranchMembershipA1);
 
         await using var host = Host(services => services.AddSingleton<ILogEventSink>(logs));
 
@@ -249,6 +252,162 @@ public sealed partial class DataErasureExecutionTests
         (await MembershipAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, BranchMembershipA1)).Status.Should().Be("Active");
         (await MembershipAsync(SchemaFixture.TenantA, null, LearnerMembershipA)).Status.Should().Be("Active");
         logs.Rendered().Should().Contain("attempt failed (\"InvalidOperationException\")", "the service refused, not a database or a participant");
+
+        // An InvalidOperationException has other sources (the window not ended, the fences, a transition the job's own
+        // preconditions admitted), so the cause is pinned two ways. The not-due refusal logs its own line, which is absent;
+        // and the same request, due and fenced exactly as before, with only its snapshot restored to the subject's own
+        // Membership, runs to the end: nothing but the snapshot made the first attempt fail.
+        logs.Rendered().Should().NotContain("is not yet due", "the window had ended: the attempt did not fail for being early");
+        await CorruptSnapshotAsync(LearnerMembershipA);
+
+        (await RunAsync(host.Services, await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure))).Committed();
+
+        (await RequestAsync(SchemaFixture.TenantA, null, erasure)).Status.Should().Be("awaiting_privileged_step");
+        (await MembershipAsync(SchemaFixture.TenantA, null, LearnerMembershipA)).Status.Should().Be("Revoked");
+        (await MembershipAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, BranchMembershipA1)).Status.Should().Be("Active",
+            "the other group's Membership was never the subject's to erase here");
+    }
+
+    /// <summary>
+    /// CHARACTERIZATION of a decision still owed (amendments-owed item 34, ADR-0106 § 3): "an administrator erases only for a
+    /// Revoked Membership" holds at creation only. An administrator files for a Revoked Membership M1; the person is then
+    /// admitted again as M2 (Active) inside the 24-hour window; the job runs. Today the request's snapshot names only M1,
+    /// so M2 is not touched: it stays Active with its profile and assignment. But the withdrawal of exports, artifacts and
+    /// issued invitations is by subject and group, not by snapshot, so the NEW admission's artifact, pending export and
+    /// issued invitation are withdrawn, and the request ends <c>awaiting_privileged_step</c>: an erasure the person never
+    /// asked for takes the data of an admission it was not filed for. If the maintainer adds a closed refusal at execution
+    /// (<c>blocked_membership_current</c>) or accepts this, this case changes with that decision; an accidental change in
+    /// either direction fails it. The operator's audit redaction of the group is a separate act and not run here.
+    /// </summary>
+    [Fact]
+    public async Task An_administrator_erasure_of_a_revoked_membership_withdraws_what_a_person_admitted_again_in_the_window_owns_and_leaves_the_new_membership_active()
+    {
+        await using var database = await OpenDatabaseAsync();
+        await SetStatusAsync(SchemaFixture.TenantA, null, LearnerMembershipA, "Revoked");
+        var erasure = Guid.CreateVersion7();
+        await using (var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FenceAsync(app, transaction, SchemaFixture.TenantA, null, PersonA);
+            await ExecuteAsync(app, transaction, """
+                INSERT INTO public.data_subject_requests(id,tenant_id,organization_id,kind,origin,subject_user_id,requester_user_id,
+                    status,membership_snapshot,execute_at,created_at,created_by)
+                VALUES(@id,@tenant,NULL,'erasure','administrator',@subject,@requester,'scheduled',@snapshot::jsonb,
+                    now() + interval '24 hours',now(),@requester)
+                """, ("id", erasure), ("tenant", SchemaFixture.TenantA), ("subject", PersonA), ("requester", AdminA),
+                ("snapshot", Snapshot(LearnerMembershipA)));
+            await transaction.CommitAsync();
+        }
+
+        // Inside the window the person is admitted again, with a pending export, an offer they issued and the artifact the
+        // seeded export left; the snapshot, frozen at filing, does not name the new Membership.
+        var readmitted = Guid.CreateVersion7();
+        await using (var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await ScopeAsync(app, transaction, SchemaFixture.TenantA, null);
+            await LockAsync(app, transaction, SchemaFixture.TenantA, PersonA, false);
+            await InsertMemberAsync(app, transaction, SchemaFixture.TenantA, null, readmitted, PersonA,
+                RoleId(SchemaFixture.TenantA, LearnStack.SharedKernel.Permissions.BuiltInRoleKey.Learner,
+                    LearnStack.SharedKernel.Permissions.PermissionScope.Tenant));
+            await transaction.CommitAsync();
+        }
+
+        var export = await FileAsync(SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA, readmitted], "export");
+        var issued = await IssueInvitationAsync(SchemaFixture.TenantA, null, PersonA);
+        await DataErasureTestKit.BackdateAsync(database.MigrationConnectionString, SchemaFixture.TenantA, null, erasure);
+        await using var host = Host();
+
+        (await RunAsync(host.Services, await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure))).Committed();
+
+        (await RequestAsync(SchemaFixture.TenantA, null, erasure)).Status.Should().Be("awaiting_privileged_step");
+        (await MembershipAsync(SchemaFixture.TenantA, null, LearnerMembershipA)).Should().Be(
+            new MembershipState("Revoked", SystemActor, null, null, "[]", 0), "the Membership the request names is erased");
+        (await MembershipAsync(SchemaFixture.TenantA, null, readmitted)).Should().Be(
+            new MembershipState("Active", null, "profile-canary", "en", "[]", 1),
+            "the new admission is not in the snapshot: it stays Active with its profile and its role");
+        (await AuditAsync(SchemaFixture.TenantA, null, "identity.membership.erase", LearnerMembershipA)).Should().Be(1);
+        (await AuditAsync(SchemaFixture.TenantA, null, "identity.membership.erase", readmitted)).Should().Be(0);
+        (await ArtifactAsync(SchemaFixture.TenantA, null, TenantWideA.Artifact!.Value)).Should().Be(("revoked", 0L),
+            "withdrawn by subject and group: the person's artifact is revoked though the person is a current member again");
+        (await RequestAsync(SchemaFixture.TenantA, null, export)).Status.Should().Be("cancelled",
+            "the pending export of the person in the group is cancelled by subject and group");
+        (await InvitationAsync(SchemaFixture.TenantA, null, issued)).Status.Should().Be("Revoked",
+            "the offer the person issued after being admitted again is revoked by subject and group");
+    }
+
+    /// <summary>
+    /// Two erasures of two different people of one tenant, run at once through the real job runtime on one host: each takes
+    /// its subject's User fence and then the tenant key exclusively, in that order, so the second waits for the first and
+    /// neither deadlocks. The first is held inside its transaction (a participant that waits on a gate) until the second is
+    /// seen waiting on an advisory lock in <c>pg_locks</c>, so the contention is observed, not hoped for; then both
+    /// commit within a bounded wait, each erased only its own person's Membership, invitations and request, and neither
+    /// touched the other's.
+    /// </summary>
+    [Fact]
+    public async Task Two_erasures_of_two_people_of_one_tenant_run_at_once_serialize_on_the_tenant_key_and_both_complete()
+    {
+        await using var database = await OpenDatabaseAsync();
+        var (personC, membershipC) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await InsertUserAsync(database.AppConnectionString, personC);
+        await using (var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await ScopeAsync(app, transaction, SchemaFixture.TenantA, null);
+            await LockAsync(app, transaction, SchemaFixture.TenantA, personC, false);
+            await InsertMemberAsync(app, transaction, SchemaFixture.TenantA, null, membershipC, personC,
+                RoleId(SchemaFixture.TenantA, LearnStack.SharedKernel.Permissions.BuiltInRoleKey.Learner,
+                    LearnStack.SharedKernel.Permissions.PermissionScope.Tenant), "profile-canary-c");
+            await transaction.CommitAsync();
+        }
+
+        var (invitationA, invitationC) = (await IssueInvitationAsync(SchemaFixture.TenantA, null, PersonA),
+            await IssueInvitationAsync(SchemaFixture.TenantA, null, personC));
+        var (erasureA, erasureC) = (await FileDueErasureAsync(SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA]),
+            await FileDueErasureAsync(SchemaFixture.TenantA, null, personC, [membershipC]));
+        var (jobA, jobC) = (await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasureA),
+            await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasureC));
+        var gate = new GatedParticipant(PersonA);
+        await using var host = Host(services => services.AddSingleton<IUserDataParticipant>(gate));
+
+        var first = Task.Run(() => RunAsync(host.Services, jobA));
+        await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var second = Task.Run(() => RunAsync(host.Services, jobC));
+        await using (var observer = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            while (!await ScalarAsync<bool>(observer, null,
+                       "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_locks WHERE locktype = 'advisory' AND NOT granted)"))
+            {
+                second.IsCompleted.Should().BeFalse("the second erasure cannot finish while the first holds the tenant key");
+                DateTime.UtcNow.Should().BeBefore(deadline, "the second erasure must be seen waiting on the first's tenant key");
+                await Task.Delay(TimeSpan.FromMilliseconds(20));
+            }
+        }
+
+        gate.Release.TrySetResult();
+        var results = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(60));
+
+        results[0].Committed("the first erasure commits when released");
+        results[1].Committed("the second erasure commits once the first has released the tenant key: no deadlock");
+        (await RequestAsync(SchemaFixture.TenantA, null, erasureA)).Status.Should().Be("awaiting_privileged_step");
+        (await RequestAsync(SchemaFixture.TenantA, null, erasureC)).Status.Should().Be("awaiting_privileged_step");
+        var tombstone = new MembershipState("Revoked", SystemActor, null, null, "[]", 0);
+        (await MembershipAsync(SchemaFixture.TenantA, null, LearnerMembershipA)).Should().Be(tombstone);
+        (await MembershipAsync(SchemaFixture.TenantA, null, membershipC)).Should().Be(tombstone);
+        (await InvitationAsync(SchemaFixture.TenantA, null, invitationA)).Status.Should().Be("Revoked");
+        (await InvitationAsync(SchemaFixture.TenantA, null, invitationC)).Status.Should().Be("Revoked");
+        (await MembershipAsync(SchemaFixture.TenantA, SchemaFixture.OrgA1, BranchMembershipA1)).Status.Should().Be("Active",
+            "person A's other groups are not these requests'");
+        foreach (var (request, membership) in new[] { (erasureA, LearnerMembershipA), (erasureC, membershipC) })
+        {
+            (await AuditAsync(SchemaFixture.TenantA, null, "identity.data_request.fulfill_erasure", request)).Should().Be(1);
+            (await AuditAsync(SchemaFixture.TenantA, null, "identity.membership.erase", membership)).Should().Be(1,
+                "each erasure's audit row names its own person's Membership once");
+        }
+
+        JsonDocument.Parse((await RequestAsync(SchemaFixture.TenantA, null, erasureC)).Result).RootElement.GetProperty("request_receipt")
+            .GetInt64().Should().Be(1, "person C's receipt counts person C's request alone");
     }
 
     /// <summary>
@@ -391,5 +550,30 @@ public sealed partial class DataErasureExecutionTests
         public void Emit(LogEvent logEvent) => _entries.Enqueue(logEvent);
 
         public string Rendered() => string.Join('\n', _entries.Select(entry => entry.RenderMessage(CultureInfo.InvariantCulture)));
+    }
+
+    /// <summary>Holds the erasure of one subject inside its transaction until released: the first of two concurrent runs.</summary>
+    private sealed class GatedParticipant(Guid held) : IUserDataParticipant
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string Key => "probe";
+
+        public Task ExportAsync(UserDataSubject subject, IUserDataExportWriter writer, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public async Task EraseAsync(UserDataSubject subject, CancellationToken cancellationToken)
+        {
+            if (subject.SubjectUserId != held)
+            {
+                return;
+            }
+
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(TimeSpan.FromSeconds(60), cancellationToken);
+        }
+
+        public Task<IReadOnlyCollection<RetainedReferenceCount>> DescribeRetainedAsync(UserDataSubject subject,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyCollection<RetainedReferenceCount>>([]);
     }
 }

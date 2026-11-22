@@ -273,6 +273,39 @@ public sealed partial class DataRequestHttpTests
         (await AuditCountAsync(proof, tenant, null, "identity.data_export.revoke")).Should().Be(1);
     }
 
+    /// <summary>
+    /// The retained revocation is the caller's own artifact only: a Suspended person naming another person's completed export
+    /// in the same group, with that artifact's real version, is answered exactly as an unknown request is, and the other
+    /// person's artifact is still available and unchanged. Dropping the subject check on the retained entry fails this.
+    /// </summary>
+    [Fact]
+    public async Task The_retained_revocation_of_another_persons_artifact_is_not_found_and_leaves_that_artifact_available()
+    {
+        await using var proof = await CreatePreparedAsync();
+        using var client = RetainedClient(proof);
+        var tenant = English.TenantId.Value;
+        var admin = proof.Token(EnglishAdmin, English);
+        var native = NativeToken(proof, EnglishLearner);
+        var (foreignExport, _) = await FileExportAsync(client, admin);
+        await RunExportAsync(proof, tenant, null, foreignExport);
+        var before = (await ReceiptAsync(client, admin, foreignExport)).GetProperty("artifact");
+        before.GetProperty("status").GetString().Should().Be("available", "the other person's artifact is arranged available");
+        var (ownExport, _) = await FileExportAsync(client, proof.Token(EnglishLearner, English));
+        await RunExportAsync(proof, tenant, null, ownExport);
+        await ChangeStatusAsync(client, proof, LearnerMembershipId, "Suspended");
+
+        var body = JsonSerializer.Serialize(new { requestId = foreignExport });
+        using (var refused = await EntrySendAsync(client, native, "/revocations?group=tenant", body, Key(), "\"" + Version(before) + "\""))
+            await ProblemAsync(refused, HttpStatusCode.NotFound, "not_found");
+
+        var after = (await ReceiptAsync(client, admin, foreignExport)).GetProperty("artifact");
+        after.GetProperty("status").GetString().Should().Be("available", "a refused revocation deletes nothing");
+        Version(after).Should().Be(Version(before));
+        (await AuditCountAsync(proof, tenant, null, "identity.data_export.revoke")).Should().Be(0);
+        (await CountAsync(proof, tenant, null, "SELECT count(*) FROM public.data_export_artifacts WHERE status='available'")).Should()
+            .Be(2, "both persons' artifacts are intact");
+    }
+
     /// <summary>The request's stored erasure job: its definition, group, identifier-only parameters and due time.</summary>
     private static async Task AssertErasureJobAsync(IdentityAuthorizationHttpProof proof, Guid tenant, Guid? organization, Guid request,
         JsonElement receipt)

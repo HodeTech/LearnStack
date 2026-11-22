@@ -176,7 +176,13 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
 
                 world.FailedEvent = await EventOfAsync(world, failed.SourceEventId);
                 world.FailedTarget = await TargetOfAsync(world, failed.SourceEventId);
+                // The real dispatcher stopped with the host above, but it may have exhausted the failing delivery in the moment
+                // between the first failed attempt the wait saw and that stop. So the arrangement asserts the state it needs,
+                // not the transition into it: this UPDATE dead-letters the delivery as the dispatcher would when it is still
+                // retrying (one row) and finds nothing to do when the dispatcher already did (no row); either way the delivery
+                // ends dead-lettered as exhausted with its handler never completed.
                 await using (var dispatcher = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString))
+                {
                     (await ScalarAsync<long>(dispatcher, null, """
                         WITH moved AS (UPDATE public.event_deliveries SET terminal_reason = 'retry_exhausted',
                                 dead_lettered_at = clock_timestamp(), locked_by = NULL, locked_until = NULL
@@ -184,7 +190,16 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
                                 AND processed_at IS NULL AND dead_lettered_at IS NULL RETURNING 1)
                         SELECT count(*) FROM moved
                         """, ("tenant", SchemaFixture.TenantA), ("subscription", Subscription), ("event", world.FailedEvent)))
-                        .Should().Be(1, "the failed delivery is dead-lettered as the dispatcher would, with its handler never completed");
+                        .Should().BeLessThanOrEqualTo(1);
+                    (await ScalarAsync<long>(dispatcher, null, """
+                        SELECT count(*) FROM public.event_deliveries
+                        WHERE tenant_id = @tenant AND subscription_id = @subscription AND event_id = @event
+                            AND processed_at IS NULL AND dead_lettered_at IS NOT NULL AND terminal_reason = 'retry_exhausted'
+                            AND locked_by IS NULL
+                        """, ("tenant", SchemaFixture.TenantA), ("subscription", Subscription), ("event", world.FailedEvent)))
+                        .Should().Be(1, "the failed delivery is dead-lettered as exhausted, with its handler never completed");
+                }
+
                 await ExecuteAsync(owner, null, $"ALTER TABLE public.audit_log DROP CONSTRAINT {refusal}");
             }
 

@@ -5,6 +5,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Platform;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 
@@ -46,14 +47,18 @@ public sealed partial class AuditRedactionCanaryTests
         batches.Should().Contain(batch => batch.Count(row => label[row.Id].Selected) > TinyUpdateRows,
             "one batch selects more rows than one UPDATE rewrites");
 
-        // And the executor drew exactly them. Each batch's statements start the same scans of the timestamp index (its
-        // boundary and the selection's payload branch), which the one-batch run counts once; a last batch the rule closes
-        // is followed by an empty one. So the count is the planned batches times the one-batch count, and with both
-        // budgets it is higher than with either alone.
+        // And the executor drew exactly them. Each batch starts exactly one boundary statement, so the statements the
+        // connection ran are the batches drawn: the one-batch run draws one, and a last batch the rule closes is followed by
+        // an empty one. Counting statements, not scans of an index, keeps the proof independent of the planner, whose choice
+        // among the tenant, actor and entity indexes moves with table statistics. With both budgets there are more
+        // batches than with either alone.
         var iterations = batches.Count + (Closed(batches[^1]) ? 1 : 0);
-        tiny.Scans.Should().Be(single.Scans * iterations, "the executor draws the {0} batches the rule draws", iterations);
-        tiny.Scans.Should().BeGreaterThan(rowsOnly.Scans, "the byte budget ends batches")
-            .And.BeGreaterThan(bytesOnly.Scans, "the row cap ends batches");
+        single.Boundaries.Should().Be(1, "the production sizes read this tenant in one batch");
+        tiny.Boundaries.Should().Be(iterations, "the executor draws the {0} batches the rule draws", iterations);
+        tiny.Boundaries.Should().BeGreaterThan(rowsOnly.Boundaries, "the byte budget ends batches")
+            .And.BeGreaterThan(bytesOnly.Boundaries, "the row cap ends batches");
+        single.Scans.Should().BeGreaterThan(0, "the reads were served by an index, since the planner may not scan sequentially");
+        tiny.Scans.Should().BeGreaterThan(single.Scans, "many batches start many more index scans than one");
 
         // Exactly the selected rows change, and every run leaves every row as the one batch does and reports the same.
         tiny.After.Where(entry => entry.Value != tiny.Before[entry.Key]).Select(entry => label[entry.Key].Label).Should()
@@ -82,23 +87,37 @@ public sealed partial class AuditRedactionCanaryTests
     }
 
     /// <summary>One executor's run over the rows: what it reported, what the rows read before and after, and how many
-    /// scans of the timestamp index it started; optionally the planned batches and a second run's report.</summary>
+    /// scans of the timestamp index and how many boundary statements it started; optionally the planned batches and a
+    /// second run's report.</summary>
     private sealed record BatchRun(AuditRedactionReport Report, Dictionary<Guid, Snapshot> Before, Dictionary<Guid, Snapshot> After,
-        long Scans, List<List<BatchRow>>? Planned, AuditRedactionReport? Again, Dictionary<Guid, Snapshot>? AfterAgain);
+        long Scans, int Boundaries, List<List<BatchRow>>? Planned, AuditRedactionReport? Again, Dictionary<Guid, Snapshot>? AfterAgain);
 
     private async Task<BatchRun> BatchRunAsync(Guid tenant, List<CanaryRow> rows, AuditRedactionExecutor executor, bool plan = false,
         bool again = false)
     {
         // An executor that never moved its upper bound would loop; the token turns that into a failure.
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-        await using var scope = await OpenAsync(schema.Postgres.PlatformConnectionString);
+        using var statements = new StatementLog();
+        await using var source = new NpgsqlDataSourceBuilder(schema.Postgres.PlatformConnectionString)
+            .UseLoggerFactory(LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Debug).AddProvider(statements)))
+            .Build();
+        var connection = await source.OpenConnectionAsync();
+        await using var scope = new Scope(connection, await connection.BeginTransactionAsync());
+
+        // The scan count is the proof, so the planner may not pick another access path for a statement: a sequential or
+        // bitmap scan on a small or freshly analysed table would otherwise make the count depend on statistics.
+        await using (var settings = new NpgsqlCommand("SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off", scope.Connection,
+            scope.Transaction))
+            await settings.ExecuteNonQueryAsync();
         await InsertAsync(scope, rows);
         var before = await ReadAsync(scope, rows);
         var planned = plan ? await PlannedBatchesAsync(scope, tenant) : null;
         var scans = await ScansAsync(scope);
+        statements.Clear();
         var report = await executor.RedactAsync(Plan(tenant, DataRequestOrigin.Self, null), Spent(PlatformOperations.ErasureComplete),
             scope.Connection, scope.Transaction, deadline.Token);
         scans = await ScansAsync(scope) - scans;
+        var boundaries = statements.Count(BoundaryMarker);
         var after = await ReadAsync(scope, rows);
         var second = again
             ? await executor.RedactAsync(Plan(tenant, DataRequestOrigin.Self, null), Spent(PlatformOperations.ErasureComplete),
@@ -106,7 +125,7 @@ public sealed partial class AuditRedactionCanaryTests
             : null;
         var afterAgain = again ? await ReadAsync(scope, rows) : null;
         await scope.Transaction.RollbackAsync();
-        return new BatchRun(report, before, after, scans, planned, second, afterAgain);
+        return new BatchRun(report, before, after, scans, boundaries, planned, second, afterAgain);
     }
 
     /// <summary>
@@ -191,6 +210,34 @@ public sealed partial class AuditRedactionCanaryTests
 
     /// <summary>Whether the rule closes a planned batch at its last row (a full batch), rather than the rows running out.</summary>
     private static bool Closed(List<BatchRow> batch) => batch.Count == TinyBatchRows || batch.Sum(row => row.Bytes) >= TinyBatchBytes;
+
+    /// <summary>The text only the executor's boundary statement carries.</summary>
+    private const string BoundaryMarker = "count(*) OVER batch";
+
+    /// <summary>The commands one connection completed, as the driver logs them.</summary>
+    private sealed class StatementLog : ILoggerProvider, ILogger
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _commands = new();
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public void Clear() => _commands.Clear();
+
+        /// <summary>The commands that ran to completion and carry <paramref name="marker"/>; the start of each is logged too.</summary>
+        public int Count(string marker) => _commands.Count(command =>
+            command.StartsWith("Command execution completed", StringComparison.Ordinal) && command.Contains(marker, StringComparison.Ordinal));
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Debug;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            _commands.Enqueue(formatter(state, exception));
+
+        public void Dispose()
+        {
+        }
+    }
 
     /// <summary>One row as the batches order and size it.</summary>
     private sealed record BatchRow(Guid Id, DateTime Timestamp, long Bytes);

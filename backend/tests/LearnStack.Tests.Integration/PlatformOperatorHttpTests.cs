@@ -1414,10 +1414,47 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
         _dataRequests.Failure = new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true);
         (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        _dataRequests.Failure = null;
+
+        // The remaining outcomes: each is its own closed token, so an alert keyed on one cannot be fed by another.
+        _dataRequests.RefuseCursor = true;
+        (await Call(HttpMethod.Get, DataRequests + "?cursor=forged", Valid())).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _dataRequests.RefuseCursor = false;
+        foreach (var outcome in new[]
+                 {
+                     ErasureCompletionOutcome.NotFound, ErasureCompletionOutcome.NotErasure, ErasureCompletionOutcome.NotAwaiting,
+                     ErasureCompletionOutcome.AlreadyCompleted,
+                 })
+        {
+            _dataRequests.Completion = new ErasureCompletionResult(
+                outcome, Guid.Parse(RowTenant), "scheduled", DateTimeOffset.UnixEpoch, new Dictionary<string, long>());
+            (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).Should().NotBeNull();
+        }
+
+        _dataRequests.Failure = new AuditWriteFailedException("forced");
+        (await Call(HttpMethod.Get, DataRequests, Valid())).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        _dataRequests.Failure = new OperatorRecoveryUnavailableException(cause: new TimeoutException("forced"));
+        (await Call(HttpMethod.Get, DataRequests, Valid())).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        // A defect (a plain exception from the owner) is counted "failed" and still propagates: the host answers its own 500.
+        _dataRequests.Failure = new InvalidOperationException("forced defect");
+        var failedInspection = await Call(HttpMethod.Get, DataRequests, Valid());
+        var failedCompletion = await Call(HttpMethod.Post, CompletePath, Valid(), "{}");
+        failedInspection.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "the failure still propagates to the host");
+        failedCompletion.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "the failure still propagates to the host");
+        (await failedInspection.Content.ReadAsStringAsync()).Should().NotContain("forced defect");
+        (await failedCompletion.Content.ReadAsStringAsync()).Should().NotContain("forced defect");
 
         counted.Calls.Should().Equal(
             ("platform.data_request.inspect", "ok"), ("audit.redaction.apply", "completed"), ("audit.redaction.apply", "closure_fanout"),
-            ("audit.redaction.apply", "commit_unknown"));
+            ("audit.redaction.apply", "commit_unknown"), ("platform.data_request.inspect", "invalid_cursor"),
+            ("audit.redaction.apply", "not_found"), ("audit.redaction.apply", "not_erasure"), ("audit.redaction.apply", "not_awaiting"),
+            ("audit.redaction.apply", "already_completed"),
+            ("platform.data_request.inspect", "audit_unavailable"), ("audit.redaction.apply", "audit_unavailable"),
+            ("platform.data_request.inspect", "unavailable"), ("audit.redaction.apply", "unavailable"),
+            ("platform.data_request.inspect", "failed"), ("audit.redaction.apply", "failed"));
     }
 
     [Fact]

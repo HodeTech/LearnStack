@@ -51,12 +51,34 @@ public sealed partial class DataErasureExecutionTests
         (await RunAsync(host.Services, await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure)))
             .Committed();
         (await RequestAsync(SchemaFixture.TenantA, null, erasure)).Status.Should().Be("awaiting_privileged_step");
-        string[] identifiers = [PersonA.ToString("D"), .. memberships.Select(membership => membership.ToString("D"))];
+        // The identifiers, and the personal content the erasure removed: the profile's display name, which the payloads must
+        // not carry either, and the e-mail of an invitation the person issued.
+        string[] identifiers = [PersonA.ToString("D"), .. memberships.Select(membership => membership.ToString("D")),
+            "profile-canary", "@example.invalid"];
 
         // The job's rows came from the capture and name the person: the proof below is not vacuous.
         var named = await IdentifiersInPayloadsAsync(SchemaFixture.TenantA, identifiers);
         named.Select(occurrence => occurrence.EntityType).Distinct().Should()
             .Contain(["Membership", "Invitation", "DataSubjectRequest", "DataExportArtifact"]);
+
+        // A row the person acted in, with every attributed scalar column set: the proof that those columns are cleared is
+        // not vacuous either, as the job's own rows carry no address or agent.
+        var attributed = Guid.CreateVersion7();
+        await using (var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.PlatformConnectionString))
+        await using (var insert = new NpgsqlCommand("""
+            INSERT INTO public.audit_log (id, "timestamp", tenant_id, organization_id, actor_user_id, actor_email, module, operation,
+                operation_type, operation_class, entity_type, entity_id, outcome, correlation_id, ip_address, user_agent)
+            VALUES (@id, clock_timestamp(), @tenant, NULL, @actor, 'person@example.test', 'e2e', 'e2e.redaction.row', 'Update', 'Must',
+                'Course', @entity, 'success', @correlation, '198.51.100.7'::inet, 'E2E/1.0')
+            """, platform))
+        {
+            insert.Parameters.AddWithValue("id", attributed);
+            insert.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            insert.Parameters.AddWithValue("actor", PersonA);
+            insert.Parameters.AddWithValue("entity", Guid.CreateVersion7().ToString("D"));
+            insert.Parameters.AddWithValue("correlation", "00-" + attributed.ToString("N") + "-01");
+            await insert.ExecuteNonQueryAsync();
+        }
 
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -70,6 +92,22 @@ public sealed partial class DataErasureExecutionTests
         // Every survivor at once, one a line, so a failure names each undeclared reference rather than the first.
         string.Join(Environment.NewLine, await IdentifiersInPayloadsAsync(SchemaFixture.TenantA, identifiers)).Should()
             .BeEmpty("no payload names the person or a request Membership after the privileged step, except own keys");
+
+        // The scalar columns of every row that named the person, and of the row the person acted in, are cleared.
+        var rows = named.Select(occurrence => occurrence.Row).Append(attributed).Distinct().ToArray();
+        await using var reader = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.PlatformConnectionString);
+        await using var survivors = new NpgsqlCommand("""
+            SELECT count(*) FILTER (WHERE actor_email IS NOT NULL), count(*) FILTER (WHERE ip_address IS NOT NULL),
+                count(*) FILTER (WHERE user_agent IS NOT NULL), count(*)
+            FROM public.audit_log WHERE tenant_id = @tenant AND id = ANY(@rows)
+            """, reader);
+        survivors.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+        survivors.Parameters.AddWithValue("rows", rows);
+        await using var counts = await survivors.ExecuteReaderAsync();
+        (await counts.ReadAsync()).Should().BeTrue();
+        (counts.GetInt64(0), counts.GetInt64(1), counts.GetInt64(2)).Should().Be((0, 0, 0),
+            "no e-mail, address or agent survives on a row that named the person");
+        counts.GetInt64(3).Should().Be(rows.Length, "every row the proof names is still there: redaction rewrites rows, it deletes none");
     }
 
     private static readonly string[] Sides = ["before", "after"];

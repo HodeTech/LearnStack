@@ -469,6 +469,62 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
         }
     }
 
+    /// <summary>
+    /// The request guard's INSERT arm admits exactly one initial status per kind and origin and refuses every other, for
+    /// every kind and origin the CHECK constraints admit: <c>requested</c> for an export, <c>scheduled</c> for an erasure or
+    /// a closure of a person, and nothing for a closure's fan-out erasure, which has no witness of its own yet. A request
+    /// is never born <c>fulfilling</c>, <c>awaiting_privileged_step</c> or terminal. Each combination first inserts its
+    /// own initial row (so the arrangement is valid and only the status differs), then each other status as the application
+    /// role with the fences held; the refusal is the guard's, which fires before any constraint.
+    /// </summary>
+    [Fact]
+    public async Task The_request_guard_refuses_every_status_but_the_initial_one_for_every_kind_and_origin_the_constraints_admit()
+    {
+        await using var database = await SeededAsync();
+        string[] statuses = ["requested", "scheduled", "fulfilling", "awaiting_privileged_step", "completed", "blocked", "failed", "cancelled"];
+        // (kind, origin, requester, window, the one initial status or none)
+        (string Kind, string Origin, Guid? Requester, bool Window, string? Initial)[] combinations =
+        [
+            ("export", "self", PersonA, false, "requested"),
+            ("export", "administrator", AdminA, false, "requested"),
+            ("erasure", "self", PersonA, true, "scheduled"),
+            ("erasure", "administrator", AdminA, true, "scheduled"),
+            ("erasure", "closure_fanout", null, false, null),
+            ("closure", "self", PersonA, true, "scheduled"),
+        ];
+        const string Insert = """
+            INSERT INTO public.data_subject_requests(id,tenant_id,organization_id,kind,origin,subject_user_id,requester_user_id,
+                status,membership_snapshot,execute_at,created_at,created_by)
+            VALUES(@id,@tenant,NULL,@kind,@origin,@subject,@requester::uuid,@status,@snapshot::jsonb,
+                CASE WHEN @window THEN now() + interval '24 hours' ELSE NULL END,now(),COALESCE(@requester::uuid, @system::uuid))
+            """;
+        await using var app = await OpenAppAsync(database);
+        await using var transaction = await app.BeginTransactionAsync();
+        await FenceAsync(app, transaction, SchemaFixture.TenantA, null, PersonA);
+        Task Insertion(string kind, string origin, Guid? requester, bool window, string status) => ExecuteAsync(app, transaction, Insert,
+            ("id", Guid.CreateVersion7()), ("tenant", SchemaFixture.TenantA), ("kind", kind), ("origin", origin), ("subject", PersonA),
+            ("requester", requester), ("status", status), ("snapshot", Snapshot(LearnerMembershipA)), ("window", window),
+            ("system", SystemActor));
+
+        foreach (var (kind, origin, requester, window, initial) in combinations)
+        {
+            var label = kind + "/" + origin;
+            if (initial is not null)
+            {
+                await transaction.SaveAsync("control");
+                await Insertion(kind, origin, requester, window, initial);
+                await transaction.RollbackAsync("control");
+            }
+
+            foreach (var status in statuses.Where(status => status != initial))
+            {
+                var refusal = await DataExportTestKit.RefuseAsync(transaction, () => Insertion(kind, origin, requester, window, status));
+                (refusal.SqlState, refusal.MessageText).Should().Be((PostgresErrorCodes.CheckViolation, "Data request initial state refused."),
+                    $"{label} is never born {status}: the guard's refusal, not a constraint's");
+            }
+        }
+    }
+
     private async Task<DisposableSchemaDatabase> SeededAsync()
     {
         var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);

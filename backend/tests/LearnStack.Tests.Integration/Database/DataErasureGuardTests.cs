@@ -119,19 +119,61 @@ public sealed class DataErasureGuardTests(SchemaFixture fixture)
     {
         await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         var erasure = await ArrangeAsync(database);
-        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
-        {
-            await using var transaction = await owner.BeginTransactionAsync();
-            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests DISABLE TRIGGER tg_data_subject_requests_mutation_guard");
-            await ScopeAsync(owner, transaction, SchemaFixture.TenantA, null);
-            await ExecuteAsync(owner, transaction, "UPDATE public.data_subject_requests SET membership_snapshot=@snapshot::jsonb WHERE id=@id",
-                ("id", erasure), ("snapshot", Snapshot(Guid.CreateVersion7())));
-            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests ENABLE TRIGGER tg_data_subject_requests_mutation_guard");
-            await transaction.CommitAsync();
-        }
+        await CorruptSnapshotAsync(database, erasure, Guid.CreateVersion7());
 
         await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive, Clear, LearnerMembershipA, MembershipParentRefusal,
             "for a Revoked Membership the fulfilling request's snapshot does not name");
+    }
+
+    /// <summary>
+    /// The organization and subject predicates of the witness are each enough alone: a fulfilling tenant-wide erasure of
+    /// person A whose frozen snapshot is corrupted to also name a Revoked Membership of person A in another group, or a
+    /// Revoked Membership of another person of the group, still clears neither. The snapshot contains each target, so the
+    /// snapshot predicate is satisfied and cannot be what refuses; the probe holds the target person's User fence and the
+    /// tenant key exclusively, so no fence is what refuses either.
+    /// </summary>
+    [Fact]
+    public async Task A_snapshot_widened_to_another_group_or_another_person_is_refused_by_the_organization_and_subject_predicates()
+    {
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
+        var erasure = await ArrangeAsync(database);
+        await CorruptSnapshotAsync(database, erasure, LearnerMembershipA, BranchMembershipA1, AdminMembershipA);
+        const string named = "SELECT membership_snapshot @> jsonb_build_array(@member::text) FROM public.data_subject_requests WHERE id=@erasure";
+
+        // Person A's other group: the erasure is the tenant-wide one, whose group is not the Membership's.
+        await ProbeAsync(database, SchemaFixture.TenantA, SchemaFixture.OrgA1, PersonA, Fence.Exclusive, async (app, transaction) =>
+        {
+            (await ScalarAsync<bool>(app, transaction, named, ("member", BranchMembershipA1), ("erasure", erasure))).Should().BeTrue();
+            (await DataExportTestKit.RefuseAsync(transaction, () => CountAsync(app, transaction, Clear, BranchMembershipA1)))
+                .SqlState.Should().Be(MembershipParentRefusal, "the erasure names the Membership but is not of its group");
+        });
+
+        // Another person of the same group: the erasure is person A's, not the Membership's person's.
+        await ProbeAsync(database, SchemaFixture.TenantA, null, AdminA, Fence.Exclusive, async (app, transaction) =>
+        {
+            // Revoked inside the rolled-back probe: committing it would strand the tenant without an administrator.
+            await ExecuteAsync(app, transaction, RevokeSql, ("member", AdminMembershipA), ("system", SystemActor));
+            (await ScalarAsync<bool>(app, transaction, named, ("member", AdminMembershipA), ("erasure", erasure))).Should().BeTrue();
+            (await DataExportTestKit.RefuseAsync(transaction, () => CountAsync(app, transaction, Clear, AdminMembershipA)))
+                .SqlState.Should().Be(MembershipParentRefusal, "the erasure names the Membership but is not of its person");
+        });
+
+        // The control: the Membership of the erasure's own person and group is still admitted from the same arrangement.
+        await ProbeAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive, async (app, transaction) =>
+            (await CountAsync(app, transaction, Clear, LearnerMembershipA)).Should().Be(1));
+    }
+
+    /// <summary>Replaces a request's frozen snapshot as the table owner with the request guard paused, in one committed transaction.</summary>
+    private static async Task CorruptSnapshotAsync(DisposableSchemaDatabase database, Guid erasure, params Guid[] memberships)
+    {
+        await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+        await using var transaction = await owner.BeginTransactionAsync();
+        await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests DISABLE TRIGGER tg_data_subject_requests_mutation_guard");
+        await ScopeAsync(owner, transaction, SchemaFixture.TenantA, null);
+        await ExecuteAsync(owner, transaction, "UPDATE public.data_subject_requests SET membership_snapshot=@snapshot::jsonb WHERE id=@id",
+            ("id", erasure), ("snapshot", Snapshot(memberships)));
+        await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests ENABLE TRIGGER tg_data_subject_requests_mutation_guard");
+        await transaction.CommitAsync();
     }
 
     private enum Fence { None, Shared, Exclusive }
