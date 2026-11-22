@@ -8104,8 +8104,8 @@ names for the package's obligations are assigned with the step that introduces t
   extra minter and a planted extra caller are each named. The database side is the
   contextual guard's one exception: a clearing UPDATE of a Revoked Membership's profile
   passes only with the person's User fence and the tenant key held exclusively and the
-  person's erasure of that group `fulfilling`, and each condition removed alone is
-  refused as the application role.
+  person's erasure of that group `fulfilling` and naming that Membership in its frozen
+  snapshot, and each condition removed alone is refused as the application role.
 - **Source:**
   [ADR-0107 § 5](../decisions/0107-data-request-fulfillment-and-account-closure.md).
 - **Type:** compiled minter and caller censuses with planted probes; real app-role

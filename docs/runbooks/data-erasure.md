@@ -21,7 +21,9 @@ Authentication, the token profile and how a grant is given are in
 Both run on `ConnectionStrings:PlatformAdmin` and need the Identity migration
 `20261122200000_grant_platform_data_request_operations` applied; without it the
 `expired_artifact` list fails with a permission error and a completion with the request
-guard's refusal, both a `500` named in the API's log. A completion also needs the Audit
+guard's refusal, both a `500` named in the API's log. The erasure job itself needs
+`20261122203000_admit_erasure_profile_clearing`: without it the profile clearing raises
+`P0304` and the job dies after its attempts. A completion also needs the Audit
 module's redaction executor registered (`IAuditRedactor`): without one it answers `500`,
 the log names the port, and nothing changes.
 
@@ -49,8 +51,9 @@ That is the step left to you.
 
 - **A global account closure**
   ([ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)).
-  These routes never act on a `closure` request or on a closure's fan-out erasure: the
-  completion refuses the latter, which only its closure's finalization completes.
+  It ships with P03-10 Step 3 and these routes never act on a `closure` request or on a
+  closure's fan-out erasure: the completion refuses the latter, which only its closure's
+  finalization completes.
 - **Cancelling or failing a request.** The person, or the administrator who filed it,
   cancels within the window. A request `blocked`, `failed` or `cancelled` is terminal;
   the person files a new one.
@@ -60,7 +63,9 @@ That is the step left to you.
   tenant or person, so finding one request means paging; each page is one audited scope.
   A request's identifier reaches you from the inspection or from the tenant, never with
   the person's identity.
-- **Undoing a redaction.** No copy of a redacted value is kept anywhere.
+- **Undoing a redaction.** LearnStack keeps no copy of a redacted value; backups, WAL
+  archives and row versions awaiting vacuum can still hold one (see
+  [Not recoverable here](#not-recoverable-here)).
 
 ## When to look
 
@@ -111,8 +116,10 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | `expired_artifact` | Export artifacts past `expiresAt` whose purge has not run | See [Data export § An expired artifact whose purge died](data-export.md#an-expired-artifact-whose-purge-died) |
 
 - `limit` is 1 to 100 (default 20; a larger value is clamped, and zero or less is
-  refused with `errors.limit`). Only `state`, `limit`, `cursor` and `ticket` are
-  accepted; any other parameter is refused with `errors.query` and nothing is read. The
+  refused with `errors.limit`). An unknown `state` is refused with `errors.state` and a
+  malformed or foreign `cursor` with `errors.cursor`. Only `state`, `limit`, `cursor`
+  and `ticket` are accepted; any other parameter is refused with `errors.query` and
+  nothing is read. The
   answer holds `items` and a `pageInfo` with `nextCursor` and `hasNext`; send
   `nextCursor` back as `cursor`. A cursor belongs to the list that issued it.
 - Each item carries `requestId`, `tenantId`, `organizationId` (null for the tenant-wide
@@ -155,8 +162,9 @@ The body is `{}` or `{"ticket":"..."}`. In order, and in one transaction:
    Memberships. Another person's value at the same reference, such as an administrator
    who updated the record, is left as it is.
 5. The request moves to `completed`. The database stamps `completedAt` and the system
-   actor itself, and the request's retained kinds take the audit log's counts from the
-   redaction; the kinds the group's participants recorded stay as they were.
+   actor itself. The request's audit kinds are replaced by the redaction's exact counts
+   (the Audit participant's counts from before the act were a lower bound), and every
+   other kind stays as its participant recorded it.
 6. The result row, `audit.redaction.apply`, is written in the **request's tenant**: no
    actor, the reason `erasure_complete`, the correlation id, your attribution and **no
    ticket**, `before_state` `{"status":"awaiting_privileged_step"}` and `after_state`
@@ -166,7 +174,7 @@ The body is `{}` or `{"ticket":"..."}`. In order, and in one transaction:
 | Answer | Meaning |
 |---|---|
 | `200`, `outcome: completed` | The act committed. `rowsSelected` and `redacted` (rows changed per column, every column listed) are the redaction's; `retained` is the request's whole recorded report, the audit log's kinds included; `completedAt` is the database's |
-| `200`, `outcome: already_completed` | The request was already completed, by you or another operator. Its recorded `retained` and `completedAt` are returned, nothing was redacted and **no second row** was written; `rowsSelected` and `redacted` are null, and the first act's counts are on its result row |
+| `200`, `outcome: already_completed` | The request was already completed, by you or another operator. Its recorded `retained` and `completedAt` are returned, nothing was redacted and **no second result row** was written; `rowsSelected` and `redacted` are null, and the first act's counts are on its result row |
 | `404` | No request has that identifier, or the identifier is not a UUID at all (the route does not match) |
 | `409`, `errors.kind` = `lockey_data_request_not_erasure` | The request is an export or a closure. Nothing changed |
 | `409`, `errors.origin` = `lockey_data_request_closure_fanout` | The erasure is a closure's fan-out, which only that closure's finalization completes. Nothing changed |
@@ -181,11 +189,11 @@ The body is `{}` or `{"ticket":"..."}`. In order, and in one transaction:
 ## An unknown outcome
 
 Repeat the same completion. If the first landed, the repeat answers
-`200 already_completed` with the recorded result and writes no second row; if it did
-not, nothing of it committed and the repeat completes the request now. To tell your act
-from another operator's, read the tenant's result row by the `correlationId` of the
-failed response, as in [Reading the result](#reading-the-result). A client that never
-received an answer (a timeout, a gateway error) is in the same position.
+`200 already_completed` with the recorded result and writes no second result row; if
+it did not, nothing of it committed and the repeat completes the request now. To tell
+your act from another operator's, read the tenant's result row by the `correlationId`
+of the failed response, as in [Reading the result](#reading-the-result). A client that
+never received an answer (a timeout, a gateway error) is in the same position.
 
 ## How long it takes
 
@@ -272,8 +280,9 @@ cancel. No e-mail is sent when an erasure finishes
 request cannot be read by identifier through these routes, and the completion is not a
 read: never call it to look. Say only what is true: the person's name, profile values
 and role assignments in that group were erased, the IP address, user agent and e-mail
-on the audit rows that concern them were removed once the operator step ran, and their
-identifier stays as a pseudonymous reference; never say they are anonymous. A `failed`
+on the audit rows that concern them were removed once the operator step ran (backups
+and archives are kept and purged on their own schedule), and their identifier stays as
+a pseudonymous reference; never say they are anonymous. A `failed`
 receipt means the job died: the person files again, and the old request stops blocking
 them.
 
@@ -295,7 +304,9 @@ derived from the job once its window has ended), the request cannot be cancelled
 here repairs the job. The recovery is a new filing by the person, or by the
 administrator who filed the first one: it stores the old request `failed` with
 `execution_failed`, frees the one-active slot and schedules a new job. Tell them so, and
-escalate the cause with the request identifier and the job's definition key.
+escalate the cause with the request identifier and the job's definition key. The job
+logs its run as event 7511 (finished, with the outcome), 7512 (not yet due) and 7513
+(an attempt failed, with the exception type only).
 
 ## Erasure never resets replay
 
@@ -344,10 +355,13 @@ are in [Platform operator access](operator-access.md#signals).
 
 ## Not recoverable here
 
-- A redacted value: nothing keeps a copy.
+- A redacted value: LearnStack keeps no copy, but backups, WAL archives and row versions
+  awaiting vacuum can still hold one.
 - What survives by decision: `actor_user_id`, `entity_id`, `metadata` and the
   identifiers of every audit row.
-- A request that is `blocked`, `failed` or `cancelled`: the person files a new one.
+- A request that is `blocked`, `failed` or `cancelled`: the person files a new one. A
+  `blocked` receipt shows why in its `lastRefusal` (`blocked_last_administrator` or
+  `blocked_hold`): the person or the tenant resolves that first.
 - Copies outside the database, such as the identity provider's events, backups, WAL
   archives and mail copies (`external_copy`):
   [Phase 11](../roadmap/phase-11-production-hardening.md) owns their purge.

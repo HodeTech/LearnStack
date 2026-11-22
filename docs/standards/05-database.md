@@ -5055,9 +5055,9 @@ frozen snapshot; such an update requires the tenant key EXCLUSIVE. The request g
 admits no request born `fulfilling` until a closure's fan-out has its own witness, so
 the application role cannot create that witness itself. Every other write under a
 Revoked parent still raises `P0304`, apart from the assignment removals the guard
-already admitted; the profile's `DELETE` is refused earlier, by the missing grant. `DataErasureGuardTests`
-removes each condition alone as `learnstack_app`, and `EducationStructureTests` pins
-the function body.
+already admitted; the profile's `DELETE` is refused earlier, by the missing grant.
+`DataErasureGuardTests` removes each condition alone as `learnstack_app`, and
+`EducationStructureTests` pins the function body.
 Exclusive User mode retains the adopted per-User admission serialization, rather
 than merely excluding closure. A shared admission alternative needs a separate
 decision. No additional callable User reader or synthetic preparation trigger is
@@ -6696,8 +6696,8 @@ predicate; the artifact, ticket and chunk tables gain none.
 ([Security § The out-of-band setters](11-security.md#the-out-of-band-setters)). It
 consumes a single-use immutable operation/actor/subject/real-host/group/mode witness
 (`OwnDataRequestScopeWitness`) on a fresh physical owner: `list` and `read` are physical
-READ ONLY, `create`, `cancel`, `ticket`, `chunk` and `revoke` ordinary READ WRITE. It announces
-exactly the witness's group through the one witness-aware core, never joins or retargets
+READ ONLY, `create`, `cancel`, `ticket`, `chunk` and `revoke` ordinary READ WRITE. It
+announces exactly the witness's group through the one witness-aware core, never joins or retargets
 an owner, and supplies no Membership, ordinary native session or tenant-wide
 `app.scope`. Its context origin, `HostAndOwnDataRequestScope`, reaches only operations
 of the `OwnDataRequestEntry` policy kind. Its one minter is the native retained-entry

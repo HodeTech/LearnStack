@@ -284,7 +284,9 @@ guard rejects direct resurrection, inconsistent status/deletion markers and
 transitions outside the diagram. Active/Suspended share current uniqueness;
 Revoked is terminal. Rejoin creates a new ID and fresh assignments after retiring
 the predecessor. Profile has no independent delete/status lifecycle; historical
-child facts cannot restore a revoked Membership's authority.
+child facts cannot restore a revoked Membership's authority. The one write a Revoked
+Membership admits is the erasure's clearing of its profile
+([Tenant erasure](#tenant-erasure-p03-10-step-2)).
 
 Profile carries optional contextual `DisplayName` (128 characters) and
 `PreferredLocale` (35-character well-formed locale tag), both marked sensitive.
@@ -1041,14 +1043,54 @@ record names a person, it writes one closed word instead:
   addressed to their e-mail address is retained and not locatable by person, so it is
   not counted), `attribution_reference`, `consent_evidence` and, in the
   tenant-wide group, `federation_actor_reference` and `provider_event_record`; the
-  operator's completion adds the audit log's four kinds, including `unscoped_audit_rows`
-  for an administrator's request. A kind not listed is retained and not counted, which
+  operator's completion replaces the three audit kinds the Audit participant counted
+  while the request waited (`audit_actor_reference`, `audit_entity_reference`,
+  `audit_metadata_reference`) with the redaction's exact counts, so a receipt's numbers
+  change at completion, and adds `unscoped_audit_rows` for an administrator's request.
+  A kind not listed is retained and not counted, which
   is not zero: `invitation_envelope` (the application role holds no `SELECT` on the
   envelope table), `transport_evidence`, `execution_evidence`, `idempotency_cache` and
   `external_copy` have no subject-keyed count. The web surface's retention explanation
   names those classes in its copy ([Phase 03](../../roadmap/phase-03-identity-admin.md)
   P03-10 Step 4), `unserved_group` is a closure's kind (Step 3), and Phase 11 owns
   every retention period and the counting of the stores it purges.
+
+#### Tenant erasure (P03-10 Step 2)
+
+The erasure of [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md)
+§ 5 for one scope group; the routes are in the tables above, the
+[audit matrix](audit.md#data-request-bindings) owns its rows and the
+[data erasure runbook](../../runbooks/data-erasure.md) its operator step.
+
+- **Filing.** The person files it (live session or retained entry); an administrator
+  files it only for a person who holds no Active or Suspended Membership in the group
+  (`lockey_subject_membership_current`, and never for themselves,
+  `lockey_subject_is_requester`). The request is `scheduled` with `executeAt` 24 hours
+  later and its job queued for that time. Other refusals, each writing no request, are
+  `lockey_request_already_active`, `lockey_blocked_last_administrator` (the only
+  eligible tenant-wide administrator), `lockey_blocked_hold` and
+  `lockey_snapshot_too_large`. Cancelling until `executeAt` is the person's or the
+  filing administrator's; later it answers `lockey_data_request_window_ended`, and a
+  request that already ended `lockey_data_request_not_cancellable`.
+- **The job.** `identity.data_erasure_{tenant,organization}.v1`, one root, one
+  transaction. It takes the person's User fence and the tenant key exclusively,
+  re-judges eligibility (`blocked`), runs each participant's `EraseAsync` in key order
+  (a resumed run skips those its progress records), records the retained report and
+  parks the request `awaiting_privileged_step`.
+- **What the Identity participant erases** (`DataErasureService`, in this order): the
+  person's available export artifact and unstarted export request; the Memberships of
+  the request's frozen snapshot (role assignments removed, profile cleared, left as a
+  Revoked tombstone that keeps the person's identifier); the pending invitations the
+  person issued, in pages of 100. It touches no other person, group or tenant and not
+  the `users` row.
+- **The witness.** `DataErasureWitness` is sealed and minted only by the service from a
+  `fulfilling` erasure; `Membership.RemoveAssignmentsForErasure`,
+  `ClearProfileForErasure`, `RevokeForErasure` and `Invitation.RevokeForErasure` run
+  only under it, and the database guard admits the profile clearing only while that
+  person's erasure for the group is `fulfilling` and names the Membership
+  ([Database Standards](../../standards/05-database.md)).
+- **When the job dies.** Every write rolls back, so the request stays stored
+  `scheduled` and its receipt reads `failed`; a new filing stores the old one `failed`.
 
 #### Operator data-request steps (P03-10 Step 2)
 

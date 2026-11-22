@@ -26,8 +26,7 @@ observation below uses that pipeline under
 [ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md).
 The query API and export job remain in
 [Phase 03](../../roadmap/phase-03-identity-admin.md), the override editor in
-[Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), redaction with Phase 03's
-erasure handler, and retention in
+[Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), and retention in
 [Phase 11](../../roadmap/phase-11-production-hardening.md). Those future rows carry
 `(planned)`, a claim `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
 re-checks on every run: a `(planned)` row whose command has since shipped fails.
@@ -47,8 +46,9 @@ matches `audit.event.read` in [permissions.md](permissions.md).
 Two resource segments have no permission key to agree with, and keep their own names for
 the reason `tenancy.tenant_assertion.*` keeps its prefix: the key that gates them is
 Platform-scope and does not share the `audit.` module segment.
-`audit.redaction.apply` is gated by `platform.data_request.write`; `audit.purge.apply` has no key yet, and
-[permissions.md](permissions.md) records who names it.
+`audit.redaction.apply` is gated by `platform.data_request.write`;
+`audit.purge.apply` has no key yet, and [permissions.md](permissions.md) records who
+names it.
 `audit.redaction.apply` is the spelling
 [Audit Subsystem § 10](../../architecture/31-audit-subsystem.md) already writes into the
 draft it shows, and `audit.purge.apply` is its twin — one resource per act, one verb
@@ -111,9 +111,9 @@ when it does.
 Each row takes its OperationType/domain's target from
 [Standard 18 Retention](../../standards/18-audit-coverage.md#retention), not a blanket
 MUST-class period. Automatic purge and retention overrides remain unimplemented
-until Phase 11, so rows can outlive their targets. The planned purge/redaction
-security events preserve evidence of the maintenance act; retention machinery
-must apply the canonical policy when admitted.
+until Phase 11, so rows can outlive their targets. The redaction's result row and the
+planned purge's security event preserve evidence of the maintenance act; retention
+machinery must apply the canonical policy when admitted.
 
 <a id="accepted-authorization-evidence--runtime-pending"></a>
 

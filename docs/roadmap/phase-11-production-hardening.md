@@ -329,7 +329,9 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   the realm must issue it; builds the database adapter for operator grants on its
   trigger, audited runtime grant changes; pins the operator OpenAPI document under a
   gate of its own; decides durable denial evidence if security monitoring requires it;
-  alerts on the operator counters; and owns the read-only dashboard decision, job
+  alerts on the operator counters and on a backlog gauge of data requests awaiting their
+  privileged step (the 30-day target of ADR-0106 § 12 has no automated detector until
+  then); and owns the read-only dashboard decision, job
   reconciliation and recurrence recovery that
   [ADR-0103](../decisions/0103-operator-recovery-of-asynchronous-work.md) leaves absent.
 - Secret management: Vault rotation cadence (90 days for provider keys, yearly for

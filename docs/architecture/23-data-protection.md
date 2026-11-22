@@ -160,10 +160,10 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
     reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered and needs its own decision.
   - **A cap truncates and says so**; it does not fail the request.
   - **The retained list is partial.** The tenant side counts the kinds its participants
-    own and the operator's completion adds the audit log's four; a kind not listed is
-    retained and not counted, not zero. The web surface's retention explanation names the
-    classes with no subject-keyed count (P03-10 Step 4) and Phase 11 owns the retention
-    periods and the counting of the stores it purges.
+    own and the operator's completion sets the audit log's kinds from the redaction; a
+    kind not listed is retained and not counted, not zero. The web surface's retention
+    explanation names the classes with no subject-keyed count (P03-10 Step 4) and
+    Phase 11 owns the retention periods and the counting of the stores it purges.
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
@@ -219,7 +219,9 @@ separated by authority. Conflating them lets a tenant admin close a person's acc
 that tenant.
 
 1. Eligibility is validated (the structural checks and the hold port of ADR-0106 § 7; no
-   payment or hold source exists until Phase 09).
+   payment or hold source exists until Phase 09). The request waits a 24-hour cancellable
+   window, and an administrator files it only for a person whose Membership is already
+   Revoked (ADR-0106 §§ 3, 11).
 2. The group's role assignments are removed, the `MembershipProfile` is cleared and the
    `Membership` becomes a Revoked pseudonymised tombstone (ADR-0107 § 5).
 3. That tenant's behaviour rows are anonymised; its audit entries keep the action
@@ -496,8 +498,8 @@ admission event. The same per-row retention targets and existing metadata UPDATE
 restrictions apply. No new private Identity audit store or blanket metadata
 redaction grant follows.
 
-P03-10's Identity closure coordinator and Audit redaction participant own subject/
-actor/context/receipt locators and truthful retained-copy reporting before their
+P03-10's Identity closure coordinator and the Audit module's redaction executor own
+subject/actor/context/receipt locators and truthful retained-copy reporting before their
 first affected writer. They must include these synchronous and volatile copies,
 not infer erasure from a deleted source row or logout. Phase 11 owns automatic
 purge, replay-table maintenance, backups and provider/diagnostic retained-copy
@@ -579,7 +581,7 @@ remains in the phase Status block.
 
 **Accepted identity fulfillment ownership — implementation remains P03-10.**
 P03-10's Identity closure coordinator owns the authorized lifecycle transition
-and raw-subject removal. The Audit redaction participant uses
+and raw-subject removal. The Audit redaction executor uses
 `IUserReferenceLocator` to locate exact global failed-attempt paths by subject key
 even when no User was committed, together with successful actor references and ADR-0077 authorization linkage. Its
 request/result contract reports retained immutable linkage and the applicable
