@@ -14,7 +14,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class DataExportParticipantTests(SchemaFixture schema)
+public sealed partial class DataExportParticipantTests(SchemaFixture schema)
 {
     private static readonly string[] SelfReach = ["own_tenant_wide", "own_branch", "admin_on_membership", "about_the_user"];
     private static readonly string[] AdministratorReach = ["own_branch", "admin_on_membership"];
@@ -57,6 +57,9 @@ public sealed class DataExportParticipantTests(SchemaFixture schema)
 
         await participant.ExportAsync(subject, writer, CancellationToken.None);
 
+        writer.All[0].Collection.Should().Be(AuditUserDataParticipant.ScopeCollection);
+        JsonDocument.Parse(writer.All[0].Record).RootElement.GetProperty("reach").GetString().Should().Be(origin == "self"
+            ? AuditUserDataParticipant.ReachOrganizationAndTenantLevel : AuditUserDataParticipant.ReachOrganizationOnly);
         var exported = writer.Records.Select(record => JsonDocument.Parse(record).RootElement)
             .Where(record => record.GetProperty("operation").GetString()!.StartsWith("fixture.", StringComparison.Ordinal))
             .ToDictionary(record => record.GetProperty("operation").GetString()!["fixture.".Length..]);
@@ -102,6 +105,7 @@ public sealed class DataExportParticipantTests(SchemaFixture schema)
             writer, CancellationToken.None);
 
         writer.Records.Should().HaveCount(2);
+        writer.All[0].Collection.Should().Be(AuditUserDataParticipant.ScopeCollection, "the reach is stated before the entries");
         writer.Truncated.Should().ContainSingle();
         writer.Truncated[0].Collection.Should().Be("entries");
         writer.Truncated[0].Included.Should().Be(2);
@@ -109,10 +113,14 @@ public sealed class DataExportParticipantTests(SchemaFixture schema)
         await scope.Frame.FailAsync();
     }
 
-    /// <summary>Collects records, and reports the section cap after <c>admit</c> of them.</summary>
+    /// <summary>Collects the audit entries, and reports the section cap after <c>admit</c> of them.</summary>
     private sealed class CollectingWriter(int admit = int.MaxValue) : IUserDataExportWriter
     {
+        /// <summary>The <c>entries</c> records.</summary>
         public List<string> Records { get; } = [];
+
+        /// <summary>Every record of every collection, in order.</summary>
+        public List<(string Collection, string Record)> All { get; } = [];
 
         public List<(string Collection, long Included, long Total)> Truncated { get; } = [];
 
@@ -121,12 +129,20 @@ public sealed class DataExportParticipantTests(SchemaFixture schema)
         public ValueTask<UserDataExportAppend> AppendAsync(string collection, ReadOnlyMemory<byte> utf8JsonRecord,
             CancellationToken cancellationToken)
         {
+            var text = System.Text.Encoding.UTF8.GetString(utf8JsonRecord.Span);
+            if (collection != AuditUserDataParticipant.Collection)
+            {
+                All.Add((collection, text));
+                return ValueTask.FromResult(UserDataExportAppend.Appended);
+            }
+
             if (Records.Count >= admit)
             {
                 return ValueTask.FromResult(UserDataExportAppend.SectionCapReached);
             }
 
-            Records.Add(System.Text.Encoding.UTF8.GetString(utf8JsonRecord.Span));
+            Records.Add(text);
+            All.Add((collection, text));
             return ValueTask.FromResult(UserDataExportAppend.Appended);
         }
 

@@ -441,9 +441,6 @@ public sealed class DataRequestServiceTests
         public Task<DataSubjectRequest?> FindLockedAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken) =>
             Task.FromResult(Requests.SingleOrDefault(request => request.Id == requestId));
 
-        public Task<DataExportArtifactId?> FindArtifactOfRequestAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<IReadOnlyList<DataExportArtifactId>> FindAvailableArtifactsAsync(UserId subject, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

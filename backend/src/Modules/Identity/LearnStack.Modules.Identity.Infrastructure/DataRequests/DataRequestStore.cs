@@ -68,21 +68,6 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
             .ConfigureAwait(false);
     }
 
-    public async Task<DataExportArtifactId?> FindArtifactOfRequestAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken)
-    {
-        RequireOwner();
-        var found = await db.DataExportArtifacts.AsNoTracking()
-            .Where(artifact => artifact.RequestId == requestId && artifact.TenantId == tenant.TenantId
-                && artifact.OrganizationId == tenant.OrganizationId)
-            .Select(artifact => artifact.Id).Take(2).ToListAsync(cancellationToken).ConfigureAwait(false);
-        return found.Count switch
-        {
-            0 => null,
-            1 => found[0],
-            _ => throw new InvalidOperationException("A request holds more than one export artifact."),
-        };
-    }
-
     public async Task<IReadOnlyList<DataExportArtifactId>> FindAvailableArtifactsAsync(UserId subject, CancellationToken cancellationToken)
     {
         RequireOwner();

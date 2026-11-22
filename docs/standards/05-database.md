@@ -734,9 +734,9 @@ owner in this document; neither is copied here.
 
 `audit_log` deliberately omits the template's
 `ix_<table>_tenant_id_organization_id`: its readers are tenant-scope, so the arm that
-fires is `app.scope = 'tenant'`, which no index serves, and a fifth index on a
+fires is `app.scope = 'tenant'`, which no index serves, and such an index on a
 high-volume append-only table is a write cost paid on every row for a predicate arm
-nothing shipped takes. The four indexes it does carry, and the reasoning, are in
+nothing shipped takes. The indexes it does carry, and the reasoning, are in
 [Audit Subsystem § 7](../architecture/31-audit-subsystem.md).
 
 They ship in a **fourth migration chain**, owned by

@@ -1330,6 +1330,14 @@ CREATE INDEX ix_audit_log_correlation_id
     WHERE correlation_id IS NOT NULL;
 CREATE INDEX ix_audit_log_module_operation_timestamp
     ON audit_log (module, operation, timestamp DESC);
+-- P03-10: the subject data-request statements (ADR-0107 § 3, § 6; ADR-0108 § 4).
+CREATE INDEX ix_audit_log_tenant_id_entity_type_entity_id_timestamp
+    ON audit_log (tenant_id, entity_type, entity_id, timestamp DESC);
+CREATE INDEX ix_audit_log_tenant_id_person_reference_timestamp
+    ON audit_log (tenant_id, timestamp DESC)
+    WHERE metadata ? 'causal_actor_user_id'
+       OR (metadata -> 'authorization') ? 'causal_actor_user_id'
+       OR (metadata -> 'provider_event') ? 'affected_user_id';
 
 -- Row security is NOT written here. Database Standards owns the ordinary
 -- tenant-owned, ORG-SCOPED template and ADR-0072's accepted exact global-identity
@@ -1338,16 +1346,22 @@ CREATE INDEX ix_audit_log_module_operation_timestamp
 -- the global branch adds only its exact confined owner evidence functions.
 ```
 
-**Four indexes, and deliberately not the org-scoped template's fifth.** The canonical
-template carries `ix_<table>_tenant_id_organization_id` so the organization arm of the
-policy has an index to read. This table does not take it. Every read the admin API
-issues is tenant-scope — `audit.event.read` is a Tenant-scope permission
-([§ 11](#11-querying-audit-log)) — so the arm that fires is
-`current_setting('app.scope') = 'tenant'`, which no index serves, and the four above all
-lead with a column those queries filter on. A fifth index on a high-volume append-only
-table is a write cost paid on every row for a predicate arm the shipped readers do not
-take. Phase 03's admin API is the place to revisit it, against a measured plan rather
-than this paragraph.
+**Six indexes, and deliberately not the org-scoped template's
+`(tenant_id, organization_id)`.** The canonical template carries
+`ix_<table>_tenant_id_organization_id` so the organization arm of the policy has an index
+to read. This table does not take it. Every read the admin API issues is tenant-scope —
+`audit.event.read` is a Tenant-scope permission ([§ 11](#11-querying-audit-log)) — so
+the arm that fires is `current_setting('app.scope') = 'tenant'`, which no index serves,
+and the indexes above all lead with a column those queries filter on. Such an index on a
+high-volume append-only table is a write cost paid on every row for a predicate arm the
+shipped readers do not take. Phase 03's admin API is the place to revisit it, against a
+measured plan rather than this paragraph. The two P03-10 indexes serve the subject
+data-request statements, measured in the
+[Audit module's performance budget](../modules/audit/README.md#performance-budget). The
+person-reference index orders the keyed rows rather than indexing the person: under the
+row policy PostgreSQL applies a non-leakproof qual, and every JSON operator is one, only
+after the policy, so no expression index on a `metadata` path can take a person's value
+as an index condition.
 
 **`module` is the column; `ModuleName` is the CLR property.** The names differ in exactly
 one direction and for one reason: `CA1716` flags `Module` as an identifier that collides
@@ -1363,7 +1377,7 @@ the same reason.
 The primary key is `audit_log_pkey` rather than `pk_audit_log`, because
 [ADR-0033](../decisions/0033-audit-durability-model.md) and
 [ADR-0016](../decisions/0016-audit-log-subsystem.md) both write it that way and two
-Accepted records fix a name. The three `CHECK`s and the four indexes take the standard's
+Accepted records fix a name. The three `CHECK`s and the six indexes take the standard's
 `ck_<table>_<rule>` and `ix_<table>_<columns>` forms, and so does the `TRUNCATE` trigger;
 the only other divergence on this table is `audit_log_append_only_guard`, which two
 Accepted records fix in the same way.

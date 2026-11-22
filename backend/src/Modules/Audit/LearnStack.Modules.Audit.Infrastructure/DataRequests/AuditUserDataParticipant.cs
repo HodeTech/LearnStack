@@ -18,10 +18,42 @@ namespace LearnStack.Modules.Audit.Infrastructure.DataRequests;
 /// <remarks>
 /// <para>
 /// <b>Selection.</b> A row is the subject's when the subject is its actor, or its entity is the subject or one of
-/// the request's frozen Memberships. Who asked decides the reach (ADR-0108 § 4): a self-requested export selects in
-/// the whole tenant, an administrator-requested one only rows whose <c>organization_id</c> is the group's (none for
-/// the tenant-wide group). Both read on the ambient tenant transaction as <c>learnstack_app</c>, so the audit row
-/// policy still bounds what is visible: rows of another organization are visible only under a tenant-wide read.
+/// the request's frozen Memberships. Who asked narrows the reach (ADR-0108 § 4): an administrator-requested export
+/// selects only rows whose <c>organization_id</c> is the group's (none for the tenant-wide group), a self-requested
+/// one sets no organization predicate of its own.
+/// </para>
+/// <para>
+/// <b>The reach is what the row policy shows, and the bundle says so.</b> Both read on the job's ordinary tenant
+/// transaction as <c>learnstack_app</c>, which holds no tenant-wide read witness, so <c>audit_log_isolation</c>
+/// still bounds what is visible: an organization group sees its own organization's rows and the tenant-level rows
+/// (no organization), the tenant-wide group only the tenant-level rows. A self-requested export therefore does not
+/// reach the rows recorded in the person's other organizations, which ADR-0107 § 3 and ADR-0108 § 4 describe as
+/// "the whole tenant"; a tenant-wide read for the job needs its own decision. Until then the section's first
+/// collection, <see cref="ScopeCollection"/>, holds one record whose <c>reach</c> is a closed word
+/// (<see cref="ReachOf"/>), so the person, and the Step 4 screens, can say that each organization's activity is in
+/// that organization's own export.
+/// </para>
+/// <para>
+/// <b>Index-served statements.</b> Every statement is a union of branches, each one equality on an indexed column
+/// set: the actor on <c>ix_audit_log_actor_user_id_timestamp</c> and the subject's User or Membership entity on
+/// <c>ix_audit_log_tenant_id_entity_type_entity_id_timestamp</c>. A row two branches select is counted and exported
+/// once (the union is on the primary key). The selection, its count and the actor and entity counts are therefore
+/// exact and bounded by the subject's own rows, not by the tenant's.
+/// </para>
+/// <para>
+/// <b>The metadata count is "at least".</b> A Membership in the authorization evidence is the acting principal's own
+/// (the audit composer refuses authorization attribution whose actor is not the row's actor), so that reference is
+/// read exactly inside the actor branch. The causal-actor and affected-user references cannot be index-served under
+/// the row policy: PostgreSQL applies a non-leakproof qual, and every JSON operator is one, only after the policy,
+/// so no expression index can carry the subject's value. They are read in the newest
+/// <see cref="MetadataScanWindow"/> rows carrying such a key (<c>ix_audit_log_tenant_id_person_reference_timestamp</c>),
+/// which bounds the read by rows; <c>audit_metadata_reference</c> is exact while the reach holds at most that many
+/// such rows and a lower bound beyond it, never more than the truth. Exact counting at any size needs the references
+/// as plain columns, a change to the audit table's shape that needs its own decision.
+/// </para>
+/// <para>
+/// The statements run under <see cref="StatementBudget"/>; a statement that cannot finish inside it rolls the job's
+/// transaction back and the runtime retries the export.
 /// </para>
 /// <para>
 /// <b>What a record holds.</b> The envelope (time, module, operation, outcome, entity type) and who acted, as
@@ -39,45 +71,100 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
 {
     public const string ParticipantKey = "audit";
     public const string Collection = "entries";
+
+    /// <summary>The section's first collection: one record stating which audit rows the section could reach.</summary>
+    public const string ScopeCollection = "audit_scope";
+
+    /// <summary>A self-requested export in an organization group: that organization's rows and the tenant-level rows.</summary>
+    public const string ReachOrganizationAndTenantLevel = "organization_and_tenant_level";
+
+    /// <summary>An administrator-requested export in an organization group: that organization's rows only.</summary>
+    public const string ReachOrganizationOnly = "organization_only";
+
+    /// <summary>Any export in the tenant-wide group: the tenant-level rows only.</summary>
+    public const string ReachTenantLevelOnly = "tenant_level_only";
+
+    /// <summary>
+    /// The wall-clock budget of one audit statement. Larger than the 5-second default of the other participants'
+    /// reads, because the audit table is the one that grows without bound until Phase 11's retention, and still
+    /// bounded, so a degraded database fails the attempt for the runtime's retry rather than holding the job's
+    /// transaction. At 1.9 million rows of one tenant the statements measured about 2 ms each and the windowed metadata
+    /// count 1.5 s (the Audit module's performance budget records the measurement).
+    /// </summary>
+    public static readonly TimeSpan StatementBudget = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// How many of the newest rows carrying a causal-actor or affected-user key the metadata count examines. Those
+    /// references cannot be index-served under the row policy (the JSON operators are not leakproof, so PostgreSQL
+    /// evaluates them only after the policy), so the read is bounded by rows rather than by the budget, and
+    /// <c>audit_metadata_reference</c> is exact up to this many such rows in the reach and a lower bound beyond it.
+    /// </summary>
+    public const int MetadataScanWindow = 500_000;
+
     private const int Page = 200;
 
-    // One literal predicate: the subject as actor or entity, and the reach by origin. Every statement repeats it.
-    private const string Selection = """
-        tenant_id = @tenant
-          AND (NOT @scoped OR organization_id IS NOT DISTINCT FROM @organization)
-          AND (actor_user_id = @subject
-            OR (entity_type = 'User' AND entity_id = @subject_text)
-            OR (entity_type = 'Membership' AND entity_id = ANY(@memberships)))
+    // The reach every branch repeats: the tenant, and for an administrator's request the group's organization.
+    private const string Reach = """
+        tenant_id = @tenant AND (NOT @scoped OR organization_id IS NOT DISTINCT FROM @organization)
         """;
 
-    private const string CountSql = "SELECT count(*) FROM public.audit_log WHERE " + Selection;
+    private const string ActorBranch = "SELECT id, \"timestamp\" FROM public.audit_log WHERE " + Reach
+        + " AND actor_user_id = @subject";
 
-    private const string PageSql = """
-        SELECT id, "timestamp", module, operation, outcome, entity_type, entity_id, actor_user_id,
-               host(ip_address), user_agent, before_state, after_state, changes
-        FROM public.audit_log
-        WHERE (@first OR ("timestamp", id) < (@after_timestamp, @after_id))
-        """ + " AND " + Selection + " " + """
-        ORDER BY "timestamp" DESC, id DESC
+    private const string UserBranch = "SELECT id, \"timestamp\" FROM public.audit_log WHERE " + Reach
+        + " AND entity_type = 'User' AND entity_id = @subject_text";
+
+    private const string MembershipBranch = "SELECT id, \"timestamp\" FROM public.audit_log WHERE " + Reach
+        + " AND entity_type = 'Membership' AND entity_id = ANY(@memberships)";
+
+    // The subject as actor or entity: the union of three index-served branches, a row in two of them once.
+    private const string CountSql = "SELECT count(*) FROM (" + ActorBranch + " UNION " + UserBranch + " UNION "
+        + MembershipBranch + ") AS selected";
+
+    // Keyset page, newest first: each branch reads at most one page below the cursor in its own index order, and the
+    // union's newest page is the page of the whole selection.
+    private const string Below = " AND \"timestamp\" <= @after_timestamp AND (\"timestamp\", id) < (@after_timestamp, @after_id)"
+        + " ORDER BY \"timestamp\" DESC, id DESC LIMIT @page";
+
+    private const string PageSql = "WITH page AS ((" + ActorBranch + Below + ") UNION (" + UserBranch + Below + ") UNION ("
+        + MembershipBranch + Below + """
+        ))
+        SELECT a.id, a."timestamp", a.module, a.operation, a.outcome, a.entity_type, a.entity_id, a.actor_user_id,
+               host(a.ip_address), a.user_agent, a.before_state, a.after_state, a.changes
+        FROM page AS p
+        JOIN public.audit_log AS a ON a.id = p.id AND a."timestamp" = p."timestamp"
+        ORDER BY a."timestamp" DESC, a.id DESC
         LIMIT @page
         """;
 
-    private const string RetainedSql = """
-        SELECT count(*) FILTER (WHERE actor_user_id = @subject),
-               count(*) FILTER (WHERE (entity_type = 'User' AND entity_id = @subject_text)
-                   OR (entity_type = 'Membership' AND entity_id = ANY(@memberships)))
-        FROM public.audit_log
-        """ + " WHERE " + Selection;
+    // The actor rows, and the entity rows (the User and Membership branches are disjoint by entity type).
+    private const string RetainedSql = "SELECT (SELECT count(*) FROM (" + ActorBranch + ") AS actor), (SELECT count(*) FROM ("
+        + UserBranch + ") AS self) + (SELECT count(*) FROM (" + MembershipBranch + ") AS membership)";
 
-    private const string MetadataSql = """
-        SELECT count(*) FROM public.audit_log
-        WHERE tenant_id = @tenant
-          AND (NOT @scoped OR organization_id IS NOT DISTINCT FROM @organization)
-          AND (metadata ->> 'causal_actor_user_id' = @subject_text
-            OR metadata #>> '{authorization,causal_actor_user_id}' = @subject_text
-            OR metadata #>> '{provider_event,affected_user_id}' = @subject_text
-            OR COALESCE(metadata -> 'authorization' -> 'memberships', '[]'::jsonb) ?| @memberships)
+    // A metadata person reference: a frozen Membership in the authorization evidence, read inside the actor branch
+    // (exact), or the causal actor (top level or in the authorization evidence) or the provider event's affected user,
+    // read in the newest MetadataScanWindow rows that carry one of those keys (a lower bound past the window). The key
+    // tests repeat the partial index's predicate so the planner can prove the index applies.
+    private const string MetadataSql = "SELECT count(*) FROM (" + ActorBranch + """
+         AND COALESCE(metadata -> 'authorization' -> 'memberships', '[]'::jsonb) ?| @memberships
+        UNION
+        SELECT id, "timestamp" FROM (
+            SELECT id, "timestamp", metadata FROM public.audit_log
+            WHERE
+        """ + " " + Reach + """
+         AND (metadata ? 'causal_actor_user_id' OR (metadata -> 'authorization') ? 'causal_actor_user_id'
+                OR (metadata -> 'provider_event') ? 'affected_user_id')
+            ORDER BY "timestamp" DESC
+            LIMIT @window
+        ) AS scanned
+        WHERE metadata ->> 'causal_actor_user_id' = @subject_text
+           OR metadata #>> '{authorization,causal_actor_user_id}' = @subject_text
+           OR metadata #>> '{provider_event,affected_user_id}' = @subject_text
+        ) AS referenced
         """;
+
+    private static readonly DateTime FirstPageTimestamp = new(9999, 12, 31, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly Guid FirstPageId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     public string Key => ParticipantKey;
 
@@ -88,6 +175,17 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(writer);
         RequireGroup(subject);
+        var scope = await UserDataExportRecord.AppendAsync(writer, ScopeCollection, json =>
+        {
+            json.WriteStartObject();
+            json.WriteString("reach", ReachOf(subject));
+            json.WriteEndObject();
+        }, cancellationToken).ConfigureAwait(false);
+        if (scope != UserDataExportAppend.Appended)
+        {
+            return;
+        }
+
         long total;
         await using (var count = Command(CountSql, subject))
         {
@@ -145,6 +243,7 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
         long metadata;
         await using (var command = Command(MetadataSql, subject))
         {
+            command.Parameters.AddWithValue("window", MetadataScanWindow);
             metadata = (long)(await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false))!;
         }
 
@@ -154,6 +253,18 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
             new(RetainedReferenceKind.AuditEntityReference, entity),
             new(RetainedReferenceKind.AuditMetadataReference, metadata),
         ];
+    }
+
+    /// <summary>
+    /// The closed reach of a request's audit section under the row policy: which organization's rows the job's
+    /// transaction can see, narrowed by who asked (ADR-0108 § 4).
+    /// </summary>
+    public static string ReachOf(UserDataSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return subject.Group.IsTenantWide
+            ? ReachTenantLevelOnly
+            : subject.Origin == DataRequestOrigin.Self ? ReachOrganizationAndTenantLevel : ReachOrganizationOnly;
     }
 
     /// <summary>Whether a row's payload columns may be disclosed: its entity is the subject's own Membership or a consent the subject recorded.</summary>
@@ -230,9 +341,8 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
         CancellationToken cancellationToken)
     {
         await using var command = Command(PageSql, subject);
-        command.Parameters.AddWithValue("first", cursor is null);
-        command.Parameters.AddWithValue("after_timestamp", NpgsqlDbType.TimestampTz, cursor?.Timestamp ?? DateTime.UnixEpoch);
-        command.Parameters.AddWithValue("after_id", cursor?.Id ?? Guid.Empty);
+        command.Parameters.AddWithValue("after_timestamp", NpgsqlDbType.TimestampTz, cursor?.Timestamp ?? FirstPageTimestamp);
+        command.Parameters.AddWithValue("after_id", cursor?.Id ?? FirstPageId);
         command.Parameters.AddWithValue("page", Page);
         return await ExecuteAsync(async token =>
         {
@@ -252,7 +362,10 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
 
     private NpgsqlCommand Command(string sql, UserDataSubject subject)
     {
-        var command = new NpgsqlCommand(sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
+        var command = new NpgsqlCommand(sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
+        {
+            CommandTimeout = (int)StatementBudget.TotalSeconds,
+        };
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
         command.Parameters.AddWithValue("scoped", subject.Origin != DataRequestOrigin.Self);
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)subject.Group.OrganizationId?.Value ?? DBNull.Value);
@@ -268,7 +381,7 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
     private async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> statement, CancellationToken cancellationToken)
     {
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(TimeSpan.FromSeconds(5));
+        budget.CancelAfter(StatementBudget);
         try
         {
             return await statement(budget.Token).ConfigureAwait(false);

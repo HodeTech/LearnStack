@@ -26,6 +26,13 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.DataRequests;
 /// The table is append-only evidence of lawful basis (ADR-0107 § 6), so erasure leaves it and this participant
 /// only describes it.
 /// </para>
+/// <para>
+/// <b>Retained report.</b> The subject's own consent rows are <c>consent_evidence</c>, and the consent table is left
+/// out of <c>attribution_reference</c>: <c>ck_membership_field_consents_actor</c> makes every row's actor and creator
+/// its own subject and the table is append-only, so no consent row can attribute another person's consent to the
+/// subject. Every other tenant-owned row of the context with a <c>UserId</c> naming the subject (a feature flag the
+/// subject last changed, a setting or locale they created) is counted by the generic counter, once per row.
+/// </para>
 /// </remarks>
 public sealed class TenancyUserDataParticipant(TenancyDbContext db, ITenantContext tenant) : IUserDataParticipant
 {

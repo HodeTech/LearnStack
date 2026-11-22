@@ -109,6 +109,37 @@ public sealed partial class AuditUserDataParticipantTests
         JsonDocument.Parse(stream.ToArray()).RootElement.GetProperty("third_party").GetProperty("n").GetInt32().Should().Be(1);
     }
 
+    [Fact]
+    public void Rewritten_property_names_stay_distinct_deterministically_within_one_object()
+    {
+        var own = AuditUserDataParticipant.Own(Request());
+        var payload = "{\"" + OtherPerson + "\":1,\"" + Subject + "\":2,\"" + OtherMembership + "\":3,\"third_party_2\":4,\""
+            + Subject.ToString("D").ToUpperInvariant() + "\":5,\"nested\":{\"" + OtherPerson + "\":6,\"" + OtherMembership + "\":7}}";
+
+        string Project()
+        {
+            using var stream = new MemoryStream();
+            using (var json = new Utf8JsonWriter(stream))
+            {
+                AuditPayloadProjection.Write(json, payload, own);
+            }
+
+            return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+        }
+
+        var projected = Project();
+
+        var root = JsonDocument.Parse(projected).RootElement;
+        root.EnumerateObject().Select(property => property.Name).Should()
+            .Equal("third_party", "self", "third_party_2", "third_party_2_2", "self_2", "nested");
+        root.EnumerateObject().Select(property => property.Value.ValueKind == JsonValueKind.Number ? property.Value.GetInt32() : 0)
+            .Should().Equal([1, 2, 3, 4, 5, 0], "every value is kept under its own name");
+        root.GetProperty("nested").EnumerateObject().Select(property => property.Name).Should().Equal(["third_party", "third_party_2"],
+            "each object numbers its own names");
+        Project().Should().Be(projected, "the numbering follows document order alone");
+        AnyIdentifier().IsMatch(projected).Should().BeFalse();
+    }
+
     private static string Write(AuditUserDataParticipant.AuditRow row)
     {
         using var stream = new MemoryStream();

@@ -85,6 +85,126 @@ public sealed class DataExportBundleBuilderTests
     }
 
     [Fact]
+    public async Task At_the_smallest_ceiling_the_audit_cap_is_clamped_to_half_of_it_so_the_section_truncates_instead_of_failing()
+    {
+        var options = new DataExportOptions(DataRequestLimits.MinimumBundleBytes);
+        var record = "{\"padding\":\"" + new string('a', 1_000) + "\"}";
+        long included = 0;
+        var builder = Builder(options, new Participant("audit", async writer =>
+        {
+            while (true)
+            {
+                var outcome = await Append(writer, "entries", record);
+                if (outcome != UserDataExportAppend.Appended)
+                {
+                    outcome.Should().Be(UserDataExportAppend.SectionCapReached, "the clamped cap is reached before the ceiling");
+                    writer.DeclareTruncated("entries", included, 100_000);
+                    return;
+                }
+
+                included++;
+            }
+        }, cap: DataRequestLimits.AuditSectionBytes), new Participant("later", writer => Append(writer, "items", "1")));
+
+        var result = await builder.BuildAsync(Subject(), GeneratedAt, CancellationToken.None);
+
+        result.IsTooLarge.Should().BeFalse("an unclamped 8 MiB cap would never apply under a 1 MiB ceiling");
+        using var bundle = result.Bundle!;
+        bundle.ByteCount.Should().BeLessThanOrEqualTo(options.MaxBytes);
+        included.Should().BeGreaterThan(0);
+        (included * (record.Length + 1L)).Should().BeLessThanOrEqualTo(options.MaxBytes / 2);
+        bundle.Truncations.Should().ContainSingle().Which.Should().Be(new DataExportTruncation("audit.entries", included, 100_000));
+        using var document = await Read(bundle);
+        document.RootElement.GetProperty("sections").GetProperty("later").GetProperty("items").GetArrayLength().Should().Be(1,
+            "the sections after a truncated one are still written");
+    }
+
+    [Fact]
+    public async Task A_collection_cap_truncates_only_its_collection_and_is_clamped_to_half_the_ceiling()
+    {
+        var options = new DataExportOptions(DataRequestLimits.MinimumBundleBytes);
+        var record = "{\"padding\":\"" + new string('i', 500) + "\"}";
+        var outcomes = new List<UserDataExportAppend>();
+        long issued = 0;
+        var builder = Builder(options, new Participant("identity", async writer =>
+        {
+            for (var index = 0; index < 100; index++)
+            {
+                (await Append(writer, "accepted", record)).Should().Be(UserDataExportAppend.Appended);
+            }
+
+            while (true)
+            {
+                var outcome = await Append(writer, "issued", record);
+                outcomes.Add(outcome);
+                if (outcome != UserDataExportAppend.Appended)
+                {
+                    writer.DeclareTruncated("issued", issued, issued + 1);
+                    return;
+                }
+
+                issued++;
+            }
+        }, collectionCaps: new Dictionary<string, long> { ["issued"] = DataRequestLimits.IssuedInvitationsCollectionBytes }));
+
+        var result = await builder.BuildAsync(Subject(), GeneratedAt, CancellationToken.None);
+
+        result.IsTooLarge.Should().BeFalse();
+        using var bundle = result.Bundle!;
+        outcomes[^1].Should().Be(UserDataExportAppend.SectionCapReached);
+        (issued * (record.Length + 1L)).Should().BeLessThanOrEqualTo(options.MaxBytes / 2,
+            "the 4 MiB collection cap is clamped to half of the 1 MiB ceiling");
+        using var document = await Read(bundle);
+        var section = document.RootElement.GetProperty("sections").GetProperty("identity");
+        section.GetProperty("accepted").GetArrayLength().Should().Be(100, "an uncapped collection of the same section is whole");
+        section.GetProperty("issued").GetArrayLength().Should().Be((int)issued);
+        bundle.Truncations.Should().ContainSingle().Which.Collection.Should().Be("identity.issued");
+    }
+
+    [Fact]
+    public async Task A_collection_cap_below_the_ceiling_applies_unclamped()
+    {
+        var builder = Builder(DataExportOptions.Default, new Participant("identity", async writer =>
+        {
+            (await Append(writer, "issued", "\"" + new string('s', 4_000) + "\"")).Should().Be(UserDataExportAppend.Appended);
+            (await Append(writer, "issued", "\"" + new string('s', 4_000) + "\"")).Should().Be(UserDataExportAppend.SectionCapReached);
+            (await Append(writer, "other", "\"" + new string('s', 4_000) + "\"")).Should().Be(UserDataExportAppend.Appended);
+        }, collectionCaps: new Dictionary<string, long> { ["issued"] = 6_000 }));
+
+        using var bundle = (await builder.BuildAsync(Subject(), GeneratedAt, CancellationToken.None)).Bundle!;
+
+        bundle.ByteCount.Should().BeGreaterThan(8_000);
+    }
+
+    [Theory]
+    [InlineData(DataRequestLimits.AuditSectionBytes, DataRequestLimits.DefaultMaximumBundleBytes, DataRequestLimits.AuditSectionBytes)]
+    [InlineData(DataRequestLimits.AuditSectionBytes, DataRequestLimits.MinimumBundleBytes, DataRequestLimits.MinimumBundleBytes / 2)]
+    [InlineData(DataRequestLimits.IssuedInvitationsCollectionBytes, DataRequestLimits.DefaultMaximumBundleBytes,
+        DataRequestLimits.IssuedInvitationsCollectionBytes)]
+    [InlineData(4_096L, DataRequestLimits.MaximumBundleBytes, 4_096L)]
+    public void A_declared_cap_is_clamped_to_half_the_ceiling(long declared, long ceiling, long expected) =>
+        DataExportBundleBuilder.EffectiveCap(declared, ceiling).Should().Be(expected);
+
+    [Theory]
+    [InlineData("section")]
+    [InlineData("collection_value")]
+    [InlineData("collection_name")]
+    public async Task A_cap_outside_the_bundle_range_or_on_a_malformed_collection_is_a_programming_error(string misuse)
+    {
+        var builder = Builder(DataExportOptions.Default, new Participant("capped", _ => Task.CompletedTask,
+            cap: misuse == "section" ? 0 : null,
+            collectionCaps: misuse switch
+            {
+                "collection_value" => new Dictionary<string, long> { ["items"] = DataRequestLimits.MaximumBundleBytes + 1 },
+                "collection_name" => new Dictionary<string, long> { ["Bad-Name"] = 1_024 },
+                _ => null,
+            }));
+
+        await FluentActions.Invoking(() => builder.BuildAsync(Subject(), GeneratedAt, CancellationToken.None))
+            .Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task The_bundle_ceiling_fails_the_whole_bundle_and_refuses_every_later_record()
     {
         var outcomes = new List<UserDataExportAppend>();
@@ -285,11 +405,14 @@ public sealed class DataExportBundleBuilderTests
         return JsonDocument.Parse(bytes.ToArray());
     }
 
-    private sealed class Participant(string key, Func<IUserDataExportWriter, Task> export, long? cap = null) : IUserDataParticipant
+    private sealed class Participant(string key, Func<IUserDataExportWriter, Task> export, long? cap = null,
+        IReadOnlyDictionary<string, long>? collectionCaps = null) : IUserDataParticipant
     {
         public string Key => key;
 
         public long? ExportSectionCapBytes => cap;
+
+        public IReadOnlyDictionary<string, long> ExportCollectionCapBytes => collectionCaps ?? new Dictionary<string, long>();
 
         public Task ExportAsync(UserDataSubject subject, IUserDataExportWriter writer, CancellationToken cancellationToken) => export(writer);
 

@@ -113,6 +113,13 @@ public sealed class DataExportArtifact : AuditableEntity<DataExportArtifactId>, 
         Transition(Status == DataExportArtifactStatus.Available && at < ExpiresAt, DataExportArtifactStatus.Revoked, purged: true, at, actor);
 
     /// <summary><c>available → expired</c>, once its expiry has passed and before the purge.</summary>
+    /// <remarks>
+    /// No Step 1 path calls it: expiry is a time check (<see cref="IsReadable"/>), receipts display <c>expired</c>
+    /// without a write, and the purge job moves an expired artifact straight to <c>purged</c>. It is kept because the
+    /// stored lifecycle of ADR-0107 § 4 and the artifact guard admit the arrow, so the aggregate and the database stay
+    /// one machine; the operator inspection of P03-10 Step 2 (ADR-0107 § 8, the expired artifacts not yet purged) is
+    /// the first caller that may record an observed expiry, and Phase 11's retention owns the rest.
+    /// </remarks>
     public Result<None> Expire(DateTimeOffset at, UserId actor) =>
         Transition(Status == DataExportArtifactStatus.Available && at >= ExpiresAt, DataExportArtifactStatus.Expired, purged: false, at, actor);
 

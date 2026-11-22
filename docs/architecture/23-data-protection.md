@@ -146,6 +146,23 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
   personal data and secrets (the export key ring, session material) and are handled
   as such: not collected by default, access-controlled when taken, and deleted after
   use ([Data export runbook](../runbooks/data-export.md)).
+- Delivered reach and counts (P03-10 Step 1), detailed in the
+  [Identity module's bundle sections](../modules/identity/README.md#export-bundle-sections-p03-10-step-1):
+  - The audit section reaches what the job's ordinary group transaction may read under
+    the row policy, and its first record states that reach as a closed word. A
+    self-requested export in an organization group reaches that organization's rows and
+    the tenant-level rows, in the tenant-wide group the tenant-level rows only; the
+    person's rows recorded in another organization appear only in that organization's
+    export. The "whole tenant" reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered
+    and needs its own decision.
+  - Every declared section or collection cap is at most half the bundle ceiling, so a
+    long audit history or a long list of issued invitations is truncated and stated, not a
+    failed request.
+  - `attribution_reference` counts rows: a retained row whose `UserId` attribution
+    columns name the person counts once, whatever entity type carries them.
+    `audit_metadata_reference` is exact up to a bounded scan window of the rows carrying
+    a causal-actor or affected-user key and a lower bound beyond it, never more than the
+    truth.
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 

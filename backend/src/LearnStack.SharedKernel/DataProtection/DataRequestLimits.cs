@@ -45,6 +45,13 @@ public static class DataRequestLimits
     /// <summary>The audit section's cap inside one bundle (ADR-0107 § 3: 8 MiB).</summary>
     public const long AuditSectionBytes = 8L * 1024 * 1024;
 
+    /// <summary>
+    /// The cap on the invitations a person issued inside the Identity section, newest first: unlike the
+    /// invitations a person accepted it grows with administrative work, so it truncates with a stated
+    /// <c>truncated</c> entry rather than fail the request with <c>export_too_large</c>.
+    /// </summary>
+    public const long IssuedInvitationsCollectionBytes = 4L * 1024 * 1024;
+
     /// <summary>The most Memberships one request's frozen snapshot may name.</summary>
     /// <remarks>
     /// A person holds at most one current Membership per group; the rest are Revoked tombstones

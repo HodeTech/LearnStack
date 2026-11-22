@@ -19,6 +19,13 @@ namespace LearnStack.Modules.Audit.Infrastructure.DataRequests;
 /// instance-qualified <c>changes</c> paths included, are rewritten the same way, in values and in property names.
 /// </para>
 /// <para>
+/// <b>Property names stay distinct.</b> Rewriting names can make two of one object's names equal (two
+/// Memberships keyed by identifier both become <c>third_party</c>), and a JSON object with a repeated name is
+/// read differently by different parsers. Within one object the first occurrence of a rewritten name keeps it;
+/// each later one takes the first free of <c>name_2</c>, <c>name_3</c>, … in document order, so the output is
+/// deterministic and every name in it is unique. The suffix counts names, never identifies a person.
+/// </para>
+/// <para>
 /// Values the capture already replaced with the redaction sentinel stay replaced; nothing else is changed.
 /// </para>
 /// </remarks>
@@ -52,9 +59,10 @@ public static partial class AuditPayloadProjection
         {
             case JsonValueKind.Object:
                 json.WriteStartObject();
+                var names = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var property in element.EnumerateObject())
                 {
-                    json.WritePropertyName(Rewrite(property.Name, own));
+                    json.WritePropertyName(Distinct(Rewrite(property.Name, own), names));
                     Write(json, property.Value, own);
                 }
 
@@ -75,6 +83,24 @@ public static partial class AuditPayloadProjection
             default:
                 element.WriteTo(json);
                 break;
+        }
+    }
+
+    /// <summary>The name itself when the object has not used it, else the first free <c>name_n</c> from 2.</summary>
+    private static string Distinct(string name, HashSet<string> used)
+    {
+        if (used.Add(name))
+        {
+            return name;
+        }
+
+        for (var suffix = 2; ; suffix++)
+        {
+            var candidate = name + "_" + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (used.Add(candidate))
+            {
+                return candidate;
+            }
         }
     }
 

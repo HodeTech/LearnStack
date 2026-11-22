@@ -46,6 +46,15 @@ public interface IUserDataParticipant
     /// </summary>
     long? ExportSectionCapBytes => null;
 
+    /// <summary>
+    /// The participant's caps on single collections of its section, in bytes: a collection that can grow without a
+    /// bound of its own (the invitations a person issued, <see cref="DataRequestLimits.IssuedInvitationsCollectionBytes"/>)
+    /// truncates instead of filling the bundle. Empty by default. A record that would pass its collection's cap is
+    /// refused with <see cref="UserDataExportAppend.SectionCapReached"/>, as for the section cap, and the participant
+    /// declares that collection's truncation.
+    /// </summary>
+    IReadOnlyDictionary<string, long> ExportCollectionCapBytes => ImmutableDictionary<string, long>.Empty;
+
     /// <summary>Streams the participant's section of an export bundle into a bounded writer (ADR-0107 § 3).</summary>
     /// <remarks>
     /// The writer belongs to this participant's section alone. A participant never builds the bundle,
@@ -147,8 +156,9 @@ public enum UserDataExportAppend
     Appended = 1,
 
     /// <summary>
-    /// The section's own cap is reached (the audit section's 8 MiB, ADR-0107 § 3); the record was not
-    /// written, and the participant declares the truncation and stops.
+    /// The section's own cap (the audit section's 8 MiB, ADR-0107 § 3) or the record's collection cap is reached,
+    /// either at most half the bundle ceiling; the record was not written, and the participant declares that
+    /// collection's truncation and stops writing it.
     /// </summary>
     SectionCapReached = 2,
 

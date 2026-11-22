@@ -31,9 +31,6 @@ public interface IDataRequestStore : IAggregateWriteStore<DataSubjectRequest, Da
     /// <summary>The request in the ambient group, locked for update; <see langword="null"/> when absent.</summary>
     Task<DataSubjectRequest?> FindLockedAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken);
 
-    /// <summary>Whether the request already has its artifact (at most one per request).</summary>
-    Task<DataExportArtifactId?> FindArtifactOfRequestAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken);
-
     /// <summary>The subject's artifacts in the ambient group that are still stored <c>available</c>.</summary>
     Task<IReadOnlyList<DataExportArtifactId>> FindAvailableArtifactsAsync(UserId subject, CancellationToken cancellationToken);
 

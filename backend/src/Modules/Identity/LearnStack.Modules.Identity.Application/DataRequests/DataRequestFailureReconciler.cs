@@ -19,10 +19,11 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 /// and the receipt displays the same answer without writing through <see cref="EffectiveStatus"/>.
 /// </para>
 /// <para>
-/// <b>Transitions, one per save.</b> A dead export's request is <c>requested</c> (its transactional job rolled every
-/// write back), so it takes <c>requested → fulfilling</c> and then <c>fulfilling → failed</c> as two saves, because
-/// the request guard admits one arrow per UPDATE; both are the aggregate's own transitions. It runs on the
-/// caller's tenant transaction under the shared Identity tenant fence that guard requires.
+/// <b>Transitions, one per save.</b> A dead export's request is <c>requested</c>: its transactional job rolled every
+/// write back, and the export never commits <c>fulfilling</c> (<see cref="DataExportJobHandlers"/>). It takes
+/// <c>requested → fulfilling</c> and then <c>fulfilling → failed</c> as two saves, because the request guard admits
+/// one arrow per UPDATE; both are the aggregate's own transitions. It runs on the caller's tenant transaction under
+/// the shared Identity tenant fence that guard requires.
 /// </para>
 /// </remarks>
 public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataRequestJobPhaseReader phases,
@@ -94,22 +95,21 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
 
         var now = clock.UtcNow;
         var actor = tenant.UserId ?? UserId.SystemActor;
-        if (request.Status == DataRequestStatus.Requested)
-        {
-            Require(request.StartFulfilling(now, actor).IsSuccess);
-            await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
-        }
-
+        Require(request.StartFulfilling(now, actor).IsSuccess);
+        await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
         Require(request.Fail(DataRequestFailureReason.ExecutionFailed, now, actor).IsSuccess);
         await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
         return true;
     }
 
-    /// <summary>Only an export has a fulfilment job in this step, and only a requested or fulfilling one can fail.</summary>
+    /// <summary>
+    /// Only an export has a fulfilment job in this step, and only a requested one can be dead: its job commits
+    /// <c>fulfilling</c> only together with the terminal status.
+    /// </summary>
     private static bool CanFail(DataSubjectRequest request) => CanFail(request.Kind, request.Status);
 
     private static bool CanFail(DataRequestKind kind, DataRequestStatus status) =>
-        kind == DataRequestKind.Export && status is DataRequestStatus.Requested or DataRequestStatus.Fulfilling;
+        kind == DataRequestKind.Export && status == DataRequestStatus.Requested;
 
     private static void Require(bool admitted)
     {

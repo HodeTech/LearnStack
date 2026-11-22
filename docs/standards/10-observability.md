@@ -527,6 +527,22 @@ backend treat business rejections as system failures.
 | `learnstack_identity_lock_refusals_total` | counter | `lock_kind`, `reason` |
 | `learnstack_entitlement_source_total` | counter | `source` |
 | `learnstack_entitlement_unresolved_total` | counter | — |
+| `learnstack_data_export_total` | counter | outcome (`completed`, `failed_too_large`, `noop`, `failed`) |
+| `learnstack_data_export_duration_seconds` | histogram | outcome |
+| `learnstack_data_export_bundle_bytes` | histogram | — |
+| `learnstack_data_export_truncations_total` | counter | — |
+| `learnstack_data_export_purges_total` | counter | outcome (`purged`, `noop`, `not_due`) |
+
+### Data export signals
+
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 2–§ 4's
+export and purge jobs record the five `learnstack_data_export_*` instruments above on the
+`learnstack.data_export` meter, each outcome reached inside the job's transaction (a commit
+that then fails is the job runtime's own signal). Each run also writes one line (events
+7501–7506): the request or artifact identifier, the kind, the closed outcome, the byte and
+chunk counts and the duration, and for a failed attempt only the exception's type name. No
+subject, group, section content, address or other person's identifier is a label or a log
+value.
 
 ### Identity lock signals
 

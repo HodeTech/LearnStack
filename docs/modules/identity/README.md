@@ -939,6 +939,49 @@ the definer and the setter.
   live path, nor the reverse. When the BFF's entry handle refreshes the credential the binding no longer
   matches, that download's cursor ends, and the resumed download mints a new ticket.
 
+#### Export bundle sections (P03-10 Step 1)
+
+What each participant writes into the bundle of
+[ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 3, in the
+order the bundle carries them. Every identifier but the request's own is written `self` or
+`third_party`; the envelope and the bounds are `DataExportBundleBuilder`'s.
+
+| Section | Collection | Contents |
+|---|---|---|
+| `audit` | `audit_scope` | One record, `{"reach": …}`, with the closed reach below |
+| `audit` | `entries` | The subject's rows in that reach, newest first, capped at 8 MiB |
+| `customization`, `education` | none | Empty: definitions and content are tenant data; both only report `attribution_reference` |
+| `identity` | `memberships` | The snapshot Memberships: status, scope, role names, timestamps, display name, locale and every custom-field value with its revision, labels and classification, a value withheld by a withdrawn consent included |
+| `identity` | `invitations_accepted` | Oldest first: the person's own recipient address and `issued_by` |
+| `identity` | `invitations_issued` | Newest first: the invitee's address omitted, `accepted_by` as `self`, `third_party` or null; capped at 4 MiB (`DataRequestLimits.IssuedInvitationsCollectionBytes`) |
+| `tenancy` | `field_consents` | The subject's consent acts for the snapshot Memberships of the group, `recorded_by` as a closed word |
+
+- **The audit reach is what the row policy shows.** The export job runs on its group's
+  ordinary transaction, which holds no tenant-wide read witness, so `audit_log_isolation`
+  bounds what it can read. `reach` is one of three closed words:
+  `organization_and_tenant_level` (a self-requested export in an organization group: that
+  organization's rows and the tenant-level rows), `organization_only` (an administrator's
+  request in an organization group, ADR-0108 § 4) and `tenant_level_only` (any request in
+  the tenant-wide group). A self-requested export therefore does **not** reach the rows
+  recorded in the person's other organizations, which ADR-0107 § 3 and ADR-0108 § 4 call
+  "the whole tenant": each organization's activity is in that organization's own export,
+  and the Step 4 screens say so from `reach`. A tenant-wide read for the export job needs
+  its own decision.
+- **A cap truncates, whatever the ceiling.** The builder clamps every declared section and
+  collection cap to half of `DataExport:MaxBytes`, so at the 1 MiB minimum the audit
+  section and `invitations_issued` still truncate, stated in `truncated` and on the
+  artifact receipt; `export_too_large` remains for a bundle the uncapped sections fill.
+- **Retained counts.** `attribution_reference` counts **rows**: a row of a tenant-owned
+  entity whose `UserId` columns name the subject counts once, whichever and however many
+  of those columns do, a non-`AuditableEntity` updater such as a feature flag's included.
+  A participant names the columns that are the row's subject or party instead
+  (a Membership's `UserId`, an invitation's inviter and acceptor, the federation and
+  provider-event actors) and the types reported under another kind (the request
+  receipts, and the consent table, whose `ck_membership_field_consents_actor` makes every
+  act its own subject's). `audit_metadata_reference` is exact up to a scan window and a
+  lower bound past it; the [Audit module](../audit/README.md#performance-budget) owns
+  both audit statements' bounds.
+
 ## Entity-relationship diagram
 
 ```mermaid

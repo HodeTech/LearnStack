@@ -32,6 +32,12 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// <b>Custom fields.</b> Every stored value is exported with its revision, labels and classification, including a
 /// value withheld from ordinary disclosure by a withdrawn consent; a <c>None</c> classification is no exclusion.
 /// </para>
+/// <para>
+/// <b>Bounds.</b> <c>memberships</c> is bounded by the frozen snapshot and <c>invitations_accepted</c> by the offers a
+/// person can accept; <c>invitations_issued</c> grows with administrative work, so it is written newest first under
+/// <see cref="DataRequestLimits.IssuedInvitationsCollectionBytes"/> and a cap hit is declared with the records
+/// included and the records in total, as the audit section's is.
+/// </para>
 /// </remarks>
 public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantContext tenant,
     MembershipFieldRevisionReader fields) : IUserDataParticipant
@@ -39,12 +45,34 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
     internal const string ParticipantKey = "identity";
     internal const string ThirdParty = "third_party";
     internal const string Self = "self";
+    internal const string IssuedCollection = "invitations_issued";
+    internal const string AcceptedCollection = "invitations_accepted";
     private const int Page = 200;
 
     private static readonly IReadOnlySet<Type> ReceiptTypes =
         new HashSet<Type> { typeof(DataSubjectRequest), typeof(DataExportArtifact), typeof(DataExportTicket) };
 
+    /// <summary>
+    /// The <c>UserId</c> columns that are a row's subject or party, not its author: the subject's own Membership is
+    /// exported, and the others are reported as <c>invitation_record</c>, <c>federation_actor_reference</c> and
+    /// <c>provider_event_record</c>; every other <c>UserId</c> column of the context is attribution.
+    /// </summary>
+    private static readonly (Type Entity, string Property)[] PartyProperties =
+    [
+        (typeof(Membership), nameof(Membership.UserId)),
+        (typeof(Invitation), nameof(Invitation.InviterUserId)),
+        (typeof(Invitation), nameof(Invitation.AcceptedBy)),
+        (typeof(FederationConnection), nameof(FederationConnection.PendingActor)),
+        (typeof(FederationConnection), nameof(FederationConnection.TestActor)),
+        (typeof(ProviderEventTarget), nameof(ProviderEventTarget.AffectedUserId)),
+    ];
+
+    private static readonly IReadOnlyDictionary<string, long> CollectionCaps =
+        new Dictionary<string, long>(StringComparer.Ordinal) { [IssuedCollection] = DataRequestLimits.IssuedInvitationsCollectionBytes };
+
     public string Key => ParticipantKey;
+
+    public IReadOnlyDictionary<string, long> ExportCollectionCapBytes => CollectionCaps;
 
     public async Task ExportAsync(UserDataSubject subject, IUserDataExportWriter writer, CancellationToken cancellationToken)
     {
@@ -90,7 +118,8 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
             new(RetainedReferenceKind.RequestReceipt, checked(requests + artifacts + tickets)),
             new(RetainedReferenceKind.InvitationRecord, invitations),
             new(RetainedReferenceKind.AttributionReference,
-                await AttributionReferenceCounter.CountAsync(db, subject, ReceiptTypes, cancellationToken).ConfigureAwait(false)),
+                await AttributionReferenceCounter.CountAsync(db, subject, ReceiptTypes, PartyProperties, cancellationToken)
+                    .ConfigureAwait(false)),
         };
 
         // Tenant-owned rows without an organization belong to the tenant-wide group alone.
@@ -133,22 +162,28 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
         return true;
     }
 
-    /// <summary>Accepted invitations carry the subject's own address; issued ones omit the invitee's.</summary>
+    /// <summary>
+    /// Accepted invitations carry the subject's own address, oldest first; issued ones omit the invitee's and are
+    /// written newest first under their collection cap, whose hit is declared.
+    /// </summary>
     private async Task<bool> ExportInvitationsAsync(UserDataSubject subject, IUserDataExportWriter writer, bool accepted,
         CancellationToken cancellationToken)
     {
         var person = subject.SubjectUserId;
         UserId? nullablePerson = person;
         var organization = subject.Group.OrganizationId;
-        var collection = accepted ? "invitations_accepted" : "invitations_issued";
+        var collection = accepted ? AcceptedCollection : IssuedCollection;
         var query = accepted
             ? db.Invitations.AsNoTracking().Where(invitation => invitation.OrganizationId == organization && invitation.AcceptedBy == nullablePerson)
             : db.Invitations.AsNoTracking().Where(invitation => invitation.OrganizationId == organization && invitation.InviterUserId == person);
+        var ordered = accepted
+            ? query.OrderBy(invitation => invitation.CreatedAt).ThenBy(invitation => invitation.Id)
+            : query.OrderByDescending(invitation => invitation.CreatedAt).ThenByDescending(invitation => invitation.Id);
+        long included = 0;
         for (var offset = 0; ; offset += Page)
         {
-            // Bounded pages in a stable order on the one transaction; the bundle bounds the total.
-            var page = await query.OrderBy(invitation => invitation.CreatedAt).ThenBy(invitation => invitation.Id)
-                .Skip(offset).Take(Page).ToListAsync(cancellationToken).ConfigureAwait(false);
+            // Bounded pages in a stable order on the one transaction; the caps and the bundle bound the total.
+            var page = await ordered.Skip(offset).Take(Page).ToListAsync(cancellationToken).ConfigureAwait(false);
             if (page.Count == 0)
             {
                 return true;
@@ -161,10 +196,21 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
             {
                 var appended = await UserDataExportRecord.AppendAsync(writer, collection, json =>
                     WriteInvitation(json, invitation, roles, person, accepted), cancellationToken).ConfigureAwait(false);
+                if (appended == UserDataExportAppend.SectionCapReached)
+                {
+                    // Counted after the pages, on the same transaction; the maximum keeps the statement coherent
+                    // should a statement-level snapshot see fewer rows than were written.
+                    var total = await query.LongCountAsync(cancellationToken).ConfigureAwait(false);
+                    writer.DeclareTruncated(collection, included, Math.Max(total, included));
+                    return false;
+                }
+
                 if (appended != UserDataExportAppend.Appended)
                 {
                     return false;
                 }
+
+                included++;
             }
 
             if (page.Count < Page)

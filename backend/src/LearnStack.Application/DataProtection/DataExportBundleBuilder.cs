@@ -27,9 +27,18 @@ namespace LearnStack.Application.DataProtection;
 /// <para>
 /// <b>Bounds.</b> A record is admitted only if it fits both its section's cap and the bundle ceiling less a
 /// fixed reserve for the closing structure, so the finished document never passes <c>DataExport:MaxBytes</c>.
-/// The section cap is checked first: a record that would pass both is a truncation of its section, which the
-/// participant declares, not a failure of the request. A record is validated as exactly one JSON value before
-/// any byte of it is written, so the bundle never holds a partial record.
+/// The section cap and the record's collection cap are checked first: a record that would pass one of them and the
+/// ceiling is a truncation of its collection, which the participant declares, not a failure of the request. A record
+/// is validated as exactly one JSON value before any byte of it is written, so the bundle never holds a partial
+/// record.
+/// </para>
+/// <para>
+/// <b>A cap truncates, whatever the ceiling.</b> Every declared section and collection cap is clamped to half the
+/// configured ceiling (<see cref="EffectiveCap"/>). At the default 16 MiB ceiling the audit section's 8 MiB is
+/// unchanged; at the smallest admitted ceiling (1 MiB) an unclamped 8 MiB cap would never apply and a long audit
+/// history would fail the request permanently with <c>export_too_large</c>. The clamp is a bound, not a budget: the
+/// uncapped sections and two capped ones together can still reach the ceiling, and that genuine case stays
+/// <c>export_too_large</c>.
 /// </para>
 /// </remarks>
 public sealed class DataExportBundleBuilder(IUserDataParticipantRegistry registry, DataExportOptions options) : IDataExportBundleBuilder
@@ -65,7 +74,8 @@ public sealed class DataExportBundleBuilder(IUserDataParticipantRegistry registr
                 foreach (var participant in registry.Participants)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var section = new SectionWriter(state, participant.Key, SectionCap(participant));
+                    var section = new SectionWriter(state, participant.Key, SectionCap(participant, options.MaxBytes),
+                        CollectionCaps(participant, options.MaxBytes));
                     state.Json.WritePropertyName(participant.Key);
                     state.Json.WriteStartObject();
                     try
@@ -131,12 +141,31 @@ public sealed class DataExportBundleBuilder(IUserDataParticipantRegistry registr
         json.WriteString("generated_at", generatedAt.UtcDateTime.ToString(InstantFormat, CultureInfo.InvariantCulture));
     }
 
-    private static long SectionCap(IUserDataParticipant participant) => participant.ExportSectionCapBytes switch
+    /// <summary>A declared cap, clamped to half the ceiling so that it truncates before the ceiling refuses the bundle.</summary>
+    public static long EffectiveCap(long declared, long ceiling) =>
+        declared is >= 1 and <= DataRequestLimits.MaximumBundleBytes
+            ? Math.Min(declared, ceiling / 2)
+            : throw new InvalidOperationException("A participant's export cap is outside the bundle's range.");
+
+    private static long SectionCap(IUserDataParticipant participant, long ceiling) =>
+        participant.ExportSectionCapBytes is { } cap ? EffectiveCap(cap, ceiling) : long.MaxValue;
+
+    private static Dictionary<string, long> CollectionCaps(IUserDataParticipant participant, long ceiling)
     {
-        null => long.MaxValue,
-        { } cap when cap is >= 1 and <= DataRequestLimits.MaximumBundleBytes => cap,
-        _ => throw new InvalidOperationException("A participant's export section cap is outside the bundle's range."),
-    };
+        var caps = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var (collection, cap) in participant.ExportCollectionCapBytes
+                     ?? throw new InvalidOperationException("A participant's collection caps are a collection."))
+        {
+            if (!DataRequestLimits.IsCollectionName(collection))
+            {
+                throw new InvalidOperationException("A collection cap names a collection of its section.");
+            }
+
+            caps.Add(collection, EffectiveCap(cap, ceiling));
+        }
+
+        return caps;
+    }
 
     private sealed class BundleState
     {
@@ -160,14 +189,17 @@ public sealed class DataExportBundleBuilder(IUserDataParticipantRegistry registr
     }
 
     /// <summary>One participant's bounded, append-only section; unusable once its participant returned.</summary>
-    private sealed class SectionWriter(BundleState state, string section, long cap) : IUserDataExportWriter
+    private sealed class SectionWriter(BundleState state, string section, long cap, IReadOnlyDictionary<string, long> collectionCaps)
+        : IUserDataExportWriter
     {
         private readonly HashSet<string> _closedCollections = new(StringComparer.Ordinal);
         private readonly HashSet<string> _declared = new(StringComparer.Ordinal);
         private string? _current;
         private long _sectionBytes;
+        private long _collectionBytes;
         private bool _closed;
 
+        /// <summary>What the section may still append, before the open collection's own cap.</summary>
         public long RemainingBytes => _closed || state.TooLarge
             ? 0
             : Math.Max(0, Math.Min(cap - _sectionBytes, state.PayloadLimit - state.Written));
@@ -237,7 +269,9 @@ public sealed class DataExportBundleBuilder(IUserDataParticipantRegistry registr
             // An upper bound of what the record adds: itself and its separating comma, and for a new collection
             // the previous collection's closing bracket, a comma, the quoted name, the colon and the bracket.
             var cost = record.Length + 1L + (opening ? collection.Length + 6L : 0L);
-            if (_sectionBytes + cost > cap)
+            var collectionBytes = opening ? 0L : _collectionBytes;
+            if (_sectionBytes + cost > cap
+                || collectionCaps.TryGetValue(collection, out var collectionCap) && collectionBytes + cost > collectionCap)
             {
                 return UserDataExportAppend.SectionCapReached;
             }
@@ -263,6 +297,7 @@ public sealed class DataExportBundleBuilder(IUserDataParticipantRegistry registr
 
             state.Json.WriteRawValue(record, skipInputValidation: true);
             _sectionBytes += cost;
+            _collectionBytes = collectionBytes + cost;
             return UserDataExportAppend.Appended;
         }
 
