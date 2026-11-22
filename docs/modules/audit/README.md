@@ -25,8 +25,8 @@ packet. Rows marked
 The **read** side — the query API of
 [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission
 registry — lands with Identity in
-[Phase 03](../../roadmap/phase-03-identity-admin.md), and so does the GDPR redaction
-path, an operator act on the platform scope with one Audit-owned executor behind
+[Phase 03](../../roadmap/phase-03-identity-admin.md). The GDPR redaction path is
+delivered: an operator act on the platform scope with one Audit-owned executor behind
 `IAuditRedactor` and each module's `IUserReferenceLocator` declarations
 ([ADR-0108](../../decisions/0108-privileged-audit-redaction.md))
 ([Audit Subsystem § 10](../../architecture/31-audit-subsystem.md)). Partitioning and the
@@ -107,11 +107,11 @@ know before touching it.
   nothing else, which is what keeps that impossible. The **ports** those types implement
   live in `LearnStack.SharedKernel.Audit`, beside the value types every module's
   catalogue source names.
-- **The log's own retention or redaction.** Redaction is Phase 03's and the purge Phase
-  11's; both run as
-  `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, and
-  both are already bounded by what this packet's migration grants: a `DELETE`, and an
-  `UPDATE` restricted to six columns.
+- **The log's own retention or redaction.** Redaction is the privileged erasure step
+  and the purge is Phase 11's; both run as `learnstack_platform` through the audited
+  platform scope, and both are bounded by what this packet's migration grants: a
+  `DELETE`, and an `UPDATE` restricted to six columns. The redaction's one executor
+  ships; the purge has no caller yet.
 - **Anything a reader would call a metric.** Counters, latencies and error rates are
   [ADR-0032](../../decisions/0032-exception-handling-logging-and-observability.md)'s,
   and an audit row is not a log line: it is a record a regulator reads and a tenant
@@ -455,7 +455,7 @@ Two budget-shaped facts that are not latency:
   that seeds the row as the migration role rather than by any shipped caller.
 - **Retention is unowned until Phase 11.** The purge and the partition-management job
   sit behind the same trigger — measured `audit_log` growth. GDPR redaction is not on it:
-  it is triggered by an erasure and lands with Phase 03's erasure handler. The grants all
+  an erasure triggers it, and its executor ships with Phase 03's erasure. The grants all
   three need are already written, which is the part that could not be added later without
   a migration on a table nobody may rewrite.
 - **The read API's shape is Phase 03's to settle.** The four permission keys and the

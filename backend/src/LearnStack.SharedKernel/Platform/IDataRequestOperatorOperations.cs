@@ -79,6 +79,9 @@ public enum ErasureCompletionOutcome
     /// <summary>The request is not an erasure.</summary>
     NotErasure,
 
+    /// <summary>The erasure is a closure's fan-out, which only that closure's finalization completes (ADR-0107 § 7).</summary>
+    ClosureFanout,
+
     /// <summary>The erasure is not awaiting the privileged step; its stored status is returned.</summary>
     NotAwaiting,
 }

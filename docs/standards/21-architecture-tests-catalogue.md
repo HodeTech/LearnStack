@@ -3530,17 +3530,17 @@ which decides identity, multiplicity, capture and classification;
     the reverse, which also carries the anti-rot check and a guard against sweeping no rows
     at all.
   - **Off the request path.** Some audited operations are not MediatR requests at all.
-    Nine rows carry `(off-path)`: Tenancy's `platform.admin_scope.enter`,
+    Their rows carry `(off-path)`, among them Tenancy's `platform.admin_scope.enter`,
     `platform.outbox.dead_letter`, `platform.delivery.dead_letter`,
-    `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
-    `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst` —
-    snake_case within each segment since
+    `platform.data_request.inspect`, `tenancy.killswitch.toggle`,
+    `tenancy.entitlement.refresh`, `tenancy.tenant_assertion.reject` and
+    `tenancy.tenant_assertion.anonymous_burst` — snake_case within each segment since
     [ADR-0036 Amendment 7](../decisions/0036-tenant-resolution-trusted-inputs.md), so that
     one parser reads every audit slug and every permission key — and Audit's
     `audit.redaction.apply` and `audit.purge.apply`. They sit outside the request-type join
-    in both directions and register by slug: the four whose writer ships through
-    `DeclareOffPath` today, the other five — which also carry `(planned)` — when their
-    writer lands. ADR-0046 assigns the producer terminal writer to P02b-2 and the
+    in both directions and register by slug: a row whose writer ships registers through
+    `DeclareOffPath`, and one that also carries `(planned)` registers when its writer
+    lands. ADR-0046 assigns the producer terminal writer to P02b-2 and the
     subscriber terminal writer to P02b-3; acceptance alone registers neither slug.
 
   Stated as one unconditional join, the rule is red on its first run: the two shipped

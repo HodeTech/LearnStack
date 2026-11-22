@@ -95,7 +95,8 @@ public sealed class DataRequestStorageLiteralTests
             + platformArm + applicationArms,
             "the function's header and every application arm are Step 1's, character for character, after the platform arm");
         platformArm.Should().Contain("IF session_user = 'learnstack_platform' AND current_user = 'learnstack_platform' THEN")
-            .And.Contain("OLD.kind = 'erasure' AND OLD.status = 'awaiting_privileged_step' AND NEW.status = 'completed'")
+            .And.Contain("OLD.kind = 'erasure' AND OLD.origin <> 'closure_fanout' AND OLD.status = 'awaiting_privileged_step'")
+            .And.Contain("NEW.status = 'completed'")
             .And.EndWith("        RETURN NEW;\n    END IF;\n", "the arm returns before the application's arms are reached");
 
         // The result may change only in the audit log's retained kinds (ADR-0107 § 6): each list the arm names is exactly

@@ -287,7 +287,7 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
     public async Task A_repeat_answers_the_recorded_result_and_writes_no_second_row()
     {
         await using var proof = await Proof.CreateAsync(schema.Postgres);
-        var request = await proof.RequestAsync("erasure", "closure_fanout", "awaiting_privileged_step", "now() - interval '1 day'",
+        var request = await proof.RequestAsync("erasure", "self", "awaiting_privileged_step", "now() - interval '1 day'",
             result: """{"request_receipt":1}""");
         var redactor = new RecordingRedactor(new AuditRedactionReport(
             1, new Dictionary<AuditRedactedColumn, long>(), [new(RetainedReferenceKind.AuditEntityReference, 3)]));
@@ -306,6 +306,27 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
             .Which.Operation.Should().Be(PlatformAdminScope.EnterOperation, "the repeat is on the record by its entry row alone");
         (await proof.ResultRowsAsync(request.Id)).Should().Be(1, "one completion, one result row");
         (await proof.ReadAsync(request)).Version.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task A_closure_s_fan_out_erasure_is_refused_in_its_every_status_and_nothing_changes()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        var redactor = new RecordingRedactor();
+        var owner = proof.Owner(redactor);
+        foreach (var status in new[] { "awaiting_privileged_step", "completed" })
+        {
+            var request = await proof.RequestAsync("erasure", "closure_fanout", status, "now() - interval '3 days'");
+            var before = await proof.ReadAsync(request);
+
+            var result = await owner.CompleteErasureAsync(Proof.Admission(operation: PlatformOperations.ErasureComplete), request.Id);
+
+            result.Outcome.Should().Be(ErasureCompletionOutcome.ClosureFanout, "only that closure's finalization completes it: " + status);
+            (await proof.ReadAsync(request)).Should().Be(before, "a refused completion changes nothing");
+            (await proof.ResultRowsAsync(request.Id)).Should().Be(0, "no result row describes a refused act");
+        }
+
+        redactor.Plans.Should().BeEmpty("no refused request reached the executor");
     }
 
     [Fact]

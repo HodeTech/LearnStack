@@ -7176,7 +7176,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the subject is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), blocked_hold, or, for an administrator, subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7775,7 +7775,7 @@
           {
             "name": "If-Match",
             "in": "header",
-            "description": "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.",
+            "description": "One canonical strong quoted decimal ARTIFACT version: the receipt\u0027s artifact.version, not the request\u0027s version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409.",
             "required": true,
             "schema": {
               "maxLength": 21,
@@ -9082,7 +9082,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the subject is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), blocked_hold, or, for an administrator, subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11530,7 +11530,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the subject is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), blocked_hold, or, for an administrator, subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), blocked_hold, or subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,

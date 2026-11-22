@@ -152,9 +152,9 @@ public static class ContextualIdentityStorageDdl
         var sql = MutationGuardSql(correctParentMirror: true, serializeParentLifecycle: true);
         foreach (var (before, after) in ErasureProfileClearing)
         {
-            if (!sql.Contains(before, StringComparison.Ordinal))
+            if (sql.IndexOf(before, StringComparison.Ordinal) is var first && (first < 0 || first != sql.LastIndexOf(before, StringComparison.Ordinal)))
             {
-                throw new InvalidOperationException("The contextual guard no longer holds the text the erasure exception amends.");
+                throw new InvalidOperationException("The contextual guard no longer holds, exactly once, the text the erasure exception amends.");
             }
 
             sql = sql.Replace(before, after, StringComparison.Ordinal);
@@ -188,10 +188,10 @@ public static class ContextualIdentityStorageDdl
                               AND erasure.organization_id IS NOT DISTINCT FROM parent_org
                               AND erasure.kind = 'erasure' AND erasure.status = 'fulfilling');
                 END IF;
-                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND NOT erasure_clearing THEN
+                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND erasure_clearing IS NOT TRUE THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 END IF;
-                require_exclusive := erasure_clearing;
+                require_exclusive := erasure_clearing IS TRUE;
         """),
     ];
 

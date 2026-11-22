@@ -822,6 +822,7 @@ classification; the OpenAPI document owns the exact wire shapes.
 | Route (under `/api/v1`) | Operation | Request |
 |---|---|---|
 | `POST identity/me/data-requests/exports` | `identity.data_request.create_own_export` | `CreateOwnDataExportCommand` |
+| `POST identity/me/data-requests/erasures` | `identity.data_request.create_own_erasure` | `CreateOwnDataErasureCommand` |
 | `GET identity/me/data-requests` | `identity.data_request.list_own` | `ListOwnDataRequestsQuery` |
 | `GET identity/me/data-requests/{id}` | `identity.data_request.read_own` | `GetOwnDataRequestQuery` |
 | `POST identity/me/data-requests/{id}/cancellations` | `identity.data_request.cancel_own` | `CancelOwnDataRequestCommand` |
@@ -830,6 +831,7 @@ classification; the OpenAPI document owns the exact wire shapes.
 | `POST identity/me/data-requests/{id}/artifact/chunks` | `identity.data_request.read_export_chunk` | `ReadOwnDataExportChunkCommand` |
 | (keyed replay only) | `identity.data_request.read_own_receipt` | `ReadOwnDataRequestReceiptQuery` |
 | `POST identity/data-requests/exports` | `identity.data_request.create_export` | `CreateDataExportForSubjectCommand` |
+| `POST identity/data-requests/erasures` | `identity.data_request.create_erasure` | `CreateDataErasureForSubjectCommand` |
 | `GET identity/data-requests` | `identity.data_request.list` | `ListDataRequestsQuery` |
 | `GET identity/data-requests/{id}` | `identity.data_request.read` | `GetDataRequestQuery` |
 | `POST identity/data-requests/{id}/cancellations` | `identity.data_request.cancel` | `CancelDataRequestCommand` |
@@ -928,12 +930,14 @@ the definer and the setter.
 | `GET scopes` | `identity.data_request.list_retained_scopes` | `ListRetainedDataRequestScopesQuery` |
 | `GET requests?group=` | `identity.data_request.list_retained` | `ListRetainedDataRequestsQuery` |
 | `POST exports?group=` | `identity.data_request.create_retained_export` | `CreateRetainedDataExportCommand` |
+| `POST erasures?group=` | `identity.data_request.create_retained_erasure` | `CreateRetainedDataErasureCommand` |
+| `POST revocations?group=` | `identity.data_request.revoke_retained_export` | `RevokeRetainedDataExportCommand` |
 | `POST cancellations?group=` | `identity.data_request.cancel_retained` | `CancelRetainedDataRequestCommand` |
 | `POST tickets?group=` | `identity.data_request.mint_retained_export_ticket` | `MintRetainedDataExportTicketCommand` |
 | `POST chunks?group=` | `identity.data_request.read_retained_export_chunk` | `ReadRetainedDataExportChunkCommand` |
 | (keyed replay only) | `identity.data_request.read_retained_receipt` | `ReadRetainedDataRequestReceiptQuery` |
 
-- **Entry.** The six paths are the closed set `OwnDataRequestOperation.ForPath`: exact
+- **Entry.** The eight paths are the closed set `OwnDataRequestOperation.ForPath`: exact
   path, method, action and request type. `NativeSessionSourceMiddleware` admits them
   selector-free (a tenant or organization header is `400`) with the separate native
   session credential, `ValidatedOwnDataRequestCredential` captures the stock-validated
@@ -953,10 +957,12 @@ the definer and the setter.
   that request object on that endpoint, and the thin handlers
   (`RetainedDataRequestAdmission`) consume only that witness on its physical owner,
   build the subject's caller and hand over to the same cores as the live path.
-- **Keyed operations.** Creation and cancellation are
-  `ProtectedAdministrationOperation`s 30 and 31. Creation answers `202` with
-  `{id, kind, status, version}` and its `ETag` and no `Location` (there is no
-  per-request route); cancellation needs `If-Match`. A replay rereads the captured
+- **Keyed operations.** Export creation, cancellation, erasure creation and artifact
+  revocation are `ProtectedAdministrationOperation`s 30, 31, 34 and 35. Creation
+  answers `202` with `{id, kind, status, version}` and its `ETag` and no `Location`
+  (there is no per-request route); an erasure's answer is `scheduled` and its receipt
+  shows `executeAt`, the end of the cancellable window; cancellation needs `If-Match`,
+  and a revocation's `If-Match` is the artifact's version. A replay rereads the captured
   input, selects the witness's own receipt read and discloses the stored receipt only
   through it; a completed key found only at claim time answers `request_in_progress`, as
   the consent withdrawal does.
@@ -1029,13 +1035,40 @@ record names a person, it writes one closed word instead:
   reach (the group's organization, the tenant-level rows) and a lower bound past it;
   the [Audit module](../audit/README.md#performance-budget) owns both audit statements'
   bounds.
-- **The retained list is partial.** Step 1 reports `request_receipt`,
-  `invitation_record`, `attribution_reference`, `consent_evidence`, the three audit
-  kinds and, in the tenant-wide group, `federation_actor_reference` and
-  `provider_event_record`. A kind not listed is not counted, which is not zero:
-  P03-10 Step 2 owns `invitation_envelope`, `transport_evidence`,
-  `execution_evidence`, `idempotency_cache`, `external_copy` and `unscoped_audit_rows`,
-  Step 3 owns `unserved_group`, and Phase 11 owns every retention period.
+- **The retained list is partial.** The tenant side reports `request_receipt`,
+  `invitation_record`, `attribution_reference`, `consent_evidence` and, in the
+  tenant-wide group, `federation_actor_reference` and `provider_event_record`; the
+  operator's completion adds the audit log's four kinds, including `unscoped_audit_rows`
+  for an administrator's request. A kind not listed is retained and not counted, which
+  is not zero: `invitation_envelope` (the application role holds no `SELECT` on the
+  envelope table), `transport_evidence`, `execution_evidence`, `idempotency_cache` and
+  `external_copy` have no subject-keyed count. The web surface's retention explanation
+  names those classes in its copy ([Phase 03](../../roadmap/phase-03-identity-admin.md)
+  P03-10 Step 4), `unserved_group` is a closure's kind (Step 3), and Phase 11 owns
+  every retention period and the counting of the stores it purges.
+
+#### Operator data-request steps (P03-10 Step 2)
+
+The operator's two acts of
+[ADR-0107 § 8](../../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108 § 8](../../decisions/0108-privileged-audit-redaction.md), run by the
+[data erasure runbook](../../runbooks/data-erasure.md); the platform
+[permission matrix](permissions.md) owns the two keys and the audit matrices the slugs.
+
+- **Port and owner.** `IDataRequestOperatorOperations` (SharedKernel) is implemented by
+  `DataRequestOperatorOperations` in this module's Infrastructure, the one class that
+  enters the platform scope for data requests. Each call is one entered scope on
+  `learnstack_platform`; no route and no other module touches the request tables.
+- **`inspect`** (`platform.data_request.read`) lists four closed states, metadata only,
+  oldest due first and keyset-paged: `awaiting_privileged_step`, `overdue_scheduled`,
+  `stuck_fulfilling` and `expired_artifact`. Its audit is the scope's entry row.
+- **`complete_erasure`** (`platform.data_request.write`) reads and locks one erasure
+  awaiting its privileged step, builds the redaction plan from the row, has the Audit
+  executor redact on the scope's transaction, moves the request to `completed` through
+  the request guard's platform arm and writes the MUST result row under the request's
+  tenant, all in one transaction. A closure's fan-out erasure is refused.
+- **No tenant write.** The request guard admits the platform role's one arrow and
+  stamps the completion itself; every other request change belongs to the tenant side.
 
 ## Entity-relationship diagram
 

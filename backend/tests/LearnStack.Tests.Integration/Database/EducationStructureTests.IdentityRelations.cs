@@ -141,7 +141,7 @@ public sealed partial class EducationStructureTests
             "erasure-without-user-fence" => body.Replace("AND public.fn_identity_lock_held('user',parent_user,true) IS TRUE",
                 "", StringComparison.Ordinal),
             "erasure-without-fulfilling-request" => body.Replace("AND erasure.status = 'fulfilling'", "", StringComparison.Ordinal),
-            "erasure-shared-tenant-fence" => body.Replace("require_exclusive := erasure_clearing;", "", StringComparison.Ordinal),
+            "erasure-shared-tenant-fence" => body.Replace("require_exclusive := erasure_clearing IS TRUE;", "", StringComparison.Ordinal),
             _ => body,
         };
         if (defect is not ("security-definer" or "search-path" or "stable"))

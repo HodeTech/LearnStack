@@ -248,7 +248,13 @@ will raise them — which this standard requires it to do.
   scope handle's checkpoint, with the outcome `indeterminate`, committed before the
   provider call ([ADR-0044 Amendment 18](../decisions/0044-audit-write-path.md)), and a
   completion row on their own slug. Both rows name the tenant the owner marker names
-  and carry no ticket and no tenant-authored text.
+  and carry no ticket and no tenant-authored text. The operator data-request
+  operations of [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md)
+  § 8 and [ADR-0108](../decisions/0108-privileged-audit-redaction.md) are `(off-path)`
+  too: `platform.data_request.inspect` is audited by the platform scope's entry row,
+  and `audit.redaction.apply` writes one result row under the request's real tenant,
+  with no actor, no ticket and the operator attribution in `metadata`, on the
+  transaction that redacts the audit rows and completes the request.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
@@ -1028,8 +1034,8 @@ observes neither a rollback nor a `42501`.
 - [`AuditEntry_Inherits_Entity_Not_AuditableEntity`](21-architecture-tests-catalogue.md#auditentry_inherits_entity_not_auditableentity)
   — the audit aggregate is append-only by inheritance.
 - [`AuditEntry_Is_AppendOnly`](21-architecture-tests-catalogue.md#auditentry_is_appendonly)
-  — no `UPDATE` or `DELETE` targets `audit_log` outside the three named sites, and
-  `IAuditStore` exposes no update method.
+  — no `UPDATE` or `DELETE` targets `audit_log` outside its one named site, the
+  redaction executor, and `IAuditStore` exposes no update method.
 - [`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog)
   — the enum and § Operation Types carry the same seven members.
 - [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)

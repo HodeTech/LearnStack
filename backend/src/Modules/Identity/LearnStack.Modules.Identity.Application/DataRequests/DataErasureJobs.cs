@@ -164,7 +164,7 @@ public sealed partial class DataErasureJobHandlers(IDataRequestStore store, IDat
                 var refusal = decision.Refusal ?? throw new InvalidOperationException("An executing erasure lost its structure.");
                 Require(request.Block(refusal, DataRequestTransitionTime.Of(clock, request), actor));
                 await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
-                return "blocked_" + DataRequestCodes.Refusals.ToCode(refusal);
+                return DataRequestCodes.Refusals.ToCode(refusal);
             }
         }
 

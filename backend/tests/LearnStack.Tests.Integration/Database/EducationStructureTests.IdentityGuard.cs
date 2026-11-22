@@ -53,10 +53,10 @@ public sealed partial class EducationStructureTests
                               AND erasure.organization_id IS NOT DISTINCT FROM parent_org
                               AND erasure.kind = 'erasure' AND erasure.status = 'fulfilling');
                 END IF;
-                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND NOT erasure_clearing THEN
+                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND erasure_clearing IS NOT TRUE THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 END IF;
-                require_exclusive := erasure_clearing;
+                require_exclusive := erasure_clearing IS TRUE;
                 IF TG_TABLE_NAME = 'membership_profiles' AND TG_OP = 'DELETE' THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 ELSIF TG_TABLE_NAME = 'membership_role_assignments' THEN

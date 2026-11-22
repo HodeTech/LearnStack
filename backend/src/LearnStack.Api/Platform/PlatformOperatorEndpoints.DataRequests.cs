@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Platform;
@@ -118,6 +119,7 @@ internal static partial class PlatformOperatorEndpoints
         {
             var page = await operations.InspectAsync(
                 admission!, new DataRequestInspectionQuery(parsedState, cursor, size), cancellationToken);
+            PlatformOperatorMetrics.DataRequest(operation, page is null ? "invalid_cursor" : "ok");
             return page is null
                 ? InvalidParameter(http, "cursor")
                 : Results.Ok(new InspectionResponse<DataRequestInspectionItem>(
@@ -129,6 +131,7 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (OperatorRecoveryUnavailableException failure)
         {
+            PlatformOperatorMetrics.DataRequest(operation, failure.CommitOutcomeUnknown ? "commit_unknown" : "unavailable");
             return UnavailableProblem(http, loggers, operation, failure);
         }
     }
@@ -154,6 +157,7 @@ internal static partial class PlatformOperatorEndpoints
         try
         {
             var result = await operations.CompleteErasureAsync(admission!, requestId, cancellationToken);
+            PlatformOperatorMetrics.DataRequest(operation, ErasureOutcomeToken(result.Outcome));
             return result.Outcome switch
             {
                 ErasureCompletionOutcome.Completed or ErasureCompletionOutcome.AlreadyCompleted => Results.Ok(
@@ -166,6 +170,7 @@ internal static partial class PlatformOperatorEndpoints
                         admission!.Operator.CorrelationId ?? http.TraceIdentifier)),
                 ErasureCompletionOutcome.NotFound => Problem(http, StatusCodes.Status404NotFound, "lockey_not_found"),
                 ErasureCompletionOutcome.NotErasure => ResultProblem(http, Rule("kind", "lockey_data_request_not_erasure")),
+                ErasureCompletionOutcome.ClosureFanout => ResultProblem(http, Rule("origin", "lockey_data_request_closure_fanout")),
                 ErasureCompletionOutcome.NotAwaiting => ResultProblem(
                     http, Rule("status", "lockey_data_request_not_awaiting_privileged_step", result.Status)),
                 _ => throw new InvalidOperationException("An erasure completion outcome the route does not answer."),
@@ -177,9 +182,21 @@ internal static partial class PlatformOperatorEndpoints
         }
         catch (OperatorRecoveryUnavailableException failure)
         {
+            PlatformOperatorMetrics.DataRequest(operation, failure.CommitOutcomeUnknown ? "commit_unknown" : "unavailable");
             return UnavailableProblem(http, loggers, operation, failure);
         }
     }
+
+    private static string ErasureOutcomeToken(ErasureCompletionOutcome outcome) => outcome switch
+    {
+        ErasureCompletionOutcome.Completed => "completed",
+        ErasureCompletionOutcome.AlreadyCompleted => "already_completed",
+        ErasureCompletionOutcome.NotFound => "not_found",
+        ErasureCompletionOutcome.NotErasure => "not_erasure",
+        ErasureCompletionOutcome.ClosureFanout => "closure_fanout",
+        ErasureCompletionOutcome.NotAwaiting => "not_awaiting",
+        _ => throw new InvalidOperationException("An erasure completion outcome the route does not count."),
+    };
 
     private static bool TryDataRequestState(string? text, out DataRequestInspectionState state)
     {

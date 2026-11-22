@@ -309,8 +309,12 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             (awaiting, "status='completed',row_version=row_version+1,result='{\"audit_actor_reference\":4}'", "Data request result refused."),
             (awaiting, "status='completed',row_version=row_version+1,result='{\"consent_evidence\":2,\"request_receipt\":1}'",
                 "Data request result refused."),
+            (awaiting, "status='completed',row_version=row_version+1",
+                "Data request transition refused."),  // a closure's fan-out erasure is completed by its closure's finalization alone
             (awaiting, "status='cancelled',row_version=row_version+1", "Data request transition refused."),
             (awaiting, "status='failed',row_version=row_version+1", "Data request transition refused."),
+            (awaiting, "status='blocked',row_version=row_version+1", "Data request transition refused."),
+            (awaiting, "status='scheduled',row_version=row_version+1", "Data request transition refused."),
             (awaiting, "status='fulfilling',row_version=row_version+1", "Data request transition refused."),
             (scheduled, "status='fulfilling',row_version=row_version+1", "Data request transition refused."),
             (scheduled, "status='cancelled',row_version=row_version+1", "Data request transition refused."),
@@ -326,6 +330,30 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             .SqlState.Should().Be("42501", "a column outside the grant never reaches the guard");
         (await RefusedAsync("DELETE FROM public.data_subject_requests WHERE id=@id", ("id", awaiting))).SqlState.Should().Be("42501");
 
+        // The erasure a person or an administrator filed, past its window (the owner backdates it with the one guard paused,
+        // as the window and expiry test does) and walked to the privileged step by the application's own arrows.
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            await using var transaction = await owner.BeginTransactionAsync();
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests DISABLE TRIGGER tg_data_subject_requests_mutation_guard");
+            await ScopeAsync(owner, transaction, SchemaFixture.TenantB, null);
+            await ExecuteAsync(owner, transaction,
+                "UPDATE public.data_subject_requests SET created_at=created_at - interval '25 hours', execute_at=execute_at - interval '25 hours' WHERE id=@id",
+                ("id", scheduled));
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_subject_requests ENABLE TRIGGER tg_data_subject_requests_mutation_guard");
+            await transaction.CommitAsync();
+        }
+
+        await using (var app = await OpenAppAsync(database))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FenceAsync(app, transaction, SchemaFixture.TenantB, null, null);
+            await StepAsync(app, transaction, scheduled, "status='fulfilling'");
+            await StepAsync(app, transaction, scheduled, "result='{\"consent_evidence\":2,\"audit_actor_reference\":9}'");
+            await StepAsync(app, transaction, scheduled, "status='awaiting_privileged_step'");
+            await transaction.CommitAsync();
+        }
+
         // The one arrow. The statement's own completion time is replaced by the database clock the guard stamps.
         await using (var transaction = await platform.BeginTransactionAsync())
         {
@@ -333,7 +361,7 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
                 UPDATE public.data_subject_requests SET status='completed',completed_at='2001-01-01T00:00:00Z',row_version=row_version+1,
                     result='{"consent_evidence":2,"audit_actor_reference":4,"unscoped_audit_rows":1}'
                 WHERE id=@id RETURNING completed_at
-                """, ("id", awaiting));
+                """, ("id", scheduled));
             completedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1), "no caller supplies the completion time");
             await transaction.CommitAsync();
         }
@@ -341,17 +369,17 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
         await using (var app = await OpenAppAsync(database))
         await using (var transaction = await app.BeginTransactionAsync())
         {
-            await ScopeAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1);
+            await ScopeAsync(app, transaction, SchemaFixture.TenantB, null);
             (await ScalarAsync<string>(app, transaction, """
                 SELECT status || ':' || row_version || ':' || (completed_at = updated_at)::text || ':' || updated_by::text || ':'
                     || (result = '{"consent_evidence":2,"audit_actor_reference":4,"unscoped_audit_rows":1}'::jsonb)::text
                 FROM public.data_subject_requests WHERE id=@id
-                """, ("id", awaiting))).Should().Be($"completed:3:true:{SystemActor}:true",
+                """, ("id", scheduled))).Should().Be($"completed:4:true:{SystemActor}:true",
                 "the arm stamps the completion and the system actor, steps the version once and keeps the tenant side's kinds");
         }
 
         (await RefusedAsync("UPDATE public.data_subject_requests SET status='completed',row_version=row_version+1 WHERE id=@id",
-            ("id", awaiting))).MessageText.Should().Be("Data request transition refused.", "a completed erasure is terminal");
+            ("id", scheduled))).MessageText.Should().Be("Data request transition refused.", "a completed erasure is terminal");
     }
 
     /// <summary>

@@ -50,7 +50,7 @@ public sealed class DataErasureWitnessConventionTests
         try
         {
             string[] Callers(string targetType, string member) => modules.SelectMany(module => module.Types)
-                .SelectMany(Flatten).Where(type => !type.Name.Contains('<', StringComparison.Ordinal)
+                .SelectMany(Flatten).Where(type => type.Name != "<Module>"
                     && !type.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute"))
                 .SelectMany(type => Il.Methods(type).Where(method => method.Definition.HasBody)
                     .SelectMany(method => method.Definition.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
@@ -74,6 +74,17 @@ public sealed class DataErasureWitnessConventionTests
             Callers("LearnStack.Modules.Identity.Domain.Membership", nameof(Membership.ClearProfileForErasure))
                 .Should().Contain("ReviewProbe.ErasureBorrower.Borrow", "a planted caller must stay visible to the census");
             domain.Types.Remove(probe);
+
+            // A file-local type is emitted under a mangled name that starts with '<'; it is as real a caller as any.
+            var local = new TypeDefinition("", "<ReviewProbe>F0123456789ABCDEF__ErasureBorrower", Mono.Cecil.TypeAttributes.Class, domain.TypeSystem.Object);
+            var borrowLocal = new MethodDefinition("Borrow", Mono.Cecil.MethodAttributes.Static, domain.TypeSystem.Void);
+            borrowLocal.Body.Instructions.Add(Instruction.Create(OpCodes.Call, target));
+            borrowLocal.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            local.Methods.Add(borrowLocal);
+            domain.Types.Add(local);
+            Callers("LearnStack.Modules.Identity.Domain.Membership", nameof(Membership.ClearProfileForErasure))
+                .Should().Contain("<ReviewProbe>F0123456789ABCDEF__ErasureBorrower.Borrow", "a file-local caller must stay visible to the census");
+            domain.Types.Remove(local);
 
             var witness = domain.Types.SelectMany(Flatten).Single(type => type.FullName == Witness);
             var minter = witness.NestedTypes.Single(type => type.Name == "MintingSource");

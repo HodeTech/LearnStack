@@ -53,6 +53,8 @@ public sealed class DataErasureGuardTests(SchemaFixture fixture)
         // Each condition removed alone.
         await RefusedAsync(database, SchemaFixture.TenantA, null, null, Fence.Exclusive, Clear, LearnerMembershipA, MembershipParentRefusal,
             "without the subject's User fence");
+        await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive, Clear, LearnerMembershipA, MembershipParentRefusal,
+            "with the subject's User fence held shared instead of exclusively", userFenceShared: true);
         await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Shared, Clear, LearnerMembershipA, FenceRefusal,
             "with the tenant key held shared instead of exclusively");
         await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.None, Clear, LearnerMembershipA, FenceRefusal,
@@ -84,6 +86,9 @@ public sealed class DataErasureGuardTests(SchemaFixture fixture)
         await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive,
             "UPDATE public.membership_profiles SET display_name=NULL, preferred_locale=NULL, custom_fields='[{}]'::jsonb WHERE membership_id=@member",
             LearnerMembershipA, MembershipParentRefusal, "with custom values that are not the empty list");
+        await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive,
+            "UPDATE public.membership_profiles SET display_name=NULL, preferred_locale=NULL, custom_fields=NULL WHERE membership_id=@member",
+            LearnerMembershipA, MembershipParentRefusal, "with NULL custom values, which compare as neither equal nor different");
         await RefusedAsync(database, SchemaFixture.TenantA, null, PersonA, Fence.Exclusive, """
             UPDATE public.membership_profiles SET display_name=NULL, preferred_locale=NULL, custom_fields='[]'::jsonb,
                 membership_id=@other WHERE membership_id=@member
@@ -157,23 +162,23 @@ public sealed class DataErasureGuardTests(SchemaFixture fixture)
 
     private static async Task RefusedAsync(DisposableSchemaDatabase database, Guid tenant, Guid? organization, Guid? user, Fence fence,
         string sql, Guid member, string sqlState, string because, Func<NpgsqlConnection, NpgsqlTransaction, Task>? arrange = null,
-        Guid? other = null, Guid? role = null) =>
+        Guid? other = null, Guid? role = null, bool userFenceShared = false) =>
         await ProbeAsync(database, tenant, organization, user, fence, async (app, transaction) =>
         {
             if (arrange is not null) await arrange(app, transaction);
             var refusal = await DataExportTestKit.RefuseAsync(transaction, () => CountAsync(app, transaction, sql, member, tenant, other, role));
             refusal.SqlState.Should().Be(sqlState, because);
-        });
+        }, userFenceShared);
 
     /// <summary>One rolled-back application-role transaction announced for the group, with the fences asked for.</summary>
     private static async Task ProbeAsync(DisposableSchemaDatabase database, Guid tenant, Guid? organization, Guid? user, Fence fence,
-        Func<NpgsqlConnection, NpgsqlTransaction, Task> probe)
+        Func<NpgsqlConnection, NpgsqlTransaction, Task> probe, bool userFenceShared = false)
     {
         await using var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
         await ScopeAsync(app, transaction, tenant, organization);
         if (user is { } person)
-            await ExecuteAsync(app, transaction, "SELECT pg_advisory_xact_lock(@key)",
+            await ExecuteAsync(app, transaction, userFenceShared ? "SELECT pg_advisory_xact_lock_shared(@key)" : "SELECT pg_advisory_xact_lock(@key)",
                 ("key", LearnStack.SharedKernel.Identity.IdentityAdvisoryLockKey.ForUser(LearnStack.SharedKernel.Identifiers.UserId.From(person))));
         if (fence != Fence.None)
             await ExecuteAsync(app, transaction, fence == Fence.Exclusive ? "SELECT pg_advisory_xact_lock(@key)" : "SELECT pg_advisory_xact_lock_shared(@key)",

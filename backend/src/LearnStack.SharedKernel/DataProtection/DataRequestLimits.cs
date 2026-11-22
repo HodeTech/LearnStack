@@ -18,9 +18,9 @@ public static class DataRequestLimits
     /// <summary>
     /// How long after it fell due a request may stay <c>fulfilling</c> before the operator inspection lists it as
     /// stuck (ADR-0107 § 8). An export or an erasure job commits its whole run in one transaction, so a durable
-    /// <c>fulfilling</c> is a closure's fan-out erasure whose job has not finished, or a run that died. Two hours
-    /// outlast the job runtime's whole retry schedule (five waits of about 66 minutes and six attempts of at most five
-    /// minutes each), so a request listed here waits for no retry that is still coming. Only the inspection reads it;
+    /// <c>fulfilling</c> is a run that died, or a closure's fan-out erasure whose job has not finished. Two hours
+    /// outlast the job runtime's whole retry schedule (five waits totalling about 66 minutes and six attempts of at
+    /// most five minutes each), so a request listed here waits for no retry that is still coming. Only the inspection reads it;
     /// no database check repeats it.
     /// </summary>
     public static readonly TimeSpan StuckFulfillingAfter = TimeSpan.FromHours(2);

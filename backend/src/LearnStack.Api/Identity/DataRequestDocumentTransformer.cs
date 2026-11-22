@@ -152,7 +152,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 In = ParameterLocation.Header,
                 Required = true,
                 Schema = EntityTag(),
-                Description = "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.",
+                Description = IfMatchDescription(contract),
             });
         }
         else operation.RequestBody = null;
@@ -192,7 +192,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
-                Shape.Create when Erasure(contract) => ErasureConflict,
+                Shape.Create when Erasure(contract) => OwnErasureConflict,
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
                 _ when contract.Name.StartsWith("Revoke", StringComparison.Ordinal) => "concurrency_conflict for a valid stale artifact version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
@@ -280,9 +280,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 In = ParameterLocation.Header,
                 Required = true,
                 Schema = EntityTag(),
-                Description = contract.Name.StartsWith("Revoke", StringComparison.Ordinal)
-                    ? "One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409."
-                    : "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.",
+                Description = IfMatchDescription(contract),
             });
         }
         else operation.RequestBody = null;
@@ -324,7 +322,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
-                Shape.Create when Erasure(contract) => ErasureConflict,
+                Shape.Create when Erasure(contract) => contract.Own ? OwnErasureConflict : AdministratorErasureConflict,
                 Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
@@ -377,13 +375,23 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     private static readonly string WindowHours = string.Create(System.Globalization.CultureInfo.InvariantCulture,
         $"{DataRequestLimits.CancellationWindow.TotalHours}");
 
-    /// <summary>An erasure's creation refusals (ADR-0106 § 3, § 7): each a closed code in errors.$.</summary>
-    private const string ErasureConflict = "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), "
-        + "blocked_last_administrator (the subject is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
-        + "blocked_hold, or, for an administrator, subject_membership_current (the person still holds an Active or Suspended Membership in the "
-        + "group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+    /// <summary>The creation refusals of an erasure the person files (ADR-0106 § 3, § 7): each a closed code in errors.$.</summary>
+    private const string OwnErasureConflict = "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), "
+        + "blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first) or "
+        + "blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+
+    /// <summary>The creation refusals of an erasure an administrator files for a Membership: the person's own, and its eligibility.</summary>
+    private const string AdministratorErasureConflict = "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), "
+        + "blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
+        + "blocked_hold, or subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); "
+        + "request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
 
     private static bool Erasure(Contract contract) => contract.Name.Contains("Erasure", StringComparison.Ordinal);
+
+    /// <summary>The precondition a mutation names: a revocation's is its artifact's version, every other one the request's.</summary>
+    private static string IfMatchDescription(Contract contract) => contract.Name.StartsWith("Revoke", StringComparison.Ordinal)
+        ? "One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409."
+        : "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.";
 
     private static readonly string TicketConflict = string.Create(System.Globalization.CultureInfo.InvariantCulture,
         $"business_rule_violation. errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact "

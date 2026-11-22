@@ -22,16 +22,19 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// <para>
 /// <b>The database bounds what it reads.</b> Each call is one entered platform scope on <c>learnstack_platform</c>,
 /// which holds a closed-column <c>SELECT</c> of the request and artifact tables and nothing on their tickets and
-/// chunks, so a statement that named a requester, a progress record, an artifact's subject or key version would be
-/// refused by PostgreSQL. An inspection returns no subject or snapshot even though the completion reads them: it reads
-/// and changes nothing, so its audit is the scope's entry row and it ends by disposal.
+/// chunks, so a statement that named a requester, an actor stamp, an artifact's subject or its key version would be
+/// refused by PostgreSQL. The inspection's own projection is narrower still: it selects no subject, snapshot, progress
+/// or result, although the completion reads the subject, the snapshot and the result of the one request it completes
+/// (the role is granted them for that). An inspection reads and changes nothing, so its audit is the scope's entry row
+/// and it ends by disposal.
 /// </para>
 /// <para>
 /// <b>A completion is one transaction.</b> The request is locked and read whole, the plan is built from that row and
 /// never from the caller, the Audit-owned executor redacts on the scope's transaction, the request moves to
 /// <c>completed</c> under the request guard's platform arm, and the result row names the request's own tenant; all of
 /// it commits together or nothing does (ADR-0108 § 8). A request already completed answers its recorded result and
-/// writes no second row; two concurrent completions serialize on the row lock and the second finds the first's.
+/// writes no second row; two concurrent completions serialize on the row lock and the second finds the first's, provided
+/// the first finishes within the second's command timeout (the redaction takes time in proportion to the audit volume).
 /// </para>
 /// <para>
 /// <b>Failures.</b> A transient database fault before the commit is the unavailable owner, safe to repeat because the
@@ -200,6 +203,13 @@ public sealed class DataRequestOperatorOperations(IPlatformAdminScope scope) : I
         if (request.Kind != DataRequestKind.Erasure)
         {
             return new ErasureCompletionResult(ErasureCompletionOutcome.NotErasure, request.Tenant, status);
+        }
+
+        if (request.Origin == DataRequestOrigin.ClosureFanout)
+        {
+            // ADR-0107 § 7: a closure's fan-out erasure is completed by that closure's finalization, which also redacts the
+            // sentinel tenant and removes the provider account; completing it alone would leave the closure unfinished.
+            return new ErasureCompletionResult(ErasureCompletionOutcome.ClosureFanout, request.Tenant, status);
         }
 
         if (request.Status == DataRequestStatus.Completed)

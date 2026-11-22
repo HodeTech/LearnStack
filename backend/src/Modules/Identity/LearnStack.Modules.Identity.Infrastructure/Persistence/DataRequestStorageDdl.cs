@@ -18,9 +18,9 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// <para>
 /// <b>Writers.</b> Every guard admits only the application role. <c>learnstack_platform</c> holds the
 /// closed-column SELECT and the status, row-version, completion and result UPDATE on
-/// <c>data_subject_requests</c> that ADR-0107 § 8 lists and nothing on the other three tables; the
-/// request guard still refuses its writes until the operator acts that own them (Step 2's
-/// <c>complete_erasure</c>, Step 3's closure Begin and Finalize) add their arm with their witnesses.
+/// <c>data_subject_requests</c> that ADR-0107 § 8 lists, and nothing on the ticket and chunk tables
+/// (<see cref="DataRequestOperatorDdl"/> adds its closed-column read of the artifact table); the request guard
+/// refuses its writes except the one arrow that class installs, which an operator act's own arm admits.
 /// </para>
 /// <para>
 /// <b>Fences.</b> A request write holds the Identity tenant fence (shared at least), and its creation

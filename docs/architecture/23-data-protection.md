@@ -159,9 +159,11 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
     theirs, because no export can be filed in a group without one. The "whole tenant"
     reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered and needs its own decision.
   - **A cap truncates and says so**; it does not fail the request.
-  - **The retained list is partial.** Step 1 counts the kinds its participants own; a
-    kind it does not list is not counted, not zero. P03-10 Step 2 owns the remaining
-    kinds and Phase 11 the retention periods.
+  - **The retained list is partial.** The tenant side counts the kinds its participants
+    own and the operator's completion adds the audit log's four; a kind not listed is
+    retained and not counted, not zero. The web surface's retention explanation names the
+    classes with no subject-keyed count (P03-10 Step 4) and Phase 11 owns the retention
+    periods and the counting of the stores it purges.
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
@@ -571,9 +573,9 @@ remains in the phase Status block.
   `user_agent`, `before_state`, `after_state` and `changes`.
   `actor_user_id` remains immutable and `metadata` is outside that grant
   ([Audit append-only enforcement](31-audit-subsystem.md#append-only-enforcement)).
-  Phase 03 must decide the surviving actor/entity/causation references and new
-  causal metadata before its redaction/erasure handler lands; this inventory
-  does not claim that complete anonymisation already works.
+  [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 6 decides the
+  surviving actor, entity, causation and metadata references; this inventory does not
+  claim that complete anonymisation works.
 
 **Accepted identity fulfillment ownership — implementation remains P03-10.**
 P03-10's Identity closure coordinator owns the authorized lifecycle transition

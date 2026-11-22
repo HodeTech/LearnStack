@@ -1749,11 +1749,13 @@ retention purge, not redaction.
 `correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
 that changes any of them. `metadata` is also outside the six-column redaction
 grant and can retain causal actor and authorization Membership/Role references.
-Preserving an attributable history is not proof of complete anonymisation. Phase 03 settles those references under
-the [erasure first-writer prerequisites](23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
-before its redaction handler ships. P03-10's Audit participant locates the
-accepted authorization metadata through retained actor/subject attribution and
-reports surviving references; no metadata UPDATE authority follows.
+Preserving an attributable history is not proof of complete anonymisation. Phase 03
+settles those references under the
+[erasure first-writer prerequisites](23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
+as [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 6 decides. P03-10's
+Audit participant locates the accepted authorization metadata through retained
+actor/subject attribution and reports surviving references; no metadata UPDATE authority
+follows.
 
 Every module that stores user references in audit payloads registers an
 `IUserReferenceLocator`. [Phase 03 P03-10](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)

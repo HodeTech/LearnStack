@@ -848,7 +848,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     [InlineData("remove")]
     public async Task A_Database_Fault_The_Federation_Owner_Translates_Is_A_Retryable_503_Without_An_Unknown_Outcome(string act)
     {
-        using var federation = new FederationListener();
+        using var federation = new OperatorCounterListener();
         _brokers.Failure = new OperatorRecoveryUnavailableException(cause: new InvalidOperationException("the database is not reachable"));
 
         var response = act == "report"
@@ -866,7 +866,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     [Fact]
     public async Task The_Federation_Counter_Is_Labelled_By_The_Operation_Slug_And_A_Closed_Outcome_And_Counts_Only_Calls_That_Reached_The_Owner()
     {
-        using var federation = new FederationListener();
+        using var federation = new OperatorCounterListener();
 
         (await Call(HttpMethod.Get, Fed, Valid())).StatusCode.Should().Be(HttpStatusCode.OK);
         (await Call(HttpMethod.Post, $"{Fed}/{BrokerAlias}/remove", Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -1403,6 +1403,24 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_Data_Request_Counter_Is_Labelled_By_The_Operation_Slug_And_A_Closed_Outcome_And_Counts_Only_Calls_That_Reached_The_Owner()
+    {
+        using var counted = new OperatorCounterListener(PlatformOperatorMetrics.DataRequestCounterName);
+
+        (await Call(HttpMethod.Get, DataRequests, Valid())).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Call(HttpMethod.Get, DataRequests + "?limit=0", Valid())).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.OK);
+        _dataRequests.Completion = new ErasureCompletionResult(ErasureCompletionOutcome.ClosureFanout, Guid.Parse(RowTenant), "awaiting_privileged_step");
+        (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _dataRequests.Failure = new OperatorRecoveryUnavailableException(commitOutcomeUnknown: true);
+        (await Call(HttpMethod.Post, CompletePath, Valid(), "{}")).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        counted.Calls.Should().Equal(
+            ("platform.data_request.inspect", "ok"), ("audit.redaction.apply", "completed"), ("audit.redaction.apply", "closure_fanout"),
+            ("audit.redaction.apply", "commit_unknown"));
+    }
+
+    [Fact]
     public async Task A_Repeat_Of_A_Landed_Completion_Answers_Already_Completed_With_The_Recorded_Result_And_No_Counts()
     {
         _dataRequests.Completion = new ErasureCompletionResult(
@@ -1422,6 +1440,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
 
     [Theory]
     [InlineData(ErasureCompletionOutcome.NotErasure, "kind", "lockey_data_request_not_erasure", null)]
+    [InlineData(ErasureCompletionOutcome.ClosureFanout, "origin", "lockey_data_request_closure_fanout", null)]
     [InlineData(ErasureCompletionOutcome.NotAwaiting, "status", "lockey_data_request_not_awaiting_privileged_step", "scheduled")]
     public async Task A_Refused_Completion_Is_A_409_With_Its_Reason_On_The_Field_It_Concerns(
         ErasureCompletionOutcome outcome, string field, string reason, string? cause)
@@ -1754,17 +1773,17 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         }
     }
 
-    /// <summary>Captures the <c>operation</c> and <c>outcome</c> labels of every federation call counted while it is alive.</summary>
-    private sealed class FederationListener : IDisposable
+    /// <summary>Captures the <c>operation</c> and <c>outcome</c> labels of every call one operator counter counts while it is alive.</summary>
+    private sealed class OperatorCounterListener : IDisposable
     {
         private readonly MeterListener _listener = new();
         private readonly ConcurrentQueue<(string Operation, string Outcome)> _calls = new();
 
-        public FederationListener()
+        public OperatorCounterListener(string counterName = PlatformOperatorMetrics.FederationCounterName)
         {
             _listener.InstrumentPublished = (instrument, listener) =>
             {
-                if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName && instrument.Name == PlatformOperatorMetrics.FederationCounterName)
+                if (instrument.Meter.Name == PlatformOperatorMetrics.MeterName && instrument.Name == counterName)
                 {
                     listener.EnableMeasurementEvents(instrument);
                 }

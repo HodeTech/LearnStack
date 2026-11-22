@@ -5045,6 +5045,16 @@ complete ordered User/tenant plan is preheld. The exclusive User fence remains
 held transactionally through check and completion. Profile-only updates,
 suspension/revocation and assignment removals do not automatically acquire a
 User fence; their required tenant mode still follows actual protected changes.
+The one exception to a Revoked Membership's immutability is the erasure's clearing
+([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 5):
+the guard passes an `UPDATE` of a Revoked Membership's profile that sets the display
+name and the locale to NULL and the custom values to `[]`, and only while the
+subject's exclusive User fence is held on the connection and that subject's `erasure`
+request for the Membership's group is `fulfilling`; such an update requires the tenant
+key EXCLUSIVE. Every other write under a Revoked parent still raises `P0304`, apart
+from the assignment removals the guard already admitted. `DataErasureGuardTests`
+removes each condition alone as `learnstack_app`, and `EducationStructureTests` pins
+the function body.
 Exclusive User mode retains the adopted per-User admission serialization, rather
 than merely excluding closure. A shared admission alternative needs a separate
 decision. No additional callable User reader or synthetic preparation trigger is
@@ -6683,7 +6693,7 @@ predicate; the artifact, ticket and chunk tables gain none.
 ([Security § The out-of-band setters](11-security.md#the-out-of-band-setters)). It
 consumes a single-use immutable operation/actor/subject/real-host/group/mode witness
 (`OwnDataRequestScopeWitness`) on a fresh physical owner: `list` and `read` are physical
-READ ONLY, `create`, `cancel`, `ticket` and `chunk` ordinary READ WRITE. It announces
+READ ONLY, `create`, `cancel`, `ticket`, `chunk` and `revoke` ordinary READ WRITE. It announces
 exactly the witness's group through the one witness-aware core, never joins or retargets
 an owner, and supplies no Membership, ordinary native session or tenant-wide
 `app.scope`. Its context origin, `HostAndOwnDataRequestScope`, reaches only operations
@@ -6726,8 +6736,8 @@ nothing else, and only:
 - the arrow `erasure: awaiting_privileged_step → completed`; every other arrow, status
   and kind is refused (`Data request transition refused.`);
 - with every column but the status, `row_version`, `completed_at`, `result`,
-  `updated_at` and `updated_by` unchanged, and `row_version` stepped by exactly one
-  (`Data request immutable state refused.`);
+  `updated_at` and `updated_by` unchanged as the statement presents them, and
+  `row_version` stepped by exactly one (`Data request immutable state refused.`);
 - with `result` changed only in the audit log's four retained kinds,
   `audit_actor_reference`, `audit_entity_reference`, `audit_metadata_reference` and
   `unscoped_audit_rows`, so the tenant side's record stays as its participants wrote it
@@ -6735,11 +6745,13 @@ nothing else, and only:
 
 The branch stamps `updated_at` from the database clock, never earlier than the row's
 last stamp, `updated_by` as `UserId.SystemActor` and `completed_at` as that
-`updated_at`, whatever the statement said. Columns a trigger assigns need no column
-grant, so the platform role's `UPDATE` grant stays at the four columns ADR-0107 § 8
-lists. The role holds no `INSERT` or `DELETE`; the application role cannot take the
-platform's arrow, and the platform role cannot take one of the application's. A
-closure's Begin and Finalize extend the branch's one arrow condition.
+`updated_at`, overriding whatever the statement set. Columns a trigger assigns need no
+column grant, so the platform role's `UPDATE` grant stays at the four columns ADR-0107
+§ 8 lists. The role holds no `INSERT` or `DELETE`; the application role cannot take the
+platform's arrow, and the platform role cannot take one of the application's. The
+arrow refuses an erasure whose origin is `closure_fanout`, which only a closure's
+finalization completes (ADR-0107 § 7); that finalization extends the branch's one arrow
+condition.
 
 ### The artifact read
 

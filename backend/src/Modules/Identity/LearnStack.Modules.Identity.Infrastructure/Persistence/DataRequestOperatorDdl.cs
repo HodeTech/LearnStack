@@ -21,8 +21,9 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// <para>
 /// <b>The artifact read.</b> The inspection lists expired artifacts whose purge has not run, joined to their request
 /// for its group: <c>id</c>, <c>tenant_id</c>, <c>request_id</c>, <c>status</c> and <c>expires_at</c> are what it
-/// filters, joins, orders and shows, and nothing more is granted. No subject, size, key version, truncation or actor is
-/// readable, and nothing of the ticket or chunk tables; the lifecycle CHECK makes
+/// filters, joins, orders and shows, and nothing more is granted. No subject, size, key version, truncation or actor
+/// column is readable (an artifact's subject is its request's, which the role reads already), and nothing of the
+/// ticket or chunk tables; the lifecycle CHECK makes
 /// <c>status IN ('available','expired')</c> the same rows as <c>purged_at IS NULL</c>, so the purge time is not granted
 /// either.
 /// </para>
@@ -76,7 +77,9 @@ internal static class DataRequestOperatorDdl
                         'audit_metadata_reference','unscoped_audit_rows'])) IS NOT FALSE
                 THEN RAISE EXCEPTION 'Data request result refused.' USING ERRCODE = '23514'; END IF;
                 -- The platform's arrows (ADR-0106 § 8). Step 3's closure Begin and Finalize join this condition.
-                IF (NOT (OLD.kind = 'erasure' AND OLD.status = 'awaiting_privileged_step' AND NEW.status = 'completed'))
+                -- A closure's fan-out erasure is completed by that closure's finalization alone (ADR-0107 § 7).
+                IF (NOT (OLD.kind = 'erasure' AND OLD.origin <> 'closure_fanout' AND OLD.status = 'awaiting_privileged_step'
+                         AND NEW.status = 'completed'))
                     IS NOT FALSE
                 THEN RAISE EXCEPTION 'Data request transition refused.' USING ERRCODE = '23514'; END IF;
                 -- Never earlier than the row's last stamp, which an application clock up to five minutes ahead wrote.

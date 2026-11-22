@@ -70,6 +70,11 @@ public sealed partial class OpenApiContractTests
             if (contract.Shape == DataRequestShape.Mutation) expected.Add("If-Match");
             if (!parameters.Order(StringComparer.Ordinal).SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal))
                 errors.Add("retained-data-request-parameters:" + contract.Id);
+            // A revocation's precondition is its artifact's version; every other mutation's is the request's.
+            if (contract.Shape == DataRequestShape.Mutation
+                && (operation["parameters"]!.AsArray().FirstOrDefault(parameter => parameter!["name"]!.GetValue<string>() == "If-Match")?["description"]?.GetValue<string>() ?? "")
+                    .Contains("ARTIFACT", StringComparison.Ordinal) != contract.Id.StartsWith("Revoke", StringComparison.Ordinal))
+                errors.Add("retained-data-request-if-match-version:" + contract.Id);
             if (parameters.Any(name => name.Contains("ticket", StringComparison.OrdinalIgnoreCase) || name.StartsWith("X-LearnStack", StringComparison.Ordinal)))
                 errors.Add("retained-data-request-parameter-leak:" + contract.Id);
             if ((contract.Body is null) != (operation["requestBody"] is null)
@@ -153,6 +158,11 @@ public sealed partial class OpenApiContractTests
             if (contract.Shape == DataRequestShape.Mutation) expected.Add("If-Match");
             if (!parameters.Order(StringComparer.Ordinal).SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal))
                 errors.Add("data-request-parameters:" + contract.Id);
+            // A revocation's precondition is its artifact's version; every other mutation's is the request's.
+            if (contract.Shape == DataRequestShape.Mutation
+                && (operation["parameters"]!.AsArray().FirstOrDefault(parameter => parameter!["name"]!.GetValue<string>() == "If-Match")?["description"]?.GetValue<string>() ?? "")
+                    .Contains("ARTIFACT", StringComparison.Ordinal) != contract.Id.StartsWith("Revoke", StringComparison.Ordinal))
+                errors.Add("data-request-if-match-version:" + contract.Id);
             if (parameters.Any(name => name.Contains("ticket", StringComparison.OrdinalIgnoreCase))) errors.Add("data-request-ticket-in-url");
             if ((contract.Body is null) != (operation["requestBody"] is null)
                 || contract.Body is not null && operation["requestBody"]?["content"]?["application/json"]?["schema"]?["$ref"]?.GetValue<string>()

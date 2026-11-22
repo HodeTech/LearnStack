@@ -46,8 +46,8 @@ matches `audit.event.read` in [permissions.md](permissions.md).
 
 Two resource segments have no permission key to agree with, and keep their own names for
 the reason `tenancy.tenant_assertion.*` keeps its prefix: the key that gates them is
-Platform-scope and does not share the `audit.` module segment. `audit.redaction.apply` is
-gated by `platform.data_request.write`; `audit.purge.apply` has no key yet, and
+Platform-scope and does not share the `audit.` module segment.
+`audit.redaction.apply` is gated by `platform.data_request.write`; `audit.purge.apply` has no key yet, and
 [permissions.md](permissions.md) records who names it.
 `audit.redaction.apply` is the spelling
 [Audit Subsystem § 10](../../architecture/31-audit-subsystem.md) already writes into the

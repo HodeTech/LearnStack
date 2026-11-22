@@ -34,15 +34,23 @@ Membership (its assignments removed, its profile cleared, a Revoked tombstone ke
 revokes the pending invitations the person issued, records what the group retains, and
 leaves the request `awaiting_privileged_step`
 ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 5 and
-§ 6). What it cannot touch is the audit log: no tenant connection may change an audit
-row, and `learnstack_platform` alone may update six of its columns. That is the step
-left to you.
+§ 6). An administrator's erasure is filed only for a Membership that is already
+Revoked, and that is checked when it is filed: if the person is admitted to the group
+again during the 24 hours, the job still runs, and the person, who may cancel the
+request in the window, is the safeguard. While it runs, the job holds the tenant's
+identity fence exclusively, the Audit participant's counts included, so other
+Membership, invitation and data-request writes in the tenant wait up to two seconds and
+then answer `503` for a retry; the hold lasts seconds, and longer in a tenant with
+millions of audit rows. What it cannot touch is the audit log: no tenant connection may
+change an audit row, and `learnstack_platform` alone may update six of its columns.
+That is the step left to you.
 
 ## What is not here
 
 - **A global account closure**
-  ([ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)). A
-  `closure` request appears in the inspection, and these routes do not act on it.
+  ([ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)).
+  These routes never act on a `closure` request or on a closure's fan-out erasure: the
+  completion refuses the latter, which only its closure's finalization completes.
 - **Cancelling or failing a request.** The person, or the administrator who filed it,
   cancels within the window. A request `blocked`, `failed` or `cancelled` is terminal;
   the person files a new one.
@@ -71,8 +79,9 @@ left to you.
   ([how a grant is given](operator-access.md#giving-and-withdrawing-a-grant)); they are
   never assignable to a tenant role, and the shipped demo operator holds neither. The
   read and the write are separate grants: an operator who may list may not complete.
-- You have a ticket for the act, 1 to 64 letters, digits or `.` `_` `:` `/` `#` `-`. It
-  is recorded on the scope's entry row only.
+- You may send a ticket for the act, 1 to 64 letters, digits or `.` `_` `:` `/` `#` `-`.
+  Send one whenever your change process has one: it is recorded on the scope's entry row
+  only.
 - The request is listed under `awaiting_privileged_step`. You send nothing else: the
   completion reads the person, the group, the request's origin and its frozen
   Memberships from the request row itself, and never from the call. You do not learn,
@@ -93,8 +102,8 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | `state` | Lists | What to do |
 |---|---|---|
 | `awaiting_privileged_step` (default) | Erasures whose tenant side finished | [Complete](#complete-an-erasure) each |
-| `overdue_scheduled` | Requests still `scheduled` after their window ended (`executeAt`) | An erasure listed here has a late or dead job: find it in the [operator recovery](operator-recovery.md) inspection and escalate. A `closure` here has reached the end of its window; its acts are not these routes' |
-| `stuck_fulfilling` | Requests still `fulfilling` two hours after they fell due (`executeAt`, or `createdAt` when there is no window) | A job commits its whole run in one transaction, so a durable `fulfilling` is a closure's fan-out erasure whose job has not finished, or a run that died. Two hours outlast the job runtime's whole retry schedule: find the job and escalate |
+| `overdue_scheduled` | Requests still `scheduled` once their window ended (`executeAt`), with no grace | Every erasure is listed here for the moments between the end of its window and its job's pickup. One still listed after a few minutes has a late or dead job: find it in the [operator recovery](operator-recovery.md) inspection and escalate |
+| `stuck_fulfilling` | Requests still `fulfilling` two hours after they fell due (`executeAt`, or `createdAt` when there is no window) | A job commits its whole run in one transaction, so a durable `fulfilling` is a run that died. Two hours outlast the job runtime's whole retry schedule: find the job and escalate |
 | `expired_artifact` | Export artifacts past `expiresAt` whose purge has not run | See [Data export § An expired artifact whose purge died](data-export.md#an-expired-artifact-whose-purge-died) |
 
 - `limit` is 1 to 100 (default 20; a larger value is clamped, and zero or less is
@@ -106,8 +115,11 @@ curl -s -H "Authorization: Bearer $TOKEN" \
   group), `kind`, `origin`, `status`, `createdAt`, `executeAt`, `completedAt`,
   `lastRefusal`, `failureReason`, and on `expired_artifact` the `artifact`
   (`artifactId`, `status`, `expiresAt`). It never carries the person, the Memberships, a
-  requester, a result or an artifact's content: the platform role is not granted those
-  columns, so PostgreSQL itself refuses them.
+  requester, a progress record, a result or an artifact's content: the inspection
+  selects none of them, and the platform role holds no grant on the requester, the
+  actor stamps or the artifact's person, size or key. The completion reads the person,
+  the Memberships and the result of the one request it completes, because it needs
+  them, and never returns them.
 - Items come oldest due first: by `executeAt`, or `createdAt` when there is no window,
   then by request identifier; artifacts by `expiresAt`.
 
@@ -123,15 +135,15 @@ The body is `{}` or `{"ticket":"..."}`. In order, and in one transaction:
 1. The platform scope is entered: its entry row, under the platform sentinel with the
    reason `erasure_complete`, your attribution and your ticket, commits first and stays
    whatever happens next.
-2. The request is locked and read whole. An absent request, one that is not an erasure
-   and one that is not awaiting its privileged step are refused, and nothing else is
-   written. A completed one answers its recorded result (`already_completed`).
-3. The redaction is planned from the row. A request the person filed, and a closure's
-   fan-out erasure, select the person's audit rows across the whole tenant. A request an
-   administrator filed selects only the rows of its group's organization, or the rows
-   with no organization for the tenant-wide group, so an organization administrator's
-   request never changes another branch's record
-   ([ADR-0108 § 4](../decisions/0108-privileged-audit-redaction.md)).
+2. The request is locked and read whole. An absent request, one that is not an erasure,
+   a closure's fan-out erasure and one that is not awaiting its privileged step are
+   refused, and nothing else is written. A completed one answers its recorded result
+   (`already_completed`).
+3. The redaction is planned from the row. A request the person filed selects the
+   person's audit rows across the whole tenant. A request an administrator filed selects
+   only the rows of its group's organization, or the rows with no organization for the
+   tenant-wide group, so an organization administrator's request never changes another
+   branch's record ([ADR-0108 § 4](../decisions/0108-privileged-audit-redaction.md)).
 4. The audit rows are redacted by the Audit module's one executor: on every selected row
    `ip_address`, `user_agent` and `actor_email` become NULL, and in `before_state`,
    `after_state` and `changes` a value at a reference a module declares becomes
@@ -151,15 +163,16 @@ The body is `{}` or `{"ticket":"..."}`. In order, and in one transaction:
 |---|---|
 | `200`, `outcome: completed` | The act committed. `rowsSelected` and `redacted` (rows changed per column, every column listed) are the redaction's; `retained` is the request's whole recorded report, the audit log's kinds included; `completedAt` is the database's |
 | `200`, `outcome: already_completed` | The request was already completed, by you or another operator. Its recorded `retained` and `completedAt` are returned, nothing was redacted and **no second row** was written; `rowsSelected` and `redacted` are null, and the first act's counts are on its result row |
-| `404` | No request has that identifier |
+| `404` | No request has that identifier, or the identifier is not a UUID at all (the route does not match) |
 | `409`, `errors.kind` = `lockey_data_request_not_erasure` | The request is an export or a closure. Nothing changed |
+| `409`, `errors.origin` = `lockey_data_request_closure_fanout` | The erasure is a closure's fan-out, which only that closure's finalization completes. Nothing changed |
 | `409`, `errors.status` = `lockey_data_request_not_awaiting_privileged_step` | The erasure is not awaiting its privileged step; `params.cause` is its stored status. `scheduled`: its window has not ended, or its job is late (look at `overdue_scheduled`). `fulfilling`: its job is running or died (look at `stuck_fulfilling`). `blocked`, `failed`, `cancelled`: terminal, nothing is left to complete; the person files a new request. Nothing changed |
-| `400` | The request identifier is not a UUIDv7, or the body or the ticket is malformed. A refusal at the gate carries no per-field errors |
+| `400` | The request identifier is a UUID but not a UUIDv7 (or is the nil or the sentinel identifier), or the body or the ticket is malformed. A refusal at the gate carries no per-field errors |
 | `401`, `403`, `413`, `415`, `429` | As in [operator recovery](operator-recovery.md#act): the credential, the grant (`platform.data_request.write` for a completion, `platform.data_request.read` for a list), the body size or type, or the request budget |
-| `503`, `audit_unavailable` | The entry row or the result row could not be written: nothing of the act committed. Retry after the delay; error line 7105 is in the API's log |
-| `503`, `dependency_unavailable` | The database could not be reached, or a redaction statement ran out of time. Nothing committed and the request is still awaiting; retry after the delay, because the redaction's statements are idempotent. The cause is in the API's log (warning 7110) |
+| `503`, `audit_unavailable` | The entry row or the result row could not be written: no effect of the act committed (the entry row stays, or was never written). Retry after the delay; error line 7105 is in the API's log |
+| `503`, `dependency_unavailable` | The database could not be reached, a redaction statement ran out of time, or another operator's completion of the same request still holds it (see [How long it takes](#how-long-it-takes)). No effect committed and the request is still awaiting; retry after the delay, because the redaction's statements are idempotent. The cause is in the API's log (warning 7110) |
 | `503`, `dependency_unavailable` with `errors.outcome` = `lockey_outcome_unknown` | The commit was sent and its answer was lost. It **may have landed**: see [An unknown outcome](#an-unknown-outcome) |
-| `500` | An unexpected failure or a deployment defect: no redaction executor registered, a refused credential, a missing grant or migration. The API's log names it. Nothing of the act committed |
+| `500` | An unexpected failure or a deployment defect: no redaction executor registered, a refused credential, a missing grant or migration. The API's log names it. No effect of the act committed (the entry row stays) |
 
 ## An unknown outcome
 
@@ -170,8 +183,18 @@ from another operator's, read the tenant's result row by the `correlationId` of 
 failed response, as in [Reading the result](#reading-the-result). A client that never
 received an answer (a timeout, a gateway error) is in the same position.
 
-Two operators who complete the same request at once are serialized on the request's row:
-one completes it and the other answers `already_completed`.
+## How long it takes
+
+The redaction reads the tenant's audit rows in batches, so the act takes time in
+proportion to the tenant's audit volume: about ten seconds for each 1.5 million rows
+measured, and the request row stays locked throughout. Use a client with no short
+timeout. A call dropped before the commit (a client or gateway timeout, a closed
+connection) rolls the whole act back, and a retry starts again from the beginning, so a
+gateway that cuts the call off earlier than the act ends can never succeed. Two
+operators who complete the same request at once are serialized on its row: the second
+waits for the first and then answers `already_completed`, unless the first outlasts the
+database's 30-second command timeout, when the second answers `503
+dependency_unavailable`: repeat it after the first finished.
 
 ## Reading the result
 
@@ -184,8 +207,8 @@ audit log's retained kinds are:
 |---|---|
 | `audit_actor_reference` | Selected rows whose `actor_user_id` is the person, which stays |
 | `audit_entity_reference` | Selected rows whose `entity_id` is the person or one of their Memberships, which stays |
-| `audit_metadata_reference` | Selected rows whose `metadata` names the person, which stays |
-| `unscoped_audit_rows` | For an administrator's request, rows outside the group's organization that still name the person and that the selection does not reach |
+| `audit_metadata_reference` | Every row of the request's reach whose `metadata` names the person, selected or not, because the metadata stays (exact) |
+| `unscoped_audit_rows` | For an administrator's request, rows outside the group's organization whose actor or entity is the person or one of their Memberships, which the selection does not reach (at least: payloads and metadata outside the reach are not read) |
 
 What survives on every row, by decision
 ([ADR-0108 § 6](../decisions/0108-privileged-audit-redaction.md)): `actor_user_id`,
@@ -194,13 +217,21 @@ identity subject key among it), the causation and correlation identifiers, the m
 the operation, the outcome and the timestamps. The person's `UserId` stays a
 pseudonymous identifier that the subject key keeps linkable: **never call the erased
 person anonymous**, in a reply to the person, to the tenant or in a ticket. The
-request's other retained kinds (consent evidence, invitation records and envelopes,
-request receipts, transport and execution evidence, attribution references and the rest
-of [ADR-0107 § 6](../decisions/0107-data-request-fulfillment-and-account-closure.md))
-are the tenant side's truthful report, and the retention target of each audit row's
-class is in [Audit Coverage § Retention](../standards/18-audit-coverage.md#retention),
-which no code enforces yet: [Phase 11](../roadmap/phase-11-production-hardening.md) owns
-the purge.
+request's other retained kinds are the tenant side's report, and it is a partial list: a
+kind it leaves out is retained and uncounted, never zero. The tenant side counts the
+consent evidence, the invitation records, the request receipts, the attribution
+references, the federation actor references and the provider event records of the group
+([ADR-0107 § 6](../decisions/0107-data-request-fulfillment-and-account-closure.md)).
+It does not count the transport and execution evidence, the idempotency cache, the
+external copies or the invitation envelopes, so do not tell anyone that those were
+reported or that none exist. The retention target of each audit row's class is in
+[Audit Coverage § Retention](../standards/18-audit-coverage.md#retention), which no code
+enforces yet: [Phase 11](../roadmap/phase-11-production-hardening.md) owns the purge.
+
+The redaction rewrites the rows that exist when it runs. The tenant's records keep their
+creator, updater and deleter attribution, so a later edit of a record the person created
+or last updated writes their identifier again, in a new audit row. Never tell the person
+that no row will ever carry their identifier again.
 
 The result row is in the **tenant's** trail. There is no audit API: read it as the
 application role announcing the tenant, by the response's `correlationId`, with the
@@ -241,6 +272,11 @@ admitted or refused at the gate, with `operation` `platform.data_request.inspect
 `audit.redaction.apply`;
 `learnstack_platform_operator_results_total{operation="audit.redaction.apply"}` counts
 the completions committed, and a repeat that answers `already_completed` is not one;
+`learnstack_platform_operator_data_requests_total{operation,outcome}` counts every call
+that reached the owner by how it ended (an inspection's `ok` or `invalid_cursor`; a
+completion's `completed`, `already_completed`, `not_found`, `not_erasure`,
+`closure_fanout` or `not_awaiting`; either's `unavailable`, and a completion's
+`commit_unknown`), so a refused, repeated or unknown-outcome act leaves a signal;
 `learnstack_platform_operator_audit_failures_total` counts the refusals for an audit
 failure. Each inspection page and each completion logs the scope-entry line 7001, a
 refused audit write the error line 7105, and an unavailable database or redaction the
