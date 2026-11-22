@@ -120,6 +120,10 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.AdmitAsync",
             "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler.Handle",
             "LearnStack.Modules.Identity.Application.Federation.FederationCommandHandlers.ActAsync",
+            // ADR-0107 § 2, § 5: the export job and the failure reconciler hold the shared tenant fence the request
+            // guard requires of every request write; neither admits a Membership.
+            "LearnStack.Modules.Identity.Application.DataRequests.DataExportJobHandlers.ExportAsync",
+            "LearnStack.Modules.Identity.Application.DataRequests.DataRequestFailureReconciler.ReconcileAsync",
         ];
         // A retained-plan check is not another acquisition: the guards, bounded
         // reader and two separately confined source/witness pairs must recheck it.

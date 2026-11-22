@@ -179,13 +179,23 @@ public sealed class BackgroundJobProductionManifestTests
     {
         var definitions = services.GetRequiredService<BackgroundJobDefinitionRegistry>();
         var recurrences = services.GetRequiredService<BackgroundJobRecurrenceRegistry>();
-        var expectedDefinitions = new[] { "identity.invitation_email_tenant.v1", "identity.invitation_email_organization.v1" };
+        var expectedDefinitions = new[]
+        {
+            "identity.invitation_email_tenant.v1", "identity.invitation_email_organization.v1",
+            // ADR-0107 § 2: export and artifact purge, once per scope group.
+            "identity.data_export_tenant.v1", "identity.data_export_organization.v1",
+            "identity.data_export_purge_tenant.v1", "identity.data_export_purge_organization.v1",
+        };
         (Type RequestType, BackgroundJobScope? Scope)[] expectedRequests =
         {
             (typeof(PrepareTenantInvitationEmailCommand), BackgroundJobScope.TenantWide),
             (typeof(PrepareOrganizationInvitationEmailCommand), BackgroundJobScope.Organization),
             (typeof(FinalizeTenantInvitationEmailCommand), BackgroundJobScope.TenantWide),
             (typeof(FinalizeOrganizationInvitationEmailCommand), BackgroundJobScope.Organization),
+            (typeof(LearnStack.Modules.Identity.Application.DataRequests.RunTenantDataExportCommand), BackgroundJobScope.TenantWide),
+            (typeof(LearnStack.Modules.Identity.Application.DataRequests.RunOrganizationDataExportCommand), BackgroundJobScope.Organization),
+            (typeof(LearnStack.Modules.Identity.Application.DataRequests.PurgeTenantDataExportCommand), BackgroundJobScope.TenantWide),
+            (typeof(LearnStack.Modules.Identity.Application.DataRequests.PurgeOrganizationDataExportCommand), BackgroundJobScope.Organization),
         };
         var actualDefinitions = definitions.DefinitionKeys.ToArray();
         var actualRequests = definitions.All.Where(item => item.Classification == BackgroundJobRequestClassification.Ordinary)

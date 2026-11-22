@@ -392,6 +392,11 @@ export async function startDemo(mode) {
       values.InvitationEmail__Smtp__Tls = 'ImplicitTls';
       values.InvitationEmail__Smtp__Username = 'synthetic-ci';
       values.InvitationEmail__Smtp__Password = randomBytes(24).toString('base64url');
+      // The export key ring is checked at API startup like the invitation one.
+      values.DataExport__KeyRing = JSON.stringify({
+        active: 'ci',
+        keys: { ci: randomBytes(32).toString('base64') },
+      });
       values.LEARNSTACK_PUBLIC_HOP_SECRET = randomBytes(32).toString('base64url');
       values.LEARNSTACK_PUBLIC_TLS_CERT = join(privateRoot, 'leaf.pem');
       values.LEARNSTACK_PUBLIC_TLS_KEY = join(privateRoot, 'leaf-key.pem');

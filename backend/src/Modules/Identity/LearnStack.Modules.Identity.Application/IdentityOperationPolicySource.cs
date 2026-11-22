@@ -8,6 +8,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Application.Invitations;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.SharedKernel.Permissions;
 
 namespace LearnStack.Modules.Identity.Application;
@@ -60,6 +61,10 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_organization_email", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<FinalizeTenantInvitationEmailCommand>("identity.invitation.tenant_email_submission", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.organization_email_submission", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<RunTenantDataExportCommand>("identity.data_request.fulfill_tenant_export", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<RunOrganizationDataExportCommand>("identity.data_request.fulfill_organization_export", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<PurgeTenantDataExportCommand>("identity.data_export.purge_tenant", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<PurgeOrganizationDataExportCommand>("identity.data_export.purge_organization", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForProtected<ListInvitationsQuery>("identity.invitation.list", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<GetInvitationQuery>("identity.invitation.read", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ListInvitableRolesQuery>("identity.invitation.list_invitable_roles", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),

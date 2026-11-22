@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.DataProtection;
@@ -8,8 +9,8 @@ namespace LearnStack.SharedKernel.DataProtection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A port with its default adapter still to land.</b> The default is
-/// <c>PostgresDataExportArtifactStore</c> in P03-10 Step 1: AES-256-GCM with a fresh 12-byte nonce
+/// <b>The default adapter</b> is <c>PostgresDataExportArtifactStore</c> in the Identity module's
+/// infrastructure, which owns the artifact tables: AES-256-GCM with a fresh 12-byte nonce
 /// per chunk, a key ring of one to four 32-byte keys under <c>DataExport:KeyRing</c> in
 /// <c>ISecretProvider</c>, associated data binding format and key version, tenant, request,
 /// artifact, chunk index and chunk count, at most <see cref="DataRequestLimits.ChunkPlaintextBytes"/>
@@ -40,7 +41,12 @@ public interface IDataExportArtifactStore
     Task<DataExportArtifactMetadata?> ReadMetadataAsync(DataExportArtifactLocator artifact, CancellationToken cancellationToken);
 
     /// <summary>Decrypts one chunk of an available, unexpired artifact.</summary>
-    Task<DataExportPlaintextChunk> ReadChunkAsync(DataExportArtifactLocator artifact, int index,
+    /// <returns>
+    /// <see langword="null"/> when the group holds no such artifact or chunk, or the artifact is revoked,
+    /// purged or past its expiry by the database clock, whether or not the purge ran. A chunk that fails
+    /// authentication is not an absence: it throws, because the stored ciphertext is corrupt or forged.
+    /// </returns>
+    Task<DataExportPlaintextChunk?> ReadChunkAsync(DataExportArtifactLocator artifact, int index,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -48,7 +54,15 @@ public interface IDataExportArtifactStore
     /// (subject, administrator, newer export or erasure) or <see cref="DataExportArtifactStatus.Purged"/>
     /// (expiry); the metadata row stays as the receipt.
     /// </summary>
-    Task PurgeAsync(DataExportArtifactLocator artifact, DataExportArtifactStatus outcome, CancellationToken cancellationToken);
+    /// <remarks>
+    /// Revocation is admitted only before the artifact's expiry and the purge only after it, both by the
+    /// database clock (ADR-0107 § 4). A revocation asked for once the expiry has passed purges instead, so a
+    /// caller that wants the chunks gone always gets them gone; a purge asked for before the expiry changes
+    /// nothing. Repeating either on an artifact that already holds no chunk changes nothing.
+    /// </remarks>
+    /// <returns>The artifact's status afterwards, or <see langword="null"/> when the group holds no such artifact.</returns>
+    Task<DataExportArtifactStatus?> PurgeAsync(DataExportArtifactLocator artifact, DataExportArtifactStatus outcome,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Names one artifact inside its group.</summary>
@@ -78,7 +92,7 @@ public sealed record DataExportArtifactPut
 {
     /// <exception cref="ArgumentException">A member is unassigned or the size is outside the supported range.</exception>
     public DataExportArtifactPut(Guid artifactId, Guid requestId, UserId subjectUserId,
-        DataRequestScopeGroup group, long byteCount)
+        DataRequestScopeGroup group, long byteCount, IEnumerable<DataExportTruncation>? truncations = null)
     {
         ArgumentNullException.ThrowIfNull(group);
         if (artifactId == Guid.Empty || requestId == Guid.Empty)
@@ -92,6 +106,7 @@ public sealed record DataExportArtifactPut
         }
 
         ChunkCount = DataRequestLimits.ChunkCountFor(byteCount);
+        Truncations = DataExportTruncation.Normalize(truncations);
         ArtifactId = artifactId;
         RequestId = requestId;
         SubjectUserId = subjectUserId;
@@ -110,12 +125,20 @@ public sealed record DataExportArtifactPut
     /// <summary>The chunk count the size implies.</summary>
     public int ChunkCount { get; }
 
+    /// <summary>The bundle's truncation statement, which the receipt keeps (ADR-0107 § 3); empty when nothing was capped.</summary>
+    public ImmutableArray<DataExportTruncation> Truncations { get; }
+
     public override string ToString() => nameof(DataExportArtifactPut);
 }
 
 /// <summary>An artifact's receipt-safe metadata: no plaintext, no ciphertext, no key.</summary>
+/// <remarks>
+/// <see cref="Status"/> is the stored lifecycle; <see cref="IsReadable"/> adds the time check against the
+/// database clock, so an artifact still stored <c>available</c> after its expiry is reported unreadable.
+/// </remarks>
 public sealed record DataExportArtifactMetadata(Guid ArtifactId, Guid RequestId, DataExportArtifactStatus Status,
-    long ByteCount, int ChunkCount, string KeyVersion, DateTimeOffset ExpiresAt, DateTimeOffset? PurgedAt);
+    long ByteCount, int ChunkCount, string KeyVersion, DateTimeOffset ExpiresAt, DateTimeOffset? PurgedAt,
+    ImmutableArray<DataExportTruncation> Truncations, bool IsReadable);
 
 /// <summary>One decrypted chunk of a ticketed download.</summary>
 /// <remarks>The bytes are the subject's personal data; the type never prints them.</remarks>

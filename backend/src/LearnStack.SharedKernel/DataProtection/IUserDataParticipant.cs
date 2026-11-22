@@ -38,6 +38,14 @@ public interface IUserDataParticipant
     /// </summary>
     string Key { get; }
 
+    /// <summary>
+    /// The participant's own section cap in bytes, or <see langword="null"/> for none beyond the bundle
+    /// ceiling. The audit section declares <see cref="DataRequestLimits.AuditSectionBytes"/> (ADR-0107 § 3);
+    /// a record that would pass it is refused with <see cref="UserDataExportAppend.SectionCapReached"/>, and
+    /// the participant declares the truncation and stops.
+    /// </summary>
+    long? ExportSectionCapBytes => null;
+
     /// <summary>Streams the participant's section of an export bundle into a bounded writer (ADR-0107 § 3).</summary>
     /// <remarks>
     /// The writer belongs to this participant's section alone. A participant never builds the bundle,

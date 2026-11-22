@@ -2,6 +2,7 @@ using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Invitations;
+using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Results;
 using MediatR;
@@ -45,14 +46,18 @@ public static class InvitationEmailRegistration
              new("control", BackgroundJobWorkerPoolKind.Control, 1, ["control"])],
             [new("identity.invitation_email", typeof(InvitationEmailJobHandlers), 4)],
             [new(typeof(IInvitationEmailOperation), typeof(InvitationSmtpOperation))], modules);
+        // The Identity module's one registry: the runtime holds a single registry, so the data-export definitions of
+        // ADR-0107 § 2 join the invitation pair here rather than replacing it.
         return BackgroundJobDefinitionRegistry.Create(
             [Definition("identity.invitation_email_tenant.v1", BackgroundJobScope.TenantWide, typeof(PrepareTenantInvitationEmailCommand), typeof(FinalizeTenantInvitationEmailCommand)),
-             Definition("identity.invitation_email_organization.v1", BackgroundJobScope.Organization, typeof(PrepareOrganizationInvitationEmailCommand), typeof(FinalizeOrganizationInvitationEmailCommand))],
+             Definition("identity.invitation_email_organization.v1", BackgroundJobScope.Organization, typeof(PrepareOrganizationInvitationEmailCommand), typeof(FinalizeOrganizationInvitationEmailCommand)),
+             .. DataExportJobRegistration.Definitions],
             [.. BackgroundJobFrameworkRequests.All,
              new(typeof(PrepareTenantInvitationEmailCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
              new(typeof(FinalizeTenantInvitationEmailCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
              new(typeof(PrepareOrganizationInvitationEmailCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.Organization),
-             new(typeof(FinalizeOrganizationInvitationEmailCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.Organization)], modules, infrastructure: infrastructure);
+             new(typeof(FinalizeOrganizationInvitationEmailCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.Organization),
+             .. DataExportJobRegistration.Requests], modules, infrastructure: infrastructure);
     }
     private static BackgroundJobDefinitionRegistration Definition(string key, BackgroundJobScope scope, Type prepare, Type finalize) =>
         new(key, typeof(InvitationEmailJobHandlers), typeof(InvitationEmailParameters), scope, BackgroundJobDefinitionReadiness.Active, "external",

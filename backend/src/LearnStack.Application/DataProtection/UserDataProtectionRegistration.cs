@@ -25,12 +25,17 @@ namespace LearnStack.Application.DataProtection;
 /// </remarks>
 public static class UserDataProtectionRegistration
 {
-    public static IServiceCollection AddLearnStackUserDataProtection(this IServiceCollection services)
+    /// <param name="services">The composition root's collection.</param>
+    /// <param name="export">The validated bundle ceiling; the ADR-0107 § 4 default when absent.</param>
+    public static IServiceCollection AddLearnStackUserDataProtection(this IServiceCollection services,
+        DataExportOptions? export = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddScoped<IUserDataParticipantRegistry>(provider =>
             new UserDataParticipantRegistry(provider.GetServices<IUserDataParticipant>()));
         services.TryAddSingleton<IDataRequestHoldSource, NoHoldSource>();
+        services.TryAddSingleton(export ?? DataExportOptions.Default);
+        services.TryAddScoped<IDataExportBundleBuilder, DataExportBundleBuilder>();
         return services;
     }
 }

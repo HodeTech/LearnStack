@@ -24,6 +24,8 @@ public sealed partial class IdentityAuditConventionTests
     private const string GlobalSource = "LearnStack.Application.Audit.AuditExecutionCoordinator+GlobalCreationSource";
     private const string InvitationJobStore = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailJobStore";
     private const string InvitationStager = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailStager";
+    // ADR-0107 § 2: the data-request job store confirms its caller is one of the four export roots, as the invitation job store does.
+    private const string DataRequestJobStore = "LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestStore";
     private const string InvitationProducer = "LearnStack.Application.Messaging.ProducerExecution";
     private const string InvitationJobOrigin = InvitationProducer + "/JobOrigin";
     private const string InvitationRegistration = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailRegistration";
@@ -79,10 +81,10 @@ public sealed partial class IdentityAuditConventionTests
         Callers(Installer, "Remove").Should().Equal(InitialMigration + ".Down");
         // ADR-0104: the rebind role's audit_log grant and policy arm have one central owner and one caller.
         Callers(RebindInstaller, "Install").Should().Equal(RebindDdl + ".Add");
-        foreach (var owner in new[] { InvitationJobStore, InvitationStager })
+        foreach (var owner in new[] { InvitationJobStore, InvitationStager, DataRequestJobStore })
         {
             var adapter = module.GetType(owner);
-            var method = adapter.Methods.Single(candidate => candidate.Name == (owner == InvitationJobStore ? "RequireCurrentJob" : "StageAsync"));
+            var method = adapter.Methods.Single(candidate => candidate.Name == (owner == InvitationStager ? "StageAsync" : "RequireCurrentJob"));
             var extra = Instruction.Create(OpCodes.Ldftn, module.ImportReference(typeof(LearnStack.Application.Messaging.ProducerExecution).GetMethod("CaptureJobOrigin")!));
             method.Body.Instructions.Add(extra);
             try { CoreEdgeViolations(adapter).Should().NotBeEmpty("the admitted adapter cannot acquire another executable producer alias"); }
@@ -181,7 +183,7 @@ public sealed partial class IdentityAuditConventionTests
                 or "LearnStack.Application.Persistence.TransactionExecutionCoordinator/PreparedGlobalIdentityOwner"
                 || type.FullName == InitialMigration && reference.FullName == Installer
                 || type.FullName == RebindDdl && reference.FullName == RebindInstaller
-                || type.FullName is InvitationJobStore or InvitationStager
+                || type.FullName is InvitationJobStore or InvitationStager or DataRequestJobStore
                     && reference.FullName is InvitationProducer or InvitationJobOrigin
                 || type.FullName == InvitationRegistration && reference.FullName == FrameworkRequests;
             if (!allowed) yield return type.FullName + " -> " + reference.FullName;
@@ -198,8 +200,8 @@ public sealed partial class IdentityAuditConventionTests
                 yield return "Invitation registration imports only the exact construction-free framework request list once";
             yield break;
         }
-        if (type.FullName is not (InvitationJobStore or InvitationStager)) yield break;
-        var owner = type.FullName == InvitationJobStore ? "RequireCurrentJob" : "StageAsync";
+        if (type.FullName is not (InvitationJobStore or InvitationStager or DataRequestJobStore)) yield break;
+        var owner = type.FullName == InvitationStager ? "StageAsync" : "RequireCurrentJob";
         var calls = Il.Methods(type).Where(pair => pair.Definition.HasBody)
             .SelectMany(pair => pair.Definition.Body.Instructions.Where(instruction => instruction.Operand is MethodReference)
                 .Select(instruction => (pair.DeclaredAs, Instruction: instruction, Target: (MethodReference)instruction.Operand)))
@@ -213,6 +215,7 @@ public sealed partial class IdentityAuditConventionTests
                 || !(call.Target.DeclaringType.FullName == InvitationProducer && call.Target.Name is "CaptureJobOrigin" or "RequireJobOrigin"
                     || call.Target.DeclaringType.FullName == InvitationProducer + "/JobOrigin"
                         && (type.FullName == InvitationJobStore ? call.Target.Name is "get_ParentJobId" or "get_OperationType"
+                            : type.FullName == DataRequestJobStore ? call.Target.Name is "get_ParentJobId" or "get_OperationType" or "get_Announcement"
                             : call.Target.Name is "get_OperationType" or "get_Announcement")))
                 yield return type.FullName + " acquired an unapproved producer member or alias: " + call.Target.FullName;
     }

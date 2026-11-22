@@ -189,9 +189,9 @@ public static class PersistenceCompositionExtensions
             PlatformAdminScope.PlatformDataSourceKey,
             (_, _) => new PrivilegedDataSource(() => BuildPlatformDataSource(platformConnectionString)));
         services.AddLearnStackBackgroundJobContracts();
-        // ADR-0107 § 1: the participant collection and the hold-source default. No participant
-        // is registered yet; each module adds its own from its registration.
-        services.AddLearnStackUserDataProtection();
+        // ADR-0107 § 1 and § 4: the participant collection, the hold-source default, the bundle
+        // ceiling, the export key ring and the participants each module registers from its own boundary.
+        services.AddDataExportCustody(configuration);
         services.AddInvitationEmailDelivery(configuration);
 
         // The scope is a stateless singleton. Admission is not its concern any more: the

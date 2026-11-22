@@ -1,0 +1,90 @@
+using LearnStack.Modules.Identity.Domain;
+using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
+
+namespace LearnStack.Modules.Identity.Application.DataRequests;
+
+/// <summary>
+/// Stores <c>failed</c> with <c>execution_failed</c> for a request whose fulfilment job is dead
+/// (<see href="../../../../../docs/decisions/0106-subject-data-requests-authority-and-status.md">ADR-0106 § 8</see>).
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Why it exists.</b> ADR-0106 § 8 reads <c>failed</c> from the job phase, so no hook runs in a dead job; but
+/// the one-active partial unique index frees a group's slot only for a <em>stored</em> terminal status. A person
+/// whose export's job died could otherwise never file another. The creation path calls this before it inserts,
+/// and the receipt displays the same answer without writing through <see cref="EffectiveStatus"/>.
+/// </para>
+/// <para>
+/// <b>Transitions, one per save.</b> A dead export's request is <c>requested</c> (its transactional job rolled every
+/// write back), so it takes <c>requested → fulfilling</c> and then <c>fulfilling → failed</c> as two saves, because
+/// the request guard admits one arrow per UPDATE; both are the aggregate's own transitions. It runs on the
+/// caller's tenant transaction under the shared Identity tenant fence that guard requires.
+/// </para>
+/// </remarks>
+public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataRequestJobPhaseReader phases,
+    IIdentityMutationLocks locks, ITenantContext tenant, IClock clock)
+{
+    /// <summary>
+    /// The status a receipt shows: the stored one, or <c>failed</c> for a non-terminal request whose job is dead.
+    /// </summary>
+    public static DataRequestStatus EffectiveStatus(DataSubjectRequest request, DataRequestJobPhase phase)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return !request.IsTerminal && phase == DataRequestJobPhase.Dead && CanFail(request)
+            ? DataRequestStatus.Failed
+            : request.Status;
+    }
+
+    /// <summary>
+    /// Stores <c>failed</c> for a tracked, non-terminal request whose job is dead.
+    /// </summary>
+    /// <remarks>
+    /// The caller loads the request through <see cref="IDataRequestStore.FindLockedAsync"/> on its own group
+    /// transaction, so the row is locked against a job that is, after all, still committing.
+    /// </remarks>
+    /// <returns>Whether the request was moved to <c>failed</c>.</returns>
+    public async Task<bool> ReconcileAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.IsTerminal || !CanFail(request) || request.TenantId != tenant.TenantId
+            || request.OrganizationId != tenant.OrganizationId)
+        {
+            return false;
+        }
+
+        if (await phases.ReadAsync(request, cancellationToken).ConfigureAwait(false) != DataRequestJobPhase.Dead)
+        {
+            return false;
+        }
+
+        await locks.AcquireAsync(new IdentityMutationLockPlan([], tenant.TenantId, IdentityTenantLockMode.Shared), cancellationToken)
+            .ConfigureAwait(false);
+        var now = clock.UtcNow;
+        var actor = tenant.UserId ?? UserId.SystemActor;
+        if (request.Status == DataRequestStatus.Requested)
+        {
+            Require(request.StartFulfilling(now, actor).IsSuccess);
+            await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        Require(request.Fail(DataRequestFailureReason.ExecutionFailed, now, actor).IsSuccess);
+        await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>Only an export has a fulfilment job in this step, and only a requested or fulfilling one can fail.</summary>
+    private static bool CanFail(DataSubjectRequest request) =>
+        request.Kind == DataRequestKind.Export && request.Status is DataRequestStatus.Requested or DataRequestStatus.Fulfilling;
+
+    private static void Require(bool admitted)
+    {
+        if (!admitted)
+        {
+            throw new InvalidOperationException("A failure transition its own preconditions admitted was refused.");
+        }
+    }
+}

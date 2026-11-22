@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
@@ -53,14 +54,31 @@ public sealed class DataExportArtifact : AuditableEntity<DataExportArtifactId>, 
     public DateTimeOffset? PurgedAt { get; private set; }
 
     /// <summary>
+    /// The bundle's truncation statement as canonical JSON, set at creation and never changed: the receipt
+    /// says a section was capped exactly as the bundle does (ADR-0107 § 3). <c>{}</c> when nothing was capped.
+    /// </summary>
+    public string TruncationJson { get; private set; } = DataRequestDocuments.EmptyObject;
+
+    public ImmutableArray<DataExportTruncation> Truncations => DataRequestDocuments.ReadTruncation(TruncationJson);
+
+    /// <summary>
     /// Records the artifact of an export that is fulfilling: the group and subject come from the request,
     /// never from the caller.
     /// </summary>
     public static Result<DataExportArtifact> Create(DataExportArtifactId id, DataSubjectRequest request, long byteCount,
-        string keyVersion, DateTimeOffset at, UserId actor)
+        string keyVersion, DateTimeOffset at, UserId actor) =>
+        Create(id, request, byteCount, keyVersion, [], at, actor);
+
+    /// <summary>
+    /// Records the artifact of an export that is fulfilling, with the bundle's truncation statement.
+    /// </summary>
+    public static Result<DataExportArtifact> Create(DataExportArtifactId id, DataSubjectRequest request, long byteCount,
+        string keyVersion, IReadOnlyCollection<DataExportTruncation> truncations, DateTimeOffset at, UserId actor)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (!StronglyTypedId.IsAssigned(id) || id.Value.Version != 7
+        ArgumentNullException.ThrowIfNull(truncations);
+        var truncation = DataRequestDocuments.WriteTruncation(truncations);
+        if (truncation is null || !StronglyTypedId.IsAssigned(id) || id.Value.Version != 7
             || request.Kind != DataRequestKind.Export || request.Status != DataRequestStatus.Fulfilling || request.IsDeleted
             || byteCount is < 1 or > DataRequestLimits.MaximumBundleBytes || !DataRequestLimits.IsKeyVersion(keyVersion)
             || !StronglyTypedId.IsAssigned(actor) || at == default || at.Offset != TimeSpan.Zero
@@ -80,6 +98,7 @@ public sealed class DataExportArtifact : AuditableEntity<DataExportArtifactId>, 
             ByteCount = byteCount,
             ChunkCount = DataRequestLimits.ChunkCountFor(byteCount),
             KeyVersion = keyVersion,
+            TruncationJson = truncation,
             ExpiresAt = at + DataRequestLimits.ArtifactLifetime,
         };
         artifact.MarkCreated(at, actor);

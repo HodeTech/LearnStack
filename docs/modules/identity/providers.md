@@ -310,6 +310,15 @@ SMTP settings are `InvitationEmail:Smtp:Host`, `Port`, `Sender`, and `Tls`
 composition. Missing configuration prevents startup. No connection is made by
 configuration validation.
 
+The export artifact key ring `DataExport:KeyRing`
+([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4)
+has the same shape and rules, resolves through `ISecretProvider` and is checked at
+startup by `DataExportStartupService`; rotation adds a key, makes it active and removes
+the old one only once every artifact sealed under it has expired (seven days). The bundle
+ceiling `DataExport:MaxBytes` is an optional whole number of bytes from 1 MiB to 64 MiB,
+16 MiB when absent; any other value refuses composition. The paired launcher selects both
+keys for the API alone, with the same single-line, 8 KiB bound.
+
 The paired local API launcher selects only these seven email configuration
 keys from matching private-file/process sources. Values are compact single-line
 strings of at most 8 KiB in UTF-8; SMTP credentials may be empty for explicit

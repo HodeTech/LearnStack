@@ -54,6 +54,20 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
       throw new Error('Invalid API invitation email configuration');
     environment[key] = value;
   }
+  // The export key ring and bundle ceiling (ADR-0107 § 4) belong only to the
+  // selected API, which validates both at startup.
+  for (const key of ['DataExport__KeyRing', 'DataExport__MaxBytes']) {
+    const value = values[key];
+    if (value === undefined) continue;
+    if (
+      typeof value !== 'string' ||
+      /[\x00-\x1f\x7f]/.test(value) ||
+      Buffer.byteLength(value) > 8192 ||
+      !value.trim()
+    )
+      throw new Error('Invalid API data export configuration');
+    environment[key] = value;
+  }
   // The API alone receives selected custom-field HMAC configuration. Invalid
   // material remains invalid for the API's per-operation check; it must not
   // prevent unrelated routes from starting or borrow ambient values.

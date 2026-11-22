@@ -159,6 +159,19 @@ internal sealed class DataExportArtifactConfiguration : IEntityTypeConfiguration
             table.HasCheckConstraint("ck_data_export_artifacts_lifecycle",
                 "((status IN ('revoked','purged')) = (purged_at IS NOT NULL) AND (purged_at IS NULL OR (isfinite(purged_at) AND purged_at >= created_at))) IS TRUE");
             table.HasCheckConstraint("ck_data_export_artifacts_no_delete", "deleted_at IS NULL AND deleted_by IS NULL");
+            // ADR-0107 § 3: the receipt states a capped collection as the bundle does. A closed shape: at most 32
+            // participant.collection keys, each holding exactly two whole counts with included <= total.
+            table.HasCheckConstraint("ck_data_export_artifacts_truncation", """
+                CASE WHEN jsonb_typeof(truncation) = 'object'
+                    THEN jsonb_array_length(jsonb_path_query_array(truncation, '$.keyvalue()')) <= 32
+                        AND NOT jsonb_path_exists(truncation,
+                            '$.keyvalue() ? (!(@.key like_regex "^[a-z][a-z0-9_]{0,31}[.][a-z][a-z0-9_]{0,31}$") || @.value.type() != "object")')
+                        AND NOT jsonb_path_exists(truncation, '$.*.keyvalue() ? (@.key != "included" && @.key != "total")')
+                        AND NOT jsonb_path_exists(truncation, '$.* ? (!exists(@.included) || !exists(@.total))')
+                        AND NOT jsonb_path_exists(truncation,
+                            '$.* ? (@.included.type() != "number" || @.total.type() != "number" || @.included < 0 || @.included > @.total || @.total > 9007199254740991 || @.included.floor() != @.included || @.total.floor() != @.total)')
+                    ELSE false END
+                """);
         });
         builder.HasKey(entity => entity.Id).HasName("pk_data_export_artifacts");
         builder.Property(entity => entity.Id)
@@ -171,6 +184,9 @@ internal sealed class DataExportArtifactConfiguration : IEntityTypeConfiguration
         builder.Property(entity => entity.Status)
             .HasConversion(new ClosedCodeConverter<DataExportArtifactStatus>(DataRequestCodes.ArtifactStatuses)).HasColumnType("text");
         builder.Property(entity => entity.KeyVersion).HasMaxLength(DataRequestLimits.MaximumKeyVersionLength).UseCollation("C");
+        builder.Property(entity => entity.TruncationJson).HasColumnName("truncation").HasColumnType("jsonb")
+            .HasDefaultValue(DataRequestDocuments.EmptyObject).IsRequired();
+        builder.Ignore(entity => entity.Truncations);
         builder.HasOne<DataSubjectRequest>().WithMany().HasForeignKey(entity => new { entity.TenantId, entity.RequestId })
             .HasPrincipalKey(entity => new { entity.TenantId, entity.Id })
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_data_export_artifacts_request");
@@ -185,9 +201,11 @@ internal sealed class DataExportArtifactConfiguration : IEntityTypeConfiguration
             nameof(DataExportArtifact.Id), nameof(DataExportArtifact.TenantId), nameof(DataExportArtifact.OrganizationId),
             nameof(DataExportArtifact.RequestId), nameof(DataExportArtifact.SubjectUserId));
         builder.DeclarePersonalData(PersonalDataCategory.None,
-            "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.",
+            "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed "
+                + "truncation statement (collection names and counts); no content or key.",
             nameof(DataExportArtifact.Status), nameof(DataExportArtifact.ByteCount), nameof(DataExportArtifact.ChunkCount),
-            nameof(DataExportArtifact.KeyVersion), nameof(DataExportArtifact.ExpiresAt), nameof(DataExportArtifact.PurgedAt));
+            nameof(DataExportArtifact.KeyVersion), nameof(DataExportArtifact.ExpiresAt), nameof(DataExportArtifact.PurgedAt),
+            nameof(DataExportArtifact.TruncationJson));
     }
 }
 

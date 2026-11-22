@@ -166,5 +166,60 @@ public static class DataRequestDocuments
         }
     }
 
+    /// <summary>
+    /// Writes an artifact's truncation statement: <c>participant.collection</c> to its included and total
+    /// record counts, sorted by key (ADR-0107 § 3). An empty statement is <c>{}</c>.
+    /// </summary>
+    /// <returns><see langword="null"/> when a key repeats or the statement passes its bound.</returns>
+    public static string? WriteTruncation(IReadOnlyCollection<DataExportTruncation> truncations)
+    {
+        ArgumentNullException.ThrowIfNull(truncations);
+        ImmutableArray<DataExportTruncation> ordered;
+        try
+        {
+            ordered = DataExportTruncation.Normalize(truncations);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(ordered.ToDictionary(item => item.Collection,
+            item => new SortedDictionary<string, long>(StringComparer.Ordinal) { ["included"] = item.Included, ["total"] = item.Total },
+            StringComparer.Ordinal));
+    }
+
+    /// <exception cref="InvalidOperationException">The stored statement is malformed.</exception>
+    public static ImmutableArray<DataExportTruncation> ReadTruncation(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw Corrupt();
+            }
+
+            var items = new List<DataExportTruncation>();
+            foreach (var entry in document.RootElement.EnumerateObject())
+            {
+                if (entry.Value.ValueKind != JsonValueKind.Object || entry.Value.EnumerateObject().Count() != 2
+                    || !entry.Value.TryGetProperty("included", out var included) || !included.TryGetInt64(out var includedCount)
+                    || !entry.Value.TryGetProperty("total", out var total) || !total.TryGetInt64(out var totalCount))
+                {
+                    throw Corrupt();
+                }
+
+                items.Add(new DataExportTruncation(entry.Name, includedCount, totalCount));
+            }
+
+            return DataExportTruncation.Normalize(items);
+        }
+        catch (Exception failure) when (failure is JsonException or ArgumentException)
+        {
+            throw Corrupt();
+        }
+    }
+
     private static InvalidOperationException Corrupt() => new("A stored data request document is malformed.");
 }

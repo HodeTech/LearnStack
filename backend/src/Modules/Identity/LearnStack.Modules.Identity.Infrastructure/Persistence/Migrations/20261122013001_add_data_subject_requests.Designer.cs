@@ -39,13 +39,13 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("byte_count")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
-                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<int>("ChunkCount")
                         .HasColumnType("integer")
                         .HasColumnName("chunk_count")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
-                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -75,7 +75,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
-                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<string>("KeyVersion")
                         .IsRequired()
@@ -84,7 +84,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnName("key_version")
                         .UseCollation("C")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
-                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<Guid?>("OrganizationId")
                         .HasColumnType("uuid")
@@ -96,7 +96,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("purged_at")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
-                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uuid")
@@ -109,7 +109,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("status")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
-                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<Guid>("SubjectUserId")
                         .HasColumnType("uuid")
@@ -122,6 +122,15 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnName("tenant_id")
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
                         .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's export receipt: the group, the request and the subject it was generated for.");
+
+                    b.Property<string>("TruncationJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("truncation")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed truncation statement (collection names and counts); no content or key.");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -180,6 +189,8 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_data_export_artifacts_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
 
                             t.HasCheckConstraint("ck_data_export_artifacts_times", "(isfinite(created_at) AND expires_at = created_at + interval '7 days' AND (updated_at IS NULL OR (isfinite(updated_at) AND updated_at >= created_at))) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_truncation", "CASE WHEN jsonb_typeof(truncation) = 'object'\n    THEN jsonb_array_length(jsonb_path_query_array(truncation, '$.keyvalue()')) <= 32\n        AND NOT jsonb_path_exists(truncation,\n            '$.keyvalue() ? (!(@.key like_regex \"^[a-z][a-z0-9_]{0,31}[.][a-z][a-z0-9_]{0,31}$\") || @.value.type() != \"object\")')\n        AND NOT jsonb_path_exists(truncation, '$.*.keyvalue() ? (@.key != \"included\" && @.key != \"total\")')\n        AND NOT jsonb_path_exists(truncation, '$.* ? (!exists(@.included) || !exists(@.total))')\n        AND NOT jsonb_path_exists(truncation,\n            '$.* ? (@.included.type() != \"number\" || @.total.type() != \"number\" || @.included < 0 || @.included > @.total || @.total > 9007199254740991 || @.included.floor() != @.included || @.total.floor() != @.total)')\n    ELSE false END");
                         });
                 });
 

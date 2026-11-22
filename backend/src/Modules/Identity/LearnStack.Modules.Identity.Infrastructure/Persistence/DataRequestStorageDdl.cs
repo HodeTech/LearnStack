@@ -325,9 +325,11 @@ internal static class DataRequestStorageDdl
                 RETURN NEW;
             END IF;
             IF (ROW(NEW.id, NEW.tenant_id, NEW.organization_id, NEW.request_id, NEW.subject_user_id, NEW.byte_count,
-                    NEW.chunk_count, NEW.key_version, NEW.expires_at, NEW.created_at, NEW.created_by, NEW.deleted_at, NEW.deleted_by)
+                    NEW.chunk_count, NEW.key_version, NEW.truncation, NEW.expires_at, NEW.created_at, NEW.created_by,
+                    NEW.deleted_at, NEW.deleted_by)
                 IS DISTINCT FROM ROW(OLD.id, OLD.tenant_id, OLD.organization_id, OLD.request_id, OLD.subject_user_id, OLD.byte_count,
-                    OLD.chunk_count, OLD.key_version, OLD.expires_at, OLD.created_at, OLD.created_by, OLD.deleted_at, OLD.deleted_by)
+                    OLD.chunk_count, OLD.key_version, OLD.truncation, OLD.expires_at, OLD.created_at, OLD.created_by,
+                    OLD.deleted_at, OLD.deleted_by)
                 OR NEW.row_version IS DISTINCT FROM OLD.row_version + 1
                 OR NEW.updated_at IS NULL OR NEW.updated_by IS NULL OR NOT isfinite(NEW.updated_at)
                 OR NEW.updated_at < COALESCE(OLD.updated_at, OLD.created_at)

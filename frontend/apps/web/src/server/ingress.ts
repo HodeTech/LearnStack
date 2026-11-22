@@ -437,6 +437,28 @@ export function loadLocalEnvironment(
       result[key] = value;
     }
   }
+  // The export key ring (ADR-0107 § 4) and bundle ceiling belong only to the
+  // selected API, which validates both at startup.
+  const dataExportKeys = ['DataExport__KeyRing', 'DataExport__MaxBytes'];
+  for (const key of dataExportKeys) delete result[key];
+  if (options.apiAuthentication) {
+    for (const key of dataExportKeys) {
+      const values = [source[key], projection[key], environment[key]].filter(
+        (value): value is string => value !== undefined,
+      );
+      if (new Set(values).size > 1) throw new Error('Conflicting API data export configuration');
+      const value = values[0];
+      if (value === undefined) continue;
+      if (
+        typeof value !== 'string' ||
+        !value.trim() ||
+        containsControl(value) ||
+        Buffer.byteLength(value) > 8192
+      )
+        throw new Error('Invalid API data export configuration');
+      result[key] = value;
+    }
+  }
   // Only the API launcher selects this closed secret namespace. Invalid or
   // conflicting selected values remain invalid for the operation-local API
   // check instead of preventing unrelated routes from starting.

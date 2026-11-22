@@ -59,6 +59,49 @@ public static class DataRequestLimits
     /// <summary>The longest participant key.</summary>
     public const int MaximumParticipantKeyLength = 32;
 
+    /// <summary>The smallest bundle ceiling the setting may name; below it the bundle envelope alone would not fit.</summary>
+    public const long MinimumBundleBytes = 1L * 1024 * 1024;
+
+    /// <summary>
+    /// The bytes of the bundle ceiling held back for the envelope's closing structure: the remaining
+    /// empty sections, the truncation statement and the closing braces, so the finished document never
+    /// exceeds the ceiling a record was admitted under.
+    /// </summary>
+    public const int BundleTailReserveBytes = 16 * 1024;
+
+    /// <summary>The longest collection name inside one export section.</summary>
+    public const int MaximumCollectionNameLength = 32;
+
+    /// <summary>
+    /// The most truncated collections one bundle, and so one artifact's receipt, may state
+    /// (ADR-0107 § 3); the receipt column's CHECK repeats it.
+    /// </summary>
+    public const int MaximumTruncatedCollections = 32;
+
+    /// <summary>The largest record count a truncation statement may carry: JSON's exact-integer range.</summary>
+    public const long MaximumTruncationCount = 9_007_199_254_740_991;
+
+    /// <summary>Whether a collection name is a closed lower snake_case token of the bounded length.</summary>
+    public static bool IsCollectionName(string? name) =>
+        name is { Length: > 0 and <= MaximumCollectionNameLength }
+        && name[0] is >= 'a' and <= 'z'
+        && name.All(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+
+    /// <summary>
+    /// Whether a truncation key names one collection of one section: <c>participant.collection</c>, each half
+    /// a closed token, so the receipt names a collection and never a value.
+    /// </summary>
+    public static bool IsTruncationKey(string? key)
+    {
+        if (key is null)
+        {
+            return false;
+        }
+
+        var separator = key.IndexOf('.', StringComparison.Ordinal);
+        return separator > 0 && IsParticipantKey(key[..separator]) && IsCollectionName(key[(separator + 1)..]);
+    }
+
     /// <summary>The number of chunks a bundle of <paramref name="byteCount"/> plaintext bytes occupies.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The bundle is empty or above the largest ceiling.</exception>
     public static int ChunkCountFor(long byteCount) =>

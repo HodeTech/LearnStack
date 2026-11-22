@@ -635,6 +635,30 @@ describe('selected invitation email API environment', () => {
     ).not.toThrow();
   });
 
+  it('selects the export key ring and ceiling for the API alone and refuses conflicts and blanks', () => {
+    const root = temporary();
+    const dataExport = {
+      DataExport__KeyRing: JSON.stringify({
+        active: 'owned',
+        keys: { owned: randomBytes(32).toString('base64') },
+      }),
+      DataExport__MaxBytes: '16777216',
+    };
+    writeEnvironment(root, '.env', { ...apiIdentity, ...dataExport });
+    expect(loadLocalEnvironment(root, {}, { apiAuthentication: true })).toMatchObject(dataExport);
+    for (const key of Object.keys(dataExport))
+      expect(loadLocalEnvironment(root, {})).not.toHaveProperty(key);
+    expect(() =>
+      loadLocalEnvironment(root, { DataExport__MaxBytes: '1048576' }, { apiAuthentication: true }),
+    ).toThrow(/^Conflicting API data export configuration$/);
+    expect(publicApiEnvironment({ ...selected(), ...dataExport }, configuration, {})).toMatchObject(
+      dataExport,
+    );
+    expect(() =>
+      publicApiEnvironment({ ...selected(), DataExport__KeyRing: ' ' }, configuration, {}),
+    ).toThrow(/^Invalid API data export configuration$/);
+  });
+
   it('bounds selected UTF-8 configuration and preserves empty development credentials', () => {
     const values = {
       ...selected(),

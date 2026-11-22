@@ -131,6 +131,13 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
 - The bundle is an encrypted private artifact, retrievable only by the subject through a
   15-minute ticketed download in their live session, readable for 7 days after completion
   and revocable (ADR-0107 § 4); no URL is a bearer credential.
+- Delivered (P03-10 Step 1): the export job (`identity.data_export_tenant.v1` /
+  `identity.data_export_organization.v1`) runs on the group's own transaction; Identity,
+  Tenancy and Audit export sections, Customization and Education only describe
+  `attribution_reference`. Every identifier in the bundle but the request's own is
+  written `self` or `third_party`. The ceiling is `DataExport:MaxBytes`, the chunks are
+  sealed under the `DataExport:KeyRing` secret, both checked at API startup, and a capped
+  section is stated in the bundle and in the artifact's `truncation` receipt column.
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
@@ -308,7 +315,7 @@ govern personal data; exclusion here grants no erasure exemption.
 | `invitations` | Synchronous scoped Identity offer and acceptance result, including sensitive recipient/verifier and job linkage; the invitation inventory below owns fulfillment constraints |
 | `federation_connections` | Synchronous tenant-owned federation configuration (ADR-0099): public IdP identifiers, nonsecret digests and lifecycle, with pseudonymous pending/test actor identifiers; no secret, token or assertion and no queued payload |
 | `data_subject_requests` | Synchronous organization-scoped subject request receipt (ADR-0106): subject and requester UserId, frozen Membership identifiers, closed status/refusal/failure codes, participant progress and retained-kind counts; retained as `request_receipt` with Phase 11 retention, and the job parameters carry identifiers only |
-| `data_export_artifacts` | Synchronous export receipt metadata (ADR-0107 § 4): subject, request, size, chunk count, key-ring label and lifecycle; no content or key; retained as `request_receipt` after its chunks are purged |
+| `data_export_artifacts` | Synchronous export receipt metadata (ADR-0107 § 4): subject, request, size, chunk count, key-ring label, lifecycle and the immutable closed truncation statement (ADR-0107 § 3: collection names and counts); no content or key; retained as `request_receipt` after its chunks are purged |
 | `data_export_tickets` | Synchronous session-bound download cursor (ADR-0107 § 4): subject, artifact and credential digests only, never the ticket value; retained as `request_receipt` |
 | `data_export_chunks` | Synchronous encrypted export bundle (ADR-0107 § 4): PII-Sensitive AES-256-GCM ciphertext of the subject's own data, never in an EF snapshot or audit row; purged at revocation, expiry or erasure, not an asynchronous delivery copy |
 <!-- async-store-module-exclusions:end -->

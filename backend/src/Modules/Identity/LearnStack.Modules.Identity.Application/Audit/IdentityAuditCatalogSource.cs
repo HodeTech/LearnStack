@@ -2,6 +2,7 @@ using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Invitations;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
@@ -35,6 +36,15 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_email", OperationType.SecurityEvent, typeof(Invitation));
         builder.MustAudit<FinalizeTenantInvitationEmailCommand>("identity.invitation.email_submission", OperationType.SecurityEvent, typeof(Invitation));
         builder.MustAudit<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.email_submission", OperationType.SecurityEvent, typeof(Invitation));
+        // ADR-0106 § 13, ADR-0107 § 2: an export's fulfilment is one row about the request and one about the artifact
+        // it stored (the revoked earlier artifact travels in that row's changes); the purge is one row about the
+        // artifact. A recorded no-op writes the rows with no subject.
+        builder.MustAudit<RunTenantDataExportCommand>("identity.data_request.fulfill_export", OperationType.SecurityEvent, typeof(DataSubjectRequest));
+        builder.MustAudit<RunTenantDataExportCommand>("identity.data_export.store", OperationType.SecurityEvent, typeof(DataExportArtifact));
+        builder.MustAudit<RunOrganizationDataExportCommand>("identity.data_request.fulfill_export", OperationType.SecurityEvent, typeof(DataSubjectRequest));
+        builder.MustAudit<RunOrganizationDataExportCommand>("identity.data_export.store", OperationType.SecurityEvent, typeof(DataExportArtifact));
+        builder.MustAudit<PurgeTenantDataExportCommand>("identity.data_export.purge", OperationType.Delete, typeof(DataExportArtifact));
+        builder.MustAudit<PurgeOrganizationDataExportCommand>("identity.data_export.purge", OperationType.Delete, typeof(DataExportArtifact));
         builder.MustAudit<AdmitNativeSessionScopeCommand>(IdentityOperationPolicySource.NativeSessionAdmissionOperation,
             OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<InitializeSeedRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));

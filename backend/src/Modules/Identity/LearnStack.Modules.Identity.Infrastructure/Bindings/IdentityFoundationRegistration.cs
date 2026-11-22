@@ -14,7 +14,12 @@ using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.Modules.Identity.Application.Federation;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Application.DataRequests;
+using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Results;
+using MediatR;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,7 +73,29 @@ public static class IdentityFoundationRegistration
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnCapabilitiesQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipCustomFieldsQuery)));
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
+        services.AddIdentityDataRequests();
         return services;
+    }
+
+    /// <summary>
+    /// ADR-0107 § 1–§ 4: the request store, the default artifact store, the export and purge job roots, the
+    /// fulfilment scheduler, the failure reconciler and the Identity participant. The cipher that seals the chunks
+    /// and the bundle builder are the composition root's.
+    /// </summary>
+    private static void AddIdentityDataRequests(this IServiceCollection services)
+    {
+        services.TryAddScoped<IDataRequestStore, DataRequestStore>();
+        services.TryAddScoped<IDataExportArtifactStore, PostgresDataExportArtifactStore>();
+        services.TryAddScoped<IDataRequestJobPhaseReader, DataRequestJobPhaseReader>();
+        services.TryAddScoped<IDataRequestFulfillmentScheduler, DataRequestFulfillmentScheduler>();
+        services.TryAddScoped<DataRequestFailureReconciler>();
+        services.TryAddScoped<DataExportJobHandlers>();
+        services.TryAddScoped<IRequestHandler<RunTenantDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
+        services.TryAddScoped<IRequestHandler<RunOrganizationDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
+        services.TryAddScoped<IRequestHandler<PurgeTenantDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
+        services.TryAddScoped<IRequestHandler<PurgeOrganizationDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
+        services.TryAddScoped<MembershipFieldRevisionReader>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, IdentityUserDataParticipant>());
     }
 
     /// <summary>Registers internal consumers only; qualification is an explicit startup act before admission activation.</summary>

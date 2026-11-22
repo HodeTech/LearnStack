@@ -82,6 +82,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                     byte_count = table.Column<long>(type: "bigint", nullable: false),
                     chunk_count = table.Column<int>(type: "integer", nullable: false),
                     key_version = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, collation: "C"),
+                    truncation = table.Column<string>(type: "jsonb", nullable: false, defaultValue: "{}"),
                     expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     purged_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
@@ -104,6 +105,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                     table.CheckConstraint("ck_data_export_artifacts_status", "status IN ('available','revoked','expired','purged')");
                     table.CheckConstraint("ck_data_export_artifacts_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
                     table.CheckConstraint("ck_data_export_artifacts_times", "(isfinite(created_at) AND expires_at = created_at + interval '7 days' AND (updated_at IS NULL OR (isfinite(updated_at) AND updated_at >= created_at))) IS TRUE");
+                    table.CheckConstraint("ck_data_export_artifacts_truncation", "CASE WHEN jsonb_typeof(truncation) = 'object'\n    THEN jsonb_array_length(jsonb_path_query_array(truncation, '$.keyvalue()')) <= 32\n        AND NOT jsonb_path_exists(truncation,\n            '$.keyvalue() ? (!(@.key like_regex \"^[a-z][a-z0-9_]{0,31}[.][a-z][a-z0-9_]{0,31}$\") || @.value.type() != \"object\")')\n        AND NOT jsonb_path_exists(truncation, '$.*.keyvalue() ? (@.key != \"included\" && @.key != \"total\")')\n        AND NOT jsonb_path_exists(truncation, '$.* ? (!exists(@.included) || !exists(@.total))')\n        AND NOT jsonb_path_exists(truncation,\n            '$.* ? (@.included.type() != \"number\" || @.total.type() != \"number\" || @.included < 0 || @.included > @.total || @.total > 9007199254740991 || @.included.floor() != @.included || @.total.floor() != @.total)')\n    ELSE false END");
                     table.ForeignKey(
                         name: "fk_data_export_artifacts_request",
                         columns: x => new { x.tenant_id, x.request_id },

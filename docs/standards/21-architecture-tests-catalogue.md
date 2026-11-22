@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**397 test methods run in
+**399 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**294 rules in this catalogue are Implemented, and 175 of them are in that assembly.**
+**296 rules in this catalogue are Implemented, and 177 of them are in that assembly.**
 The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -8007,3 +8007,32 @@ names for the package's obligations are assigned with the step that introduces t
   [OwnDataRequestScopeConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/OwnDataRequestScopeConventionTests.cs),
   [OwnDataRequestPolicyTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/OwnDataRequestPolicyTests.cs).
 - **Phase:** 03 (P03-10, retained own scope).
+
+#### `Every_Module_With_A_Person_Reference_Registers_One_User_Data_Participant`
+
+- **Asserts:** every module whose model maps a person reference (a `UserId` or
+  `MembershipId` property, or creator, updater and deleter attribution on a
+  tenant-owned entity) registers exactly one `IUserDataParticipant` through the
+  composition root, from inside its own boundary. A module that stops registering, a
+  second participant in one module and a participant outside every module are each named
+  by a planted violation.
+- **Source:** [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** composition-root census over the compiled registrations with planted
+  violations. **Kind:** both.
+- **Status:** **Implemented** (`UserDataParticipantCensusTests`).
+- **Test owners:**
+  [UserDataParticipantCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserDataParticipantCensusTests.cs).
+- **Phase:** 03 (P03-10, export engine).
+
+#### `No_Module_References_Another_Modules_User_Data_Participant`
+
+- **Asserts:** no module assembly references another module's participant assembly, so
+  the participant registrations stay outside the four cross-module mechanisms of
+  [ADR-0010](../decisions/0010-cross-module-communication.md). A planted reference from
+  one module to another's participant assembly is named.
+- **Source:** [ADR-0107 § 1](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** compiled assembly-reference census with a planted violation. **Kind:** both.
+- **Status:** **Implemented** (`UserDataParticipantCensusTests`).
+- **Test owners:**
+  [UserDataParticipantCensusTests.cs](../../backend/tests/LearnStack.Tests.Architecture/UserDataParticipantCensusTests.cs).
+- **Phase:** 03 (P03-10, export engine).

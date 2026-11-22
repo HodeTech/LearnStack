@@ -411,6 +411,30 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction,
             "UPDATE public.data_export_artifacts SET byte_count=byte_count WHERE id=@id", ("id", first)))).SqlState.Should().Be("42501",
             "the size is not an application-writable column");
+        (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction,
+            "UPDATE public.data_export_artifacts SET truncation='{}'::jsonb WHERE id=@id", ("id", first)))).SqlState.Should().Be("42501",
+            "the truncation statement is set at insert and never written again (ADR-0107 § 3)");
+        foreach (var malformed in new[]
+        {
+            "[]", "{\"audit\":{\"included\":1,\"total\":2}}", "{\"audit.entries\":{\"included\":3,\"total\":2}}",
+            "{\"audit.entries\":{\"included\":1,\"total\":2,\"value\":\"x\"}}", "{\"audit.entries\":{\"included\":1.5,\"total\":2}}",
+            "{\"audit.entries\":{\"included\":-1,\"total\":2}}", "{\"audit.entries\":{\"total\":2}}", "{\"Audit.entries\":{\"included\":1,\"total\":2}}",
+        })
+            // The guard admits the copy (its request completes in this transaction); the CHECK runs before the indexes.
+            (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, """
+                INSERT INTO public.data_export_artifacts(id,tenant_id,organization_id,request_id,subject_user_id,status,byte_count,
+                    chunk_count,key_version,truncation,expires_at,created_at,created_by)
+                SELECT @id,tenant_id,organization_id,request_id,subject_user_id,'available',byte_count,chunk_count,key_version,
+                    @truncation::jsonb,expires_at,created_at,created_by FROM public.data_export_artifacts WHERE id=@first
+                """, ("id", Guid.CreateVersion7()), ("first", first), ("truncation", malformed)))).ConstraintName
+                .Should().Be("ck_data_export_artifacts_truncation", "the truncation statement has one closed shape: " + malformed);
+        (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, """
+            INSERT INTO public.data_export_artifacts(id,tenant_id,organization_id,request_id,subject_user_id,status,byte_count,
+                chunk_count,key_version,truncation,expires_at,created_at,created_by)
+            SELECT @id,tenant_id,organization_id,request_id,subject_user_id,'available',byte_count,chunk_count,key_version,
+                '{"audit.entries":{"included":1,"total":2}}'::jsonb,expires_at,created_at,created_by FROM public.data_export_artifacts WHERE id=@first
+            """, ("id", Guid.CreateVersion7()), ("first", first)))).ConstraintName.Should().NotBe("ck_data_export_artifacts_truncation",
+            "a well-formed statement passes the CHECK and meets the one-artifact indexes instead");
 
         await RevokeAsync(app, transaction, first);
         await ExecuteAsync(app, transaction, "DELETE FROM public.data_export_chunks WHERE artifact_id=@id", ("id", first));
