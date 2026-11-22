@@ -263,6 +263,10 @@ The [Step 6 record](../roadmap/phase-02b-delivery-log.md#p02b-3-step-6--producti
 owns runtime proofs, bounded production censuses and current review/PR status.
 Original acceptance metadata, body and previous amendments are unchanged.
 
+### Amendment 5 — An erased actor is a pseudonymous, linkable identifier (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) keep the permanent key and actor tombstone of [ADR-0072](0072-application-owned-identity-bootstrap.md) and the immutable `actor_user_id` and `metadata` of audit rows. The statement above that an erased user's audit actor is "an orphan surrogate key with no path back to a natural person" is therefore false: the retained identifier stays linkable through the subject key and is pseudonymous, not anonymous, and an erasure reports it as retained. The Decision, Status, Date and every other section of this record are unchanged.
+
 ## References
 
 - [ADR-0006 — Events and Outbox](0006-events-and-outbox.md)

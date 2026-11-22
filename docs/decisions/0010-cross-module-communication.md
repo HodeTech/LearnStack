@@ -201,3 +201,7 @@ remain forbidden. The central audit store remains the row writer.
 Joint ADR-0072/0073 approval accepts this authority, not its implementation.
 P03-1 Step 3 must prove the exact installer, function bodies, table references,
 grants and call sites, with controls that detect widening.
+
+## Amendment 6 — Foundation-port registrations are not module-to-module communication (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) collect per-module implementations of a SharedKernel port (`IUserDataParticipant`) at the composition root, as `IAuditCatalogSource` and `IOperationPolicySource` already are. A registration of that kind is not a call from one module to another: no module references another module's code or participant type, and an architecture rule pins that. The four mechanisms stay four and no fifth is introduced. The Decision, Status, Date and every other section of this record are unchanged.

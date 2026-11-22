@@ -534,6 +534,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 73 lines
+  - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25623,3 +25625,76 @@ head `db7776b9`, and the earlier packets' rule keys qualification to the final h
 Status block therefore keeps the P03-9 pair gap open and names this run; whether it closes
 the gap is the maintainer's decision. The Keycloak readiness timeout has now recurred in
 both layouts on #46, on #47 and on `main`, with its cause still unproven.
+
+## P03-10 — Subject data requests, erasure and global account closure
+
+### P03-10 decision package and acceptance (2026-11-22)
+
+The decision pass re-verified G15, G16 and G20 against `HEAD` `211b9fd3` and found no
+request, status, locator, export, storage, redaction or closure code, no data-request key
+and no object-storage port; `users` and `memberships` refuse UPDATE and DELETE by trigger,
+the platform scope facade refuses SQL naming `audit_log`, and the Identity row policies admit
+a write of an organization-bound row only under that organization's announcement. Five
+read-only reconnaissance maps (Identity, Audit, storage/jobs/delivery, frontend/OpenAPI and a
+register of about 100 scattered "P03-10 owns" obligations with 16 contradictions) fed the
+package. The maintainer then accepted
+[ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md),
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108](../decisions/0108-privileged-audit-redaction.md), closing G15 and the G16
+workflow. G20 is untouched, because the package adds no assignable key.
+
+**The maintainer's choices.** A human operator performs the privileged half; the export
+artifact is encrypted PostgreSQL custody behind a port; the Membership is anonymised and
+revoked, not deleted; an administrator uses the existing `identity.membership.admin` key; a
+24-hour cancellable window precedes erasure and closure; the Keycloak user is deleted;
+whole-tenant offboarding is out of scope; status is in-product only. The maintainer also
+confirmed that the application is in development and not in use, so no backward
+compatibility is owed.
+
+**Reviews and what changed.** An independent adversarial review of the first drafts found 2
+blockers and 12 major defects, the larger ones verified against code: organization-bound
+rows could not be written by a tenant-wide job (the request became one per scope group), the
+state machines had dead ends, a closure stored the person's other tenants in a tenant-readable
+row, the Keycloak role claim was false, the operator result write refuses the `identity`
+module, and the retained own-scope path was undefined. The maintainer then supplied three
+further reviews. Their findings were checked against the corpus and the code, and most were
+adopted: definer functions were replaced by column-limited platform grants and one trigger
+exception, because the Identity tables have no owner arm and the `users` policy admits only
+the application role; erasure gained explicit domain operations because the aggregate
+refuses a Revoked or system actor; participants run in separate transactions; the fence
+sentence of Standard 05 gained an erratum; a closure can finish with named unserved groups
+instead of sticking; an administrator may erase only a Revoked Membership; the audit
+selection splits by who asked; the locator contract and its census were defined; the error
+code, ticket lifecycle, artifact quota and report bound were fixed. One finding was accepted
+as a stated risk instead of a change: the recipient address of accepted invitations and its
+encrypted envelope stay until Phase 11, because the Accepted storage contract has no erasure
+transition and the ciphertext is immutable.
+
+**Carriers amended with this acceptance.** Dated amendments in ADR-0010, ADR-0016, ADR-0038,
+ADR-0044, ADR-0046, ADR-0072, ADR-0095, ADR-0099, ADR-0101, ADR-0102 and ADR-0103; an
+erratum in Standard 05 (what "through completion" means); corrections in Data Protection,
+Audit Subsystem § 10, the Audit module spec and permissions, Phase 02a, this phase document
+and the glossary. The index rows of ADR-0106 to ADR-0108 are Accepted.
+
+**Step plan.** Four steps, each with its own review rounds:
+
+1. The request core and the export: the request, artifact, ticket and chunk tables and their
+   policies and grants; the request aggregate with its status machine; the participant port,
+   registry and locator census; the retained own-scope function and origin; the export job,
+   encrypted artifact store, ticketed retrieval and purge; the eligibility and hold ports;
+   endpoints, audit operations and the additive OpenAPI and SDK changes.
+2. Tenant erasure and the privileged redaction: the erasure domain operations, the erasure
+   witness in the contextual guard, the erasure job, the Audit executor behind
+   `IAuditRedactor`, the scope method, the operations `complete_erasure` and `inspect`, the
+   Platform keys, the locators and their canaries, and the runbook.
+3. Global account closure: the `users` trigger exception and platform grants, Begin, the
+   per-group fan-out, Finalize with its intent checkpoint, the Keycloak removal port and
+   adapter, the platform-side lock acquirer and its census leg, and the replay-floor proofs.
+4. The web surface and closeout: the BFF operations and retained-entry paths, the SDK, the
+   data-request and closure screens with their copy in both locales and the accessibility
+   proof, the architecture-test catalogue and the Phase 03 Status block.
+
+**Open for the maintainer.** None blocks the steps. The recipient address of accepted
+invitations (retained until Phase 11), the Keycloak `manage-users` exposure, the per-group
+filing for a person in several organizations and the missing closure path for a person with
+no Membership (Phase 11) are recorded in the ADRs as accepted trade-offs.

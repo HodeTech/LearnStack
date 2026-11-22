@@ -1363,3 +1363,7 @@ Amendment 11 records the implementation.
 
 The Decision, Status, Date and prior amendments of this record are unchanged.
 Acceptance of the linked records is not proof that anything they decide is implemented.
+
+## Amendment 19 — Privileged audit redaction seam (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) add the redaction executor without a new store method. `IAuditStore` keeps its fifteen writes and `WritePlatformScopeAsync` its single entry-row caller. The Audit-owned executor sits behind the SharedKernel port `IAuditRedactor` and is reached through one new method on the platform scope handle, `RedactAuditAsync`, which refuses unless the scope's admission names `audit.redaction.apply` or the closure Finalize operation. The result is the witness-bound platform operator result write of Amendment 17, naming the real tenant for a single-tenant act and the sentinel tenant for the platform-wide Finalize row, and Finalize uses the intent checkpoint of Amendment 18. The redaction touches only the six granted columns and the append-only trigger is unchanged. § 9's statement that `organization_id` is the announcement's organization is what the redaction selection relies on. The Decision, Status, Date and every other section are unchanged.

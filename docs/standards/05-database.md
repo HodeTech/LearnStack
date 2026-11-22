@@ -5055,7 +5055,16 @@ EXCLUSIVE mode and establishes the total invariant. A shared nonadmin Membership
 write cannot enter an incomplete tenant. Later closure/
 status writers take the same target User fence first and every affected exclusive
 tenant key next, in stable order, retaining them through the status change and
-completion. P03-10 owns and proves that production workflow. They cannot make
+completion. P03-10 owns and proves that production workflow.
+
+> **Erratum (2026-11-22, [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7
+> and [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) Amendment 8).**
+> "Through the status change and completion" means through the transaction that makes the
+> User nonadmitting; the per-group erasure that follows runs as the application role and
+> does not retain the keys. A tenant that does not allow ordinary work is an explicit,
+> named exception to the final-administrator check, and its data is reported as an
+> unserved group.
+ They cannot make
 the final administrator ineligible without a
 separately accepted recovery/termination contract; closure and Archived status
 are not implicit exceptions.

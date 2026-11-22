@@ -26,8 +26,9 @@ The **read** side — the query API of
 [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission
 registry — lands with Identity in
 [Phase 03](../../roadmap/phase-03-identity-admin.md), and so does the GDPR redaction
-path, triggered by a user's erasure — `UserGdprDeletedIntegrationEventHandler` and each
-module's `IUserReferenceLocator`
+path, an operator act on the platform scope with one Audit-owned executor behind
+`IAuditRedactor` and each module's `IUserReferenceLocator` declarations
+([ADR-0108](../../decisions/0108-privileged-audit-redaction.md))
 ([Audit Subsystem § 10](../../architecture/31-audit-subsystem.md)). Partitioning and the
 retention purge land in [Phase 11](../../roadmap/phase-11-production-hardening.md) against
 written triggers ([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).

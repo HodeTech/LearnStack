@@ -1690,30 +1690,33 @@ declared job name is not proof of deletion or production capacity.
 
 ## 10. GDPR / PII redaction
 
-When a user is GDPR-erased (`UserGdprDeletedIntegrationEvent` published), audit rows
-containing that user's PII are **redacted in place** (not deleted — the audit row's
-existence must remain auditable):
+When a person's data is erased or their account is closed, audit rows containing that
+person's PII are **redacted in place** (not deleted — the audit row's existence must remain
+auditable). No `UserGdprDeletedIntegrationEvent` carries the request; the redaction is an
+operator act ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)):
 
 Redaction is one of exactly **two** sanctioned mutations of `audit_log` (the other is the
 retention purge, § 9). It is not an exception carved out of the append-only rule by
 convention — it is the shape the `audit_log_append_only_guard` trigger in § 7 was written
 to permit, and nothing else.
 
-**Phase 03 target; no privileged consumer is shipped.** ADR-0046 requires a
-separate privileged execution contract before this consumer can become Active.
-P02b-3's ordinary app-role executor refuses privileged subscriptions. Its shared
-inbox cannot atomically complete a platform-role transaction on another connection.
-The former handler-owned inbox sketch is superseded as the current target.
+**Phase 03 decision, Accepted; implementation is P03-10.** No privileged subscription is
+registered: ADR-0046's ordinary app-role executor keeps refusing them, and its shared inbox
+cannot atomically complete a platform-role transaction on another connection. The privileged
+half is a human-operator act on the platform scope under
+[ADR-0101](../decisions/0101-platform-operator-authority.md), with the platform operation
+`complete_erasure` (audit slug `audit.redaction.apply`) and, for a closure, the Finalize act.
 
-Phase 03 uses audited `EnterPlatformAdminScope(reason)` and specifies bounded
-result-audit access before the handler ships. Scope entry commits its own audit
-before work; the redaction and its MUST result audit then share the platform
-working transaction. Per-module `IUserReferenceLocator` implementations redact
-only declared payload references through that same handle. Idempotent progress
-and durable event reconciliation prevent duplicate result audits after a crash;
-no two-connection atomicity or external exactly-once effect is promised. The
-ordinary event-terminal fifth seam authorizes no privileged redaction caller.
-Phase 11 owns retention purge, not redaction.
+Scope entry commits its own audit before work. One Audit-owned executor behind the
+SharedKernel port `IAuditRedactor`, reached through one method of the scope handle bound to
+those operations, redacts the six granted columns; the facade rule that platform scope SQL
+cannot name `audit_log` stays. Per-module `IUserReferenceLocator` implementations only
+*declare* where person references live (entity type, property, kind); they run no SQL. The
+redaction, the request's status change and the witness-bound result row share one platform
+transaction, and a closure's Finalize uses the intent checkpoint of ADR-0044 Amendment 18,
+so a crash cannot duplicate a result row. No two-connection atomicity or external
+exactly-once effect is promised, and no new `IAuditStore` method exists. Phase 11 owns
+retention purge, not redaction.
 
 `actor_user_id`, `module`, `operation`, `operation_type`, `operation_class`, `outcome`,
 `correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
@@ -1912,7 +1915,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Hosted dispatch is implemented in P02b-2 Step 3; P02b-3 implements consumer delivery/inbox. |
 | P02b-2 Steps 1–4 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Steps 1–2 completed both review rounds. Step 3 implements hosted dispatch and observation, with both independent review rounds complete; Step 4 enforcement and local closeout are complete; all four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-2-merge-and-closeout-2026-10-13) owns CI/merge status. |
 | P02b-3 Steps 1–6 | Shared transport-owned inbox and retained delivery envelopes, durable acceptance, per-subscription audit frames and fenced business completion; independent scheduling/replay and Tenancy-owned subscriber terminal audit through the row-bound fifth seam. Ordinary executor refuses privileged subscriptions. Both real default subscriptions are Active with nested initializer MUST audits and semantic Seeder handoff; Step 6 extends classification to each concrete integration handler, with actual API/Seeder catalogue and missing-Off controls. P02b-3 is complete and merged through PR #31; its [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-3-merge-and-closeout-2026-10-15) owns final verification. |
-| [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
+| [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; the privileged redaction executor behind `IAuditRedactor` and per-module `IUserReferenceLocator` declarations ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)). |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |
 | [11](../roadmap/phase-11-production-hardening.md) | **Scale, not correctness**, and nothing in [ADR-0028](../decisions/0028-audit-log-partition-management.md) is executed by the Packet 9 migration ([its 2026-09-07 amendment](../decisions/0028-audit-log-partition-management.md)): `PARTITION BY RANGE (timestamp)` plus monthly partitions, the daily partition-management job, the daily retention purge, off-archive policy for partitions older than a year, per-tenant retention enforcement under plan limits. Trigger: measured `audit_log` growth ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). |
@@ -1935,8 +1938,8 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
   (standard).
 - [15-event-and-outbox.md](15-event-and-outbox.md) — audit fan-out to external sinks
   rides the outbox; MUST-class audit does not.
-- [29-dapr-integration.md](29-dapr-integration.md) — `UserGdprDeletedIntegrationEvent`
-  transport.
+- [29-dapr-integration.md](29-dapr-integration.md) — transport; no `UserGdprDeletedIntegrationEvent`
+  is introduced ([ADR-0108](../decisions/0108-privileged-audit-redaction.md)).
 
 ### Native logout notification evidence
 

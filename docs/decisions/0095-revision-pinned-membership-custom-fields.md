@@ -743,3 +743,7 @@ unchanged.
 
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification; acceptance alone installs no runtime subject.
+
+### Amendment 5 — Retained own scope for data requests (2026-11-22)
+
+Accepted [ADR-0106](0106-subject-data-requests-authority-and-status.md), [ADR-0107](0107-data-request-fulfillment-and-account-closure.md) and [ADR-0108](0108-privileged-audit-redaction.md) (the [P03-10 decision package](../roadmap/phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)) reuse the consent subject's retained own-scope model for data requests. The statement in the consent-only entry section above that no extra global reader, function or owner is introduced does not extend to them: they add the definer function `fn_identity_own_data_request_scopes`, one new `TenantContextOrigin` and a few native retained-entry operations, each with its own denied proof, and the function and setter censuses of Standard 05 grow by that function. The consent surface itself is unchanged, and P03-10 settles an admitted withdrawal concurrent with closure as retained revocation evidence that is reported. The Decision, Status, Date and every other section of this record are unchanged.

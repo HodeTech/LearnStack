@@ -32,8 +32,8 @@ audited, and the two mutating paths that exist — GDPR redaction, which lands w
 erasure handler in [Phase 03](../../roadmap/phase-03-identity-admin.md), and the retention
 purge, which lands in [Phase 11](../../roadmap/phase-11-production-hardening.md) — run as
 `learnstack_platform` through `EnterPlatformAdminScope(reason)` and are gated by a
-Platform-scope key rather than a tenant-facing one. **That key's name is pending.** Phase 03
-registers it with the permission registry and the erasure handler, in the closed action
+Platform-scope key rather than a tenant-facing one. **That key is `platform.data_request.write`** ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8,
+[ADR-0108](../../decisions/0108-privileged-audit-redaction.md) § 1), which Phase 03 registers with the permission registry and the redaction executor, in the closed action
 set [Permission Standards](../../standards/19-permissions.md) fixes, and Phase 11's purge
 takes the same key or a sibling Phase 03 names — so no writer of `audit_log` lands with a
 permission nobody has declared. Tenant-facing audit-row creation is not an admitted operation.

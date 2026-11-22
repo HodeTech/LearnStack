@@ -298,6 +298,12 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 | **Right of Access** | The user's KVKK/GDPR right to receive an export of their personal data. |
 | **Right to Erasure** | The user's right to have their personal data deleted, subject to retention exceptions (legal hold, financial records). |
 | **Anonymisation** | Replacement of PII fields with pseudonymous values; row stays for analytics / audit integrity. Distinct from soft delete and hard delete. |
+| **Data request** | A subject-scoped `export`, `erasure` or `closure` request with an immutable snapshot, a closed status and one scope group, under [ADR-0106](decisions/0106-subject-data-requests-authority-and-status.md). Also called a DSAR when it exercises the rights above. |
+| **Scope group** | A tenant and either one organization or none (tenant-wide): the context a data request is filed in and the unit of every tenant write, because the row policies admit an organization-bound write only under that organization's announcement. |
+| **Retained own scope** | The path by which a person reads and files data requests in a tenant after their Membership is gone, or while Suspended, discovered by `fn_identity_own_data_request_scopes` on the model of the consent subject ([ADR-0106](decisions/0106-subject-data-requests-authority-and-status.md) § 9). |
+| **Privileged step** | The part of an erasure or closure only a human platform operator may run on the platform scope: the audit redaction and, for closure, Begin, Finalize and the provider deletion ([ADR-0107](decisions/0107-data-request-fulfillment-and-account-closure.md)). |
+| **Global account closure** | The person-authorized, irreversible ending of the global account: User Active to Closing to Closed, the raw provider subject removed, the key and actor tombstone kept, the provider user deleted. Distinct from tenant-scoped erasure and absent from the tenant-admin surface. |
+| **Retained-reference kind** | One of the closed kinds ([ADR-0107](decisions/0107-data-request-fulfillment-and-account-closure.md) § 6) under which an erasure reports what it did not remove; nothing it reports is called anonymous. |
 | **Consent Record** | An append-only per-purpose record (terms of service, recording, marketing). "Changing one's mind" creates a new record, never edits an old one. |
 | **Sub-processor** | A third-party service LearnStack uses to process tenant data (Keycloak, LiveKit, S3 / SeaweedFS, email provider, ...). Changes require 30-day tenant notice. |
 
