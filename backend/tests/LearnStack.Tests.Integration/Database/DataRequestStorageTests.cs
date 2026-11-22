@@ -491,6 +491,37 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
             .Should().BeTrue("the guard no longer reads a transaction identity, so no xid cast can fail after epoch 1");
     }
 
+    /// <summary>
+    /// The reverse half of the bracket: an export that reaches <c>completed</c> commits only with its artifact, so a
+    /// receipt never shows a completed export with nothing behind it. A failed export has no artifact and commits.
+    /// </summary>
+    [Fact]
+    public async Task An_export_commits_completed_only_with_its_artifact()
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await FenceAsync(app, transaction, SchemaFixture.TenantA, null, PersonA);
+        var failed = Guid.CreateVersion7();
+        await InsertRequestAsync(app, transaction, failed, SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA]);
+        await StepAsync(app, transaction, failed, "status='fulfilling'");
+        await StepAsync(app, transaction, failed, "status='failed',failure_reason='export_too_large'");
+        await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
+        await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL DEFERRED");
+
+        await LockAsync(app, transaction, SchemaFixture.TenantA, AdminA, false);
+        var completed = Guid.CreateVersion7();
+        await InsertRequestAsync(app, transaction, completed, SchemaFixture.TenantA, null, AdminA, [AdminMembershipA]);
+        await StepAsync(app, transaction, completed, "status='fulfilling'");
+        await StepAsync(app, transaction, completed, "status='completed',completed_at=now()");
+        var refused = await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE"));
+        refused.ConstraintName.Should().Be("data_export_request_artifact", "a completed export without its artifact never commits");
+        refused.MessageText.Should().Be("Data export request completed without its artifact.");
+        (await ScalarAsync<bool>(app, transaction, """
+            SELECT tgdeferrable AND tginitdeferred FROM pg_trigger
+            WHERE tgrelid = 'public.data_subject_requests'::regclass AND tgname = 'tg_data_subject_requests_export_artifact'
+            """)).Should().BeTrue("the check runs at commit, after the job has stored the artifact on the same transaction");
+    }
+
     [Fact]
     public async Task Only_the_subject_mints_a_ticket_and_it_is_consumed_once()
     {

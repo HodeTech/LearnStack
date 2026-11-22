@@ -74,18 +74,33 @@ public sealed class DataExportTicketStore(IdentityDbContext db, IUnitOfWork unit
             .ConfigureAwait(false);
     }
 
-    public async Task<int> CountOpenAsync(DataExportArtifactId artifactId, CancellationToken cancellationToken)
+    public async Task<DataExportTicketCounts> CountAsync(DataExportArtifactId artifactId, string sessionBindingDigest,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(sessionBindingDigest);
         Admit();
-        // Expiry by the database clock, as the ticket guard judges it; the tenant and artifact lead the ticket index.
+        if (sessionBindingDigest.Length != 64 || !sessionBindingDigest.All(char.IsAsciiHexDigitLower))
+        {
+            throw new ArgumentException("A session binding is a lowercase hexadecimal SHA-256 digest.", nameof(sessionBindingDigest));
+        }
+
+        // Expiry by the database clock, as the ticket guard judges it; the tenant and artifact lead the ticket index, and
+        // an artifact holds at most DataRequestLimits.MaximumTicketsPerArtifact rows.
         await using var command = DataRequestSql.Command(unit, tenant, """
-            SELECT count(*) FROM public.data_export_tickets
+            SELECT count(*) FILTER (WHERE session_binding_digest=@binding AND consumed_at IS NULL AND clock_timestamp() < expires_at),
+                count(*)
+            FROM public.data_export_tickets
             WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND artifact_id=@artifact
-              AND consumed_at IS NULL AND clock_timestamp() < expires_at
             """);
         command.Parameters.AddWithValue("artifact", artifactId.Value);
-        var found = await DataRequestSql.ExecuteAsync(unit, token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false);
-        return found is long count ? checked((int)count) : throw new InfrastructureException("Data request storage unavailable.");
+        command.Parameters.AddWithValue("binding", NpgsqlDbType.Bytea, Convert.FromHexString(sessionBindingDigest));
+        return await DataRequestSql.ExecuteAsync(unit, async token =>
+        {
+            await using var row = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            return await row.ReadAsync(token).ConfigureAwait(false)
+                ? new DataExportTicketCounts(checked((int)row.GetInt64(0)), checked((int)row.GetInt64(1)))
+                : throw new InfrastructureException("Data request storage unavailable.");
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)

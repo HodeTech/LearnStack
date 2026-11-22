@@ -24,13 +24,6 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 public sealed class DataExportDownloadService(IDataRequestReader reader, IDataExportTicketStore tickets, IDataExportArtifactStore artifacts,
     IDataExportSessionBinding sessions, ITenantContext context, IAuditSubject audit, IGuidFactory ids, IClock clock)
 {
-    /// <summary>
-    /// The most unconsumed, unexpired tickets one artifact may hold at once. A ticket row and its MUST audit row are
-    /// permanent receipts, so minting is bounded: a download in progress, a retry and one spare, and the next mint
-    /// waits for one to be consumed or to expire (fifteen minutes).
-    /// </summary>
-    internal const int MaximumOpenTickets = 3;
-
     private DataRequestScopeGroup Group => new(context.TenantId, context.OrganizationId);
 
     /// <summary>
@@ -38,17 +31,33 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
     /// (ADR-0107 § 4). Only the subject is ever served: an administrator who filed the export never gets a ticket.
     /// </summary>
     /// <remarks>
-    /// Under the artifact's row lock, so concurrent mints count each other: an artifact whose key the ring no longer
-    /// holds, or that already holds <see cref="MaximumOpenTickets"/> open tickets, is refused with the same
-    /// <c>data_export_unavailable</c> as an artifact that is gone.
+    /// <para>
+    /// Under the artifact's row lock, so concurrent mints count each other. An artifact that is gone, unreadable or
+    /// whose key the ring no longer holds is refused with <c>data_export_unavailable</c>: only a new export helps. A
+    /// ticket row and its MUST audit row are permanent receipts, so minting is bounded and a bound reached is refused
+    /// with <c>data_export_ticket_limit</c>: at most <see cref="DataRequestLimits.MaximumOpenTicketsPerBinding"/> open
+    /// tickets per session binding (wait for one to be consumed or to expire), and at most
+    /// <see cref="DataRequestLimits.MaximumTicketsPerArtifact"/> ever per artifact (final: file a new export).
+    /// </para>
+    /// <para>
+    /// Each call records one <see cref="DataExportTelemetry.DownloadCounterName"/> measurement.
+    /// </para>
     /// </remarks>
     public async Task<Result<DataExportTicketGrant>> MintTicketAsync(DataRequestCaller caller, Guid requestId,
         CancellationToken cancellationToken)
     {
+        var (result, outcome) = await MintCoreAsync(caller, requestId, cancellationToken).ConfigureAwait(false);
+        DataExportTelemetry.Download(DataExportDownloadOperation.Mint, outcome);
+        return result;
+    }
+
+    private async Task<(Result<DataExportTicketGrant> Result, DataExportDownloadOutcome Outcome)> MintCoreAsync(DataRequestCaller caller,
+        Guid requestId, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(caller);
         if (caller.Role != DataRequestRole.Subject)
         {
-            return DataRequestService.Fail<DataExportTicketGrant>("lockey_forbidden");
+            return Refused(DataRequestService.Fail<DataExportTicketGrant>("lockey_forbidden"));
         }
 
         var request = await DataRequestService.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
@@ -58,62 +67,86 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
         var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
         if (current.IsFailure)
         {
-            return Result<DataExportTicketGrant>.Fail(current.Error);
+            return Refused(Result<DataExportTicketGrant>.Fail(current.Error));
         }
 
         if (request is null || request.Kind != DataRequestKind.Export)
         {
-            return DataRequestService.Fail<DataExportTicketGrant>("lockey_not_found");
+            return Refused(DataRequestService.Fail<DataExportTicketGrant>("lockey_not_found"));
         }
 
-        if (found is null || !found.Readable || found.Artifact.SubjectUserId != caller.Actor
-            || !artifacts.CanOpen(found.Artifact.KeyVersion))
+        if (found is null || !found.Readable || found.Artifact.SubjectUserId != caller.Actor)
         {
-            return DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
+            return Refused(Unavailable());
         }
 
-        if (await tickets.CountOpenAsync(found.Artifact.Id, cancellationToken).ConfigureAwait(false) >= MaximumOpenTickets)
+        if (!artifacts.CanOpen(found.Artifact.KeyVersion))
         {
-            return DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
+            return (Unavailable(), DataExportDownloadOutcome.CustodyFailed);
         }
 
         var binding = sessions.Capture(caller.Actor, context.TenantId, context.OrganizationId);
         if (binding is null)
         {
-            return DataRequestService.Fail<DataExportTicketGrant>("lockey_forbidden");
+            return Refused(DataRequestService.Fail<DataExportTicketGrant>("lockey_forbidden"));
+        }
+
+        var counts = await tickets.CountAsync(found.Artifact.Id, binding, cancellationToken).ConfigureAwait(false);
+        if (counts.OpenInBinding >= DataRequestLimits.MaximumOpenTicketsPerBinding
+            || counts.Minted >= DataRequestLimits.MaximumTicketsPerArtifact)
+        {
+            return (DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_ticket_limit"),
+                DataExportDownloadOutcome.Limit);
         }
 
         var (ticket, digest) = DataExportTicketCodec.Mint();
         var minted = DataExportTicket.Mint(DataExportTicketId.From(DataRequestService.NewId(ids)), found.Artifact, digest, binding, clock.UtcNow, caller.Actor);
         if (minted.IsFailure)
         {
-            return DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
+            return Refused(Unavailable());
         }
 
         audit.Designate(minted.Value);
         await tickets.AddAsync(minted.Value, cancellationToken).ConfigureAwait(false);
-        return Result.Ok(new DataExportTicketGrant(ticket, minted.Value.ExpiresAt, found.Artifact.ChunkCount, found.Artifact.ByteCount));
+        return (Result.Ok(new DataExportTicketGrant(ticket, minted.Value.ExpiresAt, found.Artifact.ChunkCount, found.Artifact.ByteCount)),
+            DataExportDownloadOutcome.Served);
     }
+
+    private static Result<DataExportTicketGrant> Unavailable() =>
+        DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
+
+    private static (Result<T> Result, DataExportDownloadOutcome Outcome) Refused<T>(Result<T> refusal) =>
+        (refusal, DataExportDownloadOutcome.Refused);
 
     /// <summary>
     /// Serves one decrypted chunk through a ticket (ADR-0107 § 4). The ticket is a download cursor: while it is unconsumed,
     /// unexpired and presented in the session that minted it, it authorizes the reads of that artifact's chunks; serving
     /// the final chunk (index <c>count - 1</c>) consumes it on the same transaction, after which every read through it is
-    /// refused and a resumed or repeated download mints a new ticket. Every refusal is the same <c>not_found</c>.
+    /// refused and a resumed or repeated download mints a new ticket. Every refusal is the same <c>not_found</c>; a
+    /// chunk the store cannot open is counted as <c>custody_failed</c> in
+    /// <see cref="DataExportTelemetry.DownloadCounterName"/>, every other refusal as <c>refused</c>.
     /// </summary>
     public async Task<Result<DataExportChunkView>> ReadChunkAsync(DataRequestCaller caller, Guid requestId, string ticket, int index,
         CancellationToken cancellationToken)
+    {
+        var (result, outcome) = await ReadChunkCoreAsync(caller, requestId, ticket, index, cancellationToken).ConfigureAwait(false);
+        DataExportTelemetry.Download(DataExportDownloadOperation.Chunk, outcome);
+        return result;
+    }
+
+    private async Task<(Result<DataExportChunkView> Result, DataExportDownloadOutcome Outcome)> ReadChunkCoreAsync(DataRequestCaller caller,
+        Guid requestId, string ticket, int index, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
         var digest = DataExportTicketCodec.TryDigest(ticket);
         if (digest is null || index < 0 || !DataRequestService.ValidId(requestId))
         {
-            return DataRequestService.Fail<DataExportChunkView>("lockey_validation_failed");
+            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_validation_failed"));
         }
 
         if (caller.Role != DataRequestRole.Subject)
         {
-            return DataRequestService.Fail<DataExportChunkView>("lockey_forbidden");
+            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_forbidden"));
         }
 
         var request = await DataRequestService.FindVisibleAsync(reader, caller, requestId, cancellationToken).ConfigureAwait(false);
@@ -125,12 +158,12 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
         var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
         if (current.IsFailure)
         {
-            return Result<DataExportChunkView>.Fail(current.Error);
+            return Refused(Result<DataExportChunkView>.Fail(current.Error));
         }
 
         if (found is null)
         {
-            return DataRequestService.Fail<DataExportChunkView>("lockey_not_found");
+            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_not_found"));
         }
 
         audit.Designate(found);
@@ -139,14 +172,16 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
         if (binding is null || !found.Matches(digest, binding) || found.CreatedBy != caller.Actor || !found.IsUsable(now)
             || !artifact!.Readable || index >= artifact.Artifact.ChunkCount)
         {
-            return DataRequestService.Fail<DataExportChunkView>("lockey_not_found");
+            return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_not_found"));
         }
 
         var chunk = await artifacts.ReadChunkAsync(new DataExportArtifactLocator(artifact.Artifact.Id.Value, Group), index, cancellationToken)
             .ConfigureAwait(false);
         if (chunk is null)
         {
-            return DataRequestService.Fail<DataExportChunkView>("lockey_not_found");
+            // A readable artifact's chunk inside its count that the store answers as absent could not be opened: its key
+            // left the ring or its ciphertext fails authentication (the store logs it). The subject sees not_found.
+            return (DataRequestService.Fail<DataExportChunkView>("lockey_not_found"), DataExportDownloadOutcome.CustodyFailed);
         }
 
         var bytes = MemoryMarshal.TryGetArray(chunk.Bytes, out var segment) && segment.Offset == 0 && segment.Count == segment.Array!.Length
@@ -159,7 +194,7 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
                 if (consumed.IsFailure)
                 {
                     CryptographicOperations.ZeroMemory(bytes);
-                    return DataRequestService.Fail<DataExportChunkView>("lockey_not_found");
+                    return Refused(DataRequestService.Fail<DataExportChunkView>("lockey_not_found"));
                 }
 
                 await tickets.UpdateAsync(found, cancellationToken).ConfigureAwait(false);
@@ -176,6 +211,6 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
             CryptographicOperations.ZeroMemory(source);
         }
 
-        return Result.Ok(new DataExportChunkView(chunk.Index, chunk.Count, bytes));
+        return (Result.Ok(new DataExportChunkView(chunk.Index, chunk.Count, bytes)), DataExportDownloadOutcome.Served);
     }
 }

@@ -7416,7 +7416,7 @@
         "tags": [
           "DataRequestEntry"
         ],
-        "description": "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
+        "description": "The subject mints a 15-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
         "operationId": "MintRetainedDataExportTicket",
         "parameters": [
           {
@@ -7537,7 +7537,7 @@
             }
           },
           "404": {
-            "description": "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable).",
+            "description": "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is gone (revoked, expired, purged, or sealed under a key the export key ring no longer holds) and only a new export helps; with data_export_ticket_limit, a ticket bound is reached (see the mint\u0027s 409).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7679,7 +7679,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact, when the key it was sealed under is no longer in the export key ring, or when the artifact already holds three unconsumed, unexpired tickets (a slot frees when one is consumed by its final chunk or expires after fifteen minutes).",
+            "description": "business_rule_violation. errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact or the key it was sealed under is no longer in the export key ring: the artifact is gone and only a new export helps. It carries data_export_ticket_limit when a ticket bound is reached: this session already holds 3 unconsumed, unexpired tickets over the artifact (wait until one is consumed by its final chunk or expires, 15 minutes after it was minted; a ticket of an earlier, refreshed credential does not count), or 20 tickets have been minted over the artifact in all, which is final: file a new export.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7835,7 +7835,7 @@
             }
           },
           "404": {
-            "description": "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable).",
+            "description": "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is gone (revoked, expired, purged, or sealed under a key the export key ring no longer holds) and only a new export helps; with data_export_ticket_limit, a ticket bound is reached (see the mint\u0027s 409).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7991,7 +7991,7 @@
         "tags": [
           "OwnDataRequests"
         ],
-        "description": "The subject files an export of their own data in the session\u0027s group (ADR-0106 \u00A7 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject\u0027s Memberships of any status in the group and its job is submitted on the same transaction. Strict empty JSON object. MUST audited.",
+        "description": "The subject files an export of their own data in the session\u0027s group (ADR-0106 \u00A7 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject\u0027s Memberships of any status in the group and its job is submitted on the same transaction. When it completes, it revokes the subject\u0027s previous available artifact in the group, whoever filed that one. Strict empty JSON object. MUST audited.",
         "operationId": "CreateOwnDataExport",
         "parameters": [
           {
@@ -8591,7 +8591,7 @@
         "tags": [
           "OwnDataRequests"
         ],
-        "description": "The subject\u0027s own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds and counts and the artifact\u0027s metadata. No content. Audit Off. No request body.",
+        "description": "The subject\u0027s own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds this step counts with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact\u0027s metadata. No content. Audit Off. No request body.",
         "operationId": "GetOwnDataRequest",
         "parameters": [
           {
@@ -9544,7 +9544,7 @@
         "tags": [
           "OwnDataExportTickets"
         ],
-        "description": "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact, bound to the credential of this session; an administrator never gets one. Stored only as a digest; not keyed and never replayed; no If-Match. Strict empty JSON object. MUST read-sensitive audited; refused when the row cannot be written.",
+        "description": "The subject mints a 15-minute download cursor over their own available, unexpired artifact, bound to the credential of this session; an administrator never gets one. Stored only as a digest; not keyed and never replayed; no If-Match. Strict empty JSON object. MUST read-sensitive audited; refused when the row cannot be written.",
         "operationId": "MintOwnDataExportTicket",
         "parameters": [
           {
@@ -9664,7 +9664,7 @@
             }
           },
           "404": {
-            "description": "not_found without an Active Membership in exactly the context\u0027s group, for a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable).",
+            "description": "not_found without an Active Membership in exactly the context\u0027s group, for a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is gone (revoked, expired, purged, or sealed under a key the export key ring no longer holds) and only a new export helps; with data_export_ticket_limit, a ticket bound is reached (see the mint\u0027s 409).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9806,7 +9806,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact, when the key it was sealed under is no longer in the export key ring, or when the artifact already holds three unconsumed, unexpired tickets (a slot frees when one is consumed by its final chunk or expires after fifteen minutes).",
+            "description": "business_rule_violation. errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact or the key it was sealed under is no longer in the export key ring: the artifact is gone and only a new export helps. It carries data_export_ticket_limit when a ticket bound is reached: this session already holds 3 unconsumed, unexpired tickets over the artifact (wait until one is consumed by its final chunk or expires, 15 minutes after it was minted; a ticket of an earlier, refreshed credential does not count), or 20 tickets have been minted over the artifact in all, which is final: file a new export.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9960,7 +9960,7 @@
             }
           },
           "404": {
-            "description": "not_found without an Active Membership in exactly the context\u0027s group, for a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable).",
+            "description": "not_found without an Active Membership in exactly the context\u0027s group, for a request about another person or of another group, and for every ticket or chunk refusal alike. A ticket is bound to the credential that minted it, so a not_found during a download may only mean the session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint answers 409 with data_export_unavailable, the artifact is gone (revoked, expired, purged, or sealed under a key the export key ring no longer holds) and only a new export helps; with data_export_ticket_limit, a ticket bound is reached (see the mint\u0027s 409).",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -10115,7 +10115,7 @@
         "tags": [
           "DataRequests"
         ],
-        "description": "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
+        "description": "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. Refused while the person holds a readable artifact in the group, of any origin, because the new export would revoke it. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
         "operationId": "CreateDataExportForSubject",
         "parameters": [
           {
@@ -10212,7 +10212,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,

@@ -17,6 +17,14 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
     /// tenant's whole job history under its five-second budget. It is not partial: a predicate on the definition key would
     /// not match the bound parameter of a generic plan. The organization is last because the read compares it with
     /// <c>IS NOT DISTINCT FROM</c>, which is not an index condition, and it filters the few rows the seek leaves.
+    /// <para>
+    /// <b>Locks.</b> Both statements are plain DDL: the CHECK replacement re-validates every idempotency key and the
+    /// index is built without <c>CONCURRENTLY</c> (a migration runs in one transaction), so each holds its table's
+    /// write lock for its duration. That is acceptable only because no production data exists yet: the first
+    /// deployment applies this migration before any traffic. A later change of this shape on a populated table needs
+    /// its own reviewed migration (<c>NOT VALID</c> then <c>VALIDATE CONSTRAINT</c>, and a concurrent index build
+    /// outside the transaction).
+    /// </para>
     /// </remarks>
     [DbContext(typeof(PlatformDbContext))]
     [Migration("20261122160000_add_data_request_protected_receipts")]

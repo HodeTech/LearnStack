@@ -23,6 +23,29 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </remarks>
 public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext tenant) : IDataRequestJobPhaseReader
 {
+    /// <summary>
+    /// One request's newest job by its exact route. A constant so the plan test explains exactly this statement; the
+    /// index it seeks is <c>ix_background_jobs_definition</c>.
+    /// </summary>
+    internal const string SingleStatement = """
+        SELECT phase, quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
+        FROM public.background_jobs
+        WHERE tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
+          AND definition_key = @definition AND profile = 'transactional' AND parameters = @parameters
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """;
+
+    /// <summary>A page's newest job per request, by the same exact route, in one statement; planned like the single read.</summary>
+    internal const string PageStatement = """
+        SELECT DISTINCT ON (parameters) parameters, phase,
+            quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
+        FROM public.background_jobs
+        WHERE tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
+          AND definition_key = @definition AND profile = 'transactional' AND parameters = ANY(@parameters)
+        ORDER BY parameters, created_at DESC, id DESC
+        """;
+
     public async Task<DataRequestJobPhase> ReadAsync(DataSubjectRequestId requestId, DataRequestKind kind, CancellationToken cancellationToken)
     {
         RequireOwner();
@@ -33,14 +56,8 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
 
         var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(requestId.Value),
             typeof(DataExportJobParameters), BackgroundJobPayloadKind.Parameters);
-        await using var command = new NpgsqlCommand("""
-            SELECT phase, quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
-            FROM public.background_jobs
-            WHERE tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
-              AND definition_key = @definition AND profile = 'transactional' AND parameters = @parameters
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1
-            """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
+        await using var command = new NpgsqlCommand(SingleStatement, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
+        { CommandTimeout = 5 };
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
         command.Parameters.AddWithValue("definition",
@@ -87,14 +104,8 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
         }
 
         // One statement for the page, newest job per request, by the same exact route as the single read.
-        await using var command = new NpgsqlCommand("""
-            SELECT DISTINCT ON (parameters) parameters, phase,
-                quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
-            FROM public.background_jobs
-            WHERE tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
-              AND definition_key = @definition AND profile = 'transactional' AND parameters = ANY(@parameters)
-            ORDER BY parameters, created_at DESC, id DESC
-            """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
+        await using var command = new NpgsqlCommand(PageStatement, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
+        { CommandTimeout = 5 };
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
         command.Parameters.AddWithValue("definition",

@@ -64,6 +64,10 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
         JsonDocument.Parse(state.Result).RootElement.EnumerateObject().Select(entry => entry.Name).Should()
             .Contain(["request_receipt", "invitation_record", "attribution_reference", "consent_evidence",
                 "audit_actor_reference", "audit_entity_reference", "audit_metadata_reference"]);
+        // The retained references are counted before the artifact exists; the artifact this run stored is its own
+        // request receipt, so the stored count is every receipt row of the subject in the group after the commit.
+        JsonDocument.Parse(state.Result).RootElement.GetProperty("request_receipt").GetInt64()
+            .Should().Be(await ReceiptRowsAsync(SchemaFixture.TenantA, organization, PersonA));
         var artifacts = await ArtifactsAsync(SchemaFixture.TenantA, organization, PersonA);
         var stored = artifacts.Single(artifact => artifact.Request == request);
         stored.Status.Should().Be("available");
@@ -152,6 +156,7 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
 
         failed.CommitAcknowledged.Should().BeFalse();
         failed.KnownRollback.Should().BeTrue();
+        failed.Decision.ErrorCode.Should().Be("unexpected_fault", "a participant's own refusal is not a dependency outage");
         (await RequestAsync(SchemaFixture.TenantA, null, request)).Status.Should().Be("requested", "the attempt's transitions rolled back");
         var untouched = await ArtifactsAsync(SchemaFixture.TenantA, null, PersonA);
         untouched.Should().NotContain(artifact => artifact.Request == request);
@@ -395,6 +400,22 @@ public sealed partial class DataExportExecutionTests(SchemaFixture fixture)
         }
 
         return artifacts;
+    }
+
+    /// <summary>The subject's request, artifact and ticket rows in exactly the group.</summary>
+    private async Task<long> ReceiptRowsAsync(Guid tenant, Guid? organization, Guid subject)
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, tenant, organization);
+        return await ScalarAsync<long>(app, transaction, """
+            SELECT (SELECT count(*) FROM public.data_subject_requests
+                    WHERE subject_user_id=@subject AND organization_id IS NOT DISTINCT FROM @organization::uuid)
+                + (SELECT count(*) FROM public.data_export_artifacts
+                    WHERE subject_user_id=@subject AND organization_id IS NOT DISTINCT FROM @organization::uuid)
+                + (SELECT count(*) FROM public.data_export_tickets
+                    WHERE created_by=@subject AND organization_id IS NOT DISTINCT FROM @organization::uuid)
+            """, ("subject", subject), ("organization", (object?)organization ?? DBNull.Value));
     }
 
     private async Task<List<DateTimeOffset>> PurgeJobsAsync(Guid tenant, Guid? organization, Guid artifact)

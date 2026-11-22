@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Application.Messaging;
@@ -120,7 +121,9 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
     /// ADR-0106 § 8: a receipt reads its export job's phase by the job's exact route. Among thousands of the tenant's
     /// jobs of hundreds of other definitions, the generic plan of the reader's statement (the shape a parameterized
     /// command is planned with) seeks <c>ix_background_jobs_definition</c> on the tenant and the definition key and
-    /// filters only the group's export jobs; with the index removed the same statement filters the tenant's history.
+    /// filters only the group's export jobs; with the index removed the same statement filters the tenant's history. Both
+    /// statements the reader runs, the single read and the page read, are explained verbatim: the test reads them from
+    /// the reader's own constants.
     /// </summary>
     [Fact]
     public async Task The_job_phase_read_seeks_the_definition_index_instead_of_the_tenants_job_history()
@@ -157,46 +160,95 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
             "ix_background_jobs_definition:CREATE INDEX ix_background_jobs_definition ON public.background_jobs USING btree (tenant_id, definition_key, organization_id)",
             "ix_data_subject_requests_group_page:CREATE INDEX ix_data_subject_requests_group_page ON public.data_subject_requests USING btree (tenant_id, organization_id, id)");
 
-        var clean = await PhasePlanAsync(database, parameters, definition);
-        PlanIndexes(clean).Should().Contain("ix_background_jobs_definition");
-        MaximumRowsRemoved(clean).Should().BeLessThan(100, "the seek reads the group's export jobs, not the tenant's history");
+        foreach (var page in new[] { false, true })
+        {
+            var clean = await PhasePlanAsync(database, parameters, definition, page);
+            PlanIndexes(clean).Should().Contain("ix_background_jobs_definition", page ? "the page read" : "the single read");
+            MaximumRowsRemoved(clean).Should().BeLessThan(100, "the seek reads the group's export jobs, not the tenant's history");
+        }
 
         await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null))
         {
-            (await new DataRequestJobPhaseReader(scope.Unit, scope.Context).ReadAsync(DataSubjectRequestId.From(request),
-                DataRequestKind.Export, CancellationToken.None)).Should().Be(DataRequestJobPhase.Pending, "the reader finds its job");
+            var reader = new DataRequestJobPhaseReader(scope.Unit, scope.Context);
+            (await reader.ReadAsync(DataSubjectRequestId.From(request), DataRequestKind.Export, CancellationToken.None))
+                .Should().Be(DataRequestJobPhase.Pending, "the reader finds its job");
+            var unknown = DataSubjectRequestId.From(Guid.CreateVersion7());
+            (await reader.ReadManyAsync([DataSubjectRequestId.From(request), unknown], CancellationToken.None)).Should().BeEquivalentTo(
+                new Dictionary<DataSubjectRequestId, DataRequestJobPhase>
+                {
+                    [DataSubjectRequestId.From(request)] = DataRequestJobPhase.Pending,
+                    [unknown] = DataRequestJobPhase.Unavailable,
+                }, "the page read finds its job among the group's other export jobs and none for a request without one");
             await scope.Frame.FailAsync();
         }
 
         await SchemaQueries.ExecuteAsync(owner, null, "DROP INDEX public.ix_background_jobs_definition");
-        var dirty = await PhasePlanAsync(database, parameters, definition);
-        PlanIndexes(dirty).Should().NotContain("ix_background_jobs_definition");
-        MaximumRowsRemoved(dirty).Should().BeGreaterThanOrEqualTo(1000, "without it the same statement filters the tenant's job history");
+        foreach (var page in new[] { false, true })
+        {
+            var dirty = await PhasePlanAsync(database, parameters, definition, page);
+            PlanIndexes(dirty).Should().NotContain("ix_background_jobs_definition");
+            MaximumRowsRemoved(dirty).Should().BeGreaterThanOrEqualTo(1000, "without it the same statement filters the tenant's history");
+        }
     }
 
     /// <summary>
-    /// The phase reader's single-request statement, verbatim, explained as the generic plan a parameterized command gets.
+    /// ADR-0107 § 4's ticket bounds read by the database clock in one statement: the open tickets of one session binding
+    /// (a consumed one and another binding's do not count) and every ticket ever minted over the artifact.
     /// </summary>
-    private static async Task<string> PhasePlanAsync(DisposableSchemaDatabase database, string parameters, string definition)
+    [Fact]
+    public async Task The_ticket_counts_read_one_bindings_open_tickets_and_every_ticket_ever_minted()
     {
+        await using var database = await OpenDatabaseAsync();
+        var artifact = TenantWideA.Artifact!.Value;
+        // The seeded ticket's binding is sha256(uuid_send(artifact)); uuid_send writes the identifier big-endian.
+        var seeded = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(artifact.ToByteArray(bigEndian: true)));
+        var other = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("other"u8));
+        await using var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null);
+        await InsertTicketAsync(scope.Connection, scope.Transaction, Guid.CreateVersion7(), SchemaFixture.TenantA, null, artifact, PersonA);
+        var consumed = Guid.CreateVersion7();
+        await ExecuteAsync(scope.Connection, scope.Transaction, """
+            INSERT INTO public.data_export_tickets(id,tenant_id,organization_id,artifact_id,digest,session_binding_digest,
+                created_at,created_by,expires_at)
+            VALUES(@id,@tenant,NULL,@artifact,sha256(uuid_send(@id)),sha256('other'::bytea),now(),@subject,now()+interval '15 minutes')
+            """, ("id", consumed), ("tenant", SchemaFixture.TenantA), ("artifact", artifact), ("subject", PersonA));
+        await ExecuteAsync(scope.Connection, scope.Transaction,
+            "UPDATE public.data_export_tickets SET consumed_at=now() WHERE id=@id", ("id", consumed));
+        var store = new DataExportTicketStore(scope.Db, scope.Unit, scope.Context);
+        var id = DataExportArtifactId.From(artifact);
+
+        (await store.CountAsync(id, seeded, CancellationToken.None)).Should().Be(new DataExportTicketCounts(2, 3),
+            "the seeded ticket and the new one share the seeded binding; the consumed one is another binding's");
+        (await store.CountAsync(id, other, CancellationToken.None)).Should().Be(new DataExportTicketCounts(0, 3),
+            "a consumed ticket is no longer open, but it was minted");
+        (await store.CountAsync(id, new string('0', 64), CancellationToken.None)).Should().Be(new DataExportTicketCounts(0, 3));
+        await FluentActions.Awaiting(() => store.CountAsync(id, "not-a-digest", CancellationToken.None))
+            .Should().ThrowAsync<ArgumentException>();
+        await scope.Frame.FailAsync();
+    }
+
+    /// <summary>
+    /// One of the phase reader's two statements, read from its constant, explained as the generic plan a parameterized
+    /// command gets: the named parameters become positional ones of the types the reader binds.
+    /// </summary>
+    private static async Task<string> PhasePlanAsync(DisposableSchemaDatabase database, string parameters, string definition, bool page)
+    {
+        var statement = (string)typeof(DataRequestJobPhaseReader)
+            .GetField(page ? "PageStatement" : "SingleStatement", BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+        var positional = statement.Replace("@tenant", "$1", StringComparison.Ordinal)
+            .Replace("@organization", "$2", StringComparison.Ordinal)
+            .Replace("@definition", "$3", StringComparison.Ordinal)
+            .Replace("@parameters", "$4", StringComparison.Ordinal);
+        positional.Should().NotContain("@", "every named parameter of the reader's statement is bound here");
         await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
         await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
-        await SchemaQueries.ExecuteAsync(app, transaction, """
-            DEALLOCATE ALL;
-            SET LOCAL plan_cache_mode = force_generic_plan;
-            PREPARE phase_read(uuid, uuid, text, text) AS
-            SELECT phase, quarantine_reason IS NOT NULL OR terminal_reason IS NOT NULL OR dead_lettered_at IS NOT NULL
-            FROM public.background_jobs
-            WHERE tenant_id = $1 AND organization_id IS NOT DISTINCT FROM $2
-              AND definition_key = $3 AND profile = 'transactional' AND parameters = $4
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1;
-            """);
+        await SchemaQueries.ExecuteAsync(app, transaction, "DEALLOCATE ALL; SET LOCAL plan_cache_mode = force_generic_plan;\n"
+            + "PREPARE phase_read(uuid, uuid, text, " + (page ? "text[]" : "text") + ") AS\n" + positional + ";");
         // A generic plan is fixed before its arguments are seen, so these test-owned literals do not shape it.
+        var argument = "'" + parameters.Replace("'", "''", StringComparison.Ordinal) + "'";
         await using var command = new NpgsqlCommand("EXPLAIN (ANALYZE, FORMAT JSON) EXECUTE phase_read('"
-            + SchemaFixture.TenantA.ToString("D") + "'::uuid, NULL, '" + definition.Replace("'", "''", StringComparison.Ordinal) + "', '"
-            + parameters.Replace("'", "''", StringComparison.Ordinal) + "')", app, transaction);
+            + SchemaFixture.TenantA.ToString("D") + "'::uuid, NULL, '" + definition.Replace("'", "''", StringComparison.Ordinal) + "', "
+            + (page ? "ARRAY[" + argument + "]::text[]" : argument) + ")", app, transaction);
         var plan = (string)(await command.ExecuteScalarAsync())!;
         await SchemaQueries.ExecuteAsync(app, transaction, "DEALLOCATE phase_read");
         await transaction.RollbackAsync();

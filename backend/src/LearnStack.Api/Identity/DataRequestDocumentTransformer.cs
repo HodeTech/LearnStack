@@ -22,7 +22,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     /// <summary>What a client does with a ticket or chunk refusal (ADR-0107 § 4).</summary>
     private const string DownloadRecovery = " A ticket is bound to the credential that minted it, so a not_found during a download may only mean the "
         + "session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint "
-        + "answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable).";
+        + "answers 409 with data_export_unavailable, the artifact is gone (revoked, expired, purged, or sealed under a key the export key "
+        + "ring no longer holds) and only a new export helps; with data_export_ticket_limit, a ticket bound is reached (see the mint's 409).";
 
     /// <summary>The assembled bundle's shape, stated on both chunk routes.</summary>
     private const string BundleShape = "Decoding every chunk's bytes and concatenating them in index order yields the bundle: one UTF-8 JSON "
@@ -161,7 +162,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             {
                 Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the group's requests for its status.",
                 Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
-                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. " + BundleShape,
+                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most " + ChunkSize + " of plaintext. " + BundleShape,
                 Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
                 _ => discovery ? "The subject's retained groups on the real host, in order." : "Current receipt-safe projection: status and counts, never content.",
             },
@@ -213,7 +214,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         "ListRetainedDataRequests" => "The subject's own requests in one retained group, newest first, for a Suspended person or a person whose Membership was revoked. A request whose job died is shown failed. Audit Off. No request body.",
         "CreateRetainedDataExport" => "The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9). Refused when the subject holds no Membership of any status there. Strict empty JSON object. MUST audited.",
         "CancelRetainedDataRequest" => "The subject cancels their own requested export in one retained group (requested to cancelled). Strict JSON object with requestId only. MUST audited.",
-        "MintRetainedDataExportTicket" => "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
+        "MintRetainedDataExportTicket" => "The subject mints a " + TicketMinutes + "-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
         _ => "Reads one decrypted chunk through a ticket presented in the body, never the URL, with the retained-entry credential that minted it. Serving the final chunk consumes the ticket. Every refusal is the same not_found. Not keyed. MUST read-sensitive audited per read; refused when the row cannot be written.",
     };
 
@@ -285,7 +286,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             {
                 Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the Location for its status.",
                 Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
-                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. " + BundleShape,
+                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most " + ChunkSize + " of plaintext. " + BundleShape,
                 Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
                 _ => "Current receipt-safe projection: status and counts, never content.",
             },
@@ -311,6 +312,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
+                Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
                 Shape.Chunk => "Never: a chunk refusal is not_found.",
@@ -349,17 +351,32 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         };
     }
 
-    private const string TicketConflict = "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no "
-        + "available, unexpired artifact, when the key it was sealed under is no longer in the export key ring, or when the artifact already "
-        + "holds three unconsumed, unexpired tickets (a slot frees when one is consumed by its final chunk or expires after fifteen minutes).";
+    /// <summary>
+    /// The mint's two refusals, told apart (ADR-0107 § 4): gone means file a new export; a bound means wait, or, for the
+    /// per-artifact bound, that the artifact's downloads are spent. The numbers are <see cref="DataRequestLimits"/>'s.
+    /// </summary>
+    private static readonly string ChunkSize = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"{DataRequestLimits.ChunkPlaintextBytes / 1024} KiB");
+
+    private static readonly string TicketMinutes = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"{DataRequestLimits.TicketLifetime.TotalMinutes}");
+
+    private static readonly string TicketConflict = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"business_rule_violation. errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact "
+        + $"or the key it was sealed under is no longer in the export key ring: the artifact is gone and only a new export helps. It carries "
+        + $"data_export_ticket_limit when a ticket bound is reached: this session already holds {DataRequestLimits.MaximumOpenTicketsPerBinding} "
+        + $"unconsumed, unexpired tickets over the artifact (wait until one is consumed by its final chunk or expires, "
+        + $"{DataRequestLimits.TicketLifetime.TotalMinutes} minutes after it was minted; a ticket of an earlier, refreshed credential does not "
+        + $"count), or {DataRequestLimits.MaximumTicketsPerArtifact} tickets have been minted over the artifact in all, which is final: "
+        + $"file a new export.");
 
     private static string Description(Contract contract) => contract.Shape switch
     {
-        Shape.Create when contract.Own => "The subject files an export of their own data in the session's group (ADR-0106 § 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject's Memberships of any status in the group and its job is submitted on the same transaction. Strict empty JSON object. MUST audited.",
-        Shape.Create => "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
+        Shape.Create when contract.Own => "The subject files an export of their own data in the session's group (ADR-0106 § 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject's Memberships of any status in the group and its job is submitted on the same transaction. When it completes, it revokes the subject's previous available artifact in the group, whoever filed that one. Strict empty JSON object. MUST audited.",
+        Shape.Create => "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. Refused while the person holds a readable artifact in the group, of any origin, because the new export would revoke it. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
         Shape.Page when contract.Own => "The subject's own requests in the session's group, newest first. A request whose job died is shown failed. Audit Off. No request body.",
         Shape.Page => "The group's export and erasure requests, newest first: status and counts only, never content, never a closure. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
-        Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds and counts and the artifact's metadata. No content. Audit Off. No request body.",
+        Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds this step counts with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body.",
         Shape.Read => "One request of the group: status and counts only, never content. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
         Shape.Mutation when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own
             ? "The subject cancels a requested export (requested to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited."
@@ -367,7 +384,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         Shape.Mutation => contract.Own
             ? "The subject revokes an unexpired available artifact of a request about them, which deletes its chunks at once; the metadata stays as the receipt. Strict empty JSON object. MUST audited."
             : "The administrator who filed an export revokes its unexpired available artifact, which deletes its chunks at once. Strict empty JSON object. MUST audited.",
-        Shape.Ticket => "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact, bound to the credential of this session; an administrator never gets one. Stored only as a digest; not keyed and never replayed; no If-Match. Strict empty JSON object. MUST read-sensitive audited; refused when the row cannot be written.",
+        Shape.Ticket => "The subject mints a " + TicketMinutes + "-minute download cursor over their own available, unexpired artifact, bound to the credential of this session; an administrator never gets one. Stored only as a digest; not keyed and never replayed; no If-Match. Strict empty JSON object. MUST read-sensitive audited; refused when the row cannot be written.",
         _ => "Reads one decrypted chunk through a ticket presented in the body, never the URL, in the session that minted it. Any index below count may be read while the ticket is unconsumed and unexpired; serving the final chunk (count - 1) consumes it, and a resumed download mints a new ticket. Every refusal is the same not_found. Not keyed. MUST read-sensitive audited per read; refused when the row cannot be written.",
     };
 
@@ -426,7 +443,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 ContentEncoding = "base64",
                 MinLength = 4,
                 MaxLength = 174764,
-                Description = "Base64 of one chunk of the decrypted bundle, at most 128 KiB of plaintext. Concatenating every chunk's decoded bytes in index order yields the bundle: one UTF-8 JSON document (application/json; charset=utf-8) whose top-level member schema_version names its format."
+                Description = "Base64 of one chunk of the decrypted bundle, at most " + ChunkSize + " of plaintext. Concatenating every chunk's decoded bytes in index order yields the bundle: one UTF-8 JSON document (application/json; charset=utf-8) whose top-level member schema_version names its format."
             }));
     }
 

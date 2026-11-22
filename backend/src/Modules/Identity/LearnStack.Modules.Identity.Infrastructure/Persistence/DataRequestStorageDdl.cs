@@ -29,8 +29,9 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// </para>
 /// <para>
 /// <b>The artifact bracket.</b> An artifact is inserted only while its export is <c>fulfilling</c> and
-/// commits only with that export <c>completed</c>; no transaction-identity comparison is made, so the
-/// guard holds past the first xid epoch and under the savepoints EF Core opens. The chunk and ticket
+/// commits only with that export <c>completed</c>, and an export commits <c>completed</c> only with its
+/// artifact; no transaction-identity comparison is made, so the guard holds past the first xid epoch
+/// and under the savepoints EF Core opens. The chunk and ticket
 /// guards read their artifact <c>FOR SHARE</c>, so they serialize behind a revocation or purge in
 /// flight, and a chunk is deleted only once its artifact is no longer <c>available</c>.
 /// </para>
@@ -78,6 +79,7 @@ internal static class DataRequestStorageDdl
         migration.Sql(TicketGuard);
         migration.Sql(ChunkGuard);
         migration.Sql(Completeness);
+        migration.Sql(CompletedExportArtifact);
     }
 
     /// <summary>
@@ -488,5 +490,27 @@ internal static class DataRequestStorageDdl
             DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.fn_identity_data_export_completeness();
         CREATE CONSTRAINT TRIGGER tg_data_export_chunks_complete AFTER DELETE ON public.data_export_chunks
             DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.fn_identity_data_export_completeness();
+        """;
+
+    /// <summary>
+    /// The reverse half of the bracket: an export that reaches <c>completed</c> has its artifact, of any
+    /// status, when the transaction commits. With the artifact guard and the completeness check above, a
+    /// completed export and its artifact commit together or not at all.
+    /// </summary>
+    private const string CompletedExportArtifact = """
+        CREATE FUNCTION public.fn_identity_data_export_request_artifact() RETURNS trigger
+            LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog AS $complete$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM public.data_export_artifacts AS artifact
+                    WHERE artifact.tenant_id = NEW.tenant_id AND artifact.request_id = NEW.id)
+            THEN RAISE EXCEPTION 'Data export request completed without its artifact.'
+                USING ERRCODE = '23514', CONSTRAINT = 'data_export_request_artifact'; END IF;
+            RETURN NULL;
+        END $complete$;
+        REVOKE ALL ON FUNCTION public.fn_identity_data_export_request_artifact() FROM PUBLIC;
+        CREATE CONSTRAINT TRIGGER tg_data_subject_requests_export_artifact AFTER UPDATE ON public.data_subject_requests
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+            WHEN (NEW.kind = 'export' AND NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed')
+            EXECUTE FUNCTION public.fn_identity_data_export_request_artifact();
         """;
 }

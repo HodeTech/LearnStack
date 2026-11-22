@@ -91,6 +91,21 @@ public sealed class DataExportCipherTests
         }
     }
 
+    /// <summary>
+    /// A secret provider that fails to answer is its own failure: the startup refusal names a ring that is absent or
+    /// malformed, so it must not be raised for a ring that was never read.
+    /// </summary>
+    [Fact]
+    public void A_secret_provider_failure_propagates_unchanged_and_is_not_reported_as_a_bad_ring()
+    {
+        var unavailable = new InvalidOperationException("Synthetic secret store outage.");
+
+        var act = () => new DataExportCipher(new FailingSecrets(unavailable));
+
+        act.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(unavailable,
+            "the provider's own exception reaches the host, not the ring refusal");
+    }
+
     [Fact]
     public void The_ring_answers_whether_it_holds_a_label_and_a_disposed_ring_holds_none()
     {
@@ -104,12 +119,13 @@ public sealed class DataExportCipherTests
     }
 
     /// <summary>
-    /// Seal racing host shutdown: every call either refuses as disposed or seals under the real key, so whatever it
-    /// returned opens under an intact copy of the ring. Without the gate a seal could copy a key mid-way through its
-    /// zeroing and produce a chunk no intact ring opens.
+    /// A smoke test, not a proof: seal racing host shutdown, where every call either refuses as disposed or seals under
+    /// the real key, so whatever it returned opens under an intact copy of the ring. The race window is a scheduling
+    /// accident, so a pass shows only that no interleaving these rounds happened to hit broke the rule; the gate's
+    /// guarantee rests on <c>Keyed</c> copying the key under the lock <c>Dispose</c> takes, which this cannot force.
     /// </summary>
     [Fact]
-    public async Task A_seal_racing_disposal_either_refuses_or_seals_under_the_real_key()
+    public async Task Smoke_a_seal_racing_disposal_either_refuses_or_seals_under_the_real_key()
     {
         using var verifier = Cipher("k1", new() { ["k1"] = Key(1) });
         var plaintext = Plaintext(4096);
@@ -300,5 +316,10 @@ public sealed class DataExportCipherTests
     private sealed class FixedSecrets(string? ring) : ISecretProvider
     {
         public string? GetSecret(string key) => key == DataExportCipher.KeyRingSecret ? ring : null;
+    }
+
+    private sealed class FailingSecrets(Exception failure) : ISecretProvider
+    {
+        public string? GetSecret(string key) => throw failure;
     }
 }

@@ -29,6 +29,35 @@ public enum DataExportPurgeOutcome
 
     /// <summary>The database clock has not reached the expiry; the attempt throws and the runtime retries.</summary>
     NotDue = 3,
+
+    /// <summary>The attempt threw; its transaction rolls back and the runtime retries or quarantines it.</summary>
+    Failed = 4,
+}
+
+/// <summary>Which download operation a download measurement is about, the closed <c>operation</c> label.</summary>
+public enum DataExportDownloadOperation
+{
+    /// <summary>A ticket mint.</summary>
+    Mint = 1,
+
+    /// <summary>A chunk read through a ticket.</summary>
+    Chunk = 2,
+}
+
+/// <summary>How one download operation ended, the closed <c>outcome</c> label of the download counter.</summary>
+public enum DataExportDownloadOutcome
+{
+    /// <summary>A ticket was minted, or a chunk was served.</summary>
+    Served = 1,
+
+    /// <summary>Refused for any reason but the two below: absent, unreadable, foreign, unbound or invalid.</summary>
+    Refused = 2,
+
+    /// <summary>A mint refused by a ticket bound (<c>data_export_ticket_limit</c>).</summary>
+    Limit = 3,
+
+    /// <summary>The artifact's key is no longer in the ring, or a stored chunk could not be opened.</summary>
+    CustodyFailed = 4,
 }
 
 /// <summary>
@@ -38,12 +67,13 @@ public enum DataExportPurgeOutcome
 /// <remarks>
 /// <para>
 /// Names follow the platform convention (<c>learnstack_*_total</c>, <c>_bytes</c>, <c>_seconds</c>), the meter is
-/// covered by the host's <c>learnstack.*</c> subscription, and every label is a closed word from the two enumerations
+/// covered by the host's <c>learnstack.*</c> subscription, and every label is a closed word from the enumerations
 /// above: never a tenant, organization, request, artifact, person or collection name.
 /// </para>
 /// <para>
 /// <b>Recorded inside the transaction.</b> The job runtime owns the commit, so an outcome here is what the handler
 /// reached; a commit that then fails is the runtime's <c>learnstack_job_failed_total</c>, and the retry records again.
+/// A download outcome is likewise what the handler reached before its request's MUST audit row and commit.
 /// </para>
 /// </remarks>
 public static class DataExportTelemetry
@@ -63,8 +93,14 @@ public static class DataExportTelemetry
     /// <summary>Collections a stored bundle states as truncated at their cap (no label).</summary>
     public const string TruncationCounterName = "learnstack_data_export_truncations_total";
 
-    /// <summary>Purge job runs by <c>outcome</c> (<c>purged</c>, <c>noop</c>, <c>not_due</c>).</summary>
+    /// <summary>Purge job runs by <c>outcome</c> (<c>purged</c>, <c>noop</c>, <c>not_due</c>, <c>failed</c>).</summary>
     public const string PurgeCounterName = "learnstack_data_export_purges_total";
+
+    /// <summary>
+    /// Download operations by <c>operation</c> (<c>mint</c>, <c>chunk</c>) and <c>outcome</c> (<c>served</c>,
+    /// <c>refused</c>, <c>limit</c>, <c>custody_failed</c>).
+    /// </summary>
+    public const string DownloadCounterName = "learnstack_data_export_downloads_total";
 
     private static readonly Meter Meter = new(MeterName);
 
@@ -83,6 +119,9 @@ public static class DataExportTelemetry
     private static readonly Counter<long> Purges =
         Meter.CreateCounter<long>(PurgeCounterName, description: "Data export purge job runs by outcome.");
 
+    private static readonly Counter<long> Downloads =
+        Meter.CreateCounter<long>(DownloadCounterName, description: "Data export ticket mints and chunk reads by operation and outcome.");
+
     /// <summary>The closed label of an export outcome.</summary>
     public static string Label(DataExportOutcome outcome) => outcome switch
     {
@@ -97,7 +136,20 @@ public static class DataExportTelemetry
     {
         DataExportPurgeOutcome.Purged => "purged",
         DataExportPurgeOutcome.NoOp => "noop",
-        _ => "not_due",
+        DataExportPurgeOutcome.NotDue => "not_due",
+        _ => "failed",
+    };
+
+    /// <summary>The closed label of a download operation.</summary>
+    public static string Label(DataExportDownloadOperation operation) => operation == DataExportDownloadOperation.Mint ? "mint" : "chunk";
+
+    /// <summary>The closed label of a download outcome.</summary>
+    public static string Label(DataExportDownloadOutcome outcome) => outcome switch
+    {
+        DataExportDownloadOutcome.Served => "served",
+        DataExportDownloadOutcome.Limit => "limit",
+        DataExportDownloadOutcome.CustodyFailed => "custody_failed",
+        _ => "refused",
     };
 
     /// <summary>Records one export run; the size and truncations only for a stored bundle.</summary>
@@ -119,4 +171,9 @@ public static class DataExportTelemetry
     /// <summary>Records one purge run.</summary>
     public static void Purge(DataExportPurgeOutcome outcome) =>
         Purges.Add(1, new KeyValuePair<string, object?>("outcome", Label(outcome)));
+
+    /// <summary>Records one download operation, as the handler reached it inside the request's transaction.</summary>
+    public static void Download(DataExportDownloadOperation operation, DataExportDownloadOutcome outcome) =>
+        Downloads.Add(1, new KeyValuePair<string, object?>("operation", Label(operation)),
+            new KeyValuePair<string, object?>("outcome", Label(outcome)));
 }

@@ -15,6 +15,21 @@ public static class DataRequestLimits
     /// <summary>How long a download ticket authorizes chunk reads (ADR-0107 § 4).</summary>
     public static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(15);
 
+    /// <summary>
+    /// The most unconsumed, unexpired download tickets one session binding may hold over one artifact: a download
+    /// in progress, a retry and one spare. The next mint in that session waits for one to be consumed by its final
+    /// chunk or to expire (<see cref="TicketLifetime"/>); a ticket left open by a credential since refreshed does
+    /// not count against the new one.
+    /// </summary>
+    public const int MaximumOpenTicketsPerBinding = 3;
+
+    /// <summary>
+    /// The most download tickets ever minted over one artifact, consumed or not. A ticket row and its MUST audit row
+    /// are permanent receipts, so the artifact's downloads are bounded; past the bound the artifact is downloaded no
+    /// more and a new export is filed.
+    /// </summary>
+    public const int MaximumTicketsPerArtifact = 20;
+
     /// <summary>The most plaintext one encrypted chunk holds (ADR-0107 § 4: 128 KiB).</summary>
     public const int ChunkPlaintextBytes = 128 * 1024;
 

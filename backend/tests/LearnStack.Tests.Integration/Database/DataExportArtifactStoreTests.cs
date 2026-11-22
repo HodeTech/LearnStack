@@ -173,11 +173,12 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
 
     /// <summary>
     /// ADR-0107 § 4's associated data binds each chunk to its index and artifact: a chunk spliced into another position or
-    /// another artifact, and a chunk whose key left the ring, fail closed as an absence and are logged critical with
-    /// identifiers only, never a key, the ciphertext or the plaintext.
+    /// another artifact, and a chunk whose key left the ring, fail closed as an absence and are logged with identifiers
+    /// only, never a key, the ciphertext or the plaintext: critical the first time an artifact is refused under a key
+    /// label in the process, a warning for every repeat, so one lost key does not page once per chunk.
     /// </summary>
     [Fact]
-    public async Task A_spliced_or_unopenable_chunk_fails_closed_as_an_absence_and_is_logged_critical_with_identifiers_only()
+    public async Task A_spliced_or_unopenable_chunk_fails_closed_as_an_absence_and_is_logged_critical_once_with_identifiers_only()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
@@ -215,7 +216,8 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
         {
             using var cipher = DataExportTestKit.Cipher();
             var logs = new CapturingLogger();
-            var store = Store(scope, cipher, logs);
+            var refusals = new DataExportCustodyRefusals();
+            var store = Store(scope, cipher, logs, refusals);
             var group = new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA), null);
             var first = (await store.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 0, CancellationToken.None))!;
             first.Bytes.ToArray().Should().Equal(bundle[..DataRequestLimits.ChunkPlaintextBytes], "the untouched chunk still opens");
@@ -229,15 +231,19 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
             // A ring that no longer holds the artifact's key: no mint is offered and a read is the same absence.
             using var rotated = DataExportTestKit.Cipher("{\"active\":\"next\",\"keys\":{\"next\":\""
                 + Convert.ToBase64String(Enumerable.Repeat((byte)7, 32).ToArray()) + "\"}}");
-            var retired = Store(scope, rotated, logs);
+            var retired = Store(scope, rotated, logs, refusals);
             retired.CanOpen(cipher.ActiveKeyVersion).Should().BeFalse();
             store.CanOpen(cipher.ActiveKeyVersion).Should().BeTrue();
             (await retired.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 0, CancellationToken.None)).Should().BeNull();
+            (await retired.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 2, CancellationToken.None)).Should().BeNull();
             scope.Unit.IsRollbackOnly.Should().BeFalse("a custody refusal is not a storage failure");
             await scope.Frame.FailAsync();
 
-            logs.Entries.Should().HaveCount(3).And.OnlyContain(entry => entry.Level == LogLevel.Critical
+            logs.Entries.Should().HaveCount(4).And.OnlyContain(entry => entry.EventId.Id == 3193
                 && entry.EventId.Name == "DataExportChunkCustodyRefused" && entry.Exception == null);
+            logs.Entries.Select(entry => entry.Level).Should().Equal([LogLevel.Critical, LogLevel.Critical, LogLevel.Warning, LogLevel.Warning],
+                "the first refusal of each artifact under its key label is critical; the same pair again, by another chunk or "
+                + "another store of the process, is a warning");
             var rendered = string.Join('\n', logs.Entries.Select(entry => entry.Message));
             rendered.Should().Contain(artifactId.ToString("D")).And.Contain(other.ToString("D"));
             rendered.Should().NotContain(Convert.ToBase64String(bundle.AsSpan(0, 48)))
@@ -249,8 +255,8 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
     }
 
     internal static PostgresDataExportArtifactStore Store(DataExportTestKit.GroupScope scope, DataExportCipher cipher,
-        ILogger<PostgresDataExportArtifactStore>? logger = null) =>
-        new(scope.Db, scope.Unit, scope.Context, cipher, new DataExportTestKit.NoAuditSubject(),
+        ILogger<PostgresDataExportArtifactStore>? logger = null, DataExportCustodyRefusals? refusals = null) =>
+        new(scope.Db, scope.Unit, scope.Context, cipher, new DataExportTestKit.NoAuditSubject(), refusals ?? new DataExportCustodyRefusals(),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresDataExportArtifactStore>.Instance);
 
     /// <summary>Completes a fulfilling export on the scope's transaction, as the job does before it commits.</summary>

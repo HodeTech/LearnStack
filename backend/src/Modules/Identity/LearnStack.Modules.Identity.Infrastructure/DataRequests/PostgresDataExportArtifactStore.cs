@@ -44,18 +44,27 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// <para>
 /// <b>Failures.</b> A statement that fails or outlives its five-second budget leaves the owner rollback-only and is
 /// the retryable <see cref="InfrastructureException"/>; a custody refusal of a stored chunk (a key the ring no longer
-/// holds, or a chunk that fails authentication) is logged <see cref="LogLevel.Critical"/> with identifiers only and
-/// answered as an absence, so the subject meets the one uniform refusal and no secret or position leaves.
+/// holds, or a chunk that fails authentication) is logged with identifiers only and answered as an absence, so the
+/// subject meets the one uniform refusal and no secret or position leaves. The first refusal of an artifact under a
+/// key label in this process is <see cref="LogLevel.Critical"/> and its repeats (every further chunk, every retry)
+/// are <see cref="LogLevel.Warning"/>, through <see cref="DataExportCustodyRefusals"/>.
 /// </para>
 /// </remarks>
 public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitOfWork unit, ITenantContext tenant,
-    DataExportCipher cipher, IAuditSubject audit, ILogger<PostgresDataExportArtifactStore> logger) : IDataExportArtifactStore
+    DataExportCipher cipher, IAuditSubject audit, DataExportCustodyRefusals refusals, ILogger<PostgresDataExportArtifactStore> logger)
+    : IDataExportArtifactStore
 {
     private static readonly TimeSpan StatementBudget = TimeSpan.FromSeconds(5);
 
+    private static readonly EventId CustodyRefusedEvent = new(3193, "DataExportChunkCustodyRefused");
+
     private static readonly Action<ILogger, Guid, Guid, int, string, Exception?> LogCustodyRefused =
-        LoggerMessage.Define<Guid, Guid, int, string>(LogLevel.Critical, new EventId(3193, "DataExportChunkCustodyRefused"),
+        LoggerMessage.Define<Guid, Guid, int, string>(LogLevel.Critical, CustodyRefusedEvent,
             "Data export chunk custody refused: tenant {TenantId}, artifact {ArtifactId}, chunk {ChunkIndex}, key version {KeyVersion}.");
+
+    private static readonly Action<ILogger, Guid, Guid, int, string, Exception?> LogCustodyRefusedAgain =
+        LoggerMessage.Define<Guid, Guid, int, string>(LogLevel.Warning, CustodyRefusedEvent,
+            "Data export chunk custody refused again: tenant {TenantId}, artifact {ArtifactId}, chunk {ChunkIndex}, key version {KeyVersion}; reported at critical severity before.");
 
     /// <inheritdoc />
     public bool CanOpen(string keyVersion) => cipher.HoldsKey(keyVersion);
@@ -184,8 +193,9 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
         {
             // A key the ring no longer holds, or a chunk moved, altered or sealed under another binding: the stored bundle
             // cannot be served. The label is a non-secret ring version, never key material.
-            LogCustodyRefused(logger, tenant.TenantId.Value, artifact.ArtifactId, index,
-                DataRequestLimits.IsKeyVersion(stored.Chunk.KeyVersion) ? stored.Chunk.KeyVersion : "invalid", null);
+            var label = DataRequestLimits.IsKeyVersion(stored.Chunk.KeyVersion) ? stored.Chunk.KeyVersion : "invalid";
+            (refusals.IsFirst(artifact.ArtifactId, label) ? LogCustodyRefused : LogCustodyRefusedAgain)(
+                logger, tenant.TenantId.Value, artifact.ArtifactId, index, label, null);
             return null;
         }
 

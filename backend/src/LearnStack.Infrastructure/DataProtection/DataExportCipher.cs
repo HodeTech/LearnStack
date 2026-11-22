@@ -87,13 +87,18 @@ public sealed class DataExportCipher : IDisposable
     private volatile bool _disposed;
 
     /// <exception cref="InvalidOperationException">The key ring is absent or malformed.</exception>
+    /// <remarks>
+    /// The secret is read before the ring is judged: a provider that fails to answer propagates its own exception
+    /// unchanged, so the startup refusal never blames a ring that was never read.
+    /// </remarks>
     public DataExportCipher(ISecretProvider secrets)
     {
         ArgumentNullException.ThrowIfNull(secrets);
+        var secret = secrets.GetSecret(KeyRingSecret);
         var keys = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         try
         {
-            using var ring = JsonDocument.Parse(secrets.GetSecret(KeyRingSecret) ?? throw Refused());
+            using var ring = JsonDocument.Parse(secret ?? throw Refused());
             var root = ring.RootElement;
             if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 2
                 || !root.TryGetProperty("active", out var active) || active.ValueKind != JsonValueKind.String

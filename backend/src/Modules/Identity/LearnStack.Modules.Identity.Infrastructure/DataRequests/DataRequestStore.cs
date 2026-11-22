@@ -79,6 +79,20 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
             .ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<bool> HoldsReadableArtifactAsync(UserId subject, CancellationToken cancellationToken)
+    {
+        Admit();
+        // Readability by the database clock, as the guards, the receipts and the chunk read judge it; the partial
+        // index of available artifacts holds at most one row per subject and group.
+        await using var command = Command("""
+            SELECT EXISTS (SELECT 1 FROM public.data_export_artifacts
+                WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND subject_user_id=@subject
+                  AND status='available' AND clock_timestamp() < expires_at)
+            """);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        return await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false) is true;
+    }
+
     public async Task SaveAsync(DataSubjectRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);

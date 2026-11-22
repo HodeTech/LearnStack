@@ -86,7 +86,8 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     /// <summary>
     /// Files an export of <paramref name="subject"/>'s data in the announced group under the subject's exclusive User
     /// fence and the shared tenant fence, with the frozen Membership snapshot, and submits its job on the same
-    /// transaction (ADR-0106 § 7, § 8, § 10; ADR-0107 § 2).
+    /// transaction (ADR-0106 § 7, § 8, § 10; ADR-0107 § 2). The subject's own export withdraws their previous artifact
+    /// when it stores its own; an administrator's is refused while the subject holds a readable artifact in the group.
     /// </summary>
     public async Task<Result<DataRequestMutationResult>> CreateExportAsync(DataRequestCaller caller, UserId subject,
         CancellationToken cancellationToken)
@@ -128,6 +129,15 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
                     DataRequestIneligibility.BlockedHold => Rule<DataRequestMutationResult>("$", "lockey_blocked_hold"),
                     _ => Rule<DataRequestMutationResult>("$", "lockey_blocked_last_administrator"),
                 };
+            }
+
+            // An administrator's export never replaces the subject's own readable artifact (a new export withdraws the
+            // previous one): while the subject holds one in the group, of any origin, it is refused. One active export
+            // per subject and group means no export can store an artifact between this read and the insert below.
+            if (caller.Role == DataRequestRole.Administrator
+                && await store.HoldsReadableArtifactAsync(subject, cancellationToken).ConfigureAwait(false))
+            {
+                return Rule<DataRequestMutationResult>("$", "lockey_subject_export_available");
             }
 
             var memberships = await store.ReadSubjectMembershipsAsync(subject, cancellationToken).ConfigureAwait(false);
@@ -397,7 +407,10 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             return [];
         }
 
-        var phase = await phases.ReadManyAsync(requests.Where(request => request.Kind == DataRequestKind.Export)
+        // Only a stored requested export can be displayed failed (DataRequestFailureReconciler.EffectiveStatus): a
+        // completed, failed or cancelled one never changes, so its job is not read.
+        var phase = await phases.ReadManyAsync(requests
+            .Where(request => request.Kind == DataRequestKind.Export && request.Status == DataRequestStatus.Requested)
             .Select(request => request.Id).ToArray(), cancellationToken).ConfigureAwait(false);
         var stored = await reader.ReadArtifactsAsync(requests.Select(request => request.Id).ToArray(), cancellationToken).ConfigureAwait(false);
         return requests.Select(request => View(caller, request, phase.GetValueOrDefault(request.Id, DataRequestJobPhase.Unavailable),

@@ -121,8 +121,9 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler.Handle",
             "LearnStack.Modules.Identity.Application.Federation.FederationCommandHandlers.ActAsync",
             // ADR-0107 § 2, § 5: the export job and the failure reconciler hold the shared tenant fence the request
-            // guard requires of every request write; neither admits a Membership.
-            "LearnStack.Modules.Identity.Application.DataRequests.DataExportJobHandlers.ExportAsync",
+            // guard requires of every request write; neither admits a Membership. The export job takes it only in its
+            // write phase, after the bundle is built and the retained references are counted with no fence held.
+            "LearnStack.Modules.Identity.Application.DataRequests.DataExportJobHandlers.WriteAsync",
             "LearnStack.Modules.Identity.Application.DataRequests.DataRequestFailureReconciler.ReconcileAsync",
             // ADR-0106 § 7: creation fences the subject's User and the shared tenant before it judges the one-active rule;
             // cancellation holds the shared tenant fence the request guard requires.

@@ -60,12 +60,21 @@ public sealed partial class DataRequestHttpTests
         var (_, bundle) = await DownloadAsync(client, learner, id);
         bundle.Should().NotBeEmpty();
 
+        // While the subject holds a readable artifact, a new administrator export would withdraw it: refused.
+        using (var refused = await SendAsync(client, admin, AdminPath + "/exports", "POST", body, key: Key()))
+            (await ProblemAsync(refused, HttpStatusCode.Conflict, "business_rule_violation")).GetProperty("errors").GetProperty("$")[0]
+                .GetProperty("key").GetString().Should().Be("lockey_subject_export_available");
+
         // The requesting administrator may revoke what their export produced.
         var artifact = completed.GetProperty("artifact");
         using (var revoked = await SendAsync(client, admin, AdminPath + "/" + id.ToString("D") + "/artifact/revocations", "POST", "{}",
             version: Version(artifact), key: Key()))
             await JsonAsync(revoked);
         (await ReceiptAsync(client, learner, id)).GetProperty("artifact").GetProperty("status").GetString().Should().Be("revoked");
+
+        // With no readable artifact left, the administrator may file again.
+        var (again, _) = await FileExportAsync(client, admin, path: AdminPath + "/exports", body: body);
+        again.Should().NotBe(id);
     }
 
     [Fact]

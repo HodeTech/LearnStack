@@ -90,6 +90,7 @@ public static class IdentityFoundationRegistration
     {
         services.TryAddScoped<IDataRequestStore, DataRequestStore>();
         services.TryAddScoped<IDataExportArtifactStore, PostgresDataExportArtifactStore>();
+        services.TryAddSingleton<DataExportCustodyRefusals>();
         services.TryAddScoped<IDataRequestJobPhaseReader, DataRequestJobPhaseReader>();
         services.TryAddScoped<IDataRequestFulfillmentScheduler, DataRequestFulfillmentScheduler>();
         services.TryAddScoped<DataRequestFailureReconciler>();

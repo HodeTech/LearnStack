@@ -93,7 +93,8 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
             locks.RequireCurrent(heldPlan);
         }
 
-        var now = clock.UtcNow;
+        // Never before the request's own last stamp: a host whose clock lags the one that filed it still orders.
+        var now = DataRequestTransitionTime.Of(clock, request);
         var actor = tenant.UserId ?? UserId.SystemActor;
         Require(request.StartFulfilling(now, actor).IsSuccess);
         await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
@@ -117,5 +118,22 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
         {
             throw new InvalidOperationException("A failure transition its own preconditions admitted was refused.");
         }
+    }
+}
+
+/// <summary>
+/// When a data request transition is stamped: the later of the clock and the request's own last stamp, so a host whose
+/// clock lags the one that filed or last changed the request still orders its transition after it, which the aggregate
+/// and the request guard both require. Shared by the export job and the failure reconciler.
+/// </summary>
+internal static class DataRequestTransitionTime
+{
+    internal static DateTimeOffset Of(IClock clock, DataSubjectRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(request);
+        var now = clock.UtcNow;
+        var floor = request.UpdatedAt ?? request.CreatedAt;
+        return now > floor ? now : floor;
     }
 }

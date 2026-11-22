@@ -34,6 +34,12 @@ public interface IDataRequestStore : IAggregateWriteStore<DataSubjectRequest, Da
     /// <summary>The subject's artifacts in the ambient group that are still stored <c>available</c>.</summary>
     Task<IReadOnlyList<DataExportArtifactId>> FindAvailableArtifactsAsync(UserId subject, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether the subject holds a readable artifact in the ambient group, of any origin: stored <c>available</c> and
+    /// before its expiry by the database clock (ADR-0107 § 4).
+    /// </summary>
+    Task<bool> HoldsReadableArtifactAsync(UserId subject, CancellationToken cancellationToken);
+
     /// <summary>Saves the changes of a request this scope loaded and tracks.</summary>
     Task SaveAsync(DataSubjectRequest request, CancellationToken cancellationToken);
 
@@ -68,11 +74,15 @@ public interface IDataExportTicketStore : IAggregateWriteStore<DataExportTicket,
     Task<DataExportTicket?> FindLockedAsync(DataExportArtifactId artifactId, string digest, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The artifact's tickets that are neither consumed nor past their expiry by the database clock; the caller holds
+    /// The artifact's tickets in one statement: those of <paramref name="sessionBindingDigest"/> that are neither
+    /// consumed nor past their expiry by the database clock, and every ticket ever minted over it. The caller holds
     /// the artifact's row lock, so concurrent mints are counted one after the other.
     /// </summary>
-    Task<int> CountOpenAsync(DataExportArtifactId artifactId, CancellationToken cancellationToken);
+    Task<DataExportTicketCounts> CountAsync(DataExportArtifactId artifactId, string sessionBindingDigest, CancellationToken cancellationToken);
 }
+
+/// <summary>An artifact's tickets: those open in one session binding, and all ever minted.</summary>
+public sealed record DataExportTicketCounts(int OpenInBinding, int Minted);
 
 /// <summary>
 /// Reads of the ambient group's requests, artifacts and Memberships for the receipts, pages and handler cores

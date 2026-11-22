@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Application.DataRequests;
@@ -106,6 +108,37 @@ public sealed class DataRequestServiceTests
         next.Store.Requests.Should().HaveCount(2);
     }
 
+    /// <summary>
+    /// An administrator's export would withdraw the subject's own readable artifact when it stores its own, so it is
+    /// refused while the subject holds one in the group, whoever filed it; once that artifact is revoked or expired the
+    /// administrator may file. The subject's own new export still replaces their previous artifact.
+    /// </summary>
+    [Theory]
+    [InlineData(DataRequestOrigin.Self)]
+    [InlineData(DataRequestOrigin.Administrator)]
+    public async Task An_administrator_export_is_refused_while_the_subject_holds_a_readable_artifact(DataRequestOrigin earlier)
+    {
+        var harness = new Harness();
+        var completed = harness.Completed(earlier);
+        var administrator = harness.Caller(Administrator, DataRequestRole.Administrator);
+
+        var refused = await harness.Service.CreateExportForMembershipAsync(administrator, SubjectMembership.Value, CancellationToken.None);
+
+        Code(refused).Should().Be("business_rule_violation");
+        refused.Error!.Details!["$"].Single().Key.Should().Be("lockey_subject_export_available");
+        harness.Store.Requests.Should().ContainSingle("nothing was filed").Which.Should().BeSameAs(completed);
+        harness.Scheduler.Submitted.Should().BeEmpty();
+
+        (await harness.Service.CreateExportAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None))
+            .IsSuccess.Should().BeTrue("the subject's own export replaces their previous artifact");
+        harness.Store.Requests.Remove(harness.Store.Requests[^1]);
+
+        // Revoked or past its expiry, the artifact is no longer readable: the administrator may file.
+        harness.Store.Artifacts[completed.Id] = harness.Store.Artifacts[completed.Id] with { Readable = false };
+        (await harness.Service.CreateExportForMembershipAsync(administrator, SubjectMembership.Value, CancellationToken.None))
+            .IsSuccess.Should().BeTrue();
+    }
+
     [Fact]
     public async Task A_hold_refuses_creation_with_its_closed_code_and_files_nothing()
     {
@@ -182,34 +215,53 @@ public sealed class DataRequestServiceTests
     }
 
     /// <summary>
-    /// Ticket and MUST audit rows are permanent, so minting is bounded: at most three open tickets per artifact, and the
-    /// next mint is refused as unavailable until one is consumed or expires.
+    /// Ticket and MUST audit rows are permanent, so minting is bounded and a bound reached is its own refusal,
+    /// <c>data_export_ticket_limit</c>, never the <c>data_export_unavailable</c> of an artifact that is gone: at most
+    /// three open tickets per session binding (a consumed or expired one frees a slot, and a ticket left open by a
+    /// credential since refreshed does not block the new one), and at most twenty ever per artifact, which is final.
     /// </summary>
     [Fact]
-    public async Task At_most_three_open_tickets_are_minted_per_artifact_and_a_consumed_or_expired_one_frees_a_slot()
+    public async Task Minting_is_bounded_per_session_binding_and_per_artifact_and_a_bound_is_refused_as_ticket_limit()
     {
         var harness = new Harness();
         var request = harness.Completed();
         var subject = harness.Caller(Subject, DataRequestRole.Subject);
         var tickets = new List<string>();
-        for (var index = 0; index < 3; index++)
+        for (var index = 0; index < DataRequestLimits.MaximumOpenTicketsPerBinding; index++)
         {
             tickets.Add((await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).Value!.Ticket);
         }
 
         var refused = await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
         Code(refused).Should().Be("business_rule_violation");
-        refused.Error!.Details!["artifact"].Single().Key.Should().Be("lockey_data_export_unavailable");
+        refused.Error!.Details!["artifact"].Single().Key.Should().Be("lockey_data_export_ticket_limit",
+            "a bound reached is told apart from an artifact that is gone");
         harness.Store.Tickets.Should().HaveCount(3, "a refused mint stores nothing");
 
-        // Reading the last chunk consumes the first ticket: one slot is free again.
+        // A refreshed credential is another binding: the orphaned open tickets of the old one do not block it.
+        harness.Sessions.Binding = Binding('b');
+        (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        harness.Sessions.Binding = Binding('a');
+
+        // Reading the last chunk consumes the first ticket: one slot of its binding is free again.
         (await harness.Download.ReadChunkAsync(subject, request.Id.Value, tickets[0], 1, CancellationToken.None)).IsSuccess.Should().BeTrue();
         (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
         Code(await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).Should().Be("business_rule_violation");
 
-        // Past their fifteen minutes the open tickets no longer count.
+        // Past their fifteen minutes the open tickets no longer count, but every minted ticket does, up to the hard bound.
+        var bindings = 0;
+        while (harness.Store.Tickets.Count < DataRequestLimits.MaximumTicketsPerArtifact)
+        {
+            harness.Sessions.Binding = (++bindings).ToString("x64", System.Globalization.CultureInfo.InvariantCulture);
+            (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        }
+
         harness.Store.Now = () => At + DataRequestLimits.TicketLifetime;
-        (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        harness.Sessions.Binding = Binding('f');
+        var final = await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
+        final.Error!.Details!["artifact"].Single().Key.Should().Be("lockey_data_export_ticket_limit",
+            "twenty tickets ever per artifact is final, whatever their state or binding");
+        harness.Store.Tickets.Should().HaveCount(DataRequestLimits.MaximumTicketsPerArtifact);
     }
 
     [Fact]
@@ -305,6 +357,105 @@ public sealed class DataRequestServiceTests
         view.Artifact.Readable.Should().BeFalse();
         Code(await other.Service.GetAsync(other.Caller(UserId.From(Guid.CreateVersion7()), DataRequestRole.Subject), completed.Id.Value,
             CancellationToken.None)).Should().Be("not_found");
+    }
+
+    /// <summary>
+    /// Only a stored requested export can be displayed failed, so only its job phase is read: a completed export, or
+    /// one stored failed or cancelled, never changes and costs no job read.
+    /// </summary>
+    [Fact]
+    public async Task Receipts_read_the_job_phase_only_of_stored_requested_exports()
+    {
+        var harness = new Harness();
+        var completed = harness.Completed();
+        await harness.Service.CreateExportAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        var requested = harness.Store.Requests.Single(request => request.Status == DataRequestStatus.Requested);
+        var subject = harness.Caller(Subject, DataRequestRole.Subject);
+
+        (await harness.Service.GetAsync(subject, completed.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        harness.Phases.Read.Should().BeEmpty("a completed export's receipt reads no job");
+        (await harness.Service.ListAsync(subject, "identity.data_request.list_own", null, 20, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        harness.Phases.Read.Should().Equal([requested.Id], "the page reads the phase of its one requested export only");
+
+        harness.Phases.Read.Clear();
+        (await harness.Service.CancelAsync(subject, requested.Id.Value, requested.Version, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        (await harness.Service.GetAsync(subject, requested.Id.Value, CancellationToken.None)).Value!.Status.Should().Be("cancelled");
+        harness.Phases.Read.Should().BeEmpty("a cancelled export never changes");
+    }
+
+    /// <summary>
+    /// A host whose clock lags the one that filed the request still stores the dead export failed: the reconciler stamps
+    /// its transitions no earlier than the request's own last stamp, which the aggregate and the guard both require.
+    /// </summary>
+    [Fact]
+    public async Task The_reconciler_orders_its_transitions_after_the_request_under_a_lagging_clock()
+    {
+        var harness = new Harness();
+        await harness.Service.CreateExportAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        var dead = harness.Store.Requests.Single();
+        harness.Phases.Phase[dead.Id] = DataRequestJobPhase.Dead;
+        var lagging = new Harness(harness.Store, harness.Phases);
+        lagging.Clock.Now = At - TimeSpan.FromMinutes(3);
+
+        (await lagging.Service.CreateExportAsync(lagging.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None))
+            .IsSuccess.Should().BeTrue();
+
+        dead.Status.Should().Be(DataRequestStatus.Failed);
+        dead.UpdatedAt.Should().Be(At, "stamped at the request's own creation, not the lagging clock");
+    }
+
+    /// <summary>
+    /// Standard 10: every mint and chunk read records one download measurement with its closed operation and outcome;
+    /// a bound is <c>limit</c>, a key the ring no longer holds or a chunk the store cannot open <c>custody_failed</c>.
+    /// </summary>
+    [Fact]
+    public async Task Each_mint_and_chunk_read_records_one_closed_download_outcome()
+    {
+        var measurements = new ConcurrentQueue<string>();
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, meter) =>
+            {
+                if (instrument.Meter.Name == DataExportTelemetry.MeterName && instrument.Name == DataExportTelemetry.DownloadCounterName)
+                {
+                    meter.EnableMeasurementEvents(instrument);
+                }
+            },
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            var labels = new List<string>();
+            foreach (var tag in tags)
+            {
+                labels.Add(tag.Key + "=" + tag.Value);
+            }
+
+            measurements.Enqueue(value + ":" + string.Join(",", labels.Order(StringComparer.Ordinal)));
+        });
+        listener.Start();
+        var harness = new Harness();
+        var request = harness.Completed();
+        var subject = harness.Caller(Subject, DataRequestRole.Subject);
+
+        var ticket = (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).Value!.Ticket;
+        await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
+        await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
+        await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
+        await harness.Download.MintTicketAsync(harness.Caller(Administrator, DataRequestRole.Administrator), request.Id.Value,
+            CancellationToken.None);
+        await harness.Download.ReadChunkAsync(subject, request.Id.Value, ticket, 0, CancellationToken.None);
+        await harness.Download.ReadChunkAsync(subject, request.Id.Value, ticket, 7, CancellationToken.None);
+        harness.Artifacts.Unopenable = true;
+        await harness.Download.ReadChunkAsync(subject, request.Id.Value, ticket, 1, CancellationToken.None);
+        harness.Artifacts.Ring.Clear();
+        await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
+        listener.Dispose();
+
+        measurements.Should().Equal(
+            "1:operation=mint,outcome=served", "1:operation=mint,outcome=served", "1:operation=mint,outcome=served",
+            "1:operation=mint,outcome=limit", "1:operation=mint,outcome=refused",
+            "1:operation=chunk,outcome=served", "1:operation=chunk,outcome=refused", "1:operation=chunk,outcome=custody_failed",
+            "1:operation=mint,outcome=custody_failed");
     }
 
     [Fact]
@@ -501,8 +652,15 @@ public sealed class DataRequestServiceTests
                 .Select(request => DataRequestReceiptRow.From(request) is var row && subject is null ? row : row with { MembershipSnapshotJson = null })
                 .ToList());
 
-        public Task<int> CountOpenAsync(DataExportArtifactId artifactId, CancellationToken cancellationToken) =>
-            Task.FromResult(Tickets.Count(ticket => ticket.ArtifactId == artifactId && ticket.ConsumedAt is null && ticket.ExpiresAt > Now()));
+        public Task<DataExportTicketCounts> CountAsync(DataExportArtifactId artifactId, string sessionBindingDigest,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new DataExportTicketCounts(
+                Tickets.Count(ticket => ticket.ArtifactId == artifactId && ticket.SessionBindingDigest == sessionBindingDigest
+                    && ticket.ConsumedAt is null && ticket.ExpiresAt > Now()),
+                Tickets.Count(ticket => ticket.ArtifactId == artifactId)));
+
+        public Task<bool> HoldsReadableArtifactAsync(UserId subject, CancellationToken cancellationToken) =>
+            Task.FromResult(Artifacts.Values.Any(row => row.Readable && row.Artifact.SubjectUserId == subject));
 
         public Func<DateTimeOffset> Now { get; set; } = () => At;
 
@@ -519,13 +677,19 @@ public sealed class DataRequestServiceTests
     {
         public Dictionary<DataSubjectRequestId, DataRequestJobPhase> Phase { get; } = [];
 
+        /// <summary>Every request whose phase a page or receipt read, in order.</summary>
+        public List<DataSubjectRequestId> Read { get; } = [];
+
         public Task<DataRequestJobPhase> ReadAsync(DataSubjectRequestId requestId, DataRequestKind kind, CancellationToken cancellationToken) =>
             Task.FromResult(kind == DataRequestKind.Export ? Phase.GetValueOrDefault(requestId, DataRequestJobPhase.Pending) : DataRequestJobPhase.Unavailable);
 
         public Task<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>> ReadManyAsync(
-            IReadOnlyCollection<DataSubjectRequestId> exportRequestIds, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>>(
+            IReadOnlyCollection<DataSubjectRequestId> exportRequestIds, CancellationToken cancellationToken)
+        {
+            Read.AddRange(exportRequestIds);
+            return Task.FromResult<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>>(
                 exportRequestIds.Distinct().ToDictionary(id => id, id => Phase.GetValueOrDefault(id, DataRequestJobPhase.Pending)));
+        }
     }
 
     /// <summary>
@@ -575,6 +739,9 @@ public sealed class DataRequestServiceTests
 
         public HashSet<string> Ring { get; } = new(StringComparer.Ordinal) { "v1" };
 
+        /// <summary>The store answers every chunk as absent, as it does for a chunk it cannot open.</summary>
+        public bool Unopenable { get; set; }
+
         public bool CanOpen(string keyVersion) => Ring.Contains(keyVersion);
 
         public Task<DataExportArtifactMetadata> PutAsync(DataExportArtifactPut put, IAsyncEnumerable<ReadOnlyMemory<byte>> plaintextChunks,
@@ -585,6 +752,11 @@ public sealed class DataRequestServiceTests
 
         public Task<DataExportPlaintextChunk?> ReadChunkAsync(DataExportArtifactLocator artifact, int index, CancellationToken cancellationToken)
         {
+            if (Unopenable)
+            {
+                return Task.FromResult<DataExportPlaintextChunk?>(null);
+            }
+
             var bytes = Enumerable.Repeat((byte)(index + 1), 16).ToArray();
             Served.Add(bytes);
             return Task.FromResult<DataExportPlaintextChunk?>(new DataExportPlaintextChunk(index, 2, bytes));

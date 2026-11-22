@@ -854,6 +854,14 @@ classification; the OpenAPI document owns the exact wire shapes.
   `{id, kind, status, version}`, the `Location` of the receipt and its `ETag`. An
   administrator names the subject by a Membership of the group, of any status, and never
   themselves.
+- **One readable artifact, the subject's.** A completed export revokes the subject's
+  previous available artifact in the group before it stores its own (ADR-0107 § 4). The
+  subject's own export may do so; an administrator's may not: while the subject holds a
+  readable artifact in the group, of any origin, an administrator's creation is refused
+  with `409 business_rule_violation` and `errors.$ = lockey_subject_export_available`,
+  judged by the database clock under the creation fences. It can be filed once that
+  artifact is revoked or has expired. One active export per subject and group means no
+  export can store an artifact between that read and the insert.
 - **Receipts.** Identity, kind, origin, status, timestamps, the recorded refusal or
   failure code, the closed retained-reference kinds and counts, and the artifact's
   status, expiry, byte and chunk counts and truncation statement. A request whose job is
@@ -876,17 +884,25 @@ classification; the OpenAPI document owns the exact wire shapes.
   the final chunk (`count - 1`) consumes it on the same transaction, and a resumed or
   repeated download mints a new ticket. Every refusal of a chunk read is the same
   `404 not_found`; a chunk the store cannot open (its key left the ring, or it fails
-  authentication) is answered the same way and logged at critical severity with
-  identifiers only. The chunk is written as `{index, count, bytes}` straight from its
-  plaintext buffer, which is then zeroed, and the ticket and chunk request bodies are
-  read into a buffer that is zeroed once parsed (best effort: managed strings are beyond
-  reach); responses are `no-store`.
-- **Ticket bound.** Ticket rows and their MUST audit rows are permanent, so a mint is
-  bounded: under the artifact's row lock, an artifact that already holds three
-  unconsumed, unexpired tickets, or whose key the export key ring no longer holds, is
-  refused with the same `409 data_export_unavailable` as an artifact that is gone. A
-  slot frees when a ticket is consumed by its final chunk or expires after fifteen
-  minutes. The bound is `DataExportDownloadService.MaximumOpenTickets`.
+  authentication) is answered the same way and logged with identifiers only: critical
+  the first time an artifact is refused under a key label in the process, a warning for
+  each repeat (`DataExportCustodyRefusals`, a bounded per-process memory). The chunk is
+  written as `{index, count, bytes}` straight from its plaintext buffer, which is then
+  zeroed, and the ticket and chunk request bodies are read into a buffer that is zeroed
+  once parsed (best effort: managed strings are beyond reach); responses are
+  `no-store`.
+- **Ticket bounds.** Ticket rows and their MUST audit rows are permanent, so minting is
+  bounded, counted under the artifact's row lock in one statement:
+  `DataRequestLimits.MaximumOpenTicketsPerBinding` unconsumed, unexpired tickets per
+  session binding (a slot frees when one is consumed by its final chunk or expires; a
+  ticket left open by a credential since refreshed does not count against the new one)
+  and `DataRequestLimits.MaximumTicketsPerArtifact` tickets ever per artifact, consumed
+  or not, which is final. A bound reached is `409 business_rule_violation` with
+  `errors.artifact = lockey_data_export_ticket_limit`: wait, or, past the per-artifact
+  bound, file a new export. An artifact that is gone, unreadable or sealed under a key
+  the export key ring no longer holds is `errors.artifact =
+  lockey_data_export_unavailable`: only a new export helps. The OpenAPI document states
+  the numbers from the same constants.
 - **One root per executor.** `DataRequestService` writes only `DataSubjectRequest`,
   through `IDataRequestStore`; `DataExportDownloadService` writes only
   `DataExportTicket`, through `IDataExportTicketStore`. Both derive the typed aggregate
