@@ -38,8 +38,11 @@ internal static class SchemaTableClasses
         "federation_connections"];
     public static readonly string[] InvitationProvider = ["invitation_email_envelopes", "invitation_email_attempt_receipts"];
     public static readonly string[] ProviderIngress = ["identity_provider_event_receipts", "identity_provider_event_scan", "identity_provider_event_problems"];
+    // ADR-0106/0107: the organization-scoped request, artifact and ticket receipts and the SQL-only ciphertext chunks.
+    public static readonly string[] IdentityDataRequest = ["data_subject_requests", "data_export_artifacts", "data_export_tickets",
+        "data_export_chunks"];
     public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor,
-        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual, .. InvitationProvider, .. ProviderIngress];
+        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual, .. InvitationProvider, .. ProviderIngress, .. IdentityDataRequest];
     public static bool AppSelectDenied(string table) => Control.Contains(table) || Vendor.Contains(table)
         || table == "identity_creation_capacity" || InvitationProvider.Contains(table) || ProviderIngress.Contains(table);
 

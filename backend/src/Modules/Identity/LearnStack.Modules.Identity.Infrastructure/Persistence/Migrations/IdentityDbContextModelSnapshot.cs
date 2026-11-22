@@ -24,6 +24,452 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.DataExportArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's export receipt: the group, the request and the subject it was generated for.");
+
+                    b.Property<long>("ByteCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("byte_count")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+
+                    b.Property<int>("ChunkCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("chunk_count")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was created.");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate creation to its actor.");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was soft-deleted.");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate soft deletion to its actor.");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+
+                    b.Property<string>("KeyVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("key_version")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's export receipt: the group, the request and the subject it was generated for.");
+
+                    b.Property<DateTimeOffset?>("PurgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("purged_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's export receipt: the group, the request and the subject it was generated for.");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label and expiry; no content or key.");
+
+                    b.Property<Guid>("SubjectUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_user_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's export receipt: the group, the request and the subject it was generated for.");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's export receipt: the group, the request and the subject it was generated for.");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was last updated.");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute the latest aggregate update to its actor.");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("row_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Detect concurrent writes to this aggregate revision.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_export_artifacts");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ux_data_export_artifacts_tenant_id_id");
+
+                    b.HasIndex("TenantId", "OrganizationId")
+                        .HasDatabaseName("ix_data_export_artifacts_tenant_id_organization_id");
+
+                    b.HasIndex("TenantId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_data_export_artifacts_request");
+
+                    b.HasIndex("TenantId", "OrganizationId", "SubjectUserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_data_export_artifacts_available")
+                        .HasFilter("status = 'available'");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "OrganizationId", "SubjectUserId"), false);
+
+                    b.ToTable("data_export_artifacts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_data_export_artifacts_identifiers", "(uuid_extract_version(id)=7 AND uuid_extract_version(subject_user_id)=7 AND subject_user_id <> '00000000-0000-7000-8000-000000000001'::uuid) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_key_version", "key_version COLLATE \"C\" ~ '^[A-Za-z0-9_-]{1,32}$'");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_lifecycle", "((status IN ('revoked','purged')) = (purged_at IS NOT NULL) AND (purged_at IS NULL OR (isfinite(purged_at) AND purged_at >= created_at))) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_no_delete", "deleted_at IS NULL AND deleted_by IS NULL");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_size", "byte_count BETWEEN 1 AND 67108864 AND chunk_count BETWEEN 1 AND 512 AND chunk_count = (byte_count + 131071) / 131072");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_status", "status IN ('available','revoked','expired','purged')");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
+
+                            t.HasCheckConstraint("ck_data_export_artifacts_times", "(isfinite(created_at) AND expires_at = created_at + interval '7 days' AND (updated_at IS NULL OR (isfinite(updated_at) AND updated_at >= created_at))) IS TRUE");
+                        });
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.DataExportTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.Property<Guid>("ArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("artifact_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "The ticket's fixed expiry and the instant its download finished.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the ticket was minted.");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.Property<byte[]>("Digest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("digest")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "The ticket's fixed expiry and the instant its download finished.");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.Property<byte[]>("SessionBindingDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("session_binding_digest")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's download cursor: the group, the artifact, the minting subject and its session-bound credential digests.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_export_tickets");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ux_data_export_tickets_tenant_id_id");
+
+                    b.HasIndex("TenantId", "ArtifactId")
+                        .HasDatabaseName("ix_data_export_tickets_tenant_id_artifact_id");
+
+                    b.HasIndex("TenantId", "Digest")
+                        .IsUnique()
+                        .HasDatabaseName("ux_data_export_tickets_digest");
+
+                    b.HasIndex("TenantId", "OrganizationId")
+                        .HasDatabaseName("ix_data_export_tickets_tenant_id_organization_id");
+
+                    b.ToTable("data_export_tickets", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_data_export_tickets_digests", "octet_length(digest) = 32 AND octet_length(session_binding_digest) = 32");
+
+                            t.HasCheckConstraint("ck_data_export_tickets_identifiers", "(uuid_extract_version(id)=7 AND uuid_extract_version(created_by)=7 AND created_by <> '00000000-0000-7000-8000-000000000001'::uuid) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_export_tickets_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
+
+                            t.HasCheckConstraint("ck_data_export_tickets_times", "(isfinite(created_at) AND expires_at = created_at + interval '15 minutes' AND (consumed_at IS NULL OR (consumed_at >= created_at AND consumed_at < expires_at))) IS TRUE");
+                        });
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.DataSubjectRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's request in one scope group: subject and requester, the group and the frozen Membership linkage.");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was created.");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate creation to its actor.");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was soft-deleted.");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate soft deletion to its actor.");
+
+                    b.Property<DateTimeOffset?>("ExecuteAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("execute_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_reason")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<string>("LastRefusal")
+                        .HasColumnType("text")
+                        .HasColumnName("last_refusal")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<string>("MembershipSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("membership_snapshot")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's request in one scope group: subject and requester, the group and the frozen Membership linkage.");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's request in one scope group: subject and requester, the group and the frozen Membership linkage.");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("origin")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<string>("ProgressJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("progress")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<Guid?>("RequesterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_user_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's request in one scope group: subject and requester, the group and the frozen Membership linkage.");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("result")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.");
+
+                    b.Property<Guid>("SubjectUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_user_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's request in one scope group: subject and requester, the group and the frozen Membership linkage.");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "A person's request in one scope group: subject and requester, the group and the frozen Membership linkage.");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was last updated.");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute the latest aggregate update to its actor.");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("row_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Detect concurrent writes to this aggregate revision.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_subject_requests");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ux_data_subject_requests_tenant_id_id");
+
+                    b.HasIndex("RequesterUserId")
+                        .HasDatabaseName("ix_data_subject_requests_requester_user_id");
+
+                    b.HasIndex("SubjectUserId")
+                        .HasDatabaseName("ix_data_subject_requests_subject_user_id");
+
+                    b.HasIndex("TenantId", "OrganizationId")
+                        .HasDatabaseName("ix_data_subject_requests_tenant_id_organization_id");
+
+                    b.HasIndex("TenantId", "OrganizationId", "SubjectUserId", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ux_data_subject_requests_active")
+                        .HasFilter("status IN ('requested','scheduled','fulfilling','awaiting_privileged_step')");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "OrganizationId", "SubjectUserId", "Kind"), false);
+
+                    b.ToTable("data_subject_requests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_data_subject_requests_identifiers", "(uuid_extract_version(id)=7 AND uuid_extract_version(subject_user_id)=7 AND subject_user_id <> '00000000-0000-7000-8000-000000000001'::uuid AND (requester_user_id IS NULL OR (uuid_extract_version(requester_user_id)=7 AND requester_user_id <> '00000000-0000-7000-8000-000000000001'::uuid))) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_kind", "kind IN ('export','erasure','closure')");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_no_delete", "deleted_at IS NULL AND deleted_by IS NULL");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_origin", "((kind IN ('export','erasure') AND origin IN ('self','administrator')) OR (kind = 'erasure' AND origin = 'closure_fanout') OR (kind = 'closure' AND origin = 'self')) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_outcome", "((status = 'completed') = (completed_at IS NOT NULL)\n    AND (completed_at IS NULL OR (isfinite(completed_at) AND completed_at >= created_at))\n    AND ((status = 'failed' AND failure_reason IN ('export_too_large','execution_failed')\n            AND (failure_reason <> 'export_too_large' OR kind = 'export'))\n        OR (status <> 'failed' AND failure_reason IS NULL))\n    AND (last_refusal IS NULL OR last_refusal IN ('blocked_window','blocked_hold','blocked_last_administrator'))\n    AND (status <> 'blocked' OR last_refusal IN ('blocked_hold','blocked_last_administrator'))) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_progress", "CASE WHEN jsonb_typeof(progress) = 'object'\n    THEN jsonb_array_length(jsonb_path_query_array(progress, '$.keyvalue()')) <= 32\n        AND NOT jsonb_path_exists(progress,\n            '$.keyvalue() ? (!(@.key like_regex \"^[a-z][a-z0-9_]{0,31}$\") || @.value.type() != \"string\" || !(@.value like_regex \"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{7}Z$\"))')\n    ELSE false END");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_requester", "((origin = 'self' AND requester_user_id = subject_user_id) OR (origin = 'administrator' AND requester_user_id IS NOT NULL AND requester_user_id <> subject_user_id) OR (origin = 'closure_fanout' AND requester_user_id IS NULL)) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_result", "CASE WHEN jsonb_typeof(result) = 'object'\n    THEN NOT jsonb_path_exists(result,\n        '$.keyvalue() ? (!(@.key like_regex \"^(consent_evidence|invitation_record|invitation_envelope|audit_actor_reference|audit_entity_reference|audit_metadata_reference|unscoped_audit_rows|transport_evidence|execution_evidence|provider_event_record|idempotency_cache|attribution_reference|federation_actor_reference|request_receipt|external_copy|unserved_group)$\") || @.value.type() != \"number\" || @.value < 0 || @.value > 9007199254740991 || @.value.floor() != @.value)')\n    ELSE false END");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_snapshot", "CASE WHEN jsonb_typeof(membership_snapshot) = 'array'\n    THEN jsonb_array_length(membership_snapshot) BETWEEN 1 AND 256\n        AND NOT jsonb_path_exists(membership_snapshot,\n            '$[*] ? (@.type() != \"string\" || !(@ like_regex \"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$\"))')\n    ELSE false END");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_status", "((kind = 'export' AND status IN ('requested','fulfilling','completed','failed','cancelled'))\nOR (kind = 'erasure' AND status IN ('scheduled','fulfilling','awaiting_privileged_step','completed','blocked','failed','cancelled'))\nOR (kind = 'closure' AND status IN ('scheduled','fulfilling','completed','cancelled'))) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_times", "(isfinite(created_at) AND (updated_at IS NULL OR (isfinite(updated_at) AND updated_at >= created_at)) AND (execute_at IS NULL OR isfinite(execute_at))) IS TRUE");
+
+                            t.HasCheckConstraint("ck_data_subject_requests_window", "((kind IN ('erasure','closure') AND origin <> 'closure_fanout' AND execute_at = created_at + interval '24 hours') OR ((kind = 'export' OR origin = 'closure_fanout') AND execute_at IS NULL)) IS TRUE");
+                        });
+                });
+
             modelBuilder.Entity("LearnStack.Modules.Identity.Domain.FederationConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1156,6 +1602,44 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_users_subject_lifecycle", "(status = 'Active' AND provider_subject IS NOT NULL AND length(provider_subject) BETWEEN 1 AND 255) OR (status = 'Closing' AND (provider_subject IS NULL OR length(provider_subject) BETWEEN 1 AND 255)) OR (status = 'Closed' AND provider_subject IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.DataExportArtifact", b =>
+                {
+                    b.HasOne("LearnStack.Modules.Identity.Domain.DataSubjectRequest", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "RequestId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_export_artifacts_request");
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.DataExportTicket", b =>
+                {
+                    b.HasOne("LearnStack.Modules.Identity.Domain.DataExportArtifact", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ArtifactId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_export_tickets_artifact");
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.DataSubjectRequest", b =>
+                {
+                    b.HasOne("LearnStack.Modules.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequesterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_data_subject_requests_requester");
+
+                    b.HasOne("LearnStack.Modules.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("SubjectUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_subject_requests_subject");
                 });
 
             modelBuilder.Entity("LearnStack.Modules.Identity.Domain.Invitation", b =>

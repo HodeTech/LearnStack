@@ -874,6 +874,14 @@ public sealed partial class PersistenceConventionTests
             "ADR-0095 permanently reserves every definition revision, including discarded Drafts",
         ["MembershipFieldConsent.ux_membership_field_consents_tuple_sequence"] =
             "ADR-0095 retains immutable consent history and its exact tuple sequence; no soft-delete writer exists",
+        // ADR-0106/0107 request receipts: ck_*_no_delete refuses deleted_at outright, so these indexes are partial on
+        // their lifecycle, not on a soft delete that cannot happen.
+        ["DataSubjectRequest.ux_data_subject_requests_active"] =
+            "ADR-0106 § 7 holds one non-terminal request per kind, subject and group; requests are never soft-deleted",
+        ["DataExportArtifact.ux_data_export_artifacts_request"] =
+            "ADR-0107 § 4: one artifact per export request, kept as the receipt; artifacts are never soft-deleted",
+        ["DataExportArtifact.ux_data_export_artifacts_available"] =
+            "ADR-0107 § 4: at most one available artifact per subject and group; artifacts are never soft-deleted",
     };
 
     private static bool IsSoftDeletable(IReadOnlyEntityType entity) =>

@@ -307,6 +307,10 @@ govern personal data; exclusion here grants no erasure exemption.
 | `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
 | `invitations` | Synchronous scoped Identity offer and acceptance result, including sensitive recipient/verifier and job linkage; the invitation inventory below owns fulfillment constraints |
 | `federation_connections` | Synchronous tenant-owned federation configuration (ADR-0099): public IdP identifiers, nonsecret digests and lifecycle, with pseudonymous pending/test actor identifiers; no secret, token or assertion and no queued payload |
+| `data_subject_requests` | Synchronous organization-scoped subject request receipt (ADR-0106): subject and requester UserId, frozen Membership identifiers, closed status/refusal/failure codes, participant progress and retained-kind counts; retained as `request_receipt` with Phase 11 retention, and the job parameters carry identifiers only |
+| `data_export_artifacts` | Synchronous export receipt metadata (ADR-0107 § 4): subject, request, size, chunk count, key-ring label and lifecycle; no content or key; retained as `request_receipt` after its chunks are purged |
+| `data_export_tickets` | Synchronous session-bound download cursor (ADR-0107 § 4): subject, artifact and credential digests only, never the ticket value; retained as `request_receipt` |
+| `data_export_chunks` | Synchronous encrypted export bundle (ADR-0107 § 4): PII-Sensitive AES-256-GCM ciphertext of the subject's own data, never in an EF snapshot or audit row; purged at revocation, expiry or erasure, not an asynchronous delivery copy |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not

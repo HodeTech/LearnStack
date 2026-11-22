@@ -79,6 +79,8 @@
     "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
     "LearnStack.Tests.Integration.Database.CustomizationPublicationConcurrencyTests",
     "LearnStack.Tests.Integration.Database.CustomizationSchemaTests",
+    "LearnStack.Tests.Integration.Database.DataRequestStorageControlTests",
+    "LearnStack.Tests.Integration.Database.DataRequestStorageTests",
     "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests",
     "LearnStack.Tests.Integration.Database.DatabaseRoleTests",
     "LearnStack.Tests.Integration.Database.DeliveryDispatchStoreTests",

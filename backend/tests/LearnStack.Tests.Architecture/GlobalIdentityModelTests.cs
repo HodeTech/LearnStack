@@ -74,7 +74,7 @@ public sealed class GlobalIdentityModelTests
         context.Model.GetEntityTypes().Select(entity => entity.GetTableName())
             .Should().BeEquivalentTo(["users", "identity_authority", "memberships", "membership_profiles",
                 "membership_role_assignments", "roles", "role_permission_grants", "invitations", "identity_provider_event_targets",
-                "federation_connections"]);
+                "federation_connections", "data_subject_requests", "data_export_artifacts", "data_export_tickets"]);
         var user = context.Model.FindEntityType(typeof(User))!;
         user.GetProperties().Should().HaveCount(14);
         user.FindProperty("TenantId").Should().BeNull();

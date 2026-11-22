@@ -19,6 +19,10 @@ public sealed partial class IdentityMembershipTests
             ["role_permission_grants"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
             ["invitations"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
             ["federation_connections"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
+            ["data_subject_requests"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
+            ["data_export_artifacts"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
+            ["data_export_tickets"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
+            ["data_export_chunks"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
         };
 
     [Theory]
@@ -29,6 +33,10 @@ public sealed partial class IdentityMembershipTests
     [InlineData("role_permission_grants")]
     [InlineData("invitations")]
     [InlineData("federation_connections")]
+    [InlineData("data_subject_requests")]
+    [InlineData("data_export_artifacts")]
+    [InlineData("data_export_tickets")]
+    [InlineData("data_export_chunks")]
     public async Task Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them(string table)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
@@ -49,6 +57,7 @@ public sealed partial class IdentityMembershipTests
         {
             "memberships" or "membership_role_assignments" => [$"tg_{table}_mutation_guard", $"tg_{table}_admission"],
             "role_permission_grants" => [$"tg_{table}_mutation_guard", "tg_role_permission_grants_root_lock"],
+            "data_export_artifacts" or "data_export_tickets" or "data_export_chunks" => [$"tg_{table}_mutation_guard", $"tg_{table}_parent_scope"],
             _ => [$"tg_{table}_mutation_guard"],
         };
         foreach (var guard in guards)
@@ -73,13 +82,18 @@ public sealed partial class IdentityMembershipTests
                 "roles" => "UPDATE public.roles SET row_version=row_version+1 WHERE id=@role",
                 "invitations" => "UPDATE public.invitations SET row_version=row_version+1 WHERE id=@invitation",
                 "federation_connections" => "UPDATE public.federation_connections SET row_version=row_version+1 WHERE id=@federation",
+                "data_subject_requests" => "UPDATE public.data_subject_requests SET row_version=row_version+1 WHERE id=@request",
+                "data_export_artifacts" => "UPDATE public.data_export_artifacts SET row_version=row_version+1 WHERE id=@artifact",
+                "data_export_tickets" => "UPDATE public.data_export_tickets SET consumed_at=created_at WHERE id=@ticket",
+                "data_export_chunks" => "INSERT INTO public.data_export_chunks(tenant_id,artifact_id,chunk_index,nonce,ciphertext,tag) VALUES(@tenant,@artifact,1,'\\x000000000000000000000000'::bytea,'\\x00'::bytea,'\\x00000000000000000000000000000000'::bytea)",
                 "membership_role_assignments" => "INSERT INTO public.membership_role_assignments(tenant_id,membership_id,role_id) VALUES(@tenant,@member,@role)",
                 _ => "INSERT INTO public.role_permission_grants(tenant_id,role_id,permission_scope,permission_key) VALUES(@tenant,@role,'Tenant',@key)",
             };
             (string Name, object? Value)[] values = [("member", AdminMembershipB), ("tenant", SchemaFixture.TenantB),
                 ("role", RoleId(SchemaFixture.TenantB, BuiltInRoleKey.Instructor, PermissionScope.Tenant)),
                 ("key", IdentityFoundationManifest.ProfileWrite), ("invitation", InvitationSchemaSeed.TenantOfferB),
-                ("federation", FederationConnectionSchemaSeed.LiveB)];
+                ("federation", FederationConnectionSchemaSeed.LiveB), ("request", DataRequestSchemaSeed.TenantWideB.Request),
+                ("artifact", DataRequestSchemaSeed.TenantWideB.Artifact!.Value), ("ticket", DataRequestSchemaSeed.TenantWideB.Ticket!.Value)];
             await using (var clean = await app.BeginTransactionAsync())
             {
                 await ScopeAsync(app, clean, SchemaFixture.TenantA);

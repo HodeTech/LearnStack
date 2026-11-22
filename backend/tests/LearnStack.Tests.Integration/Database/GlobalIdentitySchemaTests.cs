@@ -55,11 +55,11 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
     }
 
     [Fact]
-    public async Task Applied_census_has_sixty_six_tables_and_exactly_sixteen_confined_definers()
+    public async Task Applied_census_has_seventy_tables_and_exactly_sixteen_confined_definers()
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
         await SchemaTableClasses.AssertCompleteAsync(owner);
-        (await SchemaTableClasses.ReadAsync(owner)).Should().HaveCount(66);
+        (await SchemaTableClasses.ReadAsync(owner)).Should().HaveCount(70, "sixty-six before P03-10 and its four data-request tables");
         var names = await SchemaQueries.ReadStringsAsync(owner, """
             SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             WHERE n.nspname='public' AND p.prosecdef ORDER BY p.proname
@@ -163,7 +163,9 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
 
     [Theory]
     [InlineData("DELETE FROM public.users")]
-    [InlineData("TRUNCATE public.users, public.memberships, public.membership_profiles, public.membership_role_assignments, public.invitations")]
+    // The data-request tables reference users, so a TRUNCATE that reaches the users guard names them too.
+    [InlineData("TRUNCATE public.users, public.memberships, public.membership_profiles, public.membership_role_assignments, public.invitations, "
+        + "public.data_subject_requests, public.data_export_artifacts, public.data_export_tickets, public.data_export_chunks")]
     [InlineData("UPDATE public.users SET status='Closing'")]
     public async Task Owner_execution_cannot_remove_or_mutate_the_permanent_binding(string sql)
     {

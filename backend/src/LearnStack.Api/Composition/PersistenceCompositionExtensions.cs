@@ -6,6 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Identity.Application.CustomFields;
 using LearnStack.Modules.Tenancy.Application.FieldConsents;
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Application.DataProtection;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Customization.Application.Contracts.CustomFields;
@@ -188,6 +189,9 @@ public static class PersistenceCompositionExtensions
             PlatformAdminScope.PlatformDataSourceKey,
             (_, _) => new PrivilegedDataSource(() => BuildPlatformDataSource(platformConnectionString)));
         services.AddLearnStackBackgroundJobContracts();
+        // ADR-0107 § 1: the participant collection and the hold-source default. No participant
+        // is registered yet; each module adds its own from its registration.
+        services.AddLearnStackUserDataProtection();
         services.AddInvitationEmailDelivery(configuration);
 
         // The scope is a stateless singleton. Admission is not its concern any more: the

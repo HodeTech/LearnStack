@@ -95,7 +95,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Reinstall the complete current chains, including forward-only retained-evidence heads.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(66L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(70L,
+            "the current chains add the four P03-10 data-request tables to the sixty-six before them");
         (await CountAsync(connection, "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relname IN ('tenant_custom_field_defs','membership_field_consents')"))
             .Should().Be(2, "both current custom-field tables were restored");
         await SchemaTableClasses.AssertCompleteAsync(connection);
@@ -103,8 +104,9 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(25L,
-            "current Identity also installs three provider definers, one target transition guard, the federation connection guard, the operator subject resolver and the authority key guard");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(30L,
+            "current Identity also installs three provider definers, one target transition guard, the federation connection guard, the operator subject resolver, the authority key guard, "
+            + "and the four data-request guards with their chunk completeness check");
         await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
@@ -219,6 +221,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         operatorResolver.Should().Throw<NotSupportedException>().WithMessage("Operator subject resolution requires a reviewed forward migration.");
         Action authorityRebind = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_identity_authority_rebind().DownOperations;
         authorityRebind.Should().Throw<NotSupportedException>().WithMessage("The issuer-rebind storage requires a reviewed forward migration.");
+        Action federationProjection = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.grant_platform_federation_projection().DownOperations;
+        federationProjection.Should().Throw<NotSupportedException>().WithMessage("The platform federation projection grant requires a reviewed forward migration.");
         Action protectedReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_custom_field_protected_receipts().DownOperations;
         protectedReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained custom field receipts require a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
@@ -227,8 +231,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
             (platform, "20261110013140_add_custom_field_protected_receipts", PlatformReversibleHead,
                 "20261120120000_grant_platform_delivery_inspection", "The platform role's column grants require a reviewed forward migration."),
-            (identity, "20261120090000_add_identity_authority_rebind", IdentityReversibleHead,
-                "20261120160000_grant_platform_federation_projection", "The platform federation projection grant requires a reviewed forward migration."),
+            (identity, "20261120160000_grant_platform_federation_projection", IdentityReversibleHead,
+                "20261122013001_add_data_subject_requests", "Data request storage requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

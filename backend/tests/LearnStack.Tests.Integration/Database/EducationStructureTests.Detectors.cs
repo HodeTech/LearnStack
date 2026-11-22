@@ -37,8 +37,16 @@ public sealed partial class EducationStructureTests
         new("invitations", "memberships", "result_membership_id", "r"),
     ];
 
+    // ADR-0107 § 4: an artifact and a ticket mirror their parent's group through Standards 05's canonical
+    // parent-scope function; the SQL-only chunk relation is declared in EducationStructureTests.DataRequestRelations.
+    private static readonly ParentRelation[] DataRequestParentRelations =
+    [
+        new("data_export_artifacts", "data_subject_requests", "request_id", "r"),
+        new("data_export_tickets", "data_export_artifacts", "artifact_id", "r"),
+    ];
+
     private static readonly ParentRelation[] ParentRelations =
-        [.. EducationParentRelations, .. IdentityParentRelations, .. InvitationParentRelations];
+        [.. EducationParentRelations, .. IdentityParentRelations, .. InvitationParentRelations, .. DataRequestParentRelations];
 
     private sealed record PatternRoot(Type Root, Type Satellite, string Table, string SatelliteTable, string ParentId, string[] Columns);
 
@@ -84,7 +92,8 @@ public sealed partial class EducationStructureTests
             }
             else if (!Columns(key.Properties).SequenceEqual(["tenant_id", declaration.ParentId])
                 || !Columns(key.PrincipalKey.Properties).SequenceEqual(["tenant_id", "id"])
-                || ((IdentityParentRelations.Contains(declaration) || InvitationParentRelations.Contains(declaration))
+                || ((IdentityParentRelations.Contains(declaration) || InvitationParentRelations.Contains(declaration)
+                        || DataRequestParentRelations.Contains(declaration))
                     && key.DeleteBehavior != DeleteBehavior.Restrict))
             {
                 offenders.Add($"{child}: model tenant-composite FK");
@@ -93,7 +102,7 @@ public sealed partial class EducationStructureTests
 
         var applied = await ReadForeignKeysAsync(connection, transaction);
         foreach (var key in applied.Where(key => !declarations.Any(item => item.Child == key.Child && item.Parent == key.Parent)
-            && !IsDeclaredJobRelation(key) && !IsDeclaredInvitationProviderRelation(key)))
+            && !IsDeclaredJobRelation(key) && !IsDeclaredInvitationProviderRelation(key) && !IsDeclaredDataExportChunkRelation(key)))
         {
             offenders.Add($"{key.Child}: undeclared applied relation");
         }
@@ -128,7 +137,8 @@ public sealed partial class EducationStructureTests
                 offenders.Add($"{relation.Child}: missing parent FK");
             }
             else if (!ValidForeignKey(keys[0], relation)
-                || ((IdentityParentRelations.Contains(relation) || InvitationParentRelations.Contains(relation))
+                || ((IdentityParentRelations.Contains(relation) || InvitationParentRelations.Contains(relation)
+                        || DataRequestParentRelations.Contains(relation))
                     && keys[0].DeleteAction != relation.DeleteAction))
             {
                 offenders.Add($"{relation.Child}: tenant-composite FK");
@@ -155,6 +165,7 @@ public sealed partial class EducationStructureTests
 
         offenders.AddRange(await JobParentGuardOffendersAsync(applied, triggers));
         offenders.AddRange(await InvitationProviderGuardOffendersAsync(connection, transaction, applied, triggers));
+        offenders.AddRange(DataExportChunkGuardOffenders(applied, triggers));
         return offenders.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
     }
 
