@@ -1,17 +1,21 @@
 using System.Text.Json;
 using FluentAssertions;
+using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Platform;
+using LearnStack.SharedKernel.Secrets;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using LearnStack.Tests.Fixtures;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -22,8 +26,8 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>
 /// The operator's data-request owner against a real database, the real platform scope and the request guard's platform
 /// arm (ADR-0107 § 8, ADR-0108 § 8): the inspection's four lists, its cursors and plans, and the erasure completion's one
-/// transaction, its refusals, its repeat and its failures. The Audit executor is a recording double here; its own SQL is
-/// proven by its own suite. Fixture rows are written by the superuser with the guards paused, in a disposable database;
+/// transaction, its refusals, its repeat and its failures. The Audit executor is a recording double here except in the one
+/// test that runs the real one through the scope; its own SQL is proven by its own suite. Fixture rows are written by the superuser with the guards paused, in a disposable database;
 /// every statement under test runs as <c>learnstack_platform</c> through the scope, and every read-back of a column the
 /// platform role is not granted runs as <c>learnstack_app</c> announcing the row's group.
 /// </summary>
@@ -421,6 +425,75 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
         (await proof.ResultRowsAsync(request.Id)).Should().Be(1);
     }
 
+    [Fact]
+    public async Task The_real_executor_redacts_through_the_scope_and_its_report_commits_with_the_request()
+    {
+        await using var proof = await Proof.CreateAsync(schema.Postgres);
+        var request = await proof.RequestAsync("erasure", "self", "awaiting_privileged_step", "now() - interval '3 days'");
+        Guid actor = Guid.CreateVersion7(), entity = Guid.CreateVersion7(), payload = Guid.CreateVersion7(),
+            unrelated = Guid.CreateVersion7(), foreign = Guid.CreateVersion7(), course = Guid.CreateVersion7();
+        var other = Guid.CreateVersion7();
+        await proof.SqlAsync($$"""
+            INSERT INTO audit_log (id, "timestamp", tenant_id, organization_id, actor_user_id, actor_email, module, operation,
+                operation_type, operation_class, entity_type, entity_id, outcome, after_state, correlation_id, ip_address, user_agent)
+            VALUES
+            ('{{actor}}', clock_timestamp(), '{{Tenant}}', NULL, '{{request.Subject}}', 'p@example.test', 'education', 'e2e.row',
+                'Update', 'Must', 'Course', '{{course}}', 'success', NULL, '00-{{actor:N}}-01', '198.51.100.7', 'UA/1.0'),
+            ('{{entity}}', clock_timestamp(), '{{Tenant}}', NULL, '{{other}}', 'a@example.test', 'identity', 'e2e.row',
+                'Update', 'Must', 'Membership', '{{request.Membership}}', 'success', NULL, '00-{{entity:N}}-01', '198.51.100.7', 'UA/1.0'),
+            ('{{payload}}', clock_timestamp(), '{{Tenant}}', '{{Branch}}', '{{other}}', 'a@example.test', 'education', 'e2e.row',
+                'Update', 'Must', 'Course', '{{course}}', 'success',
+                '{"Id":"{{course}}","CreatedBy":"{{other}}","UpdatedBy":"{{request.Subject}}"}', '00-{{payload:N}}-01', '198.51.100.7', 'UA/1.0'),
+            ('{{unrelated}}', clock_timestamp(), '{{Tenant}}', NULL, '{{other}}', 'a@example.test', 'education', 'e2e.row',
+                'Update', 'Must', 'Course', '{{course}}', 'success',
+                '{"Id":"{{course}}","CreatedBy":"{{other}}","UpdatedBy":"{{other}}"}', '00-{{unrelated:N}}-01', '198.51.100.7', 'UA/1.0'),
+            ('{{foreign}}', clock_timestamp(), '{{SchemaFixture.TenantB}}', NULL, '{{request.Subject}}', 'p@example.test', 'education',
+                'e2e.row', 'Update', 'Must', 'Course', '{{course}}', 'success',
+                '{"Id":"{{course}}","UpdatedBy":"{{request.Subject}}"}', '00-{{foreign:N}}-01', '198.51.100.7', 'UA/1.0')
+            """);
+        var services = new ServiceCollection();
+        services.AddIdentityContextualFoundation();
+        services.AddDataExportCustody(new ConfigurationBuilder().Build());
+        await using var provider = services.BuildServiceProvider();
+        var executor = new AuditRedactionExecutor(provider.GetServices<IUserReferenceLocator>());
+        var admission = Proof.Admission("INC-312", PlatformOperations.ErasureComplete);
+
+        var result = await proof.Owner(executor).CompleteErasureAsync(admission, request.Id);
+
+        result.Outcome.Should().Be(ErasureCompletionOutcome.Completed);
+        var report = result.Report.Should().NotBeNull().And.Subject.As<AuditRedactionReport>();
+        report.RowsSelected.Should().Be(3, "the actor row, the Membership row and the payload row of a person's own request");
+        (report.Redacted[AuditRedactedColumn.IpAddress], report.Redacted[AuditRedactedColumn.UserAgent],
+            report.Redacted[AuditRedactedColumn.ActorEmail], report.Redacted[AuditRedactedColumn.AfterState])
+            .Should().Be((3L, 3L, 3L, 1L));
+        result.Retained.Should().Contain(new KeyValuePair<string, long>("audit_actor_reference", 1))
+            .And.Contain(new KeyValuePair<string, long>("audit_entity_reference", 1));
+
+        foreach (var selected in new[] { actor, entity, payload })
+        {
+            (await proof.AuditColumnsAsync(selected)).Should().Match<AuditColumns>(
+                row => row.Address == null && row.Agent == null && row.Email == null, "{0} is selected", selected);
+        }
+
+        var redacted = JsonDocument.Parse((await proof.AuditColumnsAsync(payload)).After!).RootElement;
+        redacted.GetProperty("UpdatedBy").GetString().Should().Be(SensitiveTokenCatalog.RedactedValue);
+        redacted.GetProperty("CreatedBy").GetString().Should().Be(other.ToString("D"), "another person's value at the same path stays");
+        foreach (var kept in new[] { unrelated, foreign })
+        {
+            (await proof.AuditColumnsAsync(kept)).Should().Match<AuditColumns>(
+                row => row.Address == "198.51.100.7" && row.Agent == "UA/1.0" && row.Email != null
+                    && row.After!.Contains(kept == foreign ? request.Subject.ToString("D") : other.ToString("D")),
+                "{0} names no one of this request's tenant", kept);
+        }
+
+        (await proof.ReadAsync(request)).Status.Should().Be("completed");
+        (await proof.ResultRowsAsync(request.Id)).Should().Be(1, "the redaction's result row commits with the request");
+        var repeat = await proof.Owner(executor).CompleteErasureAsync(
+            Proof.Admission(operation: PlatformOperations.ErasureComplete), request.Id);
+        repeat.Outcome.Should().Be(ErasureCompletionOutcome.AlreadyCompleted);
+        (await proof.ResultRowsAsync(request.Id)).Should().Be(1, "a repeat writes no second result row and redacts nothing");
+    }
+
     private static DataRequestInspectionQuery Query(DataRequestInspectionState state, string? cursor = null, int limit = 10) =>
         new(state, cursor, limit);
 
@@ -487,6 +560,8 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
     private sealed record AuditRow(
         Guid Tenant, string Module, string Operation, string? Reason, Guid? Actor, string? EntityType, string? EntityId,
         string Before, string After, string Metadata);
+
+    private sealed record AuditColumns(string? Address, string? Agent, string? Email, string? After);
 
     private sealed record StoredRequest(
         string Status, long Version, DateTimeOffset? CompletedAt, DateTimeOffset? UpdatedAt, Guid? UpdatedBy, string Result);
@@ -614,6 +689,19 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
             }
 
             return rows;
+        }
+
+        internal async Task<AuditColumns> AuditColumnsAsync(Guid id)
+        {
+            await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(Database.PlatformConnectionString);
+            await using var command = new NpgsqlCommand(
+                "SELECT host(ip_address), user_agent, actor_email, after_state::text FROM audit_log WHERE id = @id", connection);
+            command.Parameters.AddWithValue("id", id);
+            await using var reader = await command.ExecuteReaderAsync();
+            (await reader.ReadAsync()).Should().BeTrue("the audit row exists");
+            return new AuditColumns(
+                reader.IsDBNull(0) ? null : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3));
         }
 
         internal async Task<long> ResultRowsAsync(Guid request)
