@@ -113,6 +113,17 @@ public sealed class Invitation : AuditableEntity<InvitationId>, IAggregateRoot<I
         return Result<None>.Ok(None.Value);
     }
 
+    /// <summary>
+    /// ADR-0107 § 5: revokes a pending offer the erasure's subject issued in its group. The subject is the aggregate actor,
+    /// because this aggregate refuses the system actor; the erasure job remains the audit actor. Idempotent: an offer no
+    /// longer pending changes nothing, and an accepted one stays the record of the authority it granted.
+    /// </summary>
+    public Result<None> RevokeForErasure(DataErasureWitness witness, DateTimeOffset at)
+    {
+        if (witness is null || !witness.Covers(TenantId, OrganizationId, InviterUserId)) return IdentityFailures.BusinessRule();
+        return Status == InvitationStatus.Pending ? Revoke(at, witness.SubjectUserId) : Result<None>.Ok(None.Value);
+    }
+
     /// <summary>Caller proves fresh provider/delegation/locks; this method enforces the actual result graph.</summary>
     public Result<None> Accept(Membership membership, InvitationAcceptanceDisposition disposition,
         string digest, DateTimeOffset databaseNow, UserId actor)

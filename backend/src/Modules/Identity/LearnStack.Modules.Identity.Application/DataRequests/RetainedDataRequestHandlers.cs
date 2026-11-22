@@ -36,8 +36,8 @@ public sealed class RetainedDataRequestAdmission(IOperationInvocationContext inv
     internal OwnDataRequestScopeWitness? For(object request, params OwnDataRequestPurpose[] purposes)
     {
         if (request is not (ListRetainedDataRequestScopesQuery or ListRetainedDataRequestsQuery or CreateRetainedDataExportCommand
-                or CancelRetainedDataRequestCommand or MintRetainedDataExportTicketCommand or ReadRetainedDataExportChunkCommand
-                or ReadRetainedDataRequestReceiptQuery)
+                or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand
+                or MintRetainedDataExportTicketCommand or ReadRetainedDataExportChunkCommand or ReadRetainedDataRequestReceiptQuery)
             || invocations.CurrentInvocation is not { IsActive: true, EntryKind: OperationEntryKind.Application, TrustedSource: null } invocation
             || !ReferenceEquals(invocation.Operation, request) || !ReferenceEquals(invocation.Context, context)
             || !catalog.TryGet(request.GetType(), out var policy) || !ReferenceEquals(policy, invocation.Policy)
@@ -73,9 +73,13 @@ public sealed class RetainedDataRequestAdmission(IOperationInvocationContext inv
 
     /// <summary>The group a receipt read runs in is the witness's own, whichever keyed purpose it came from.</summary>
     internal Result<DataRequestCaller> AdmitReceipt(ReadRetainedDataRequestReceiptQuery request) =>
-        For(request, OwnDataRequestPurpose.Create, OwnDataRequestPurpose.Cancel) is { Group: { } group }
-            ? Admit(request, group.OrganizationId, OwnDataRequestPurpose.Create, OwnDataRequestPurpose.Cancel)
+        For(request, KeyedPurposes) is { Group: { } group }
+            ? Admit(request, group.OrganizationId, KeyedPurposes)
             : DataRequestRules.Fail<DataRequestCaller>("lockey_forbidden");
+
+    /// <summary>The retained entry's keyed purposes, whose replay reads the original request's receipt.</summary>
+    private static readonly OwnDataRequestPurpose[] KeyedPurposes =
+        [OwnDataRequestPurpose.Create, OwnDataRequestPurpose.Cancel, OwnDataRequestPurpose.Revoke];
 }
 
 /// <summary>Returns the groups the definer proved for the subject on the real host; it reads nothing more.</summary>
@@ -122,6 +126,34 @@ public sealed class CreateRetainedDataExportCommandHandler(RetainedDataRequestAd
         var caller = admission.Admit(request, request.OrganizationId, OwnDataRequestPurpose.Create);
         return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
             : await service.CreateExportAsync(caller.Value, caller.Value.Actor, cancellationToken).ConfigureAwait(false);
+    }
+}
+
+public sealed class CreateRetainedDataErasureCommandHandler(RetainedDataRequestAdmission admission, DataRequestService service)
+    : IRequestHandler<CreateRetainedDataErasureCommand, Result<DataRequestMutationResult>>
+{
+    public async Task<Result<DataRequestMutationResult>> Handle(CreateRetainedDataErasureCommand request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var caller = admission.Admit(request, request.OrganizationId, OwnDataRequestPurpose.Create);
+        return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
+            : await service.CreateErasureAsync(caller.Value, caller.Value.Actor, cancellationToken).ConfigureAwait(false);
+    }
+}
+
+/// <summary>
+/// ADR-0107 § 4: the subject revokes an artifact of their own request through the retained path as through a live
+/// session; a person whose Membership is Suspended or gone is not left holding a readable artifact they cannot withdraw.
+/// </summary>
+public sealed class RevokeRetainedDataExportCommandHandler(RetainedDataRequestAdmission admission, DataRequestService service)
+    : IRequestHandler<RevokeRetainedDataExportCommand, Result<DataExportArtifactMutationResult>>
+{
+    public async Task<Result<DataExportArtifactMutationResult>> Handle(RevokeRetainedDataExportCommand request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var caller = admission.Admit(request, request.OrganizationId, OwnDataRequestPurpose.Revoke);
+        return caller.IsFailure ? Result<DataExportArtifactMutationResult>.Fail(caller.Error)
+            : await service.RevokeAsync(caller.Value, request.RequestId, request.ExpectedArtifactVersion, cancellationToken).ConfigureAwait(false);
     }
 }
 

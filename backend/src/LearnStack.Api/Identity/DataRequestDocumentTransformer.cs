@@ -34,6 +34,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     private static readonly Contract[] Contracts =
     [
         new("identity/me/data-requests/exports", HttpMethod.Post, "CreateOwnDataExport", Shape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput", true),
+        new("identity/me/data-requests/erasures", HttpMethod.Post, "CreateOwnDataErasure", Shape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput", true),
         new("identity/me/data-requests", HttpMethod.Get, "ListOwnDataRequests", Shape.Page, "OwnDataRequestPage", null, true),
         new("identity/me/data-requests/{id}", HttpMethod.Get, "GetOwnDataRequest", Shape.Read, "OwnDataRequestResponse", null, true),
         new("identity/me/data-requests/{id}/cancellations", HttpMethod.Post, "CancelOwnDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
@@ -41,6 +42,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         new("identity/me/data-requests/{id}/artifact/tickets", HttpMethod.Post, "MintOwnDataExportTicket", Shape.Ticket, "DataExportTicketResponse", "EmptyAdministrationInput", true),
         new("identity/me/data-requests/{id}/artifact/chunks", HttpMethod.Post, "ReadOwnDataExportChunk", Shape.Chunk, "DataExportChunkResponse", "DataExportChunkInput", true),
         new("identity/data-requests/exports", HttpMethod.Post, "CreateDataExportForSubject", Shape.Create, "DataRequestAcceptedResponse", "DataExportForSubjectInput", false),
+        new("identity/data-requests/erasures", HttpMethod.Post, "CreateDataErasureForSubject", Shape.Create, "DataErasureAcceptedResponse", "DataExportForSubjectInput", false),
         new("identity/data-requests", HttpMethod.Get, "ListDataRequests", Shape.Page, "DataRequestPage", null, false),
         new("identity/data-requests/{id}", HttpMethod.Get, "GetDataRequest", Shape.Read, "DataRequestResponse", null, false),
         new("identity/data-requests/{id}/cancellations", HttpMethod.Post, "CancelDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput", false),
@@ -78,7 +80,9 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         new("identity/data-request-entry/scopes", HttpMethod.Get, "ListRetainedDataRequestScopes", Shape.Page, "RetainedDataRequestScopePageResponse", null, true),
         new("identity/data-request-entry/requests", HttpMethod.Get, "ListRetainedDataRequests", Shape.Page, "OwnDataRequestPage", null, true),
         new("identity/data-request-entry/exports", HttpMethod.Post, "CreateRetainedDataExport", Shape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput", true),
+        new("identity/data-request-entry/erasures", HttpMethod.Post, "CreateRetainedDataErasure", Shape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput", true),
         new("identity/data-request-entry/cancellations", HttpMethod.Post, "CancelRetainedDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput", true),
+        new("identity/data-request-entry/revocations", HttpMethod.Post, "RevokeRetainedDataExport", Shape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput", true),
         new("identity/data-request-entry/tickets", HttpMethod.Post, "MintRetainedDataExportTicket", Shape.Ticket, "DataExportTicketResponse", "RetainedDataRequestTargetInput", true),
         new("identity/data-request-entry/chunks", HttpMethod.Post, "ReadRetainedDataExportChunk", Shape.Chunk, "DataExportChunkResponse", "RetainedDataExportChunkInput", true),
     ];
@@ -160,7 +164,9 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
-                Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the group's requests for its status.",
+                Shape.Create => Erasure(contract)
+                    ? "Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its " + WindowHours + "-hour cancellable window ends; read the group's requests for its status."
+                    : "Accepted: the request's initial resource. Its export runs as a background job; read the group's requests for its status.",
                 Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
                 Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most " + ChunkSize + " of plaintext. " + BundleShape,
                 Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
@@ -186,8 +192,10 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
+                Shape.Create when Erasure(contract) => ErasureConflict,
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
+                _ when contract.Name.StartsWith("Revoke", StringComparison.Ordinal) => "concurrency_conflict for a valid stale artifact version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
             Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Enum("no-store") } },
@@ -213,7 +221,9 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         "ListRetainedDataRequestScopes" => "The retained own scope of ADR-0106 § 9: the groups on the real host where the verified subject holds or held a Membership of any status or has a data request. On an organization host only that organization's group. No Active Membership, no ordinary native session and no tenant or organization selector. Audit Off. No request body.",
         "ListRetainedDataRequests" => "The subject's own requests in one retained group, newest first, for a Suspended person or a person whose Membership was revoked. A request whose job died is shown failed. Audit Off. No request body.",
         "CreateRetainedDataExport" => "The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9). Refused when the subject holds no Membership of any status there. Strict empty JSON object. MUST audited.",
-        "CancelRetainedDataRequest" => "The subject cancels their own requested export in one retained group (requested to cancelled). Strict JSON object with requestId only. MUST audited.",
+        "CreateRetainedDataErasure" => "The subject files an erasure of their own data in one retained group (ADR-0106 § 3, § 9; ADR-0107 § 5): the path of a Suspended person and of one whose Membership was revoked. The request is scheduled and its job runs once the " + WindowHours + "-hour window ends; until then it can be cancelled. Refused when the subject holds no Membership of any status there, while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or while a hold applies. Strict empty JSON object. MUST audited.",
+        "CancelRetainedDataRequest" => "The subject cancels their own request in one retained group: a requested export (requested to cancelled), or a scheduled erasure before its execution time (scheduled to cancelled). Strict JSON object with requestId only. MUST audited.",
+        "RevokeRetainedDataExport" => "The subject revokes an unexpired available artifact of their own request in one retained group, which deletes its chunks at once; the metadata stays as the receipt (ADR-0107 § 4). If-Match carries the ARTIFACT version: the receipt's artifact.version, not the request's. Strict JSON object with requestId only. MUST audited.",
         "MintRetainedDataExportTicket" => "The subject mints a " + TicketMinutes + "-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
         _ => "Reads one decrypted chunk through a ticket presented in the body, never the URL, with the retained-entry credential that minted it. Serving the final chunk consumes the ticket. Every refusal is the same not_found. Not keyed. MUST read-sensitive audited per read; refused when the row cannot be written.",
     };
@@ -284,7 +294,9 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
-                Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the Location for its status.",
+                Shape.Create => Erasure(contract)
+                    ? "Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its " + WindowHours + "-hour cancellable window ends; read the Location for its status."
+                    : "Accepted: the request's initial resource. Its export runs as a background job; read the Location for its status.",
                 Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
                 Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most " + ChunkSize + " of plaintext. " + BundleShape,
                 Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
@@ -312,6 +324,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Description = contract.Shape switch
             {
+                Shape.Create when Erasure(contract) => ErasureConflict,
                 Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
@@ -361,6 +374,17 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     private static readonly string TicketMinutes = string.Create(System.Globalization.CultureInfo.InvariantCulture,
         $"{DataRequestLimits.TicketLifetime.TotalMinutes}");
 
+    private static readonly string WindowHours = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"{DataRequestLimits.CancellationWindow.TotalHours}");
+
+    /// <summary>An erasure's creation refusals (ADR-0106 § 3, § 7): each a closed code in errors.$.</summary>
+    private const string ErasureConflict = "business_rule_violation: errors.$ carries request_already_active (an erasure is still active in the group), "
+        + "blocked_last_administrator (the subject is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
+        + "blocked_hold, or, for an administrator, subject_membership_current (the person still holds an Active or Suspended Membership in the "
+        + "group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+
+    private static bool Erasure(Contract contract) => contract.Name.Contains("Erasure", StringComparison.Ordinal);
+
     private static readonly string TicketConflict = string.Create(System.Globalization.CultureInfo.InvariantCulture,
         $"business_rule_violation. errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact "
         + $"or the key it was sealed under is no longer in the export key ring: the artifact is gone and only a new export helps. It carries "
@@ -372,6 +396,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
 
     private static string Description(Contract contract) => contract.Shape switch
     {
+        Shape.Create when contract.Own && Erasure(contract) => "The subject files an erasure of their own data in the session's group (ADR-0106 § 3; ADR-0107 § 5). Requires an Active Membership in exactly that group; no permission key. The request is scheduled, holds the frozen snapshot of the subject's Memberships of any status in the group, and its job is submitted on the same transaction, due when the " + WindowHours + "-hour cancellable window ends. The job then revokes the subject's export artifacts in the group, removes the Membership's role assignments, clears its profile, leaves it as a Revoked tombstone and revokes the pending invitations the subject issued there; the request then awaits the operator's privileged step. Refused while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or while a hold applies. Strict empty JSON object. MUST audited.",
+        Shape.Create when Erasure(contract) => "An administrator holding identity.membership.admin over the group files an erasure for the person who held the named Membership in the group, only once that Membership is Revoked: an Active or Suspended member is revoked first, by the separately audited administration act (ADR-0106 § 3). Never for themselves. The request is scheduled and runs when its " + WindowHours + "-hour window ends; the administrator who filed it may cancel it until then. Status and counts only. Strict JSON object with membershipId only. MUST audited.",
         Shape.Create when contract.Own => "The subject files an export of their own data in the session's group (ADR-0106 § 3). Requires an Active Membership in exactly that group; no permission key. The request holds the frozen snapshot of the subject's Memberships of any status in the group and its job is submitted on the same transaction. When it completes, it revokes the subject's previous available artifact in the group, whoever filed that one. Strict empty JSON object. MUST audited.",
         Shape.Create => "An administrator holding identity.membership.admin over the group files an export for the person who holds or held the named Membership, of any status, in the group; never for themselves. Refused while the person holds a readable artifact in the group, of any origin, because the new export would revoke it. The administrator sees status and counts only and never receives the bundle. Strict JSON object with membershipId only. MUST audited.",
         Shape.Page when contract.Own => "The subject's own requests in the session's group, newest first. A request whose job died is shown failed. Audit Off. No request body.",
@@ -379,8 +405,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         Shape.Read when contract.Own => "The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds this step counts with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body.",
         Shape.Read => "One request of the group: status and counts only, never content. MUST read-sensitive audited; refused when the row cannot be written. No request body.",
         Shape.Mutation when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own
-            ? "The subject cancels a requested export (requested to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited."
-            : "The administrator who filed an export cancels it while it is still requested. Strict empty JSON object. MUST audited.",
+            ? "The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited."
+            : "The administrator who filed a request cancels it: an export while it is still requested, an erasure before its execution time. Strict empty JSON object. MUST audited.",
         Shape.Mutation => contract.Own
             ? "The subject revokes an unexpired available artifact of a request about them, which deletes its chunks at once; the metadata stays as the receipt. Strict empty JSON object. MUST audited."
             : "The administrator who filed an export revokes its unexpired available artifact, which deletes its chunks at once. Strict empty JSON object. MUST audited.",
@@ -400,6 +426,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         var status = Enum([.. DataRequestCodes.Statuses.Codes]);
         var origin = Enum([.. DataRequestCodes.Origins.Codes]);
         schemas["DataRequestAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("export")), ("status", Enum("requested")), ("version", Version()));
+        schemas["DataErasureAcceptedResponse"] = Object(("id", Uuid()), ("kind", Enum("erasure")), ("status", Enum("scheduled")), ("version", Version()));
         schemas["DataRequestRetainedResponse"] = Object(("kind", Enum([.. DataRequestCodes.RetainedKinds.Codes])),
             ("count", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "0" }));
         schemas["DataExportTruncationResponse"] = Object(("collection", Text(false, 65)), ("included", Count()), ("total", Count()));
@@ -415,7 +442,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("completedAt", DateTime(true)), ("lastRefusal", Nullable(Enum([.. DataRequestCodes.Refusals.Codes]))),
             ("failureReason", Nullable(Enum([.. DataRequestCodes.FailureReasons.Codes]))),
             ("retained", Array(Ref(document, "DataRequestRetainedResponse"), DataRequestCodes.RetainedKinds.Codes.Length)),
-            ("artifact", NullableRef(document, "DataExportArtifactResponse")), ("version", Version()),
+            ("artifact", NullableRef(document, "DataExportArtifactResponse")), ("version", Version()), ("executeAt", DateTime(true)),
         ];
         schemas["OwnDataRequestResponse"] = Object(receipt);
         schemas["OwnDataRequestPage"] = Object(("items", Array(Ref(document, "OwnDataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));

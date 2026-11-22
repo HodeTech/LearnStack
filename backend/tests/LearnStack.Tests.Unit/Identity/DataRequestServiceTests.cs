@@ -482,15 +482,16 @@ public sealed class DataRequestServiceTests
     }
 
     [Fact]
-    public async Task Eligibility_judges_only_exports_of_the_announced_group_and_excludes_the_executing_request()
+    public async Task Eligibility_judges_only_the_announced_group_refuses_a_closure_and_excludes_the_executing_request()
     {
         var store = new Store();
         var context = new Context(Subject);
         var eligibility = new DataRequestEligibility(store, new NoHoldSource(), context);
         var group = new DataRequestScopeGroup(Tenant, null);
 
-        await FluentActions.Awaiting(() => eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Erasure,
-            DataRequestOrigin.Self, Subject, group, DataRequestEligibilityStage.Creation), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>();
+        await FluentActions.Awaiting(() => eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Closure,
+            DataRequestOrigin.Self, Subject, group, DataRequestEligibilityStage.Creation), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>(
+            "the closure's structure is P03-10 Step 3's");
         await FluentActions.Awaiting(() => eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export,
             DataRequestOrigin.Self, Subject, new DataRequestScopeGroup(Tenant, OrganizationId.From(Guid.CreateVersion7())),
             DataRequestEligibilityStage.Creation), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>();
@@ -508,6 +509,146 @@ public sealed class DataRequestServiceTests
         (await new DataRequestEligibility(store, new FixedHold(), context).EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export,
             DataRequestOrigin.Self, Subject, group, DataRequestEligibilityStage.Execution, request.Id.Value), CancellationToken.None))
             .Reason.Should().Be(DataRequestIneligibility.BlockedHold);
+    }
+
+    /// <summary>
+    /// ADR-0106 § 11, ADR-0107 § 2: an erasure is filed scheduled, its execution time the end of the 24-hour window, and its
+    /// job is submitted on the creation's transaction due exactly then; the fences are the export's.
+    /// </summary>
+    [Fact]
+    public async Task A_subject_files_an_erasure_scheduled_for_the_end_of_its_window_and_its_job_is_due_then()
+    {
+        var harness = new Harness();
+
+        var result = await harness.Service.CreateErasureAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        var request = harness.Store.Requests.Should().ContainSingle().Subject;
+        request.Kind.Should().Be(DataRequestKind.Erasure);
+        request.Status.Should().Be(DataRequestStatus.Scheduled);
+        request.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
+        harness.Scheduler.Fulfillments.Should().ContainSingle().Which.Should().Be(new DataRequestFulfillment(request.Id.Value,
+            DataRequestKind.Erasure, DataRequestStatus.Scheduled, request.Group, At + DataRequestLimits.CancellationWindow));
+        harness.Locks.Acquired.Should().ContainSingle().Which.UserIds.Should().Equal(Subject);
+        harness.Locks.Acquired[0].TenantMode.Should().Be(IdentityTenantLockMode.Shared);
+        harness.Audit.Designated.Should().Contain(request);
+
+        var second = await harness.Service.CreateErasureAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        second.Error!.Details!["$"].Single().Key.Should().Be("lockey_request_already_active", "one active erasure per subject and group");
+        (await harness.Service.CreateExportAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None))
+            .IsSuccess.Should().BeTrue("the one-active rule is per kind");
+    }
+
+    /// <summary>
+    /// ADR-0106 § 3: an administrator erases only a person whose Membership of the group is Revoked; a working member is
+    /// revoked first by the separately audited act. Never for themselves, never as the subject's own role.
+    /// </summary>
+    [Fact]
+    public async Task An_administrator_erases_only_a_person_whose_Membership_of_the_group_is_revoked()
+    {
+        var harness = new Harness();
+        var caller = harness.Caller(Administrator, DataRequestRole.Administrator);
+
+        var working = await harness.Service.CreateErasureForMembershipAsync(caller, SubjectMembership.Value, CancellationToken.None);
+        Code(working).Should().Be("business_rule_violation");
+        working.Error!.Details!["$"].Single().Key.Should().Be("lockey_subject_membership_current");
+        Code(await harness.Service.CreateErasureForMembershipAsync(caller, AdministratorMembership.Value, CancellationToken.None))
+            .Should().Be("business_rule_violation", "an administrator never files for themselves");
+        Code(await harness.Service.CreateErasureForMembershipAsync(caller, Guid.CreateVersion7(), CancellationToken.None))
+            .Should().Be("not_found");
+        Code(await harness.Service.CreateErasureForMembershipAsync(harness.Caller(Subject, DataRequestRole.Subject),
+            SubjectMembership.Value, CancellationToken.None)).Should().Be("forbidden");
+        harness.Store.Requests.Should().BeEmpty();
+        harness.Scheduler.Submitted.Should().BeEmpty();
+
+        harness.Store.Current.Remove(Subject);
+        (await harness.Service.CreateErasureForMembershipAsync(caller, SubjectMembership.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        var request = harness.Store.Requests.Should().ContainSingle().Subject;
+        request.Kind.Should().Be(DataRequestKind.Erasure);
+        request.Origin.Should().Be(DataRequestOrigin.Administrator);
+        request.RequesterUserId.Should().Be(Administrator);
+        request.SubjectUserId.Should().Be(Subject);
+    }
+
+    /// <summary>
+    /// ADR-0106 § 7: a refusal at creation is a response and writes nothing: the subject as the tenant's only eligible
+    /// tenant-wide administrator, and a hold. An export is never refused for the administrator rule.
+    /// </summary>
+    [Theory]
+    [InlineData("sole_administrator", "lockey_blocked_last_administrator")]
+    [InlineData("hold", "lockey_blocked_hold")]
+    public async Task An_erasure_refused_at_creation_answers_its_closed_code_and_files_nothing(string variant, string reason)
+    {
+        var harness = new Harness(hold: variant == "hold");
+        if (variant == "sole_administrator")
+        {
+            harness.Store.SoleAdministrators.Add(Subject);
+        }
+
+        var refused = await harness.Service.CreateErasureAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+
+        Code(refused).Should().Be("business_rule_violation");
+        refused.Error!.Details!["$"].Single().Key.Should().Be(reason);
+        harness.Store.Requests.Should().BeEmpty();
+        harness.Scheduler.Submitted.Should().BeEmpty();
+        if (variant == "sole_administrator")
+        {
+            (await harness.Service.CreateExportAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None))
+                .IsSuccess.Should().BeTrue("the administrator rule is the erasure's alone");
+        }
+    }
+
+    /// <summary>
+    /// ADR-0106 § 8: a scheduled erasure whose job died is shown failed at once, and stored failed by the next creation once
+    /// its execution time has passed; before then the aggregate and the guard admit no start, so it keeps its slot.
+    /// </summary>
+    [Fact]
+    public async Task A_dead_erasure_job_is_shown_failed_and_stored_failed_only_once_its_window_has_ended()
+    {
+        var harness = new Harness();
+        await harness.Service.CreateErasureAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        var dead = harness.Store.Requests.Single();
+        harness.Phases.Phase[dead.Id] = DataRequestJobPhase.Dead;
+
+        var view = (await harness.Service.GetAsync(harness.Caller(Subject, DataRequestRole.Subject), dead.Id.Value, CancellationToken.None)).Value!;
+        view.Status.Should().Be("failed");
+        view.FailureReason.Should().Be("execution_failed");
+        view.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
+
+        var early = new Harness(harness.Store, harness.Phases);
+        early.Clock.Now = At.AddHours(1);
+        var refused = await early.Service.CreateErasureAsync(early.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
+        refused.Error!.Details!["$"].Single().Key.Should().Be("lockey_request_already_active");
+        dead.Status.Should().Be(DataRequestStatus.Scheduled, "a scheduled erasure cannot start, so cannot fail, before its window ends");
+
+        var due = new Harness(harness.Store, harness.Phases);
+        due.Clock.Now = At + DataRequestLimits.CancellationWindow + TimeSpan.FromMinutes(1);
+        (await due.Service.CreateErasureAsync(due.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None))
+            .IsSuccess.Should().BeTrue();
+        dead.Status.Should().Be(DataRequestStatus.Failed);
+        dead.FailureReason.Should().Be(DataRequestFailureReason.ExecutionFailed);
+        due.Store.Requests.Should().HaveCount(2);
+    }
+
+    /// <summary>ADR-0106 § 7: an erasure of an organization group is never refused for the tenant-wide administrator rule.</summary>
+    [Fact]
+    public async Task Eligibility_asks_the_administrator_rule_only_of_a_tenant_wide_erasure()
+    {
+        var branch = OrganizationId.From(Guid.CreateVersion7());
+        var store = new Store();
+        store.SoleAdministrators.Add(Subject);
+        var tenantWide = new DataRequestEligibility(store, new NoHoldSource(), new Context(Subject));
+        var organization = new DataRequestEligibility(store, new NoHoldSource(), new Context(Subject, branch));
+
+        (await tenantWide.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Erasure, DataRequestOrigin.Self, Subject,
+            new DataRequestScopeGroup(Tenant, null), DataRequestEligibilityStage.Creation), CancellationToken.None))
+            .Reason.Should().Be(DataRequestIneligibility.BlockedLastAdministrator);
+        (await organization.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Erasure, DataRequestOrigin.Self, Subject,
+            new DataRequestScopeGroup(Tenant, branch), DataRequestEligibilityStage.Creation), CancellationToken.None))
+            .IsEligible.Should().BeTrue("an organization's group holds no tenant-wide administrator Membership");
+        (await tenantWide.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export, DataRequestOrigin.Self, Subject,
+            new DataRequestScopeGroup(Tenant, null), DataRequestEligibilityStage.Creation), CancellationToken.None))
+            .IsEligible.Should().BeTrue("an export removes nobody");
     }
 
     private static string Binding(char fill) => new(fill, 64);
@@ -567,12 +708,12 @@ public sealed class DataRequestServiceTests
         }
     }
 
-    private sealed class Context(UserId? actor) : ITenantContext
+    private sealed class Context(UserId? actor, OrganizationId? organization = null) : ITenantContext
     {
         public bool IsResolved => true;
         public TenantContextOrigin? Origin => TenantContextOrigin.HostAndClaim;
         public TenantId TenantId => Tenant;
-        public OrganizationId? OrganizationId => null;
+        public OrganizationId? OrganizationId => organization;
         public UserId? UserId => actor;
         public string? CorrelationId => null;
         public string? ModuleName => null;
@@ -662,6 +803,21 @@ public sealed class DataRequestServiceTests
         public Task<bool> HoldsReadableArtifactAsync(UserId subject, CancellationToken cancellationToken) =>
             Task.FromResult(Artifacts.Values.Any(row => row.Readable && row.Artifact.SubjectUserId == subject));
 
+        /// <summary>The people who hold an Active or Suspended Membership of the group; both fixtures do by default.</summary>
+        public HashSet<UserId> Current { get; } = [Subject, Administrator];
+
+        /// <summary>The people the group's tenant has as its only eligible tenant-wide administrator.</summary>
+        public HashSet<UserId> SoleAdministrators { get; } = [];
+
+        public Task<bool> HoldsCurrentMembershipAsync(UserId subject, CancellationToken cancellationToken) =>
+            Task.FromResult(Current.Contains(subject));
+
+        public Task<bool> IsSoleEligibleTenantAdministratorAsync(UserId subject, CancellationToken cancellationToken) =>
+            Task.FromResult(SoleAdministrators.Contains(subject));
+
+        public Task<bool> HoldsErasureFencesAsync(UserId subject, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Only the erasure job's participant observes the fences.");
+
         public Func<DateTimeOffset> Now { get; set; } = () => At;
 
         public Task<DataSubjectRequest?> FindAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken) =>
@@ -681,14 +837,15 @@ public sealed class DataRequestServiceTests
         public List<DataSubjectRequestId> Read { get; } = [];
 
         public Task<DataRequestJobPhase> ReadAsync(DataSubjectRequestId requestId, DataRequestKind kind, CancellationToken cancellationToken) =>
-            Task.FromResult(kind == DataRequestKind.Export ? Phase.GetValueOrDefault(requestId, DataRequestJobPhase.Pending) : DataRequestJobPhase.Unavailable);
+            Task.FromResult(kind is DataRequestKind.Export or DataRequestKind.Erasure
+                ? Phase.GetValueOrDefault(requestId, DataRequestJobPhase.Pending) : DataRequestJobPhase.Unavailable);
 
         public Task<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>> ReadManyAsync(
-            IReadOnlyCollection<DataSubjectRequestId> exportRequestIds, CancellationToken cancellationToken)
+            IReadOnlyCollection<DataSubjectRequestId> requestIds, DataRequestKind kind, CancellationToken cancellationToken)
         {
-            Read.AddRange(exportRequestIds);
+            Read.AddRange(requestIds);
             return Task.FromResult<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>>(
-                exportRequestIds.Distinct().ToDictionary(id => id, id => Phase.GetValueOrDefault(id, DataRequestJobPhase.Pending)));
+                requestIds.Distinct().ToDictionary(id => id, id => Phase.GetValueOrDefault(id, DataRequestJobPhase.Pending)));
         }
     }
 
@@ -722,10 +879,12 @@ public sealed class DataRequestServiceTests
     {
         public List<DataSubjectRequestId> Submitted { get; } = [];
 
-        public ValueTask SubmitAsync(Guid requestId, DataRequestKind kind, DataRequestStatus status, DataRequestScopeGroup group,
-            CancellationToken cancellationToken)
+        public List<DataRequestFulfillment> Fulfillments { get; } = [];
+
+        public ValueTask SubmitAsync(DataRequestFulfillment fulfillment, CancellationToken cancellationToken)
         {
-            Submitted.Add(DataSubjectRequestId.From(requestId));
+            Submitted.Add(DataSubjectRequestId.From(fulfillment.RequestId));
+            Fulfillments.Add(fulfillment);
             return ValueTask.CompletedTask;
         }
 

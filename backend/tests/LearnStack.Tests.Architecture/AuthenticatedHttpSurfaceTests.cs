@@ -255,6 +255,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.OwnDataRequestsController", "Create", "POST", "identity/me/data-requests", "exports",
             "CreateOwnDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnDataExportCommand), "LearnStackOperation:identity.data_request.create_own_export",
             typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 24, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.OwnDataRequestsController", "CreateErasure", "POST", "identity/me/data-requests", "erasures",
+            "CreateOwnDataErasure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateOwnDataErasureCommand), "LearnStackOperation:identity.data_request.create_own_erasure",
+            typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 32, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
         new("LearnStack.Api.Identity.OwnDataRequestsController", "List", "GET", "identity/me/data-requests", null,
             "ListOwnDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListOwnDataRequestsQuery), "LearnStackOperation:identity.data_request.list_own",
             typeof(LearnStack.Api.Identity.OwnDataRequestPage), 200, null, new()),
@@ -276,6 +279,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.DataRequestsController", "Create", "POST", "identity/data-requests", "exports",
             "CreateDataExportForSubject", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateDataExportForSubjectCommand), "LearnStackOperation:identity.data_request.create_export",
             typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 25, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestsController", "CreateErasure", "POST", "identity/data-requests", "erasures",
+            "CreateDataErasureForSubject", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateDataErasureForSubjectCommand), "LearnStackOperation:identity.data_request.create_erasure",
+            typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 33, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
         new("LearnStack.Api.Identity.DataRequestsController", "List", "GET", "identity/data-requests", null,
             "ListDataRequests", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.ListDataRequestsQuery), "LearnStackOperation:identity.data_request.list",
             typeof(LearnStack.Api.Identity.DataRequestPage), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_request.list", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
@@ -298,9 +304,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.DataRequestEntryController", "CreateExport", "POST", "identity/data-request-entry", "exports",
             "CreateRetainedDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataExportCommand), "LearnStackOperation:identity.data_request.create_retained_export",
             typeof(LearnStack.Api.Identity.DataRequestAcceptedResponse), 202, 30, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_export", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "CreateErasure", "POST", "identity/data-request-entry", "erasures",
+            "CreateRetainedDataErasure", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CreateRetainedDataErasureCommand), "LearnStackOperation:identity.data_request.create_retained_erasure",
+            typeof(LearnStack.Api.Identity.DataErasureAcceptedResponse), 202, 34, new(OperationClass.Must, OperationType.Create, "identity.data_request.create_erasure", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
         new("LearnStack.Api.Identity.DataRequestEntryController", "Cancel", "POST", "identity/data-request-entry", "cancellations",
             "CancelRetainedDataRequest", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.CancelRetainedDataRequestCommand), "LearnStackOperation:identity.data_request.cancel_retained",
             typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 31, new(OperationClass.Must, OperationType.Update, "identity.data_request.cancel", typeof(LearnStack.Modules.Identity.Domain.DataSubjectRequest))),
+        new("LearnStack.Api.Identity.DataRequestEntryController", "RevokeExport", "POST", "identity/data-request-entry", "revocations",
+            "RevokeRetainedDataExport", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.RevokeRetainedDataExportCommand), "LearnStackOperation:identity.data_request.revoke_retained_export",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 35, new(OperationClass.Must, OperationType.Delete, "identity.data_export.revoke", typeof(LearnStack.Modules.Identity.Domain.DataExportArtifact))),
         new("LearnStack.Api.Identity.DataRequestEntryController", "MintTicket", "POST", "identity/data-request-entry", "tickets",
             "MintRetainedDataExportTicket", typeof(LearnStack.Modules.Identity.Application.Contracts.DataRequests.MintRetainedDataExportTicketCommand), "LearnStackOperation:identity.data_request.mint_retained_export_ticket",
             typeof(LearnStack.Api.Identity.DataExportTicketResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.data_export.mint_ticket", typeof(LearnStack.Modules.Identity.Domain.DataExportTicket))),
@@ -361,9 +373,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         errors.Should().BeEmpty(
             "Fix: retain the exact ADR-0064/0076 reads and ADR-0078/0079 finite entry/administration union; all findings: {0}", string.Join("\n", errors));
         // The totals Standard 21 publishes for this rule; Violations binds the production surface to this literal census.
-        Endpoints.Should().HaveCount(90, "the census closes the surface at 90 MVC actions");
-        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(85,
-            "Standard 21 publishes 85 distinct IRequest roots for the 90 actions");
+        Endpoints.Should().HaveCount(94, "the census closes the surface at 94 MVC actions");
+        Endpoints.Select(endpoint => endpoint.Request).Distinct().Should().HaveCount(89,
+            "Standard 21 publishes 89 distinct IRequest roots for the 94 actions");
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
@@ -515,7 +527,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(64, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, the federation commands share one handler class beside its two query handlers, and each of the eighteen data-request requests (twelve live, six retained-entry) has its own thin handler");
+        handlers.Should().HaveCount(68, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes, the federation commands share one handler class beside its two query handlers, and each of the twenty-two data-request requests (fourteen live, eight retained-entry) has its own thin handler");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);

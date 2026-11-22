@@ -82,9 +82,9 @@ public static class IdentityFoundationRegistration
     }
 
     /// <summary>
-    /// ADR-0107 § 1–§ 4: the request store, the default artifact store, the export and purge job roots, the
-    /// fulfilment scheduler, the failure reconciler and the Identity participant. The cipher that seals the chunks
-    /// and the bundle builder are the composition root's.
+    /// ADR-0107 § 1–§ 5: the request store, the default artifact store, the export, purge and erasure job roots, the
+    /// fulfilment scheduler, the failure reconciler, the erasure service and the Identity participant. The cipher that
+    /// seals the chunks and the bundle builder are the composition root's.
     /// </summary>
     private static void AddIdentityDataRequests(this IServiceCollection services)
     {
@@ -99,6 +99,11 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IRequestHandler<RunOrganizationDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
         services.TryAddScoped<IRequestHandler<PurgeTenantDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
         services.TryAddScoped<IRequestHandler<PurgeOrganizationDataExportCommand, Result<None>>>(provider => provider.GetRequiredService<DataExportJobHandlers>());
+        // ADR-0107 § 5: the erasure job's two roots, and the Identity participant's erasure it runs.
+        services.TryAddScoped<DataErasureJobHandlers>();
+        services.TryAddScoped<IRequestHandler<RunTenantDataErasureCommand, Result<None>>>(provider => provider.GetRequiredService<DataErasureJobHandlers>());
+        services.TryAddScoped<IRequestHandler<RunOrganizationDataErasureCommand, Result<None>>>(provider => provider.GetRequiredService<DataErasureJobHandlers>());
+        services.TryAddScoped<DataErasureService>();
         services.TryAddScoped<MembershipFieldRevisionReader>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserDataParticipant, IdentityUserDataParticipant>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IUserReferenceLocator, IdentityUserReferenceLocator>());

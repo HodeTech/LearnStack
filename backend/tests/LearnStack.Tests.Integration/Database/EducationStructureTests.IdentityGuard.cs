@@ -5,13 +5,15 @@ public sealed partial class EducationStructureTests
     // Independent whole-body expectation for the combined contextual guard. A
     // fragment match would miss an early return or a branch that bypasses the
     // parent lookup. This fixture is not obtained from the production installer.
+    // ADR-0107 § 5's erasure exception is part of the body: a clearing profile
+    // UPDATE of a Revoked parent under the User fence and a fulfilling erasure.
     private static bool IsIdentityParentGuardBody(string body) =>
         NormalizeFunction(body) == NormalizeFunction(IdentityParentGuardBody);
 
     private const string IdentityParentGuardBody = """
         DECLARE target_tenant uuid; target_member uuid; target_role uuid; parent_org uuid;
             parent_status text; role_scope text; role_key text; require_exclusive boolean := false;
-            has_history boolean; parent_fresh boolean;
+            has_history boolean; parent_fresh boolean; parent_user uuid; erasure_clearing boolean := false;
         BEGIN
             target_tenant := CASE WHEN TG_OP = 'DELETE' THEN OLD.tenant_id ELSE NEW.tenant_id END;
             IF TG_OP = 'UPDATE' AND NEW.tenant_id IS DISTINCT FROM OLD.tenant_id THEN
@@ -38,14 +40,23 @@ public sealed partial class EducationStructureTests
                 IF TG_OP = 'UPDATE' AND NEW.membership_id IS DISTINCT FROM OLD.membership_id THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 END IF;
-                SELECT member.organization_id, member.status INTO parent_org, parent_status
+                SELECT member.organization_id, member.status, member.user_id INTO parent_org, parent_status, parent_user
                     FROM public.memberships AS member WHERE member.tenant_id = target_tenant AND member.id = target_member FOR NO KEY UPDATE;
                 IF NOT FOUND OR parent_org IS DISTINCT FROM (CASE WHEN TG_OP = 'DELETE' THEN OLD.organization_id ELSE NEW.organization_id END) THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = '23514', CONSTRAINT = 'membership_parent_scope';
                 END IF;
-                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' THEN
+                IF TG_TABLE_NAME = 'membership_profiles' AND TG_OP = 'UPDATE' AND parent_status = 'Revoked' THEN
+                    erasure_clearing := NEW.display_name IS NULL AND NEW.preferred_locale IS NULL AND NEW.custom_fields = '[]'::jsonb
+                        AND public.fn_identity_lock_held('user',parent_user,true) IS TRUE
+                        AND EXISTS (SELECT 1 FROM public.data_subject_requests AS erasure
+                            WHERE erasure.tenant_id = target_tenant AND erasure.subject_user_id = parent_user
+                              AND erasure.organization_id IS NOT DISTINCT FROM parent_org
+                              AND erasure.kind = 'erasure' AND erasure.status = 'fulfilling');
+                END IF;
+                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND NOT erasure_clearing THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 END IF;
+                require_exclusive := erasure_clearing;
                 IF TG_TABLE_NAME = 'membership_profiles' AND TG_OP = 'DELETE' THEN
                     RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
                 ELSIF TG_TABLE_NAME = 'membership_role_assignments' THEN

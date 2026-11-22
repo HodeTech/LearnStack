@@ -36,13 +36,15 @@ public sealed class OwnDataRequestScopeConventionTests
         var policies = new IdentityOperationPolicySource().Policies;
         policies.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequestEntry).Select(policy => policy.RequestType)
             .Should().BeEquivalentTo([typeof(ListRetainedDataRequestScopesQuery), typeof(ListRetainedDataRequestsQuery),
-                typeof(CreateRetainedDataExportCommand), typeof(CancelRetainedDataRequestCommand), typeof(MintRetainedDataExportTicketCommand),
+                typeof(CreateRetainedDataExportCommand), typeof(CreateRetainedDataErasureCommand), typeof(CancelRetainedDataRequestCommand),
+                typeof(RevokeRetainedDataExportCommand), typeof(MintRetainedDataExportTicketCommand),
                 typeof(ReadRetainedDataExportChunkCommand), typeof(ReadRetainedDataRequestReceiptQuery)],
-                "the retained entry reaches exactly its six operations and the receipt read of its two keyed ones");
+                "the retained entry reaches exactly its eight operations and the receipt read of its four keyed ones");
         policies.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequest).Select(policy => policy.RequestType)
-            .Should().BeEquivalentTo([typeof(CreateOwnDataExportCommand), typeof(ListOwnDataRequestsQuery), typeof(GetOwnDataRequestQuery),
-                typeof(CancelOwnDataRequestCommand), typeof(RevokeOwnDataExportCommand), typeof(MintOwnDataExportTicketCommand),
-                typeof(ReadOwnDataExportChunkCommand), typeof(ReadOwnDataRequestReceiptQuery)], "the live kind is unchanged and never a retained type");
+            .Should().BeEquivalentTo([typeof(CreateOwnDataExportCommand), typeof(CreateOwnDataErasureCommand), typeof(ListOwnDataRequestsQuery),
+                typeof(GetOwnDataRequestQuery), typeof(CancelOwnDataRequestCommand), typeof(RevokeOwnDataExportCommand),
+                typeof(MintOwnDataExportTicketCommand), typeof(ReadOwnDataExportChunkCommand), typeof(ReadOwnDataRequestReceiptQuery)],
+                "the live kind is unchanged and never a retained type");
         policies.Where(policy => policy.Kind is OperationPolicyKind.OwnDataRequest or OperationPolicyKind.OwnDataRequestEntry)
             .Should().OnlyContain(policy => policy.Alternatives.IsEmpty && policy.RequiredPermission == null,
                 "neither kind carries an assignable key (ADR-0106 § 4)");
@@ -60,7 +62,7 @@ public sealed class OwnDataRequestScopeConventionTests
         typeof(OwnDataRequestScopeWitness).GetProperties().Should().OnlyContain(property => property.SetMethod == null);
         typeof(OwnDataRequestScopeWitness).GetProperty(nameof(OwnDataRequestScopeWitness.SubjectKey))!
             .GetCustomAttributes().Select(attribute => attribute.GetType().Name).Should().Contain("PiiSensitiveAttribute");
-        Enum.GetNames<OwnDataRequestPurpose>().Should().Equal("List", "Create", "Read", "Cancel", "Ticket", "Chunk");
+        Enum.GetNames<OwnDataRequestPurpose>().Should().Equal("List", "Create", "Read", "Cancel", "Ticket", "Chunk", "Revoke");
         Enum.IsDefined(TenantContextOrigin.HostAndOwnDataRequestScope).Should().BeTrue();
         new[] { OperationPolicyKind.OwnDataRequest, OperationPolicyKind.OwnDataRequestEntry }
             .Select(kind => (int)kind).Should().Equal(10, 11);
@@ -156,8 +158,8 @@ public sealed class OwnDataRequestScopeConventionTests
             ("ReferenceEquals(http.Features.Get<OwnDataRequestEntryRequest>(), _requestFeature)", "true"),
             ("ReferenceEquals(_requestFeature.Request, _request)", "true"),
             ("_native.DataRequestOperation == _purpose", "true"),
-            ("_purpose?.Purpose is not (OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel)", "false"),
-            ("_request is not (CreateRetainedDataExportCommand or CancelRetainedDataRequestCommand)", "false"),
+            ("_purpose?.Purpose is not (OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke)", "false"),
+            ("_request is not (CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand\n                or RevokeRetainedDataExportCommand)", "false"),
             ("_requestFeature = new OwnDataRequestEntryRequest(receipt);", "_requestFeature = null;"),
             ("http.Features.Set(_requestFeature);\n        return true;", "GC.KeepAlive(http);\n        return true;"),
         })
@@ -182,8 +184,10 @@ public sealed class OwnDataRequestScopeConventionTests
         return live.Contains("ReferenceEquals(http.Features.Get<OwnDataRequestEntryRequest>(),_requestFeature)", StringComparison.Ordinal)
             && live.Contains("ReferenceEquals(_requestFeature.Request,_request)", StringComparison.Ordinal)
             && live.Contains("_native.DataRequestOperation==_purpose", StringComparison.Ordinal)
-            && replay.Contains("!IsCurrent(http)||_purpose?.Purposeisnot(OwnDataRequestPurpose.CreateorOwnDataRequestPurpose.Cancel)", StringComparison.Ordinal)
-            && replay.Contains("_requestisnot(CreateRetainedDataExportCommandorCancelRetainedDataRequestCommand)", StringComparison.Ordinal)
+            && replay.Contains("!IsCurrent(http)||_purpose?.Purposeisnot(OwnDataRequestPurpose.CreateorOwnDataRequestPurpose.Cancel"
+                + "orOwnDataRequestPurpose.Revoke)", StringComparison.Ordinal)
+            && replay.Contains("_requestisnot(CreateRetainedDataExportCommandorCreateRetainedDataErasureCommandorCancelRetainedDataRequestCommand"
+                + "orRevokeRetainedDataExportCommand)", StringComparison.Ordinal)
             && replay.Contains("_requestFeature=newOwnDataRequestEntryRequest(receipt);http.Features.Set(_requestFeature);returntrue;", StringComparison.Ordinal)
             && initial.Contains("_requestFeature=newOwnDataRequestEntryRequest(input.Request);http.Features.Set(_requestFeature);http.Features.Set(this);", StringComparison.Ordinal);
     }

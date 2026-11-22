@@ -8,8 +8,8 @@ internal sealed class OwnDataRequestEntryRequest
     internal OwnDataRequestEntryRequest(object request)
     {
         if (request is not (ListRetainedDataRequestScopesQuery or ListRetainedDataRequestsQuery or CreateRetainedDataExportCommand
-            or CancelRetainedDataRequestCommand or MintRetainedDataExportTicketCommand or ReadRetainedDataExportChunkCommand
-            or ReadRetainedDataRequestReceiptQuery))
+            or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand
+            or MintRetainedDataExportTicketCommand or ReadRetainedDataExportChunkCommand or ReadRetainedDataRequestReceiptQuery))
             throw new ArgumentException("Data request entry request refused.");
         Request = request;
     }

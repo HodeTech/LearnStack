@@ -62,8 +62,12 @@ public sealed class OwnDataRequestSubjectSource(IHttpContextAccessor accessor, I
     /// <summary>The keyed purposes' input, read again from the current request, still equals the captured one.</summary>
     internal async Task<bool> MatchesCapturedMutationAsync(HttpContext http)
     {
-        if (!IsCurrent(http) || _purpose is not { Purpose: OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel } purpose
-            || _input is not { Request: CreateRetainedDataExportCommand or CancelRetainedDataRequestCommand } captured) return false;
+        if (!IsCurrent(http) || _purpose is not { Purpose: OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke } purpose
+            || _input is not
+            {
+                Request: CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand
+                or RevokeRetainedDataExportCommand
+            } captured) return false;
         var reread = await OwnDataRequestHttpInput.ReadAsync(http, purpose);
         return IsCurrent(http) && reread is not null && reread.Request.GetType() == captured.Request.GetType()
             && reread.Request.Equals(captured.Request) && reread.OrganizationId == captured.OrganizationId;
@@ -75,8 +79,9 @@ public sealed class OwnDataRequestSubjectSource(IHttpContextAccessor accessor, I
     /// </summary>
     internal bool SelectMutationReceipt(HttpContext http, Guid requestId)
     {
-        if (!IsCurrent(http) || _purpose?.Purpose is not (OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel)
-            || _request is not (CreateRetainedDataExportCommand or CancelRetainedDataRequestCommand)
+        if (!IsCurrent(http) || _purpose?.Purpose is not (OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke)
+            || _request is not (CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand or CancelRetainedDataRequestCommand
+                or RevokeRetainedDataExportCommand)
             || requestId == Guid.Empty || requestId.Version != 7)
             return false;
         var receipt = new ReadRetainedDataRequestReceiptQuery(requestId);

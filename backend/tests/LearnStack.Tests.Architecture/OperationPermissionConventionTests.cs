@@ -102,8 +102,8 @@ public sealed partial class OperationPermissionConventionTests
             // ADR-0106 § 4: the administrator data-request operations reuse the invitation pair exactly.
             .. new[]
             {
-                typeof(CreateDataExportForSubjectCommand), typeof(ListDataRequestsQuery), typeof(GetDataRequestQuery),
-                typeof(CancelDataRequestCommand), typeof(RevokeDataExportCommand), typeof(ReadDataRequestReceiptQuery),
+                typeof(CreateDataExportForSubjectCommand), typeof(CreateDataErasureForSubjectCommand), typeof(ListDataRequestsQuery),
+                typeof(GetDataRequestQuery), typeof(CancelDataRequestCommand), typeof(RevokeDataExportCommand), typeof(ReadDataRequestReceiptQuery),
             }.Select(request => (request, false, new OperationPolicyClause[] { new([membershipAdmin]), new([organizationAdmin]) })),
             (typeof(ListInvitationsQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
             (typeof(GetInvitationQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),

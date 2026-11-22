@@ -10,7 +10,10 @@ using Xunit;
 
 namespace LearnStack.Tests.Unit.Identity;
 
-/// <summary>ADR-0107 § 2: the fulfilment job of a request's kind and group, and the purge at the artifact's expiry.</summary>
+/// <summary>
+/// ADR-0107 § 2: the fulfilment job of a request's kind and group (an export's at once, an erasure's at the end of its
+/// window), and the purge at the artifact's expiry.
+/// </summary>
 public sealed class DataRequestFulfillmentSchedulerTests
 {
     private static readonly DateTimeOffset At = new(2026, 11, 22, 9, 0, 0, TimeSpan.Zero);
@@ -26,23 +29,39 @@ public sealed class DataRequestFulfillmentSchedulerTests
         var jobs = new RecordingScheduler();
         var request = Request(DataRequestKind.Export, organization);
 
-        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(request.Id.Value, request.Kind, request.Status, request.Group, CancellationToken.None);
+        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(Fulfillment(request), CancellationToken.None);
 
         jobs.Submitted.Should().ContainSingle().Which.Should().Be((key, (object)new DataExportJobParameters(request.Id.Value), (DateTimeOffset?)null));
     }
 
     [Theory]
-    [InlineData("erasure")]
+    [InlineData("tenant", "identity.data_erasure_tenant.v1")]
+    [InlineData("organization", "identity.data_erasure_organization.v1")]
+    public async Task A_scheduled_erasure_schedules_the_erasure_definition_of_its_group_at_the_end_of_its_window(string scope, string key)
+    {
+        var organization = scope == "tenant" ? (OrganizationId?)null : Organization;
+        var jobs = new RecordingScheduler();
+        var request = Request(DataRequestKind.Erasure, organization);
+
+        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(Fulfillment(request), CancellationToken.None);
+
+        jobs.Submitted.Should().ContainSingle().Which.Should().Be((key, (object)new DataErasureJobParameters(request.Id.Value),
+            (DateTimeOffset?)(At + DataRequestLimits.CancellationWindow)), "the job is due when the cancellable window ends, never before");
+    }
+
+    [Theory]
     [InlineData("closure")]
     [InlineData("other_group")]
     [InlineData("fulfilling")]
-    public async Task Anything_but_a_requested_export_of_the_announced_group_is_a_programming_error(string variant)
+    [InlineData("erasure_without_due_time")]
+    [InlineData("export_with_due_time")]
+    public async Task Anything_but_a_requested_export_or_scheduled_erasure_of_the_announced_group_is_a_programming_error(string variant)
     {
         var jobs = new RecordingScheduler();
         var request = variant switch
         {
-            "erasure" => Request(DataRequestKind.Erasure, null),
             "closure" => Request(DataRequestKind.Closure, null),
+            "erasure_without_due_time" => Request(DataRequestKind.Erasure, null),
             _ => Request(DataRequestKind.Export, null),
         };
         if (variant == "fulfilling")
@@ -51,8 +70,14 @@ public sealed class DataRequestFulfillmentSchedulerTests
         }
 
         var context = new Context(variant == "other_group" ? Organization : null);
+        var fulfillment = variant switch
+        {
+            "erasure_without_due_time" => Fulfillment(request) with { ExecuteAt = null },
+            "export_with_due_time" => Fulfillment(request) with { ExecuteAt = At },
+            _ => Fulfillment(request),
+        };
 
-        await FluentActions.Awaiting(() => new DataRequestFulfillmentScheduler(jobs, context).SubmitAsync(request.Id.Value, request.Kind, request.Status, request.Group, CancellationToken.None).AsTask())
+        await FluentActions.Awaiting(() => new DataRequestFulfillmentScheduler(jobs, context).SubmitAsync(fulfillment, CancellationToken.None).AsTask())
             .Should().ThrowAsync<InvalidOperationException>();
         jobs.Submitted.Should().BeEmpty();
     }
@@ -74,6 +99,9 @@ public sealed class DataRequestFulfillmentSchedulerTests
             .SchedulePurgeAsync(Guid.NewGuid(), due, CancellationToken.None).AsTask())
             .Should().ThrowAsync<InvalidOperationException>("an artifact identity is a UUIDv7");
     }
+
+    private static DataRequestFulfillment Fulfillment(DataSubjectRequest request) =>
+        new(request.Id.Value, request.Kind, request.Status, request.Group, request.ExecuteAt);
 
     private static DataSubjectRequest Request(DataRequestKind kind, OrganizationId? organization) =>
         DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(Guid.CreateVersion7()), kind, UserId.From(Guid.CreateVersion7()),

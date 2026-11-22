@@ -38,6 +38,17 @@ public sealed class CreateOwnDataExportCommandHandler(LiveDataRequestAdmission a
     }
 }
 
+public sealed class CreateOwnDataErasureCommandHandler(LiveDataRequestAdmission admission, DataRequestService service)
+    : IRequestHandler<CreateOwnDataErasureCommand, Result<DataRequestMutationResult>>
+{
+    public async Task<Result<DataRequestMutationResult>> Handle(CreateOwnDataErasureCommand request, CancellationToken cancellationToken)
+    {
+        var caller = await admission.AdmitAsync(request, cancellationToken).ConfigureAwait(false);
+        return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
+            : await service.CreateErasureAsync(caller.Value, caller.Value.Actor, cancellationToken).ConfigureAwait(false);
+    }
+}
+
 public sealed class ListOwnDataRequestsQueryHandler(LiveDataRequestAdmission admission, DataRequestService service)
     : IRequestHandler<ListOwnDataRequestsQuery, Result<Page<DataRequestView>>>
 {
@@ -124,6 +135,17 @@ public sealed class CreateDataExportForSubjectCommandHandler(LiveDataRequestAdmi
         var caller = await admission.AdmitAsync(request, cancellationToken).ConfigureAwait(false);
         return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
             : await service.CreateExportForMembershipAsync(caller.Value, request.MembershipId, cancellationToken).ConfigureAwait(false);
+    }
+}
+
+public sealed class CreateDataErasureForSubjectCommandHandler(LiveDataRequestAdmission admission, DataRequestService service)
+    : IRequestHandler<CreateDataErasureForSubjectCommand, Result<DataRequestMutationResult>>
+{
+    public async Task<Result<DataRequestMutationResult>> Handle(CreateDataErasureForSubjectCommand request, CancellationToken cancellationToken)
+    {
+        var caller = await admission.AdmitAsync(request, cancellationToken).ConfigureAwait(false);
+        return caller.IsFailure ? Result<DataRequestMutationResult>.Fail(caller.Error)
+            : await service.CreateErasureForMembershipAsync(caller.Value, request.MembershipId, cancellationToken).ConfigureAwait(false);
     }
 }
 

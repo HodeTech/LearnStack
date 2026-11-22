@@ -177,8 +177,10 @@ public sealed partial class OutboxDispatchConventionTests
         var registry = InvitationEmailRegistration.CreateRegistry();
         registry.DefinitionKeys.Should().BeEquivalentTo("identity.invitation_email_tenant.v1", "identity.invitation_email_organization.v1",
             "identity.data_export_tenant.v1", "identity.data_export_organization.v1",
-            "identity.data_export_purge_tenant.v1", "identity.data_export_purge_organization.v1");
+            "identity.data_export_purge_tenant.v1", "identity.data_export_purge_organization.v1",
+            "identity.data_erasure_tenant.v1", "identity.data_erasure_organization.v1");
         CheckDataExportJobManifest(registry);
+        CheckDataErasureJobManifest(registry);
         foreach (var (key, scope, prepare, finalize) in new[]
         {
             ("identity.invitation_email_tenant.v1", BackgroundJobScope.TenantWide, typeof(PrepareTenantInvitationEmailCommand), typeof(FinalizeTenantInvitationEmailCommand)),
@@ -261,6 +263,65 @@ public sealed partial class OutboxDispatchConventionTests
         }
     }
 
+    /// <summary>
+    /// ADR-0107 § 2, § 5: the erasure adds exactly two transactional, identifier-only, version-1 definitions, one per scope
+    /// group, with no capacity group and no nested request; their declaration source is bound like the export's.
+    /// </summary>
+    private static void CheckDataErasureJobManifest(BackgroundJobDefinitionRegistry registry)
+    {
+        foreach (var (key, scope, root) in new[]
+        {
+            ("identity.data_erasure_tenant.v1", BackgroundJobScope.TenantWide, typeof(RunTenantDataErasureCommand)),
+            ("identity.data_erasure_organization.v1", BackgroundJobScope.Organization, typeof(RunOrganizationDataErasureCommand)),
+        })
+        {
+            registry.TryGet(key, out var definition).Should().BeTrue();
+            definition!.OwnerModule.Should().Be("identity");
+            definition.ParameterType.Should().Be<DataErasureJobParameters>();
+            definition.Scope.Should().Be(scope);
+            definition.Readiness.Should().Be(BackgroundJobDefinitionReadiness.Active);
+            definition.Profile.Should().Be(BackgroundJobExecutionProfile.Transactional);
+            definition.Queue.Should().Be("transactional");
+            definition.CapacityGroup.Should().BeNull();
+            definition.RootRequestTypes.Should().Equal(root);
+            definition.NestedRequestTypes.Should().BeEmpty();
+        }
+
+        var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/DataErasureJobRegistration.cs"));
+        DataErasureManifestSourceIsBound(source).Should().BeTrue();
+        foreach (var (before, after) in new[]
+        {
+            ("BackgroundJobScope.Organization, typeof(RunOrganizationDataErasureCommand)", "BackgroundJobScope.TenantWide, typeof(RunOrganizationDataErasureCommand)"),
+            ("BackgroundJobDefinitionReadiness.Active", "BackgroundJobDefinitionReadiness.Pending"),
+            ("\"transactional\"", "\"external\""),
+            ("BackgroundJobProfileRegistration.Transactional(root)", "BackgroundJobProfileRegistration.Transactional(typeof(object))"),
+            ("typeof(DataErasureJobParameters), scope", "typeof(DataExportJobParameters), scope"),
+        })
+        {
+            var dirty = source.Replace(before, after, StringComparison.Ordinal);
+            dirty.Should().NotBe(source);
+            DataErasureManifestSourceIsBound(dirty).Should().BeFalse("the two erasure declarations cannot broaden their scope, readiness, queue, parameters or root");
+        }
+    }
+
+    private static bool DataErasureManifestSourceIsBound(string source)
+    {
+        var syntax = CSharpSyntaxTree.ParseText(source).GetRoot();
+        if (syntax.ContainsDiagnostics) return false;
+        var definition = syntax.DescendantNodes().OfType<MethodDeclarationSyntax>().SingleOrDefault(method => method.Identifier.ValueText == "Definition");
+        var calls = syntax.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call => call.Expression.ToString() == "Definition").ToArray();
+        var expectedCalls = new[]
+        {
+            "Definition(DataErasureJobKeys.TenantErasure.Value, BackgroundJobScope.TenantWide, typeof(RunTenantDataErasureCommand))",
+            "Definition(DataErasureJobKeys.OrganizationErasure.Value, BackgroundJobScope.Organization, typeof(RunOrganizationDataErasureCommand))",
+        };
+        return definition?.ExpressionBody is { } body && SyntaxFactory.AreEquivalent(body.Expression, SyntaxFactory.ParseExpression(
+                "new(key, typeof(DataErasureJobHandlers), typeof(DataErasureJobParameters), scope, BackgroundJobDefinitionReadiness.Active, "
+                + "\"transactional\", BackgroundJobProfileRegistration.Transactional(root))"))
+            && calls.Length == 2 && calls.Select((call, index) => SyntaxFactory.AreEquivalent(call, SyntaxFactory.ParseExpression(expectedCalls[index]))).All(equal => equal);
+    }
+
     private static bool DataExportManifestSourceIsBound(string source)
     {
         var syntax = CSharpSyntaxTree.ParseText(source).GetRoot();
@@ -334,16 +395,20 @@ public sealed partial class OutboxDispatchConventionTests
         var invitationDefinition = invitation.Methods.Single(method => method.Name == "Definition");
         var dataExport = types[("LearnStack.Modules.Identity.Infrastructure", typeof(DataExportJobRegistration).FullName!)];
         var dataExportDefinition = dataExport.Methods.Single(method => method.Name == "Definition");
+        var dataErasure = types[("LearnStack.Modules.Identity.Infrastructure", typeof(DataErasureJobRegistration).FullName!)];
+        var dataErasureDefinition = dataErasure.Methods.Single(method => method.Name == "Definition");
 
         foreach (var registration in new[] { typeof(BackgroundJobDefinitionRegistration), typeof(BackgroundJobRecurrenceRegistration) })
         {
             var target = types[(KernelAssembly, registration.FullName!)];
             var constructions = sites.Where(site => SameType(site.Target.DeclaringType, target) && site.Target.Name == ".ctor").ToArray();
             if (registration == typeof(BackgroundJobDefinitionRegistration))
-                CheckSet(offenders, "exact invitation and data-export business-definition constructors", constructions.Select(site => MethodId(site.Owner)),
-                    [MethodId(invitationDefinition), MethodId(dataExportDefinition)]);
+                CheckSet(offenders, "exact invitation, data-export and data-erasure business-definition constructors",
+                    constructions.Select(site => MethodId(site.Owner)),
+                    [MethodId(invitationDefinition), MethodId(dataExportDefinition), MethodId(dataErasureDefinition)]);
             foreach (var site in constructions.Where(site => registration != typeof(BackgroundJobDefinitionRegistration)
-                         || site.Owner != invitationDefinition && site.Owner != dataExportDefinition || site.Instruction.OpCode != OpCodes.Newobj))
+                         || site.Owner != invitationDefinition && site.Owner != dataExportDefinition && site.Owner != dataErasureDefinition
+                         || site.Instruction.OpCode != OpCodes.Newobj))
                 offenders.Add("Production business/recurrence declaration: " + MethodId(site.Owner));
         }
 

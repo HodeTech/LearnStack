@@ -25,7 +25,7 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 /// </remarks>
 public interface IDataRequestStore : IAggregateWriteStore<DataSubjectRequest, DataSubjectRequestId>
 {
-    /// <summary>The executing data-request job: refuses a caller that is not one of the module's job roots.</summary>
+    /// <summary>The executing data-request job: refuses a caller that is not one of the module's export or erasure job roots.</summary>
     BackgroundJobId RequireCurrentJob();
 
     /// <summary>The request in the ambient group, locked for update; <see langword="null"/> when absent.</summary>
@@ -49,6 +49,30 @@ public interface IDataRequestStore : IAggregateWriteStore<DataSubjectRequest, Da
     /// <see cref="DataRequestLimits.MaximumSnapshotMemberships"/> plus one.
     /// </summary>
     Task<IReadOnlyList<MembershipId>> ReadSubjectMembershipsAsync(UserId subject, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the subject holds an Active or Suspended Membership in the ambient group: the current row an administrator's
+    /// erasure is refused for (ADR-0106 § 3). Read under the subject's User fence, which every admission also takes.
+    /// </summary>
+    Task<bool> HoldsCurrentMembershipAsync(UserId subject, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the subject is the tenant's only eligible tenant-wide administrator (ADR-0106 § 7, ADR-0107 § 7): they hold
+    /// an Active, undeleted, tenant-wide Membership with a tenant administrator Role that keeps every kernel grant, and no
+    /// other person does. The same predicate the deferred complete-graph guard enforces at commit.
+    /// </summary>
+    /// <remarks>
+    /// The guard also requires the administrator's User to be Active, which the application role cannot read for another
+    /// person (the <c>users</c> policy admits only the session's own subject); no path moves a User out of Active before
+    /// P03-10 Step 3's closure, which owns extending this read.
+    /// </remarks>
+    Task<bool> IsSoleEligibleTenantAdministratorAsync(UserId subject, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether this transaction holds the subject's User fence and the ambient tenant's fence, both exclusively, as the
+    /// database sees them: the canonical fences an erasure runs under (ADR-0107 § 5).
+    /// </summary>
+    Task<bool> HoldsErasureFencesAsync(UserId subject, CancellationToken cancellationToken);
 
     /// <summary>The subject's non-terminal request of the kind in the ambient group, tracked and locked for update.</summary>
     Task<DataSubjectRequest?> FindActiveLockedAsync(UserId subject, DataRequestKind kind, CancellationToken cancellationToken);
@@ -178,9 +202,9 @@ public interface IDataRequestJobPhaseReader
     Task<DataRequestJobPhase> ReadAsync(DataSubjectRequestId requestId, DataRequestKind kind, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The phases of a page of the group's export requests in one statement; a request with no job is
-    /// <see cref="DataRequestJobPhase.Unavailable"/>.
+    /// The phases of a page of the group's requests of one kind in one statement; a request with no job, or of a kind with no
+    /// fulfilment job, is <see cref="DataRequestJobPhase.Unavailable"/>.
     /// </summary>
-    Task<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>> ReadManyAsync(IReadOnlyCollection<DataSubjectRequestId> exportRequestIds,
-        CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>> ReadManyAsync(IReadOnlyCollection<DataSubjectRequestId> requestIds,
+        DataRequestKind kind, CancellationToken cancellationToken);
 }

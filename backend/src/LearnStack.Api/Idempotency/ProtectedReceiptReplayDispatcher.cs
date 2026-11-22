@@ -47,14 +47,18 @@ internal sealed class ProtectedReceiptReplayDispatcher(ISender sender, HttpConte
             ProtectedAdministrationOperation.WithdrawOwnFieldConsent when http?.Features.Get<ConsentSubjectSource>()?.Request is ReadOwnWithdrawnFieldConsentReceiptQuery request
                 && request.EvidenceId == target.Id => sender.Send(request, cancellationToken),
             ProtectedAdministrationOperation.WithdrawOwnFieldConsent => Task.FromResult(Result<None>.Fail(new Error(LocalizedMessage.Of("lockey_forbidden")))),
-            ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CancelOwnDataRequest
+            ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CreateOwnDataErasure
+                or ProtectedAdministrationOperation.CancelOwnDataRequest
                 or ProtectedAdministrationOperation.RevokeOwnDataExport => sender.Send(new ReadOwnDataRequestReceiptQuery(target.Id), cancellationToken),
-            ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CancelDataRequest
+            ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateDataErasureForSubject
+                or ProtectedAdministrationOperation.CancelDataRequest
                 or ProtectedAdministrationOperation.RevokeDataExport => sender.Send(new ReadDataRequestReceiptQuery(target.Id), cancellationToken),
-            ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CancelRetainedDataRequest
+            ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure
+                or ProtectedAdministrationOperation.CancelRetainedDataRequest or ProtectedAdministrationOperation.RevokeRetainedDataExport
                 when http?.Features.Get<OwnDataRequestSubjectSource>()?.Request is ReadRetainedDataRequestReceiptQuery retained
                 && retained.RequestId == target.Id => sender.Send(retained, cancellationToken),
-            ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CancelRetainedDataRequest =>
+            ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure
+                or ProtectedAdministrationOperation.CancelRetainedDataRequest or ProtectedAdministrationOperation.RevokeRetainedDataExport =>
                 Task.FromResult(Result<None>.Fail(new Error(LocalizedMessage.Of("lockey_forbidden")))),
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor)),
         };

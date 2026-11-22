@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LearnStack.Api.Identity;
 
 /// <summary>
-/// The retained own-scope native entry of the subject's data requests (ADR-0106 § 9, ADR-0107 § 4): six key-less
+/// The retained own-scope native entry of the subject's data requests (ADR-0106 § 9, ADR-0107 § 4, § 5): eight key-less
 /// <c>OwnDataRequestEntry</c> operations reached only through the selector-free native session source, for a person
 /// whose Membership is Suspended, Revoked or gone. The request each action sends is the exact one the
 /// <see cref="OwnDataRequestSubjectSource"/> captured before authorization, never a fresh binding of the input, so the
@@ -60,6 +60,18 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
     }
 
+    [HttpPost("erasures", Name = "CreateRetainedDataErasure")]
+    [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
+        Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.RetainedDataErasureCreateOperation)]
+    [OperationPolicy(typeof(CreateRetainedDataErasureCommand))]
+    [Idempotent(ProtectedAdministrationOperation.CreateRetainedDataErasure)]
+    [ProducesResponseType<DataErasureAcceptedResponse>(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> CreateErasure(CancellationToken cancellationToken)
+    {
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CreateRetainedDataErasureCommand request) return AdministrationHttpInput.Invalid();
+        return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
+    }
+
     [HttpPost("cancellations", Name = "CancelRetainedDataRequest")]
     [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
         Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.RetainedDataRequestCancelOperation)]
@@ -69,6 +81,18 @@ public sealed class DataRequestEntryController(ISender sender, ITenantContext te
     public async Task<IActionResult> Cancel(CancellationToken cancellationToken)
     {
         if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not CancelRetainedDataRequestCommand request) return AdministrationHttpInput.Invalid();
+        return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
+    }
+
+    [HttpPost("revocations", Name = "RevokeRetainedDataExport")]
+    [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
+        Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.RetainedDataExportRevokeOperation)]
+    [OperationPolicy(typeof(RevokeRetainedDataExportCommand))]
+    [Idempotent(ProtectedAdministrationOperation.RevokeRetainedDataExport)]
+    [ProducesResponseType<AdministrationVersionReceipt>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> RevokeExport(CancellationToken cancellationToken)
+    {
+        if (HttpContext.Features.Get<OwnDataRequestEntryRequest>()?.Request is not RevokeRetainedDataExportCommand request) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, request, cancellationToken);
     }
 

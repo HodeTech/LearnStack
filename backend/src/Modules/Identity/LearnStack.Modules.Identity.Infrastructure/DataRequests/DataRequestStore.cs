@@ -24,7 +24,30 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
     [
         typeof(RunTenantDataExportCommand), typeof(RunOrganizationDataExportCommand),
         typeof(PurgeTenantDataExportCommand), typeof(PurgeOrganizationDataExportCommand),
+        typeof(RunTenantDataErasureCommand), typeof(RunOrganizationDataErasureCommand),
     ];
+
+    /// <summary>
+    /// The tenant's eligible tenant-wide administrators, split into the subject and everybody else: exactly the
+    /// administrator predicate of the deferred complete-graph guard (<c>fn_identity_complete_graph_guard</c>), so the
+    /// erasure that passes it cannot be refused by that guard for the same Membership state. The kernel grants are the
+    /// manifest's own values, the guard's literal.
+    /// </summary>
+    internal static readonly string AdministratorStanding = $"""
+        SELECT COALESCE(bool_or(member.user_id = @subject), false), COALESCE(bool_or(member.user_id <> @subject), false)
+        FROM public.memberships AS member
+        JOIN public.membership_role_assignments AS assignment
+          ON assignment.tenant_id = member.tenant_id AND assignment.membership_id = member.id
+        JOIN public.roles AS role ON role.tenant_id = assignment.tenant_id AND role.id = assignment.role_id
+        WHERE member.tenant_id = @tenant AND member.organization_id IS NULL
+          AND member.status = 'Active' AND member.deleted_at IS NULL AND member.deleted_by IS NULL
+          AND role.built_in_key = 'TenantAdmin' AND role.permission_scope = 'Tenant'
+          AND role.deleted_at IS NULL AND role.deleted_by IS NULL
+          AND NOT EXISTS (SELECT 1 FROM (VALUES {IdentityFoundationManifest.Version1.KernelSqlValues}) AS kernel(scope,permission_key)
+            WHERE NOT EXISTS (SELECT 1 FROM public.role_permission_grants AS grant_row
+                WHERE grant_row.tenant_id = role.tenant_id AND grant_row.role_id = role.id
+                  AND grant_row.permission_scope = kernel.scope AND grant_row.permission_key = kernel.permission_key))
+        """;
 
     private const string ActiveIndex = "ux_data_subject_requests_active";
 
@@ -128,6 +151,42 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
 
             return (IReadOnlyList<MembershipId>)found;
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> HoldsCurrentMembershipAsync(UserId subject, CancellationToken cancellationToken)
+    {
+        Admit();
+        // ux_memberships_current_scope is the (tenant, user, organization) index of exactly these rows.
+        await using var command = Command("""
+            SELECT EXISTS (SELECT 1 FROM public.memberships
+                WHERE tenant_id=@tenant AND user_id=@subject AND organization_id IS NOT DISTINCT FROM @organization
+                  AND deleted_at IS NULL AND status IN ('Active','Suspended'))
+            """);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        return await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false) is true;
+    }
+
+    public async Task<bool> IsSoleEligibleTenantAdministratorAsync(UserId subject, CancellationToken cancellationToken)
+    {
+        Admit();
+        await using var command = Command(AdministratorStanding);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        return await ExecuteAsync(async token =>
+        {
+            await using var row = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            return await row.ReadAsync(token).ConfigureAwait(false) && row.GetBoolean(0) && !row.GetBoolean(1);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> HoldsErasureFencesAsync(UserId subject, CancellationToken cancellationToken)
+    {
+        Admit();
+        // The same backend-local lock observation the contextual guards make; it reads pg_locks and nothing else.
+        await using var command = Command("""
+            SELECT public.fn_identity_lock_held('user',@subject,true) AND public.fn_identity_lock_held('tenant',@tenant,true)
+            """);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        return await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false) is true;
     }
 
     public async Task<DataSubjectRequest?> FindActiveLockedAsync(UserId subject, DataRequestKind kind, CancellationToken cancellationToken)

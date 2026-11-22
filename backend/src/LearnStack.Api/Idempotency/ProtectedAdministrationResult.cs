@@ -92,6 +92,10 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             RevokeDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
             CreateRetainedDataExportCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
             CancelRetainedDataRequestCommand command => DataRequest(await sender.Send(command, cancellationToken), command.RequestId),
+            CreateOwnDataErasureCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            CreateDataErasureForSubjectCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            CreateRetainedDataErasureCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            RevokeRetainedDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
             _ => throw new InvalidOperationException("The protected operation is not registered."),
         };
 
@@ -139,7 +143,8 @@ internal sealed class ProtectedAdministrationResult : IActionResult
         "{\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
     internal static byte[] BodyFor(ProtectedAdministrationDescriptor descriptor, Guid id, long version) =>
         descriptor.IsDataRequestCreation ? Encoding.UTF8.GetBytes("{\"id\":\"" + id.ToString("D")
-            + "\",\"kind\":\"export\",\"status\":\"requested\",\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}")
+            + (descriptor.IsDataErasureCreation ? "\",\"kind\":\"erasure\",\"status\":\"scheduled\"" : "\",\"kind\":\"export\",\"status\":\"requested\"")
+            + ",\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}")
         : !descriptor.UsesCustomFieldFingerprint ? BodyFor(version) : Encoding.UTF8.GetBytes(descriptor.IsConsent
             ? "{\"evidenceId\":\"" + id.ToString("D") + "\",\"sequence\":\"" + version.ToString(CultureInfo.InvariantCulture)
                 + "\",\"isGranted\":" + (descriptor.Operation == ProtectedAdministrationOperation.GrantOwnFieldConsent ? "true" : "false") + "}"

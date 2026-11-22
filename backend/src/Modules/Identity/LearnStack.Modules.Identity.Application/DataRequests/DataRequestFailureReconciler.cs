@@ -19,11 +19,13 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 /// and the receipt displays the same answer without writing through <see cref="EffectiveStatus"/>.
 /// </para>
 /// <para>
-/// <b>Transitions, one per save.</b> A dead export's request is <c>requested</c>: its transactional job rolled every
-/// write back, and the export never commits <c>fulfilling</c> (<see cref="DataExportJobHandlers"/>). It takes
-/// <c>requested → fulfilling</c> and then <c>fulfilling → failed</c> as two saves, because the request guard admits
-/// one arrow per UPDATE; both are the aggregate's own transitions. It runs on the caller's tenant transaction under
-/// the shared Identity tenant fence that guard requires.
+/// <b>Transitions, one per save.</b> A dead export's request is <c>requested</c> and a dead erasure's <c>scheduled</c>:
+/// each transactional job rolled every write back, and neither commits <c>fulfilling</c> on its own
+/// (<see cref="DataExportJobHandlers"/>, <see cref="DataErasureJobHandlers"/>). It takes <c>→ fulfilling</c> and then
+/// <c>fulfilling → failed</c> as two saves, because the request guard admits one arrow per UPDATE; both are the
+/// aggregate's own transitions. An erasure takes the first only once its execution time has passed, as the aggregate and
+/// the guard require, so a dead erasure job is stored failed from then on. It runs on the caller's tenant transaction
+/// under the Identity tenant fence that guard requires.
 /// </para>
 /// </remarks>
 public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataRequestJobPhaseReader phases,
@@ -68,9 +70,17 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.IsTerminal || !CanFail(request) || request.TenantId != tenant.TenantId
+        if (request.IsTerminal || !CanFail(request.Kind, request.Status) || request.TenantId != tenant.TenantId
             || request.OrganizationId != tenant.OrganizationId)
         {
+            return false;
+        }
+
+        // Never before the request's own last stamp: a host whose clock lags the one that filed it still orders.
+        var now = DataRequestTransitionTime.Of(clock, request);
+        if (request.ExecuteAt is { } due && now < due)
+        {
+            // A scheduled erasure cannot start before its window ends (ADR-0106 § 11), so it cannot be failed either.
             return false;
         }
 
@@ -93,8 +103,6 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
             locks.RequireCurrent(heldPlan);
         }
 
-        // Never before the request's own last stamp: a host whose clock lags the one that filed it still orders.
-        var now = DataRequestTransitionTime.Of(clock, request);
         var actor = tenant.UserId ?? UserId.SystemActor;
         Require(request.StartFulfilling(now, actor).IsSuccess);
         await store.SaveAsync(request, cancellationToken).ConfigureAwait(false);
@@ -104,13 +112,12 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
     }
 
     /// <summary>
-    /// Only an export has a fulfilment job in this step, and only a requested one can be dead: its job commits
-    /// <c>fulfilling</c> only together with the terminal status.
+    /// Whether a request of this kind and stored status can have a dead job that left it there: a requested export or a
+    /// scheduled erasure, because each job commits <c>fulfilling</c> only together with the status it ends in. A closure
+    /// has no job in this step.
     /// </summary>
-    private static bool CanFail(DataSubjectRequest request) => CanFail(request.Kind, request.Status);
-
-    private static bool CanFail(DataRequestKind kind, DataRequestStatus status) =>
-        kind == DataRequestKind.Export && status == DataRequestStatus.Requested;
+    internal static bool CanFail(DataRequestKind kind, DataRequestStatus status) => (kind, status) is
+        (DataRequestKind.Export, DataRequestStatus.Requested) or (DataRequestKind.Erasure, DataRequestStatus.Scheduled);
 
     private static void Require(bool admitted)
     {
@@ -124,7 +131,7 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
 /// <summary>
 /// When a data request transition is stamped: the later of the clock and the request's own last stamp, so a host whose
 /// clock lags the one that filed or last changed the request still orders its transition after it, which the aggregate
-/// and the request guard both require. Shared by the export job and the failure reconciler.
+/// and the request guard both require. Shared by the export and erasure jobs and the failure reconciler.
 /// </summary>
 internal static class DataRequestTransitionTime
 {

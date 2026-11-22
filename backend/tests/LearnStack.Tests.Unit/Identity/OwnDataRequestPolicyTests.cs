@@ -118,13 +118,13 @@ public sealed class OwnDataRequestPolicyTests
     }
 
     /// <summary>
-    /// The arm is pinned to the eight live request types and their own ids: a type outside the set under a well-formed
+    /// The arm is pinned to the nine live request types and their own ids: a type outside the set under a well-formed
     /// <c>identity.data_request.</c> id, and a live type under another id, are not covered although the Membership is.
     /// </summary>
     [Theory]
     [InlineData("probe-type-prefixed-id")]
     [InlineData("live-type-foreign-id")]
-    public async Task Own_data_request_admits_only_its_eight_live_types_under_their_own_ids(string label)
+    public async Task Own_data_request_admits_only_its_nine_live_types_under_their_own_ids(string label)
     {
         using var rig = new Rig(TenantContextOrigin.HostAndClaim, Branch);
         rig.Reader.ReadAsync(Arg.Any<AuthorizationCandidate>(), Arg.Any<CancellationToken>())
@@ -138,7 +138,7 @@ public sealed class OwnDataRequestPolicyTests
         result.IsFailure.Should().BeTrue();
         result.Error.Should().BeSameAs(TenantContextFactory.Refused);
         new IdentityOperationPolicySource().Policies.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequest)
-            .Should().HaveCount(8, "the production catalog registers exactly the pinned set");
+            .Should().HaveCount(9, "the production catalog registers exactly the pinned set");
         (await rig.RunAsync(new CreateOwnDataExportCommand())).IsSuccess.Should().BeTrue("the pinned type under its own id is admitted");
     }
 

@@ -13,8 +13,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace LearnStack.Api.Identity;
 
 /// <summary>
-/// The subject's own data requests through a live session (ADR-0106 § 3, § 9; ADR-0107 § 4): key-less
-/// <c>OwnDataRequest</c> operations confined to the session's group. The ticket and the chunk travel only in request
+/// The subject's own data requests through a live session (ADR-0106 § 3, § 9; ADR-0107 § 4, § 5): key-less
+/// <c>OwnDataRequest</c> operations confined to the session's group. An export and an erasure are filed on distinct
+/// routes; reading, listing and cancelling a request are the same for both kinds. The ticket and the chunk travel only in request
 /// and response bodies, never in a URL, and neither is keyed, so no secret reaches an idempotency receipt.
 /// </summary>
 [Route("identity/me/data-requests")]
@@ -31,6 +32,19 @@ public sealed class OwnDataRequestsController(ISender sender, ITenantContext ten
         using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
         if (body is null) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, new CreateOwnDataExportCommand(), cancellationToken);
+    }
+
+    [HttpPost("erasures", Name = "CreateOwnDataErasure")]
+    [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
+        Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.OwnDataErasureCreateOperation)]
+    [OperationPolicy(typeof(CreateOwnDataErasureCommand))]
+    [Idempotent(ProtectedAdministrationOperation.CreateOwnDataErasure)]
+    [ProducesResponseType<DataErasureAcceptedResponse>(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> CreateErasure(CancellationToken cancellationToken)
+    {
+        using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
+        if (body is null) return AdministrationHttpInput.Invalid();
+        return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant, new CreateOwnDataErasureCommand(), cancellationToken);
     }
 
     [HttpGet(Name = "ListOwnDataRequests")]
@@ -170,6 +184,21 @@ public sealed class DataRequestsController(ISender sender, ITenantContext tenant
             || !AdministrationHttpInput.TryId(text, out var membership)) return AdministrationHttpInput.Invalid();
         return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant,
             new CreateDataExportForSubjectCommand(membership), cancellationToken);
+    }
+
+    [HttpPost("erasures", Name = "CreateDataErasureForSubject")]
+    [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
+        Policy = OperationPolicyRequirement.Prefix + IdentityOperationPolicySource.DataErasureCreateOperation)]
+    [OperationPolicy(typeof(CreateDataErasureForSubjectCommand))]
+    [Idempotent(ProtectedAdministrationOperation.CreateDataErasureForSubject)]
+    [ProducesResponseType<DataErasureAcceptedResponse>(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> CreateErasure(CancellationToken cancellationToken)
+    {
+        using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext, "membershipId");
+        if (body is null || !AdministrationHttpInput.TryText(body.RootElement, "membershipId", false, 36, out var text)
+            || !AdministrationHttpInput.TryId(text, out var membership)) return AdministrationHttpInput.Invalid();
+        return await ProtectedAdministrationResult.ExecuteAsync(HttpContext, sender, tenant,
+            new CreateDataErasureForSubjectCommand(membership), cancellationToken);
     }
 
     [HttpGet(Name = "ListDataRequests")]

@@ -77,7 +77,8 @@ public sealed partial class DataExportParticipantTests
     {
         await using var scope = await DataExportTestKit.OpenAsync(schema.Postgres.AppConnectionString, SchemaFixture.TenantA,
             SchemaFixture.OrgA1, [PersonA]);
-        var participant = new IdentityUserDataParticipant(scope.Db, scope.Context, new MembershipFieldRevisionReader(null!));
+        // The retained report reads only; the erasure service is never reached here.
+        var participant = new IdentityUserDataParticipant(scope.Db, scope.Context, new MembershipFieldRevisionReader(null!), null!);
         var group = new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1));
         var person = new UserDataSubject(Guid.CreateVersion7(), DataRequestKind.Export, DataRequestOrigin.Self, UserId.From(PersonA),
             group, [BranchMembershipA1]);

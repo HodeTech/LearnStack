@@ -24,7 +24,7 @@ public sealed partial class IdentityAuditConventionTests
     private const string GlobalSource = "LearnStack.Application.Audit.AuditExecutionCoordinator+GlobalCreationSource";
     private const string InvitationJobStore = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailJobStore";
     private const string InvitationStager = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailStager";
-    // ADR-0107 § 2: the data-request job store confirms its caller is one of the four export roots, as the invitation job store does.
+    // ADR-0107 § 2: the data-request job store confirms its caller is one of the export or erasure roots, as the invitation job store does.
     private const string DataRequestJobStore = "LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestStore";
     private const string InvitationProducer = "LearnStack.Application.Messaging.ProducerExecution";
     private const string InvitationJobOrigin = InvitationProducer + "/JobOrigin";

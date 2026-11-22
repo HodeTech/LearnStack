@@ -38,9 +38,20 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// <see cref="DataRequestLimits.IssuedInvitationsCollectionBytes"/> and a cap hit is declared with the records
 /// included and the records in total, as the audit section's is.
 /// </para>
+/// <para>
+/// <b>Erasure</b> is <see cref="DataErasureService"/>'s, inside the erasure job's transaction (ADR-0107 § 5): the
+/// participant only hands it the request's subject.
+/// </para>
+/// <para>
+/// <b>The retained report</b> names what survives in the group, read after an erasure's writes: the request receipts,
+/// the invitations the subject accepted or issued (<c>invitation_record</c>), attribution and, for the tenant-wide group,
+/// the federation and provider-event references. Their invitation envelopes are retained too (ADR-0107 § 6), but the
+/// application role holds no read of the envelope table, so that kind is not counted here and is absent from the
+/// report rather than reported as zero.
+/// </para>
 /// </remarks>
 public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantContext tenant,
-    MembershipFieldRevisionReader fields) : IUserDataParticipant
+    MembershipFieldRevisionReader fields, DataErasureService erasure) : IUserDataParticipant
 {
     internal const string ParticipantKey = "identity";
     internal const string ThirdParty = "third_party";
@@ -95,6 +106,15 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
         }
 
         await ExportInvitationsAsync(subject, writer, accepted: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task EraseAsync(UserDataSubject subject, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        RequireGroup(subject);
+        return subject.Kind == DataRequestKind.Erasure
+            ? erasure.EraseAsync(subject, cancellationToken)
+            : throw new InvalidOperationException("Only an erasure request erases.");
     }
 
     public async Task<IReadOnlyCollection<RetainedReferenceCount>> DescribeRetainedAsync(UserDataSubject subject,

@@ -17,6 +17,7 @@ public sealed partial class OpenApiContractTests
     private static readonly DataRequestOperation[] DataRequestOperations =
     [
         new("/api/v1/identity/me/data-requests/exports", "post", "CreateOwnDataExport", DataRequestShape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput"),
+        new("/api/v1/identity/me/data-requests/erasures", "post", "CreateOwnDataErasure", DataRequestShape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/me/data-requests", "get", "ListOwnDataRequests", DataRequestShape.Read, "OwnDataRequestPage", null),
         new("/api/v1/identity/me/data-requests/{id}", "get", "GetOwnDataRequest", DataRequestShape.Read, "OwnDataRequestResponse", null),
         new("/api/v1/identity/me/data-requests/{id}/cancellations", "post", "CancelOwnDataRequest", DataRequestShape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput"),
@@ -24,6 +25,7 @@ public sealed partial class OpenApiContractTests
         new("/api/v1/identity/me/data-requests/{id}/artifact/tickets", "post", "MintOwnDataExportTicket", DataRequestShape.Ticket, "DataExportTicketResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/me/data-requests/{id}/artifact/chunks", "post", "ReadOwnDataExportChunk", DataRequestShape.Ticket, "DataExportChunkResponse", "DataExportChunkInput"),
         new("/api/v1/identity/data-requests/exports", "post", "CreateDataExportForSubject", DataRequestShape.Create, "DataRequestAcceptedResponse", "DataExportForSubjectInput"),
+        new("/api/v1/identity/data-requests/erasures", "post", "CreateDataErasureForSubject", DataRequestShape.Create, "DataErasureAcceptedResponse", "DataExportForSubjectInput"),
         new("/api/v1/identity/data-requests", "get", "ListDataRequests", DataRequestShape.Read, "DataRequestPage", null),
         new("/api/v1/identity/data-requests/{id}", "get", "GetDataRequest", DataRequestShape.Read, "DataRequestResponse", null),
         new("/api/v1/identity/data-requests/{id}/cancellations", "post", "CancelDataRequest", DataRequestShape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput"),
@@ -31,13 +33,16 @@ public sealed partial class OpenApiContractTests
     ];
 
     // ADR-0106 § 9: the retained own-scope native entry. Both credentials on one requirement, a required group on every
-    // purpose but discovery, a key only on creation and cancellation, If-Match only on cancellation, and no Location.
+    // purpose but discovery, a key only on creation, cancellation and revocation, If-Match only on cancellation and
+    // revocation, and no Location.
     private static readonly DataRequestOperation[] RetainedDataRequestOperations =
     [
         new("/api/v1/identity/data-request-entry/scopes", "get", "ListRetainedDataRequestScopes", DataRequestShape.Read, "RetainedDataRequestScopePageResponse", null),
         new("/api/v1/identity/data-request-entry/requests", "get", "ListRetainedDataRequests", DataRequestShape.Read, "OwnDataRequestPage", null),
         new("/api/v1/identity/data-request-entry/exports", "post", "CreateRetainedDataExport", DataRequestShape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput"),
+        new("/api/v1/identity/data-request-entry/erasures", "post", "CreateRetainedDataErasure", DataRequestShape.Create, "DataErasureAcceptedResponse", "EmptyAdministrationInput"),
         new("/api/v1/identity/data-request-entry/cancellations", "post", "CancelRetainedDataRequest", DataRequestShape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput"),
+        new("/api/v1/identity/data-request-entry/revocations", "post", "RevokeRetainedDataExport", DataRequestShape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput"),
         new("/api/v1/identity/data-request-entry/tickets", "post", "MintRetainedDataExportTicket", DataRequestShape.Ticket, "DataExportTicketResponse", "RetainedDataRequestTargetInput"),
         new("/api/v1/identity/data-request-entry/chunks", "post", "ReadRetainedDataExportChunk", DataRequestShape.Ticket, "DataExportChunkResponse", "RetainedDataExportChunkInput"),
     ];
@@ -121,7 +126,8 @@ public sealed partial class OpenApiContractTests
 
     private static readonly string[] DataRequestSchemaNames =
     [
-        "DataRequestAcceptedResponse", "DataRequestRetainedResponse", "DataExportTruncationResponse", "DataExportArtifactResponse",
+        "DataRequestAcceptedResponse", "DataErasureAcceptedResponse", "DataRequestRetainedResponse", "DataExportTruncationResponse",
+        "DataExportArtifactResponse",
         "OwnDataRequestResponse", "OwnDataRequestPage", "DataRequestResponse", "DataRequestPage", "DataExportForSubjectInput",
         "DataExportTicketResponse", "DataExportChunkInput", "DataExportChunkResponse",
     ];

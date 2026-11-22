@@ -25,7 +25,9 @@ public sealed class OwnDataRequestEntryInputTests
     [InlineData("scopes", "GET", nameof(DataRequestEntryController.Scopes))]
     [InlineData("requests", "GET", nameof(DataRequestEntryController.Requests))]
     [InlineData("exports", "POST", nameof(DataRequestEntryController.CreateExport))]
+    [InlineData("erasures", "POST", nameof(DataRequestEntryController.CreateErasure))]
     [InlineData("cancellations", "POST", nameof(DataRequestEntryController.Cancel))]
+    [InlineData("revocations", "POST", nameof(DataRequestEntryController.RevokeExport))]
     [InlineData("tickets", "POST", nameof(DataRequestEntryController.MintTicket))]
     [InlineData("chunks", "POST", nameof(DataRequestEntryController.ReadChunk))]
     public void Each_closed_purpose_matches_only_its_exact_path_method_action_and_policy(string segment, string method, string action)
@@ -69,6 +71,9 @@ public sealed class OwnDataRequestEntryInputTests
     [InlineData("requests", "?group=tenant", "{}")]
     [InlineData("exports", "?group=tenant", "{\"x\":1}")]
     [InlineData("exports", "?group=tenant&cursor=a", "{}")]
+    [InlineData("erasures", "?group=tenant", "{\"x\":1}")]
+    [InlineData("erasures", "", "{}")]
+    [InlineData("revocations", "?group=tenant", "{}")]
     [InlineData("tickets", "?group=tenant", "{}")]
     [InlineData("tickets", "?group=tenant", "{\"requestId\":\"" + Request + "\",\"requestId\":\"" + Request + "\"}")]
     [InlineData("chunks", "?group=tenant", "{\"requestId\":\"" + Request + "\",\"ticket\":\"" + Ticket + "\",\"index\":-1}")]
@@ -100,14 +105,16 @@ public sealed class OwnDataRequestEntryInputTests
 
     [Theory]
     [InlineData("exports", true, false)]
+    [InlineData("erasures", true, false)]
     [InlineData("cancellations", true, true)]
+    [InlineData("revocations", true, true)]
     [InlineData("tickets", false, false)]
     [InlineData("chunks", false, false)]
     public async Task Keys_and_preconditions_reach_only_the_operations_that_take_them(string segment, bool keyed, bool conditional)
     {
         var body = segment switch
         {
-            "exports" => "{}",
+            "exports" or "erasures" => "{}",
             "chunks" => "{\"requestId\":\"" + Request + "\",\"ticket\":\"" + Ticket + "\",\"index\":0}",
             _ => "{\"requestId\":\"" + Request + "\"}",
         };
@@ -143,6 +150,29 @@ public sealed class OwnDataRequestEntryInputTests
         http.Request.Headers.IfMatch = "\"7\"";
         http.Request.QueryString = new QueryString("?group=tenant");
         Assert.False(input.IsCurrent(http));
+    }
+
+    /// <summary>
+    /// The creation purpose has two routes; each route's own request type decides what is filed, so the erasure route never
+    /// files an export. The revocation binds the artifact version its If-Match carries.
+    /// </summary>
+    [Fact]
+    public async Task Each_creation_route_files_its_own_kind_and_a_revocation_binds_its_artifact_version()
+    {
+        var erasure = await OwnDataRequestHttpInput.ReadAsync(Http(Root + "erasures", "?group=" + Organization, "{}"),
+            OwnDataRequestOperation.ForPath(Root + "erasures")!);
+        Assert.Equal(new CreateRetainedDataErasureCommand(OrganizationId.From(Guid.Parse(Organization))), erasure!.Request);
+        var export = await OwnDataRequestHttpInput.ReadAsync(Http(Root + "exports", "?group=tenant", "{}"),
+            OwnDataRequestOperation.ForPath(Root + "exports")!);
+        Assert.Equal(new CreateRetainedDataExportCommand(null), export!.Request);
+
+        var http = Http(Root + "revocations", "?group=tenant", "{\"requestId\":\"" + Request + "\"}");
+        http.Request.Headers.IfMatch = "\"4\"";
+        var revocation = await OwnDataRequestHttpInput.ReadAsync(http, OwnDataRequestOperation.ForPath(Root + "revocations")!);
+        Assert.Equal(new RevokeRetainedDataExportCommand(null, Guid.Parse(Request), 4), revocation!.Request);
+        Assert.True(revocation.IsCurrent(http));
+        http.Request.Headers.IfMatch = "\"5\"";
+        Assert.False(revocation.IsCurrent(http));
     }
 
     [Fact]

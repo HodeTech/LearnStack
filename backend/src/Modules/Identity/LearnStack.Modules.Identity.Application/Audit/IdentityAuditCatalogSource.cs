@@ -46,12 +46,27 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<RunOrganizationDataExportCommand>("identity.data_export.store", OperationType.SecurityEvent, typeof(DataExportArtifact));
         builder.MustAudit<PurgeTenantDataExportCommand>("identity.data_export.purge", OperationType.Delete, typeof(DataExportArtifact));
         builder.MustAudit<PurgeOrganizationDataExportCommand>("identity.data_export.purge", OperationType.Delete, typeof(DataExportArtifact));
+        // ADR-0107 § 5: a tenant erasure is one row about the erasure request (a cancelled export request travels in its
+        // changes) and one per kind of change it makes: the Memberships of the snapshot erased, the pending invitations the
+        // subject issued revoked, and the subject's artifact withdrawn. The erasure designates the first instance of each;
+        // a blocked or no-op run writes the rows with no subject.
+        builder.MustAudit<RunTenantDataErasureCommand>("identity.data_request.fulfill_erasure", OperationType.SecurityEvent, typeof(DataSubjectRequest));
+        builder.MustAudit<RunTenantDataErasureCommand>("identity.membership.erase", OperationType.SecurityEvent, typeof(Membership));
+        builder.MustAudit<RunTenantDataErasureCommand>("identity.invitation.revoke", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<RunTenantDataErasureCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
+        builder.MustAudit<RunOrganizationDataErasureCommand>("identity.data_request.fulfill_erasure", OperationType.SecurityEvent, typeof(DataSubjectRequest));
+        builder.MustAudit<RunOrganizationDataErasureCommand>("identity.membership.erase", OperationType.SecurityEvent, typeof(Membership));
+        builder.MustAudit<RunOrganizationDataErasureCommand>("identity.invitation.revoke", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<RunOrganizationDataErasureCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
+
         // ADR-0106 § 13, ADR-0107 § 4: every creation, cancellation and revocation is a MUST row about its aggregate; an
         // administrator's read of the group's requests and every ticket mint and chunk read are MUST read-sensitive rows
         // that refuse the disclosure when they cannot be written. The ticket rows name the ticket, whose digests the
         // capture redacts; no row carries a ticket, plaintext or ciphertext. The subject's own reads are Off.
         builder.MustAudit<CreateOwnDataExportCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CreateDataExportForSubjectCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CreateOwnDataErasureCommand>("identity.data_request.create_erasure", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CreateDataErasureForSubjectCommand>("identity.data_request.create_erasure", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CancelOwnDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
         builder.MustAudit<CancelDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
         builder.MustAudit<RevokeOwnDataExportCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
@@ -66,7 +81,9 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<ReadOwnDataRequestReceiptQuery>();
         // ADR-0106 § 9, § 13: the retained own-scope entry writes exactly the live path's rows under the same names.
         builder.MustAudit<CreateRetainedDataExportCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CreateRetainedDataErasureCommand>("identity.data_request.create_erasure", OperationType.Create, typeof(DataSubjectRequest));
         builder.MustAudit<CancelRetainedDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
+        builder.MustAudit<RevokeRetainedDataExportCommand>("identity.data_export.revoke", OperationType.Delete, typeof(DataExportArtifact));
         builder.MustAudit<MintRetainedDataExportTicketCommand>("identity.data_export.mint_ticket", OperationType.ReadSensitive, typeof(DataExportTicket));
         builder.MustAudit<ReadRetainedDataExportChunkCommand>("identity.data_export.read_chunk", OperationType.ReadSensitive, typeof(DataExportTicket));
         builder.Off<ListRetainedDataRequestScopesQuery>();

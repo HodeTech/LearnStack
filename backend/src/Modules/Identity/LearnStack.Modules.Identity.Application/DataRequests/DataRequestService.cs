@@ -83,12 +83,27 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     private DataRequestScopeGroup Group => new(context.TenantId, context.OrganizationId);
 
     /// <summary>
-    /// Files an export of <paramref name="subject"/>'s data in the announced group under the subject's exclusive User
-    /// fence and the shared tenant fence, with the frozen Membership snapshot, and submits its job on the same
-    /// transaction (ADR-0106 § 7, § 8, § 10; ADR-0107 § 2). The subject's own export withdraws their previous artifact
-    /// when it stores its own; an administrator's is refused while the subject holds a readable artifact in the group.
+    /// Files an export of <paramref name="subject"/>'s data in the announced group (ADR-0106 § 7, § 8, § 10; ADR-0107
+    /// § 2). The subject's own export withdraws their previous artifact when it stores its own; an administrator's is
+    /// refused while the subject holds a readable artifact in the group.
     /// </summary>
-    public async Task<Result<DataRequestMutationResult>> CreateExportAsync(DataRequestCaller caller, UserId subject,
+    public Task<Result<DataRequestMutationResult>> CreateExportAsync(DataRequestCaller caller, UserId subject,
+        CancellationToken cancellationToken) => CreateAsync(caller, subject, DataRequestKind.Export, cancellationToken);
+
+    /// <summary>
+    /// Files an erasure of <paramref name="subject"/>'s data in the announced group: <c>scheduled</c>, its job due when the
+    /// 24-hour cancellable window ends (ADR-0106 § 7, § 11; ADR-0107 § 2, § 5). An administrator files one only for a
+    /// person whose Membership in the group is already Revoked (ADR-0106 § 3).
+    /// </summary>
+    public Task<Result<DataRequestMutationResult>> CreateErasureAsync(DataRequestCaller caller, UserId subject,
+        CancellationToken cancellationToken) => CreateAsync(caller, subject, DataRequestKind.Erasure, cancellationToken);
+
+    /// <summary>
+    /// Files a request of <paramref name="kind"/> under the subject's exclusive User fence and the shared tenant fence,
+    /// with the frozen Membership snapshot, and submits its job on the same transaction (ADR-0106 § 7, § 8, § 10;
+    /// ADR-0107 § 2): an export's at once, an erasure's at its execution time.
+    /// </summary>
+    private async Task<Result<DataRequestMutationResult>> CreateAsync(DataRequestCaller caller, UserId subject, DataRequestKind kind,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
@@ -110,19 +125,19 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             }
 
             // ADR-0106 § 8: a dead job's request is stored failed under these fences before the one-active rule is
-            // judged, so a person whose export died is never locked out.
-            if (await store.FindActiveLockedAsync(subject, DataRequestKind.Export, cancellationToken).ConfigureAwait(false) is { } existing)
+            // judged, so a person whose request's job died is never locked out.
+            if (await store.FindActiveLockedAsync(subject, kind, cancellationToken).ConfigureAwait(false) is { } existing)
             {
                 await reconciler.ReconcileAsync(existing, plan, cancellationToken).ConfigureAwait(false);
             }
 
-            var memberships = await CheckCreationAsync(caller, subject, cancellationToken).ConfigureAwait(false);
+            var memberships = await CheckCreationAsync(caller, subject, kind, cancellationToken).ConfigureAwait(false);
             if (memberships.IsFailure)
             {
                 return Result<DataRequestMutationResult>.Fail(memberships.Error);
             }
 
-            var created = FileExport(caller, subject, memberships.Value);
+            var created = File(caller, subject, kind, memberships.Value);
             if (created.IsFailure)
             {
                 return Result<DataRequestMutationResult>.Fail(created.Error);
@@ -136,7 +151,8 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
                 return DataRequestRules.AlreadyActive<DataRequestMutationResult>();
             }
 
-            await scheduler.SubmitAsync(request.Id.Value, request.Kind, request.Status, request.Group, cancellationToken).ConfigureAwait(false);
+            await scheduler.SubmitAsync(new DataRequestFulfillment(request.Id.Value, request.Kind, request.Status, request.Group,
+                request.ExecuteAt), cancellationToken).ConfigureAwait(false);
             return Result.Ok(new DataRequestMutationResult(request.Id.Value, request.Version));
         }
         catch (IdentityMutationLockException)
@@ -146,14 +162,15 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     }
 
     /// <summary>
-    /// The creation guards, judged under the fences: the subject's eligibility, an administrator's export refused while the
-    /// subject holds a readable artifact, and the Membership snapshot to freeze. A refusal is the failed result.
+    /// The creation guards, judged under the fences: the subject's eligibility; an administrator's export refused while
+    /// the subject holds a readable artifact, and an administrator's erasure refused unless the subject's Membership in
+    /// the group is Revoked; and the Membership snapshot to freeze. A refusal is the failed result and writes nothing.
     /// </summary>
     private async Task<Result<IReadOnlyList<MembershipId>>> CheckCreationAsync(DataRequestCaller caller, UserId subject,
-        CancellationToken cancellationToken)
+        DataRequestKind kind, CancellationToken cancellationToken)
     {
         var origin = caller.Role == DataRequestRole.Subject ? DataRequestOrigin.Self : DataRequestOrigin.Administrator;
-        var decision = await eligibility.EvaluateAsync(new DataRequestEligibilityQuery(DataRequestKind.Export, origin, subject,
+        var decision = await eligibility.EvaluateAsync(new DataRequestEligibilityQuery(kind, origin, subject,
             Group, DataRequestEligibilityStage.Creation), cancellationToken).ConfigureAwait(false);
         if (!decision.IsEligible)
         {
@@ -169,10 +186,20 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         // An administrator's export never replaces the subject's own readable artifact (a new export withdraws the
         // previous one): while the subject holds one in the group, of any origin, it is refused. One active export
         // per subject and group means no export can store an artifact between this read and the insert that follows.
-        if (caller.Role == DataRequestRole.Administrator
+        if (caller.Role == DataRequestRole.Administrator && kind == DataRequestKind.Export
             && await store.HoldsReadableArtifactAsync(subject, cancellationToken).ConfigureAwait(false))
         {
             return DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_subject_export_available");
+        }
+
+        // ADR-0106 § 3: an administrator erases only a person whose Membership of the group is Revoked, so no
+        // administrator destroys a working member's data in one step; revoking the Membership is the separately audited
+        // act that comes first. The group holds at most one current row (ux_memberships_current_scope); it is read under
+        // the subject's User fence, which every admission of the subject also takes, so none appears meanwhile.
+        if (caller.Role == DataRequestRole.Administrator && kind == DataRequestKind.Erasure
+            && await store.HoldsCurrentMembershipAsync(subject, cancellationToken).ConfigureAwait(false))
+        {
+            return DataRequestRules.Rule<IReadOnlyList<MembershipId>>("$", "lockey_subject_membership_current");
         }
 
         var memberships = await store.ReadSubjectMembershipsAsync(subject, cancellationToken).ConfigureAwait(false);
@@ -186,15 +213,15 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             : Result.Ok(memberships);
     }
 
-    /// <summary>A new export request in its initial state, with the frozen Membership snapshot, filed by the caller's role.</summary>
-    private Result<DataSubjectRequest> FileExport(DataRequestCaller caller, UserId subject, IReadOnlyList<MembershipId> memberships)
+    /// <summary>A new request in its initial state, with the frozen Membership snapshot, filed by the caller's role.</summary>
+    private Result<DataSubjectRequest> File(DataRequestCaller caller, UserId subject, DataRequestKind kind,
+        IReadOnlyList<MembershipId> memberships)
     {
         var id = DataRequestRules.NewId(ids);
         var now = clock.UtcNow;
         return caller.Role == DataRequestRole.Subject
-            ? DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(id), DataRequestKind.Export, subject, Group, memberships, now)
-            : DataSubjectRequest.FileForSubject(DataSubjectRequestId.From(id), DataRequestKind.Export, caller.Actor, subject, Group,
-                memberships, now);
+            ? DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(id), kind, subject, Group, memberships, now)
+            : DataSubjectRequest.FileForSubject(DataSubjectRequestId.From(id), kind, caller.Actor, subject, Group, memberships, now);
     }
 
     /// <summary>
@@ -202,8 +229,20 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     /// in the announced group (ADR-0106 § 3): a Revoked tombstone still names its person. A Membership of another group
     /// is absent.
     /// </summary>
-    public async Task<Result<DataRequestMutationResult>> CreateExportForMembershipAsync(DataRequestCaller caller, Guid membershipId,
-        CancellationToken cancellationToken)
+    public Task<Result<DataRequestMutationResult>> CreateExportForMembershipAsync(DataRequestCaller caller, Guid membershipId,
+        CancellationToken cancellationToken) => CreateForMembershipAsync(caller, membershipId, DataRequestKind.Export, cancellationToken);
+
+    /// <summary>
+    /// An administrator files an erasure for the person whose <paramref name="membershipId"/> in the announced group is
+    /// Revoked (ADR-0106 § 3). This is the erasure's own target authorization: the membership administration
+    /// authorization refuses a Revoked target, and the creation guard here refuses every other one, because a person who
+    /// still holds an Active or Suspended Membership of the group is a working member.
+    /// </summary>
+    public Task<Result<DataRequestMutationResult>> CreateErasureForMembershipAsync(DataRequestCaller caller, Guid membershipId,
+        CancellationToken cancellationToken) => CreateForMembershipAsync(caller, membershipId, DataRequestKind.Erasure, cancellationToken);
+
+    private async Task<Result<DataRequestMutationResult>> CreateForMembershipAsync(DataRequestCaller caller, Guid membershipId,
+        DataRequestKind kind, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
         if (caller.Role != DataRequestRole.Administrator)
@@ -218,7 +257,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
 
         var subject = await reader.FindMembershipSubjectAsync(MembershipId.From(membershipId), cancellationToken).ConfigureAwait(false);
         return subject is { } person
-            ? await CreateExportAsync(caller, person, cancellationToken).ConfigureAwait(false)
+            ? await CreateAsync(caller, person, kind, cancellationToken).ConfigureAwait(false)
             : DataRequestRules.Fail<DataRequestMutationResult>("lockey_not_found");
     }
 
@@ -295,7 +334,11 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         return Result.Ok(None.Value);
     }
 
-    /// <summary><c>requested → cancelled</c> under the shared tenant fence the request guard requires (ADR-0106 § 8, § 11).</summary>
+    /// <summary>
+    /// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time,
+    /// under the shared tenant fence the request guard requires (ADR-0106 § 8, § 11). A running erasure holds the tenant
+    /// fence exclusively, so a cancellation never meets one half-done.
+    /// </summary>
     public async Task<Result<DataRequestMutationResult>> CancelAsync(DataRequestCaller caller, Guid requestId, long expectedVersion,
         CancellationToken cancellationToken)
     {
@@ -398,11 +441,25 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             return [];
         }
 
-        // Only a stored requested export can be displayed failed (DataRequestFailureReconciler.EffectiveStatus): a
-        // completed, failed or cancelled one never changes, so its job is not read.
-        var phase = await phases.ReadManyAsync(requests
-            .Where(request => request.Kind == DataRequestKind.Export && request.Status == DataRequestStatus.Requested)
-            .Select(request => request.Id).ToArray(), cancellationToken).ConfigureAwait(false);
+        // Only a stored requested export or scheduled erasure can be displayed failed
+        // (DataRequestFailureReconciler.EffectiveStatus): every other status is never changed by its job, so the job is
+        // not read.
+        var phase = new Dictionary<DataSubjectRequestId, DataRequestJobPhase>();
+        foreach (var kind in new[] { DataRequestKind.Export, DataRequestKind.Erasure })
+        {
+            var pending = requests.Where(request => request.Kind == kind && DataRequestFailureReconciler.CanFail(kind, request.Status))
+                .Select(request => request.Id).ToArray();
+            if (pending.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (var (id, read) in await phases.ReadManyAsync(pending, kind, cancellationToken).ConfigureAwait(false))
+            {
+                phase[id] = read;
+            }
+        }
+
         var stored = await reader.ReadArtifactsAsync(requests.Select(request => request.Id).ToArray(), cancellationToken).ConfigureAwait(false);
         return requests.Select(request => View(caller, request, phase.GetValueOrDefault(request.Id, DataRequestJobPhase.Unavailable),
             stored.GetValueOrDefault(request.Id))).ToArray();

@@ -17,8 +17,8 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </summary>
 /// <remarks>
 /// The request row carries no job identity, so the job is found by its exact route: the announced tenant and
-/// organization, the export definition of that group, the transactional profile and the canonical serialization
-/// of the request's own identifier, newest first. Nothing a caller supplies selects it.
+/// organization, the export or erasure definition of that group, the transactional profile and the canonical
+/// serialization of the request's own identifier, newest first. Nothing a caller supplies selects it.
 /// </remarks>
 public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext tenant) : IDataRequestJobPhaseReader
 {
@@ -48,17 +48,14 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
     public async Task<DataRequestJobPhase> ReadAsync(DataSubjectRequestId requestId, DataRequestKind kind, CancellationToken cancellationToken)
     {
         RequireOwner();
-        if (kind != DataRequestKind.Export)
+        if (Route(kind) is not { } definition)
         {
             return DataRequestJobPhase.Unavailable;
         }
 
-        var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(requestId.Value),
-            typeof(DataExportJobParameters), BackgroundJobPayloadKind.Parameters);
         await using var command = DataRequestSql.Command(unit, tenant, SingleStatement);
-        command.Parameters.AddWithValue("definition",
-            DataExportJobKeys.ExportFor(new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId)).Value);
-        command.Parameters.AddWithValue("parameters", parameters);
+        command.Parameters.AddWithValue("definition", definition);
+        command.Parameters.AddWithValue("parameters", Parameters(requestId, kind));
         using var budget = DataRequestSql.Budget(cancellationToken);
         try
         {
@@ -80,36 +77,34 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
     }
 
     public async Task<IReadOnlyDictionary<DataSubjectRequestId, DataRequestJobPhase>> ReadManyAsync(
-        IReadOnlyCollection<DataSubjectRequestId> exportRequestIds, CancellationToken cancellationToken)
+        IReadOnlyCollection<DataSubjectRequestId> requestIds, DataRequestKind kind, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(exportRequestIds);
+        ArgumentNullException.ThrowIfNull(requestIds);
         RequireOwner();
-        if (exportRequestIds.Count > 101)
+        if (requestIds.Count > 101)
         {
             throw new InvalidOperationException("A data request job phase page reads at most 101 requests.");
         }
 
-        var phases = exportRequestIds.Distinct().ToDictionary(id => id, _ => DataRequestJobPhase.Unavailable);
-        var exports = phases.Keys
-            .ToDictionary(id => BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(id.Value),
-                typeof(DataExportJobParameters), BackgroundJobPayloadKind.Parameters), id => id, StringComparer.Ordinal);
-        if (exports.Count == 0)
+        var phases = requestIds.Distinct().ToDictionary(id => id, _ => DataRequestJobPhase.Unavailable);
+        if (phases.Count == 0 || Route(kind) is not { } definition)
         {
             return phases;
         }
 
+        var routed = phases.Keys.ToDictionary(id => Parameters(id, kind), id => id, StringComparer.Ordinal);
+
         // One statement for the page, newest job per request, by the same exact route as the single read.
         await using var command = DataRequestSql.Command(unit, tenant, PageStatement);
-        command.Parameters.AddWithValue("definition",
-            DataExportJobKeys.ExportFor(new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId)).Value);
-        command.Parameters.AddWithValue("parameters", exports.Keys.ToArray());
+        command.Parameters.AddWithValue("definition", definition);
+        command.Parameters.AddWithValue("parameters", routed.Keys.ToArray());
         using var budget = DataRequestSql.Budget(cancellationToken);
         try
         {
             await using var row = await command.ExecuteReaderAsync(budget.Token).ConfigureAwait(false);
             while (await row.ReadAsync(budget.Token).ConfigureAwait(false))
             {
-                if (exports.TryGetValue(row.GetString(0), out var id))
+                if (routed.TryGetValue(row.GetString(0), out var id))
                 {
                     phases[id] = Classify(row.GetString(1), row.GetBoolean(2));
                 }
@@ -128,6 +123,25 @@ public sealed class DataRequestJobPhaseReader(IUnitOfWork unit, ITenantContext t
 
         return phases;
     }
+
+    /// <summary>The definition key of the kind's fulfilment job in the announced group; a closure has none in this step.</summary>
+    private string? Route(DataRequestKind kind)
+    {
+        var group = new DataRequestScopeGroup(tenant.TenantId, tenant.OrganizationId);
+        return kind switch
+        {
+            DataRequestKind.Export => DataExportJobKeys.ExportFor(group).Value,
+            DataRequestKind.Erasure => DataErasureJobKeys.ErasureFor(group).Value,
+            _ => null,
+        };
+    }
+
+    /// <summary>The canonical stored parameters of the request's own fulfilment job.</summary>
+    private static string Parameters(DataSubjectRequestId requestId, DataRequestKind kind) => kind == DataRequestKind.Erasure
+        ? BackgroundJobPayloadContract.Serialize(new DataErasureJobParameters(requestId.Value), typeof(DataErasureJobParameters),
+            BackgroundJobPayloadKind.Parameters)
+        : BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(requestId.Value), typeof(DataExportJobParameters),
+            BackgroundJobPayloadKind.Parameters);
 
     private void RequireOwner()
     {

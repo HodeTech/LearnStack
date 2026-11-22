@@ -23,8 +23,8 @@ namespace LearnStack.Api.Authentication;
 /// </para>
 /// <para>
 /// <b>Closed shapes.</b> Only the declared query keys, each once; only the declared body fields, each once; an
-/// <c>Idempotency-Key</c> only on creation and cancellation; <c>If-Match</c> only, and always, on cancellation; no
-/// other conditional header anywhere. The body is buffered, bounded and cleared once parsed, because the chunk read
+/// <c>Idempotency-Key</c> only on creation, cancellation and revocation; <c>If-Match</c> only, and always, on
+/// cancellation and revocation; no other conditional header anywhere. The body is buffered, bounded and cleared once parsed, because the chunk read
 /// carries a ticket in it.
 /// </para>
 /// </remarks>
@@ -65,7 +65,8 @@ internal sealed class OwnDataRequestHttpInput
         var purpose = operation.Purpose;
         if (!HeadersAdmit(http.Request, purpose)) return null;
         long version = 0;
-        if (purpose == OwnDataRequestPurpose.Cancel && !ProtectedEntityTag.TryRead(http.Request, out version)) return null;
+        if (purpose is OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke
+            && !ProtectedEntityTag.TryRead(http.Request, out version)) return null;
         string? cursor = null; string? group = null; var limit = 20;
         foreach (var (key, values) in http.Request.Query)
         {
@@ -113,10 +114,14 @@ internal sealed class OwnDataRequestHttpInput
                 var body = json.RootElement;
                 var parsed = purpose switch
                 {
-                    OwnDataRequestPurpose.Create => AdministrationHttpInput.HasFields(body)
-                        ? new CreateRetainedDataExportCommand(organization) : null,
+                    // One purpose, two routes: the operation's own request type says whether an export or an erasure is filed.
+                    OwnDataRequestPurpose.Create when AdministrationHttpInput.HasFields(body) =>
+                        operation.RequestType == typeof(CreateRetainedDataErasureCommand)
+                            ? (object)new CreateRetainedDataErasureCommand(organization) : new CreateRetainedDataExportCommand(organization),
                     OwnDataRequestPurpose.Cancel => TryRequestId(body, out var cancelled, "requestId")
                         ? new CancelRetainedDataRequestCommand(organization, cancelled, version) : null,
+                    OwnDataRequestPurpose.Revoke => TryRequestId(body, out var revoked, "requestId")
+                        ? new RevokeRetainedDataExportCommand(organization, revoked, version) : null,
                     OwnDataRequestPurpose.Ticket => TryRequestId(body, out var ticketed, "requestId")
                         ? new MintRetainedDataExportTicketCommand(organization, ticketed) : null,
                     OwnDataRequestPurpose.Chunk => TryChunk(body, organization),
@@ -173,19 +178,24 @@ internal sealed class OwnDataRequestHttpInput
     {
         ListRetainedDataRequestScopesQuery => OwnDataRequestPurpose.List,
         ListRetainedDataRequestsQuery => OwnDataRequestPurpose.Read,
-        CreateRetainedDataExportCommand => OwnDataRequestPurpose.Create,
+        CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand => OwnDataRequestPurpose.Create,
         CancelRetainedDataRequestCommand => OwnDataRequestPurpose.Cancel,
+        RevokeRetainedDataExportCommand => OwnDataRequestPurpose.Revoke,
         MintRetainedDataExportTicketCommand => OwnDataRequestPurpose.Ticket,
         ReadRetainedDataExportChunkCommand => OwnDataRequestPurpose.Chunk,
         _ => 0,
     };
 
-    /// <summary>A key only where the operation is keyed, If-Match only (and always) on cancellation, no other precondition.</summary>
+    /// <summary>
+    /// A key only where the operation is keyed, If-Match only (and always) on cancellation and revocation, no other
+    /// precondition.
+    /// </summary>
     private static bool HeadersAdmit(HttpRequest request, OwnDataRequestPurpose purpose) => Enum.IsDefined(purpose)
         && !request.Headers.ContainsKey("If-None-Match") && !request.Headers.ContainsKey("If-Modified-Since")
         && !request.Headers.ContainsKey("If-Unmodified-Since")
-        && (purpose == OwnDataRequestPurpose.Cancel ? request.Headers.IfMatch.Count == 1 : !request.Headers.ContainsKey("If-Match"))
-        && (purpose is OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel
+        && (purpose is OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke
+            ? request.Headers.IfMatch.Count == 1 : !request.Headers.ContainsKey("If-Match"))
+        && (purpose is OwnDataRequestPurpose.Create or OwnDataRequestPurpose.Cancel or OwnDataRequestPurpose.Revoke
             || !request.Headers.ContainsKey(IdempotentAttribute.HeaderName));
 
     private static string? IfMatch(HttpRequest request) => request.Headers.IfMatch.Count == 1 ? request.Headers.IfMatch[0] : null;

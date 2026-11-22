@@ -42,8 +42,9 @@ public sealed class DataRequestAuthorization(IOperationInvocationContext invocat
     }
 
     /// <summary>The administrator's request types; every other admitted type is the subject's own.</summary>
-    internal static bool IsAdministration(object request) => request is CreateDataExportForSubjectCommand or ListDataRequestsQuery
-        or GetDataRequestQuery or CancelDataRequestCommand or RevokeDataExportCommand or ReadDataRequestReceiptQuery;
+    internal static bool IsAdministration(object request) => request is CreateDataExportForSubjectCommand
+        or CreateDataErasureForSubjectCommand or ListDataRequestsQuery or GetDataRequestQuery or CancelDataRequestCommand
+        or RevokeDataExportCommand or ReadDataRequestReceiptQuery;
 
     /// <summary>The subject's request types: exactly the closed set an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry.</summary>
     private static bool IsOwn(object request) =>

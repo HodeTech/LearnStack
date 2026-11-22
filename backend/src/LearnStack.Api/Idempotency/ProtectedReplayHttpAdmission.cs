@@ -53,7 +53,8 @@ internal static class ProtectedReplayHttpAdmission
             dataRequest = http.Features.Get<OwnDataRequestSubjectSource>();
             if (declared.Kind != OperationPolicyKind.OwnDataRequestEntry || context.Origin != TenantContextOrigin.HostAndOwnDataRequestScope
                 || dataRequest is null || dataRequest.Actor != actor || !dataRequest.MatchesScope(http, context.TenantId, context.OrganizationId)
-                || dataRequest.Request is not (CreateRetainedDataExportCommand or CancelRetainedDataRequestCommand)
+                || dataRequest.Request is not (CreateRetainedDataExportCommand or CreateRetainedDataErasureCommand
+                    or CancelRetainedDataRequestCommand or RevokeRetainedDataExportCommand)
                 || http.Features.Get<ConsentSubjectSource>() is not null)
                 return Failure("lockey_forbidden");
         }
@@ -159,11 +160,14 @@ internal static class ProtectedReplayHttpAdmission
             or ProtectedAdministrationOperation.DiscardCustomFieldDraft => typeof(ReadCustomFieldDefinitionReceiptQuery),
         ProtectedAdministrationOperation.GrantOwnFieldConsent => typeof(ReadOwnGrantedFieldConsentReceiptQuery),
         ProtectedAdministrationOperation.WithdrawOwnFieldConsent => typeof(ReadOwnWithdrawnFieldConsentReceiptQuery),
-        ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CancelOwnDataRequest
+        ProtectedAdministrationOperation.CreateOwnDataExport or ProtectedAdministrationOperation.CreateOwnDataErasure
+            or ProtectedAdministrationOperation.CancelOwnDataRequest
             or ProtectedAdministrationOperation.RevokeOwnDataExport => typeof(ReadOwnDataRequestReceiptQuery),
-        ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CancelDataRequest
+        ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateDataErasureForSubject
+            or ProtectedAdministrationOperation.CancelDataRequest
             or ProtectedAdministrationOperation.RevokeDataExport => typeof(ReadDataRequestReceiptQuery),
-        ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CancelRetainedDataRequest =>
+        ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CreateRetainedDataErasure
+            or ProtectedAdministrationOperation.CancelRetainedDataRequest or ProtectedAdministrationOperation.RevokeRetainedDataExport =>
             typeof(ReadRetainedDataRequestReceiptQuery),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };

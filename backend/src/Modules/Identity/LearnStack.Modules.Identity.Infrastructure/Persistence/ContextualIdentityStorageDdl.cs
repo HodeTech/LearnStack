@@ -124,6 +124,77 @@ public static class ContextualIdentityStorageDdl
         migration.Sql("CREATE OR REPLACE " + MutationGuardSql(correctParentMirror: true));
     }
 
+    /// <summary>
+    /// ADR-0107 § 5: the one exception the erasure needs, a clearing UPDATE of a Revoked Membership's profile under the
+    /// erasure witness. Every other refusal of the function stays as it was.
+    /// </summary>
+    internal static void AdmitErasureProfileClearing(MigrationBuilder migration)
+    {
+        ArgumentNullException.ThrowIfNull(migration);
+        migration.Sql("CREATE OR REPLACE " + ErasureProfileClearingSql());
+    }
+
+    /// <summary>
+    /// The current guard with ADR-0107 § 5's witnessed exception. Composed from the earlier forward corrections, which
+    /// the applied migrations keep emitting unchanged, so the exception is the only difference.
+    /// </summary>
+    /// <remarks>
+    /// The parent read also takes the Membership's person. A profile UPDATE of a Revoked parent passes only when it
+    /// clears exactly the three personal columns, judged in a block of its own so the profile's columns are never read
+    /// for an assignment row (the profile's other columns are refused or immutable above and by
+    /// <c>fn_organization_id_immutable</c>), the connection holds that person's User fence exclusively, and that person's
+    /// <c>erasure</c> request for the parent's own group is <c>fulfilling</c>; such an UPDATE then requires the tenant key
+    /// exclusively at the function's one fence assertion. The witness is a row and two held locks, read on the caller's
+    /// own transaction as the application role, never a transaction identifier.
+    /// </remarks>
+    private static string ErasureProfileClearingSql()
+    {
+        var sql = MutationGuardSql(correctParentMirror: true, serializeParentLifecycle: true);
+        foreach (var (before, after) in ErasureProfileClearing)
+        {
+            if (!sql.Contains(before, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("The contextual guard no longer holds the text the erasure exception amends.");
+            }
+
+            sql = sql.Replace(before, after, StringComparison.Ordinal);
+        }
+
+        return sql;
+    }
+
+    private static readonly (string Before, string After)[] ErasureProfileClearing =
+    [
+        ("""
+            has_history boolean; parent_fresh boolean;
+        """, """
+            has_history boolean; parent_fresh boolean; parent_user uuid; erasure_clearing boolean := false;
+        """),
+        ("""
+                SELECT member.organization_id, member.status INTO parent_org, parent_status
+        """, """
+                SELECT member.organization_id, member.status, member.user_id INTO parent_org, parent_status, parent_user
+        """),
+        ("""
+                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' THEN
+                    RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
+                END IF;
+        """, """
+                IF TG_TABLE_NAME = 'membership_profiles' AND TG_OP = 'UPDATE' AND parent_status = 'Revoked' THEN
+                    erasure_clearing := NEW.display_name IS NULL AND NEW.preferred_locale IS NULL AND NEW.custom_fields = '[]'::jsonb
+                        AND public.fn_identity_lock_held('user',parent_user,true) IS TRUE
+                        AND EXISTS (SELECT 1 FROM public.data_subject_requests AS erasure
+                            WHERE erasure.tenant_id = target_tenant AND erasure.subject_user_id = parent_user
+                              AND erasure.organization_id IS NOT DISTINCT FROM parent_org
+                              AND erasure.kind = 'erasure' AND erasure.status = 'fulfilling');
+                END IF;
+                IF TG_OP <> 'DELETE' AND parent_status = 'Revoked' AND NOT erasure_clearing THEN
+                    RAISE EXCEPTION 'identity graph is invalid' USING ERRCODE = 'P0304';
+                END IF;
+                require_exclusive := erasure_clearing;
+        """),
+    ];
+
     private static string MembershipAdmissionGuardSql(bool correctParentMirror) => MembershipAdmissionGuardDefinition
         .Replace("__MISSING_MEMBERSHIP_REFUSAL__",
             correctParentMirror ? MembershipParentRefusal : LegacyMembershipParentRefusal, StringComparison.Ordinal);

@@ -37,11 +37,11 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(161, actual.Length);
+        Assert.Equal(167, actual.Length);
         Assert.Equal(5, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(67, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
-        // ADR-0106 § 4: eight own live-session data-request operations carry no key and no grant.
+        Assert.Equal(68, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        // ADR-0106 § 4: nine own live-session data-request operations carry no key and no grant.
         Assert.All(catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequest), policy =>
         {
             Assert.StartsWith("identity.data_request.", policy.Id, StringComparison.Ordinal);
@@ -49,11 +49,12 @@ public sealed class OperationPolicyCatalogTests
             Assert.Empty(policy.Alternatives);
             Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
         });
-        Assert.Equal(8, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.OwnDataRequest));
-        // ADR-0106 § 9: the retained own-scope entry's six operations and its keyed receipt read, key-less and grant-less too.
+        Assert.Equal(9, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.OwnDataRequest));
+        // ADR-0106 § 9: the retained own-scope entry's eight operations and its keyed receipt read, key-less and grant-less too.
         var retained = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequestEntry).ToArray();
         Assert.Equal(new[] { typeof(ListRetainedDataRequestScopesQuery), typeof(ListRetainedDataRequestsQuery), typeof(CreateRetainedDataExportCommand),
-                typeof(CancelRetainedDataRequestCommand), typeof(MintRetainedDataExportTicketCommand), typeof(ReadRetainedDataExportChunkCommand),
+                typeof(CreateRetainedDataErasureCommand), typeof(CancelRetainedDataRequestCommand), typeof(RevokeRetainedDataExportCommand),
+                typeof(MintRetainedDataExportTicketCommand), typeof(ReadRetainedDataExportChunkCommand),
                 typeof(ReadRetainedDataRequestReceiptQuery) }.OrderBy(type => type.FullName, StringComparer.Ordinal),
             retained.Select(policy => policy.RequestType));
         Assert.All(retained, policy =>
@@ -87,7 +88,7 @@ public sealed class OperationPolicyCatalogTests
         Assert.Equal(new[] { typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal),
             catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnConsentEntry).Select(policy => policy.RequestType));
-        Assert.Equal(55, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        Assert.Equal(57, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
         var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);

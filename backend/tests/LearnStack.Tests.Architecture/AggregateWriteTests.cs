@@ -225,16 +225,25 @@ public sealed class AggregateWriteTests
             .Should().BeEquivalentTo([typeof(DataExportTicket)], "the download executor writes the ticket root only");
         AggregatesWrittenBy(typeof(DataRequestFailureReconciler).GetConstructors().Single())
             .Should().BeEquivalentTo([typeof(DataSubjectRequest)]);
+        // ADR-0107 § 5: the erasure job is a one-root message handler; the Membership, Invitation and export-request writes
+        // are the Identity participant's, through the erasure service, which is no message handler. Its roots are counted
+        // here so the hole stays visible: it writes exactly these three and no other.
+        AggregatesWrittenBy(typeof(DataErasureJobHandlers).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest)], "the erasure job writes the request root only");
+        IsMessageHandler(typeof(DataErasureService)).Should().BeFalse("the erasure service is reached only through the participant");
+        AggregatesWrittenBy(typeof(DataErasureService).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest), typeof(Membership), typeof(Invitation)],
+                "the erasure cancels an export request, erases Memberships and revokes invitations, and nothing else");
         var handlers = typeof(DataRequestService).Assembly.GetTypes()
             .Where(type => type.Namespace == typeof(DataRequestService).Namespace && IsMessageHandler(type)
-                && type != typeof(DataExportJobHandlers))
+                && type != typeof(DataExportJobHandlers) && type != typeof(DataErasureJobHandlers))
             .ToList();
         static List<Type> ParameterTypes(Type handler) =>
             handler.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType).ToList();
         var live = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(LiveDataRequestAdmission))).ToList();
         var retained = handlers.Where(handler => ParameterTypes(handler).Contains(typeof(RetainedDataRequestAdmission))).ToList();
-        live.Should().HaveCount(14, "the fourteen live-session data-request operations each have one thin handler");
-        retained.Should().HaveCount(7, "the seven retained-entry data-request operations each have one thin handler");
+        live.Should().HaveCount(16, "the sixteen live-session data-request operations each have one thin handler");
+        retained.Should().HaveCount(9, "the nine retained-entry data-request operations each have one thin handler");
         handlers.Should().BeEquivalentTo(live.Concat(retained),
             "every data-request handler is admitted by exactly one of the two admissions");
         foreach (var handler in live)

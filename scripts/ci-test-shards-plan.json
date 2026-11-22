@@ -80,6 +80,8 @@
     "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
     "LearnStack.Tests.Integration.Database.CustomizationPublicationConcurrencyTests",
     "LearnStack.Tests.Integration.Database.CustomizationSchemaTests",
+    "LearnStack.Tests.Integration.Database.DataErasureExecutionTests",
+    "LearnStack.Tests.Integration.Database.DataErasureGuardTests",
     "LearnStack.Tests.Integration.Database.DataExportArtifactStoreTests",
     "LearnStack.Tests.Integration.Database.DataExportExecutionTests",
     "LearnStack.Tests.Integration.Database.DataExportParticipantTests",

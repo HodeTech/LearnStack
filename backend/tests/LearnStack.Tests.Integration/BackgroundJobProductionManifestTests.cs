@@ -185,6 +185,8 @@ public sealed class BackgroundJobProductionManifestTests
             // ADR-0107 § 2: export and artifact purge, once per scope group.
             "identity.data_export_tenant.v1", "identity.data_export_organization.v1",
             "identity.data_export_purge_tenant.v1", "identity.data_export_purge_organization.v1",
+            // ADR-0107 § 2, § 5: the tenant-side erasure, once per scope group.
+            "identity.data_erasure_tenant.v1", "identity.data_erasure_organization.v1",
         };
         (Type RequestType, BackgroundJobScope? Scope)[] expectedRequests =
         {
@@ -196,6 +198,8 @@ public sealed class BackgroundJobProductionManifestTests
             (typeof(LearnStack.Modules.Identity.Application.DataRequests.RunOrganizationDataExportCommand), BackgroundJobScope.Organization),
             (typeof(LearnStack.Modules.Identity.Application.DataRequests.PurgeTenantDataExportCommand), BackgroundJobScope.TenantWide),
             (typeof(LearnStack.Modules.Identity.Application.DataRequests.PurgeOrganizationDataExportCommand), BackgroundJobScope.Organization),
+            (typeof(LearnStack.Modules.Identity.Application.DataRequests.RunTenantDataErasureCommand), BackgroundJobScope.TenantWide),
+            (typeof(LearnStack.Modules.Identity.Application.DataRequests.RunOrganizationDataErasureCommand), BackgroundJobScope.Organization),
         };
         var actualDefinitions = definitions.DefinitionKeys.ToArray();
         var actualRequests = definitions.All.Where(item => item.Classification == BackgroundJobRequestClassification.Ordinary)
@@ -251,6 +255,7 @@ public sealed class BackgroundJobProductionManifestTests
             "identity/invitation-entry/results|POST|" + typeof(InvitationEntryController).FullName + ".Result",
             // P03-10 subject data requests: own, administrator and retained-entry routes; none is a job operator route.
             "identity/me/data-requests/exports|POST|" + typeof(OwnDataRequestsController).FullName + ".Create",
+            "identity/me/data-requests/erasures|POST|" + typeof(OwnDataRequestsController).FullName + ".CreateErasure",
             "identity/me/data-requests|GET|" + typeof(OwnDataRequestsController).FullName + ".List",
             "identity/me/data-requests/{id}|GET|" + typeof(OwnDataRequestsController).FullName + ".Get",
             "identity/me/data-requests/{id}/cancellations|POST|" + typeof(OwnDataRequestsController).FullName + ".Cancel",
@@ -258,6 +263,7 @@ public sealed class BackgroundJobProductionManifestTests
             "identity/me/data-requests/{id}/artifact/tickets|POST|" + typeof(OwnDataExportTicketsController).FullName + ".MintTicket",
             "identity/me/data-requests/{id}/artifact/chunks|POST|" + typeof(OwnDataExportChunksController).FullName + ".ReadChunk",
             "identity/data-requests/exports|POST|" + typeof(DataRequestsController).FullName + ".Create",
+            "identity/data-requests/erasures|POST|" + typeof(DataRequestsController).FullName + ".CreateErasure",
             "identity/data-requests|GET|" + typeof(DataRequestsController).FullName + ".List",
             "identity/data-requests/{id}|GET|" + typeof(DataRequestsController).FullName + ".Get",
             "identity/data-requests/{id}/cancellations|POST|" + typeof(DataRequestsController).FullName + ".Cancel",
@@ -265,7 +271,9 @@ public sealed class BackgroundJobProductionManifestTests
             "identity/data-request-entry/scopes|GET|" + typeof(DataRequestEntryController).FullName + ".Scopes",
             "identity/data-request-entry/requests|GET|" + typeof(DataRequestEntryController).FullName + ".Requests",
             "identity/data-request-entry/exports|POST|" + typeof(DataRequestEntryController).FullName + ".CreateExport",
+            "identity/data-request-entry/erasures|POST|" + typeof(DataRequestEntryController).FullName + ".CreateErasure",
             "identity/data-request-entry/cancellations|POST|" + typeof(DataRequestEntryController).FullName + ".Cancel",
+            "identity/data-request-entry/revocations|POST|" + typeof(DataRequestEntryController).FullName + ".RevokeExport",
             "identity/data-request-entry/tickets|POST|" + typeof(DataRequestEntryController).FullName + ".MintTicket",
             "identity/data-request-entry/chunks|POST|" + typeof(DataRequestEntryController).FullName + ".ReadChunk",
             // ADR-0099 federation administration: one controller, eleven routes.

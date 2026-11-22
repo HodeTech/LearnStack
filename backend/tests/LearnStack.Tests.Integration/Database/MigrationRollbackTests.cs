@@ -223,6 +223,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         authorityRebind.Should().Throw<NotSupportedException>().WithMessage("The issuer-rebind storage requires a reviewed forward migration.");
         Action federationProjection = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.grant_platform_federation_projection().DownOperations;
         federationProjection.Should().Throw<NotSupportedException>().WithMessage("The platform federation projection grant requires a reviewed forward migration.");
+        Action retainedScopes = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_own_data_request_scopes().DownOperations;
+        retainedScopes.Should().Throw<NotSupportedException>().WithMessage("The retained own data-request scope requires a reviewed forward migration.");
         Action dataRequests = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_data_subject_requests().DownOperations;
         dataRequests.Should().Throw<NotSupportedException>().WithMessage("Data request storage requires a reviewed forward migration.");
         Action protectedReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_custom_field_protected_receipts().DownOperations;
@@ -233,14 +235,18 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         dataRequestReceipts.Should().Throw<NotSupportedException>().WithMessage("Retained data request receipts require a reviewed forward migration.");
         Action ownDataRequestScopes = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_own_data_request_scopes().DownOperations;
         ownDataRequestScopes.Should().Throw<NotSupportedException>().WithMessage("The retained own data-request scope requires a reviewed forward migration.");
+        Action platformDataRequests = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.grant_platform_data_request_operations().DownOperations;
+        platformDataRequests.Should().Throw<NotSupportedException>().WithMessage("The platform data-request operations require a reviewed forward migration.");
+        Action erasureClearing = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_erasure_profile_clearing().DownOperations;
+        erasureClearing.Should().Throw<NotSupportedException>().WithMessage("The erasure profile clearing requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
             (platform, "20261120120000_grant_platform_delivery_inspection", PlatformReversibleHead,
                 "20261122160000_add_data_request_protected_receipts", "Retained data request receipts require a reviewed forward migration."),
-            (identity, "20261122013001_add_data_subject_requests", IdentityReversibleHead,
-                "20261122200000_grant_platform_data_request_operations", "The platform data-request operations require a reviewed forward migration."),
+            (identity, "20261122200000_grant_platform_data_request_operations", IdentityReversibleHead,
+                "20261122203000_admit_erasure_profile_clearing", "The erasure profile clearing requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

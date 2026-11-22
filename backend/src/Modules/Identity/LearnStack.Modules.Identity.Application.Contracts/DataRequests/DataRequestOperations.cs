@@ -90,13 +90,22 @@ public sealed record DataExportChunkView
 /// <summary>The person files an export of their own data in the session's group (ADR-0106 § 3).</summary>
 public sealed record CreateOwnDataExportCommand : IRequest<Result<DataRequestMutationResult>>;
 
+/// <summary>
+/// The person files an erasure of their own data in the session's group (ADR-0106 § 3): <c>scheduled</c>, executed
+/// once its 24-hour cancellable window has passed (ADR-0106 § 11, ADR-0107 § 5).
+/// </summary>
+public sealed record CreateOwnDataErasureCommand : IRequest<Result<DataRequestMutationResult>>;
+
 /// <summary>The person's own requests in the session's group, newest first.</summary>
 public sealed record ListOwnDataRequestsQuery(string? Cursor = null, int Limit = 20) : IRequest<Result<Page<DataRequestView>>>;
 
 /// <summary>The person's own request receipt in the session's group.</summary>
 public sealed record GetOwnDataRequestQuery(Guid RequestId) : IRequest<Result<DataRequestView>>;
 
-/// <summary><c>requested → cancelled</c> by the subject (ADR-0106 § 8, § 11).</summary>
+/// <summary>
+/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time, by
+/// the subject (ADR-0106 § 8, § 11).
+/// </summary>
 public sealed record CancelOwnDataRequestCommand(Guid RequestId, long ExpectedVersion) : IRequest<Result<DataRequestMutationResult>>;
 
 /// <summary>The subject revokes an unexpired export artifact of their own request, which purges it at once (ADR-0107 § 4).</summary>
@@ -137,13 +146,23 @@ public sealed record ReadOwnDataRequestReceiptQuery(Guid RequestId) : IRequest<R
 /// </summary>
 public sealed record CreateDataExportForSubjectCommand(Guid MembershipId) : IRequest<Result<DataRequestMutationResult>>;
 
+/// <summary>
+/// A holder of <c>identity.membership.admin</c> covering the group files an erasure for the person whose named
+/// Membership in the group is already Revoked (ADR-0106 § 3): an Active or Suspended member is revoked first, by the
+/// separately audited administration act. Never for themselves.
+/// </summary>
+public sealed record CreateDataErasureForSubjectCommand(Guid MembershipId) : IRequest<Result<DataRequestMutationResult>>;
+
 /// <summary>The group's export and erasure requests: status and counts only, never content.</summary>
 public sealed record ListDataRequestsQuery(string? Cursor = null, int Limit = 20) : IRequest<Result<Page<DataRequestView>>>;
 
 /// <summary>One request of the group: status and counts only, never content.</summary>
 public sealed record GetDataRequestQuery(Guid RequestId) : IRequest<Result<DataRequestView>>;
 
-/// <summary><c>requested → cancelled</c> by the administrator who filed the request.</summary>
+/// <summary>
+/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time, by
+/// the administrator who filed the request.
+/// </summary>
 public sealed record CancelDataRequestCommand(Guid RequestId, long ExpectedVersion) : IRequest<Result<DataRequestMutationResult>>;
 
 /// <summary>The administrator who filed an export revokes its unexpired artifact, which purges it at once.</summary>
@@ -173,9 +192,25 @@ public sealed record ListRetainedDataRequestsQuery(OrganizationId? OrganizationI
 /// <summary>The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9).</summary>
 public sealed record CreateRetainedDataExportCommand(OrganizationId? OrganizationId) : IRequest<Result<DataRequestMutationResult>>;
 
-/// <summary><c>requested → cancelled</c> by the subject in one retained group (ADR-0106 § 8, § 11).</summary>
+/// <summary>
+/// The subject files an erasure of their own data in one retained group (ADR-0106 § 3, § 9): the path of a Suspended
+/// person and of one whose Membership was revoked.
+/// </summary>
+public sealed record CreateRetainedDataErasureCommand(OrganizationId? OrganizationId) : IRequest<Result<DataRequestMutationResult>>;
+
+/// <summary>
+/// <c>requested → cancelled</c> for an export, <c>scheduled → cancelled</c> for an erasure before its execution time, by
+/// the subject in one retained group (ADR-0106 § 8, § 11).
+/// </summary>
 public sealed record CancelRetainedDataRequestCommand(OrganizationId? OrganizationId, Guid RequestId, long ExpectedVersion)
     : IRequest<Result<DataRequestMutationResult>>;
+
+/// <summary>
+/// The subject revokes an unexpired export artifact of their own request in one retained group, which purges it at
+/// once (ADR-0107 § 4).
+/// </summary>
+public sealed record RevokeRetainedDataExportCommand(OrganizationId? OrganizationId, Guid RequestId, long ExpectedArtifactVersion)
+    : IRequest<Result<DataExportArtifactMutationResult>>;
 
 /// <summary>Mints a fifteen-minute download cursor over the subject's available artifact in one retained group.</summary>
 public sealed record MintRetainedDataExportTicketCommand(OrganizationId? OrganizationId, Guid RequestId) : IRequest<Result<DataExportTicketGrant>>;

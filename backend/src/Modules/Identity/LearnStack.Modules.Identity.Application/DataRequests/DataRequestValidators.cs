@@ -55,6 +55,12 @@ internal sealed class CreateDataExportForSubjectValidator : AbstractValidator<Cr
         RuleFor(request => request.MembershipId).Must(DataRequestInput.Id).WithErrorCode("lockey_identifier_required");
 }
 
+internal sealed class CreateDataErasureForSubjectValidator : AbstractValidator<CreateDataErasureForSubjectCommand>
+{
+    public CreateDataErasureForSubjectValidator() =>
+        RuleFor(request => request.MembershipId).Must(DataRequestInput.Id).WithErrorCode("lockey_identifier_required");
+}
+
 internal sealed class CancelOwnDataRequestValidator : AbstractValidator<CancelOwnDataRequestCommand>
 {
     public CancelOwnDataRequestValidator()

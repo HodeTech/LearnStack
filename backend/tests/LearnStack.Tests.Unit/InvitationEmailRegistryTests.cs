@@ -21,11 +21,13 @@ public sealed class InvitationEmailRegistryTests
         "identity.data_export_purge_tenant.v1", "identity.data_export_purge_organization.v1",
     ];
 
+    private static readonly string[] DataErasureKeys = ["identity.data_erasure_tenant.v1", "identity.data_erasure_organization.v1"];
+
     [Fact]
-    public void Actual_Registry_Binds_Exactly_Six_Active_Definitions_And_Eight_Scoped_Ordinary_Roots()
+    public void Actual_Registry_Binds_Exactly_Eight_Active_Definitions_And_Ten_Scoped_Ordinary_Roots()
     {
         var registry = InvitationEmailRegistration.CreateRegistry();
-        registry.DefinitionKeys.Should().BeEquivalentTo(InvitationKeys.Concat(DataExportKeys));
+        registry.DefinitionKeys.Should().BeEquivalentTo(InvitationKeys.Concat(DataExportKeys).Concat(DataErasureKeys));
         var definitions = InvitationKeys.Select(key => registry.Resolve(key).Definition!).ToArray();
         definitions.Should().OnlyContain(definition => definition.Readiness == BackgroundJobDefinitionReadiness.Active
             && definition.Profile == BackgroundJobExecutionProfile.External && definition.Queue == "external"
@@ -40,7 +42,8 @@ public sealed class InvitationEmailRegistryTests
                 new[] { typeof(PrepareTenantInvitationEmailCommand), typeof(FinalizeTenantInvitationEmailCommand),
                     typeof(PrepareOrganizationInvitationEmailCommand), typeof(FinalizeOrganizationInvitationEmailCommand),
                     typeof(RunTenantDataExportCommand), typeof(RunOrganizationDataExportCommand),
-                    typeof(PurgeTenantDataExportCommand), typeof(PurgeOrganizationDataExportCommand) });
+                    typeof(PurgeTenantDataExportCommand), typeof(PurgeOrganizationDataExportCommand),
+                    typeof(RunTenantDataErasureCommand), typeof(RunOrganizationDataErasureCommand) });
         foreach (var definition in definitions)
         {
             definition.ProfileRegistration.PlanType.Should().Be<InvitationEmailPlan>();
@@ -91,11 +94,37 @@ public sealed class InvitationEmailRegistryTests
         request.Classification.Should().Be(BackgroundJobRequestClassification.Ordinary);
     }
 
+    /// <summary>ADR-0107 § 2, § 5: the two erasure definitions, one per scope group, transactional and identifier-only.</summary>
+    [Theory]
+    [InlineData("identity.data_erasure_tenant.v1", "tenant")]
+    [InlineData("identity.data_erasure_organization.v1", "organization")]
+    public void Actual_Registry_Binds_The_Data_Erasure_Definitions_As_Transactional_Identifier_Only_Roots(string key, string scope)
+    {
+        var registry = InvitationEmailRegistration.CreateRegistry();
+        var expectedScope = scope == "tenant" ? BackgroundJobScope.TenantWide : BackgroundJobScope.Organization;
+        var expectedRoot = scope == "tenant" ? typeof(RunTenantDataErasureCommand) : typeof(RunOrganizationDataErasureCommand);
+
+        var definition = registry.Resolve(key).Definition!;
+
+        definition.Readiness.Should().Be(BackgroundJobDefinitionReadiness.Active);
+        definition.Profile.Should().Be(BackgroundJobExecutionProfile.Transactional);
+        definition.Queue.Should().Be("transactional");
+        definition.CapacityGroup.Should().BeNull();
+        definition.OwnerModule.Should().Be("identity");
+        definition.Scope.Should().Be(expectedScope);
+        definition.ParameterType.Should().Be<DataErasureJobParameters>();
+        definition.RootRequestTypes.Should().Equal(expectedRoot);
+        definition.NestedRequestTypes.Should().BeEmpty();
+        registry.TryGet(expectedRoot, out var request).Should().BeTrue();
+        request!.Scope.Should().Be(expectedScope);
+        request.Classification.Should().Be(BackgroundJobRequestClassification.Ordinary);
+    }
+
     [Fact]
     public void Data_Export_Parameters_Carry_Only_One_Canonical_Identifier()
     {
         var id = Guid.Parse("019712ac-1234-7000-8000-000000000009");
-        foreach (var payload in new object[] { new DataExportJobParameters(id), new DataExportPurgeParameters(id) })
+        foreach (var payload in new object[] { new DataExportJobParameters(id), new DataExportPurgeParameters(id), new DataErasureJobParameters(id) })
         {
             var json = BackgroundJobPayloadContract.Serialize(payload, payload.GetType(), BackgroundJobPayloadKind.Parameters);
             BackgroundJobPayloadContract.Read(json, payload.GetType(), BackgroundJobPayloadKind.Parameters).Should().Be(payload);

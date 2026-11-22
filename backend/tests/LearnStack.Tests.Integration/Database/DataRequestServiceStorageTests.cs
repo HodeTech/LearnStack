@@ -173,7 +173,7 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
             (await reader.ReadAsync(DataSubjectRequestId.From(request), DataRequestKind.Export, CancellationToken.None))
                 .Should().Be(DataRequestJobPhase.Pending, "the reader finds its job");
             var unknown = DataSubjectRequestId.From(Guid.CreateVersion7());
-            (await reader.ReadManyAsync([DataSubjectRequestId.From(request), unknown], CancellationToken.None)).Should().BeEquivalentTo(
+            (await reader.ReadManyAsync([DataSubjectRequestId.From(request), unknown], DataRequestKind.Export, CancellationToken.None)).Should().BeEquivalentTo(
                 new Dictionary<DataSubjectRequestId, DataRequestJobPhase>
                 {
                     [DataSubjectRequestId.From(request)] = DataRequestJobPhase.Pending,

@@ -12,8 +12,9 @@ namespace LearnStack.SharedKernel.Identity;
 /// <summary>
 /// The closed purposes of the retained own data-request scope (ADR-0106 § 9). <see cref="List"/> discovers the
 /// subject's groups on the real host; every other purpose acts in one exact group the function returned.
+/// <see cref="Revoke"/> withdraws an artifact, which ADR-0107 § 4 lets the subject do on either path.
 /// </summary>
-public enum OwnDataRequestPurpose { List = 1, Create = 2, Read = 3, Cancel = 4, Ticket = 5, Chunk = 6 }
+public enum OwnDataRequestPurpose { List = 1, Create = 2, Read = 3, Cancel = 4, Ticket = 5, Chunk = 6, Revoke = 7 }
 
 /// <summary>One page of the subject's retained groups on the real host, ordered as the function returned them.</summary>
 public sealed record OwnDataRequestScopePage(ImmutableArray<DataRequestScopeGroup> Items, string? NextCursor);

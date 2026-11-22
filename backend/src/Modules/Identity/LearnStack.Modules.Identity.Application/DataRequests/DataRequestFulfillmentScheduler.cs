@@ -1,5 +1,4 @@
 using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
-using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Tenancy;
@@ -9,7 +8,6 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 /// <summary>
 /// The four transactional definitions of the export workflow, one per purpose and scope group
 /// (<see href="../../../../../docs/decisions/0107-data-request-fulfillment-and-account-closure.md">ADR-0107 § 2</see>).
-/// The erasure definitions are Step 2's.
 /// </summary>
 public static class DataExportJobKeys
 {
@@ -27,6 +25,31 @@ public static class DataExportJobKeys
 }
 
 /// <summary>
+/// The two transactional definitions of the tenant-side erasure, one per scope group
+/// (<see href="../../../../../docs/decisions/0107-data-request-fulfillment-and-account-closure.md">ADR-0107 § 2, § 5</see>).
+/// </summary>
+public static class DataErasureJobKeys
+{
+    public static BackgroundJobKey<DataErasureJobParameters> TenantErasure { get; } = new("identity.data_erasure_tenant.v1");
+    public static BackgroundJobKey<DataErasureJobParameters> OrganizationErasure { get; } = new("identity.data_erasure_organization.v1");
+
+    /// <summary>The erasure definition of a group.</summary>
+    public static BackgroundJobKey<DataErasureJobParameters> ErasureFor(DataRequestScopeGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        return group.IsTenantWide ? TenantErasure : OrganizationErasure;
+    }
+}
+
+/// <summary>
+/// What a new request's fulfilment needs, as values rather than the aggregate: submitting a job writes no request, and
+/// the aggregate write port stays the one the census counts.
+/// </summary>
+/// <param name="ExecuteAt">When a scheduled request may execute; <see langword="null"/> for an export, which runs at once.</param>
+public sealed record DataRequestFulfillment(Guid RequestId, DataRequestKind Kind, DataRequestStatus Status, DataRequestScopeGroup Group,
+    DateTimeOffset? ExecuteAt);
+
+/// <summary>
 /// Submits a data request's fulfilment work on the caller's own transaction
 /// (<see href="../../../../../docs/decisions/0107-data-request-fulfillment-and-account-closure.md">ADR-0107 § 2</see>).
 /// </summary>
@@ -37,17 +60,15 @@ public static class DataExportJobKeys
 /// </remarks>
 public interface IDataRequestFulfillmentScheduler
 {
-    /// <summary>Submits the job of the request's kind and group; only an <c>export</c> has one in this step.</summary>
-    /// <remarks>
-    /// Takes the request's identity, kind, status and group as values rather than the aggregate: submitting a job writes
-    /// no request, and the aggregate write port stays the one the census counts.
-    /// </remarks>
+    /// <summary>
+    /// Submits the job of the request's kind and group: a requested export's at once, a scheduled erasure's at its
+    /// execution time, the end of the cancellable window (ADR-0107 § 2). A closure has no job in this step.
+    /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// The request is not a <c>requested</c> export of the announced group: a programming error, because the creation
-    /// path decides the kind and the group before it submits.
+    /// The request is neither a <c>requested</c> export nor a <c>scheduled</c> erasure with its execution time, of the
+    /// announced group: a programming error, because the creation path decides the kind and the group before it submits.
     /// </exception>
-    ValueTask SubmitAsync(Guid requestId, DataRequestKind kind, DataRequestStatus status, DataRequestScopeGroup group,
-        CancellationToken cancellationToken);
+    ValueTask SubmitAsync(DataRequestFulfillment fulfillment, CancellationToken cancellationToken);
 
     /// <summary>Schedules the purge of an artifact's chunks at <paramref name="dueAt"/>, its expiry (ADR-0107 § 4).</summary>
     ValueTask SchedulePurgeAsync(Guid artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken);
@@ -57,18 +78,32 @@ public interface IDataRequestFulfillmentScheduler
 public sealed class DataRequestFulfillmentScheduler(IBackgroundJobScheduler scheduler, ITenantContext tenant)
     : IDataRequestFulfillmentScheduler
 {
-    public async ValueTask SubmitAsync(Guid requestId, DataRequestKind kind, DataRequestStatus status, DataRequestScopeGroup group,
-        CancellationToken cancellationToken)
+    public async ValueTask SubmitAsync(DataRequestFulfillment fulfillment, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(group);
-        if (requestId == Guid.Empty || requestId.Version != 7 || kind != DataRequestKind.Export || status != DataRequestStatus.Requested
+        ArgumentNullException.ThrowIfNull(fulfillment);
+        var group = fulfillment.Group ?? throw new ArgumentException("A fulfilment names its group.", nameof(fulfillment));
+        if (fulfillment.RequestId == Guid.Empty || fulfillment.RequestId.Version != 7
             || group.TenantId != tenant.TenantId || group.OrganizationId != tenant.OrganizationId)
         {
-            throw new InvalidOperationException("Only a requested export of the announced group has a fulfilment job in this step.");
+            throw new InvalidOperationException("A fulfilment job is submitted only for a request of the announced group.");
         }
 
-        await scheduler.EnqueueAsync(DataExportJobKeys.ExportFor(group), new DataExportJobParameters(requestId), cancellationToken)
-            .ConfigureAwait(false);
+        switch (fulfillment)
+        {
+            case { Kind: DataRequestKind.Export, Status: DataRequestStatus.Requested, ExecuteAt: null }:
+                await scheduler.EnqueueAsync(DataExportJobKeys.ExportFor(group), new DataExportJobParameters(fulfillment.RequestId),
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            case { Kind: DataRequestKind.Erasure, Status: DataRequestStatus.Scheduled, ExecuteAt: { } due } when due != default:
+                // ADR-0107 § 2: due when the window ends, so no recurrence is introduced; the runtime has no cancel call,
+                // and a job whose request was cancelled meanwhile completes as a recorded no-op.
+                await scheduler.ScheduleAsync(DataErasureJobKeys.ErasureFor(group), new DataErasureJobParameters(fulfillment.RequestId),
+                    due, cancellationToken).ConfigureAwait(false);
+                return;
+            default:
+                throw new InvalidOperationException(
+                    "Only a requested export or a scheduled erasure of the announced group has a fulfilment job in this step.");
+        }
     }
 
     public async ValueTask SchedulePurgeAsync(Guid artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken)

@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**405 test methods run in
+**407 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**299 rules in this catalogue are Implemented, and 180 of them are in that assembly.**
+**300 rules in this catalogue are Implemented, and 181 of them are in that assembly.**
 The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -5562,15 +5562,15 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the production census closes the finite HTTP surface at 90 MVC
-  actions and 85 distinct `IRequest` roots (both totals asserted on the literal census
+- **Asserts:** the production census closes the finite HTTP surface at 94 MVC
+  actions and 89 distinct `IRequest` roots (both totals asserted on the literal census
   that the rule binds to production), including the public and authenticated
-  reads, the anonymous sign-in read, 31 protected keyed writes, native
+  reads, the anonymous sign-in read, 35 protected keyed writes, native
   session-scope admission, the eleven ADR-0099 federation actions, which reach
-  their requests only through `FederationOperationRunner`, the twelve live
-  ADR-0106/ADR-0107 data-request actions (six of them keyed; the ticket mint and
-  the chunk read each sit on a controller of their own, unkeyed), and the six
-  ADR-0106 § 9 retained-entry actions on one controller (two keyed), each of which
+  their requests only through `FederationOperationRunner`, the fourteen live
+  ADR-0106/ADR-0107 data-request actions (eight of them keyed; the ticket mint and
+  the chunk read each sit on a controller of their own, unkeyed), and the eight
+  ADR-0106 § 9 retained-entry actions on one controller (four keyed), each of which
   sends exactly the request its source captured. It also
   checks the separate three exact GlobalSelf middleware routes. The canonical
   name is historical: administration includes writes, and sensitive reads can
@@ -8053,8 +8053,8 @@ names for the package's obligations are assigned with the step that introduces t
   `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter
   consumes on a fresh owner announcing exactly the witness's group; the `OwnDataRequest`
   kind requires the actor's Active Membership in exactly the announced group. The native
-  retained-entry operations (P03-10 Step 1, unit 4b) close the chain: exactly six
-  selector-free operations and the receipt read of their two keyed ones carry the
+  retained-entry operations (P03-10 Step 1, unit 4b) close the chain: exactly eight
+  selector-free operations and the receipt read of their four keyed ones carry the
   `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the one minter and the
   one registered `IOwnDataRequestScopeSource`, the one caller of the lookup and the one
   source of the captured request feature; `TenantResolverMiddleware` is the one builder
@@ -8082,6 +8082,32 @@ names for the package's obligations are assigned with the step that introduces t
   [AuthenticationAuthorityTests.DataRequest.cs](../../backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.DataRequest.cs),
   [DataRequestHttpTests.RetainedEntry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataRequestHttpTests.RetainedEntry.cs).
 - **Phase:** 03 (P03-10, retained own scope).
+
+#### `Erasure_Operations_Run_Only_Under_The_Erasure_Witness`
+
+- **Asserts:** the erasure operations of `Membership` (`RemoveAssignmentsForErasure`,
+  `ClearProfileForErasure`, `RevokeForErasure`) and `Invitation` (`RevokeForErasure`)
+  take a `DataErasureWitness`, which is sealed and privately constructed, captured only
+  from a fulfilling erasure request, and minted only by `DataErasureService`'s one
+  nested source; each operation has the erasure service as its one caller. A planted
+  extra minter and a planted extra caller are each named. The database side is the
+  contextual guard's one exception: a clearing UPDATE of a Revoked Membership's profile
+  passes only with the person's User fence and the tenant key held exclusively and the
+  person's erasure of that group `fulfilling`, and each condition removed alone is
+  refused as the application role.
+- **Source:**
+  [ADR-0107 § 5](../decisions/0107-data-request-fulfillment-and-account-closure.md).
+- **Type:** compiled minter and caller censuses with planted probes; real app-role
+  PostgreSQL refusals of each witness condition; domain and job behaviour end to end.
+  **Kind:** both.
+- **Status:** **Implemented** (`DataErasureWitnessConventionTests`); companion owners
+  below.
+- **Test owners:**
+  [DataErasureWitnessConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/DataErasureWitnessConventionTests.cs),
+  [DataErasureGuardTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataErasureGuardTests.cs),
+  [DataErasureDomainTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/DataErasureDomainTests.cs),
+  [DataErasureExecutionTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataErasureExecutionTests.cs).
+- **Phase:** 03 (P03-10, tenant erasure).
 
 #### `Every_Module_With_A_Person_Reference_Registers_One_User_Data_Participant`
 

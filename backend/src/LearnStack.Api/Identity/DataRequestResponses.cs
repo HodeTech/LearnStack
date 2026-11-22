@@ -9,6 +9,12 @@ namespace LearnStack.Api.Identity;
 /// <summary>The 202 answer to a data-request creation: the request's initial resource (ADR-0106 § 10).</summary>
 public sealed record DataRequestAcceptedResponse(string Id, string Kind, string Status, string Version);
 
+/// <summary>
+/// The 202 answer to an erasure's creation: the request's initial resource, <c>scheduled</c> until its 24-hour window
+/// ends (ADR-0106 § 10, § 11).
+/// </summary>
+public sealed record DataErasureAcceptedResponse(string Id, string Kind, string Status, string Version);
+
 public sealed record DataRequestRetainedResponse(string Kind, long Count);
 
 public sealed record DataExportTruncationResponse(string Collection, long Included, long Total);
@@ -18,9 +24,10 @@ public sealed record DataExportArtifactResponse(string Id, string Status, string
     int ChunkCount, IReadOnlyList<DataExportTruncationResponse> Truncations, string Version, bool Readable);
 
 /// <summary>The subject's own request receipt (ADR-0106 § 9): no personal data and no internal identifier but the request's.</summary>
+/// <remarks><see cref="ExecuteAt"/> is a scheduled request's execution time, the end of its cancellable window.</remarks>
 public sealed record OwnDataRequestResponse(string Id, string Kind, string Origin, string Status, string CreatedAt, string? UpdatedAt,
     string? CompletedAt, string? LastRefusal, string? FailureReason, IReadOnlyList<DataRequestRetainedResponse> Retained,
-    DataExportArtifactResponse? Artifact, string Version);
+    DataExportArtifactResponse? Artifact, string Version, string? ExecuteAt);
 
 public sealed record OwnDataRequestPage(IReadOnlyList<OwnDataRequestResponse> Items, PageInfo PageInfo);
 
@@ -30,7 +37,7 @@ public sealed record OwnDataRequestPage(IReadOnlyList<OwnDataRequestResponse> It
 /// </summary>
 public sealed record DataRequestResponse(string Id, string Kind, string Origin, string Status, string CreatedAt, string? UpdatedAt,
     string? CompletedAt, string? LastRefusal, string? FailureReason, IReadOnlyList<DataRequestRetainedResponse> Retained,
-    DataExportArtifactResponse? Artifact, string Version, bool RequestedByYou, IReadOnlyList<string> MembershipIds);
+    DataExportArtifactResponse? Artifact, string Version, bool RequestedByYou, IReadOnlyList<string> MembershipIds, string? ExecuteAt);
 
 public sealed record DataRequestPage(IReadOnlyList<DataRequestResponse> Items, PageInfo PageInfo);
 
@@ -70,13 +77,13 @@ internal static class DataRequestProjection
 {
     internal static OwnDataRequestResponse Own(DataRequestView view) => new(view.RequestId.ToString("D"), view.Kind, view.Origin,
         view.Status, Instant(view.CreatedAt), Instant(view.UpdatedAt), Instant(view.CompletedAt), view.LastRefusal, view.FailureReason,
-        Retained(view), Artifact(view.Artifact), AdministrationHttpInput.Version(view.Version));
+        Retained(view), Artifact(view.Artifact), AdministrationHttpInput.Version(view.Version), Instant(view.ExecuteAt));
 
     internal static DataRequestResponse Administration(DataRequestView view) => new(view.RequestId.ToString("D"), view.Kind,
         view.Origin, view.Status, Instant(view.CreatedAt), Instant(view.UpdatedAt), Instant(view.CompletedAt), view.LastRefusal,
         view.FailureReason, Retained(view), Artifact(view.Artifact), AdministrationHttpInput.Version(view.Version), view.RequestedByCaller,
         (view.MembershipIds ?? throw new InvalidOperationException("An administrator view names its Membership snapshot."))
-            .Select(id => id.ToString("D")).ToArray());
+            .Select(id => id.ToString("D")).ToArray(), Instant(view.ExecuteAt));
 
     internal static DataExportTicketResponse Ticket(DataExportTicketGrant grant) =>
         new(grant.Ticket, Instant(grant.ExpiresAt), grant.ChunkCount, grant.ByteCount);
