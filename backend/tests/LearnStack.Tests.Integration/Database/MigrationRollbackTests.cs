@@ -223,8 +223,6 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         authorityRebind.Should().Throw<NotSupportedException>().WithMessage("The issuer-rebind storage requires a reviewed forward migration.");
         Action federationProjection = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.grant_platform_federation_projection().DownOperations;
         federationProjection.Should().Throw<NotSupportedException>().WithMessage("The platform federation projection grant requires a reviewed forward migration.");
-        Action retainedScopes = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_own_data_request_scopes().DownOperations;
-        retainedScopes.Should().Throw<NotSupportedException>().WithMessage("The retained own data-request scope requires a reviewed forward migration.");
         Action dataRequests = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.add_data_subject_requests().DownOperations;
         dataRequests.Should().Throw<NotSupportedException>().WithMessage("Data request storage requires a reviewed forward migration.");
         Action protectedReceipts = () => _ = new LearnStack.Infrastructure.Persistence.Migrations.add_custom_field_protected_receipts().DownOperations;

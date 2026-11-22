@@ -205,7 +205,7 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
                 var index = state == DataRequestInspectionState.ExpiredArtifact
                     ? "ix_data_export_artifacts_unpurged_expiry" : "ix_data_subject_requests_operator_due";
                 plan.Should().Contain(index, $"{state}, after a cursor: {afterCursor}").And.NotContain("\"Node Type\": \"Sort\"")
-                    .And.NotContain("Seq Scan");
+                    .And.NotContain("Incremental Sort").And.NotContain("Seq Scan");
             }
         }
 
@@ -288,7 +288,7 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
     {
         await using var proof = await Proof.CreateAsync(schema.Postgres);
         var request = await proof.RequestAsync("erasure", "self", "awaiting_privileged_step", "now() - interval '1 day'",
-            result: """{"request_receipt":1}""");
+            Branch, """{"request_receipt":1}""");
         var redactor = new RecordingRedactor(new AuditRedactionReport(
             1, new Dictionary<AuditRedactedColumn, long>(), [new(RetainedReferenceKind.AuditEntityReference, 3)]));
         var owner = proof.Owner(redactor);
@@ -301,7 +301,9 @@ public sealed class DataRequestOperatorOperationsTests(SchemaFixture schema)
         (second.TenantId, second.Status, second.CompletedAt).Should().Be((Tenant, "completed", first.CompletedAt));
         second.Retained.Should().BeEquivalentTo(first.Retained, "the recorded result, read back from the request");
         second.Report.Should().BeNull("a repeat redacts nothing; the counts are in the first act's row");
-        redactor.Plans.Should().ContainSingle("the repeat never reached the executor");
+        var plan = redactor.Plans.Should().ContainSingle("the repeat never reached the executor").Which;
+        (plan.Subject.Origin, plan.OrganizationId?.Value, plan.WholeTenant).Should().Be((DataRequestOrigin.Self, (Guid?)Branch, true),
+            "a person's own erasure, filed in a branch, still redacts the person's rows in the whole tenant");
         (await proof.AuditAsync(repeat.Operator.CorrelationId!)).Should().ContainSingle()
             .Which.Operation.Should().Be(PlatformAdminScope.EnterOperation, "the repeat is on the record by its entry row alone");
         (await proof.ResultRowsAsync(request.Id)).Should().Be(1, "one completion, one result row");

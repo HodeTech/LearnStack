@@ -32,7 +32,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class DataErasureExecutionTests(SchemaFixture fixture)
+public sealed partial class DataErasureExecutionTests(SchemaFixture fixture)
 {
     private static readonly string[] Participants = ["audit", "customization", "education", "identity", "tenancy"];
     private DisposableSchemaDatabase? _database;
@@ -206,11 +206,22 @@ public sealed class DataErasureExecutionTests(SchemaFixture fixture)
             await transaction.CommitAsync();
         }
 
-        await using var host = Host();
+        var logs = new ErasureLogCapture();
+        await using var host = Host(services => services.AddSingleton<Serilog.Core.ILogEventSink>(logs));
 
         var result = await RunAsync(host.Services, await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure));
 
         result.CommitAcknowledged.Should().Be(variant == "cancelled");
+        if (variant == "not_due")
+        {
+            result.KnownRollback.Should().BeTrue();
+            logs.Rendered().Should().Contain("is not yet due", "the failure is the early run, not any other fault");
+        }
+        else
+        {
+            logs.Rendered().Should().NotContain("attempt failed", "a cancelled erasure is a recorded no-op, not a failure");
+        }
+
         (await RequestAsync(SchemaFixture.TenantA, null, erasure)).Status.Should().Be(variant == "cancelled" ? "cancelled" : "scheduled");
         (await MembershipAsync(SchemaFixture.TenantA, null, LearnerMembershipA)).Status.Should().Be("Active");
         (await ArtifactAsync(SchemaFixture.TenantA, null, TenantWideA.Artifact!.Value)).Status.Should().Be("available");
