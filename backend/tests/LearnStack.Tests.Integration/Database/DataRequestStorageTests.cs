@@ -33,7 +33,8 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
     private static readonly string[] PlatformRequestSelect = ["id", "tenant_id", "organization_id", "kind", "origin",
         "subject_user_id", "status", "membership_snapshot", "execute_at", "progress", "result", "last_refusal", "failure_reason",
         "completed_at", "created_at", "row_version"];
-    private static readonly string[] PlatformRequestUpdate = ["status", "row_version", "completed_at", "result"];
+    // ADR-0107 § 8: the closure's refusal record joined the four columns the erasure completion writes.
+    private static readonly string[] PlatformRequestUpdate = ["status", "row_version", "completed_at", "result", "last_refusal"];
     private static readonly string[] PlatformArtifactSelect = ["id", "tenant_id", "request_id", "status", "expires_at"];
     private static readonly string[] AppTableGrants =
     [
@@ -611,7 +612,7 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
             "SELECT updated_by FROM public.data_subject_requests",
             "SELECT * FROM public.data_subject_requests",
             "INSERT INTO public.data_subject_requests(id) VALUES(uuidv7())",
-            "UPDATE public.data_subject_requests SET last_refusal='blocked_hold'",
+            "UPDATE public.data_subject_requests SET progress='{}'::jsonb",
             "UPDATE public.data_subject_requests SET updated_at=now()",
             "DELETE FROM public.data_subject_requests",
             "SELECT subject_user_id FROM public.data_export_artifacts",
@@ -625,8 +626,9 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
             "UPDATE public.data_export_tickets SET consumed_at=now()",
             "SELECT count(*) FROM public.data_export_chunks",
             "DELETE FROM public.data_export_chunks",
-            "SELECT count(*) FROM public.memberships",
-            "SELECT count(*) FROM public.users",
+            // The closure's closed-column reads of these two tables are proven in AccountClosureStorageTests.
+            "SELECT * FROM public.memberships",
+            "SELECT * FROM public.users",
         })
         {
             await using var transaction = await platform.BeginTransactionAsync();

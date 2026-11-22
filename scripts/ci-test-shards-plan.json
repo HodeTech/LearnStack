@@ -33,6 +33,7 @@
     "LearnStack.Tests.Integration.AuthorityCeilingHttpTests",
     "LearnStack.Tests.Integration.CompositionRootCatalogueTests",
     "LearnStack.Tests.Integration.CrossCuttingFoundationHttpTests",
+    "LearnStack.Tests.Integration.Database.AccountClosureStorageTests",
     "LearnStack.Tests.Integration.Database.AccountSiteHttpTests",
     "LearnStack.Tests.Integration.Database.AccountSiteQueryTests",
     "LearnStack.Tests.Integration.Database.AmbientUnitOfWorkTests",

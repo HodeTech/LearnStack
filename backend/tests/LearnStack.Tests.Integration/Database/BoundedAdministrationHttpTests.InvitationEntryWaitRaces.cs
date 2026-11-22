@@ -132,9 +132,9 @@ public sealed partial class BoundedAdministrationHttpTests
             "SELECT pg_get_expr(polwithcheck,polrelid) FROM pg_policy WHERE polrelid='public.users'::regclass AND polname='users_isolation'");
         Assert.True(await ScalarAsync<bool>(owner, null,
             "SELECT tgenabled='O' FROM pg_trigger WHERE tgrelid='public.users'::regclass AND tgname='tg_users_no_update'"));
-        // The production schema has no User closure writer. Reuse ADR-0074's
-        // isolated owner-only corruption setup to prove the actual defensive
-        // reread, without claiming a production closure or P03-10 capability.
+        // The production User closure writer is the platform session under the
+        // closure's fences (ADR-0107 § 7). Reuse ADR-0074's isolated owner-only
+        // corruption setup to prove the actual defensive reread without them.
         try
         {
             await ExecuteAsync(owner, null, $"""

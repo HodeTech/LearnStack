@@ -1164,8 +1164,10 @@ The operator's two acts of
   executor redact on the scope's transaction, moves the request to `completed` through
   the request guard's platform arm and writes the MUST result row under the request's
   tenant, all in one transaction. A closure's fan-out erasure is refused.
-- **No tenant write.** The request guard admits the platform role's one arrow and
-  stamps the completion itself; every other request change belongs to the tenant side.
+- **No tenant write.** The request guard admits the platform role this completion and a
+  closure's arrows of
+  [Account closure storage](../../standards/05-database.md#account-closure-storage),
+  and stamps each itself; every other request change belongs to the tenant side.
 
 ## Entity-relationship diagram
 

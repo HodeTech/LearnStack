@@ -104,9 +104,10 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(32L,
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(33L,
             "current Identity also installs three provider definers, one target transition guard, the federation connection guard, the operator subject resolver, the authority key guard, "
-            + "the four data-request guards with their chunk and completed-export completeness checks, and the retained own data-request scope definer");
+            + "the four data-request guards with their chunk and completed-export completeness checks, the retained own data-request scope definer "
+            + "and the request guard's User status witness");
         await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
@@ -237,14 +238,16 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         platformDataRequests.Should().Throw<NotSupportedException>().WithMessage("The platform data-request operations require a reviewed forward migration.");
         Action erasureClearing = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_erasure_profile_clearing().DownOperations;
         erasureClearing.Should().Throw<NotSupportedException>().WithMessage("The erasure profile clearing requires a reviewed forward migration.");
+        Action accountClosure = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_account_closure().DownOperations;
+        accountClosure.Should().Throw<NotSupportedException>().WithMessage("The account closure storage requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
             (platform, "20261120120000_grant_platform_delivery_inspection", PlatformReversibleHead,
                 "20261122160000_add_data_request_protected_receipts", "Retained data request receipts require a reviewed forward migration."),
-            (identity, "20261122200000_grant_platform_data_request_operations", IdentityReversibleHead,
-                "20261122203000_admit_erasure_profile_clearing", "The erasure profile clearing requires a reviewed forward migration."),
+            (identity, "20261122203000_admit_erasure_profile_clearing", IdentityReversibleHead,
+                "20261123100000_admit_account_closure", "The account closure storage requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

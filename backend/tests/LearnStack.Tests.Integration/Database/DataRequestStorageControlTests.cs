@@ -269,18 +269,20 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             await transaction.CommitAsync();
         }
 
-        // A request is never born fulfilling by the application role: a closure's fan-out has no witness of its own yet, and
-        // such a row would stand in for the erasure the profile clearing of a Revoked Membership requires.
+        // A request is born fulfilling only as the fan-out of a subject who is Closing (ADR-0107 § 7), and person B is Active:
+        // such a row would stand in for the erasure the profile clearing of a Revoked Membership requires. The arm reads the
+        // subject's status under the User fence and refuses the row for that alone.
         await using (var app = await OpenAppAsync(database))
         await using (var transaction = await app.BeginTransactionAsync())
         {
             await FenceAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1, PersonB);
             var born = () => ExecuteAsync(app, transaction, FanOutInsert, ("id", awaiting), ("tenant", SchemaFixture.TenantB),
                 ("organization", SchemaFixture.OrgB1), ("subject", PersonB), ("snapshot", Snapshot(BranchMembershipB)), ("system", SystemActor));
-            (await born.Should().ThrowAsync<PostgresException>()).Which.MessageText.Should().Be("Data request initial state refused.");
+            (await born.Should().ThrowAsync<PostgresException>()).Which.MessageText.Should().Be("Data request subject is not admitted.");
         }
 
-        // The fixture row is written by the owner with the guard paused, as a closure's fan-out will arrive in a later step.
+        // The fixture row is written by the owner with the guard paused: a fan-out of a subject who is not Closing, which the
+        // closure's arrows refuse to complete (AccountClosureStorageTests proves the fan-out a Closing subject admits).
         await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
         {
             await using var transaction = await owner.BeginTransactionAsync();
@@ -336,7 +338,7 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             (awaiting, "status='completed',row_version=row_version+1,result='{\"consent_evidence\":2,\"request_receipt\":1}'",
                 "Data request result refused."),
             (awaiting, "status='completed',row_version=row_version+1",
-                "Data request transition refused."),  // a closure's fan-out erasure is completed by its closure's finalization alone
+                "Data request closure subject refused."),  // a closure's fan-out erasure is completed by its closure's Finalize alone
             (awaiting, "status='cancelled',row_version=row_version+1", "Data request transition refused."),
             (awaiting, "status='failed',row_version=row_version+1", "Data request transition refused."),
             (awaiting, "status='blocked',row_version=row_version+1", "Data request transition refused."),
@@ -352,8 +354,11 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             refusal.MessageText.Should().Be(reason, set);
         }
 
-        (await RefusedAsync("UPDATE public.data_subject_requests SET last_refusal='blocked_hold' WHERE id=@id", ("id", awaiting)))
+        (await RefusedAsync("UPDATE public.data_subject_requests SET updated_by=NULL WHERE id=@id", ("id", awaiting)))
             .SqlState.Should().Be("42501", "a column outside the grant never reaches the guard");
+        (await RefusedAsync("UPDATE public.data_subject_requests SET last_refusal='blocked_hold',row_version=row_version+1 WHERE id=@id",
+            ("id", awaiting))).MessageText.Should().Be("Data request refusal record refused.",
+            "the grant reaches the guard, which admits a refusal record on a scheduled closure alone");
         (await RefusedAsync("DELETE FROM public.data_subject_requests WHERE id=@id", ("id", awaiting))).SqlState.Should().Be("42501");
 
         // The erasure a person or an administrator filed, past its window (the owner backdates it with the one guard paused,
@@ -472,10 +477,12 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
     /// <summary>
     /// The request guard's INSERT arm admits exactly one initial status per kind and origin and refuses every other, for
     /// every kind and origin the CHECK constraints admit: <c>requested</c> for an export, <c>scheduled</c> for an erasure or
-    /// a closure of a person, and nothing for a closure's fan-out erasure, which has no witness of its own yet. A request
-    /// is never born <c>fulfilling</c>, <c>awaiting_privileged_step</c> or terminal. Each combination first inserts its
-    /// own initial row (so the arrangement is valid and only the status differs), then each other status as the application
-    /// role with the fences held; the refusal is the guard's, which fires before any constraint.
+    /// a closure of a person, and nothing for a closure's fan-out erasure of person A: its one initial status,
+    /// <c>fulfilling</c>, is admitted only for a Closing subject and person A is Active, so the guard refuses it as a
+    /// subject not admitted (the fan-out of a Closing subject is proven in <see cref="AccountClosureStorageTests"/>). Each
+    /// combination first inserts its own initial row (so the arrangement is valid and only the status differs), then each
+    /// other status as the application role with the fences held; the refusal is the guard's, which fires before any
+    /// constraint.
     /// </summary>
     [Fact]
     public async Task The_request_guard_refuses_every_status_but_the_initial_one_for_every_kind_and_origin_the_constraints_admit()
@@ -519,8 +526,10 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             foreach (var status in statuses.Where(status => status != initial))
             {
                 var refusal = await DataExportTestKit.RefuseAsync(transaction, () => Insertion(kind, origin, requester, window, status));
-                (refusal.SqlState, refusal.MessageText).Should().Be((PostgresErrorCodes.CheckViolation, "Data request initial state refused."),
-                    $"{label} is never born {status}: the guard's refusal, not a constraint's");
+                var reason = origin == "closure_fanout" && status == "fulfilling"
+                    ? "Data request subject is not admitted." : "Data request initial state refused.";
+                (refusal.SqlState, refusal.MessageText).Should().Be((PostgresErrorCodes.CheckViolation, reason),
+                    $"{label} is never born {status} for an Active subject: the guard's refusal, not a constraint's");
             }
         }
     }

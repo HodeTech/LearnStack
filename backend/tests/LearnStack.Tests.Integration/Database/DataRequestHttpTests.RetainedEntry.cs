@@ -358,8 +358,9 @@ public sealed partial class DataRequestHttpTests
     }
 
     /// <summary>
-    /// The production schema has no User closure writer yet (ADR-0107 § 7 lands it): this owner-only fixture
-    /// accommodation moves the binding out of Active and restores the guard and policy exactly.
+    /// The production User closure writer is the platform session under the closure's fences (ADR-0107 § 7): this
+    /// owner-only fixture accommodation moves the binding out of Active without them and restores the guard and policy
+    /// exactly.
     /// </summary>
     private static async Task TransitionUserAsync(IdentityAuthorizationHttpProof proof, UserId user, string status)
     {

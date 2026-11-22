@@ -171,7 +171,8 @@ public sealed partial class TenantExistingBindingAdmissionTests
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString);
         await using var transaction = await owner.BeginTransactionAsync();
-        // The production schema admits no closure writer. This isolated database's
+        // The production schema admits only the platform session's fenced closure
+        // (ADR-0107 § 7), never the owner. This isolated database's
         // fixture temporarily enables owner-only setup and restores its trigger
         // and policy before COMMIT. Collision alone removes the exact digest CHECK
         // until the caller's finally restores the retained subject and definition.

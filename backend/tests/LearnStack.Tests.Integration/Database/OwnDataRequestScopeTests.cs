@@ -133,7 +133,10 @@ public sealed class OwnDataRequestScopeTests(IdentityMembershipFixture fixture) 
         var call = () => CallAsync(connection, PersonA, SchemaFixture.TenantA, null, "list", null, null, 20);
         (await call.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
         await using var other = (NpgsqlConnection)await PostgresFixture.OpenAsync(connection);
-        var read = () => ScalarAsync<long>(other, null, "SELECT count(*) FROM public.memberships");
+        // The platform role reads six closed Membership columns for a closure's participants (ADR-0107 § 8), never a
+        // whole row; the outbox role reads nothing of the table.
+        var read = () => ScalarAsync<long>(other, null,
+            role == "platform" ? "SELECT count(created_by) FROM public.memberships" : "SELECT count(*) FROM public.memberships");
         (await read.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
         if (role == "outbox")
         {

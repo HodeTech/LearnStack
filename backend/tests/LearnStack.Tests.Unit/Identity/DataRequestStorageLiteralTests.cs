@@ -115,6 +115,118 @@ public sealed class DataRequestStorageLiteralTests
         }
     }
 
+    /// <summary>
+    /// Step 1's INSERT arm refused every request born <c>fulfilling</c> and read no User. Step 3 admits exactly one born
+    /// <c>fulfilling</c>, a closure's fan-out erasure, and admits every request only for a subject in the status its origin
+    /// allows (ADR-0107 § 7). This block is the whole of the change to the application arms.
+    /// </summary>
+    private const string Step1InitialState = """
+                -- A request is never born fulfilling until a closure's fan-out has its own witness (ADR-0107 § 7): such a row
+                -- would stand in for the erasure the profile clearing of a Revoked Membership requires, with no window.
+                IF (NEW.row_version IS DISTINCT FROM 0 OR NEW.updated_at IS NOT NULL OR NEW.updated_by IS NOT NULL
+                    OR NEW.progress IS DISTINCT FROM '{}'::jsonb OR NEW.result IS DISTINCT FROM '{}'::jsonb
+                    OR NEW.last_refusal IS NOT NULL OR NEW.failure_reason IS NOT NULL OR NEW.completed_at IS NOT NULL
+                    OR NEW.status IS DISTINCT FROM (CASE WHEN NEW.kind = 'export' THEN 'requested'
+                        WHEN NEW.origin = 'closure_fanout' THEN NULL ELSE 'scheduled' END)
+                    OR NEW.created_by IS DISTINCT FROM COALESCE(NEW.requester_user_id, '00000000-0000-7000-8000-000000000001'::uuid)
+                    OR NOT isfinite(NEW.created_at)
+                    OR NEW.created_at > transaction_timestamp() + interval '5 minutes'
+                    OR NEW.created_at < transaction_timestamp() - interval '5 minutes') IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data request initial state refused.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    private const string ClosureInitialState = """
+                -- A request is born fulfilling only as a closure's fan-out erasure, with no window and no requester
+                -- (ADR-0107 § 7): such a row stands in for the erasure the profile clearing of a Revoked Membership requires.
+                IF (NEW.row_version IS DISTINCT FROM 0 OR NEW.updated_at IS NOT NULL OR NEW.updated_by IS NOT NULL
+                    OR NEW.progress IS DISTINCT FROM '{}'::jsonb OR NEW.result IS DISTINCT FROM '{}'::jsonb
+                    OR NEW.last_refusal IS NOT NULL OR NEW.failure_reason IS NOT NULL OR NEW.completed_at IS NOT NULL
+                    OR NEW.status IS DISTINCT FROM (CASE WHEN NEW.kind = 'export' THEN 'requested'
+                        WHEN NEW.origin = 'closure_fanout' THEN 'fulfilling' ELSE 'scheduled' END)
+                    OR (NEW.origin = 'closure_fanout' AND (NEW.kind IS DISTINCT FROM 'erasure' OR NEW.execute_at IS NOT NULL
+                        OR NEW.requester_user_id IS NOT NULL))
+                    OR NEW.created_by IS DISTINCT FROM COALESCE(NEW.requester_user_id, '00000000-0000-7000-8000-000000000001'::uuid)
+                    OR NOT isfinite(NEW.created_at)
+                    OR NEW.created_at > transaction_timestamp() + interval '5 minutes'
+                    OR NEW.created_at < transaction_timestamp() - interval '5 minutes') IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data request initial state refused.' USING ERRCODE = '23514'; END IF;
+                -- The subject is admitted in the one status its origin allows, read here under the User fence held above:
+                -- Closing for a closure's fan-out, Active for every other request (ADR-0107 § 7). A filing admitted while
+                -- the person was Active and fenced only after a Begin or a Finalize committed inserts nothing.
+                IF (public.fn_identity_user_status(NEW.subject_user_id)
+                    IS DISTINCT FROM (CASE WHEN NEW.origin = 'closure_fanout' THEN 'Closing' ELSE 'Active' END)) IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data request subject is not admitted.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    [Fact]
+    public void The_closure_guard_keeps_Step_1_s_application_arms_but_for_the_one_INSERT_witness_block()
+    {
+        const string End = "END $guard$;";
+        const string ApplicationArms = "    IF (session_user <> 'learnstack_app'";
+        var original = Ddl("RequestGuard");
+        var closure = Ddl("RequestGuard", "AccountClosureStorageDdl");
+        original = original[..(original.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+        closure = closure[..(closure.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+
+        var header = original[..original.IndexOf(ApplicationArms, StringComparison.Ordinal)];
+        var applicationArms = original[original.IndexOf(ApplicationArms, StringComparison.Ordinal)..];
+        var before = Step1InitialState.ReplaceLineEndings("\n");
+        var after = ClosureInitialState.ReplaceLineEndings("\n");
+        applicationArms.IndexOf(before, StringComparison.Ordinal).Should().BeGreaterThan(0)
+            .And.Be(applicationArms.LastIndexOf(before, StringComparison.Ordinal), "Step 1's initial-state block is replaced exactly once");
+        closure.Should().StartWith("CREATE OR REPLACE FUNCTION public.fn_identity_data_request_guard() RETURNS trigger");
+        var platformArm = closure[(header.Length + "OR REPLACE ".Length)..closure.IndexOf(ApplicationArms, StringComparison.Ordinal)];
+        closure.Should().Be(header.Replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", StringComparison.Ordinal)
+            + platformArm + applicationArms.Replace(before, after, StringComparison.Ordinal),
+            "the header and every application arm are Step 1's, character for character, but for the INSERT arm's one block");
+
+        // The platform arm: the erasure completion of Step 2 and the closure's four arrows, then its return.
+        platformArm.Should().Contain("IF session_user = 'learnstack_platform' AND current_user = 'learnstack_platform' THEN")
+            .And.Contain("OLD.kind = 'erasure' AND OLD.origin <> 'closure_fanout' AND OLD.status = 'awaiting_privileged_step'")
+            .And.Contain("OLD.kind = 'closure' AND OLD.status = 'scheduled' AND NEW.status = 'scheduled'")
+            .And.Contain("OLD.kind = 'closure' AND OLD.status = 'scheduled' AND NEW.status = 'fulfilling'")
+            .And.Contain("OLD.kind = 'closure' AND OLD.status = 'fulfilling' AND NEW.status = 'completed'")
+            .And.Contain("OLD.kind = 'erasure' AND OLD.origin = 'closure_fanout' AND OLD.status = 'awaiting_privileged_step'")
+            .And.EndWith("        RETURN NEW;\n    END IF;\n", "the arm returns before the application's arms are reached");
+
+        // The refusal record takes exactly the closed refusal codes.
+        var refusals = System.Text.RegularExpressions.Regex.Match(platformArm, @"NEW\.last_refusal NOT IN \((?<codes>[^)]+)\)");
+        refusals.Success.Should().BeTrue();
+        refusals.Groups["codes"].Value.Split(',').Select(code => code.Trim().Trim('\'')).Order(StringComparer.Ordinal).Should()
+            .Equal(Enum.GetValues<DataRequestRefusal>().Select(DataRequestCodes.Refusals.ToCode).Order(StringComparer.Ordinal));
+
+        // The result changes only in the audit log's four retained kinds (ADR-0107 § 6), and a closure's Finalize also in
+        // the unserved groups: three arrows each name their list twice, and only Finalize's names the unserved kind.
+        var auditKinds = new[]
+        {
+            RetainedReferenceKind.AuditActorReference, RetainedReferenceKind.AuditEntityReference,
+            RetainedReferenceKind.AuditMetadataReference, RetainedReferenceKind.UnscopedAuditRows,
+        }.Select(DataRequestCodes.RetainedKinds.ToCode).Order(StringComparer.Ordinal).ToArray();
+        var finalizeKinds = auditKinds.Append(DataRequestCodes.RetainedKinds.ToCode(RetainedReferenceKind.UnservedGroup))
+            .Order(StringComparer.Ordinal).ToArray();
+        var lists = System.Text.RegularExpressions.Regex.Matches(platformArm, @"ARRAY\[(?<codes>[^\]]+)\]")
+            .Select(list => list.Groups["codes"].Value.Split(',').Select(code => code.Trim().Trim('\'')).Order(StringComparer.Ordinal).ToArray())
+            .ToArray();
+        lists.Should().HaveCount(6);
+        lists.Count(list => list.SequenceEqual(auditKinds)).Should().Be(4);
+        lists.Count(list => list.SequenceEqual(finalizeKinds)).Should().Be(2);
+
+        // Begin and Finalize require the same participant fences as the users trigger exception: every tenant of a
+        // Membership of any status, read on the writing connection.
+        const string Participants = "GROUP BY member.tenant_id\n";
+        const string Held = "HAVING public.fn_identity_lock_held('tenant', member.tenant_id, true) IS NOT TRUE";
+        CountOf(platformArm, Participants).Should().Be(2);
+        CountOf(platformArm, Held).Should().Be(2);
+        var users = Ddl("UserGuard", "AccountClosureStorageDdl");
+        CountOf(users, Participants).Should().Be(1);
+        CountOf(users, Held).Should().Be(1);
+    }
+
+    private static int CountOf(string text, string value) =>
+        System.Text.RegularExpressions.Regex.Count(text, System.Text.RegularExpressions.Regex.Escape(value));
+
     private static string Check(IModel model, Type entity, string name) =>
         model.FindEntityType(entity)!.GetCheckConstraints().SingleOrDefault(check => check.Name == name)?.Sql
         ?? throw new InvalidOperationException("The constraint is not in the model: " + name);
