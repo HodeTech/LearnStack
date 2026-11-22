@@ -110,13 +110,7 @@ public sealed class TenancyUserDataParticipant(TenancyDbContext db, ITenantConte
         json.WriteEndObject();
     }
 
-    private void RequireGroup(UserDataSubject subject)
-    {
-        if (subject.Group.TenantId != tenant.TenantId || subject.Group.OrganizationId != tenant.OrganizationId)
-        {
-            throw new InvalidOperationException("A participant reads only the announced group of its request.");
-        }
-    }
+    private void RequireGroup(UserDataSubject subject) => UserDataParticipantGuard.RequireGroup(subject, tenant);
 }
 
 /// <summary>Registers the Tenancy module's participant from its own boundary (ADR-0107 § 1).</summary>

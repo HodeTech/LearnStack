@@ -30,8 +30,9 @@ namespace LearnStack.Modules.Audit.Infrastructure.DataRequests;
 /// reach the rows recorded in the person's other organizations, which ADR-0107 § 3 and ADR-0108 § 4 describe as
 /// "the whole tenant"; a tenant-wide read for the job needs its own decision. Until then the section's first
 /// collection, <see cref="ScopeCollection"/>, holds one record whose <c>reach</c> is a closed word
-/// (<see cref="ReachOf"/>), so the person, and the Step 4 screens, can say that each organization's activity is in
-/// that organization's own export.
+/// (<see cref="ReachOf"/>) and whose <c>complete</c> is <see langword="false"/>: rows the person caused in an
+/// organization they hold no Membership of reach no export of theirs, so no current reach is the person's whole
+/// audit trail in the tenant. <c>true</c> is reserved for a sanctioned whole-tenant reach.
 /// </para>
 /// <para>
 /// <b>Index-served statements.</b> Every statement is a union of branches, each one equality on an indexed column
@@ -46,10 +47,21 @@ namespace LearnStack.Modules.Audit.Infrastructure.DataRequests;
 /// read exactly inside the actor branch. The causal-actor and affected-user references cannot be index-served under
 /// the row policy: PostgreSQL applies a non-leakproof qual, and every JSON operator is one, only after the policy,
 /// so no expression index can carry the subject's value. They are read in the newest
-/// <see cref="MetadataScanWindow"/> rows carrying such a key (<c>ix_audit_log_tenant_id_person_reference_timestamp</c>),
-/// which bounds the read by rows; <c>audit_metadata_reference</c> is exact while the reach holds at most that many
-/// such rows and a lower bound beyond it, never more than the truth. Exact counting at any size needs the references
-/// as plain columns, a change to the audit table's shape that needs its own decision.
+/// <see cref="MetadataScanWindow"/> rows carrying such a key in each branch of the reach;
+/// <c>audit_metadata_reference</c> is exact while each branch holds at most that many such rows and a lower bound
+/// beyond it, never more than the truth. Exact counting at any size needs the references as plain columns, a change
+/// to the audit table's shape that needs its own decision.
+/// </para>
+/// <para>
+/// <b>The window is the reach's, not the tenant's.</b> The reach has two branches, the group's organization
+/// (<c>organization_id = @organization</c>) and the tenant-level rows (<c>organization_id IS NULL</c>, left out of
+/// an administrator's organization request). Each is its own newest-first seek on its own partial index
+/// (<c>ix_audit_log_tenant_id_organization_id_person_reference</c>,
+/// <c>ix_audit_log_tenant_id_tenant_level_person_reference</c>), cut at the window, so a row of another
+/// organization is never read only to be dropped by the row policy (a small organization in a tenant whose other
+/// organizations hold millions of keyed rows reads only its own), no sort runs over a window, and one statement
+/// reads at most two windows. The two branches name exactly what the policy shows the job's transaction, which
+/// never holds the tenant-wide scope.
 /// </para>
 /// <para>
 /// The statements run under <see cref="StatementBudget"/>; a statement that cannot finish inside it rolls the job's
@@ -85,19 +97,29 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
     public const string ReachTenantLevelOnly = "tenant_level_only";
 
     /// <summary>
+    /// The <c>complete</c> flag of the <see cref="ScopeCollection"/> record: whether the reach is the person's whole audit
+    /// trail in the tenant. <see langword="false"/> for every reach word above, because rows recorded in an organization
+    /// the person holds no Membership of reach no export of theirs; <see langword="true"/> is reserved for a
+    /// sanctioned whole-tenant reach, which needs its own decision.
+    /// </summary>
+    public const bool ReachIsComplete = false;
+
+    /// <summary>
     /// The wall-clock budget of one audit statement. Larger than the 5-second default of the other participants'
     /// reads, because the audit table is the one that grows without bound until Phase 11's retention, and still
     /// bounded, so a degraded database fails the attempt for the runtime's retry rather than holding the job's
-    /// transaction. At 1.9 million rows of one tenant the statements measured about 2 ms each and the windowed metadata
-    /// count 1.5 s (the Audit module's performance budget records the measurement).
+    /// transaction. At 1.9 million rows of one tenant the selection statements measured about 2 ms each; at 2.3 million
+    /// the metadata count measured about 1 ms for an organization without keyed rows of its own and 1.2 to 1.6 s for
+    /// one whose branch fills a window (the Audit module's performance budget records the measurements).
     /// </summary>
     public static readonly TimeSpan StatementBudget = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// How many of the newest rows carrying a causal-actor or affected-user key the metadata count examines. Those
-    /// references cannot be index-served under the row policy (the JSON operators are not leakproof, so PostgreSQL
-    /// evaluates them only after the policy), so the read is bounded by rows rather than by the budget, and
-    /// <c>audit_metadata_reference</c> is exact up to this many such rows in the reach and a lower bound beyond it.
+    /// How many of the newest rows carrying a causal-actor or affected-user key the metadata count examines in each
+    /// branch of the reach (the group's organization, the tenant-level rows). Those references cannot be index-served
+    /// under the row policy (the JSON operators are not leakproof, so PostgreSQL evaluates them only after the
+    /// policy), so the read is bounded by rows, which the index seeks per branch, and <c>audit_metadata_reference</c>
+    /// is exact up to this many such rows per branch and a lower bound beyond it.
     /// </summary>
     public const int MetadataScanWindow = 500_000;
 
@@ -141,25 +163,55 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
     private const string RetainedSql = "SELECT (SELECT count(*) FROM (" + ActorBranch + ") AS actor), (SELECT count(*) FROM ("
         + UserBranch + ") AS self) + (SELECT count(*) FROM (" + MembershipBranch + ") AS membership)";
 
+    // The partial indexes' key predicate, repeated literally by both window branches so the planner can prove each
+    // index applies (20261122074947_index_audit_log_data_request_selection).
+    private const string PersonReferenceKeys = """
+        (metadata ? 'causal_actor_user_id' OR (metadata -> 'authorization') ? 'causal_actor_user_id'
+                OR (metadata -> 'provider_event') ? 'affected_user_id')
+        """;
+
+    // The subject named as causal actor (top level or in the authorization evidence) or as a provider event's
+    // affected user, tested on a window's rows after the window is cut.
+    private const string SubjectReference = """
+        metadata ->> 'causal_actor_user_id' = @subject_text
+               OR metadata #>> '{authorization,causal_actor_user_id}' = @subject_text
+               OR metadata #>> '{provider_event,affected_user_id}' = @subject_text
+        """;
+
     // A metadata person reference: a frozen Membership in the authorization evidence, read inside the actor branch
-    // (exact), or the causal actor (top level or in the authorization evidence) or the provider event's affected user,
-    // read in the newest MetadataScanWindow rows that carry one of those keys (a lower bound past the window). The key
-    // tests repeat the partial index's predicate so the planner can prove the index applies.
+    // (exact), or a SubjectReference, read in the newest MetadataScanWindow keyed rows of each branch of the reach (a
+    // lower bound past the window). Each branch is its own ordered, limited seek on its partial index, so neither the
+    // other branch nor another organization's keyed rows are read, and no sort runs over the window: the group's
+    // organization (a null @organization, the tenant-wide group, matches no row), and the tenant-level rows, which an
+    // administrator's request reads only for the tenant-wide group.
     private const string MetadataSql = "SELECT count(*) FROM (" + ActorBranch + """
          AND COALESCE(metadata -> 'authorization' -> 'memberships', '[]'::jsonb) ?| @memberships
         UNION
         SELECT id, "timestamp" FROM (
             SELECT id, "timestamp", metadata FROM public.audit_log
-            WHERE
-        """ + " " + Reach + """
-         AND (metadata ? 'causal_actor_user_id' OR (metadata -> 'authorization') ? 'causal_actor_user_id'
-                OR (metadata -> 'provider_event') ? 'affected_user_id')
+            WHERE tenant_id = @tenant AND organization_id = @organization
+              AND
+        """ + " " + PersonReferenceKeys + """
+
             ORDER BY "timestamp" DESC
             LIMIT @window
-        ) AS scanned
-        WHERE metadata ->> 'causal_actor_user_id' = @subject_text
-           OR metadata #>> '{authorization,causal_actor_user_id}' = @subject_text
-           OR metadata #>> '{provider_event,affected_user_id}' = @subject_text
+        ) AS organization_window
+        WHERE
+        """ + " " + SubjectReference + """
+
+        UNION
+        SELECT id, "timestamp" FROM (
+            SELECT id, "timestamp", metadata FROM public.audit_log
+            WHERE tenant_id = @tenant AND organization_id IS NULL AND (NOT @scoped OR @organization IS NULL)
+              AND
+        """ + " " + PersonReferenceKeys + """
+
+            ORDER BY "timestamp" DESC
+            LIMIT @window
+        ) AS tenant_level_window
+        WHERE
+        """ + " " + SubjectReference + """
+
         ) AS referenced
         """;
 
@@ -179,6 +231,7 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
         {
             json.WriteStartObject();
             json.WriteString("reach", ReachOf(subject));
+            json.WriteBoolean("complete", ReachIsComplete);
             json.WriteEndObject();
         }, cancellationToken).ConfigureAwait(false);
         if (scope != UserDataExportAppend.Appended)
@@ -394,10 +447,11 @@ public sealed class AuditUserDataParticipant(IUnitOfWork unit, ITenantContext te
         }
     }
 
+    /// <summary>The shared group check, and the statements' own precondition: the announced transaction they run on.</summary>
     private void RequireGroup(UserDataSubject subject)
     {
-        if (subject.Group.TenantId != tenant.TenantId || subject.Group.OrganizationId != tenant.OrganizationId
-            || !unit.HasActiveTransaction || unit.IsRollbackOnly
+        UserDataParticipantGuard.RequireGroup(subject, tenant);
+        if (!unit.HasActiveTransaction || unit.IsRollbackOnly
             || unit.GetTenantContextAnnouncement(unit.Transaction) is not { } announcement
             || announcement.TenantId != tenant.TenantId || announcement.OrganizationId != tenant.OrganizationId)
         {

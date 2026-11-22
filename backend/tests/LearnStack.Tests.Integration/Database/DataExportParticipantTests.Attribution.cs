@@ -1,6 +1,8 @@
 using FluentAssertions;
 using LearnStack.Modules.Customization.Infrastructure.DataRequests;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Application.DataRequests;
+using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.Modules.Tenancy.Infrastructure.DataRequests;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.DataProtection;
@@ -69,6 +71,54 @@ public sealed partial class DataExportParticipantTests
             "another person's count is untouched by the subject's rows");
         await scope.Frame.FailAsync();
     }
+
+    [Fact]
+    public async Task A_request_receipt_counts_for_whoever_filed_or_cancelled_it_once_per_row()
+    {
+        await using var scope = await DataExportTestKit.OpenAsync(schema.Postgres.AppConnectionString, SchemaFixture.TenantA,
+            SchemaFixture.OrgA1, [PersonA]);
+        var participant = new IdentityUserDataParticipant(scope.Db, scope.Context, new MembershipFieldRevisionReader(null!));
+        var group = new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1));
+        var person = new UserDataSubject(Guid.CreateVersion7(), DataRequestKind.Export, DataRequestOrigin.Self, UserId.From(PersonA),
+            group, [BranchMembershipA1]);
+        var administrator = new UserDataSubject(Guid.CreateVersion7(), DataRequestKind.Export, DataRequestOrigin.Self,
+            UserId.From(AdminA), group, [Guid.CreateVersion7()]);
+        var personBefore = Receipts(await participant.DescribeRetainedAsync(person, CancellationToken.None));
+        var administratorBefore = await participant.DescribeRetainedAsync(administrator, CancellationToken.None);
+
+        // The person's own request, cancelled by the administrator: the administrator is only its updater.
+        var own = Guid.CreateVersion7();
+        await DataRequestSchemaSeed.InsertRequestAsync(scope.Connection, scope.Transaction, own, SchemaFixture.TenantA, SchemaFixture.OrgA1,
+            PersonA, [BranchMembershipA1]);
+        await ExecuteAsync(scope.Connection, scope.Transaction, """
+            UPDATE public.data_subject_requests SET status='cancelled',row_version=row_version+1,updated_at=now(),updated_by=@admin
+            WHERE id=@id
+            """, ("id", own), ("admin", AdminA));
+
+        // The administrator's request about the person, which the administrator then cancels: requester, creator and
+        // updater all name the administrator, and it is still one row.
+        var filed = Guid.CreateVersion7();
+        await ExecuteAsync(scope.Connection, scope.Transaction, """
+            INSERT INTO public.data_subject_requests(id,tenant_id,organization_id,kind,origin,subject_user_id,requester_user_id,
+                status,membership_snapshot,created_at,created_by)
+            VALUES(@id,@tenant,@organization,'export','administrator',@subject,@admin,'requested',@snapshot::jsonb,now(),@admin);
+            UPDATE public.data_subject_requests SET status='cancelled',row_version=row_version+1,updated_at=now(),updated_by=@admin
+            WHERE id=@id;
+            """, ("id", filed), ("tenant", SchemaFixture.TenantA), ("organization", SchemaFixture.OrgA1), ("subject", PersonA),
+            ("admin", AdminA), ("snapshot", DataRequestSchemaSeed.Snapshot(BranchMembershipA1)));
+
+        var administratorAfter = await participant.DescribeRetainedAsync(administrator, CancellationToken.None);
+        Receipts(administratorAfter).Should().Be(Receipts(administratorBefore) + 2,
+            "a request the administrator filed or cancelled survives naming them, once per row");
+        Attribution(administratorAfter).Should().Be(Attribution(administratorBefore),
+            "the receipts are reported as request_receipt and never as attribution too");
+        Receipts(await participant.DescribeRetainedAsync(person, CancellationToken.None)).Should().Be(personBefore + 2,
+            "both requests are about the person");
+        await scope.Frame.FailAsync();
+    }
+
+    private static long Receipts(IReadOnlyCollection<RetainedReferenceCount> retained) =>
+        retained.Single(item => item.Kind == RetainedReferenceKind.RequestReceipt).Count;
 
     private static long Attribution(IReadOnlyCollection<RetainedReferenceCount> retained) =>
         retained.Single(item => item.Kind == RetainedReferenceKind.AttributionReference).Count;

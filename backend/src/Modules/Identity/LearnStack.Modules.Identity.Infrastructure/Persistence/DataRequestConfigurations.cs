@@ -127,10 +127,13 @@ internal sealed class DataSubjectRequestConfiguration : IEntityTypeConfiguration
             nameof(DataSubjectRequest.SubjectUserId), nameof(DataSubjectRequest.RequesterUserId),
             nameof(DataSubjectRequest.MembershipSnapshotJson));
         builder.DeclarePersonalData(PersonalDataCategory.None,
-            "Closed request kind, origin, status, window, refusal and failure codes, participant progress and retained-kind counts.",
+            "Closed request kind, origin, status, window, refusal and failure codes and participant progress.",
             nameof(DataSubjectRequest.Kind), nameof(DataSubjectRequest.Origin), nameof(DataSubjectRequest.Status),
-            nameof(DataSubjectRequest.ExecuteAt), nameof(DataSubjectRequest.ProgressJson), nameof(DataSubjectRequest.ResultJson),
+            nameof(DataSubjectRequest.ExecuteAt), nameof(DataSubjectRequest.ProgressJson),
             nameof(DataSubjectRequest.LastRefusal), nameof(DataSubjectRequest.FailureReason), nameof(DataSubjectRequest.CompletedAt));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Record of how many references to the person each closed retained kind holds in the group.",
+            nameof(DataSubjectRequest.ResultJson));
     }
 }
 
@@ -201,11 +204,13 @@ internal sealed class DataExportArtifactConfiguration : IEntityTypeConfiguration
             nameof(DataExportArtifact.Id), nameof(DataExportArtifact.TenantId), nameof(DataExportArtifact.OrganizationId),
             nameof(DataExportArtifact.RequestId), nameof(DataExportArtifact.SubjectUserId));
         builder.DeclarePersonalData(PersonalDataCategory.None,
-            "Closed artifact lifecycle, plaintext size, chunk count, key-ring version label, expiry and the closed "
-                + "truncation statement (collection names and counts); no content or key.",
-            nameof(DataExportArtifact.Status), nameof(DataExportArtifact.ByteCount), nameof(DataExportArtifact.ChunkCount),
-            nameof(DataExportArtifact.KeyVersion), nameof(DataExportArtifact.ExpiresAt), nameof(DataExportArtifact.PurgedAt),
-            nameof(DataExportArtifact.TruncationJson));
+            "Closed artifact lifecycle, key-ring version label and expiry; no content or key.",
+            nameof(DataExportArtifact.Status), nameof(DataExportArtifact.KeyVersion), nameof(DataExportArtifact.ExpiresAt),
+            nameof(DataExportArtifact.PurgedAt));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Record of the size of the person's bundle and of the closed truncation statement: how many of the person's "
+                + "records each capped collection held.",
+            nameof(DataExportArtifact.ByteCount), nameof(DataExportArtifact.ChunkCount), nameof(DataExportArtifact.TruncationJson));
     }
 }
 

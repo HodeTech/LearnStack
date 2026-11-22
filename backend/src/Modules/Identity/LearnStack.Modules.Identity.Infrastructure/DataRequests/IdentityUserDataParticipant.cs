@@ -49,6 +49,11 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
     internal const string AcceptedCollection = "invitations_accepted";
     private const int Page = 200;
 
+    /// <summary>
+    /// The request's own receipt rows, reported as <c>request_receipt</c> wherever any of their <c>UserId</c> columns
+    /// names the person (the subject, the requester, whoever created, cancelled or revoked them), once per row, and
+    /// therefore left out of <c>attribution_reference</c> so no row is reported twice.
+    /// </summary>
     private static readonly IReadOnlySet<Type> ReceiptTypes =
         new HashSet<Type> { typeof(DataSubjectRequest), typeof(DataExportArtifact), typeof(DataExportTicket) };
 
@@ -100,22 +105,14 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
         var person = subject.SubjectUserId;
         UserId? nullablePerson = person;
         var organization = subject.Group.OrganizationId;
-        var requests = await db.DataSubjectRequests.AsNoTracking()
-            .LongCountAsync(request => request.SubjectUserId == person && request.OrganizationId == organization, cancellationToken)
-            .ConfigureAwait(false);
-        var artifacts = await db.DataExportArtifacts.AsNoTracking()
-            .LongCountAsync(artifact => artifact.SubjectUserId == person && artifact.OrganizationId == organization, cancellationToken)
-            .ConfigureAwait(false);
-        var tickets = await db.DataExportTickets.AsNoTracking()
-            .LongCountAsync(ticket => ticket.CreatedBy == person && ticket.OrganizationId == organization, cancellationToken)
-            .ConfigureAwait(false);
         var invitations = await db.Invitations.AsNoTracking()
             .LongCountAsync(invitation => invitation.OrganizationId == organization
                 && (invitation.AcceptedBy == nullablePerson || invitation.InviterUserId == person), cancellationToken)
             .ConfigureAwait(false);
         var retained = new List<RetainedReferenceCount>
         {
-            new(RetainedReferenceKind.RequestReceipt, checked(requests + artifacts + tickets)),
+            new(RetainedReferenceKind.RequestReceipt,
+                await AttributionReferenceCounter.CountNamingRowsAsync(db, subject, ReceiptTypes, cancellationToken).ConfigureAwait(false)),
             new(RetainedReferenceKind.InvitationRecord, invitations),
             new(RetainedReferenceKind.AttributionReference,
                 await AttributionReferenceCounter.CountAsync(db, subject, ReceiptTypes, PartyProperties, cancellationToken)
@@ -367,11 +364,5 @@ public sealed class IdentityUserDataParticipant(IdentityDbContext db, ITenantCon
         }
     }
 
-    private void RequireGroup(UserDataSubject subject)
-    {
-        if (subject.Group.TenantId != tenant.TenantId || subject.Group.OrganizationId != tenant.OrganizationId)
-        {
-            throw new InvalidOperationException("A participant reads only the announced group of its request.");
-        }
-    }
+    private void RequireGroup(UserDataSubject subject) => UserDataParticipantGuard.RequireGroup(subject, tenant);
 }

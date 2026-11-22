@@ -57,7 +57,7 @@ public sealed partial class DataExportParticipantTests
     [InlineData("tenant_wide_self")]
     [InlineData("other_organization_self")]
     [InlineData("organization_administrator")]
-    public async Task The_audit_section_states_its_reach_and_shows_an_organizations_rows_only_in_that_organizations_export(
+    public async Task The_audit_section_states_its_reach_and_shows_no_other_organizations_rows(
         string group)
     {
         var (organization, origin, membership, reach, expected) = group switch
@@ -89,34 +89,44 @@ public sealed partial class DataExportParticipantTests
 
         AuditUserDataParticipant.ReachOf(subject).Should().Be(reach);
         writer.All[0].Collection.Should().Be(AuditUserDataParticipant.ScopeCollection);
-        writer.All[0].Record.Should().Be("{\"reach\":\"" + reach + "\"}", "the reach is one closed word and nothing else");
+        writer.All[0].Record.Should().Be("{\"reach\":\"" + reach + "\",\"complete\":false}",
+            "the reach is one closed word and a closed flag, and no current reach is the person's whole audit trail");
         writer.All.Count(record => record.Collection == AuditUserDataParticipant.ScopeCollection).Should().Be(1);
         writer.Records.Select(record => JsonDocument.Parse(record).RootElement.GetProperty("operation").GetString()!)
             .Where(operation => operation.StartsWith("fixture.reach.", StringComparison.Ordinal))
             .Select(operation => operation["fixture.reach.".Length..])
             .Should().BeEquivalentTo(expected,
                 "the job's transaction holds no tenant-wide read witness, so a self export does not reach the person's rows "
-                + "recorded in another organization; that organization's own export does");
+                + "recorded in another organization; only an export filed in that organization's group, which needs a "
+                + "Membership there, does");
         await scope.Frame.FailAsync();
     }
 
     [Theory]
-    [InlineData("self")]
-    [InlineData("administrator")]
-    public async Task The_index_served_audit_statements_select_exactly_what_the_single_predicate_selected(string origin)
+    [InlineData("self", "organization")]
+    [InlineData("administrator", "organization")]
+    [InlineData("self", "tenant_wide")]
+    [InlineData("administrator", "tenant_wide")]
+    public async Task The_index_served_audit_statements_select_exactly_what_the_single_predicate_selected(string origin, string group)
     {
-        await using var scope = await DataExportTestKit.OpenAsync(schema.Postgres.AppConnectionString, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+        var tenantWide = group == "tenant_wide";
+        Guid? organization = tenantWide ? null : SchemaFixture.OrgA1;
+        // The subject's Membership of the group, and one of another group the metadata may name without matching.
+        var membership = tenantWide ? LearnerMembershipA : BranchMembershipA1;
+        var foreign = tenantWide ? BranchMembershipA1 : LearnerMembershipA;
+        await using var scope = await DataExportTestKit.OpenAsync(schema.Postgres.AppConnectionString, SchemaFixture.TenantA, organization);
         var other = Guid.CreateVersion7().ToString("D");
         var subjectText = PersonA.ToString("D");
-        var memberships = $$$"""{"authorization":{"memberships":["{{{BranchMembershipA1}}}"]}}""";
+        var memberships = $$$"""{"authorization":{"memberships":["{{{membership}}}"]}}""";
         var tie = DateTime.UtcNow.AddMinutes(-5);
         var rows = new (Guid? Organization, Guid Actor, string Type, string Entity, string? Metadata, DateTime? At)[]
         {
             (SchemaFixture.OrgA1, PersonA, "Invitation", Guid.CreateVersion7().ToString("D"), memberships, null),
-            (null, PersonA, "Membership", BranchMembershipA1.ToString("D"), $$$"""{"authorization":{"memberships":["{{{LearnerMembershipA}}}"]}}""", null),
-            (SchemaFixture.OrgA1, AdminA, "Membership", BranchMembershipA1.ToString("D"), null, null),
-            (SchemaFixture.OrgA2, AdminA, "Membership", BranchMembershipA1.ToString("D"), null, null),
+            (null, PersonA, "Membership", membership.ToString("D"), $$$"""{"authorization":{"memberships":["{{{foreign}}}"]}}""", null),
+            (SchemaFixture.OrgA1, AdminA, "Membership", membership.ToString("D"), null, null),
+            (SchemaFixture.OrgA2, AdminA, "Membership", membership.ToString("D"), null, null),
             (null, AdminA, "Membership", other, null, null),
+            (null, AdminA, "Membership", membership.ToString("D"), null, null),
             (null, UserId.SystemActor.Value, "User", subjectText, $$$"""{"causal_actor_user_id":"{{{PersonA}}}"}""", null),
             (SchemaFixture.OrgA1, UserId.SystemActor.Value, "Course", other, $$$"""{"authorization":{"causal_actor_user_id":"{{{PersonA}}}"}}""", null),
             (null, UserId.SystemActor.Value, "Course", other, $$$"""{"provider_event":{"affected_user_id":"{{{PersonA}}}"}}""", null),
@@ -125,18 +135,21 @@ public sealed partial class DataExportParticipantTests
             (SchemaFixture.OrgA2, UserId.SystemActor.Value, "Course", other, $$$"""{"causal_actor_user_id":"{{{PersonA}}}"}""", null),
             (SchemaFixture.OrgA1, PersonA, "Invitation", other, null, tie),
             (null, PersonA, "Invitation", other, null, tie),
-            (SchemaFixture.OrgA1, AdminA, "Membership", BranchMembershipA1.ToString("D"), null, tie),
+            (SchemaFixture.OrgA1, AdminA, "Membership", membership.ToString("D"), null, tie),
             (null, AdminB, "User", subjectText, null, tie),
+            // Newest: another organization's keyed row naming the subject, which no reach of this group shows.
+            (SchemaFixture.OrgA2, UserId.SystemActor.Value, "Course", other, $$$"""{"provider_event":{"affected_user_id":"{{{PersonA}}}"}}""", null),
         };
-        foreach (var (organization, actor, type, entity, json, at) in rows)
+        foreach (var (rowOrganization, actor, type, entity, json, at) in rows)
         {
-            await InsertAuditAsync(scope, organization, actor, "fixture.statements", type, entity, json, at);
+            await InsertAuditAsync(scope, rowOrganization, actor, "fixture.statements", type, entity, json, at);
         }
 
-        await ScopeAsync(scope.Connection, scope.Transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+        await ScopeAsync(scope.Connection, scope.Transaction, SchemaFixture.TenantA, organization);
         var subject = new UserDataSubject(Guid.CreateVersion7(), DataRequestKind.Export,
             origin == "self" ? DataRequestOrigin.Self : DataRequestOrigin.Administrator, UserId.From(PersonA),
-            new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1)), [BranchMembershipA1]);
+            new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA), organization is { } org ? OrganizationId.From(org) : null),
+            [membership]);
 
         var count = await ScalarAsync(scope, Statement("CountSql"), subject);
         count.Should().Be(await ScalarAsync(scope, OracleCount, subject)).And.BeGreaterThanOrEqualTo(5);
@@ -148,31 +161,21 @@ public sealed partial class DataExportParticipantTests
             "the union pages in the same order with the same keyset ties, a row two branches select once");
         paged.Should().OnlyHaveUniqueItems().And.HaveCount((int)count);
 
-        // The window bounds the causal and affected references; a smaller window only ever undercounts.
+        // The window bounds the causal and affected references; a smaller window only ever undercounts. The newest
+        // keyed row of the tenant is another organization's, so a window of one still reaches the reach's newest
+        // keyed row: the window is counted inside the reach, never across the tenant.
         var bounded = await ScalarAsync(scope, Statement("MetadataSql"), subject, 1);
-        bounded.Should().BeLessThan(metadata).And.BeGreaterThanOrEqualTo(origin == "self" ? 1 : 0);
+        bounded.Should().BeLessThan(metadata).And.BeGreaterThanOrEqualTo(1);
 
-        // The plan pins that the statements can use the data-request indexes; on a table this small the planner may still
-        // serve the actor branch from another index, so the actor index, which already served the actor predicate, is
-        // not asserted here.
+        // Every branch has an index path. Which index the planner takes on a table this small depends on the
+        // statistics other tests leave behind, so only the absence of a sequential scan is asserted; the indexes
+        // themselves are pinned against the migration by AuditUserDataParticipantTests.
         await ExecuteAsync(scope.Connection, scope.Transaction, "SET LOCAL enable_seqscan = off");
-        foreach (var (statement, indexes) in new (string, string[])[]
-                 {
-                     ("CountSql", ["ix_audit_log_tenant_id_entity_type_entity_id_timestamp"]),
-                     ("PageSql", ["ix_audit_log_tenant_id_entity_type_entity_id_timestamp"]),
-                     ("RetainedSql", ["ix_audit_log_tenant_id_entity_type_entity_id_timestamp"]),
-                     ("MetadataSql", []),
-                 })
+        foreach (var statement in new[] { "CountSql", "PageSql", "RetainedSql", "MetadataSql" })
         {
             var nodes = await PlanAsync(scope, Statement(statement), subject);
-            nodes.Where(node => node.Relation == "audit_log").Should().NotContain(node => node.Type == "Seq Scan",
-                "{0} has an index path for every branch", statement);
-            // On a table this small the planner may serve the bounded metadata scan from the actor or entity index
-            // instead of the partial one, and the choice varies with the statistics other tests leave behind, so the
-            // metadata statement asserts only that every audit_log access is an index path.
-            var used = nodes.Select(node => node.Index).OfType<string>().ToList();
-            used.Should().NotBeEmpty(statement);
-            if (indexes.Length != 0) used.Should().Contain(indexes, statement);
+            nodes.Where(node => node.Relation == "audit_log").Should().NotBeEmpty(statement)
+                .And.NotContain(node => node.Type == "Seq Scan", "{0} has an index path for every branch", statement);
         }
 
         await scope.Frame.FailAsync();
@@ -200,7 +203,7 @@ public sealed partial class DataExportParticipantTests
         var command = new NpgsqlCommand(sql, scope.Connection, scope.Transaction);
         command.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
         command.Parameters.AddWithValue("scoped", subject.Origin != DataRequestOrigin.Self);
-        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, subject.Group.OrganizationId!.Value.Value);
+        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)subject.Group.OrganizationId?.Value ?? DBNull.Value);
         command.Parameters.AddWithValue("subject", subject.SubjectUserId.Value);
         command.Parameters.AddWithValue("subject_text", subject.SubjectUserId.Value.ToString("D"));
         command.Parameters.Add(new NpgsqlParameter("memberships", NpgsqlDbType.Array | NpgsqlDbType.Text)

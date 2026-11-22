@@ -129,8 +129,9 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
   structured JSON bundle; no integration event carries the request
   ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 1).
 - The bundle is an encrypted private artifact, retrievable only by the subject through a
-  15-minute ticketed download in their live session, readable for 7 days after completion
-  and revocable (ADR-0107 § 4); no URL is a bearer credential.
+  short-lived ticketed download in their live session, readable for a fixed period after
+  completion and revocable; no URL is a bearer credential. ADR-0107 § 4 owns both
+  lifetimes and the [Identity module](../modules/identity/README.md) the ticket bound.
 - Delivered (P03-10 Step 1): the export job (`identity.data_export_tenant.v1` /
   `identity.data_export_organization.v1`) runs on the group's own transaction; Identity,
   Tenancy and Audit export sections, Customization and Education only describe
@@ -147,23 +148,20 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
   personal data and secrets (the export key ring, session material) and are handled
   as such: not collected by default, access-controlled when taken, and deleted after
   use ([Data export runbook](../runbooks/data-export.md)).
-- Delivered reach and counts (P03-10 Step 1), detailed in the
-  [Identity module's bundle sections](../modules/identity/README.md#export-bundle-sections-p03-10-step-1):
-  - The audit section reaches what the job's ordinary group transaction may read under
-    the row policy, and its first record states that reach as a closed word. A
-    self-requested export in an organization group reaches that organization's rows and
-    the tenant-level rows, in the tenant-wide group the tenant-level rows only; the
-    person's rows recorded in another organization appear only in that organization's
-    export. The "whole tenant" reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered
-    and needs its own decision.
-  - Every declared section or collection cap is at most half the bundle ceiling, so a
-    long audit history or a long list of issued invitations is truncated and stated, not
-    a failed request.
-  - `attribution_reference` counts rows: a retained row whose `UserId` attribution
-    columns name the person counts once, whatever entity type carries them.
-    `audit_metadata_reference` is exact up to a bounded scan window of the rows carrying
-    a causal-actor or affected-user key and a lower bound beyond it, never more than the
-    truth.
+- Delivered reach and counts (P03-10 Step 1). The
+  [Identity module's bundle sections](../modules/identity/README.md#export-bundle-sections)
+  own the section contents, the audit reach words, the caps and the retained counts;
+  this document states only what they mean for the person:
+  - **The audit section is not the person's whole audit trail.** The job reads under the
+    row policy without a tenant-wide witness, so an export reaches one group's rows and
+    says so in its first record (`complete` is `false`). Rows the person caused in an
+    organization where they have no Membership of any status reach **no** export of
+    theirs, because no export can be filed in a group without one. The "whole tenant"
+    reach of ADR-0107 § 3 and ADR-0108 § 4 is not delivered and needs its own decision.
+  - **A cap truncates and says so**; it does not fail the request.
+  - **The retained list is partial.** Step 1 counts the kinds its participants own; a
+    kind it does not list is not counted, not zero. P03-10 Step 2 owns the remaining
+    kinds and Phase 11 the retention periods.
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
@@ -340,9 +338,9 @@ govern personal data; exclusion here grants no erasure exemption.
 | `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
 | `invitations` | Synchronous scoped Identity offer and acceptance result, including sensitive recipient/verifier and job linkage; the invitation inventory below owns fulfillment constraints |
 | `federation_connections` | Synchronous tenant-owned federation configuration (ADR-0099): public IdP identifiers, nonsecret digests and lifecycle, with pseudonymous pending/test actor identifiers; no secret, token or assertion and no queued payload |
-| `data_subject_requests` | Synchronous organization-scoped subject request receipt (ADR-0106): subject and requester UserId, frozen Membership identifiers, closed status/refusal/failure codes, participant progress and retained-kind counts; retained as `request_receipt` with Phase 11 retention, and the job parameters carry identifiers only |
-| `data_export_artifacts` | Synchronous export receipt metadata (ADR-0107 § 4): subject, request, size, chunk count, key-ring label, lifecycle and the immutable closed truncation statement (ADR-0107 § 3: collection names and counts); no content or key; retained as `request_receipt` after its chunks are purged |
-| `data_export_tickets` | Synchronous session-bound download cursor (ADR-0107 § 4): subject, artifact and credential digests only, never the ticket value; retained as `request_receipt` |
+| `data_subject_requests` | Synchronous organization-scoped subject request receipt (ADR-0106): subject and requester UserId, frozen Membership identifiers, closed status/refusal/failure codes, participant progress and the retained-kind counts, classified `Audit` because they count the person's references; pseudonymous identifiers and counts, no content; retained as `request_receipt` with Phase 11 retention, and the job parameters carry identifiers only |
+| `data_export_artifacts` | Synchronous export receipt metadata (ADR-0107 § 4): subject, request, key-ring label, lifecycle, and the bundle's size, chunk count and immutable closed truncation statement (ADR-0107 § 3: collection names and counts), classified `Audit` because they measure the person's data; pseudonymous identifiers and counts, no content or key; retained as `request_receipt` after its chunks are purged |
+| `data_export_tickets` | Synchronous session-bound download cursor (ADR-0107 § 4): subject, artifact and credential digests only, never the ticket value; retained as `request_receipt`; the digests outlive the ticket's expiry until Phase 11's retention purge nulls them |
 | `data_export_chunks` | Synchronous encrypted export bundle (ADR-0107 § 4): PII-Sensitive AES-256-GCM ciphertext of the subject's own data, never in an EF snapshot or audit row; purged at revocation, expiry or erasure, not an asynchronous delivery copy |
 <!-- async-store-module-exclusions:end -->
 

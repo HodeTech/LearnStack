@@ -66,7 +66,56 @@ public static class AttributionReferenceCounter
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(subject);
-        var plan = Plan(context.Model, excluded, parties);
+        return await SumAsync(context, subject, Plan(context.Model, excluded, parties), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Counts the rows of the named entity types in which any mapped <see cref="UserId"/> column names the subject, once
+    /// per row and exactly in the group: the rows a caller reports under a kind of its own (a request's receipts, as
+    /// <c>request_receipt</c>) and excludes from <c>attribution_reference</c> by passing the same types there.
+    /// </summary>
+    /// <remarks>
+    /// Every <see cref="UserId"/> column counts, the subject, the requester and every author column alike, so a person
+    /// who filed, cancelled or revoked a request about someone else is told the row survives, and a column a later
+    /// change adds is counted without a change here.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A named type is not a mapped tenant-owned entity with a <see cref="UserId"/> column.</exception>
+    public static async Task<long> CountNamingRowsAsync(DbContext context, UserDataSubject subject, IReadOnlyCollection<Type> types,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(subject);
+        return await SumAsync(context, subject, NamingPlan(context.Model, types), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The <see cref="UserId"/> columns per named entity type, in a stable order: what
+    /// <see cref="CountNamingRowsAsync"/> reads, without reading it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A named type is not a mapped tenant-owned entity with a <see cref="UserId"/> column.</exception>
+    public static IReadOnlyList<(Type Entity, IReadOnlyList<string> Properties)> NamingPlan(IModel model, IReadOnlyCollection<Type> types)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(types);
+        return
+        [
+            .. types.Distinct().OrderBy(type => type.FullName, StringComparer.Ordinal).Select(type =>
+            {
+                var entity = model.FindEntityType(type);
+                IReadOnlyList<string> properties = entity is null || entity.IsOwned() || !typeof(ITenantOwned).IsAssignableFrom(type)
+                    ? []
+                    : [.. entity.GetProperties().Where(property => IsUserId(property.ClrType)).Select(property => property.Name)
+                        .Order(StringComparer.Ordinal)];
+                return properties.Count == 0
+                    ? throw new InvalidOperationException("A named type is a mapped tenant-owned entity with a UserId column.")
+                    : (type, properties);
+            }),
+        ];
+    }
+
+    private static async Task<long> SumAsync(DbContext context, UserDataSubject subject,
+        IReadOnlyList<(Type Entity, IReadOnlyList<string> Properties)> plan, CancellationToken cancellationToken)
+    {
         long total = 0;
         foreach (var (type, properties) in plan)
         {

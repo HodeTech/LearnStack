@@ -40,6 +40,23 @@ public sealed class AttributionReferenceCounterTests
         settings.Should().NotContainKey(typeof(MembershipFieldConsent));
     }
 
+    [Fact]
+    public void A_receipt_row_is_the_persons_whichever_UserId_column_names_them()
+    {
+        using var identity = Identity();
+        var plan = AttributionReferenceCounter.NamingPlan(identity.Model,
+                [typeof(DataExportTicket), typeof(DataSubjectRequest), typeof(DataExportArtifact)])
+            .ToDictionary(entry => entry.Entity, entry => entry.Properties);
+
+        plan[typeof(DataSubjectRequest)].Should().Equal(["CreatedBy", "DeletedBy", "RequesterUserId", "SubjectUserId", "UpdatedBy"],
+            "an administrator who filed or cancelled a request about someone else is named by it too");
+        plan[typeof(DataExportArtifact)].Should().Equal(["CreatedBy", "DeletedBy", "SubjectUserId", "UpdatedBy"],
+            "an administrator who revoked an artifact is named by it");
+        plan[typeof(DataExportTicket)].Should().Equal(["CreatedBy"]);
+        FluentActions.Invoking(() => AttributionReferenceCounter.NamingPlan(identity.Model, [typeof(string)]))
+            .Should().Throw<InvalidOperationException>("a named receipt type that is not mapped is a programming error");
+    }
+
     [Theory]
     [InlineData("Membership", "Missing")]
     [InlineData("Membership", "TenantId")]

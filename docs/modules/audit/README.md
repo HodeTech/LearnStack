@@ -415,7 +415,7 @@ audited request rather than by a reader.
 | Standalone write | < 5 ms | Its own connection, its own `BEGIN`/`COMMIT`, and two `set_config` calls. Off the happy path — it runs for `denied`, for a rolled-back business write, and for the commit-in-doubt re-write. |
 | Read, tenant's own log, newest first | < 50 ms p95 | `ix_audit_log_tenant_id_timestamp` answers it as an index scan. The budget is Phase 03's to hold; it is here because the index that serves it ships now. |
 | Data-request selection, count and actor/entity counts (P03-10) | Bounded by the subject's own rows, under a 15 s statement budget | Unions of equality branches on `ix_audit_log_actor_user_id_timestamp` and `ix_audit_log_tenant_id_entity_type_entity_id_timestamp`. Measured at 1.9 million rows of one tenant: about 2 ms each, against 140–235 ms for the single `OR` predicate they replaced, whose parallel scan grows with the tenant. |
-| Data-request metadata count (P03-10) | Bounded by `MetadataScanWindow` (500,000 keyed rows) | The causal-actor and affected-user references cannot be index conditions under the row policy (JSON operators are not leakproof), so `ix_audit_log_tenant_id_person_reference_timestamp` serves a newest-first window of the rows that carry such a key; `audit_metadata_reference` is a lower bound past it. Measured at 1.9 million rows (494,000 keyed, timestamps deliberately uncorrelated with the heap): 1.5 s, against 0.4 s for the unbounded parallel scan it replaced at that size. |
+| Data-request metadata count (P03-10) | Bounded by `MetadataScanWindow` (500,000 keyed rows) per branch of the reach | The causal-actor and affected-user references cannot be index conditions under the row policy (JSON operators are not leakproof), so each branch of the reach, the group's organization and the tenant-level rows, is a newest-first seek cut at the window, on `ix_audit_log_tenant_id_organization_id_person_reference` and `ix_audit_log_tenant_id_tenant_level_person_reference`; `audit_metadata_reference` is a lower bound past a window. Measured at 2.3 million rows, 2,000,000 of them keyed rows of one organization: about 1 ms for an organization with no keyed rows of its own, against 2.2–3.4 s (2,000,000 rows read and removed by the row policy) for the single tenant-keyed window it replaced; 1.2–1.6 s for the organization whose branch fills a window, as before; about 1 s for a tenant-level branch of 601,000 keyed rows, stopping at the window with no sort. |
 
 Two budget-shaped facts that are not latency:
 
@@ -423,15 +423,15 @@ Two budget-shaped facts that are not latency:
   retention purge in this packet, deliberately — audit correctness cannot be added later
   and audit scale can, and the platform has no rows yet to scale
   ([ADR-0028's 2026-09-07 amendment](../../decisions/0028-audit-log-partition-management.md)).
-- **Six indexes, still not the template's `(tenant_id, organization_id)`.** The
+- **Seven indexes, still not the template's `(tenant_id, organization_id)`.** The
   canonical organization-scoped template carries an index on
   `(tenant_id, organization_id)`; this table does not take it, because it is a write
   cost paid on every row for a predicate arm the shipped readers do not take. The
   reasoning is in [Audit Subsystem § 7](../../architecture/31-audit-subsystem.md), and
   Phase 03's admin API is where to revisit it against a measured plan. P03-10 added the
-  two data-request indexes measured above: the entity index takes an entry for every
-  row, the person-reference index only for rows carrying a causal-actor or affected-user
-  key.
+  three data-request indexes measured above: the entity index takes an entry for every
+  row, and a row carrying a causal-actor or affected-user key takes one entry in one of
+  the two person-reference indexes, split by whether it has an organization.
 
 ## Risks and open questions
 

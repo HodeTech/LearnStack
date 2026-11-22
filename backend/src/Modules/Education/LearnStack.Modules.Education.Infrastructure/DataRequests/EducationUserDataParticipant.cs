@@ -16,37 +16,10 @@ namespace LearnStack.Modules.Education.Infrastructure.DataRequests;
 /// Its export section is empty: no Education table holds the person's own data yet. Phase 07's first
 /// learner-behaviour writer extends this participant before it ships (ADR-0107 § 1). Erasure is the default no-op.
 /// </remarks>
-public sealed class EducationUserDataParticipant(EducationDbContext db, ITenantContext tenant) : IUserDataParticipant
+public sealed class EducationUserDataParticipant(EducationDbContext db, ITenantContext tenant)
+    : DescribeOnlyUserDataParticipant(db, tenant)
 {
-    public string Key => "education";
-
-    public Task ExportAsync(UserDataSubject subject, IUserDataExportWriter writer, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(subject);
-        ArgumentNullException.ThrowIfNull(writer);
-        RequireGroup(subject);
-        return Task.CompletedTask;
-    }
-
-    public async Task<IReadOnlyCollection<RetainedReferenceCount>> DescribeRetainedAsync(UserDataSubject subject,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(subject);
-        RequireGroup(subject);
-        return
-        [
-            new(RetainedReferenceKind.AttributionReference,
-                await AttributionReferenceCounter.CountAsync(db, subject, null, cancellationToken).ConfigureAwait(false)),
-        ];
-    }
-
-    private void RequireGroup(UserDataSubject subject)
-    {
-        if (subject.Group.TenantId != tenant.TenantId || subject.Group.OrganizationId != tenant.OrganizationId)
-        {
-            throw new InvalidOperationException("A participant reads only the announced group of its request.");
-        }
-    }
+    public override string Key => "education";
 }
 
 /// <summary>Registers the Education module's participant from its own boundary (ADR-0107 § 1).</summary>

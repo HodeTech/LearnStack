@@ -1,9 +1,12 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Modules.Audit.Infrastructure.DataRequests;
+using LearnStack.Modules.Audit.Infrastructure.Persistence.Migrations;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Audit;
@@ -140,6 +143,38 @@ public sealed partial class AuditUserDataParticipantTests
         AnyIdentifier().IsMatch(projected).Should().BeFalse();
     }
 
+    [Fact]
+    public void The_metadata_window_seeks_each_branch_of_the_reach_on_the_index_the_migration_builds_for_it()
+    {
+        var indexes = new index_audit_log_data_request_selection().UpOperations.OfType<SqlOperation>()
+            .Select(operation => Normalize(operation.Sql)).Where(sql => sql.Contains("person_reference", StringComparison.Ordinal))
+            .ToList();
+        var keys = Normalize(Statement("PersonReferenceKeys"));
+        var metadata = Normalize(Statement("MetadataSql"));
+
+        indexes.Should().Equal(
+            [
+                "CREATE INDEX ix_audit_log_tenant_id_organization_id_person_reference ON public.audit_log "
+                    + "(tenant_id, organization_id, \"timestamp\" DESC) WHERE organization_id IS NOT NULL AND " + keys + ";",
+                "CREATE INDEX ix_audit_log_tenant_id_tenant_level_person_reference ON public.audit_log "
+                    + "(tenant_id, \"timestamp\" DESC) WHERE organization_id IS NULL AND " + keys + ";",
+            ],
+            "each branch has an index in newest-first order whose predicate the statement repeats literally, so the "
+                + "planner proves it applies and stops at the window; an IS NULL index condition yields no order");
+        metadata.Should().Contain("WHERE tenant_id = @tenant AND organization_id = @organization AND " + keys
+            + " ORDER BY \"timestamp\" DESC LIMIT @window", "the organization branch is a limited seek on the group's organization");
+        metadata.Should().Contain("WHERE tenant_id = @tenant AND organization_id IS NULL AND (NOT @scoped OR @organization IS NULL) AND "
+            + keys + " ORDER BY \"timestamp\" DESC LIMIT @window",
+            "the tenant-level branch is a limited seek, an administrator's only in the tenant-wide group");
+        AuditUserDataParticipant.ReachIsComplete.Should().BeFalse("no current reach is the person's whole audit trail in the tenant");
+    }
+
+    private static string Statement(string name) => (string)typeof(AuditUserDataParticipant)
+        .GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+
+    private static string Normalize(string sql) => WhiteSpace().Replace(sql, " ").Replace("( ", "(", StringComparison.Ordinal)
+        .Replace(" )", ")", StringComparison.Ordinal).Trim();
+
     private static string Write(AuditUserDataParticipant.AuditRow row)
     {
         using var stream = new MemoryStream();
@@ -167,6 +202,9 @@ public sealed partial class AuditUserDataParticipantTests
         new(Guid.CreateVersion7(), new DateTime(2026, 11, 22, 9, 0, 0, DateTimeKind.Utc), "identity",
             entityType == "Invitation" ? "identity.invitation.create" : "identity.membership.change_status", "success",
             entityType, entityId, actor, ip, agent, before, after, changes);
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhiteSpace();
 
     [GeneratedRegex("[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")]
     private static partial Regex AnyIdentifier();

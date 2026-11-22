@@ -953,17 +953,26 @@ the definer and the setter.
   longer matches, that download's cursor ends, and the resumed download mints a new
   ticket.
 
-#### Export bundle sections (P03-10 Step 1)
+#### Export bundle sections
 
 What each participant writes into the bundle of
 [ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 3, in
-the order the bundle carries them. Every identifier but the request's own is written
-`self` or `third_party`; the envelope and the bounds are `DataExportBundleBuilder`'s.
+the order the bundle carries them; the envelope and the bounds are
+`DataExportBundleBuilder`'s.
+
+**Identifier legend.** No identifier but the request's own leaves in a bundle. Where a
+record names a person, it writes one closed word instead:
+
+| Word | Means |
+|---|---|
+| `self` | The subject of the request, or one of their own Memberships |
+| `third_party` | Any other person, or another person's Membership, role or invitation |
+| `system` | The platform's own actor (audit `actor` only): a job or a provider event, not a person |
 
 | Section | Collection | Contents |
 |---|---|---|
-| `audit` | `audit_scope` | One record, `{"reach": …}`, with the closed reach below |
-| `audit` | `entries` | The subject's rows in that reach, newest first, capped at 8 MiB |
+| `audit` | `audit_scope` | One record, `{"reach": …, "complete": false}`, with the closed reach below |
+| `audit` | `entries` | The subject's rows in that reach, newest first, capped at 8 MiB (`DataRequestLimits.AuditSectionBytes`) |
 | `customization`, `education` | none | Empty: definitions and content are tenant data; both only report `attribution_reference` |
 | `identity` | `memberships` | The snapshot Memberships: status, scope, role names, timestamps, display name, locale and every custom-field value with its revision, labels and classification, a value withheld by a withdrawn consent included |
 | `identity` | `invitations_accepted` | Oldest first: the person's own recipient address and `issued_by` |
@@ -978,9 +987,13 @@ the order the bundle carries them. Every identifier but the request's own is wri
   administrator's request in an organization group, ADR-0108 § 4) and
   `tenant_level_only` (any request in the tenant-wide group). A self-requested export
   therefore does **not** reach the rows recorded in the person's other organizations,
-  which ADR-0107 § 3 and ADR-0108 § 4 call "the whole tenant": each organization's
-  activity is in that organization's own export, and the Step 4 screens say so from
-  `reach`. A tenant-wide read for the export job needs its own decision.
+  which ADR-0107 § 3 and ADR-0108 § 4 call "the whole tenant". Those rows are in
+  another export only where the person can file one: an export needs a Membership, of
+  any status, in its group. Rows the person caused in an organization where they have
+  none (a tenant-wide administrator acting in a branch) reach **no** export of theirs.
+- **`complete` says so.** It is `false` for every reach word, so the Step 4 screens can
+  tell the person the audit section is not their whole audit trail in the tenant;
+  `true` is reserved for a whole-tenant reach, which needs its own decision.
 - **A cap truncates, whatever the ceiling.** The builder clamps every declared section
   and collection cap to half of `DataExport:MaxBytes`, so at the 1 MiB minimum the audit
   section and `invitations_issued` still truncate, stated in `truncated` and on the
@@ -992,9 +1005,21 @@ the order the bundle carries them. Every identifier but the request's own is wri
   (a Membership's `UserId`, an invitation's inviter and acceptor, the federation and
   provider-event actors) and the types reported under another kind (the request
   receipts, and the consent table, whose `ck_membership_field_consents_actor` makes
-  every act its own subject's). `audit_metadata_reference` is exact up to a scan window
-  and a lower bound past it; the [Audit module](../audit/README.md#performance-budget)
-  owns both audit statements' bounds.
+  every act its own subject's). `request_receipt` counts the group's requests,
+  artifacts and tickets in which **any** `UserId` column names the person, once per
+  row: the subject, the requester, and whoever created, cancelled or revoked them, so
+  an administrator who filed or cancelled a request about someone else is told the row
+  survives. `audit_metadata_reference` is exact up to a scan window per branch of the
+  reach (the group's organization, the tenant-level rows) and a lower bound past it;
+  the [Audit module](../audit/README.md#performance-budget) owns both audit statements'
+  bounds.
+- **The retained list is partial.** Step 1 reports `request_receipt`,
+  `invitation_record`, `attribution_reference`, `consent_evidence`, the three audit
+  kinds and, in the tenant-wide group, `federation_actor_reference` and
+  `provider_event_record`. A kind not listed is not counted, which is not zero:
+  P03-10 Step 2 owns `invitation_envelope`, `transport_evidence`,
+  `execution_evidence`, `idempotency_cache`, `external_copy` and `unscoped_audit_rows`,
+  Step 3 owns `unserved_group`, and Phase 11 owns every retention period.
 
 ## Entity-relationship diagram
 
