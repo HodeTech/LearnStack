@@ -22,6 +22,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     {
         if (controller.FullName == "LearnStack.Api.Tenancy.ConsentSubjectController")
             return ConsentSubjectHandoff(controller, action, endpoint);
+        if (controller.FullName == DataRequestEntryController)
+            return DataRequestEntryHandoff(controller, action, endpoint);
         if (controller.FullName == "LearnStack.Api.Customization.CustomFieldDefinitionsController"
             && action.Name is ("Retire" or "Discard")) return CustomFieldTransitionHandoff(controller, action, endpoint);
         var bodies = ActionBodies(controller, action.Name).ToArray();

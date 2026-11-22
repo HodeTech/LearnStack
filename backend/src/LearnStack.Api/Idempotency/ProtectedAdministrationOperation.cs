@@ -45,6 +45,8 @@ public enum ProtectedAdministrationOperation
     CancelDataRequest = 27,
     RevokeOwnDataExport = 28,
     RevokeDataExport = 29,
+    CreateRetainedDataExport = 30,
+    CancelRetainedDataRequest = 31,
 }
 
 internal sealed record ProtectedAdministrationDescriptor(
@@ -62,7 +64,17 @@ internal sealed record ProtectedAdministrationDescriptor(
     /// <c>Location</c> and its <c>ETag</c>. Every other keyed creation answers 201 and every other mutation 200.
     /// </summary>
     internal bool IsDataRequestCreation => Operation is ProtectedAdministrationOperation.CreateOwnDataExport
-        or ProtectedAdministrationOperation.CreateDataExportForSubject;
+        or ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CreateRetainedDataExport;
+
+    /// <summary>
+    /// ADR-0106 § 9: the retained own-scope entry has no per-request route a Location could name; its receipt is read
+    /// through the group's request list, so its creation answers 202 with the resource and ETag and no Location.
+    /// </summary>
+    internal bool HasLocation => Creates && Operation != ProtectedAdministrationOperation.CreateRetainedDataExport;
+
+    /// <summary>The retained own-scope entry's keyed operations, whose replay reads only through their own witness.</summary>
+    internal bool IsRetainedDataRequest => Operation is ProtectedAdministrationOperation.CreateRetainedDataExport
+        or ProtectedAdministrationOperation.CancelRetainedDataRequest;
 
     internal int SuccessStatus => IsDataRequestCreation ? StatusCodes.Status202Accepted
         : Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
@@ -107,6 +119,8 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.CancelDataRequest => new(operation, typeof(CancelDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
         ProtectedAdministrationOperation.RevokeOwnDataExport => new(operation, typeof(RevokeOwnDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
         ProtectedAdministrationOperation.RevokeDataExport => new(operation, typeof(RevokeDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
+        ProtectedAdministrationOperation.CreateRetainedDataExport => new(operation, typeof(CreateRetainedDataExportCommand), IdempotencyReplayTargetKind.DataSubjectRequest, true),
+        ProtectedAdministrationOperation.CancelRetainedDataRequest => new(operation, typeof(CancelRetainedDataRequestCommand), IdempotencyReplayTargetKind.DataSubjectRequest),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -141,6 +155,8 @@ internal sealed record ProtectedAdministrationDescriptor(
         CancelDataRequestCommand => ProtectedAdministrationOperation.CancelDataRequest,
         RevokeOwnDataExportCommand => ProtectedAdministrationOperation.RevokeOwnDataExport,
         RevokeDataExportCommand => ProtectedAdministrationOperation.RevokeDataExport,
+        CreateRetainedDataExportCommand => ProtectedAdministrationOperation.CreateRetainedDataExport,
+        CancelRetainedDataRequestCommand => ProtectedAdministrationOperation.CancelRetainedDataRequest,
         _ => null,
     };
 
@@ -171,6 +187,8 @@ internal sealed record ProtectedAdministrationDescriptor(
         CancelDataRequestCommand command => command.ExpectedVersion,
         RevokeOwnDataExportCommand command => command.ExpectedArtifactVersion,
         RevokeDataExportCommand command => command.ExpectedArtifactVersion,
+        CreateRetainedDataExportCommand => null,
+        CancelRetainedDataRequestCommand command => command.ExpectedVersion,
         _ => throw new ArgumentException("The protected operation is not registered.", nameof(request)),
     };
     internal bool TryReadPrecondition(HttpRequest request, out long? expected)
@@ -191,6 +209,7 @@ internal sealed record ProtectedAdministrationDescriptor(
         ProtectedAdministrationOperation.RegisterCustomFieldDefinition => "/api/v1/customization/custom-field-definitions/" + id.ToString("D"),
         ProtectedAdministrationOperation.CreateOwnDataExport => "/api/v1/identity/me/data-requests/" + id.ToString("D"),
         ProtectedAdministrationOperation.CreateDataExportForSubject => "/api/v1/identity/data-requests/" + id.ToString("D"),
+        ProtectedAdministrationOperation.CreateRetainedDataExport => throw new InvalidOperationException("The retained entry has no request location."),
         _ => OrganizationLocationFor(id),
     };
     internal static string OrganizationLocationFor(Guid id) => "/api/v1/tenancy/organizations/" + id.ToString("D");

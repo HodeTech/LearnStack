@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**399 test methods run in
+**401 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -5531,14 +5531,16 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the production census closes the finite HTTP surface at 84 MVC
-  actions and 79 distinct `IRequest` roots (both totals asserted on the literal census
+- **Asserts:** the production census closes the finite HTTP surface at 90 MVC
+  actions and 85 distinct `IRequest` roots (both totals asserted on the literal census
   that the rule binds to production), including the public and authenticated
-  reads, the anonymous sign-in read, 29 protected keyed writes, native
+  reads, the anonymous sign-in read, 31 protected keyed writes, native
   session-scope admission, the eleven ADR-0099 federation actions, which reach
-  their requests only through `FederationOperationRunner`, and the twelve
+  their requests only through `FederationOperationRunner`, the twelve live
   ADR-0106/ADR-0107 data-request actions (six of them keyed; the ticket mint and
-  the chunk read each sit on a controller of their own, unkeyed). It also
+  the chunk read each sit on a controller of their own, unkeyed), and the six
+  ADR-0106 § 9 retained-entry actions on one controller (two keyed), each of which
+  sends exactly the request its source captured. It also
   checks the separate three exact GlobalSelf middleware routes. The canonical
   name is historical: administration includes writes, and sensitive reads can
   require a ReadWrite owner to commit MUST audit evidence. AccountSite and public
@@ -7994,20 +7996,33 @@ names for the package's obligations are assigned with the step that introduces t
   admitted only by a live `OwnDataRequestScopeWitness` under the
   `HostAndOwnDataRequestScope` origin, which the fifteenth logical tenant setter consumes
   on a fresh owner announcing exactly the witness's group; the `OwnDataRequest` kind
-  requires the actor's Active Membership in exactly the announced group. Until the
-  native retained-entry operations land with their endpoints, no production type mints
-  the witness, builds the context, observes the groups or registers either kind.
+  requires the actor's Active Membership in exactly the announced group. The native
+  retained-entry operations (P03-10 Step 1, unit 4b) close the chain: exactly six
+  selector-free operations and the receipt read of their two keyed ones carry the
+  `OwnDataRequestEntry` kind; `OwnDataRequestSubjectSource` is the one minter and the one
+  registered `IOwnDataRequestScopeSource`, the one caller of the lookup and the one source of
+  the captured request feature; `TenantResolverMiddleware` is the one builder of the context;
+  and through the actual Program a Suspended person, a person whose only Membership is
+  Revoked and a person in several groups list, file, cancel and download in exactly their own
+  groups on the real host, while another person's request, an unretained group, a selector, a
+  missing native source, a non-Active binding and a ticket of the other path are refused.
 - **Source:** [ADR-0106 § 4 and § 9](../decisions/0106-subject-data-requests-authority-and-status.md),
   [Database Standards § Retained own data-request scope](05-database.md#retained-own-data-request-scope),
   [Security § The out-of-band setters](11-security.md#the-out-of-band-setters).
 - **Type:** real app-role PostgreSQL behaviour, refusals, ACL and policy oracle with a
   dirty probe of the arms; compiled minter, binder, owner and caller censuses with planted
-  minters and binders; coordinator and evaluator behaviour for both kinds. **Kind:** both.
+  minters and binders; coordinator and evaluator behaviour for both kinds; the retained
+  entry's syntax-confined authority exceptions with substituted values, its request-feature
+  binding with planted replacements, its closed paths and strict input, and its HTTP
+  behaviour end to end. **Kind:** both.
 - **Status:** **Implemented** (`OwnDataRequestScopeTests`); companion owners below.
 - **Test owners:**
   [OwnDataRequestScopeTests.cs](../../backend/tests/LearnStack.Tests.Integration/Database/OwnDataRequestScopeTests.cs),
   [OwnDataRequestScopeConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/OwnDataRequestScopeConventionTests.cs),
-  [OwnDataRequestPolicyTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/OwnDataRequestPolicyTests.cs).
+  [OwnDataRequestPolicyTests.cs](../../backend/tests/LearnStack.Tests.Unit/Identity/OwnDataRequestPolicyTests.cs),
+  [OwnDataRequestEntryInputTests.cs](../../backend/tests/LearnStack.Tests.Unit/Api/Authentication/OwnDataRequestEntryInputTests.cs),
+  [AuthenticationAuthorityTests.DataRequest.cs](../../backend/tests/LearnStack.Tests.Architecture/AuthenticationAuthorityTests.DataRequest.cs),
+  [DataRequestHttpTests.RetainedEntry.cs](../../backend/tests/LearnStack.Tests.Integration/Database/DataRequestHttpTests.RetainedEntry.cs).
 - **Phase:** 03 (P03-10, retained own scope).
 
 #### `Every_Module_With_A_Person_Reference_Registers_One_User_Data_Participant`

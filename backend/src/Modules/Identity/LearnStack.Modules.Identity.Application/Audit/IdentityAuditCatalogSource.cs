@@ -64,6 +64,14 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<ListOwnDataRequestsQuery>();
         builder.Off<GetOwnDataRequestQuery>();
         builder.Off<ReadOwnDataRequestReceiptQuery>();
+        // ADR-0106 § 9, § 13: the retained own-scope entry writes exactly the live path's rows under the same names.
+        builder.MustAudit<CreateRetainedDataExportCommand>("identity.data_request.create_export", OperationType.Create, typeof(DataSubjectRequest));
+        builder.MustAudit<CancelRetainedDataRequestCommand>("identity.data_request.cancel", OperationType.Update, typeof(DataSubjectRequest));
+        builder.MustAudit<MintRetainedDataExportTicketCommand>("identity.data_export.mint_ticket", OperationType.ReadSensitive, typeof(DataExportTicket));
+        builder.MustAudit<ReadRetainedDataExportChunkCommand>("identity.data_export.read_chunk", OperationType.ReadSensitive, typeof(DataExportTicket));
+        builder.Off<ListRetainedDataRequestScopesQuery>();
+        builder.Off<ListRetainedDataRequestsQuery>();
+        builder.Off<ReadRetainedDataRequestReceiptQuery>();
         builder.MustAudit<AdmitNativeSessionScopeCommand>(IdentityOperationPolicySource.NativeSessionAdmissionOperation,
             OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<InitializeSeedRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));

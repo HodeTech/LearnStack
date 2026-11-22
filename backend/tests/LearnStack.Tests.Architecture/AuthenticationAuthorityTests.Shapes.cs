@@ -34,6 +34,18 @@ public sealed partial class AuthenticationAuthorityTests
         [ConsentSource + ".PrepareAsync"] = Signature(ConsentSource, "PrepareAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>>", Http),
         [ConsentSource + ".ForInvocation"] = Signature(ConsentSource, "ForInvocation", "LearnStack.SharedKernel.Identity.ConsentSubjectScopeWitness", "LearnStack.SharedKernel.Permissions.OperationInvocation"),
         [ConsentSource + ".get_Actor"] = Signature(ConsentSource, "get_Actor", OptionalUser),
+        [DataRequestCredential + "..ctor"] = Signature(DataRequestCredential, ".ctor", "System.Void", Http, Feature, Verified, "System.String"),
+        [DataRequestCredential + ".Capture"] = Signature(DataRequestCredential, "Capture", DataRequestCredential, Http, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified),
+        [DataRequestCredential + ".get_Subject"] = Signature(DataRequestCredential, "get_Subject", Verified),
+        [DataRequestCredential + ".IsCurrent"] = Signature(DataRequestCredential, "IsCurrent", "System.Boolean", Http),
+        [DataRequestSource + ".IsCurrent"] = Signature(DataRequestSource, "IsCurrent", "System.Boolean", Http),
+        [DataRequestSource + ".PrepareAsync"] = Signature(DataRequestSource, "PrepareAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>>", Http),
+        [DataRequestSource + ".ForInvocation"] = Signature(DataRequestSource, "ForInvocation", "LearnStack.SharedKernel.Identity.OwnDataRequestScopeWitness", "LearnStack.SharedKernel.Permissions.OperationInvocation"),
+        [DataRequestSource + ".get_Actor"] = Signature(DataRequestSource, "get_Actor", OptionalUser),
+        [DataRequestSource + ".DownloadCredential"] = Signature(DataRequestSource, "DownloadCredential", DataRequestCredential, Http, User,
+            "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
+        [ExportBinding + ".Capture"] = Signature(ExportBinding, "Capture", "System.String", User, "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
+        [ExportBinding + ".CaptureRetained"] = Signature(ExportBinding, "CaptureRetained", "System.String", Http, User, "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
         [InvitationCredential + "..ctor"] = Signature(InvitationCredential, ".ctor", "System.Void", Http, Feature, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified, "System.String"),
         [InvitationCredential + ".Capture"] = Signature(InvitationCredential, "Capture", InvitationCredential, Http, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified),
         [InvitationCredential + ".get_Subject"] = Signature(InvitationCredential, "get_Subject", Verified),
@@ -64,7 +76,8 @@ public sealed partial class AuthenticationAuthorityTests
         [Native + ".get_Actor"] = Signature(Native, "get_Actor", User),
         [NativeSource + "..ctor"] = Signature(NativeSource, ".ctor", "System.Void", Http, Host, Verified,
             Authentication + "SubjectAdmissionDecision", Provenance, Tenant, Organization, Authentication + "GlobalSelfOperation",
-            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock", Authentication + "InvitationEntryOperation", Authentication + "ConsentSubjectOperation"),
+            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock", Authentication + "InvitationEntryOperation", Authentication + "ConsentSubjectOperation",
+            Authentication + "OwnDataRequestOperation"),
         [NativeSource + ".IsCurrent"] = Signature(NativeSource, "IsCurrent", "System.Boolean", Http),
         [NativeMiddleware + ".InvokeAsync"] = Signature(NativeMiddleware, "InvokeAsync", TaskType, Http,
             "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock"),
@@ -79,7 +92,7 @@ public sealed partial class AuthenticationAuthorityTests
         [Authentication + "OperationAuthorizationHandler.HandleAsync"] = Signature(Authentication + "OperationAuthorizationHandler", "HandleAsync", TaskType,
             "Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext"),
         [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
-            Authentication + "SubjectAdmissionDecision", Provenance, Native, InvitationSource, ConsentSource),
+            Authentication + "SubjectAdmissionDecision", Provenance, Native, InvitationSource, ConsentSource, DataRequestSource),
         [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
         [CredentialWitness + ".get_Identity"] = Signature(CredentialWitness, "get_Identity", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
@@ -203,7 +216,8 @@ public sealed partial class AuthenticationAuthorityTests
             ["Provenance"] = Provenance,
             ["Native"] = Native,
             ["Invitation"] = InvitationSource,
-            ["Consent"] = ConsentSource
+            ["Consent"] = ConsentSource,
+            ["DataRequest"] = DataRequestSource
         };
         return witness.IsSealed && witness.IsNestedPrivate && witness.BaseType.FullName == "System.Object"
             && !witness.HasInterfaces && !witness.HasEvents && !witness.HasNestedTypes && !witness.HasGenericParameters
@@ -259,16 +273,20 @@ public sealed partial class AuthenticationAuthorityTests
         instruction.OpCode.Code is Code.Box or Code.Stelem_Ref
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference field
             && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType) && !IsClosedExceptionStorage(method, instruction)
-            && !IsClosedConsentRequestStore(method, instruction)
+            && !IsClosedConsentRequestStore(method, instruction) && !IsClosedDataRequestRequestStore(method, instruction)
         || instruction.Operand is MethodReference target && ExportsProjection(target)
             && !IsClosedWitnessForwarding(method, instruction, target)
             && !IsClosedUserAgentFormatting(method, instruction, target)
             && !IsClosedHttpEndpointForwarding(method, instruction, target)
             && !IsClosedInvitationForwarding(method, instruction, target)
             && !IsClosedConsentForwarding(method, instruction, target)
+            && !IsClosedDataRequestForwarding(method, instruction, target)
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference consentField
             && consentField.DeclaringType.FullName == ConsentSource && consentField.Name == "_request"
-            && !IsClosedConsentRequestStore(method, instruction));
+            && !IsClosedConsentRequestStore(method, instruction)
+        || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference dataRequestField
+            && dataRequestField.DeclaringType.FullName == DataRequestSource && dataRequestField.Name == "_request"
+            && !IsClosedDataRequestRequestStore(method, instruction));
 
     // The token is either hashed for the pending-token equality gate or stored in
     // the request-local credential. No other encoded-token read is admitted here.
@@ -456,7 +474,8 @@ public sealed partial class AuthenticationAuthorityTests
         var stores = method.Definition.Body.Instructions.Where(i => StoresLocal(i, local)).ToArray();
         return stores.Length == 1 && stores[0].Previous?.Operand is MethodReference source
             && source.FullName is "System.Type LearnStack.Api.Authentication.InvitationEntrySource::get_EffectiveRequestType()"
-                or "System.Type LearnStack.Api.Authentication.ConsentSubjectSource::get_EffectiveRequestType()";
+                or "System.Type LearnStack.Api.Authentication.ConsentSubjectSource::get_EffectiveRequestType()"
+                or "System.Type LearnStack.Api.Authentication.OwnDataRequestSubjectSource::get_EffectiveRequestType()";
     }
 
     // Release emits a constrained Object.ToString for the StringValues value.

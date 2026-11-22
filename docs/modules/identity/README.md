@@ -882,6 +882,54 @@ exact wire shapes.
   cross-aggregate census of [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
   counts every data-request handler as a single-root writer.
 
+#### Retained own-scope native entry (P03-10 Step 1)
+
+The retained own scope of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
+§ 9, modelled on the consent subject's entry: a person reads and files data requests after their
+Membership is gone, and a Suspended person does so at all. The
+[permission matrix](permissions.md#subject-data-request-bindings) owns who may call each operation, the
+[audit matrix](audit.md#data-request-bindings) its classification, and
+[Database Standards § Retained own data-request scope](../../standards/05-database.md#retained-own-data-request-scope)
+the definer and the setter.
+
+| Route (under `/api/v1/identity/data-request-entry`) | Operation | Request |
+|---|---|---|
+| `GET scopes` | `identity.data_request.list_retained_scopes` | `ListRetainedDataRequestScopesQuery` |
+| `GET requests?group=` | `identity.data_request.list_retained` | `ListRetainedDataRequestsQuery` |
+| `POST exports?group=` | `identity.data_request.create_retained_export` | `CreateRetainedDataExportCommand` |
+| `POST cancellations?group=` | `identity.data_request.cancel_retained` | `CancelRetainedDataRequestCommand` |
+| `POST tickets?group=` | `identity.data_request.mint_retained_export_ticket` | `MintRetainedDataExportTicketCommand` |
+| `POST chunks?group=` | `identity.data_request.read_retained_export_chunk` | `ReadRetainedDataExportChunkCommand` |
+| (keyed replay only) | `identity.data_request.read_retained_receipt` | `ReadRetainedDataRequestReceiptQuery` |
+
+- **Entry.** The six paths are the closed set `OwnDataRequestOperation.ForPath`: exact path, method,
+  action and request type. `NativeSessionSourceMiddleware` admits them selector-free (a tenant or
+  organization header is `400`) with the separate native session credential, `ValidatedOwnDataRequestCredential`
+  captures the stock-validated bearer credential of exactly these requests, and binding normalization
+  must find an existing Active global binding, so a Closing, Closed or unknown binding is `401`.
+- **Group.** Every purpose but discovery names one group in the single `group` query value: `tenant`
+  for the real host's tenant-wide group or an organization's canonical UUIDv7. Before any context exists,
+  `OwnDataRequestSubjectSource.PrepareAsync` reads the strict input (`OwnDataRequestHttpInput`), and the
+  confined lookup proves the group for the normalized actor under the host ceiling (on an organization
+  host only that organization's group). `TenantResolverMiddleware` then builds the context with
+  `TenantContextFactory.CreateForOwnDataRequestScope`. A group the person does not retain is `404`;
+  discovery pages at most twenty groups with the last group's key as `nextCursor`.
+- **Captured request.** Each action sends exactly the request the source captured, read from its
+  `OwnDataRequestEntryRequest` feature; the source mints the witness only for that request object on
+  that endpoint, and the thin handlers (`RetainedDataRequestAdmission`) consume only that witness on its
+  physical owner, build the subject's caller and hand over to the same cores as the live path.
+- **Keyed operations.** Creation and cancellation are `ProtectedAdministrationOperation`s 30 and 31.
+  Creation answers `202` with `{id, kind, status, version}` and its `ETag` and no `Location` (there is no
+  per-request route); cancellation needs `If-Match`. A replay rereads the captured input, selects the
+  witness's own receipt read and discloses the stored receipt only through it; a completed key found
+  only at claim time answers `request_in_progress`, as the consent withdrawal does.
+- **Download binding.** `HttpDataExportSessionBinding` binds a retained-entry ticket under its own domain
+  (`learnstack.data_export.retained_session.v1`) to the group, the actor, the verified issuer and subject
+  and the digest of the exact `Authorization` header the retained credential capture recorded, and only
+  while the source is current on a ticket or chunk purpose. A ticket minted here is never honoured on the
+  live path, nor the reverse. When the BFF's entry handle refreshes the credential the binding no longer
+  matches, that download's cursor ends, and the resumed download mints a new ticket.
+
 ## Entity-relationship diagram
 
 ```mermaid

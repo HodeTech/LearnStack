@@ -96,6 +96,26 @@ public sealed class TenantResolverMiddleware(
             finally { accessor.Current = previousEntryContext; }
             return;
         }
+        // ADR-0106 § 9: the retained own data-request entry. The source proves the group for the verified subject on the
+        // real host before any context exists; the factory only reconciles that group against the same host ceiling.
+        if (OwnDataRequestOperation.ForPath(context.Request.Path) is not null)
+        {
+            var previousEntryContext = accessor.Current;
+            try
+            {
+                var source = context.RequestServices.GetRequiredService<OwnDataRequestSubjectSource>();
+                var scope = await source.PrepareAsync(context);
+                if (scope.IsFailure) { await OperationClassificationMiddleware.RefuseAsync(context, scope.Error); return; }
+                var dataRequestIdentity = context.Features.Get<TenantCredentialFeature>()!.Identity!;
+                var resolved = TenantContextFactory.CreateForOwnDataRequestScope(classification.TenantId!.Value,
+                    classification.OrganizationId, dataRequestIdentity.ActorUserId, source.Selected, Activity.Current?.Id ?? context.TraceIdentifier);
+                if (resolved.IsFailure) { await OperationClassificationMiddleware.RefuseAsync(context, resolved.Error); return; }
+                accessor.Current = resolved.Value;
+                await next(context);
+            }
+            finally { accessor.Current = previousEntryContext; }
+            return;
+        }
         if (InvitationEntryOperation.ForPath(context.Request.Path) is not null)
         {
             var previousEntryContext = accessor.Current;

@@ -34,6 +34,7 @@ public sealed partial class IdentityAuditConventionTests
     private const string InvitationAuthorization = "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization";
     private const string FederationAuthorization = "LearnStack.Modules.Identity.Application.Federation.FederationAuthorization";
     private const string DataRequestAuthorization = "LearnStack.Modules.Identity.Application.DataRequests.DataRequestAuthorization";
+    private const string RetainedDataRequestAdmission = "LearnStack.Modules.Identity.Application.DataRequests.RetainedDataRequestAdmission";
     private const string InvitationPolicyAuthorization = "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers";
     private const string InvitationEntrySource = "LearnStack.Api.Authentication.InvitationEntrySource";
     private const string InvitationEntryAuthorization = "LearnStack.Modules.Identity.Application.Invitations.InvitationEntryAuthorization";
@@ -58,6 +59,8 @@ public sealed partial class IdentityAuditConventionTests
     [
         (CentralEvidence, "Snapshot", 1),
         ("LearnStack.Api.Authentication.ConsentSubjectSource", "IsEvidenceCurrent", 1),
+        ("LearnStack.Api.Authentication.OwnDataRequestSubjectSource", "IsEvidenceCurrent", 1),
+        (RetainedDataRequestAdmission, "For", 1),
         ("LearnStack.Modules.Tenancy.Application.FieldConsents.ReadOwnGrantedFieldConsentReceiptQueryHandler", "Handle", 1),
         ("LearnStack.Modules.Tenancy.Application.FieldConsents.ReadOwnGrantedFieldConsentReceiptQueryHandler", "Matches", 1),
         ("LearnStack.Modules.Identity.Application.CustomFields.MembershipCustomFieldCommandExecutor", "ExecuteAsync", 1),
@@ -135,6 +138,7 @@ public sealed partial class IdentityAuditConventionTests
         (InvitationAuthorization, "Matches", 1),
         (FederationAuthorization, "Matches", 1),
         (DataRequestAuthorization, "Matches", 1),
+        (RetainedDataRequestAdmission, "For", 1),
         (InvitationPolicyAuthorization, "OwnAsync", 1),
         (ReadAuthorization, "Matches", 1),
         (NavigationReader, "Matches", 1),

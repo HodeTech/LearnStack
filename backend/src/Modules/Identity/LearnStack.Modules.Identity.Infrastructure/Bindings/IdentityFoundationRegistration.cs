@@ -73,6 +73,9 @@ public static class IdentityFoundationRegistration
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipContextsQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnCapabilitiesQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipCustomFieldsQuery)));
+        // ADR-0106 § 9: retained discovery and status reads run on a physically read-only owner, as their witness requires.
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(ListRetainedDataRequestScopesQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(ListRetainedDataRequestsQuery)));
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         services.AddIdentityDataRequests();
         return services;
@@ -105,6 +108,7 @@ public static class IdentityFoundationRegistration
         services.TryAddSingleton<IDataExportSessionBinding, UnavailableDataExportSessionBinding>();
         services.TryAddScoped<DataRequestAuthorization>();
         services.TryAddScoped<LiveDataRequestAdmission>();
+        services.TryAddScoped<RetainedDataRequestAdmission>();
         services.TryAddScoped<DataRequestService>();
         services.TryAddScoped<IDataExportTicketStore, DataExportTicketStore>();
         services.TryAddScoped<DataExportDownloadService>();

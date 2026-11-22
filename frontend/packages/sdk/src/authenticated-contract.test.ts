@@ -88,6 +88,8 @@ describe('generated GET contract ownership', () => {
       '/api/v1/identity/me/data-requests/{id}': 'GetOwnDataRequest',
       '/api/v1/identity/data-requests': 'ListDataRequests',
       '/api/v1/identity/data-requests/{id}': 'GetDataRequest',
+      '/api/v1/identity/data-request-entry/scopes': 'ListRetainedDataRequestScopes',
+      '/api/v1/identity/data-request-entry/requests': 'ListRetainedDataRequests',
     });
     expect(PUBLIC_GET_CONTRACTS).toEqual({
       '/api/v1/public/site': 'GetPublicSite',
@@ -131,6 +133,8 @@ describe('generated GET contract ownership', () => {
       | 'GetOwnDataRequest'
       | 'ListDataRequests'
       | 'GetDataRequest'
+      | 'ListRetainedDataRequestScopes'
+      | 'ListRetainedDataRequests'
     >();
     expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
     expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();

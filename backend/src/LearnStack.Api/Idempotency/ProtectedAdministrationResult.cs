@@ -90,6 +90,8 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             CancelDataRequestCommand command => DataRequest(await sender.Send(command, cancellationToken), command.RequestId),
             RevokeOwnDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
             RevokeDataExportCommand command => Artifact(await sender.Send(command, cancellationToken), command.RequestId),
+            CreateRetainedDataExportCommand command => DataRequest(await sender.Send(command, cancellationToken), null),
+            CancelRetainedDataRequestCommand command => DataRequest(await sender.Send(command, cancellationToken), command.RequestId),
             _ => throw new InvalidOperationException("The protected operation is not registered."),
         };
 
@@ -151,7 +153,7 @@ internal sealed class ProtectedAdministrationResult : IActionResult
         response.StatusCode = Descriptor.SuccessStatus;
         response.ContentType = "application/json; charset=utf-8";
         if (!Descriptor.IsConsent) response.Headers.ETag = EntityTag.For(Version);
-        if (Descriptor.Creates) response.Headers.Location = Descriptor.LocationFor(Target.Id);
+        if (Descriptor.HasLocation) response.Headers.Location = Descriptor.LocationFor(Target.Id);
         // This is the filter's memory capture, not network delivery. A disconnect
         // after business commit must not prevent recording the completed receipt.
         await response.Body.WriteAsync(BodyFor(Descriptor, Target.Id, Version), CancellationToken.None);

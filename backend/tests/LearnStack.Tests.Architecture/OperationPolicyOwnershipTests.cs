@@ -320,7 +320,7 @@ public sealed partial class OperationPolicyOwnershipTests
             ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 1)]);
         Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 4),
             ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1),
-            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 2)]);
+            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 3)]);
         Exact(Witness, "TryBindTo", [(Unit, "SetTenantContextCoreAsync", 2)]);
         Exact(Witness, "IsBoundTo", [(Unit, "SetTenantContextCoreAsync", 1), (Unit, "ValidateOperationReadScope", 1)]);
         Exact(Invocation, "TryBindRead", [(Witness, "TryBindTo", 1)]);

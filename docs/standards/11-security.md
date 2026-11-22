@@ -1956,6 +1956,25 @@ census, including distinct own/admin custom-value PATCH requests; no generic
 native proxy or arbitrary dispatcher follows. The three global-self descriptors,
 roles and four physical context writers remain unchanged.
 
+The retained own data-request entry of
+[ADR-0106 § 9](../decisions/0106-subject-data-requests-authority-and-status.md) is the
+same model for data requests, and the closed native retained-entry set grows by exactly its
+six operations (list, create, read, cancel, ticket, chunk) under
+`/api/v1/identity/data-request-entry/`. They are selector-free native requests: the native
+session source credential and a stock-validated bearer credential, which
+`ValidatedOwnDataRequestCredential` captures for exactly these requests, and an existing
+Active global binding; a tenant or organization selector header is refused, and a
+Closing/Closed or unknown binding never reaches them. Every purpose but discovery names its
+one group, and `fn_identity_own_data_request_scopes` proves it for the normalized actor under
+the independently classified host ceiling before the context exists; no submitted field
+names the actor or widens the host. The `OwnDataRequestScope` witness is minted only by
+`OwnDataRequestSubjectSource` for the exact captured request on the exact endpoint, admits
+only `OwnDataRequestEntry` operations under the `HostAndOwnDataRequestScope` origin, and
+supplies no Membership authority, ordinary native session or tenant-wide `app.scope`. A
+download ticket minted here binds the retained credential under its own domain and is
+never honoured on the live path, nor a live ticket here. The three global-self descriptors,
+roles and four physical context writers remain unchanged.
+
 New P03-5 body-bearing replay uses only the [scoped versioned HMAC ring and
 metadata read](05-database.md#custom-field-replay-key-custody). Existing fingerprint
 bytes and unrelated route behavior remain unchanged. Key IDs/HMAC and retained

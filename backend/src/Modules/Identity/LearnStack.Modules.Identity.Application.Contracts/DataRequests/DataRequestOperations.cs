@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Idempotency;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Results;
 using MediatR;
@@ -151,3 +152,56 @@ public sealed record RevokeDataExportCommand(Guid RequestId, long ExpectedArtifa
 
 /// <summary>Authorizes only disclosure of a stored receipt for the administrator's original request.</summary>
 public sealed record ReadDataRequestReceiptQuery(Guid RequestId) : IRequest<Result<None>>, IIdempotencyReceiptRead;
+
+// ---- The subject, through the retained own scope (OperationPolicyKind.OwnDataRequestEntry, ADR-0106 § 9) ----
+// Each type acts in exactly the group the subject's own retained-scope witness proved, never in a Membership's
+// context: a Suspended person, a person whose Membership was revoked and a group where only a request survives are
+// all served. The group a type names is a selection the witness must agree with, never authority of its own.
+
+/// <summary>One page of the subject's retained groups on the real host, in the function's order.</summary>
+/// <remarks><see cref="NextCursor"/> is the last group's key: <c>tenant</c> for the tenant-wide group, else the organization.</remarks>
+public sealed record RetainedDataRequestScopePage(IReadOnlyList<DataRequestScopeGroup> Items, string? NextCursor);
+
+/// <summary>Discovers the groups on the real host where the subject holds or held a Membership or has a request.</summary>
+public sealed record ListRetainedDataRequestScopesQuery(string? Cursor = null, int Limit = 20) : IRequest<Result<RetainedDataRequestScopePage>>;
+
+/// <summary>The subject's own requests in one retained group, newest first.</summary>
+/// <param name="OrganizationId">The selected group's organization, or <see langword="null"/> for the tenant-wide group.</param>
+public sealed record ListRetainedDataRequestsQuery(OrganizationId? OrganizationId, string? Cursor = null, int Limit = 20)
+    : IRequest<Result<Page<DataRequestView>>>;
+
+/// <summary>The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9).</summary>
+public sealed record CreateRetainedDataExportCommand(OrganizationId? OrganizationId) : IRequest<Result<DataRequestMutationResult>>;
+
+/// <summary><c>requested → cancelled</c> by the subject in one retained group (ADR-0106 § 8, § 11).</summary>
+public sealed record CancelRetainedDataRequestCommand(OrganizationId? OrganizationId, Guid RequestId, long ExpectedVersion)
+    : IRequest<Result<DataRequestMutationResult>>;
+
+/// <summary>Mints a fifteen-minute download cursor over the subject's available artifact in one retained group.</summary>
+public sealed record MintRetainedDataExportTicketCommand(OrganizationId? OrganizationId, Guid RequestId) : IRequest<Result<DataExportTicketGrant>>;
+
+/// <summary>Reads one decrypted chunk through a ticket in one retained group; the ticket travels only in a request body.</summary>
+public sealed record ReadRetainedDataExportChunkCommand : IRequest<Result<DataExportChunkView>>
+{
+    public ReadRetainedDataExportChunkCommand(OrganizationId? organizationId, Guid requestId, string ticket, int index)
+    {
+        OrganizationId = organizationId;
+        RequestId = requestId;
+        Ticket = ticket;
+        Index = index;
+    }
+
+    public OrganizationId? OrganizationId { get; }
+
+    public Guid RequestId { get; }
+
+    [PiiSensitive]
+    public string Ticket { get; }
+
+    public int Index { get; }
+
+    public override string ToString() => nameof(ReadRetainedDataExportChunkCommand);
+}
+
+/// <summary>Authorizes only disclosure of a stored receipt for the subject's own original retained-entry request.</summary>
+public sealed record ReadRetainedDataRequestReceiptQuery(Guid RequestId) : IRequest<Result<None>>, IIdempotencyReceiptRead;

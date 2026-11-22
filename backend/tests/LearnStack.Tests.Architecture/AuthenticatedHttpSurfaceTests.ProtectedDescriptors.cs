@@ -40,10 +40,12 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new(27, "CancelDataRequest", 8, "DataSubjectRequest", "ExpectedVersion"),
         new(28, "RevokeOwnDataExport", 8, "DataSubjectRequest", "ExpectedArtifactVersion"),
         new(29, "RevokeDataExport", 8, "DataSubjectRequest", "ExpectedArtifactVersion"),
+        new(30, "CreateRetainedDataExport", 8, "DataSubjectRequest", null),
+        new(31, "CancelRetainedDataRequest", 8, "DataSubjectRequest", "ExpectedVersion"),
     ];
 
-    /// <summary>The keyed creations: the three 201 creations and ADR-0106 § 10's two 202 data-request creations.</summary>
-    private static bool Creates(int operation) => operation is 7 or 11 or 15 or 24 or 25;
+    /// <summary>The keyed creations: the three 201 creations and ADR-0106 § 10's three 202 data-request creations.</summary>
+    private static bool Creates(int operation) => operation is 7 or 11 or 15 or 24 or 25 or 30;
 
     private static readonly Lazy<string[]> ProtectedSourceBaseline = new(() => ProtectedSourceOffenders(
         File.ReadAllText(Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api/Idempotency/ProtectedAdministrationOperation.cs")),
@@ -159,8 +161,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 21 => "Membership(awaitsender.Send(command,cancellationToken),null)",
                 22 => "Consent(awaitsender.Send(command,cancellationToken),true)",
                 23 => "Consent(awaitsender.Send(command,cancellationToken),false)",
-                24 or 25 => "DataRequest(awaitsender.Send(command,cancellationToken),null)",
-                26 or 27 => "DataRequest(awaitsender.Send(command,cancellationToken),command.RequestId)",
+                24 or 25 or 30 => "DataRequest(awaitsender.Send(command,cancellationToken),null)",
+                26 or 27 or 31 => "DataRequest(awaitsender.Send(command,cancellationToken),command.RequestId)",
                 28 or 29 => "Artifact(awaitsender.Send(command,cancellationToken),command.RequestId)",
                 _ => throw new InvalidOperationException("Unknown expected protected operation")
             };

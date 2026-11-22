@@ -98,4 +98,6 @@ export const ADMINISTRATION_GET_CONTRACTS = Object.freeze({
   '/api/v1/identity/me/data-requests/{id}': 'GetOwnDataRequest',
   '/api/v1/identity/data-requests': 'ListDataRequests',
   '/api/v1/identity/data-requests/{id}': 'GetDataRequest',
+  '/api/v1/identity/data-request-entry/scopes': 'ListRetainedDataRequestScopes',
+  '/api/v1/identity/data-request-entry/requests': 'ListRetainedDataRequests',
 } as const);

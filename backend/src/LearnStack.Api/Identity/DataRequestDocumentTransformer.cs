@@ -50,8 +50,162 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 || path.Operations?.TryGetValue(contract.Method, out var operation) != true || operation is null) continue;
             Describe(document, path, operation, contract);
         }
+        foreach (var contract in RetainedContracts)
+        {
+            if (!document.Paths.TryGetValue("/api/v1/" + contract.Path, out var path)
+                || path.Operations?.TryGetValue(contract.Method, out var operation) != true || operation is null) continue;
+            DescribeRetained(document, path, operation, contract);
+        }
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// ADR-0106 § 9: the retained own-scope native entry. Selector-free (no tenant or organization header), reached only
+    /// with the native session source credential, every purpose but discovery naming its one group in <c>group</c>.
+    /// </summary>
+    private static readonly Contract[] RetainedContracts =
+    [
+        new("identity/data-request-entry/scopes", HttpMethod.Get, "ListRetainedDataRequestScopes", Shape.Page, "RetainedDataRequestScopePageResponse", null, true),
+        new("identity/data-request-entry/requests", HttpMethod.Get, "ListRetainedDataRequests", Shape.Page, "OwnDataRequestPage", null, true),
+        new("identity/data-request-entry/exports", HttpMethod.Post, "CreateRetainedDataExport", Shape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput", true),
+        new("identity/data-request-entry/cancellations", HttpMethod.Post, "CancelRetainedDataRequest", Shape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput", true),
+        new("identity/data-request-entry/tickets", HttpMethod.Post, "MintRetainedDataExportTicket", Shape.Ticket, "DataExportTicketResponse", "RetainedDataRequestTargetInput", true),
+        new("identity/data-request-entry/chunks", HttpMethod.Post, "ReadRetainedDataExportChunk", Shape.Chunk, "DataExportChunkResponse", "RetainedDataExportChunkInput", true),
+    ];
+
+    private static void DescribeRetained(OpenApiDocument document, IOpenApiPathItem path, OpenApiOperation operation, Contract contract)
+    {
+        operation.OperationId = contract.Name;
+        operation.Security = [new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference(TenantAuthenticationRegistration.Scheme, document)] = [],
+            [new OpenApiSecuritySchemeReference(NativeEntryDocumentTransformer.SourceScheme, document)] = [],
+        }];
+        operation.Description = RetainedDescription(contract);
+        operation.Parameters = [];
+        var discovery = contract.Name == "ListRetainedDataRequestScopes";
+        if (!discovery) operation.Parameters.Add(new OpenApiParameter
+        {
+            Name = "group",
+            In = ParameterLocation.Query,
+            Required = true,
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                MinLength = 6,
+                MaxLength = 36,
+                Pattern = "^(tenant|[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$",
+            },
+            Description = "The one retained group the operation acts in: tenant for the real host's tenant-wide group, or the organization's canonical UUIDv7. On an organization host only that organization. A group the subject does not retain is not_found.",
+        });
+        if (contract.Shape == Shape.Page)
+        {
+            operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "cursor",
+                In = ParameterLocation.Query,
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = discovery ? 36 : 1024 },
+                Description = discovery
+                    ? "The previous page's nextCursor: the last group's key (tenant or an organization UUIDv7)."
+                    : "Opaque canonical current-actor/group/operation-bound cursor. Unknown, repeated, blank and oversized values refuse.",
+            });
+            operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "limit",
+                In = ParameterLocation.Query,
+                Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "20", Default = JsonValue.Create(20) },
+                Description = "Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse.",
+            });
+        }
+        if (contract.Body is not null)
+        {
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Required = true,
+                Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = new() { Schema = Ref(document, contract.Body) } },
+            };
+            if (contract.Shape is Shape.Create or Shape.Mutation) operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = IdempotentAttribute.HeaderName,
+                In = ParameterLocation.Header,
+                Required = true,
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 8, MaxLength = 128, Pattern = "^[!-~]{8,128}$" },
+                Description = "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            });
+            if (contract.Shape == Shape.Mutation) operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "If-Match",
+                In = ParameterLocation.Header,
+                Required = true,
+                Schema = EntityTag(),
+                Description = "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.",
+            });
+        }
+        else operation.RequestBody = null;
+
+        operation.Responses ??= [];
+        var status = contract.Shape == Shape.Create ? "202" : "200";
+        foreach (var other in SuccessStatuses.Where(code => code != status)) operation.Responses.Remove(other);
+        operation.Responses[status] = new OpenApiResponse
+        {
+            Description = contract.Shape switch
+            {
+                Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the group's requests for its status.",
+                Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
+                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext.",
+                Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
+                _ => discovery ? "The subject's retained groups on the real host, in order." : "Current receipt-safe projection: status and counts, never content.",
+            },
+            Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = new() { Schema = Ref(document, contract.Response) } },
+        };
+        var methods = string.Join(", ", path.Operations!.Keys.Select(method => method.Method).Order(StringComparer.Ordinal));
+        PublicReadDocumentTransformer.DocumentResponses(document, operation, contract.Method,
+        [
+            ("400", "validation_failed for malformed or noncanonical input, a missing or extra group, extra or repeated query, an unexpected body, a tenant or organization selector header, an invalid key or precondition, or a key or precondition on an operation that takes none."),
+            ("401", "unauthorized for present invalid, expired or undecidable credentials, a missing or invalid native session source, or a binding that is not Active; bare Bearer challenge."),
+            ("403", "forbidden when the request carries no retained-entry credential a ticket can bind, or its witness closed."),
+            ("404", "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike."),
+            ("405", "method_not_allowed after earlier host, credential and scope gates."),
+            ("413", "payload_too_large; request bodies are at most 4 KiB."),
+            ("429", "rate_limited by the existing visitor/subject admission."),
+            ("500", "internal_error without provider, query, identity, ticket or submitted-value diagnostics."),
+            ("503", "dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row."),
+        ], methods);
+        if (contract.Body is not null && contract.Shape != Shape.Chunk) operation.Responses["409"] = new OpenApiResponse
+        {
+            Description = contract.Shape switch
+            {
+                Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Ticket => "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact.",
+                _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            },
+            Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Enum("no-store") } },
+            Content = new Dictionary<string, OpenApiMediaType> { ["application/problem+json"] = new() { Schema = Ref(document, "ProblemDetails") } },
+        };
+        if (operation.Responses["503"] is OpenApiResponse unavailable) unavailable.Headers?.Remove("Retry-After");
+        if (operation.Responses[status] is not OpenApiResponse success) return;
+        success.Headers ??= new Dictionary<string, IOpenApiHeader>();
+        if (contract.Shape is Shape.Create or Shape.Mutation)
+        {
+            success.Headers["ETag"] = new OpenApiHeader { Required = true, Schema = EntityTag(), Description = "The request's version." };
+            success.Headers[IdempotentAttribute.ReplayedHeaderName] = new OpenApiHeader
+            {
+                Required = false,
+                Schema = Enum("true"),
+                Description = "Present only after fresh original-request disclosure on a replay.",
+            };
+        }
+    }
+
+    private static string RetainedDescription(Contract contract) => contract.Name switch
+    {
+        "ListRetainedDataRequestScopes" => "The retained own scope of ADR-0106 § 9: the groups on the real host where the verified subject holds or held a Membership of any status or has a data request. On an organization host only that organization's group. No Active Membership, no ordinary native session and no tenant or organization selector. Audit Off. No request body.",
+        "ListRetainedDataRequests" => "The subject's own requests in one retained group, newest first, for a Suspended person, a person whose Membership was revoked or a group where only a request survives. A request whose job died is shown failed. Audit Off. No request body.",
+        "CreateRetainedDataExport" => "The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9). Refused when the subject holds no Membership of any status there. Strict empty JSON object. MUST audited.",
+        "CancelRetainedDataRequest" => "The subject cancels their own requested export in one retained group (requested to cancelled). Strict JSON object with requestId only. MUST audited.",
+        "MintRetainedDataExportTicket" => "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
+        _ => "Reads one decrypted chunk through a ticket presented in the body, never the URL, with the retained-entry credential that minted it. Serving the final chunk consumes the ticket. Every refusal is the same not_found. Not keyed. MUST read-sensitive audited per read; refused when the row cannot be written.",
+    };
 
     private static void Describe(OpenApiDocument document, IOpenApiPathItem path, OpenApiOperation operation, Contract contract)
     {
@@ -236,10 +390,16 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("membershipIds", Array(Uuid(), DataRequestLimits.MaximumSnapshotMemberships))]);
         schemas["DataRequestPage"] = Object(("items", Array(Ref(document, "DataRequestResponse"), 100)), ("pageInfo", Ref(document, "PageInfo")));
         schemas["DataExportForSubjectInput"] = Object(("membershipId", Uuid()));
+        schemas["RetainedDataRequestScopeResponse"] = Object(("tenantId", Uuid()), ("organizationId", Nullable(Uuid())));
+        schemas["RetainedDataRequestScopePageResponse"] = Object(("items", Array(Ref(document, "RetainedDataRequestScopeResponse"), 20)),
+            ("pageInfo", Ref(document, "PageInfo")));
+        schemas["RetainedDataRequestTargetInput"] = Object(("requestId", Uuid()));
         schemas["DataExportTicketResponse"] = Object(("ticket", Ticket()), ("expiresAt", DateTime()),
             ("chunkCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = DataRequestLimits.MaximumChunkCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }),
             ("byteCount", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int64", Minimum = "1", Maximum = DataRequestLimits.MaximumBundleBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) }));
         schemas["DataExportChunkInput"] = Object(("ticket", Ticket()),
+            ("index", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "0", Maximum = (DataRequestLimits.MaximumChunkCount - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) }));
+        schemas["RetainedDataExportChunkInput"] = Object(("requestId", Uuid()), ("ticket", Ticket()),
             ("index", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "0", Maximum = (DataRequestLimits.MaximumChunkCount - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) }));
         schemas["DataExportChunkResponse"] = Object(
             ("index", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "0" }),

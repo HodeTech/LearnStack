@@ -94,7 +94,7 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         }
         else if (found.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected
             or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry or OperationPolicyKind.OwnConsentEntry or OperationPolicyKind.OwnFieldConsentGrant
-            or OperationPolicyKind.OwnDataRequest)
+            or OperationPolicyKind.OwnDataRequest or OperationPolicyKind.OwnDataRequestEntry)
         {
             if (anonymous.Count != 0 || authorization.Count != 1
                 || authorization[0].AuthenticationSchemes != TenantAuthenticationRegistration.Scheme
@@ -223,6 +223,12 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Get)) => (typeof(GetDataRequestQuery), "GetDataRequest", "GET"),
         var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Cancel)) => (typeof(CancelDataRequestCommand), "CancelDataRequest", "POST"),
         var pair when pair == (typeof(DataRequestsController), nameof(DataRequestsController.Revoke)) => (typeof(RevokeDataExportCommand), "RevokeDataExport", "POST"),
+        var pair when pair == (typeof(DataRequestEntryController), nameof(DataRequestEntryController.Scopes)) => (typeof(ListRetainedDataRequestScopesQuery), "ListRetainedDataRequestScopes", "GET"),
+        var pair when pair == (typeof(DataRequestEntryController), nameof(DataRequestEntryController.Requests)) => (typeof(ListRetainedDataRequestsQuery), "ListRetainedDataRequests", "GET"),
+        var pair when pair == (typeof(DataRequestEntryController), nameof(DataRequestEntryController.CreateExport)) => (typeof(CreateRetainedDataExportCommand), "CreateRetainedDataExport", "POST"),
+        var pair when pair == (typeof(DataRequestEntryController), nameof(DataRequestEntryController.Cancel)) => (typeof(CancelRetainedDataRequestCommand), "CancelRetainedDataRequest", "POST"),
+        var pair when pair == (typeof(DataRequestEntryController), nameof(DataRequestEntryController.MintTicket)) => (typeof(MintRetainedDataExportTicketCommand), "MintRetainedDataExportTicket", "POST"),
+        var pair when pair == (typeof(DataRequestEntryController), nameof(DataRequestEntryController.ReadChunk)) => (typeof(ReadRetainedDataExportChunkCommand), "ReadRetainedDataExportChunk", "POST"),
         var pair when pair == (typeof(FederationController), nameof(FederationController.Get)) => (typeof(GetFederationConnectionQuery), "GetFederationConnection", "GET"),
         var pair when pair == (typeof(FederationController), nameof(FederationController.Configure)) => (typeof(BeginConfigureFederationCommand), "ConfigureFederation", "PUT"),
         var pair when pair == (typeof(FederationController), nameof(FederationController.RotateSecret)) => (typeof(BeginRotateFederationSecretCommand), "RotateFederationSecret", "POST"),

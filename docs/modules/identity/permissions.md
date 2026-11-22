@@ -199,6 +199,27 @@ announced group, and a request of another group, person or tenant is absent (`no
 | `ListDataRequestsQuery`, `GetDataRequestQuery`, `ReadDataRequestReceiptQuery` | Same | The group's exports and erasures, status and counts only, never a closure; MUST sensitive read |
 | `CancelDataRequestCommand`, `RevokeDataExportCommand` | Same, and the actor filed the request | Another administrator reads the request but cannot cancel it or revoke its artifact |
 
+**Retained own-scope entry ([ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md) § 4, § 9).**
+Six further key-less operations use the `OwnDataRequestEntry` kind, plus the receipt read of its two keyed
+ones. No Membership admits them: each is admitted only by a live `OwnDataRequestScopeWitness` that the one
+HTTP source, `OwnDataRequestSubjectSource`, minted for its exact invocation after
+`fn_identity_own_data_request_scopes` proved the group for the verified subject on the real host, under the
+`HostAndOwnDataRequestScope` origin, which reaches no other kind. So a Suspended person, a person whose
+Membership is Revoked and a group where only a request survives are served, and a Closing, Closed or
+unknown binding, the system actor and a person with no retained group are not. The selector-free native
+session source is required; a tenant or organization selector header is refused. On an organization host
+the group is that organization's or none. No operation of any other kind is reachable under this origin,
+and no retained operation under any other.
+
+| Application consumer | Capability / exact authority | Boundary |
+|---|---|---|
+| `ListRetainedDataRequestScopesQuery` | `OwnDataRequestEntry` (List) | The subject's retained groups on the real host, at most twenty per page; physically read-only; Off |
+| `ListRetainedDataRequestsQuery` | `OwnDataRequestEntry` (Read) | Only requests about the actor, in the one selected group; physically read-only; Off |
+| `CreateRetainedDataExportCommand` | `OwnDataRequestEntry` (Create) | As `CreateOwnDataExportCommand`, in the selected group; a Revoked tombstone counts as a Membership; keyed, 202 without `Location` |
+| `CancelRetainedDataRequestCommand` | `OwnDataRequestEntry` (Cancel) | As `CancelOwnDataRequestCommand`, in the selected group, with `If-Match`; keyed |
+| `MintRetainedDataExportTicketCommand`, `ReadRetainedDataExportChunkCommand` | `OwnDataRequestEntry` (Ticket, Chunk) and the retained session binding | Subject only; the ticket binds the retained-entry credential under its own domain and is never honoured on the live path, nor a live ticket here |
+| `ReadRetainedDataRequestReceiptQuery` | `OwnDataRequestEntry` (the keyed purpose's witness) | Disclosure of the original request a keyed replay names; Off |
+
 ## Proof ownership
 
 P03-1 Step 4 proves actual command metadata, the nonempty five-pair registry,

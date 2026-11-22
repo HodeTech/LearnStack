@@ -23,6 +23,9 @@ internal static class AdministrationHttpSurface
             ("identity", "invitations" or "invitable-roles", 5) => true,
             ("identity", "invitations", 6) => true,
             ("identity", "invitation-entry", 6) => parts[5].ToLowerInvariant() is "inspections" or "acceptances" or "results",
+            // ADR-0106 § 9: the retained own-scope native entry of the subject's data requests.
+            ("identity", "data-request-entry", 6) => parts[5].ToLowerInvariant() is "scopes" or "requests" or "exports"
+                or "cancellations" or "tickets" or "chunks",
             ("identity", "invitations", 7) => parts[6].ToLowerInvariant() is "revocations" or "reissues",
             ("tenancy", "settings", 6) => parts[5].Equals("invitation-policy", StringComparison.OrdinalIgnoreCase),
             ("identity", "organization-memberships" or "permissions" or "roles", 5) => true,

@@ -51,6 +51,11 @@ internal sealed class ProtectedReceiptReplayDispatcher(ISender sender, HttpConte
                 or ProtectedAdministrationOperation.RevokeOwnDataExport => sender.Send(new ReadOwnDataRequestReceiptQuery(target.Id), cancellationToken),
             ProtectedAdministrationOperation.CreateDataExportForSubject or ProtectedAdministrationOperation.CancelDataRequest
                 or ProtectedAdministrationOperation.RevokeDataExport => sender.Send(new ReadDataRequestReceiptQuery(target.Id), cancellationToken),
+            ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CancelRetainedDataRequest
+                when http?.Features.Get<OwnDataRequestSubjectSource>()?.Request is ReadRetainedDataRequestReceiptQuery retained
+                && retained.RequestId == target.Id => sender.Send(retained, cancellationToken),
+            ProtectedAdministrationOperation.CreateRetainedDataExport or ProtectedAdministrationOperation.CancelRetainedDataRequest =>
+                Task.FromResult(Result<None>.Fail(new Error(LocalizedMessage.Of("lockey_forbidden")))),
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor)),
         };
     }

@@ -6683,7 +6683,10 @@ READ ONLY, `create`, `cancel`, `ticket` and `chunk` ordinary READ WRITE. It anno
 exactly the witness's group through the one witness-aware core, never joins or
 retargets an owner, and supplies no Membership, ordinary native session or tenant-wide
 `app.scope`. Its context origin, `HostAndOwnDataRequestScope`, reaches only operations
-of the `OwnDataRequestEntry` policy kind.
+of the `OwnDataRequestEntry` policy kind. Its one minter is the native retained-entry source,
+`OwnDataRequestSubjectSource`, which is also the function's one observer through the
+confined lookup and runs before the context exists; the entry itself is owned by
+[Security § Retained consent-subject admission](11-security.md#retained-consent-subject-admission).
 
 ### Proof
 

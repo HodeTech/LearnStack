@@ -111,6 +111,21 @@ as the other own reads are.
 | DataSubjectRequest | `identity.data_request.read` | **MUST** (`read-sensitive`) | `GetDataRequestQuery`: an administrator's read of another person's request (ADR-0106 § 13), status and counts only. |
 | Original DataSubjectRequest outcome | `identity.data_request.read_receipt` | **MUST** (`read-sensitive`) | `ReadDataRequestReceiptQuery`: fresh disclosure admission of the original request before an administrator's keyed replay; never reruns the mutation. |
 
+### Retained own-scope entry
+
+The retained own-scope native entry of [ADR-0106](../../decisions/0106-subject-data-requests-authority-and-status.md)
+§ 9 writes exactly the live path's rows under the same names: its creation, cancellation, ticket mint and
+chunk read register the operations above (`CreateRetainedDataExportCommand` →
+`identity.data_request.create_export`, `CancelRetainedDataRequestCommand` → `identity.data_request.cancel`,
+`MintRetainedDataExportTicketCommand` → `identity.data_export.mint_ticket`,
+`ReadRetainedDataExportChunkCommand` → `identity.data_export.read_chunk`), each MUST with the same class,
+on the transaction of the group the witness proved. Its group discovery, its group's request list and its
+replay-receipt read (`ListRetainedDataRequestScopesQuery`, `ListRetainedDataRequestsQuery`,
+`ReadRetainedDataRequestReceiptQuery`) are explicit Off registrations, as the subject's own live reads are.
+The transport provenance of each row is the retained entry's own: `HttpAuthorizationTransportSource`
+captures it only while the request's `OwnDataRequestSubjectSource` is current for the invocation's actor
+and group.
+
 `AcceptInvitationCommandHandler` is the only added two-root exception: central
 plural MUST intents for Invitation and the actual Membership share one ordinary
 unit of work. No User/provider transaction joins it. A missing required row or

@@ -1,3 +1,4 @@
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.Modules.Identity.Application.Contracts.CustomFields;
 using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
@@ -36,7 +37,7 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(154, actual.Length);
+        Assert.Equal(161, actual.Length);
         Assert.Equal(5, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
         Assert.Equal(67, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
@@ -49,6 +50,19 @@ public sealed class OperationPolicyCatalogTests
             Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
         });
         Assert.Equal(8, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.OwnDataRequest));
+        // ADR-0106 § 9: the retained own-scope entry's six operations and its keyed receipt read, key-less and grant-less too.
+        var retained = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequestEntry).ToArray();
+        Assert.Equal(new[] { typeof(ListRetainedDataRequestScopesQuery), typeof(ListRetainedDataRequestsQuery), typeof(CreateRetainedDataExportCommand),
+                typeof(CancelRetainedDataRequestCommand), typeof(MintRetainedDataExportTicketCommand), typeof(ReadRetainedDataExportChunkCommand),
+                typeof(ReadRetainedDataRequestReceiptQuery) }.OrderBy(type => type.FullName, StringComparer.Ordinal),
+            retained.Select(policy => policy.RequestType));
+        Assert.All(retained, policy =>
+        {
+            Assert.StartsWith("identity.data_request.", policy.Id, StringComparison.Ordinal);
+            Assert.Null(policy.RequiredPermission);
+            Assert.Empty(policy.Alternatives);
+            Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
+        });
         var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
         Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery), typeof(ReadOwnGrantedFieldConsentReceiptQuery),
             typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetOwnMembershipCustomFieldsQuery), typeof(GetOwnMembershipFieldConsentQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }

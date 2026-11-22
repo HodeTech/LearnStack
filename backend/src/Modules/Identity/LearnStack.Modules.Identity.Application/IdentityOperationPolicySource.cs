@@ -59,6 +59,15 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     public const string DataRequestCancelOperation = "identity.data_request.cancel";
     public const string DataExportRevokeOperation = "identity.data_request.revoke_export";
     public const string DataRequestReceiptOperation = "identity.data_request.read_receipt";
+    // ADR-0106 § 9: the retained own-scope native entry (OwnDataRequestEntry). The same prefix and no key; each is
+    // admitted only by the subject's own retained-scope witness, never by a Membership in the announced context.
+    public const string RetainedDataRequestScopesOperation = "identity.data_request.list_retained_scopes";
+    public const string RetainedDataRequestListOperation = "identity.data_request.list_retained";
+    public const string RetainedDataExportCreateOperation = "identity.data_request.create_retained_export";
+    public const string RetainedDataRequestCancelOperation = "identity.data_request.cancel_retained";
+    public const string RetainedDataExportTicketOperation = "identity.data_request.mint_retained_export_ticket";
+    public const string RetainedDataExportChunkOperation = "identity.data_request.read_retained_export_chunk";
+    public const string RetainedDataRequestReceiptOperation = "identity.data_request.read_retained_receipt";
     public const string PublicSignInOperation = "identity.public_sign_in.read";
     /// <summary>Virtual Portal Public definition for the anonymous sign-in read; never a stored Role grant.</summary>
     public static PermissionDefinition PublicSignIn { get; } = new(PermissionScope.Tenant, "identity.public_sign_in.read");
@@ -91,6 +100,13 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForOwnDataRequest<MintOwnDataExportTicketCommand>(OwnDataExportTicketOperation),
         OperationPolicy.ForOwnDataRequest<ReadOwnDataExportChunkCommand>(OwnDataExportChunkOperation),
         OperationPolicy.ForOwnDataRequest<ReadOwnDataRequestReceiptQuery>(OwnDataRequestReceiptOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ListRetainedDataRequestScopesQuery>(RetainedDataRequestScopesOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ListRetainedDataRequestsQuery>(RetainedDataRequestListOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CreateRetainedDataExportCommand>(RetainedDataExportCreateOperation),
+        OperationPolicy.ForOwnDataRequestEntry<CancelRetainedDataRequestCommand>(RetainedDataRequestCancelOperation),
+        OperationPolicy.ForOwnDataRequestEntry<MintRetainedDataExportTicketCommand>(RetainedDataExportTicketOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ReadRetainedDataExportChunkCommand>(RetainedDataExportChunkOperation),
+        OperationPolicy.ForOwnDataRequestEntry<ReadRetainedDataRequestReceiptQuery>(RetainedDataRequestReceiptOperation),
         OperationPolicy.ForProtected<CreateDataExportForSubjectCommand>(DataExportCreateOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ListDataRequestsQuery>(DataRequestListOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<GetDataRequestQuery>(DataRequestReadOperation, [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),

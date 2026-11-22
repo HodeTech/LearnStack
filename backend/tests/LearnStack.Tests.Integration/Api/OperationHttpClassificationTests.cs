@@ -133,6 +133,13 @@ public sealed class OperationHttpClassificationTests
         new(typeof(DataRequestsController), "Get", "GetDataRequest", "GET", "identity/data-requests/{id}", typeof(GetDataRequestQuery), "identity.data_request.read"),
         new(typeof(DataRequestsController), "Cancel", "CancelDataRequest", "POST", "identity/data-requests/{id}/cancellations", typeof(CancelDataRequestCommand), "identity.data_request.cancel", Protected: ProtectedAdministrationOperation.CancelDataRequest),
         new(typeof(DataRequestsController), "Revoke", "RevokeDataExport", "POST", "identity/data-requests/{id}/artifact/revocations", typeof(RevokeDataExportCommand), "identity.data_request.revoke_export", Protected: ProtectedAdministrationOperation.RevokeDataExport),
+        // ADR-0106 § 9: the retained own-scope native entry.
+        new(typeof(DataRequestEntryController), "Scopes", "ListRetainedDataRequestScopes", "GET", "identity/data-request-entry/scopes", typeof(ListRetainedDataRequestScopesQuery), "identity.data_request.list_retained_scopes"),
+        new(typeof(DataRequestEntryController), "Requests", "ListRetainedDataRequests", "GET", "identity/data-request-entry/requests", typeof(ListRetainedDataRequestsQuery), "identity.data_request.list_retained"),
+        new(typeof(DataRequestEntryController), "CreateExport", "CreateRetainedDataExport", "POST", "identity/data-request-entry/exports", typeof(CreateRetainedDataExportCommand), "identity.data_request.create_retained_export", Protected: ProtectedAdministrationOperation.CreateRetainedDataExport),
+        new(typeof(DataRequestEntryController), "Cancel", "CancelRetainedDataRequest", "POST", "identity/data-request-entry/cancellations", typeof(CancelRetainedDataRequestCommand), "identity.data_request.cancel_retained", Protected: ProtectedAdministrationOperation.CancelRetainedDataRequest),
+        new(typeof(DataRequestEntryController), "MintTicket", "MintRetainedDataExportTicket", "POST", "identity/data-request-entry/tickets", typeof(MintRetainedDataExportTicketCommand), "identity.data_request.mint_retained_export_ticket"),
+        new(typeof(DataRequestEntryController), "ReadChunk", "ReadRetainedDataExportChunk", "POST", "identity/data-request-entry/chunks", typeof(ReadRetainedDataExportChunkCommand), "identity.data_request.read_retained_export_chunk"),
     ];
 
     [Fact]
@@ -174,10 +181,10 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(84, ExpectedActions.Length);
-        Assert.Equal(29, ExpectedActions.Count(expected => expected.Protected is not null));
+        Assert.Equal(90, ExpectedActions.Length);
+        Assert.Equal(31, ExpectedActions.Count(expected => expected.Protected is not null));
         var actualActions = endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        Assert.Equal(84, actualActions.Length);
+        Assert.Equal(90, actualActions.Length);
         Assert.Equal(ExpectedActions.Select(expected => expected.Name).Order(StringComparer.Ordinal), actualActions
             .Select(endpoint => endpoint.Metadata.GetRequiredMetadata<IEndpointNameMetadata>().EndpointName).Order(StringComparer.Ordinal));
         foreach (var endpoint in endpoints)
@@ -314,7 +321,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var classifier = new OperationHttpClassifier(Catalog());
         var protectedActions = ExpectedActions.Where(expected => expected.Protected is not null).ToArray();
-        Assert.Equal(29, protectedActions.Length);
+        Assert.Equal(31, protectedActions.Length);
         foreach (var expected in protectedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);
@@ -343,7 +350,7 @@ public sealed class OperationHttpClassificationTests
             Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
         var unkeyedActions = ExpectedActions.Where(expected => expected.Protected is null).ToArray();
-        Assert.Equal(55, unkeyedActions.Length);
+        Assert.Equal(59, unkeyedActions.Length);
         foreach (var expected in unkeyedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);

@@ -30,6 +30,95 @@ public sealed partial class OpenApiContractTests
         new("/api/v1/identity/data-requests/{id}/artifact/revocations", "post", "RevokeDataExport", DataRequestShape.Mutation, "AdministrationVersionReceipt", "EmptyAdministrationInput"),
     ];
 
+    // ADR-0106 § 9: the retained own-scope native entry. Both credentials on one requirement, a required group on every
+    // purpose but discovery, a key only on creation and cancellation, If-Match only on cancellation, and no Location.
+    private static readonly DataRequestOperation[] RetainedDataRequestOperations =
+    [
+        new("/api/v1/identity/data-request-entry/scopes", "get", "ListRetainedDataRequestScopes", DataRequestShape.Read, "RetainedDataRequestScopePageResponse", null),
+        new("/api/v1/identity/data-request-entry/requests", "get", "ListRetainedDataRequests", DataRequestShape.Read, "OwnDataRequestPage", null),
+        new("/api/v1/identity/data-request-entry/exports", "post", "CreateRetainedDataExport", DataRequestShape.Create, "DataRequestAcceptedResponse", "EmptyAdministrationInput"),
+        new("/api/v1/identity/data-request-entry/cancellations", "post", "CancelRetainedDataRequest", DataRequestShape.Mutation, "AdministrationVersionReceipt", "RetainedDataRequestTargetInput"),
+        new("/api/v1/identity/data-request-entry/tickets", "post", "MintRetainedDataExportTicket", DataRequestShape.Ticket, "DataExportTicketResponse", "RetainedDataRequestTargetInput"),
+        new("/api/v1/identity/data-request-entry/chunks", "post", "ReadRetainedDataExportChunk", DataRequestShape.Ticket, "DataExportChunkResponse", "RetainedDataExportChunkInput"),
+    ];
+
+    private static readonly string[] RetainedDataRequestSchemaNames =
+        ["RetainedDataRequestScopeResponse", "RetainedDataRequestScopePageResponse", "RetainedDataRequestTargetInput", "RetainedDataExportChunkInput"];
+
+    private static List<string> RetainedDataRequestContractErrors(JsonNode document)
+    {
+        var errors = new List<string>();
+        foreach (var contract in RetainedDataRequestOperations)
+        {
+            if (document["paths"]?[contract.Path] is not JsonObject item || item.Count != 1
+                || item[contract.Method] is not JsonObject operation) { errors.Add("retained-data-request-operations"); continue; }
+            if (operation["operationId"]?.GetValue<string>() != contract.Id) errors.Add("retained-data-request-operations");
+            if (operation["security"] is not JsonArray { Count: 1 } security || security[0] is not JsonObject { Count: 2 } requirement
+                || requirement["TenantBearer"] is not JsonArray { Count: 0 } || requirement["NativeSessionSource"] is not JsonArray { Count: 0 })
+                errors.Add("retained-data-request-security:" + contract.Id);
+            var parameters = (operation["parameters"]?.AsArray() ?? []).Select(parameter => parameter!["name"]!.GetValue<string>()).ToArray();
+            var expected = new List<string>();
+            var discovery = contract.Id == "ListRetainedDataRequestScopes";
+            if (!discovery) expected.Add("group");
+            if (contract.Shape == DataRequestShape.Read) expected.AddRange(["cursor", "limit"]);
+            if (contract.Shape is DataRequestShape.Create or DataRequestShape.Mutation) expected.Add("Idempotency-Key");
+            if (contract.Shape == DataRequestShape.Mutation) expected.Add("If-Match");
+            if (!parameters.Order(StringComparer.Ordinal).SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+                errors.Add("retained-data-request-parameters:" + contract.Id);
+            if (parameters.Any(name => name.Contains("ticket", StringComparison.OrdinalIgnoreCase) || name.StartsWith("X-LearnStack", StringComparison.Ordinal)))
+                errors.Add("retained-data-request-parameter-leak:" + contract.Id);
+            if ((contract.Body is null) != (operation["requestBody"] is null)
+                || contract.Body is not null && operation["requestBody"]?["content"]?["application/json"]?["schema"]?["$ref"]?.GetValue<string>()
+                    != "#/components/schemas/" + contract.Body) errors.Add("retained-data-request-body:" + contract.Id);
+            var status = contract.Shape == DataRequestShape.Create ? "202" : "200";
+            var responses = operation["responses"]!.AsObject();
+            if (responses[status]?["content"]?["application/json"]?["schema"]?["$ref"]?.GetValue<string>() != "#/components/schemas/" + contract.Response
+                || responses.Any(response => response.Key is "200" or "201" or "202" && response.Key != status))
+                errors.Add("retained-data-request-success:" + contract.Id);
+            foreach (var (_, response) in responses)
+                if (response?["headers"]?["Cache-Control"]?["schema"]?["enum"]?[0]?.GetValue<string>() != "no-store")
+                    errors.Add("retained-data-request-no-store:" + contract.Id);
+            if ((contract.Shape is DataRequestShape.Create or DataRequestShape.Mutation) != (responses[status]?["headers"]?["ETag"] is not null))
+                errors.Add("retained-data-request-etag:" + contract.Id);
+            if (responses[status]?["headers"]?["Location"] is not null) errors.Add("retained-data-request-location:" + contract.Id);
+        }
+        foreach (var name in RetainedDataRequestSchemaNames)
+            if (document["components"]?["schemas"]?[name] is not JsonObject schema || schema["additionalProperties"]?.GetValue<bool>() != false)
+                errors.Add("retained-data-request-schema:" + name);
+        return errors;
+    }
+
+    [Fact]
+    public async Task Retained_data_request_census_refuses_a_lost_native_credential_group_or_precondition_and_a_location()
+    {
+        var clean = await Served();
+        RetainedDataRequestContractErrors(clean).Should().BeEmpty();
+
+        var bearerOnly = clean.DeepClone();
+        bearerOnly["paths"]!["/api/v1/identity/data-request-entry/requests"]!["get"]!["security"]![0]!.AsObject().Remove("NativeSessionSource");
+        RetainedDataRequestContractErrors(bearerOnly).Should().Contain("retained-data-request-security:ListRetainedDataRequests");
+
+        var groupless = clean.DeepClone();
+        var tickets = groupless["paths"]!["/api/v1/identity/data-request-entry/tickets"]!["post"]!["parameters"]!.AsArray();
+        tickets.Remove(tickets.Single(parameter => parameter!["name"]!.GetValue<string>() == "group"));
+        RetainedDataRequestContractErrors(groupless).Should().Contain("retained-data-request-parameters:MintRetainedDataExportTicket");
+
+        var selector = clean.DeepClone();
+        selector["paths"]!["/api/v1/identity/data-request-entry/chunks"]!["post"]!["parameters"]!.AsArray()
+            .Add(new JsonObject { ["name"] = "X-LearnStack-Native-Tenant-Id", ["in"] = "header" });
+        RetainedDataRequestContractErrors(selector).Should().Contain("retained-data-request-parameter-leak:ReadRetainedDataExportChunk");
+
+        var unconditional = clean.DeepClone();
+        var cancel = unconditional["paths"]!["/api/v1/identity/data-request-entry/cancellations"]!["post"]!["parameters"]!.AsArray();
+        cancel.Remove(cancel.Single(parameter => parameter!["name"]!.GetValue<string>() == "If-Match"));
+        RetainedDataRequestContractErrors(unconditional).Should().Contain("retained-data-request-parameters:CancelRetainedDataRequest");
+
+        var located = clean.DeepClone();
+        located["paths"]!["/api/v1/identity/data-request-entry/exports"]!["post"]!["responses"]!["202"]!["headers"]!.AsObject()
+            .Add("Location", new JsonObject { ["required"] = true });
+        RetainedDataRequestContractErrors(located).Should().Contain("retained-data-request-location:CreateRetainedDataExport");
+    }
+
     private static readonly string[] DataRequestSchemaNames =
     [
         "DataRequestAcceptedResponse", "DataRequestRetainedResponse", "DataExportTruncationResponse", "DataExportArtifactResponse",

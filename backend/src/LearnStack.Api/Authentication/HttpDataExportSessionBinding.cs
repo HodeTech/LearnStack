@@ -21,15 +21,31 @@ namespace LearnStack.Api.Authentication;
 /// The raw credential never leaves this method; only its digest enters the binding, and the binding is itself only
 /// a digest on the ticket row, which the audit capture redacts.
 /// </para>
+/// <para>
+/// <b>The retained own-scope entry (ADR-0106 § 9) binds under its own domain.</b> There the binding is captured only
+/// while the request's <see cref="OwnDataRequestSubjectSource"/> is current on a ticket or chunk purpose for exactly
+/// this actor and group, from the digest of the exact <c>Authorization</c> header its credential capture recorded at
+/// validation. The separate domain means a ticket minted on one path is never honoured on the other, even for the
+/// same person, group and credential. As on the live path the native credential is the session: when the BFF's entry
+/// handle refreshes it the binding no longer matches, that download's cursor ends and the resumed download mints a
+/// new ticket.
+/// </para>
 /// </remarks>
 internal sealed class HttpDataExportSessionBinding(IHttpContextAccessor accessor) : IDataExportSessionBinding
 {
     private const string Domain = "learnstack.data_export.session.v1";
+    private const string RetainedDomain = "learnstack.data_export.retained_session.v1";
     private const string Prefix = "Bearer ";
 
     public string? Capture(UserId actor, TenantId tenant, OrganizationId? organization)
     {
         var http = accessor.HttpContext;
+        if (http is not null && (http.Features.Get<OwnDataRequestSubjectSource>() is not null
+            || http.Features.Get<NativeSessionSourceFeature>()?.DataRequestOperation is not null))
+        {
+            return CaptureRetained(http, actor, tenant, organization);
+        }
+
         if (http is null || http.RequestAborted.IsCancellationRequested
             || http.Features.Get<TenantCredentialFeature>() is not { VerifiedSubject: { } subject, Identity: { } identity }
             || identity.ActorUserId != actor || actor == UserId.SystemActor
@@ -47,6 +63,28 @@ internal sealed class HttpDataExportSessionBinding(IHttpContextAccessor accessor
         Append(digest, subject.Issuer);
         Append(digest, subject.Subject);
         Append(digest, Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(header[Prefix.Length..]))));
+        return Convert.ToHexStringLower(digest.GetHashAndReset());
+    }
+
+    private static string? CaptureRetained(HttpContext http, UserId actor, TenantId tenant, OrganizationId? organization)
+    {
+        if (http.RequestAborted.IsCancellationRequested || actor == UserId.SystemActor
+            || http.Features.Get<OwnDataRequestSubjectSource>() is not { } source
+            || source.DownloadCredential(http, actor, tenant, organization) is not { } credential
+            || http.Features.Get<TenantCredentialFeature>() is not { VerifiedSubject: { } subject, Identity: { } identity }
+            || identity.ActorUserId != actor || !ReferenceEquals(credential.Subject, subject))
+        {
+            return null;
+        }
+
+        using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(digest, RetainedDomain);
+        Append(digest, tenant.Value.ToString("D"));
+        Append(digest, organization?.Value.ToString("D") ?? string.Empty);
+        Append(digest, actor.Value.ToString("D"));
+        Append(digest, subject.Issuer);
+        Append(digest, subject.Subject);
+        Append(digest, credential.CredentialDigest);
         return Convert.ToHexStringLower(digest.GetHashAndReset());
     }
 
