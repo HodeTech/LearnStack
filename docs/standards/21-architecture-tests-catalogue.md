@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**407 test methods run in
+**417 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**300 rules in this catalogue are Implemented, and 181 of them are in that assembly.**
+**305 rules in this catalogue are Implemented, and 186 of them are in that assembly.**
 The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -7981,9 +7981,9 @@ sign-in read). The
   `NetworkStream`, `ClientWebSocket`, `WebRequest`, `HttpWebRequest`, `WebClient`,
   `IHttpClientFactory`, `AddHttpClient` or a `Dns.` call) or the MailKit SMTP client
   (`SmtpClient`, the `MailKit` namespace) is on a named allow-list, each entry with its
-  reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied URL; four
+  reason: `FederationEgressFetcher`, the only fetcher of a tenant-supplied URL; five
   clients of a fixed, composition-configured tenant-realm origin
-  (`KeycloakFederationProvider`, `KeycloakIdentityEventProvider`,
+  (`KeycloakFederationProvider`, `KeycloakAccountRemoval`, `KeycloakIdentityEventProvider`,
   `TenantAuthenticationBackchannel`, `CurrentInvitationRecipientBackchannel`); and
   `SmtpEmailProvider`, the operator-configured SMTP host for invitation mail. An entry
   whose file no longer holds a transport fails as stale. Instrumentation, exception and
@@ -8003,6 +8003,78 @@ sign-in read). The
   [FederationProviderTests.cs](../../backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FederationProviderTests.cs).
 - **Test owner:** [FederationAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/FederationAdapterConventionTests.cs).
 - **Phase:** 03 (P03-8 Step 3; widened to every production source in review round 1).
+
+#### `Account_Removal_Client_Is_Held_Only_By_The_Adapter`
+
+- **Asserts:** the literal client identifier `learnstack-account-removal` appears in
+  production source only in `KeycloakAccountRemovalRoutes`, and the secret key
+  `AccountRemoval:ClientSecret` only in `KeycloakAccountRemoval`; every other caller
+  reaches the adapter through `AccountRemovalAdapterFactory`, so no other code holds the
+  `manage-users` client or its credential. Comments are set aside; a planted holder in
+  the API, the Identity Application and the federation adapter's directory is refused
+  and a prose-only mention is not.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
+  ("one new realm client with `manage-users`, its secret in `ISecretProvider`").
+- **Type:** source scan with planted holders. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Adapter_Admits_Only_The_Token_And_User_Routes`
+
+- **Asserts:** `KeycloakAccountRemovalRoutes` builds exactly two routes, the token
+  endpoint and `users/{id}`; no string literal in the adapter namespace names another
+  Admin, user, client, role, group, session, credential or flow path (the one admitted
+  literal is the `roles` token claim the adapter narrows), and no file but the routes and
+  the options builds or extends a URI. Planted routes in the directory, a planted URI
+  builder and a clean control are checked. The unit tests
+  `KeycloakAccountRemovalTests` check the same set behaviourally against a scripted
+  provider.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure).
+- **Type:** reflection plus source scan, with planted routes. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs);
+  [KeycloakAccountRemovalTests.cs](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Identity/KeycloakAccountRemovalTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Adapter_Sends_Only_The_Token_Post_And_The_User_Delete`
+
+- **Asserts:** no file of the adapter namespace names an `HttpMethod` other than POST
+  and DELETE, constructs an `HttpMethod`, or calls a verb-named `HttpClient` helper, and
+  the adapter file names both admitted verbs. The client's role can also create and
+  update users, so a PUT, a GET or a POST to `users` is not a call this class may
+  contain.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure).
+- **Type:** source scan with planted verbs and a clean control. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Adapter_Does_Not_Read_DeploymentMode`
+
+- **Asserts:** no source in `LearnStack.Infrastructure.Identity.AccountRemoval` names
+  `DeploymentMode`, and no field or constructor parameter of its types has that type;
+  the composition root alone selects the adapter and the Development loopback rule.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure),
+  [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
+- **Type:** source scan and reflection, with a planted read. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Port_Has_One_Method_And_A_Closed_Set_Of_Holders`
+
+- **Asserts:** `IIdentityProviderAccountRemoval` declares exactly one method and no
+  property, and production source names the port, its refusing default, the adapter or
+  its factory only in the declaration, the default, the adapter, the factory, the API
+  composition and the Identity foundation registration. The closure's Finalize owner is
+  the one caller the ADR admits; the change that adds it adds its file to the list.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
+  ("exactly one method" and a single caller for a `manage-users` credential).
+- **Type:** reflection plus source scan with planted holders. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3).
 
 #### `Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`
 

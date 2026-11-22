@@ -1,7 +1,7 @@
 import { buildRealmPlan, buildRealmPreparation, nativeWebScopeDetachmentPath } from './development-realm-plan.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
-import { planEventReader, planFederationAdmin, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
+import { planEventReader, planFederationAdmin, planAccountRemoval, eventReaderDefaultRoleDetachment } from './development-event-reader.mjs';
 import { planFederationRealm } from './development-realm-federation.mjs';
 import { accountRetirementDetachment } from './development-realm-account.mjs';
 
@@ -9,7 +9,7 @@ export const realmPassMilliseconds = 120000;
 
 /** Internal core for the owned launcher and isolated provider tests; no CLI overrides. */
 export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, adminPassword,
-  webSecret, eventReaderSecret, federationSecret, manifest, desired, backchannel, signal, ca, transport = realmRequest, afterVerified }) {
+  webSecret, eventReaderSecret, federationSecret, accountRemovalSecret, manifest, desired, backchannel, signal, ca, transport = realmRequest, afterVerified }) {
   let base;
   try { base = new URL(baseUrl); }
   catch { refuse('preflight', 'configuration'); }
@@ -132,6 +132,8 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     // ADR-0099 realm invariants and the federation admin client: read-only plans, completed
     // before the first ordinary write and applied after the main plan's own readback.
     const federationAdmin = federationSecret === undefined ? null : await planFederationAdmin(admin, federationSecret);
+    // ADR-0107 section 7: the closure's account-removal client, planned and applied the same way.
+    const accountRemoval = accountRemovalSecret === undefined ? null : await planAccountRemoval(admin, accountRemovalSecret);
     const federation = await planFederationRealm(admin, desired);
     stage = 'apply';
     for (const action of plan.actions) {
@@ -140,7 +142,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     }
     stage = 'readback';
     await plan.verify();
-    for (const owned of [reader, federationAdmin, federation]) {
+    for (const owned of [reader, federationAdmin, accountRemoval, federation]) {
       if (!owned) continue;
       stage = 'apply';
       await owned.apply();
@@ -151,7 +153,8 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     if (remaining.actions.length !== 0) refuse(stage, 'readback_conflict');
     stage = 'readback';
     if ((await planFederationRealm(admin, desired)).changed
-      || federationSecret !== undefined && (await planFederationAdmin(admin, federationSecret)).changed)
+      || federationSecret !== undefined && (await planFederationAdmin(admin, federationSecret)).changed
+      || accountRemovalSecret !== undefined && (await planAccountRemoval(admin, accountRemovalSecret)).changed)
       refuse(stage, 'readback_conflict');
     if (afterVerified) {
       stage = 'identity';

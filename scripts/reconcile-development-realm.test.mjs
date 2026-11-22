@@ -122,9 +122,10 @@ async function ownedEntryFixture(t, scenario) {
     join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'));
   await copyFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), join(root, 'infra/keycloak/realms/learnstack.json'));
   await writeFile(join(root, 'package.json'), '{"type":"module"}\n');
-  const { secret, federationSecret } = await import('./development-realm-test-fixture.mjs');
+  const { secret, federationSecret, accountRemovalSecret } = await import('./development-realm-test-fixture.mjs');
   const values = { KEYCLOAK_ADMIN: 'synthetic-admin', KEYCLOAK_ADMIN_PASSWORD: canary, KEYCLOAK_WEB_CLIENT_SECRET: secret,
     KEYCLOAK_FEDERATION_ADMIN_SECRET: federationSecret,
+    KEYCLOAK_ACCOUNT_REMOVAL_SECRET: accountRemovalSecret,
     IdentityEvents__ClientSecret: 'owned-event-reader-fixture-secret',
     ...(scenario.startsWith('foundation-') ? { ConnectionStrings__Default: canary,
       Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',

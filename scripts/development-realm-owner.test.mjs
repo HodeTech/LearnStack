@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { RealmError, realmFailure } from './development-realm-errors.mjs';
 import {
-  acquireRealmLock, federationAdminEnvironment, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext, validateRealmTarget,
+  accountRemovalEnvironment, acquireRealmLock, federationAdminEnvironment, readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext, validateRealmTarget,
 } from './development-realm-owner.mjs';
 
 const keys = ['KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_WEB_CLIENT_SECRET'];
@@ -155,6 +155,91 @@ test('an inherited federation admin secret may only repeat the selected file val
   assert.throws(() => federationAdminEnvironment(withFederation(federationValue), { [federationKey]: ambient }),
     federationRefusal('configuration', ambient));
   assert.equal(federationAdminEnvironment(withFederation(federationValue), { [federationKey]: federationValue }), federationValue);
+});
+
+const removalKey = 'KEYCLOAK_ACCOUNT_REMOVAL_SECRET';
+const removalValue = 'synthetic-account-removal-secret-82b1';
+const withRemoval = value => federationFile(source, `${removalKey}=${value}`);
+
+// A removal refusal must never echo a private value, whichever credential it concerns.
+function removalRefusal(reason = 'configuration', ...secretsToHide) {
+  return error => {
+    assert.ok(error instanceof RealmError);
+    assert.equal(error.stage, 'preflight');
+    assert.equal(error.reason, reason);
+    assert.equal(realmFailure(error), `realm: preflight/${reason}`);
+    for (const value of [...Object.values(values), removalValue, ...secretsToHide])
+      assert.ok(!error.message.includes(value));
+    return true;
+  };
+}
+
+test('the account removal secret is returned when it is the one distinct, valid assignment', () => {
+  assert.equal(accountRemovalEnvironment(withRemoval(removalValue), {}), removalValue);
+  assert.equal(accountRemovalEnvironment(withRemoval(removalValue), { [removalKey]: removalValue }), removalValue);
+});
+
+test('a missing account removal secret refuses with the dedicated code at preflight', () => {
+  assert.throws(() => accountRemovalEnvironment(source, {}), removalRefusal('missing_account_removal_secret'));
+  assert.throws(() => accountRemovalEnvironment('', {}), removalRefusal('missing_account_removal_secret'));
+  assert.throws(() => accountRemovalEnvironment(source, { [removalKey]: removalValue }), removalRefusal('missing_account_removal_secret'));
+  // The federation secret alone never stands in for it.
+  assert.throws(() => accountRemovalEnvironment(withFederation(federationValue), {}), removalRefusal('missing_account_removal_secret'));
+});
+
+test('a duplicated, exported or indented account removal assignment refuses configuration', () => {
+  const other = 'synthetic-removal-other-82b1';
+  for (const second of [`${removalKey}=${other}`, `export ${removalKey}=${other}`, ` ${removalKey}=${other}`,
+    `${removalKey} = ${other}`, `\texport\t${removalKey}=${other}`])
+    assert.throws(() => accountRemovalEnvironment(federationFile(withRemoval(removalValue), second), {}),
+      removalRefusal('configuration', other), second);
+  for (const alias of [`export ${removalKey}=${removalValue}`, ` ${removalKey}=${removalValue}`, `${removalKey} = ${removalValue}`])
+    assert.throws(() => accountRemovalEnvironment(federationFile(source, alias), {}), removalRefusal(), alias);
+});
+
+test('an empty, short, masked, vault-reference or control-character account removal secret refuses', () => {
+  for (const value of ['', '   ', '""', '"                "', 'r'.repeat(15), '**********', '${vault.removal-secret-value}',
+    "'${vault.removal-secret-value}'", '"synthetic-removal\nsecret-82b1"', 'synthetic-removal\0secret-82b1'])
+    assert.throws(() => accountRemovalEnvironment(withRemoval(value), {}), removalRefusal(), JSON.stringify(value));
+  assert.equal(accountRemovalEnvironment(withRemoval('r'.repeat(16)), {}), 'r'.repeat(16));
+  assert.equal(accountRemovalEnvironment(withRemoval('prefix-**********-suffix'), {}), 'prefix-**********-suffix');
+});
+
+test('the account removal secret is bounded at 1,024 UTF-8 bytes, not characters', () => {
+  assert.equal(accountRemovalEnvironment(withRemoval('r'.repeat(1024)), {}), 'r'.repeat(1024));
+  assert.throws(() => accountRemovalEnvironment(withRemoval('r'.repeat(1025)), {}), removalRefusal());
+  const edge = '\u00e9'.repeat(512);
+  assert.equal(accountRemovalEnvironment(withRemoval(edge), {}), edge);
+  assert.throws(() => accountRemovalEnvironment(withRemoval('\u00e9'.repeat(513)), {}), removalRefusal());
+});
+
+test('the account removal secret is distinct from every other private credential, the federation admin secret included', () => {
+  const events = 'synthetic-event-reader-secret-82b1';
+  for (const [name, value] of [['KEYCLOAK_WEB_CLIENT_SECRET', values.KEYCLOAK_WEB_CLIENT_SECRET],
+    ['KEYCLOAK_ADMIN_PASSWORD', values.KEYCLOAK_ADMIN_PASSWORD], ['IdentityEvents__ClientSecret', events],
+    [federationKey, federationValue]]) {
+    assert.throws(() => accountRemovalEnvironment(federationFile(source, `IdentityEvents__ClientSecret=${events}`,
+      `${federationKey}=${federationValue}`, `${removalKey}=${value}`), {}), removalRefusal('configuration', events, federationValue), name);
+  }
+  assert.equal(accountRemovalEnvironment(federationFile(source, `IdentityEvents__ClientSecret=${events}`,
+    `${federationKey}=${federationValue}`, `${removalKey}=${removalValue}`), {}), removalValue);
+  // Symmetric: the federation secret refuses to equal the removal secret too.
+  assert.throws(() => federationAdminEnvironment(federationFile(source, `${removalKey}=${removalValue}`,
+    `${federationKey}=${removalValue}`), {}), federationRefusal('configuration', removalValue));
+});
+
+test('AccountRemoval__ClientSecret in the same file must equal the account removal secret', () => {
+  const api = 'synthetic-api-removal-secret-82b1';
+  assert.throws(() => accountRemovalEnvironment(federationFile(withRemoval(removalValue), `AccountRemoval__ClientSecret=${api}`), {}),
+    removalRefusal('configuration', api));
+  assert.equal(accountRemovalEnvironment(federationFile(withRemoval(removalValue),
+    `AccountRemoval__ClientSecret=${removalValue}`), {}), removalValue);
+});
+
+test('an inherited account removal secret may only repeat the selected file value', () => {
+  const ambient = 'synthetic-ambient-removal-82b1';
+  assert.throws(() => accountRemovalEnvironment(withRemoval(removalValue), { [removalKey]: ambient }), removalRefusal('configuration', ambient));
+  assert.equal(accountRemovalEnvironment(withRemoval(removalValue), { [removalKey]: removalValue }), removalValue);
 });
 
 function target() {

@@ -38,6 +38,7 @@ public sealed class TenantRealmFederationReconciliationTests
         using var admin = await fixture.CreateAdminClientAsync();
         // Dirty control: the warm realm really lacks the invariants before reconciliation.
         (await admin.GetAsync("clients?clientId=learnstack-federation-admin")).GetArrayLength().Should().Be(0);
+        (await admin.GetAsync("clients?clientId=learnstack-account-removal")).GetArrayLength().Should().Be(0);
         (await admin.GetAsync("authentication/required-actions/idp_link")).GetProperty("enabled").GetBoolean().Should().BeTrue();
         (await admin.ClientAsync("account-console")).GetProperty("enabled").GetBoolean().Should().BeTrue();
         var persona = await admin.UserAsync(SeedData.IdentityUsers[0].Username);
@@ -85,38 +86,64 @@ public sealed class TenantRealmFederationReconciliationTests
             .Should().Be(rotated, "the reconciler never rotates an existing secret");
     }
 
-    private static async Task AssertInvariantsAsync(KeycloakFixture fixture, KeycloakAdminClient admin)
+    [Fact]
+    public async Task An_existing_account_removal_secret_mismatch_refuses_rather_than_rotating()
     {
-        // (1) the federation admin client holds manage-identity-providers only.
-        var client = await admin.ClientAsync("learnstack-federation-admin");
+        await using var fixture = await KeycloakFixture.StartAsync();
+        using var admin = await fixture.CreateAdminClientAsync();
+        var client = await admin.ClientAsync("learnstack-account-removal");
+        (await admin.PostAsync("clients/" + client.GetProperty("id").GetString() + "/client-secret", new { }))
+            .Should().Be(HttpStatusCode.OK);
+        var rotated = (await admin.GetAsync("clients/" + client.GetProperty("id").GetString() + "/client-secret")).GetProperty("value").GetString();
+        rotated.Should().NotBe(KeycloakFixture.AccountRemovalSecret);
+        var result = await KeycloakReconciliationDriver.RunAsync(fixture);
+        result.Success.Should().BeFalse();
+        result.Stage.Should().Be("plan");
+        result.Reason.Should().Be("secret_conflict");
+        result.Mutations.Should().Be(0);
+        (await admin.GetAsync("clients/" + client.GetProperty("id").GetString() + "/client-secret")).GetProperty("value").GetString()
+            .Should().Be(rotated, "the reconciler never rotates an existing secret");
+    }
+
+    private static async Task AssertMachineClientAsync(KeycloakFixture fixture, KeycloakAdminClient admin, string clientId, string secret, string role)
+    {
+        var client = await admin.ClientAsync(clientId);
         var id = client.GetProperty("id").GetString();
         client.GetProperty("fullScopeAllowed").GetBoolean().Should().BeFalse();
         client.GetProperty("standardFlowEnabled").GetBoolean().Should().BeFalse();
         client.GetProperty("implicitFlowEnabled").GetBoolean().Should().BeFalse();
         client.GetProperty("directAccessGrantsEnabled").GetBoolean().Should().BeFalse();
-        (await admin.GetAsync("clients/" + id + "/client-secret")).GetProperty("value").GetString().Should().Be(KeycloakFixture.FederationAdminSecret);
+        (await admin.GetAsync("clients/" + id + "/client-secret")).GetProperty("value").GetString().Should().Be(secret);
         var user = await admin.GetAsync("clients/" + id + "/service-account-user");
         var roles = await admin.GetAsync("users/" + user.GetProperty("id").GetString() + "/role-mappings");
         (!roles.TryGetProperty("realmMappings", out var realmRoles) || realmRoles.GetArrayLength() == 0).Should().BeTrue("no realm role");
         var management = roles.GetProperty("clientMappings").EnumerateObject().Should().ContainSingle().Subject;
         management.Name.Should().Be("realm-management");
-        management.Value.GetProperty("mappings").EnumerateArray().Select(role => role.GetProperty("name").GetString())
-            .Should().Equal("manage-identity-providers");
+        management.Value.GetProperty("mappings").EnumerateArray().Select(granted => granted.GetProperty("name").GetString())
+            .Should().Equal(role);
         using (var token = KeycloakHttp.Create(fixture.BaseAddress, fixture.RootCertificate))
         {
             using var issued = await KeycloakHttp.JsonAsync(token, HttpMethod.Post, "realms/learnstack/protocol/openid-connect/token",
                 new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     ["grant_type"] = "client_credentials",
-                    ["client_id"] = "learnstack-federation-admin",
-                    ["client_secret"] = KeycloakFixture.FederationAdminSecret,
+                    ["client_id"] = clientId,
+                    ["client_secret"] = secret,
                 }));
             var access = issued.RootElement.GetProperty("access_token").GetString()!;
             using var payload = JsonDocument.Parse(Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(access.Split('.')[1]));
             payload.RootElement.GetProperty("resource_access").EnumerateObject().Select(value => value.Name).Should().Equal("realm-management");
             payload.RootElement.GetProperty("resource_access").GetProperty("realm-management").GetProperty("roles").EnumerateArray()
-                .Select(value => value.GetString()).Should().Equal("manage-identity-providers");
+                .Select(value => value.GetString()).Should().Equal(role);
         }
+    }
+
+    private static async Task AssertInvariantsAsync(KeycloakFixture fixture, KeycloakAdminClient admin)
+    {
+        // (1) each confined machine client holds its one realm-management role only.
+        await AssertMachineClientAsync(fixture, admin, "learnstack-federation-admin", KeycloakFixture.FederationAdminSecret, "manage-identity-providers");
+        // ADR-0107 § 7: the closure's account-removal client, manage-users only.
+        await AssertMachineClientAsync(fixture, admin, "learnstack-account-removal", KeycloakFixture.AccountRemovalSecret, "manage-users");
         // (2) the link-only first-broker flow, exactly.
         var executions = await admin.GetAsync("authentication/flows/learnstack-first-broker-login/executions");
         executions.EnumerateArray().Select(execution => execution.GetProperty("level").GetInt32() + ":"

@@ -149,8 +149,8 @@ public sealed partial class KeycloakFixture
     }
 
     /// <summary>
-    /// The committed export as it stood before P03-8 Step 3, for warm-upgrade proofs: no federation admin client or its
-    /// service account, no link-only first-broker flow or declared required actions (so idp_link is the stock enabled
+    /// The committed export as it stood before P03-8 Step 3, for warm-upgrade proofs: no federation admin or account-removal
+    /// client or their service accounts, no link-only first-broker flow or declared required actions (so idp_link is the stock enabled
     /// action), no idp mapper, and the stock account self-service (enabled console, manage-account in the default role and
     /// on each persona).
     /// </summary>
@@ -158,6 +158,8 @@ public sealed partial class KeycloakFixture
     {
         var clients = realm["clients"]!.AsArray();
         clients.Remove(clients.Single(client => client!["clientId"]!.GetValue<string>() == "learnstack-federation-admin"));
+        // ADR-0107 § 7 added the account-removal client later still: the pre-Step-3 realm has neither machine client.
+        clients.Remove(clients.Single(client => client!["clientId"]!.GetValue<string>() == "learnstack-account-removal"));
         foreach (var client in clients)
         {
             var name = client!["clientId"]!.GetValue<string>();

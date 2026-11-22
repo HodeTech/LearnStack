@@ -109,6 +109,16 @@ consumer uses the ordinary inbox and central typed-evidence writer. The
 [provider specification](providers.md#retained-user-event-reader) owns adapter and
 deployment configuration; the phase Status owns final qualification.
 
+The identity-provider ports are four: `IIdentityEventProvider` (read-only history),
+`IFederationProvider` with `IFederationEgressFetcher` and `IFederationOperator`
+(tenant federation), and `IIdentityProviderAccountRemoval`
+([ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)),
+whose single method deletes one account for the closure's Finalize alone. Each has a
+fail-closed default (the account-removal one is `RefusingIdentityProviderAccountRemoval`)
+and a confined Keycloak adapter selected at the composition root only when its own
+client secret is configured; the [provider specification](providers.md#account-removal-adapter)
+owns the account-removal adapter.
+
 ### Aggregate and storage contract
 
 User's authority is [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md);

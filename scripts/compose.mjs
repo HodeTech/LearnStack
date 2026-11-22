@@ -130,6 +130,7 @@ export function composeSelection(mode, environment = process.env, root = reposit
   if (lifecycleOnly(commandArgs)) {
     env.KEYCLOAK_WEB_CLIENT_SECRET = 'learnstack-lifecycle-placeholder';
     env.KEYCLOAK_FEDERATION_ADMIN_SECRET = 'learnstack-lifecycle-placeholder';
+    env.KEYCLOAK_ACCOUNT_REMOVAL_SECRET = 'learnstack-lifecycle-placeholder';
   }
   const files = [resolve(root, 'infra/compose/dev.yml')];
   if (mode === 'e2e') files.push(resolve(root, 'infra/compose/e2e.yml'));

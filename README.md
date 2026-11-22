@@ -138,11 +138,12 @@ ordinary authoring pipeline and verifies completed acts before skipping them on 
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 Both combined entries then await the same bounded development-realm reconciler.
 Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`,
-`KEYCLOAK_FEDERATION_ADMIN_SECRET` (with the identical `Federation__ClientSecret`)
+`KEYCLOAK_FEDERATION_ADMIN_SECRET` (with the identical `Federation__ClientSecret`),
+`KEYCLOAK_ACCOUNT_REMOVAL_SECRET` (with the identical `AccountRemoval__ClientSecret`)
 and the stable authority/issuer pair described in the realm guide; existing
 passwords/MFA and provider IDs are preserved. Prepare these secrets before the
 first `make dev` import, and retain them across reruns; `make dev` does not start
-without the federation admin secret. Older files also need
+without the federation admin or account removal secrets. Older files also need
 explicit private permissions after verifying their ownership/type; Makefile
 creation does not repair existing files. The
 [realm guide](infra/keycloak/README.md#secret-continuity-and-recovery) owns setup,

@@ -185,7 +185,11 @@ LearnStack runs **two Keycloak realms** per
   credential is an operator-supplied `view-users` client for the new realm, created for
   the run and deleted after it; it is not a LearnStack runtime or federation
   credential, and [ADR-0099](../decisions/0099-confined-tenant-federation.md)'s refusal
-  of user-level authority for LearnStack is unaffected.
+  of user-level authority for the federation credential is unaffected. The one LearnStack
+  runtime credential with user-level authority is the account-removal client of
+  [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md), held
+  by the closure's Finalize alone
+  ([Standard 20](20-infrastructure-stack.md#confined-account-removal-adapter)).
 
 General rules:
 

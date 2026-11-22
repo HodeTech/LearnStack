@@ -22,6 +22,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     internal const string WebClientSecret = "keycloak-fixture-web-secret";
     internal const string EventReaderSecret = "keycloak-fixture-event-reader-secret";
     internal const string FederationAdminSecret = "keycloak-fixture-federation-admin-secret";
+    internal const string AccountRemovalSecret = "keycloak-fixture-account-removal-secret";
     internal const string DemoPassword = "demo-dev-secret";
     private const string AdminUsername = "fixture-admin";
     private readonly string _adminPassword = Guid.NewGuid().ToString("N");
@@ -176,6 +177,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", _adminPassword)
                 .WithEnvironment("KEYCLOAK_WEB_CLIENT_SECRET", WebClientSecret)
                 .WithEnvironment("KEYCLOAK_FEDERATION_ADMIN_SECRET", FederationAdminSecret)
+                .WithEnvironment("KEYCLOAK_ACCOUNT_REMOVAL_SECRET", AccountRemovalSecret)
                 // byte[] destinations are files. Testcontainers' string/string overload treats the target as a directory.
                 .WithResourceMapping(Encoding.UTF8.GetBytes(tenantImport), "/opt/keycloak/data/import/learnstack-realm.json")
                 .WithResourceMapping(hubImport, "/opt/keycloak/data/import/learnstack-hub-realm.json")
@@ -311,6 +313,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             adminPassword = _adminPassword,
             webSecret = WebClientSecret,
             federationSecret = FederationAdminSecret,
+            accountRemovalSecret = AccountRemovalSecret,
             manifest = SeedIdentityManifest.Create(),
             desired = desired.RootElement,
             ca = RootCertificate.ExportCertificatePem(),

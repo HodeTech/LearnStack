@@ -73,7 +73,7 @@ internal static class FederationComposition
     /// The admitted breaker range: failure ratio in (0, 1], minimum throughput in [2, 100] (Polly's own floor is 2),
     /// sampling duration in [1, 60] seconds and break duration in [1, 300] seconds. NaN refuses.
     /// </summary>
-    private static bool BreakerInRange(CircuitBreakerOptions breaker) =>
+    internal static bool BreakerInRange(CircuitBreakerOptions breaker) =>
         breaker.FailureRatio is > 0 and <= 1
         && breaker.MinimumThroughput is >= 2 and <= 100
         && breaker.SamplingDurationSeconds is >= 1 and <= 60

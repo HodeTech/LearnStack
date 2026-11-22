@@ -232,6 +232,7 @@
     "LearnStack.Tests.Integration.RateLimitForwardedForTests",
     "LearnStack.Tests.Integration.RateLimitingHttpTests",
     "LearnStack.Tests.Integration.SmokeTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.AccountRemovalProviderTests",
     "LearnStack.Tests.Integration.TenancyIdentity.FederationProviderTests",
     "LearnStack.Tests.Integration.TenancyIdentity.ProviderEventAdapterTests",
     "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests",

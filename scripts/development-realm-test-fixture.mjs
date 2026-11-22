@@ -7,6 +7,7 @@ import { accountRetirementDetachment } from './development-realm-account.mjs';
 export const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
 export const secret = 'private-test-source';
 export const federationSecret = 'private-federation-test-source';
+export const accountRemovalSecret = 'private-account-removal-test-source';
 const clone = value => structuredClone(value);
 const omit = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
 // Pinned RepresentationToModel.toModel/removeEmptyString, independently modeled
@@ -97,6 +98,14 @@ export function provider() {
   const federationUser = { id: id(), username: 'service-account-learnstack-federation-admin', enabled: true,
     serviceAccountClientId: 'learnstack-federation-admin', roles: clone(federationMapping) };
   state.federation = { management, role: federationRole, client: federationClient, user: federationUser };
+  // The committed import's account-removal client (ADR-0107 section 7): the same shape, its own manage-users role.
+  const removalRole = { id: id(), name: 'manage-users', containerId: management.id, clientRole: true, composite: false };
+  const removalClient = state.clients.find(client => client.clientId === 'learnstack-account-removal');
+  removalClient.secret = accountRemovalSecret;
+  const removalMapping = { clientMappings: { 'realm-management': { id: management.id, client: 'realm-management', mappings: [clone(removalRole)] } } };
+  const removalUser = { id: id(), username: 'service-account-learnstack-account-removal', enabled: true,
+    serviceAccountClientId: 'learnstack-account-removal', roles: clone(removalMapping) };
+  state.accountRemoval = { management, role: removalRole, client: removalClient, user: removalUser };
   state.scopeMappings ??= {};
   const writes = [];
   const reads = [];
@@ -138,6 +147,15 @@ export function provider() {
     else if (path === `users/${federation.user.id}/role-mappings`) value = federation.user.roles;
     else if (path === `users/${federation.user.id}/role-mappings/clients/${federation.management.id}/composite`)
       value = federation.user.roles.clientMappings?.['realm-management']?.mappings ?? [];
+    else if (path === `clients/${federation.management.id}/roles/manage-users`) value = state.accountRemoval.role;
+    else if (path === `clients/${state.accountRemoval.client.id}`) value = omit(state.accountRemoval.client, ['protocolMappers', 'secret']);
+    else if (path === `clients/${state.accountRemoval.client.id}/scope-mappings`) value = clone(state.accountRemoval.user.roles);
+    else if (path === `clients/${state.accountRemoval.client.id}/service-account-user`)
+      value = omit(state.accountRemoval.user, ['roles', 'serviceAccountClientId']);
+    else if (path === `users/${state.accountRemoval.user.id}/groups?first=0&max=1`) value = [];
+    else if (path === `users/${state.accountRemoval.user.id}/role-mappings`) value = state.accountRemoval.user.roles;
+    else if (path === `users/${state.accountRemoval.user.id}/role-mappings/clients/${federation.management.id}/composite`)
+      value = state.accountRemoval.user.roles.clientMappings?.['realm-management']?.mappings ?? [];
     else if (path === '') value = state.realm;
     else if (path === 'events/config') value = state.eventsConfig;
     else if (path === 'events?first=0&max=1') value = state.eventHistory.slice(0, 1);

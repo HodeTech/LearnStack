@@ -77,8 +77,31 @@ export function federationAdminEnvironment(source, ambient = process.env) {
   if (exact.length !== 1 || aliases.length !== 1 || typeof value !== 'string' || !value.trim()
       || value.length < 16 || Buffer.byteLength(value, 'utf8') > 1024 || value === '**********' || value.startsWith('${')
       || /[\r\n\0]/.test(value) || [values.KEYCLOAK_WEB_CLIENT_SECRET, values.KEYCLOAK_ADMIN_PASSWORD,
-        values.IdentityEvents__ClientSecret].includes(value)
+        values.IdentityEvents__ClientSecret, values.KEYCLOAK_ACCOUNT_REMOVAL_SECRET].includes(value)
       || values.Federation__ClientSecret !== undefined && values.Federation__ClientSecret !== value
+      || ambient[key] !== undefined && ambient[key] !== value) refuse('preflight', 'configuration');
+  return value;
+}
+
+/**
+ * ADR-0107 section 7's account-removal client secret (manage-users only): required, one assignment, and
+ * refused by the same rule the API applies (empty, over 1,024 bytes, the mask literal or a `${` vault
+ * reference). It is distinct from every other private credential, the federation admin secret
+ * included; the API's `AccountRemoval__ClientSecret`, when the same file carries it, must be the
+ * identical value.
+ */
+export function accountRemovalEnvironment(source, ambient = process.env) {
+  const values = parseEnv(source);
+  const key = 'KEYCLOAK_ACCOUNT_REMOVAL_SECRET';
+  const exact = [...source.matchAll(/^KEYCLOAK_ACCOUNT_REMOVAL_SECRET=/gm)];
+  const aliases = [...source.matchAll(/^[ \t]*(?:export[ \t]+)?KEYCLOAK_ACCOUNT_REMOVAL_SECRET[ \t]*=/gm)];
+  const value = values[key];
+  if (exact.length === 0 && aliases.length === 0) refuse('preflight', 'missing_account_removal_secret');
+  if (exact.length !== 1 || aliases.length !== 1 || typeof value !== 'string' || !value.trim()
+      || value.length < 16 || Buffer.byteLength(value, 'utf8') > 1024 || value === '**********' || value.startsWith('${')
+      || /[\r\n\0]/.test(value) || [values.KEYCLOAK_WEB_CLIENT_SECRET, values.KEYCLOAK_ADMIN_PASSWORD,
+        values.IdentityEvents__ClientSecret, values.KEYCLOAK_FEDERATION_ADMIN_SECRET].includes(value)
+      || values.AccountRemoval__ClientSecret !== undefined && values.AccountRemoval__ClientSecret !== value
       || ambient[key] !== undefined && ambient[key] !== value) refuse('preflight', 'configuration');
   return value;
 }

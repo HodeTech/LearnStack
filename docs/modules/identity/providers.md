@@ -1,8 +1,9 @@
 # Identity — Provider Adapters
 
 **Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md),
-[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md)
-and [ADR-0099](../../decisions/0099-confined-tenant-federation.md).
+[ADR-0097](../../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
+[ADR-0099](../../decisions/0099-confined-tenant-federation.md) and
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md).
 These are the bounded invitation, retained-event and tenant-federation provider
 contracts; the [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns
 implementation and qualification. Acceptance is not evidence of a configured production
@@ -218,6 +219,31 @@ reserved, multicast, unspecified, scoped and IPv4-embedding IPv6 answers still r
 An entry admits the host for every tenant. It is composition configuration read once
 at startup; tenant input never extends it. Keycloak's own later fetches follow DNS;
 only deployment egress policy bounds them (Phase 11).
+
+## Account removal adapter
+
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)
+decides this boundary: the last effect of a global account closure deletes the person's
+identity-provider account. The [runbook](../../runbooks/account-removal-client.md) owns
+provisioning, rotation and leak response.
+
+| Boundary | Contract |
+|---|---|
+| Port | SharedKernel `IIdentityProviderAccountRemoval`, one method; its sole caller is the closure's Finalize. Outcomes: removed, absent (success), refused, unavailable, uncertain |
+| Default | SharedKernel `RefusingIdentityProviderAccountRemoval`, registered by the Identity foundation: every call is refused and nothing is sent |
+| Adapter | Internal sealed `KeycloakAccountRemoval` in `LearnStack.Infrastructure.Identity.AccountRemoval`; direct HTTP, no SDK |
+| Selection | API `AccountRemovalComposition` replaces the default only when `AccountRemoval:ClientSecret` is configured; `AccountRemovalAdapterFactory` is the only entry. Issuer from `Authentication:Tenant:Issuer`, which must end `/realms/learnstack`; HTTPS, or loopback HTTP in Development only |
+| Credentials | Client `learnstack-account-removal`, role `realm-management/manage-users` only; secret through `ISecretProvider` key `AccountRemoval:ClientSecret`, refused when empty, blank, over 1,024 bytes, the mask literal or a `${` reference; a fresh client-credentials token per call |
+| Token check | Issuer, `azp`, no realm role and exactly one `realm-management` role, `manage-users`; anything else is refused before the deletion is sent |
+| Calls | The token request, then one `DELETE users/{id}`; the identifier must be a canonical lowercase UUID (the provider's own user identifier, the OIDC `sub`), is escaped as one path segment, and any other spelling is refused before any request. No redirect is followed and no response body of the deletion is read |
+| Answers | `204` removed; `404` absent; `401`, `403`, a redirect, any other `4xx`, a token refusal or a token wider than the role refused; `5xx`, `429`, a refused connection and an open breaker or full bulkhead unavailable; a timeout, a lost connection or an unexpected success answer after the deletion was handed to the transport uncertain |
+| Resilience | `IProviderResilience<IIdentityProviderAccountRemoval>`, configuration `Resilience:accountRemoval`: no retry (the closure's Finalize is the repeatable retry and a quiet repeat would hide a lost answer), a 5 s timeout equal to the adapter's call ceiling, circuit breaker on within the federation ranges, and a bulkhead of exactly 1 with no queue; fixed values that composition refuses to change |
+| Confidentiality | The subject and the secret are never logged, audited, placed in an exception message or returned; the closed fault type carries no provider text |
+
+The role is realm-wide and can also create and update users and reset credentials; the
+single method, the single caller and the architecture rules in
+[Standard 20](../../standards/20-infrastructure-stack.md#confined-account-removal-adapter)
+confine what LearnStack sends, not what a leaked secret could do.
 
 ## Invitation SMTP
 

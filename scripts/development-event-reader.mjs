@@ -22,6 +22,8 @@ function serviceClient(name, role, mapperName) {
 export const eventReaderClient = serviceClient('learnstack-event-reader', 'view-events', 'learnstack-event-reader-roles');
 export const federationAdminClient = serviceClient('learnstack-federation-admin', 'manage-identity-providers',
   'learnstack-federation-admin-roles');
+export const accountRemovalClient = serviceClient('learnstack-account-removal', 'manage-users',
+  'learnstack-account-removal-roles');
 const list = value => { if (!Array.isArray(value) || value.length > 256) refuse('plan', 'unsupported'); return value; };
 const plain = value => Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'id'));
 const sameRole = (a, b) => a.id === b.id && a.name === b.name && a.containerId === b.containerId && a.clientRole === true;
@@ -41,6 +43,11 @@ export function planEventReader(admin, secret) {
 /** ADR-0099's federation admin client: manage-identity-providers only, the same refusal rules. */
 export function planFederationAdmin(admin, secret) {
   return planServiceClient(admin, secret, federationAdminClient);
+}
+
+/** ADR-0107 section 7's account-removal client: manage-users only, the same refusal rules. */
+export function planAccountRemoval(admin, secret) {
+  return planServiceClient(admin, secret, accountRemovalClient);
 }
 
 async function planServiceClient(admin, secret, { name, role: roleName, mapper, fields }) {

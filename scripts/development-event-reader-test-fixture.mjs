@@ -19,12 +19,26 @@ export function providerWithoutFederationAdmin() {
   return providerWithServiceClient(fixture, 'learnstack-federation-admin', 'manage-identity-providers');
 }
 
+/**
+ * A warm realm without ADR-0107's account-removal client: the committed import's client and its
+ * service account are removed, so reconciliation must create them.
+ */
+export function providerWithoutAccountRemoval() {
+  const fixture = provider();
+  const { state } = fixture;
+  state.clients = state.clients.filter(client => client.clientId !== 'learnstack-account-removal');
+  state.accountRemoval.client = { id: 'retired-account-removal-client' };
+  state.accountRemoval.user = { id: 'retired-account-removal-user' };
+  return providerWithServiceClient(fixture, 'learnstack-account-removal', 'manage-users');
+}
+
 function providerWithServiceClient(fixture, name, roleName) {
   const { state, reads, writes } = fixture;
   const original = fixture.admin;
   // One realm-management client, shared with the committed import's federation admin client.
   const management = state.federation.management;
   const role = roleName === 'manage-identity-providers' ? state.federation.role
+    : roleName === 'manage-users' ? state.accountRemoval.role
     : { id: 'owned-view-events-role', containerId: management.id, clientRole: true, composite: false, name: roleName };
   let reader;
   let user;

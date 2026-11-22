@@ -68,6 +68,7 @@ public static class IdentityFoundationRegistration
         // The operator's port (Amendment 10) is its own: the tenant runner never holds it, and it too fails closed.
         services.TryAddSingleton<IFederationOperator, UnconfiguredFederationOperator>();
         services.TryAddSingleton<IFederationEgressFetcher, UnconfiguredFederationEgressFetcher>();
+        services.TryAddSingleton<IIdentityProviderAccountRemoval, RefusingIdentityProviderAccountRemoval>();
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetFederationConnectionQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipContextsQuery)));
