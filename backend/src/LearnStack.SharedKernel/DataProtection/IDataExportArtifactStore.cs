@@ -40,12 +40,21 @@ public interface IDataExportArtifactStore
     /// <summary>The artifact's metadata, or <see langword="null"/> when the group holds no such artifact.</summary>
     Task<DataExportArtifactMetadata?> ReadMetadataAsync(DataExportArtifactLocator artifact, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether the store's key ring still holds the key a chunk sealed under <paramref name="keyVersion"/> opens with;
+    /// a ticket is minted only for an artifact this answers true for, so a retired key is a refusal before any read.
+    /// </summary>
+    bool CanOpen(string keyVersion);
+
     /// <summary>Decrypts one chunk of an available, unexpired artifact.</summary>
     /// <returns>
     /// <see langword="null"/> when the group holds no such artifact or chunk, or the artifact is revoked,
-    /// purged or past its expiry by the database clock, whether or not the purge ran. A chunk that fails
-    /// authentication is not an absence: it throws, because the stored ciphertext is corrupt or forged.
+    /// purged or past its expiry by the database clock, whether or not the purge ran. A chunk the store cannot
+    /// open (its key left the ring, or it fails authentication because the stored ciphertext is corrupt or
+    /// forged) is also answered <see langword="null"/>, after the store records it at critical severity with
+    /// identifiers only: the reader meets the one uniform refusal and nothing about the failure leaves.
     /// </returns>
+    /// <exception cref="LearnStack.SharedKernel.Errors.InfrastructureException">The storage failed or outlived its statement budget.</exception>
     Task<DataExportPlaintextChunk?> ReadChunkAsync(DataExportArtifactLocator artifact, int index,
         CancellationToken cancellationToken);
 

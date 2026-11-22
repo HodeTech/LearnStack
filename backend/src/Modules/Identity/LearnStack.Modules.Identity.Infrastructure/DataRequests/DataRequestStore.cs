@@ -11,7 +11,6 @@ using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 
@@ -47,33 +46,26 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
         return job;
     }
 
+    /// <remarks>
+    /// The row lock waits behind a running export job, which holds it for its whole transaction; a wait past the
+    /// five-second budget is the retryable <see cref="InfrastructureException"/> (503), like every sibling read here.
+    /// </remarks>
     public async Task<DataSubjectRequest?> FindLockedAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken)
     {
         Admit();
-        await using var command = new NpgsqlCommand("""
+        await using var command = Command("""
             SELECT id FROM public.data_subject_requests
             WHERE id=@id AND tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization FOR UPDATE
-            """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
-        { CommandTimeout = 5 };
+            """);
         command.Parameters.AddWithValue("id", requestId.Value);
-        command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
-        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)tenant.OrganizationId?.Value ?? DBNull.Value);
-        try
+        if (await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false) is null)
         {
-            if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
-            {
-                return null;
-            }
+            return null;
+        }
 
-            return await db.DataSubjectRequests.SingleOrDefaultAsync(request => request.Id == requestId
-                && request.TenantId == tenant.TenantId && request.OrganizationId == tenant.OrganizationId, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (NpgsqlException)
-        {
-            unit.MarkRollbackOnly();
-            throw new InvalidOperationException("Data request storage unavailable.");
-        }
+        return await ExecuteAsync(token => db.DataSubjectRequests.SingleOrDefaultAsync(request => request.Id == requestId
+            && request.TenantId == tenant.TenantId && request.OrganizationId == tenant.OrganizationId, token), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<DataExportArtifactId?> FindArtifactOfRequestAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken)
@@ -112,15 +104,7 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
             throw new InvalidOperationException("A data request is saved only from its own loaded group.");
         }
 
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateException)
-        {
-            unit.MarkRollbackOnly();
-            throw new InvalidOperationException("Data request storage unavailable.");
-        }
+        await SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<MembershipId>> ReadSubjectMembershipsAsync(UserId subject, CancellationToken cancellationToken)

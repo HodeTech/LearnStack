@@ -4,9 +4,14 @@ using System.Text.Json;
 namespace LearnStack.SharedKernel.DataProtection;
 
 /// <summary>
-/// Writes one export record into a section through a short-lived pooled buffer that is overwritten with zeros
-/// afterwards, so a participant never leaves a copy of the subject's data in a buffer it does not own.
+/// Writes one export record into a section through a short-lived buffer that is overwritten with zeros afterwards.
 /// </summary>
+/// <remarks>
+/// Plaintext hygiene here is best effort: the buffer this method owns is cleared, but an
+/// <see cref="ArrayBufferWriter{T}"/> that grows leaves its earlier, smaller arrays to the garbage collector uncleared,
+/// and the JSON writer, the participant's own strings and the runtime may hold further copies. Process and crash dumps
+/// of the API therefore hold personal data and are handled as such (Data Protection § Right of Access).
+/// </remarks>
 public static class UserDataExportRecord
 {
     private static readonly JsonWriterOptions Options = new() { Indented = false, SkipValidation = false };
@@ -35,7 +40,7 @@ public static class UserDataExportRecord
         }
         finally
         {
-            // ArrayBufferWriter.Clear overwrites the written span; nothing is written beyond it.
+            // ArrayBufferWriter.Clear overwrites the written span of its current array; nothing is written beyond it.
             buffer.Clear();
         }
     }

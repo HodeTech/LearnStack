@@ -69,6 +69,12 @@ public interface IDataExportTicketStore : IAggregateWriteStore<DataExportTicket,
 {
     /// <summary>The artifact's ticket with this digest in the ambient group, tracked and locked for update.</summary>
     Task<DataExportTicket?> FindLockedAsync(DataExportArtifactId artifactId, string digest, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The artifact's tickets that are neither consumed nor past their expiry by the database clock; the caller holds
+    /// the artifact's row lock, so concurrent mints are counted one after the other.
+    /// </summary>
+    Task<int> CountOpenAsync(DataExportArtifactId artifactId, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -88,7 +94,11 @@ public interface IDataRequestReader
     /// The group's requests newest first, strictly older than <paramref name="before"/> when given: only the
     /// subject's when <paramref name="subject"/> is given, otherwise every export and erasure (never a closure).
     /// </summary>
-    Task<IReadOnlyList<DataSubjectRequest>> ListAsync(UserId? subject, Guid? before, int take, CancellationToken cancellationToken);
+    /// <remarks>
+    /// A page reads only the columns its receipt shows: never the progress document, and the Membership snapshot only
+    /// for the administrator's page (no <paramref name="subject"/>), the one view that displays it.
+    /// </remarks>
+    Task<IReadOnlyList<DataRequestReceiptRow>> ListAsync(UserId? subject, Guid? before, int take, CancellationToken cancellationToken);
 
     /// <summary>One request of the group; <see langword="null"/> when the group holds no such request.</summary>
     Task<DataSubjectRequest?> FindAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken);
@@ -106,6 +116,28 @@ public interface IDataRequestReader
 
 /// <summary>An artifact and whether it is readable now: stored <c>available</c> and before its expiry by the database clock.</summary>
 public sealed record DataRequestArtifactRow(DataExportArtifact Artifact, bool Readable);
+
+/// <summary>
+/// The columns a request's receipt shows, read without the aggregate: a page projects these and nothing more.
+/// <see cref="MembershipSnapshotJson"/> is <see langword="null"/> when the read did not select it (the subject's own
+/// pages, which never display it).
+/// </summary>
+public sealed record DataRequestReceiptRow(DataSubjectRequestId Id, DataRequestKind Kind, DataRequestOrigin Origin,
+    DataRequestStatus Status, UserId SubjectUserId, UserId? RequesterUserId, DateTimeOffset CreatedAt, DateTimeOffset? UpdatedAt,
+    DateTimeOffset? CompletedAt, DateTimeOffset? ExecuteAt, DataRequestRefusal? LastRefusal, DataRequestFailureReason? FailureReason,
+    string ResultJson, string? MembershipSnapshotJson, long Version)
+{
+    /// <summary>The receipt columns of a loaded request, its snapshot included.</summary>
+    public static DataRequestReceiptRow From(DataSubjectRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return new(request.Id, request.Kind, request.Origin, request.Status, request.SubjectUserId, request.RequesterUserId,
+            request.CreatedAt, request.UpdatedAt, request.CompletedAt, request.ExecuteAt, request.LastRefusal, request.FailureReason,
+            request.ResultJson, request.MembershipSnapshotJson, request.Version);
+    }
+
+    public override string ToString() => nameof(DataRequestReceiptRow);
+}
 
 /// <summary>
 /// Where a data request's fulfilment job stands, read from the job's own row

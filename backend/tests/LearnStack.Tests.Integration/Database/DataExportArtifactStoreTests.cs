@@ -4,7 +4,7 @@ using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Time;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 using static LearnStack.Tests.Integration.Database.DataRequestSchemaSeed;
@@ -74,6 +74,10 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
         (await ScalarAsync<long>(scope.Connection, scope.Transaction,
             "SELECT count(*) FROM public.data_export_chunks WHERE artifact_id=@id AND position(@probe in ciphertext) > 0",
             ("id", artifactId), ("probe", bundle[..32]))).Should().Be(0, "no stored chunk holds the plaintext");
+        (await ScalarAsync<bool>(scope.Connection, scope.Transaction,
+            "SELECT abs(extract(epoch FROM created_at - clock_timestamp())) < 60 FROM public.data_export_artifacts WHERE id=@id",
+            ("id", artifactId))).Should().BeTrue("the artifact is stamped by the database clock");
+        await CompleteAsync(scope, request);
         await ExecuteAsync(scope.Connection, scope.Transaction, "SET CONSTRAINTS ALL IMMEDIATE");
         await ExecuteAsync(scope.Connection, scope.Transaction, "SET CONSTRAINTS ALL DEFERRED");
 
@@ -144,6 +148,7 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
             artifactId = Guid.CreateVersion7();
             await store.PutAsync(new DataExportArtifactPut(artifactId, request.Id.Value, request.SubjectUserId, request.Group, 10),
                 Pieces(Bundle(10)), CancellationToken.None);
+            await CompleteAsync(scope, request);
             var foreign = new DataExportArtifactLocator(artifactId, new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA),
                 OrganizationId.From(SchemaFixture.OrgA1)));
             await FluentActions.Awaiting(() => store.ReadMetadataAsync(foreign, CancellationToken.None))
@@ -166,11 +171,97 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
         }
     }
 
-    internal static PostgresDataExportArtifactStore Store(DataExportTestKit.GroupScope scope, DataExportCipher cipher) =>
-        new(scope.Db, scope.Unit, scope.Context, cipher, new SystemClock(), new DataExportTestKit.NoAuditSubject());
+    /// <summary>
+    /// ADR-0107 § 4's associated data binds each chunk to its index and artifact: a chunk spliced into another position or
+    /// another artifact, and a chunk whose key left the ring, fail closed as an absence and are logged critical with
+    /// identifiers only, never a key, the ciphertext or the plaintext.
+    /// </summary>
+    [Fact]
+    public async Task A_spliced_or_unopenable_chunk_fails_closed_as_an_absence_and_is_logged_critical_with_identifiers_only()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
+        await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
+        var bundle = Bundle(Size);
+        var artifactId = Guid.CreateVersion7();
+        await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null, [AdminA]))
+        {
+            using var cipher = DataExportTestKit.Cipher();
+            var request = await FulfillingRequestAsync(scope, AdminA, AdminMembershipA);
+            await Store(scope, cipher).PutAsync(new DataExportArtifactPut(artifactId, request.Id.Value, request.SubjectUserId, request.Group,
+                Size), Chunks(bundle), CancellationToken.None);
+            await CompleteAsync(scope, request);
+            await scope.Frame.CompleteAsync();
+        }
+
+        // As the owner with the chunk guard paused: chunk 0's sealed bytes into index 1, and into another artifact's chunk 0.
+        var other = TenantWideA.Artifact!.Value;
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        await using (var transaction = await owner.BeginTransactionAsync())
+        {
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_export_chunks DISABLE TRIGGER tg_data_export_chunks_mutation_guard");
+            await ScopeAsync(owner, transaction, SchemaFixture.TenantA);
+            await ExecuteAsync(owner, transaction, """
+                UPDATE public.data_export_chunks AS target SET nonce=source.nonce, ciphertext=source.ciphertext, tag=source.tag
+                FROM public.data_export_chunks AS source
+                WHERE source.artifact_id=@artifact AND source.chunk_index=0
+                  AND ((target.artifact_id=@artifact AND target.chunk_index=1) OR (target.artifact_id=@other AND target.chunk_index=0))
+                """, ("artifact", artifactId), ("other", other));
+            await ExecuteAsync(owner, transaction, "ALTER TABLE public.data_export_chunks ENABLE TRIGGER tg_data_export_chunks_mutation_guard");
+            await transaction.CommitAsync();
+        }
+
+        await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null))
+        {
+            using var cipher = DataExportTestKit.Cipher();
+            var logs = new CapturingLogger();
+            var store = Store(scope, cipher, logs);
+            var group = new DataRequestScopeGroup(TenantId.From(SchemaFixture.TenantA), null);
+            var first = (await store.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 0, CancellationToken.None))!;
+            first.Bytes.ToArray().Should().Equal(bundle[..DataRequestLimits.ChunkPlaintextBytes], "the untouched chunk still opens");
+            (await store.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 1, CancellationToken.None))
+                .Should().BeNull("a chunk moved to another index fails authentication");
+            (await store.ReadChunkAsync(new DataExportArtifactLocator(other, group), 0, CancellationToken.None))
+                .Should().BeNull("a chunk moved into another artifact fails authentication");
+            (await store.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 2, CancellationToken.None))
+                .Should().NotBeNull("the refusals left the transaction usable");
+
+            // A ring that no longer holds the artifact's key: no mint is offered and a read is the same absence.
+            using var rotated = DataExportTestKit.Cipher("{\"active\":\"next\",\"keys\":{\"next\":\""
+                + Convert.ToBase64String(Enumerable.Repeat((byte)7, 32).ToArray()) + "\"}}");
+            var retired = Store(scope, rotated, logs);
+            retired.CanOpen(cipher.ActiveKeyVersion).Should().BeFalse();
+            store.CanOpen(cipher.ActiveKeyVersion).Should().BeTrue();
+            (await retired.ReadChunkAsync(new DataExportArtifactLocator(artifactId, group), 0, CancellationToken.None)).Should().BeNull();
+            scope.Unit.IsRollbackOnly.Should().BeFalse("a custody refusal is not a storage failure");
+            await scope.Frame.FailAsync();
+
+            logs.Entries.Should().HaveCount(3).And.OnlyContain(entry => entry.Level == LogLevel.Critical
+                && entry.EventId.Name == "DataExportChunkCustodyRefused" && entry.Exception == null);
+            var rendered = string.Join('\n', logs.Entries.Select(entry => entry.Message));
+            rendered.Should().Contain(artifactId.ToString("D")).And.Contain(other.ToString("D"));
+            rendered.Should().NotContain(Convert.ToBase64String(bundle.AsSpan(0, 48)))
+                .And.NotContain(System.Text.Encoding.ASCII.GetString(bundle, 0, 48));
+            DataExportTestKit.KeyRing.Should().NotBeNullOrEmpty();
+            foreach (var key in System.Text.Json.JsonDocument.Parse(DataExportTestKit.KeyRing).RootElement.GetProperty("keys").EnumerateObject())
+                rendered.Should().NotContain(key.Value.GetString()!, "no key material reaches a log");
+        }
+    }
+
+    internal static PostgresDataExportArtifactStore Store(DataExportTestKit.GroupScope scope, DataExportCipher cipher,
+        ILogger<PostgresDataExportArtifactStore>? logger = null) =>
+        new(scope.Db, scope.Unit, scope.Context, cipher, new DataExportTestKit.NoAuditSubject(),
+            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresDataExportArtifactStore>.Instance);
+
+    /// <summary>Completes a fulfilling export on the scope's transaction, as the job does before it commits.</summary>
+    internal static async Task CompleteAsync(DataExportTestKit.GroupScope scope, DataSubjectRequest request)
+    {
+        request.Complete([new(RetainedReferenceKind.RequestReceipt, 1)], DateTimeOffset.UtcNow, UserId.SystemActor).IsSuccess.Should().BeTrue();
+        await scope.Db.SaveChangesAsync();
+    }
 
     /// <summary>A fresh export of the subject in the scope's group, saved through the aggregate and fulfilling.</summary>
-    private static async Task<DataSubjectRequest> FulfillingRequestAsync(DataExportTestKit.GroupScope scope, Guid subject, Guid membership)
+    internal static async Task<DataSubjectRequest> FulfillingRequestAsync(DataExportTestKit.GroupScope scope, Guid subject, Guid membership)
     {
         var now = DateTimeOffset.UtcNow;
         var request = DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(Guid.CreateVersion7()), DataRequestKind.Export,
@@ -183,12 +274,12 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
         return request;
     }
 
-    private static byte[] Bundle(int length) => Enumerable.Range(0, length).Select(index => (byte)('a' + (index % 26))).ToArray();
+    internal static byte[] Bundle(int length) => Enumerable.Range(0, length).Select(index => (byte)('a' + (index % 26))).ToArray();
 
     private static byte[][] Chunked(byte[] bundle) =>
         bundle.Chunk(DataRequestLimits.ChunkPlaintextBytes).ToArray();
 
-    private static IAsyncEnumerable<ReadOnlyMemory<byte>> Chunks(byte[] bundle) => Pieces(Chunked(bundle));
+    internal static IAsyncEnumerable<ReadOnlyMemory<byte>> Chunks(byte[] bundle) => Pieces(Chunked(bundle));
 
     private static async IAsyncEnumerable<ReadOnlyMemory<byte>> Pieces(params byte[][] pieces)
     {
@@ -205,5 +296,19 @@ public sealed class DataExportArtifactStoreTests(SchemaFixture schema)
         var refusal = (await act.Should().ThrowAsync<PostgresException>()).Which;
         await transaction.RollbackAsync("probe");
         return refusal;
+    }
+
+    private sealed record LogEntry(LogLevel Level, EventId EventId, string Message, Exception? Exception);
+
+    private sealed class CapturingLogger : ILogger<PostgresDataExportArtifactStore>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Entries.Add(new(logLevel, eventId, formatter(state, exception), exception));
     }
 }

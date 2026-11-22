@@ -14,3 +14,4 @@ begins this directory with the platform operator runbooks;
 | [Identity issuer rebind](identity-issuer-rebind.md) | The tenant identity provider keeps its realm and users but changes address, and the stored issuer must follow without re-keying anyone |
 | [Operator recovery](operator-recovery.md) | An event or delivery is dead-lettered, a job is quarantined, and an operator must inspect it or reset one delivery or outbox row under a fence |
 | [Federation operator](federation-operator.md) | A tenant's identity-provider broker is orphaned, unreadable or nonconforming, and an operator must report it, remove it or disable it, and an account review is owed |
+| [Data export](data-export.md) | The data export key ring must be rotated or a key was lost, an export request never finishes, an expired artifact was not purged, or a process dump was taken |

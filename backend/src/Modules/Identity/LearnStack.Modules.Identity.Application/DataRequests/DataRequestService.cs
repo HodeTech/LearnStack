@@ -242,7 +242,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         }
 
         audit.Designate(request);
-        var view = (await ViewsAsync(caller, [request], cancellationToken).ConfigureAwait(false))[0];
+        var view = (await ViewsAsync(caller, [DataRequestReceiptRow.From(request)], cancellationToken).ConfigureAwait(false))[0];
         var current = await caller.RecheckAsync(cancellationToken).ConfigureAwait(false);
         return current.IsFailure ? Result<DataRequestView>.Fail(current.Error) : Result.Ok(view);
     }
@@ -389,7 +389,7 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
         : request.Kind != DataRequestKind.Closure && request.Origin == DataRequestOrigin.Administrator
             && request.RequesterUserId == caller.Actor;
 
-    private async Task<DataRequestView[]> ViewsAsync(DataRequestCaller caller, DataSubjectRequest[] requests,
+    private async Task<DataRequestView[]> ViewsAsync(DataRequestCaller caller, DataRequestReceiptRow[] requests,
         CancellationToken cancellationToken)
     {
         if (requests.Length == 0)
@@ -408,17 +408,18 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
     /// A receipt shows the status the reconciler would store: <c>failed</c> for a request whose job is dead, without writing
     /// (ADR-0106 § 8). No personal data, no content; the Membership snapshot only to an administrator.
     /// </summary>
-    internal static DataRequestView View(DataRequestCaller caller, DataSubjectRequest request, DataRequestJobPhase phase,
+    internal static DataRequestView View(DataRequestCaller caller, DataRequestReceiptRow request, DataRequestJobPhase phase,
         DataRequestArtifactRow? artifact)
     {
-        var status = DataRequestFailureReconciler.EffectiveStatus(request, phase);
+        var status = DataRequestFailureReconciler.EffectiveStatus(request.Kind, request.Status, phase);
         var failure = request.FailureReason
             ?? (status == DataRequestStatus.Failed && request.Status != DataRequestStatus.Failed ? DataRequestFailureReason.ExecutionFailed : null);
         return new DataRequestView(request.Id.Value, DataRequestCodes.Kinds.ToCode(request.Kind), DataRequestCodes.Origins.ToCode(request.Origin),
             DataRequestCodes.Statuses.ToCode(status), request.CreatedAt, request.UpdatedAt, request.CompletedAt, request.ExecuteAt,
             request.LastRefusal is { } refusal ? DataRequestCodes.Refusals.ToCode(refusal) : null,
             failure is { } reason ? DataRequestCodes.FailureReasons.ToCode(reason) : null,
-            request.RetainedReport.Select(entry => new DataRequestRetainedView(DataRequestCodes.RetainedKinds.ToCode(entry.Key), entry.Value))
+            DataRequestDocuments.ReadResult(request.ResultJson)
+                .Select(entry => new DataRequestRetainedView(DataRequestCodes.RetainedKinds.ToCode(entry.Key), entry.Value))
                 .OrderBy(entry => entry.Kind, StringComparer.Ordinal).ToArray(),
             artifact is null ? null : new DataExportArtifactView(artifact.Artifact.Id.Value,
                 DataRequestCodes.ArtifactStatuses.ToCode(artifact.Readable || artifact.Artifact.Status != DataExportArtifactStatus.Available
@@ -428,7 +429,11 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
                 artifact.Artifact.Version, artifact.Readable),
             request.Version,
             request.RequesterUserId == caller.Actor,
-            caller.Role == DataRequestRole.Administrator ? request.SnapshotMembershipIds.Select(member => member.Value).ToArray() : null);
+            caller.Role == DataRequestRole.Administrator
+                ? DataRequestDocuments.ReadMemberships(request.MembershipSnapshotJson
+                        ?? throw new InvalidOperationException("An administrator's receipt reads its Membership snapshot."))
+                    .Select(member => member.Value).ToArray()
+                : null);
     }
 
     internal static Guid NewId(IGuidFactory factory)

@@ -1,5 +1,7 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.Modules.Tenancy.Application.Contracts.FieldConsents;
 
@@ -8,8 +10,22 @@ namespace LearnStack.Modules.Identity.Application.Authorization;
 /// <summary>Pure scoped-pair assessment; only live, separately confined sources mint authority from its result.</summary>
 internal static class IdentityPolicyEvaluation
 {
-    /// <summary>The one operation-id family an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry.</summary>
-    internal const string OwnDataRequestPrefix = "identity.data_request.";
+    /// <summary>
+    /// The closed set an <see cref="OperationPolicyKind.OwnDataRequest"/> policy may carry: the eight live-session request
+    /// types, each with its one operation id, as the consent-grant arm pins its single type. A policy of this kind on any
+    /// other type, or under another id, is not covered, so registering one confers nothing.
+    /// </summary>
+    internal static readonly FrozenDictionary<Type, string> OwnDataRequestOperations = new Dictionary<Type, string>
+    {
+        [typeof(CreateOwnDataExportCommand)] = IdentityOperationPolicySource.OwnDataExportCreateOperation,
+        [typeof(ListOwnDataRequestsQuery)] = IdentityOperationPolicySource.OwnDataRequestListOperation,
+        [typeof(GetOwnDataRequestQuery)] = IdentityOperationPolicySource.OwnDataRequestReadOperation,
+        [typeof(CancelOwnDataRequestCommand)] = IdentityOperationPolicySource.OwnDataRequestCancelOperation,
+        [typeof(RevokeOwnDataExportCommand)] = IdentityOperationPolicySource.OwnDataExportRevokeOperation,
+        [typeof(MintOwnDataExportTicketCommand)] = IdentityOperationPolicySource.OwnDataExportTicketOperation,
+        [typeof(ReadOwnDataExportChunkCommand)] = IdentityOperationPolicySource.OwnDataExportChunkOperation,
+        [typeof(ReadOwnDataRequestReceiptQuery)] = IdentityOperationPolicySource.OwnDataRequestReceiptOperation,
+    }.ToFrozenDictionary();
 
     internal static IdentityPolicyAssessment Evaluate(OperationPolicy policy, AuthorizationCandidate candidate,
         IdentityAuthorizationResult facts, IOperationPolicyCatalog catalog)
@@ -38,7 +54,9 @@ internal static class IdentityPolicyEvaluation
             // ADR-0106 § 2 and § 4: the subject's own Active Membership in exactly the announced group, through a live
             // session. A tenant-wide Membership does not cover an organization's group, nor the reverse, and no grant
             // or role is consulted: the policy confers no administration authority.
-            if (candidate.SourceKind != AuthorizationSourceKind.Http || !policy.Id.StartsWith(OwnDataRequestPrefix, StringComparison.Ordinal))
+            if (candidate.SourceKind != AuthorizationSourceKind.Http
+                || !OwnDataRequestOperations.TryGetValue(policy.RequestType, out var operation)
+                || !string.Equals(operation, policy.Id, StringComparison.Ordinal))
                 return Refused(ProtectedOperationOutcome.NotCovered);
             var own = members.Where(member => member.OrganizationId == candidate.OrganizationId).ToArray();
             return own.Length == 1

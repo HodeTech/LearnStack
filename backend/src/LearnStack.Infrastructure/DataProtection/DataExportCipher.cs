@@ -64,8 +64,14 @@ public sealed record DataExportSealedChunk(string KeyVersion, byte[] Nonce, byte
 /// </para>
 /// <para>
 /// <b>No secret leaves.</b> Every refusal is one fixed message with no key, label, plaintext or position;
-/// <see cref="ToString"/> prints the type name; key buffers are overwritten on <see cref="Dispose"/>, and
-/// intermediate plaintext is overwritten on failure.
+/// a refused construction names only the setting, <c>DataExport:KeyRing</c>, so an operator knows what to
+/// supply. <see cref="ToString"/> prints the type name; key buffers are overwritten on <see cref="Dispose"/>,
+/// and intermediate plaintext is overwritten on failure.
+/// </para>
+/// <para>
+/// <b>Disposal.</b> Each seal or open copies its key into its own <see cref="AesGcm"/> under the gate that
+/// <see cref="Dispose"/> takes before it overwrites the ring, so a call racing host shutdown either refuses or
+/// works with the real key; it never seals under a key that is being zeroed.
 /// </para>
 /// </remarks>
 public sealed class DataExportCipher : IDisposable
@@ -77,7 +83,8 @@ public sealed class DataExportCipher : IDisposable
     public const byte FormatVersion = 1;
 
     private readonly FrozenDictionary<string, byte[]> _keys;
-    private bool _disposed;
+    private readonly Lock _gate = new();
+    private volatile bool _disposed;
 
     /// <exception cref="InvalidOperationException">The key ring is absent or malformed.</exception>
     public DataExportCipher(ISecretProvider secrets)
@@ -129,12 +136,15 @@ public sealed class DataExportCipher : IDisposable
                 CryptographicOperations.ZeroMemory(key);
             }
 
-            throw Refused();
+            throw RingRefused();
         }
     }
 
     /// <summary>The label new chunks are sealed under; a label, never key material.</summary>
     public string ActiveKeyVersion { get; } = string.Empty;
+
+    /// <summary>Whether the ring holds the key <paramref name="keyVersion"/> names; a label check, no key leaves.</summary>
+    public bool HoldsKey(string? keyVersion) => !_disposed && keyVersion is not null && _keys.ContainsKey(keyVersion);
 
     /// <summary>Seals one chunk of at most <see cref="DataRequestLimits.ChunkPlaintextBytes"/> under the active key.</summary>
     /// <exception cref="InvalidOperationException">The chunk is empty or too large, or the cipher is disposed.</exception>
@@ -150,7 +160,7 @@ public sealed class DataExportCipher : IDisposable
         var nonce = RandomNumberGenerator.GetBytes(DataRequestLimits.NonceBytes);
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[DataRequestLimits.TagBytes];
-        using var cipher = new AesGcm(_keys[ActiveKeyVersion], DataRequestLimits.TagBytes);
+        using var cipher = Keyed(_keys[ActiveKeyVersion]);
         cipher.Encrypt(nonce, plaintext, ciphertext, tag, AssociatedData(binding, ActiveKeyVersion));
         return new DataExportSealedChunk(ActiveKeyVersion, nonce, ciphertext, tag);
     }
@@ -175,7 +185,7 @@ public sealed class DataExportCipher : IDisposable
         var plaintext = new byte[chunk.Ciphertext.Length];
         try
         {
-            using var cipher = new AesGcm(key, DataRequestLimits.TagBytes);
+            using var cipher = Keyed(key);
             cipher.Decrypt(chunk.Nonce, chunk.Ciphertext, chunk.Tag, plaintext, AssociatedData(binding, chunk.KeyVersion));
             return plaintext;
         }
@@ -188,15 +198,18 @@ public sealed class DataExportCipher : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_gate)
         {
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        _disposed = true;
-        foreach (var key in _keys.Values)
-        {
-            CryptographicOperations.ZeroMemory(key);
+            _disposed = true;
+            foreach (var key in _keys.Values)
+            {
+                CryptographicOperations.ZeroMemory(key);
+            }
         }
     }
 
@@ -225,5 +238,24 @@ public sealed class DataExportCipher : IDisposable
         return data;
     }
 
+    /// <summary>
+    /// An <see cref="AesGcm"/> over its own copy of <paramref name="key"/>, made under the gate <see cref="Dispose"/>
+    /// takes: the copy is taken from a live ring, or the call refuses.
+    /// </summary>
+    private AesGcm Keyed(byte[] key)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new AesGcm(key, DataRequestLimits.TagBytes);
+        }
+    }
+
     private static InvalidOperationException Refused() => new("Data export custody unavailable.");
+
+    /// <summary>The startup refusal: it names the setting, never its value or which rule it broke.</summary>
+    private static InvalidOperationException RingRefused() => new(
+        "Data export custody unavailable: the setting " + KeyRingSecret + " (environment DataExport__KeyRing) is absent or malformed. "
+        + "It must hold one JSON object "
+        + "{ \"active\": \"<label>\", \"keys\": { \"<label>\": \"<base64 of 32 bytes>\" } } with one to four distinct keys.");
 }

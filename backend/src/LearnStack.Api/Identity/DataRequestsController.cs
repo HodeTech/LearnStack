@@ -107,7 +107,8 @@ public sealed class OwnDataExportTicketsController(ISender sender) : ApiControll
     [ProducesResponseType<DataExportTicketResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> MintTicket(string id, CancellationToken cancellationToken)
     {
-        using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext);
+        // The body is the empty object, but it is read through the clearing reader like the chunk body it pairs with.
+        using var body = await AdministrationHttpInput.ReadSensitiveObjectAsync(HttpContext);
         if (body is null || !AdministrationHttpInput.TryId(id, out var target) || DataExportDownloadInput.HasPrecondition(Request))
             return AdministrationHttpInput.Invalid();
         var result = await sender.Send(new MintOwnDataExportTicketCommand(target), cancellationToken);
@@ -119,7 +120,8 @@ public sealed class OwnDataExportTicketsController(ISender sender) : ApiControll
 
 /// <summary>
 /// ADR-0107 § 4: one decrypted chunk through a ticket presented in the body, never in the URL. Not keyed and not
-/// conditional; the plaintext buffer is cleared once written.
+/// conditional; the request body's read buffer and the plaintext buffer are cleared once used (best effort: managed
+/// strings and the host's own buffers are beyond reach).
 /// </summary>
 [Route("identity/me/data-requests")]
 public sealed class OwnDataExportChunksController(ISender sender) : ApiControllerBase
@@ -131,7 +133,8 @@ public sealed class OwnDataExportChunksController(ISender sender) : ApiControlle
     [ProducesResponseType<DataExportChunkResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ReadChunk(string id, CancellationToken cancellationToken)
     {
-        using var body = await AdministrationHttpInput.ReadObjectAsync(HttpContext, "ticket", "index");
+        // The ticket is a secret: its read buffer is overwritten when the body is disposed.
+        using var body = await AdministrationHttpInput.ReadSensitiveObjectAsync(HttpContext, "ticket", "index");
         if (body is null || !AdministrationHttpInput.TryId(id, out var target) || DataExportDownloadInput.HasPrecondition(Request)
             || !AdministrationHttpInput.TryText(body.RootElement, "ticket", false, 64, out var ticket)
             || body.RootElement.GetProperty("index") is not { ValueKind: JsonValueKind.Number } index

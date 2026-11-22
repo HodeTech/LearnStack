@@ -138,6 +138,14 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
   written `self` or `third_party`. The ceiling is `DataExport:MaxBytes`, the chunks are
   sealed under the `DataExport:KeyRing` secret, both checked at API startup, and a capped
   section is stated in the bundle and in the artifact's `truncation` receipt column.
+- Plaintext in memory is cleared on a best-effort basis only: the buffers the export
+  and download code own (the bundle's segments, each decrypted chunk, the parsed
+  ticket and chunk request bodies) are overwritten with zeros, but managed strings,
+  serializer internals, grown-and-discarded buffers and the runtime hold copies no
+  code can reach. API and worker process dumps and crash dumps therefore contain
+  personal data and secrets (the export key ring, session material) and are handled
+  as such: not collected by default, access-controlled when taken, and deleted after
+  use ([Data export runbook](../runbooks/data-export.md)).
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 

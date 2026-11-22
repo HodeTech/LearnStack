@@ -82,21 +82,29 @@ public sealed partial class DataRequestHttpTests
     }
 
     [Theory]
-    [InlineData("identity.data_export.mint_ticket")]
-    [InlineData("identity.data_export.read_chunk")]
-    [InlineData("identity.data_request.read")]
-    public async Task A_disclosure_whose_MUST_audit_row_cannot_be_written_is_refused(string operation)
+    [InlineData("identity.data_export.mint_ticket", "live")]
+    [InlineData("identity.data_export.read_chunk", "live")]
+    [InlineData("identity.data_request.read", "live")]
+    [InlineData("identity.data_request.list", "live")]
+    [InlineData("identity.data_export.mint_ticket", "retained")]
+    [InlineData("identity.data_export.read_chunk", "retained")]
+    public async Task A_disclosure_whose_MUST_audit_row_cannot_be_written_is_refused(string operation, string entry)
     {
         await using var proof = await CreatePreparedAsync();
-        using var client = proof.Client();
+        using var client = entry == "retained" ? RetainedClient(proof) : proof.Client();
         var token = proof.Token(EnglishLearner, English);
+        var native = NativeToken(proof, EnglishLearner);
         var tenant = English.TenantId.Value;
         var (id, _) = await FileExportAsync(client, token);
         await RunExportAsync(proof, tenant, null, id);
+        if (entry == "retained")
+            await ChangeStatusAsync(client, proof, LearnerMembershipId, "Suspended");
         string? ticket = null;
         if (operation == "identity.data_export.read_chunk")
         {
-            using var minted = await SendAsync(client, token, OwnPath + "/" + id.ToString("D") + "/artifact/tickets", "POST", "{}");
+            using var minted = entry == "retained"
+                ? await EntrySendAsync(client, native, "/tickets?group=tenant", JsonSerializer.Serialize(new { requestId = id }))
+                : await SendAsync(client, token, OwnPath + "/" + id.ToString("D") + "/artifact/tickets", "POST", "{}");
             ticket = (await JsonAsync(minted)).GetProperty("ticket").GetString();
         }
 
@@ -112,16 +120,21 @@ public sealed partial class DataRequestHttpTests
             """);
         try
         {
-            using var refused = operation switch
+            using var refused = (operation, entry) switch
             {
-                "identity.data_export.mint_ticket" => await SendAsync(client, token, OwnPath + "/" + id.ToString("D") + "/artifact/tickets", "POST", "{}"),
-                "identity.data_export.read_chunk" => await ChunkAsync(client, token, id, ticket!, 0),
+                ("identity.data_export.mint_ticket", "retained") => await EntrySendAsync(client, native, "/tickets?group=tenant",
+                    JsonSerializer.Serialize(new { requestId = id })),
+                ("identity.data_export.read_chunk", "retained") => await EntryChunkAsync(client, native, id, ticket!, 0),
+                ("identity.data_export.mint_ticket", _) => await SendAsync(client, token, OwnPath + "/" + id.ToString("D") + "/artifact/tickets", "POST", "{}"),
+                ("identity.data_export.read_chunk", _) => await ChunkAsync(client, token, id, ticket!, 0),
+                ("identity.data_request.list", _) => await SendAsync(client, proof.Token(EnglishAdmin, English), AdminPath),
                 _ => await SendAsync(client, proof.Token(EnglishAdmin, English), AdminPath + "/" + id.ToString("D")),
             };
             var text = await refused.Content.ReadAsStringAsync();
             refused.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, text);
             text.Should().Contain("audit_unavailable");
-            text.Should().NotContain("\"ticket\"").And.NotContain("\"bytes\"").And.NotContain("\"status\":\"completed\"");
+            text.Should().NotContain("\"ticket\"").And.NotContain("\"bytes\"").And.NotContain("\"status\":\"completed\"")
+                .And.NotContain("\"items\"");
             if (operation == "identity.data_export.mint_ticket")
                 (await CountAsync(proof, tenant, null, "SELECT count(*) FROM public.data_export_tickets")).Should().Be(0, "nothing committed");
         }

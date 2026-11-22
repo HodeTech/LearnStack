@@ -355,6 +355,8 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         var artifact = await AdminExportArtifactAsync(app, transaction, 2 * DataRequestLimits.ChunkPlaintextBytes + 1);
         await InsertChunkAsync(app, transaction, SchemaFixture.TenantA, null, artifact, 0);
         await InsertChunkAsync(app, transaction, SchemaFixture.TenantA, null, artifact, 1);
+        // The request completes on the same transaction, so the forced check below judges the chunks alone.
+        await StepAsync(app, transaction, await RequestOfAsync(app, transaction, artifact), "status='completed',completed_at=now()");
         var incomplete = await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE"));
         incomplete.ConstraintName.Should().Be("data_export_artifact_chunks", "two of three chunks is not a stored bundle");
         await InsertChunkAsync(app, transaction, SchemaFixture.TenantA, null, artifact, 2);
@@ -362,6 +364,9 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
         await transaction.RollbackAsync("complete");
 
+        (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction,
+            "DELETE FROM public.data_export_chunks WHERE artifact_id=@id AND chunk_index=1", ("id", artifact))))
+            .MessageText.Should().Be("Data export chunk deletion refused.", "an available artifact's ciphertext is never replaced or removed");
         await RevokeAsync(app, transaction, artifact);
         (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE")))
             .ConstraintName.Should().Be("data_export_artifact_chunks", "a revocation that leaves ciphertext behind is refused");
@@ -378,8 +383,29 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         await using var app = await OpenAppAsync();
         await using var transaction = await app.BeginTransactionAsync();
         var first = await AdminExportArtifactAsync(app, transaction, 10);
-        var firstRequest = await ScalarAsync<Guid>(app, transaction, "SELECT request_id FROM public.data_export_artifacts WHERE id=@id", ("id", first));
+        var firstRequest = await RequestOfAsync(app, transaction, first);
         await InsertChunkAsync(app, transaction, SchemaFixture.TenantA, null, first, 0);
+        foreach (var malformed in new[]
+        {
+            "[]", "{\"audit\":{\"included\":1,\"total\":2}}", "{\"audit.entries\":{\"included\":3,\"total\":2}}",
+            "{\"audit.entries\":{\"included\":1,\"total\":2,\"value\":\"x\"}}", "{\"audit.entries\":{\"included\":1.5,\"total\":2}}",
+            "{\"audit.entries\":{\"included\":-1,\"total\":2}}", "{\"audit.entries\":{\"total\":2}}", "{\"Audit.entries\":{\"included\":1,\"total\":2}}",
+        })
+            // The guard admits the copy (its request is still fulfilling); the CHECK runs before the indexes.
+            (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, """
+                INSERT INTO public.data_export_artifacts(id,tenant_id,organization_id,request_id,subject_user_id,status,byte_count,
+                    chunk_count,key_version,truncation,expires_at,created_at,created_by)
+                SELECT @id,tenant_id,organization_id,request_id,subject_user_id,'available',byte_count,chunk_count,key_version,
+                    @truncation::jsonb,expires_at,created_at,created_by FROM public.data_export_artifacts WHERE id=@first
+                """, ("id", Guid.CreateVersion7()), ("first", first), ("truncation", malformed)))).ConstraintName
+                .Should().Be("ck_data_export_artifacts_truncation", "the truncation statement has one closed shape: " + malformed);
+        (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, """
+            INSERT INTO public.data_export_artifacts(id,tenant_id,organization_id,request_id,subject_user_id,status,byte_count,
+                chunk_count,key_version,truncation,expires_at,created_at,created_by)
+            SELECT @id,tenant_id,organization_id,request_id,subject_user_id,'available',byte_count,chunk_count,key_version,
+                '{"audit.entries":{"included":1,"total":2}}'::jsonb,expires_at,created_at,created_by FROM public.data_export_artifacts WHERE id=@first
+            """, ("id", Guid.CreateVersion7()), ("first", first)))).ConstraintName.Should().NotBe("ck_data_export_artifacts_truncation",
+            "a well-formed statement passes the CHECK and meets the one-artifact indexes instead");
         await StepAsync(app, transaction, firstRequest, "status='completed',completed_at=now()");
 
         var second = Guid.CreateVersion7();
@@ -414,34 +440,55 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction,
             "UPDATE public.data_export_artifacts SET truncation='{}'::jsonb WHERE id=@id", ("id", first)))).SqlState.Should().Be("42501",
             "the truncation statement is set at insert and never written again (ADR-0107 § 3)");
-        foreach (var malformed in new[]
-        {
-            "[]", "{\"audit\":{\"included\":1,\"total\":2}}", "{\"audit.entries\":{\"included\":3,\"total\":2}}",
-            "{\"audit.entries\":{\"included\":1,\"total\":2,\"value\":\"x\"}}", "{\"audit.entries\":{\"included\":1.5,\"total\":2}}",
-            "{\"audit.entries\":{\"included\":-1,\"total\":2}}", "{\"audit.entries\":{\"total\":2}}", "{\"Audit.entries\":{\"included\":1,\"total\":2}}",
-        })
-            // The guard admits the copy (its request completes in this transaction); the CHECK runs before the indexes.
-            (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, """
-                INSERT INTO public.data_export_artifacts(id,tenant_id,organization_id,request_id,subject_user_id,status,byte_count,
-                    chunk_count,key_version,truncation,expires_at,created_at,created_by)
-                SELECT @id,tenant_id,organization_id,request_id,subject_user_id,'available',byte_count,chunk_count,key_version,
-                    @truncation::jsonb,expires_at,created_at,created_by FROM public.data_export_artifacts WHERE id=@first
-                """, ("id", Guid.CreateVersion7()), ("first", first), ("truncation", malformed)))).ConstraintName
-                .Should().Be("ck_data_export_artifacts_truncation", "the truncation statement has one closed shape: " + malformed);
-        (await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, """
-            INSERT INTO public.data_export_artifacts(id,tenant_id,organization_id,request_id,subject_user_id,status,byte_count,
-                chunk_count,key_version,truncation,expires_at,created_at,created_by)
-            SELECT @id,tenant_id,organization_id,request_id,subject_user_id,'available',byte_count,chunk_count,key_version,
-                '{"audit.entries":{"included":1,"total":2}}'::jsonb,expires_at,created_at,created_by FROM public.data_export_artifacts WHERE id=@first
-            """, ("id", Guid.CreateVersion7()), ("first", first)))).ConstraintName.Should().NotBe("ck_data_export_artifacts_truncation",
-            "a well-formed statement passes the CHECK and meets the one-artifact indexes instead");
-
         await RevokeAsync(app, transaction, first);
         await ExecuteAsync(app, transaction, "DELETE FROM public.data_export_chunks WHERE artifact_id=@id", ("id", first));
         var replacement = Guid.CreateVersion7();
         await InsertArtifactAsync(app, transaction, replacement, SchemaFixture.TenantA, null, second, AdminA, 10);
         await InsertChunkAsync(app, transaction, SchemaFixture.TenantA, null, replacement, 0);
+        await StepAsync(app, transaction, second, "status='completed',completed_at=now()");
         await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
+    }
+
+    /// <summary>
+    /// The artifact bracket (ADR-0107 § 4): an artifact is inserted only while its export is fulfilling and commits only
+    /// with that export completed. The guard compares no transaction identity, so it holds under the savepoints EF Core
+    /// opens and past the first xid epoch, where a cast of the full transaction id to <c>xid</c> fails.
+    /// </summary>
+    [Theory]
+    [InlineData("left_fulfilling", "data_export_artifact_request")]
+    [InlineData("failed", "data_export_artifact_request")]
+    [InlineData("completed", null)]
+    public async Task An_artifact_commits_only_with_its_export_completed_on_the_same_transaction(string outcome, string? refusal)
+    {
+        await using var app = await OpenAppAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        var artifact = await AdminExportArtifactAsync(app, transaction, 10);
+        await InsertChunkAsync(app, transaction, SchemaFixture.TenantA, null, artifact, 0);
+        var request = await RequestOfAsync(app, transaction, artifact);
+        if (outcome == "failed")
+            await StepAsync(app, transaction, request, "status='failed',failure_reason='execution_failed'");
+        else if (outcome == "completed")
+        {
+            // Completed at the top level of this transaction, before any savepoint: the request row's xmin is this
+            // transaction's own id, which is exactly what the withdrawn "completed and fresh" arm admitted.
+            await StepAsync(app, transaction, request, "status='completed',completed_at=now()");
+            (await RefuseAsync(transaction, () => InsertArtifactAsync(app, transaction, Guid.CreateVersion7(), SchemaFixture.TenantA, null,
+                request, AdminA, 10))).MessageText.Should().Be("Data export artifact request refused.",
+                "an artifact is stored while its export is fulfilling, never once this transaction has completed it");
+        }
+
+        if (refusal is null)
+            await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
+        else
+        {
+            var refused = await RefuseAsync(transaction, () => ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE"));
+            refused.ConstraintName.Should().Be(refusal, "an artifact never commits beside an export that did not complete");
+            refused.MessageText.Should().Be("Data export artifact request is not completed.");
+        }
+
+        (await ScalarAsync<bool>(app, transaction,
+            "SELECT position('xmin' in pg_get_functiondef('public.fn_identity_data_export_artifact_guard()'::regprocedure)) = 0"))
+            .Should().BeTrue("the guard no longer reads a transaction identity, so no xid cast can fail after epoch 1");
     }
 
     [Fact]
@@ -631,6 +678,9 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         await InsertArtifactAsync(app, transaction, artifact, SchemaFixture.TenantA, null, request, AdminA, bytes);
         return artifact;
     }
+
+    private static Task<Guid> RequestOfAsync(NpgsqlConnection app, NpgsqlTransaction transaction, Guid artifact) =>
+        ScalarAsync<Guid>(app, transaction, "SELECT request_id FROM public.data_export_artifacts WHERE id=@id", ("id", artifact));
 
     private static Task RevokeAsync(NpgsqlConnection app, NpgsqlTransaction transaction, Guid artifact) =>
         ExecuteAsync(app, transaction, """

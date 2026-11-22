@@ -34,10 +34,14 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
     public static DataRequestStatus EffectiveStatus(DataSubjectRequest request, DataRequestJobPhase phase)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return !request.IsTerminal && phase == DataRequestJobPhase.Dead && CanFail(request)
-            ? DataRequestStatus.Failed
-            : request.Status;
+        return EffectiveStatus(request.Kind, request.Status, phase);
     }
+
+    /// <summary>The same answer from a receipt's kind and stored status, for a page that never loads the aggregate.</summary>
+    public static DataRequestStatus EffectiveStatus(DataRequestKind kind, DataRequestStatus status, DataRequestJobPhase phase) =>
+        !DataRequestCodes.IsTerminal(status) && phase == DataRequestJobPhase.Dead && CanFail(kind, status)
+            ? DataRequestStatus.Failed
+            : status;
 
     /// <summary>
     /// Stores <c>failed</c> for a tracked, non-terminal request whose job is dead.
@@ -102,8 +106,10 @@ public sealed class DataRequestFailureReconciler(IDataRequestStore store, IDataR
     }
 
     /// <summary>Only an export has a fulfilment job in this step, and only a requested or fulfilling one can fail.</summary>
-    private static bool CanFail(DataSubjectRequest request) =>
-        request.Kind == DataRequestKind.Export && request.Status is DataRequestStatus.Requested or DataRequestStatus.Fulfilling;
+    private static bool CanFail(DataSubjectRequest request) => CanFail(request.Kind, request.Status);
+
+    private static bool CanFail(DataRequestKind kind, DataRequestStatus status) =>
+        kind == DataRequestKind.Export && status is DataRequestStatus.Requested or DataRequestStatus.Fulfilling;
 
     private static void Require(bool admitted)
     {

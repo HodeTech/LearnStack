@@ -25,6 +25,9 @@ internal static class DataExportTestKit
 
     internal static DataExportCipher Cipher() => new(new FixedSecrets(KeyRing));
 
+    /// <summary>A cipher over another key ring, such as one a key has left.</summary>
+    internal static DataExportCipher Cipher(string ring) => new(new FixedSecrets(ring));
+
     /// <summary>An application-role transaction announced for one group, with the group's Identity context.</summary>
     internal static async Task<GroupScope> OpenAsync(string appConnectionString, Guid tenant, Guid? organization,
         IEnumerable<Guid>? userFences = null)

@@ -3,11 +3,12 @@ using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
-using LearnStack.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -36,14 +37,28 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// none; a read decrypts one chunk.
 /// </para>
 /// <para>
-/// <b>Time.</b> Readability and the revoke-or-purge decision use the database clock, as the guards do, so an
-/// artifact past its expiry is unreadable whether or not its purge ran.
+/// <b>Time.</b> The artifact is stamped, and its readability and the revoke-or-purge decision are judged, by the
+/// database clock the guards use, so an artifact past its expiry is unreadable whether or not its purge ran and a
+/// revocation never meets a creation stamp from a clock ahead of the database's.
+/// </para>
+/// <para>
+/// <b>Failures.</b> A statement that fails or outlives its five-second budget leaves the owner rollback-only and is
+/// the retryable <see cref="InfrastructureException"/>; a custody refusal of a stored chunk (a key the ring no longer
+/// holds, or a chunk that fails authentication) is logged <see cref="LogLevel.Critical"/> with identifiers only and
+/// answered as an absence, so the subject meets the one uniform refusal and no secret or position leaves.
 /// </para>
 /// </remarks>
 public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitOfWork unit, ITenantContext tenant,
-    DataExportCipher cipher, IClock clock, IAuditSubject audit) : IDataExportArtifactStore
+    DataExportCipher cipher, IAuditSubject audit, ILogger<PostgresDataExportArtifactStore> logger) : IDataExportArtifactStore
 {
     private static readonly TimeSpan StatementBudget = TimeSpan.FromSeconds(5);
+
+    private static readonly Action<ILogger, Guid, Guid, int, string, Exception?> LogCustodyRefused =
+        LoggerMessage.Define<Guid, Guid, int, string>(LogLevel.Critical, new EventId(3193, "DataExportChunkCustodyRefused"),
+            "Data export chunk custody refused: tenant {TenantId}, artifact {ArtifactId}, chunk {ChunkIndex}, key version {KeyVersion}.");
+
+    /// <inheritdoc />
+    public bool CanOpen(string keyVersion) => cipher.HoldsKey(keyVersion);
 
     public async Task<DataExportArtifactMetadata> PutAsync(DataExportArtifactPut put, IAsyncEnumerable<ReadOnlyMemory<byte>> plaintextChunks,
         CancellationToken cancellationToken)
@@ -60,8 +75,12 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
             throw Refused();
         }
 
+        // The database clock stamps the artifact, as the guards judge it; the request's own last stamp is the floor the
+        // aggregate requires, so a request clock ahead of the database's still orders.
+        var now = await DatabaseNowAsync(cancellationToken).ConfigureAwait(false);
+        var floor = request.UpdatedAt ?? request.CreatedAt;
         var created = DataExportArtifact.Create(DataExportArtifactId.From(put.ArtifactId), request, put.ByteCount,
-            cipher.ActiveKeyVersion, put.Truncations, clock.UtcNow, tenant.UserId ?? UserId.SystemActor);
+            cipher.ActiveKeyVersion, put.Truncations, now > floor ? now : floor, tenant.UserId ?? UserId.SystemActor);
         if (created.IsFailure || created.Value.ChunkCount != put.ChunkCount)
         {
             throw Refused();
@@ -134,32 +153,43 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
             """);
         command.Parameters.AddWithValue("artifact", artifact.ArtifactId);
         command.Parameters.AddWithValue("index", index);
-        Guid requestId;
-        int count;
-        DataExportSealedChunk sealedChunk;
-        using (var budget = Budget(cancellationToken))
+        var stored = await ExecuteAsync(async token =>
         {
-            try
+            await using var row = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            if (!await row.ReadAsync(token).ConfigureAwait(false))
             {
-                await using var row = await command.ExecuteReaderAsync(budget.Token).ConfigureAwait(false);
-                if (!await row.ReadAsync(budget.Token).ConfigureAwait(false))
-                {
-                    return null;
-                }
+                return (StoredChunk?)null;
+            }
 
-                requestId = row.GetGuid(0);
-                count = row.GetInt32(1);
-                sealedChunk = new DataExportSealedChunk(row.GetString(2), (byte[])row[3], (byte[])row[4], (byte[])row[5]);
-            }
-            catch (NpgsqlException)
-            {
-                throw Unavailable();
-            }
+            return new StoredChunk(row.GetGuid(0), row.GetInt32(1),
+                new DataExportSealedChunk(row.GetString(2), (byte[])row[3], (byte[])row[4], (byte[])row[5]));
+        }, cancellationToken).ConfigureAwait(false);
+        if (stored is null)
+        {
+            return null;
         }
 
-        var plaintext = cipher.Open(new DataExportChunkBinding(tenant.TenantId.Value, requestId, artifact.ArtifactId, index, count),
-            sealedChunk);
-        return new DataExportPlaintextChunk(index, count, plaintext);
+        byte[] plaintext;
+        try
+        {
+            plaintext = cipher.Open(new DataExportChunkBinding(tenant.TenantId.Value, stored.RequestId, artifact.ArtifactId, index,
+                stored.Count), stored.Chunk);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The host is stopping and the key ring has been cleared: retryable, nothing was disclosed.
+            throw Unavailable();
+        }
+        catch (Exception failure) when (failure is InvalidOperationException or ArgumentException)
+        {
+            // A key the ring no longer holds, or a chunk moved, altered or sealed under another binding: the stored bundle
+            // cannot be served. The label is a non-secret ring version, never key material.
+            LogCustodyRefused(logger, tenant.TenantId.Value, artifact.ArtifactId, index,
+                DataRequestLimits.IsKeyVersion(stored.Chunk.KeyVersion) ? stored.Chunk.KeyVersion : "invalid", null);
+            return null;
+        }
+
+        return new DataExportPlaintextChunk(index, stored.Count, plaintext);
     }
 
     public async Task<DataExportArtifactStatus?> PurgeAsync(DataExportArtifactLocator artifact, DataExportArtifactStatus outcome,
@@ -206,9 +236,13 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
         if (transition.IsFailure)
         {
             // The clocks disagree at the boundary: a later attempt decides again.
+            unit.MarkRollbackOnly();
             throw Unavailable();
         }
 
+        // The transition is stored first: the chunk guard deletes ciphertext only of an artifact that is no longer
+        // available, and the deferred completeness check demands that none is left when the transaction commits.
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
         await using (var delete = Command("""
             DELETE FROM public.data_export_chunks WHERE tenant_id = @tenant AND artifact_id = @artifact
             """))
@@ -217,7 +251,6 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
             await ExecuteAsync(token => delete.ExecuteNonQueryAsync(token), cancellationToken).ConfigureAwait(false);
         }
 
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
         return found.Status;
     }
 
@@ -315,5 +348,10 @@ public sealed class PostgresDataExportArtifactStore(IdentityDbContext db, IUnitO
 
     private static InvalidOperationException Refused() => new("Data export artifact custody refused.");
 
-    private static InvalidOperationException Unavailable() => new("Data export artifact storage unavailable.");
+    private static InfrastructureException Unavailable() => new("Data export artifact storage unavailable.");
+
+    private sealed record StoredChunk(Guid RequestId, int Count, DataExportSealedChunk Chunk)
+    {
+        public override string ToString() => nameof(StoredChunk);
+    }
 }

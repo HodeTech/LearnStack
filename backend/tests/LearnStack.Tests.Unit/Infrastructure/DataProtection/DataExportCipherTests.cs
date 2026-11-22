@@ -78,8 +78,67 @@ public sealed class DataExportCipherTests
 
         var act = () => new DataExportCipher(new FixedSecrets(secret));
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("Data export custody unavailable.")
-            .Which.InnerException.Should().BeNull();
+        // The refusal names the setting and its environment spelling so an operator knows what to supply, and nothing
+        // of the value: no label, no key, not which rule it broke.
+        var refused = act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Data export custody unavailable: the setting DataExport:KeyRing (environment DataExport__KeyRing) is absent or malformed.*")
+            .Which;
+        refused.InnerException.Should().BeNull();
+        if (secret is not null)
+        {
+            foreach (var fragment in new[] { "k1", "k9", "%%%", Convert.ToBase64String(Key(1)), "legacy", "other" })
+                refused.Message.Should().NotContain(fragment);
+        }
+    }
+
+    [Fact]
+    public void The_ring_answers_whether_it_holds_a_label_and_a_disposed_ring_holds_none()
+    {
+        var cipher = Cipher("k2", new() { ["k1"] = Key(1), ["k2"] = Key(2) });
+        cipher.HoldsKey("k1").Should().BeTrue();
+        cipher.HoldsKey("k2").Should().BeTrue();
+        cipher.HoldsKey("k3").Should().BeFalse();
+        cipher.HoldsKey(null).Should().BeFalse();
+        cipher.Dispose();
+        cipher.HoldsKey("k2").Should().BeFalse("a cleared ring can open nothing");
+    }
+
+    /// <summary>
+    /// Seal racing host shutdown: every call either refuses as disposed or seals under the real key, so whatever it
+    /// returned opens under an intact copy of the ring. Without the gate a seal could copy a key mid-way through its
+    /// zeroing and produce a chunk no intact ring opens.
+    /// </summary>
+    [Fact]
+    public async Task A_seal_racing_disposal_either_refuses_or_seals_under_the_real_key()
+    {
+        using var verifier = Cipher("k1", new() { ["k1"] = Key(1) });
+        var plaintext = Plaintext(4096);
+        for (var round = 0; round < 50; round++)
+        {
+            var cipher = Cipher("k1", new() { ["k1"] = Key(1) });
+            using var start = new ManualResetEventSlim();
+            var sealers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+            {
+                var sealedChunks = new List<DataExportSealedChunk>();
+                start.Wait();
+                while (true)
+                {
+                    try
+                    {
+                        sealedChunks.Add(cipher.Seal(Binding(0, 1), plaintext));
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return sealedChunks;
+                    }
+                }
+            })).ToArray();
+            start.Set();
+            await Task.Delay(1);
+            cipher.Dispose();
+            foreach (var sealedChunk in (await Task.WhenAll(sealers)).SelectMany(chunks => chunks))
+                verifier.Open(Binding(0, 1), sealedChunk).Should().Equal(plaintext, "nothing is ever sealed under a zeroed key");
+        }
     }
 
     [Theory]

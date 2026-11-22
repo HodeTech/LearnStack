@@ -3917,6 +3917,7 @@ CREATE INDEX ix_background_jobs_parent ON background_jobs (tenant_id, parent_job
 CREATE INDEX ix_background_jobs_recipient ON background_jobs (tenant_id, recipient_id);
 CREATE INDEX ix_background_jobs_current_attempt ON background_jobs (tenant_id, id, current_attempt_id);
 CREATE INDEX ix_background_jobs_final_outcome ON background_jobs (tenant_id, id, final_outcome_attempt_id);
+CREATE INDEX ix_background_jobs_definition ON background_jobs (tenant_id, definition_key, organization_id);
 CREATE INDEX ix_background_job_attempts_outcome ON background_job_attempts (tenant_id, job_id, final_outcome_attempt_id);
 CREATE INDEX ix_background_job_reservations_capacity ON background_job_reservations (tenant_id, capacity_group);
 CREATE INDEX ix_background_job_recipients_job ON background_job_recipients (tenant_id, accepted_job_id);

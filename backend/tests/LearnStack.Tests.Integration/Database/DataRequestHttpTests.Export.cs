@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.SharedKernel.Identifiers;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
@@ -63,7 +64,8 @@ public sealed partial class DataRequestHttpTests
         pending.GetProperty("artifact").ValueKind.Should().Be(JsonValueKind.Null);
         pending.TryGetProperty("membershipIds", out _).Should().BeFalse("the subject's receipt names no internal identifier");
 
-        await RunExportAsync(proof, tenant, organization?.Value, id);
+        var jobLogs = new LogCapture();
+        await RunExportAsync(proof, tenant, organization?.Value, id, jobLogs);
 
         var completed = await ReceiptAsync(client, token, id);
         completed.GetProperty("status").GetString().Should().Be("completed");
@@ -104,15 +106,92 @@ public sealed partial class DataRequestHttpTests
         var (_, again) = await DownloadAsync(client, token, id);
         again.Should().Equal(bundle);
 
-        // Nothing secret or personal reached a log: no ticket, no plaintext, no ciphertext.
-        var rendered = string.Join('\n', logs.Entries.Select(entry => entry.RenderMessage(System.Globalization.CultureInfo.InvariantCulture) + " " + string.Join(' ',
-            entry.Properties.Select(property => property.Key + "=" + property.Value))));
-        rendered.Should().NotContain(ticket);
-        rendered.Should().NotContain(Convert.ToBase64String(bundle.AsSpan(0, Math.Min(bundle.Length, 48))));
+        // Nothing secret or personal reached a log of the API or of the job's host, nor the state, before or change
+        // columns of the export's audit rows: no ticket, no ticket or session-binding digest, no ciphertext and no
+        // distinctive plaintext (the subject's profile name). The subject's UserId is checked in the logs only: the audit
+        // rows record the request and artifact aggregates, whose subject and requester references are the audit trail.
+        string canary;
+        using (var document = JsonDocument.Parse(bundle))
+            canary = document.RootElement.GetProperty("sections").GetProperty("identity").GetProperty("memberships")[0]
+                .GetProperty("profile").GetProperty("display_name").GetString()!;
+        canary.Should().NotBeNullOrWhiteSpace("the subject's profile name is in the bundle, so its absence elsewhere means something");
+        var secrets = await SecretsAsync(proof, tenant, organization?.Value, Guid.Parse(artifactId), ticket);
+        var rendered = Render(logs) + "\n" + Render(jobLogs);
+        jobLogs.Entries.Should().NotBeEmpty("the job host's own log is captured");
+        var audit = await AuditPayloadsAsync(proof, tenant, organization?.Value, "identity.data_request.create_export",
+            "identity.data_request.fulfill_export", "identity.data_export.store", "identity.data_export.mint_ticket",
+            "identity.data_export.read_chunk");
+        foreach (var (where, text) in new[] { ("a log", rendered), ("an export audit row's state or changes", audit) })
+        {
+            text.Should().NotContain(ticket, where);
+            foreach (var secret in secrets)
+                text.Should().NotContainEquivalentOf(secret, where);
+            text.Should().NotContain(Convert.ToBase64String(bundle.AsSpan(0, Math.Min(bundle.Length, 48))), where);
+            text.Should().NotContain(canary, where);
+        }
+
+        rendered.Should().NotContainEquivalentOf(EnglishLearner.Value.ToString("D"),
+            "no log names the subject beyond the actor enrichment every request carries");
 
         // The receipt and the idempotency row hold no ticket or content.
         (await CountAsync(proof, tenant, null, "SELECT count(*) FROM public.idempotency_keys WHERE convert_from(body, 'UTF8') LIKE '%' || @ticket || '%'",
             ("ticket", ticket))).Should().Be(0);
+    }
+
+    /// <summary>
+    /// Every captured event, message, properties and exception. The actor enrichment (<c>user.id</c> and <c>UserId</c>)
+    /// is left out: it is stamped on every request's events by the observability pipeline (Observability Standards), not
+    /// written by the export, and the subject is the actor here. Every other property and every message is kept.
+    /// </summary>
+    private static string Render(LogCapture logs) => string.Join('\n', logs.Entries.Select(entry =>
+        entry.RenderMessage(System.Globalization.CultureInfo.InvariantCulture) + " " + string.Join(' ',
+            entry.Properties.Where(property => property.Key is not ("user.id" or "UserId"))
+                .Select(property => property.Key + "=" + property.Value))
+        + " " + entry.Exception));
+
+    /// <summary>The digests and ciphertext prefixes the database holds for the artifact, in hex and base64.</summary>
+    private static async Task<string[]> SecretsAsync(IdentityAuthorizationHttpProof proof, Guid tenant, Guid? organization, Guid artifact,
+        string ticket)
+    {
+        await using var app = await OpenAppAsync(proof);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, tenant, organization);
+        var stored = await StringsAsync(app, transaction, """
+            SELECT encode(session_binding_digest, 'hex') FROM public.data_export_tickets WHERE artifact_id = @artifact
+            UNION ALL SELECT encode(digest, 'hex') FROM public.data_export_tickets WHERE artifact_id = @artifact
+            UNION ALL SELECT encode(substring(ciphertext FROM 1 FOR 24), 'hex') FROM public.data_export_chunks WHERE artifact_id = @artifact
+            UNION ALL SELECT encode(substring(ciphertext FROM 1 FOR 24), 'base64') FROM public.data_export_chunks WHERE artifact_id = @artifact
+            UNION ALL SELECT encode(nonce, 'hex') FROM public.data_export_chunks WHERE artifact_id = @artifact
+            """, ("artifact", artifact));
+        stored.Should().Contain(DataExportTicketCodec.TryDigest(ticket)!, "the ticket's stored digest is among the values checked");
+        return [.. stored];
+    }
+
+    /// <summary>The before, after and changes columns of the tenant's audit rows of the given operations, concatenated.</summary>
+    private static async Task<string> AuditPayloadsAsync(IdentityAuthorizationHttpProof proof, Guid tenant, Guid? organization,
+        params string[] operations)
+    {
+        await using var app = await OpenAppAsync(proof);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, tenant, organization);
+        var rows = await StringsAsync(app, transaction, """
+            SELECT operation || ' ' || coalesce(before_state::text, '') || ' ' || coalesce(after_state::text, '') || ' '
+                || coalesce(changes::text, '')
+            FROM public.audit_log WHERE operation = ANY(@operations)
+            """, ("operations", operations));
+        rows.Select(row => row.Split(' ')[0]).Distinct().Should().Contain(operations, "every export operation wrote its row");
+        return string.Join('\n', rows);
+    }
+
+    private static async Task<List<string>> StringsAsync(Npgsql.NpgsqlConnection connection, Npgsql.NpgsqlTransaction transaction,
+        string sql, params (string Name, object Value)[] values)
+    {
+        await using var command = new Npgsql.NpgsqlCommand(sql, connection, transaction);
+        foreach (var (name, value) in values) command.Parameters.AddWithValue(name, value);
+        var found = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) found.Add(reader.GetString(0));
+        return found;
     }
 
     private sealed class LogCapture : ILogEventSink

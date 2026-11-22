@@ -151,7 +151,10 @@ refusal, safe secret recovery and qualification details.
 API startup also requires the fixed
 [invitation SMTP settings and encryption key ring](docs/modules/identity/providers.md#configuration-surface-and-source-bindings).
 Prepare these operator-owned values before starting the API or demo; an older
-private file is not silently supplied with a replacement encryption key.
+private file is not silently supplied with a replacement encryption key. The API
+also refuses to start without the data export key ring `DataExport__KeyRing` (same
+JSON shape; `DataExport__MaxBytes` is optional), whose
+[runbook](docs/runbooks/data-export.md) covers rotation and key loss.
 Keycloak's separate
 [account-verification sender](infra/keycloak/README.md#invitation-email-and-recipient-verification)
 must also work for the complete new-recipient journey.

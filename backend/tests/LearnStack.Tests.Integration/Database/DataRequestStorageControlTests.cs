@@ -35,8 +35,7 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
                 await FenceAsync(second, loser, SchemaFixture.TenantA, null, AdminA);
                 await InsertRequestAsync(second, loser, Guid.CreateVersion7(), SchemaFixture.TenantA, null, AdminA, [AdminMembershipA]);
             });
-            (await Task.WhenAny(contender, Task.Delay(TimeSpan.FromSeconds(1)))).Should().NotBe(contender,
-                "the contender waits on the subject's fence while the winner is open");
+            await WaitUntilBlockedAsync(database, second.ProcessID, contender, "the contender waits on the subject's fence while the winner is open");
             await winner.CommitAsync();
             var refusal = (await FluentActions.Awaiting(() => contender).Should().ThrowAsync<PostgresException>()).Which;
             refusal.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
@@ -55,8 +54,7 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
             await ScopeAsync(second, loser, SchemaFixture.TenantA);
             var contender = InsertRequestAsync(second, loser, Guid.CreateVersion7(), SchemaFixture.TenantA, null, AdminA,
                 [AdminMembershipA], "erasure");
-            (await Task.WhenAny(contender, Task.Delay(TimeSpan.FromSeconds(1)))).Should().NotBe(contender,
-                "the second insert waits on the first's uncommitted index entry");
+            await WaitUntilBlockedAsync(database, second.ProcessID, contender, "the second insert waits on the first's uncommitted index entry");
             await winner.CommitAsync();
             (await FluentActions.Awaiting(() => contender).Should().ThrowAsync<PostgresException>()).Which.ConstraintName
                 .Should().Be("ux_data_subject_requests_active");
@@ -243,6 +241,67 @@ public sealed class DataRequestStorageControlTests(SchemaFixture schema)
                 FROM public.data_export_artifacts a WHERE a.id = @id
                 """, ("id", TenantWideB.Artifact!.Value))).Should().Be("purged:true:0",
                 "an expired artifact is purged; its metadata row stays as the receipt");
+        }
+    }
+
+    /// <summary>
+    /// ADR-0107 § 4: a chunk written while a revocation of its artifact is in flight waits for it and then meets the
+    /// committed status, so ciphertext never lands on a withdrawn artifact (which nothing would clean afterwards).
+    /// </summary>
+    [Fact]
+    public async Task A_chunk_insert_racing_a_revocation_waits_for_it_and_is_refused()
+    {
+        await using var database = await SeededAsync();
+        await using var revoker = await OpenAppAsync(database);
+        await using var writer = await OpenAppAsync(database);
+        var artifact = TenantWideA.Artifact!.Value;
+        await using (var revocation = await revoker.BeginTransactionAsync())
+        {
+            await FenceAsync(revoker, revocation, SchemaFixture.TenantA, null, null);
+            // The store's revocation: lock the artifact, record it revoked, then delete its chunks; not yet committed.
+            await ExecuteAsync(revoker, revocation, "SELECT id FROM public.data_export_artifacts WHERE id=@id FOR UPDATE", ("id", artifact));
+            await ExecuteAsync(revoker, revocation, """
+                UPDATE public.data_export_artifacts SET status='revoked',purged_at=now(),row_version=row_version+1,
+                    updated_at=now(),updated_by=@subject WHERE id=@id
+                """, ("id", artifact), ("subject", PersonA));
+            await ExecuteAsync(revoker, revocation, "DELETE FROM public.data_export_chunks WHERE artifact_id=@id", ("id", artifact));
+
+            await using var insert = await writer.BeginTransactionAsync();
+            await ScopeAsync(writer, insert, SchemaFixture.TenantA);
+            var contender = InsertChunkAsync(writer, insert, SchemaFixture.TenantA, null, artifact, 0);
+            await WaitUntilBlockedAsync(database, writer.ProcessID, contender, "the chunk guard reads its artifact behind the revocation's row lock");
+            await revocation.CommitAsync();
+
+            var refusal = (await FluentActions.Awaiting(() => contender).Should().ThrowAsync<PostgresException>()).Which;
+            refusal.SqlState.Should().Be("23514");
+            refusal.MessageText.Should().Be("Data export chunk refused.", "the guard re-read the committed revoked status");
+        }
+
+        await using var reader = await OpenAppAsync(database);
+        await using var read = await reader.BeginTransactionAsync();
+        await ScopeAsync(reader, read, SchemaFixture.TenantA);
+        (await ScalarAsync<string>(reader, read, """
+            SELECT a.status || ':' || (SELECT count(*) FROM public.data_export_chunks c WHERE c.artifact_id = a.id)::text
+            FROM public.data_export_artifacts a WHERE a.id = @id
+            """, ("id", artifact))).Should().Be("revoked:0", "a withdrawn artifact keeps no ciphertext");
+    }
+
+    /// <summary>
+    /// Waits until the backend <paramref name="pid"/> waits on a lock, from <c>pg_locks</c> (readable by every role, unlike
+    /// another role's <c>pg_stat_activity</c> wait columns), instead of sleeping and hoping.
+    /// </summary>
+    private static async Task WaitUntilBlockedAsync(DisposableSchemaDatabase database, int pid, Task contender, string because)
+    {
+        await using var observer = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (true)
+        {
+            contender.IsCompleted.Should().BeFalse(because);
+            if (await ScalarAsync<bool>((NpgsqlConnection)observer, null,
+                    "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_locks WHERE pid = @pid AND NOT granted)", ("pid", pid)))
+                return;
+            DateTime.UtcNow.Should().BeBefore(deadline, because);
+            await Task.Delay(TimeSpan.FromMilliseconds(20));
         }
     }
 

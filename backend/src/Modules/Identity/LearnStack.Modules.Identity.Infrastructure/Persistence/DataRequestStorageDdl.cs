@@ -27,6 +27,13 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// also holds the subject's exclusive User fence, under which Membership admission runs, so the frozen
 /// Membership snapshot is exactly the subject's Memberships in the group when the row commits.
 /// </para>
+/// <para>
+/// <b>The artifact bracket.</b> An artifact is inserted only while its export is <c>fulfilling</c> and
+/// commits only with that export <c>completed</c>; no transaction-identity comparison is made, so the
+/// guard holds past the first xid epoch and under the savepoints EF Core opens. The chunk and ticket
+/// guards read their artifact <c>FOR SHARE</c>, so they serialize behind a revocation or purge in
+/// flight, and a chunk is deleted only once its artifact is no longer <c>available</c>.
+/// </para>
 /// </remarks>
 internal static class DataRequestStorageDdl
 {
@@ -62,6 +69,7 @@ internal static class DataRequestStorageDdl
         }
 
         migration.Sql(Grants);
+        migration.Sql(GroupPageIndex);
         migration.Sql(ArtifactParentScope);
         migration.Sql(TicketParentScope);
         migration.Sql(ChunkParentScope);
@@ -118,6 +126,15 @@ internal static class DataRequestStorageDdl
                 progress, result, last_refusal, failure_reason, completed_at, created_at, row_version)
             ON public.data_subject_requests TO learnstack_platform;
         GRANT UPDATE (status, row_version, completed_at, result) ON public.data_subject_requests TO learnstack_platform;
+        """;
+
+    /// <summary>
+    /// The administrator's page of a group, newest first: equality on the tenant and the group's organization, then a
+    /// seek below the cursor's UUIDv7 in index order, so a page reads its rows and not the group's whole history. The
+    /// subject's page uses the subject index.
+    /// </summary>
+    private const string GroupPageIndex = """
+        CREATE INDEX ix_data_subject_requests_group_page ON public.data_subject_requests (tenant_id, organization_id, id);
         """;
 
     // Database Standards § Parent organization mirrors, in its canonical form, once per child. Each is a literal:
@@ -301,7 +318,7 @@ internal static class DataRequestStorageDdl
     private const string ArtifactGuard = """
         CREATE FUNCTION public.fn_identity_data_export_artifact_guard() RETURNS trigger
             LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog AS $guard$
-        DECLARE request_kind text; request_subject uuid; request_status text; request_fresh boolean;
+        DECLARE request_kind text; request_subject uuid; request_status text;
         BEGIN
             IF (session_user <> 'learnstack_app' OR current_user <> 'learnstack_app'
                 OR TG_TABLE_SCHEMA <> 'public' OR TG_TABLE_NAME <> 'data_export_artifacts'
@@ -314,13 +331,15 @@ internal static class DataRequestStorageDdl
                     OR NEW.created_at > transaction_timestamp() + interval '5 minutes'
                     OR NEW.created_at < transaction_timestamp() - interval '5 minutes') IS NOT FALSE
                 THEN RAISE EXCEPTION 'Data export artifact initial state refused.' USING ERRCODE = '23514'; END IF;
-                -- The artifact of an export that is fulfilling, or that this transaction is completing.
-                SELECT request.kind, request.subject_user_id, request.status, request.xmin = pg_current_xact_id()::text::xid
-                    INTO request_kind, request_subject, request_status, request_fresh
+                -- The artifact of an export that is fulfilling, and only then. The deferred completeness check
+                -- requires the same request to be completed when the transaction commits, so an artifact is never
+                -- stored for a request that ends fulfilling, failed or rolled back.
+                SELECT request.kind, request.subject_user_id, request.status
+                    INTO request_kind, request_subject, request_status
                     FROM public.data_subject_requests AS request
                     WHERE request.tenant_id = NEW.tenant_id AND request.id = NEW.request_id;
                 IF (NOT FOUND OR request_kind <> 'export' OR request_subject IS DISTINCT FROM NEW.subject_user_id
-                    OR NOT (request_status = 'fulfilling' OR (request_status = 'completed' AND request_fresh))) IS NOT FALSE
+                    OR request_status <> 'fulfilling') IS NOT FALSE
                 THEN RAISE EXCEPTION 'Data export artifact request refused.' USING ERRCODE = '23514'; END IF;
                 RETURN NEW;
             END IF;
@@ -364,11 +383,13 @@ internal static class DataRequestStorageDdl
                     OR NEW.created_at > transaction_timestamp() + interval '5 minutes'
                     OR NEW.created_at < transaction_timestamp() - interval '5 minutes') IS NOT FALSE
                 THEN RAISE EXCEPTION 'Data export ticket initial state refused.' USING ERRCODE = '23514'; END IF;
-                -- Subject-only retrieval of a readable artifact (ADR-0107 § 4).
+                -- Subject-only retrieval of a readable artifact (ADR-0107 § 4). FOR SHARE waits for a revocation or
+                -- purge in flight and reads the status it commits, so a ticket is never minted over a withdrawn artifact.
                 SELECT artifact.subject_user_id, artifact.status, artifact.expires_at
                     INTO artifact_subject, artifact_status, artifact_expires
                     FROM public.data_export_artifacts AS artifact
-                    WHERE artifact.tenant_id = NEW.tenant_id AND artifact.id = NEW.artifact_id;
+                    WHERE artifact.tenant_id = NEW.tenant_id AND artifact.id = NEW.artifact_id
+                    FOR SHARE;
                 IF (NOT FOUND OR artifact_status <> 'available' OR clock_timestamp() >= artifact_expires
                     OR artifact_subject IS DISTINCT FROM NEW.created_by) IS NOT FALSE
                 THEN RAISE EXCEPTION 'Data export ticket artifact refused.' USING ERRCODE = '23514'; END IF;
@@ -399,10 +420,24 @@ internal static class DataRequestStorageDdl
                 OR TG_TABLE_SCHEMA <> 'public' OR TG_TABLE_NAME <> 'data_export_chunks'
                 OR TG_OP NOT IN ('INSERT','DELETE')) IS NOT FALSE
             THEN RAISE EXCEPTION 'Data export chunk mutation refused.' USING ERRCODE = '23514'; END IF;
-            IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+            -- Both arms read the artifact FOR SHARE, which conflicts with the row lock of a revocation or purge in
+            -- flight: the statement waits for it and then reads the status it committed.
+            IF TG_OP = 'DELETE' THEN
+                -- A chunk leaves only an artifact already withdrawn or expired (the store saves the transition first):
+                -- the ciphertext of an available artifact is never replaced or removed piecemeal.
+                SELECT artifact.status INTO artifact_status
+                    FROM public.data_export_artifacts AS artifact
+                    WHERE artifact.tenant_id = OLD.tenant_id AND artifact.id = OLD.artifact_id
+                    FOR SHARE;
+                IF (NOT FOUND OR artifact_status = 'available') IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data export chunk deletion refused.' USING ERRCODE = '23514'; END IF;
+                RETURN OLD;
+            END IF;
+            -- A chunk is written only onto an available artifact, so never onto one being withdrawn.
             SELECT artifact.status, artifact.chunk_count INTO artifact_status, artifact_chunks
                 FROM public.data_export_artifacts AS artifact
-                WHERE artifact.tenant_id = NEW.tenant_id AND artifact.id = NEW.artifact_id;
+                WHERE artifact.tenant_id = NEW.tenant_id AND artifact.id = NEW.artifact_id
+                FOR SHARE;
             IF (NOT FOUND OR artifact_status <> 'available' OR NEW.chunk_index >= artifact_chunks) IS NOT FALSE
             THEN RAISE EXCEPTION 'Data export chunk refused.' USING ERRCODE = '23514'; END IF;
             RETURN NEW;
@@ -414,21 +449,31 @@ internal static class DataRequestStorageDdl
 
     /// <summary>
     /// At commit, an available artifact holds exactly its chunk count and a revoked or purged one holds
-    /// none: a bundle is never half-stored and a revocation never leaves ciphertext behind.
+    /// none: a bundle is never half-stored and a revocation never leaves ciphertext behind. An artifact
+    /// inserted by the transaction also needs its request completed by it: the artifact guard admits the
+    /// insert only while the request is fulfilling, and this is the other half of that bracket.
     /// </summary>
     private const string Completeness = """
         CREATE FUNCTION public.fn_identity_data_export_completeness() RETURNS trigger
             LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog AS $complete$
-        DECLARE target_tenant uuid; target_artifact uuid; artifact_status text; artifact_chunks integer; stored bigint;
+        DECLARE target_tenant uuid; target_artifact uuid; artifact_status text; artifact_chunks integer;
+            artifact_request uuid; request_status text; stored bigint;
         BEGIN
             IF TG_TABLE_NAME = 'data_export_artifacts' THEN
                 target_tenant := NEW.tenant_id; target_artifact := NEW.id;
             ELSE
                 target_tenant := OLD.tenant_id; target_artifact := OLD.artifact_id;
             END IF;
-            SELECT artifact.status, artifact.chunk_count INTO artifact_status, artifact_chunks
+            SELECT artifact.status, artifact.chunk_count, artifact.request_id INTO artifact_status, artifact_chunks, artifact_request
                 FROM public.data_export_artifacts AS artifact
                 WHERE artifact.tenant_id = target_tenant AND artifact.id = target_artifact;
+            IF TG_TABLE_NAME = 'data_export_artifacts' AND TG_OP = 'INSERT' THEN
+                SELECT request.status INTO request_status FROM public.data_subject_requests AS request
+                    WHERE request.tenant_id = target_tenant AND request.id = artifact_request;
+                IF (request_status IS DISTINCT FROM 'completed') IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data export artifact request is not completed.'
+                    USING ERRCODE = '23514', CONSTRAINT = 'data_export_artifact_request'; END IF;
+            END IF;
             SELECT count(*) INTO stored FROM public.data_export_chunks AS chunk
                 WHERE chunk.tenant_id = target_tenant AND chunk.artifact_id = target_artifact;
             IF (artifact_status IS NULL

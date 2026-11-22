@@ -19,6 +19,15 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
 
     private static readonly string[] SuccessStatuses = ["200", "201", "202"];
 
+    /// <summary>What a client does with a ticket or chunk refusal (ADR-0107 § 4).</summary>
+    private const string DownloadRecovery = " A ticket is bound to the credential that minted it, so a not_found during a download may only mean the "
+        + "session credential changed (a refresh or a new sign-in): mint a new ticket and resume from the index that failed. If that mint "
+        + "answers 409 with data_export_unavailable, the artifact is really gone (revoked, expired, purged, or no longer readable).";
+
+    /// <summary>The assembled bundle's shape, stated on both chunk routes.</summary>
+    private const string BundleShape = "Decoding every chunk's bytes and concatenating them in index order yields the bundle: one UTF-8 JSON "
+        + "document, served as application/json; charset=utf-8, whose top-level member schema_version names its format.";
+
     private sealed record Contract(string Path, HttpMethod Method, string Name, Shape Shape, string Response, string? Body, bool Own);
 
     private static readonly Contract[] Contracts =
@@ -114,7 +123,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 Name = "limit",
                 In = ParameterLocation.Query,
                 Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "20", Default = JsonValue.Create(20) },
-                Description = "Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse.",
+                Description = "Canonical positive ASCII decimal Int32 from 1 through 20, default 20. Signs, leading zeros, repeats and larger values refuse. Paging is forward only: follow pageInfo.nextCursor; there is no previous page.",
             });
         }
         if (contract.Body is not null)
@@ -152,7 +161,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             {
                 Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the group's requests for its status.",
                 Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
-                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext.",
+                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. " + BundleShape,
                 Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
                 _ => discovery ? "The subject's retained groups on the real host, in order." : "Current receipt-safe projection: status and counts, never content.",
             },
@@ -164,7 +173,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("400", "validation_failed for malformed or noncanonical input, a missing or extra group, extra or repeated query, an unexpected body, a tenant or organization selector header, an invalid key or precondition, or a key or precondition on an operation that takes none."),
             ("401", "unauthorized for present invalid, expired or undecidable credentials, a missing or invalid native session source, or a binding that is not Active; bare Bearer challenge."),
             ("403", "forbidden when the request carries no retained-entry credential a ticket can bind, or its witness closed."),
-            ("404", "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike."),
+            ("404", "not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike."
+                + (contract.Shape is Shape.Ticket or Shape.Chunk ? DownloadRecovery : string.Empty)),
             ("405", "method_not_allowed after earlier host, credential and scope gates."),
             ("413", "payload_too_large; request bodies are at most 4 KiB."),
             ("429", "rate_limited by the existing visitor/subject admission."),
@@ -176,7 +186,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             Description = contract.Shape switch
             {
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
-                Shape.Ticket => "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact.",
+                Shape.Ticket => TicketConflict,
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
             Headers = new Dictionary<string, IOpenApiHeader> { ["Cache-Control"] = new OpenApiHeader { Required = true, Schema = Enum("no-store") } },
@@ -200,7 +210,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     private static string RetainedDescription(Contract contract) => contract.Name switch
     {
         "ListRetainedDataRequestScopes" => "The retained own scope of ADR-0106 § 9: the groups on the real host where the verified subject holds or held a Membership of any status or has a data request. On an organization host only that organization's group. No Active Membership, no ordinary native session and no tenant or organization selector. Audit Off. No request body.",
-        "ListRetainedDataRequests" => "The subject's own requests in one retained group, newest first, for a Suspended person, a person whose Membership was revoked or a group where only a request survives. A request whose job died is shown failed. Audit Off. No request body.",
+        "ListRetainedDataRequests" => "The subject's own requests in one retained group, newest first, for a Suspended person or a person whose Membership was revoked. A request whose job died is shown failed. Audit Off. No request body.",
         "CreateRetainedDataExport" => "The subject files an export of their own data in one retained group (ADR-0106 § 3, § 9). Refused when the subject holds no Membership of any status there. Strict empty JSON object. MUST audited.",
         "CancelRetainedDataRequest" => "The subject cancels their own requested export in one retained group (requested to cancelled). Strict JSON object with requestId only. MUST audited.",
         "MintRetainedDataExportTicket" => "The subject mints a fifteen-minute download cursor over their own available, unexpired artifact in one retained group, bound to this retained-entry credential; never honoured on the live path. Strict JSON object with requestId only. Not keyed and never replayed; no If-Match. MUST read-sensitive audited; refused when the row cannot be written.",
@@ -235,7 +245,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 Name = "limit",
                 In = ParameterLocation.Query,
                 Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "2147483647", Default = JsonValue.Create(20) },
-                Description = "Canonical positive ASCII decimal Int32, default 20, accepted values above 100 clamp to 100. Signs, leading zeros and repeats refuse.",
+                Description = "Canonical positive ASCII decimal Int32, default 20; a page holds at most 100 items and a larger value is clamped to 100 (API Design § Pagination), unlike the retained entry, whose page size is 1 through 20. Signs, leading zeros and repeats refuse. Paging is forward only: follow pageInfo.nextCursor; there is no previous page.",
             });
         }
         if (contract.Body is not null)
@@ -260,7 +270,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 Required = true,
                 Schema = EntityTag(),
                 Description = contract.Name.StartsWith("Revoke", StringComparison.Ordinal)
-                    ? "One canonical strong quoted decimal artifact version (the receipt's artifact.version). Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409."
+                    ? "One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409."
                     : "One canonical strong quoted decimal request version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale version is 409.",
             });
         }
@@ -275,7 +285,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             {
                 Shape.Create => "Accepted: the request's initial resource. Its export runs as a background job; read the Location for its status.",
                 Shape.Ticket => "The opaque ticket, returned exactly once and never replayed, with the expiry and the chunks it authorizes.",
-                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext.",
+                Shape.Chunk => "One decrypted chunk: index, count and the base64 of at most 128 KiB of plaintext. " + BundleShape,
                 Shape.Mutation => "Committed receipt, or the retained receipt of a completed exact-key replay.",
                 _ => "Current receipt-safe projection: status and counts, never content.",
             },
@@ -289,6 +299,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             ("403", contract.Own ? "forbidden when the request carries no live session the ticket can bind."
                 : "forbidden without current identity.membership.admin covering the context's group."),
             ("404", contract.Own ? "not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike."
+                    + (contract.Shape is Shape.Ticket or Shape.Chunk ? DownloadRecovery : string.Empty)
                 : "not_found for noncoverage, for a request or Membership of another group, a closure, or a request another administrator filed (cancel, revoke)."),
             ("405", "method_not_allowed after earlier host, credential and scope gates."),
             ("413", "payload_too_large; request bodies are at most 16 KiB."),
@@ -301,7 +312,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             Description = contract.Shape switch
             {
                 Shape.Create => "business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
-                Shape.Ticket => "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no available, unexpired artifact.",
+                Shape.Ticket => TicketConflict,
                 Shape.Chunk => "Never: a chunk refusal is not_found.",
                 _ => "concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             },
@@ -316,7 +327,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
         {
             Required = true,
             Schema = EntityTag(),
-            Description = contract.Name.StartsWith("Revoke", StringComparison.Ordinal) ? "The artifact's version after the revocation." : "The request's version.",
+            Description = contract.Name.StartsWith("Revoke", StringComparison.Ordinal)
+                ? "The artifact's version after the revocation (artifact.version), not the request's." : "The request's version.",
         };
         if (contract.Shape is Shape.Create or Shape.Mutation) success.Headers[IdempotentAttribute.ReplayedHeaderName] = new OpenApiHeader
         {
@@ -336,6 +348,10 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             Description = "Exact same-API relative location of the new request's receipt.",
         };
     }
+
+    private const string TicketConflict = "business_rule_violation: errors.artifact carries data_export_unavailable when the request has no "
+        + "available, unexpired artifact, when the key it was sealed under is no longer in the export key ring, or when the artifact already "
+        + "holds three unconsumed, unexpired tickets (a slot frees when one is consumed by its final chunk or expires after fifteen minutes).";
 
     private static string Description(Contract contract) => contract.Shape switch
     {
@@ -410,7 +426,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
                 ContentEncoding = "base64",
                 MinLength = 4,
                 MaxLength = 174764,
-                Description = "Base64 of one chunk of the decrypted bundle, at most 128 KiB of plaintext. Concatenating every chunk in index order yields the bundle."
+                Description = "Base64 of one chunk of the decrypted bundle, at most 128 KiB of plaintext. Concatenating every chunk's decoded bytes in index order yields the bundle: one UTF-8 JSON document (application/json; charset=utf-8) whose top-level member schema_version names its format."
             }));
     }
 

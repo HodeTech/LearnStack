@@ -13,8 +13,11 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 
 // The retained own-scope request types of ADR-0106 § 9 are as thin as the live ones: each consumes the exact live
 // witness its own invocation was admitted with, builds the subject's caller and hands over to the same core. No
-// Membership read admits them, so a Suspended person, a person whose Membership was revoked and a group where only a
-// request survives are served alike; the cores still confine every row to the announced group and to the subject.
+// Membership read admits them, so a Suspended person and a person whose Membership was revoked are served alike; the
+// cores still confine every row to the announced group and to the subject. A group the definer proved only by a
+// request, with no Membership of any status, would be readable but answer not_found on create (the creation core
+// needs a Membership for the snapshot); that case is unreachable today because Memberships are never deleted, only
+// Revoked, so every group with a request also holds the subject's Membership tombstone.
 
 /// <summary>
 /// Consumes only the exact live retained own data-request scope witness on its physical owner

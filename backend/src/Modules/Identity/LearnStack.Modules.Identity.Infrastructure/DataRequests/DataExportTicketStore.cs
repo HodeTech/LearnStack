@@ -74,6 +74,20 @@ public sealed class DataExportTicketStore(IdentityDbContext db, IUnitOfWork unit
             .ConfigureAwait(false);
     }
 
+    public async Task<int> CountOpenAsync(DataExportArtifactId artifactId, CancellationToken cancellationToken)
+    {
+        Admit();
+        // Expiry by the database clock, as the ticket guard judges it; the tenant and artifact lead the ticket index.
+        await using var command = DataRequestSql.Command(unit, tenant, """
+            SELECT count(*) FROM public.data_export_tickets
+            WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND artifact_id=@artifact
+              AND consumed_at IS NULL AND clock_timestamp() < expires_at
+            """);
+        command.Parameters.AddWithValue("artifact", artifactId.Value);
+        var found = await DataRequestSql.ExecuteAsync(unit, token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false);
+        return found is long count ? checked((int)count) : throw new InfrastructureException("Data request storage unavailable.");
+    }
+
     private async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

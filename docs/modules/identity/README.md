@@ -871,9 +871,18 @@ exact wire shapes.
   the ticket is unconsumed, unexpired (fifteen minutes) and presented in its own session,
   it authorizes reads of any index below the chunk count; serving the final chunk
   (`count - 1`) consumes it on the same transaction, and a resumed or repeated download
-  mints a new ticket. Every refusal of a chunk read is the same `404 not_found`. The chunk
-  is written as `{index, count, bytes}` straight from its plaintext buffer, which is then
-  zeroed; responses are `no-store`.
+  mints a new ticket. Every refusal of a chunk read is the same `404 not_found`; a chunk the
+  store cannot open (its key left the ring, or it fails authentication) is answered the same
+  way and logged at critical severity with identifiers only. The chunk is written as
+  `{index, count, bytes}` straight from its plaintext buffer, which is then zeroed, and the
+  ticket and chunk request bodies are read into a buffer that is zeroed once parsed (best
+  effort: managed strings are beyond reach); responses are `no-store`.
+- **Ticket bound.** Ticket rows and their MUST audit rows are permanent, so a mint is
+  bounded: under the artifact's row lock, an artifact that already holds three unconsumed,
+  unexpired tickets, or whose key the export key ring no longer holds, is refused with the
+  same `409 data_export_unavailable` as an artifact that is gone. A slot frees when a ticket
+  is consumed by its final chunk or expires after fifteen minutes. The bound is
+  `DataExportDownloadService.MaximumOpenTickets`.
 - **One root per executor.** `DataRequestService` writes only `DataSubjectRequest`, through
   `IDataRequestStore`; `DataExportDownloadService` writes only `DataExportTicket`, through
   `IDataExportTicketStore`. Both derive the typed aggregate write store, the readers

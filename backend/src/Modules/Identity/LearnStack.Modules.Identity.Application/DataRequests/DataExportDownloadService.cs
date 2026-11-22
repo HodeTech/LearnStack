@@ -24,12 +24,24 @@ namespace LearnStack.Modules.Identity.Application.DataRequests;
 public sealed class DataExportDownloadService(IDataRequestReader reader, IDataExportTicketStore tickets, IDataExportArtifactStore artifacts,
     IDataExportSessionBinding sessions, ITenantContext context, IAuditSubject audit, IGuidFactory ids, IClock clock)
 {
+    /// <summary>
+    /// The most unconsumed, unexpired tickets one artifact may hold at once. A ticket row and its MUST audit row are
+    /// permanent receipts, so minting is bounded: a download in progress, a retry and one spare, and the next mint
+    /// waits for one to be consumed or to expire (fifteen minutes).
+    /// </summary>
+    internal const int MaximumOpenTickets = 3;
+
     private DataRequestScopeGroup Group => new(context.TenantId, context.OrganizationId);
 
     /// <summary>
     /// Mints a fifteen-minute download cursor bound to the session, over the subject's own readable artifact
     /// (ADR-0107 § 4). Only the subject is ever served: an administrator who filed the export never gets a ticket.
     /// </summary>
+    /// <remarks>
+    /// Under the artifact's row lock, so concurrent mints count each other: an artifact whose key the ring no longer
+    /// holds, or that already holds <see cref="MaximumOpenTickets"/> open tickets, is refused with the same
+    /// <c>data_export_unavailable</c> as an artifact that is gone.
+    /// </remarks>
     public async Task<Result<DataExportTicketGrant>> MintTicketAsync(DataRequestCaller caller, Guid requestId,
         CancellationToken cancellationToken)
     {
@@ -54,7 +66,13 @@ public sealed class DataExportDownloadService(IDataRequestReader reader, IDataEx
             return DataRequestService.Fail<DataExportTicketGrant>("lockey_not_found");
         }
 
-        if (found is null || !found.Readable || found.Artifact.SubjectUserId != caller.Actor)
+        if (found is null || !found.Readable || found.Artifact.SubjectUserId != caller.Actor
+            || !artifacts.CanOpen(found.Artifact.KeyVersion))
+        {
+            return DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
+        }
+
+        if (await tickets.CountOpenAsync(found.Artifact.Id, cancellationToken).ConfigureAwait(false) >= MaximumOpenTickets)
         {
             return DataRequestService.Rule<DataExportTicketGrant>("artifact", "lockey_data_export_unavailable");
         }

@@ -10,6 +10,14 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
     /// request it concerns, so the closed replay-target vocabulary gains <c>DataSubjectRequest</c>. Nothing else of the
     /// constraint changes: a receipt still holds a bounded success body and no secret.
     /// </summary>
+    /// <remarks>
+    /// ADR-0106 § 8: a request's receipt reads its export job's phase from <c>background_jobs</c> by the job's exact
+    /// route (tenant, definition, organization, profile, parameters). <c>ix_background_jobs_definition</c> gives that
+    /// read an equality seek on the tenant and the group's definition key, so it reads the group's export jobs and not the
+    /// tenant's whole job history under its five-second budget. It is not partial: a predicate on the definition key would
+    /// not match the bound parameter of a generic plan. The organization is last because the read compares it with
+    /// <c>IS NOT DISTINCT FROM</c>, which is not an index condition, and it filters the few rows the seek leaves.
+    /// </remarks>
     [DbContext(typeof(PlatformDbContext))]
     [Migration("20261122160000_add_data_request_protected_receipts")]
     public partial class add_data_request_protected_receipts : Migration
@@ -27,6 +35,7 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
                         AND replay_target_id <> '00000000-0000-0000-0000-000000000000'::uuid
                         AND state = 'completed' AND status_code BETWEEN 200 AND 299
                         AND body IS NOT NULL AND octet_length(body) <= 1024));
+                CREATE INDEX ix_background_jobs_definition ON background_jobs (tenant_id, definition_key, organization_id);
                 """);
         }
 

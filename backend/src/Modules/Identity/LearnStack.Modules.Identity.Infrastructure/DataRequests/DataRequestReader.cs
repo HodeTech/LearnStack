@@ -22,7 +22,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </remarks>
 public sealed class DataRequestReader(IdentityDbContext db, IUnitOfWork unit, ITenantContext tenant) : IDataRequestReader
 {
-    public async Task<IReadOnlyList<DataSubjectRequest>> ListAsync(UserId? subject, Guid? before, int take,
+    public async Task<IReadOnlyList<DataRequestReceiptRow>> ListAsync(UserId? subject, Guid? before, int take,
         CancellationToken cancellationToken)
     {
         Admit();
@@ -31,7 +31,8 @@ public sealed class DataRequestReader(IdentityDbContext db, IUnitOfWork unit, IT
             throw new ArgumentOutOfRangeException(nameof(take), "A data request page reads between one and 101 rows.");
         }
 
-        // A UUIDv7 is time-ordered and unique, so newest first is id descending and the seek is id < anchor.
+        // A UUIDv7 is time-ordered and unique, so newest first is id descending and the seek is id < anchor: the
+        // subject's page walks the subject index, the administrator's the group's (tenant, organization, id) index.
         var source = before is { } anchor
             ? db.DataSubjectRequests.FromSqlInterpolated($"SELECT * FROM public.data_subject_requests WHERE id < {anchor}")
             : db.DataSubjectRequests;
@@ -39,8 +40,18 @@ public sealed class DataRequestReader(IdentityDbContext db, IUnitOfWork unit, IT
         query = subject is { } person
             ? query.Where(request => request.SubjectUserId == person)
             : query.Where(request => request.Kind != DataRequestKind.Closure);
-        return await Guard(() => query.OrderByDescending(request => request.Id).Take(take).ToListAsync(cancellationToken),
-            cancellationToken).ConfigureAwait(false);
+        var page = query.OrderByDescending(request => request.Id).Take(take);
+        // The receipt's columns only: the progress document never, the Membership snapshot only on the administrator's
+        // page, the one view that shows it.
+        var rows = subject is null
+            ? page.Select(request => new DataRequestReceiptRow(request.Id, request.Kind, request.Origin, request.Status,
+                request.SubjectUserId, request.RequesterUserId, request.CreatedAt, request.UpdatedAt, request.CompletedAt,
+                request.ExecuteAt, request.LastRefusal, request.FailureReason, request.ResultJson, request.MembershipSnapshotJson,
+                request.Version))
+            : page.Select(request => new DataRequestReceiptRow(request.Id, request.Kind, request.Origin, request.Status,
+                request.SubjectUserId, request.RequesterUserId, request.CreatedAt, request.UpdatedAt, request.CompletedAt,
+                request.ExecuteAt, request.LastRefusal, request.FailureReason, request.ResultJson, null, request.Version));
+        return await Guard(() => rows.ToListAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DataSubjectRequest?> FindAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken)

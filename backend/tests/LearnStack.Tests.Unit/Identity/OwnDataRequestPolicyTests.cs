@@ -2,8 +2,10 @@ using FluentAssertions;
 using LearnStack.Application.Audit;
 using LearnStack.Application.Authorization;
 using LearnStack.Infrastructure.Audit;
+using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Application.Contracts.DataRequests;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
@@ -61,7 +63,7 @@ public sealed class OwnDataRequestPolicyTests
             : new IdentityAuthorizationResult(IdentityAuthorizationOutcome.Covered, Actor, Tenant, context,
                 [new AuthorizationMembershipFacts(Member, member, [])]));
 
-        var result = await rig.RunAsync(new CreateProbe());
+        var result = await rig.RunAsync(new CreateOwnDataExportCommand());
 
         if (outcome == "allowed")
         {
@@ -90,7 +92,7 @@ public sealed class OwnDataRequestPolicyTests
         rig.Reader.ReadAsync(Arg.Any<AuthorizationCandidate>(), Arg.Any<CancellationToken>())
             .Returns(new IdentityAuthorizationResult(IdentityAuthorizationOutcome.Unavailable, Actor, Tenant, Branch, []));
 
-        var result = await rig.RunAsync(new CreateProbe());
+        var result = await rig.RunAsync(new CreateOwnDataExportCommand());
 
         result.Error!.Message.Key.Should().Be("lockey_dependency_unavailable");
     }
@@ -107,12 +109,37 @@ public sealed class OwnDataRequestPolicyTests
             .Returns(new IdentityAuthorizationResult(IdentityAuthorizationOutcome.Covered, Actor, Tenant, Branch,
                 [new AuthorizationMembershipFacts(Member, Branch, [])]));
 
-        var result = label == "foreign-policy-id" ? await rig.RunAsync(new ForeignOwnProbe()) : await rig.RunAsync(new CreateProbe());
+        var result = label == "foreign-policy-id" ? await rig.RunAsync(new ForeignOwnProbe()) : await rig.RunAsync(new CreateOwnDataExportCommand());
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().BeSameAs(TenantContextFactory.Refused);
         if (label == "retained-origin")
             await rig.Reader.DidNotReceive().ReadAsync(Arg.Any<AuthorizationCandidate>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The arm is pinned to the eight live request types and their own ids: a type outside the set under a well-formed
+    /// <c>identity.data_request.</c> id, and a live type under another id, are not covered although the Membership is.
+    /// </summary>
+    [Theory]
+    [InlineData("probe-type-prefixed-id")]
+    [InlineData("live-type-foreign-id")]
+    public async Task Own_data_request_admits_only_its_eight_live_types_under_their_own_ids(string label)
+    {
+        using var rig = new Rig(TenantContextOrigin.HostAndClaim, Branch);
+        rig.Reader.ReadAsync(Arg.Any<AuthorizationCandidate>(), Arg.Any<CancellationToken>())
+            .Returns(new IdentityAuthorizationResult(IdentityAuthorizationOutcome.Covered, Actor, Tenant, Branch,
+                [new AuthorizationMembershipFacts(Member, Branch, [])]));
+
+        var result = label == "probe-type-prefixed-id"
+            ? await rig.RunAsync(new CreateProbe())
+            : await rig.RunAsync(new ListOwnDataRequestsQuery(null, 20));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().BeSameAs(TenantContextFactory.Refused);
+        new IdentityOperationPolicySource().Policies.Where(policy => policy.Kind == OperationPolicyKind.OwnDataRequest)
+            .Should().HaveCount(8, "the production catalog registers exactly the pinned set");
+        (await rig.RunAsync(new CreateOwnDataExportCommand())).IsSuccess.Should().BeTrue("the pinned type under its own id is admitted");
     }
 
     // ---- OwnDataRequestEntry: the retained own scope ------------------------------------------------------
@@ -165,7 +192,7 @@ public sealed class OwnDataRequestPolicyTests
         rig.Witnesses.Purpose = OwnDataRequestPurpose.Create;
         rig.Witnesses.Group = new DataRequestScopeGroup(Tenant, Branch);
 
-        var result = await rig.RunAsync(new CreateProbe());
+        var result = await rig.RunAsync(new CreateOwnDataExportCommand());
 
         result.Error.Should().BeSameAs(TenantContextFactory.Refused,
             "an OwnDataRequest operation needs an ordinary authenticated context, which the retained origin is not");
@@ -383,6 +410,8 @@ public sealed class OwnDataRequestPolicyTests
         public IEnumerable<OperationPolicy> Policies =>
         [
             OperationPolicy.ForOwnDataRequest<CreateProbe>("identity.data_request.create"),
+            OperationPolicy.ForOwnDataRequest<CreateOwnDataExportCommand>(IdentityOperationPolicySource.OwnDataExportCreateOperation),
+            OperationPolicy.ForOwnDataRequest<ListOwnDataRequestsQuery>("identity.data_request.list_probe"),
             OperationPolicy.ForOwnDataRequestEntry<ReadProbe>("identity.data_request.read"),
             OperationPolicy.ForOwnDataRequest<ForeignOwnProbe>("identity.membership.read_own_probe"),
             OperationPolicy.ForOwnConsentEntry<ConsentProbe>("tenancy.membership_field_consent.probe"),

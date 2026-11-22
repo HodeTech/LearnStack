@@ -111,7 +111,7 @@ public sealed partial class DataRequestHttpTests(PublicReadFixture parent)
 
     /// <summary>Runs the request's export job through the actual job runtime of a host on the same database.</summary>
     private static async Task<JobBusinessExecutionResult> RunExportAsync(IdentityAuthorizationHttpProof proof, Guid tenant,
-        Guid? organization, Guid request)
+        Guid? organization, Guid request, Serilog.Core.ILogEventSink? logs = null)
     {
         var parameters = BackgroundJobPayloadContract.Serialize(new DataExportJobParameters(request), typeof(DataExportJobParameters),
             BackgroundJobPayloadKind.Parameters);
@@ -132,6 +132,8 @@ public sealed partial class DataRequestHttpTests(PublicReadFixture parent)
             builder.UseEnvironment(Environments.Development);
             builder.UseSetting("ConnectionStrings:Default", proof.Database.AppConnectionString);
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", proof.Database.OutboxConnectionString);
+            if (logs is not null)
+                builder.ConfigureServices(services => services.AddSingleton(logs));
         });
         var executor = host.Services.GetRequiredService<JobExecutor>();
         var start = await executor.ExecuteAsync(await RoutingClaim.ClaimAsync(proof.Database.OutboxConnectionString,

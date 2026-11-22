@@ -181,6 +181,52 @@ public sealed class DataRequestServiceTests
         harness.Audit.Designated.Should().Contain(ticket);
     }
 
+    /// <summary>
+    /// Ticket and MUST audit rows are permanent, so minting is bounded: at most three open tickets per artifact, and the
+    /// next mint is refused as unavailable until one is consumed or expires.
+    /// </summary>
+    [Fact]
+    public async Task At_most_three_open_tickets_are_minted_per_artifact_and_a_consumed_or_expired_one_frees_a_slot()
+    {
+        var harness = new Harness();
+        var request = harness.Completed();
+        var subject = harness.Caller(Subject, DataRequestRole.Subject);
+        var tickets = new List<string>();
+        for (var index = 0; index < 3; index++)
+        {
+            tickets.Add((await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).Value!.Ticket);
+        }
+
+        var refused = await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None);
+        Code(refused).Should().Be("business_rule_violation");
+        refused.Error!.Details!["artifact"].Single().Key.Should().Be("lockey_data_export_unavailable");
+        harness.Store.Tickets.Should().HaveCount(3, "a refused mint stores nothing");
+
+        // Reading the last chunk consumes the first ticket: one slot is free again.
+        (await harness.Download.ReadChunkAsync(subject, request.Id.Value, tickets[0], 1, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+        Code(await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).Should().Be("business_rule_violation");
+
+        // Past their fifteen minutes the open tickets no longer count.
+        harness.Store.Now = () => At + DataRequestLimits.TicketLifetime;
+        (await harness.Download.MintTicketAsync(subject, request.Id.Value, CancellationToken.None)).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_ticket_is_refused_as_unavailable_when_the_ring_no_longer_holds_the_artifacts_key()
+    {
+        var harness = new Harness();
+        var request = harness.Completed();
+        harness.Artifacts.Ring.Clear();
+
+        var refused = await harness.Download.MintTicketAsync(harness.Caller(Subject, DataRequestRole.Subject), request.Id.Value,
+            CancellationToken.None);
+
+        refused.Error!.Details!["artifact"].Single().Key.Should().Be("lockey_data_export_unavailable",
+            "a download that could never be served is refused before any ticket exists");
+        harness.Store.Tickets.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task A_chunk_reads_only_through_its_own_session_and_the_final_chunk_consumes_the_ticket()
     {
@@ -450,11 +496,18 @@ public sealed class DataRequestServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<DataSubjectRequest>> ListAsync(UserId? subject, Guid? before, int take, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<DataSubjectRequest>>(Requests
+        public Task<IReadOnlyList<DataRequestReceiptRow>> ListAsync(UserId? subject, Guid? before, int take, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<DataRequestReceiptRow>>(Requests
                 .Where(request => (subject is null ? request.Kind != DataRequestKind.Closure : request.SubjectUserId == subject)
                     && (before is null || request.Id.Value.CompareTo(before.Value) < 0))
-                .OrderByDescending(request => request.Id.Value).Take(take).ToList());
+                .OrderByDescending(request => request.Id.Value).Take(take)
+                .Select(request => DataRequestReceiptRow.From(request) is var row && subject is null ? row : row with { MembershipSnapshotJson = null })
+                .ToList());
+
+        public Task<int> CountOpenAsync(DataExportArtifactId artifactId, CancellationToken cancellationToken) =>
+            Task.FromResult(Tickets.Count(ticket => ticket.ArtifactId == artifactId && ticket.ConsumedAt is null && ticket.ExpiresAt > Now()));
+
+        public Func<DateTimeOffset> Now { get; set; } = () => At;
 
         public Task<DataSubjectRequest?> FindAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken) =>
             Task.FromResult(Requests.SingleOrDefault(request => request.Id == requestId));
@@ -522,6 +575,10 @@ public sealed class DataRequestServiceTests
     private sealed class ArtifactCustody : IDataExportArtifactStore
     {
         public List<byte[]> Served { get; } = [];
+
+        public HashSet<string> Ring { get; } = new(StringComparer.Ordinal) { "v1" };
+
+        public bool CanOpen(string keyVersion) => Ring.Contains(keyVersion);
 
         public Task<DataExportArtifactMetadata> PutAsync(DataExportArtifactPut put, IAsyncEnumerable<ReadOnlyMemory<byte>> plaintextChunks,
             CancellationToken cancellationToken) => throw new NotSupportedException();
