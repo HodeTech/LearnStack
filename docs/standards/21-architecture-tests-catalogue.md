@@ -6125,12 +6125,14 @@ structural test proves — and what it does not.
   and the data-request routes; and the files that name the scope handle's
   `RedactAuditAsync` in code are exactly the handle's interface, the scope and that
   owner. Adding a caller of either is a deliberate edit here, with its denied proof; a
-  closure's Finalize joins the second list in the commit that registers it.
+  closure's Finalize, whose operation is registered, joins the second list in the
+  commit that adds its owner.
 - **Why it matters:** the inspection reads data requests across every tenant, and the
   completion is the one way any code reaches the audit log's redactable columns. The
   scope also refuses the redaction at run time to every admitted operation but the
-  erasure completion; this rule keeps the set of files that could ask for it closed, so
-  a second caller cannot appear without review.
+  erasure completion and the closure's Finalize, and each of those two the other's
+  plans; this rule keeps the set of files that could ask for it closed, so a second
+  caller cannot appear without review.
 - **Source:**
   [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8;
   [ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 2.

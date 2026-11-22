@@ -108,12 +108,14 @@ public interface IPlatformAdminScopeHandle : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// The statements above cannot name <c>audit_log</c>, so this is the only way a scope reaches it, and only an
-    /// operation ADR-0108 sanctions holds it: any other admission is refused before anything runs. It is a write like
-    /// the others: it runs before the result row, a failure leaves the scope only to be abandoned, and the redaction
-    /// commits with the request's change and the result row or not at all (ADR-0108 § 8).
+    /// operation ADR-0108 sanctions holds it, for its own plans: <c>complete_erasure</c> an erasure's, and the closure's
+    /// Finalize a closure's tenant and sentinel passes. Any other admission or pairing is refused before anything runs.
+    /// It is a write like the others: it runs before the result row, a failure leaves the scope only to be abandoned,
+    /// and the redaction commits with what follows it on its transaction or not at all: an erasure's change and result
+    /// row, or the intent row a closure's Finalize writes at its checkpoint (ADR-0108 § 8).
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// The scope's operation may not redact, the result row is already written, or no executor is registered.
+    /// The scope's operation may not redact the plan, the result row is already written, or no executor is registered.
     /// </exception>
     Task<AuditRedactionReport> RedactAuditAsync(AuditRedactionPlan plan, CancellationToken cancellationToken = default);
 

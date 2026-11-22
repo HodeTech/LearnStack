@@ -192,9 +192,10 @@ public sealed class PlatformAdminScope(
                 declaredIntent is null
                     ? null
                     : (result, current, token) => WriteIntentAsync(admission, declaredIntent, result, connection, current, token),
-                MayRedact(admission.Operation)
+                RedactsAny(admission.Operation)
                     ? (plan, current, token) => RedactAsync(admission, plan, connection, current, token)
                     : null,
+                plan => MayRedact(admission.Operation, plan),
                 () => PlatformOperatorMetrics.Result(admission.Operation),
                 _logger);
         }
@@ -293,11 +294,24 @@ public sealed class PlatformAdminScope(
     }
 
     /// <summary>
-    /// The operations whose scope may redact the audit log (ADR-0108 § 2): the erasure's privileged step. A closure's
-    /// Finalize (ADR-0107 § 7) is added here when its step registers it, and no other operation ever is.
+    /// The one operation that may redact each pass (ADR-0108 § 2): an erasure's under its privileged step,
+    /// <c>complete_erasure</c>, and a closure's tenant and sentinel passes under the closure's Finalize (ADR-0107 § 7).
+    /// Neither redacts the other's plan, and no other operation redacts anything.
     /// </summary>
-    private static bool MayRedact(PlatformOperation operation) =>
-        ReferenceEquals(operation, PlatformOperations.ErasureComplete);
+    private static PlatformOperation? Redactor(AuditRedactionPass pass) => pass switch
+    {
+        AuditRedactionPass.Erasure => PlatformOperations.ErasureComplete,
+        AuditRedactionPass.ClosureTenant or AuditRedactionPass.ClosureSentinel => PlatformOperations.ClosureFinalize,
+        _ => null,
+    };
+
+    /// <summary>Whether <paramref name="operation"/>'s scope may redact <paramref name="plan"/>.</summary>
+    private static bool MayRedact(PlatformOperation operation, AuditRedactionPlan plan) =>
+        ReferenceEquals(Redactor(plan.Pass), operation);
+
+    /// <summary>Whether <paramref name="operation"/> may redact any plan, and so whether its handle is given the executor at all.</summary>
+    private static bool RedactsAny(PlatformOperation operation) =>
+        Enum.GetValues<AuditRedactionPass>().Any(pass => ReferenceEquals(Redactor(pass), operation));
 
     /// <summary>
     /// Runs the one Audit-owned executor on the scope's connection and current work transaction (ADR-0108 § 2).
@@ -305,8 +319,8 @@ public sealed class PlatformAdminScope(
     /// <remarks>
     /// Resolved per call from a fresh service scope, as the audit store is, so this assembly names only the
     /// SharedKernel port and never the Audit infrastructure that implements it. A deployment that registers no executor
-    /// cannot redact and must not complete an erasure, so its absence is refused by name rather than treated as nothing
-    /// to redact.
+    /// cannot redact and must not complete an erasure or a closure, so its absence is refused by name rather than
+    /// treated as nothing to redact.
     /// </remarks>
     private async Task<AuditRedactionReport> RedactAsync(
         PlatformAdmission admission,
@@ -496,7 +510,8 @@ public sealed class PlatformAdminScope(
     /// describe, so the facade refuses one. No statement may name <c>audit_log</c> either: the
     /// platform role holds audit maintenance rights for retention, and a scope that rewrote the
     /// record of its own act would defeat it. The one way to the log is the redaction, which only
-    /// an operation ADR-0108 sanctions is handed, through the Audit-owned executor.
+    /// an operation ADR-0108 sanctions is handed, for the plans it sanctions, through the Audit-owned
+    /// executor.
     /// </para>
     /// <para>
     /// <b>One owner.</b> A handle is used by the single call that entered it, on one logical
@@ -509,6 +524,7 @@ public sealed class PlatformAdminScope(
         Func<PlatformResult, NpgsqlTransaction, CancellationToken, Task> writeResult,
         Func<PlatformResult, NpgsqlTransaction, CancellationToken, Task>? writeIntent,
         Func<AuditRedactionPlan, NpgsqlTransaction, CancellationToken, Task<AuditRedactionReport>>? redact,
+        Func<AuditRedactionPlan, bool> mayRedact,
         Action onCommitted,
         ILogger logger)
         : IPlatformAdminScopeHandle
@@ -629,16 +645,19 @@ public sealed class PlatformAdminScope(
             EnsureUsable();
             EnsureStatementsAllowed();
             ArgumentNullException.ThrowIfNull(plan);
-            if (redact is null)
+            if (redact is null || !mayRedact(plan))
             {
+                // Refused before anything runs, so the scope stays usable: an operation that redacts nothing, or a plan
+                // of the other redacting operation's kind.
                 throw new InvalidOperationException(
-                    "This platform scope's operation may not redact the audit log (ADR-0108 § 2).");
+                    "This platform scope's operation may not redact this plan's audit rows (ADR-0108 § 2).");
             }
 
             try
             {
-                // The current transaction, read at the call: an intent checkpoint replaces it, and the redaction must
-                // commit or roll back with the work and the result row that follow it.
+                // The current transaction, read at the call: an intent checkpoint replaces it, so the redaction commits or
+                // rolls back with what follows it on this one, the intent row of a closure's Finalize that runs it
+                // before the checkpoint (ADR-0108 § 8), or else the work and the result row.
                 return await redact(plan, _transaction, cancellationToken);
             }
             catch (Exception failure) when (failure is not ArgumentException)

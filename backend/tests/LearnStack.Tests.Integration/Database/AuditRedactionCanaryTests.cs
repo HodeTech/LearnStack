@@ -6,6 +6,7 @@ using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Secrets;
 using LearnStack.Tests.Fixtures;
@@ -208,15 +209,19 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
         var executor = Executor();
         var plan = Plan(tenant, DataRequestOrigin.Self, organization: null);
 
-        // Every other registered operation, the right operation over a closure's plan, and an admission no scope spent.
+        // Every other registered operation over the erasure's plan, every operation but the closure's Finalize over each
+        // of a closure's two passes (complete_erasure included), and an admission no scope spent.
         const string Sanction = "*does not name an operation that may redact*";
+        var closures = new[] { ("closure tenant pass", ClosureTenantPlan(tenant)), ("closure sentinel pass", ClosureSentinelPlan()) };
         var refusals = PlatformOperations.All.Where(operation => !ReferenceEquals(operation, PlatformOperations.ErasureComplete))
             .Select(operation => (Name: operation.AuditSlug, Plan: plan, Admission: Spent(operation), Message: Sanction))
-            .Append(("closure plan", ClosurePlan(tenant), Spent(PlatformOperations.ErasureComplete), Sanction))
+            .Concat(closures.SelectMany(closure => PlatformOperations.All
+                .Where(operation => !ReferenceEquals(operation, PlatformOperations.ClosureFinalize))
+                .Select(operation => (closure.Item1 + " under " + operation.AuditSlug, closure.Item2, Spent(operation), Sanction))))
             .Append(("unspent admission", plan, TestPlatformAdmissions.Admission(PlatformOperations.ErasureComplete),
                 "*platform scope its admission opened*"))
             .ToList();
-        refusals.Should().HaveCount(PlatformOperations.All.Count + 1);
+        refusals.Should().HaveCount((3 * (PlatformOperations.All.Count - 1)) + 1);
         foreach (var (name, refusedPlan, admission, message) in refusals)
         {
             await FluentActions.Awaiting(() => executor.RedactAsync(refusedPlan, admission, scope.Connection, scope.Transaction))
@@ -227,8 +232,11 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
         (await SettingAsync(scope, "jit")).Should().Be(jit);
         (await ReadAsync(scope, rows)).Should().Equal(before);
 
-        // The one sanctioned act on the same transaction then runs, and leaves the setting as it found it.
+        // The sanctioned acts on the same transaction then run, and leave the setting as they found it.
         (await RedactAsync(scope, plan)).RowsSelected.Should().BeGreaterThan(0);
+        (await SettingAsync(scope, "jit")).Should().Be(jit);
+        (await executor.RedactAsync(ClosureTenantPlan(tenant), Spent(PlatformOperations.ClosureFinalize), scope.Connection,
+            scope.Transaction)).RowsSelected.Should().BeGreaterThan(0, "the actor and entity rows stay selected after the erasure");
         (await SettingAsync(scope, "jit")).Should().Be(jit);
         await scope.Transaction.RollbackAsync();
     }
@@ -308,9 +316,14 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
             new DataRequestScopeGroup(TenantId.From(tenant), organization is { } org ? OrganizationId.From(org) : null),
             [Membership1, Membership2]));
 
-    private static AuditRedactionPlan ClosurePlan(Guid tenant) =>
-        new(new UserDataSubject(Guid.CreateVersion7(), DataRequestKind.Closure, DataRequestOrigin.Self, UserId.From(Subject),
-            new DataRequestScopeGroup(TenantId.From(tenant), null), [Membership1]));
+    /// <summary>A closure's pass over <paramref name="tenant"/>, with both Memberships the subject holds there.</summary>
+    private static AuditRedactionPlan ClosureTenantPlan(Guid tenant) =>
+        AuditRedactionPlan.ForClosureTenant(TenantId.From(tenant), UserId.From(Subject), [Membership1, Membership2]);
+
+    /// <summary>A closure's pass over the platform sentinel tenant, by a key no row of this class carries.</summary>
+    private static AuditRedactionPlan ClosureSentinelPlan() =>
+        AuditRedactionPlan.ForClosureSentinel(UserId.From(Subject),
+            IdentitySubjectKey.FromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
     private static async Task<AuditRedactionReport> RedactAsync(Scope scope, AuditRedactionPlan plan) =>
         await Executor().RedactAsync(plan, Spent(PlatformOperations.ErasureComplete), scope.Connection, scope.Transaction);

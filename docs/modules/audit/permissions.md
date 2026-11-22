@@ -35,9 +35,12 @@ by a Platform-scope key rather than a tenant-facing one. The redaction's key is
 `platform.data_request.write`
 ([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 8,
 [ADR-0108](../../decisions/0108-privileged-audit-redaction.md) § 1), registered in the
-Platform catalogue with the operation `audit.redaction.apply`: the scope hands the
-redaction to that operator act alone, through the one Audit-owned executor, in the
-transaction that completes the erasure ([runbook](../../runbooks/data-erasure.md)).
+Platform catalogue with the operations `audit.redaction.apply` and
+`platform.closure.finalize`: the scope hands the redaction to those two operator acts
+alone, each for its own plans, through the one Audit-owned executor, in the transaction
+that completes an erasure ([runbook](../../runbooks/data-erasure.md)) and in the first
+transaction of a closure's Finalize, which commits it with the act's intent row
+([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7).
 Phase 11's purge takes the same key or a sibling it names, so no writer of `audit_log`
 lands with a permission nobody has declared. Tenant-facing audit-row creation is not an
 admitted operation. `learnstack_app` holds `SELECT, INSERT` on `audit_log` for the

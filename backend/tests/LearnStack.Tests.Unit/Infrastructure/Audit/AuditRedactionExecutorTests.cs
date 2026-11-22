@@ -12,6 +12,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.Tests.Fixtures;
@@ -33,6 +34,12 @@ public sealed class AuditRedactionExecutorTests
 
     private static readonly AuditRedactionPlan Erasure = Plan(DataRequestKind.Erasure);
 
+    private static readonly AuditRedactionPlan ClosureTenant = AuditRedactionPlan.ForClosureTenant(
+        TenantId.From(Guid.CreateVersion7()), UserId.From(Guid.CreateVersion7()), [Guid.CreateVersion7(), Guid.CreateVersion7()]);
+
+    private static readonly AuditRedactionPlan ClosureSentinel = AuditRedactionPlan.ForClosureSentinel(
+        UserId.From(Guid.CreateVersion7()), IdentitySubjectKey.FromBytes(new byte[32]));
+
     private static readonly Type[] Locators =
     [
         typeof(IdentityUserReferenceLocator), typeof(TenancyUserReferenceLocator),
@@ -47,8 +54,30 @@ public sealed class AuditRedactionExecutorTests
             await Refused(Erasure, Spent(operation), new StatementlessConnection(), SanctionRefusal, operation.AuditSlug);
         }
 
-        await Refused(Plan(DataRequestKind.Closure), Spent(PlatformOperations.ErasureComplete), new StatementlessConnection(),
-            SanctionRefusal, "a closure's plan waits for its own Finalize operation (ADR-0107 § 7)");
+        // The closure's Finalize is the other redacting operation, and still not this plan's.
+        await Refused(Erasure, Spent(PlatformOperations.ClosureFinalize), new StatementlessConnection(), SanctionRefusal,
+            "an erasure's plan is redacted only by its own privileged step, never by a closure's Finalize");
+
+        // The pairing admitted, the next check refuses: the sanction let it through.
+        await Refused(Erasure, Spent(PlatformOperations.ErasureComplete), new StatementlessConnection(), ConnectionRefusal,
+            "complete_erasure redacts an erasure's plan");
+    }
+
+    [Fact]
+    public async Task Only_the_closure_s_finalize_over_a_closure_pass_is_admitted()
+    {
+        // ADR-0107 § 7, ADR-0108 § 4: a closure's tenant and sentinel passes are the Finalize's alone; complete_erasure,
+        // the other redacting operation, is refused them like every other.
+        foreach (var (name, plan) in new[] { ("tenant pass", ClosureTenant), ("sentinel pass", ClosureSentinel) })
+        {
+            foreach (var operation in PlatformOperations.All.Where(operation => !ReferenceEquals(operation, PlatformOperations.ClosureFinalize)))
+            {
+                await Refused(plan, Spent(operation), new StatementlessConnection(), SanctionRefusal, name + " under " + operation.AuditSlug);
+            }
+
+            await Refused(plan, Spent(PlatformOperations.ClosureFinalize), new StatementlessConnection(), ConnectionRefusal,
+                "the closure's Finalize redacts its " + name);
+        }
     }
 
     [Fact]
@@ -66,7 +95,7 @@ public sealed class AuditRedactionExecutorTests
     public async Task A_connection_that_is_not_the_scopes_open_platform_connection_is_refused()
     {
         await Refused(Erasure, Spent(PlatformOperations.ErasureComplete), new StatementlessConnection(),
-            "*open connection and its work transaction*", "the executor runs on the platform scope's Npgsql connection");
+            ConnectionRefusal, "the executor runs on the platform scope's Npgsql connection");
     }
 
     [Fact]
@@ -80,9 +109,11 @@ public sealed class AuditRedactionExecutorTests
     }
 
     [Fact]
-    public void An_export_is_never_a_redaction_plan()
+    public void An_export_or_a_closure_request_is_never_a_request_redaction_plan()
     {
         FluentActions.Invoking(() => Plan(DataRequestKind.Export)).Should().Throw<ArgumentException>();
+        FluentActions.Invoking(() => Plan(DataRequestKind.Closure)).Should().Throw<ArgumentException>(
+            "a closure's redaction is its Finalize's tenant and sentinel passes, never its one request's");
     }
 
     [Fact]
@@ -116,6 +147,9 @@ public sealed class AuditRedactionExecutorTests
 
     /// <summary>The refusal of an act that names an operation, or a plan, the sanctioned list does not pair.</summary>
     private const string SanctionRefusal = "*does not name an operation that may redact*";
+
+    /// <summary>The refusal of the check after the sanction: a pairing that reaches it was admitted.</summary>
+    private const string ConnectionRefusal = "*open connection and its work transaction*";
 
     /// <summary>Expects the named refusal, so a test cannot pass on a later check that also refuses.</summary>
     /// <remarks>

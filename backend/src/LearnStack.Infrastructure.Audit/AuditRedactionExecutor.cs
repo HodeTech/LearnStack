@@ -22,19 +22,34 @@ namespace LearnStack.Infrastructure.Audit;
 /// for the plan's kind (<see cref="Sanctions"/>), an admission that has not opened a platform scope, a job frame, and a
 /// connection that is not an open Npgsql one with its transaction; its first statement then refuses any role but the
 /// platform's. It runs on the caller's connection and work transaction and never begins, commits or rolls back one, so
-/// the redaction commits with the request's status change and the result row (ADR-0108 § 8).
+/// the redaction commits with what that transaction carries: an erasure's status change and result row, or a closure
+/// Finalize's intent row (ADR-0108 § 8).
 /// </para>
 /// <para>
-/// <b>Selection (ADR-0108 § 4).</b> A request the person filed, and a closure's fan-out erasure, reach the whole
-/// tenant; an administrator's request reaches only rows whose <c>organization_id</c> is the group's (none for the
-/// tenant-wide group). A row is selected when its actor is the subject, its <c>entity_id</c> is the subject or a frozen
-/// Membership, or a declared path of its entity type holds one of them. The actor and entity branches are
+/// <b>Selection (ADR-0108 § 4).</b> A request the person filed, a closure's fan-out erasure and a closure's tenant pass
+/// reach the whole tenant; an administrator's request reaches only rows whose <c>organization_id</c> is the group's (none
+/// for the tenant-wide group). A row is selected when its actor is the subject, its <c>entity_id</c> is the subject or one
+/// of the plan's Memberships (an erasure's frozen snapshot, or every Membership a closing person holds in the tenant), or
+/// a declared path of its entity type holds one of them. The actor and entity branches are
 /// index-served (<c>ix_audit_log_actor_user_id_timestamp</c>; <c>ix_audit_log_tenant_id_entity_type_entity_id_timestamp</c>
 /// by a skip scan over the entity types). A payload reference has no index, so the tenant's rows are read in batches,
 /// newest first along <c>ix_audit_log_tenant_id_timestamp</c>, each batch one statement: a cheap filter walks each
 /// payload column once for either canonical spelling of the identifiers, and only a row it keeps is rewritten to decide
 /// whether a declared path holds one. That test is the redaction itself, so a row is selected for its payload exactly
 /// when the redaction changes its payload.
+/// </para>
+/// <para>
+/// <b>The sentinel pass (ADR-0108 § 4).</b> A closure's Finalize also reaches the platform sentinel tenant, whose rows
+/// about a person are the global creation rows: the creation and every failed or undetermined attempt carry the subject
+/// key in <c>metadata.identity_subject_key</c>, which is the only way to find an attempt, whose entity is an identifier
+/// no User ever took. There a row is selected when its metadata carries the subject key, its actor is the subject, or it
+/// is the subject's <c>User</c> as entity; nothing else of the sentinel tenant (the operators' entry, intent and result
+/// rows, the issuer rebind's) is selected, because none of those names a person. The batches and the rewrite are the
+/// tenant pass's, over the sentinel tenant: the key has no index, so each batch's rows are read once along
+/// <c>ix_audit_log_tenant_id_timestamp</c> and the three predicates filter them. A selected row is redacted at the same
+/// declared paths; the creation rows' address, agent and e-mail are NULL by the insert guard and their captured
+/// <c>User</c> holds its provider subject only as the capture's replacement, so today the pass selects and reports them
+/// and changes a payload only where a declared path names the subject.
 /// </para>
 /// <para>
 /// <b>Batches.</b> A batch is a half-open range of the key <c>("timestamp", id)</c>, descending: the next batch's upper
@@ -65,9 +80,10 @@ namespace LearnStack.Infrastructure.Audit;
 /// <c>UPDATE</c>s' own <c>RETURNING</c>; the selected rows that keep the subject as actor
 /// (<c>audit_actor_reference</c>) or as entity (<c>audit_entity_reference</c>); the rows of the reach whose metadata names
 /// the subject, by the Audit participant's predicates, selected or not (<c>audit_metadata_reference</c>, exact for the
-/// rows committed before the act begins, because the batches read every such row of the reach anyway); and, for an administrator's request, the rows outside the group
+/// rows committed before the act begins, because the batches read every such row of the reach anyway), which in the
+/// sentinel pass are the rows that carry the subject key; and, for an administrator's request, the rows outside the group
 /// whose actor or entity is the subject or a Membership (<c>unscoped_audit_rows</c>, at least: payloads and metadata
-/// outside the reach are not read).
+/// outside the reach are not read). A closure's passes each reach their whole tenant, so none reports that last kind.
 /// </para>
 /// <para>
 /// <b>Bounds.</b> Every statement runs under <see cref="StatementTimeout"/>; a statement that does not finish fails
@@ -309,6 +325,20 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         Matched, "AND (", NamesSubject,
         "OR CASE WHEN", Declarations, "? a.entity_type::text AND", MayHold, "THEN", Holds, "ELSE false END)"));
 
+    // One batch of the sentinel pass, in the selection's column order: the rows of the platform sentinel tenant that
+    // carry the subject key in their metadata (a global creation and its failed and undetermined attempts), whose actor
+    // is the subject, or whose entity is the subject's User. Every row it returns is selected, and a row that carries the
+    // key is the pass's metadata reference. One read of the batch's rows, filtered by the three predicates: the key has
+    // no index, and a batch is bounded.
+    private static readonly string SentinelSelectionSql = Checked(Sql(
+        "SELECT a.id, a.\"timestamp\", true,",
+        "COALESCE(a.actor_user_id = @subject, false),",
+        "COALESCE(a.entity_type = 'User' AND a.entity_id = @subject_text, false),",
+        "COALESCE(a.metadata ->> 'identity_subject_key' = @subject_key, false)",
+        "FROM public.audit_log AS a WHERE a.tenant_id = @tenant AND", Batch,
+        "AND (a.actor_user_id = @subject OR (a.entity_type = 'User' AND a.entity_id = @subject_text)",
+        "OR a.metadata ->> 'identity_subject_key' = @subject_key)"));
+
     // The rows an administrator's request deliberately does not reach that still name the subject as actor or entity:
     // the tenant's rows outside the group's organization (outside the tenant level for the tenant-wide group).
     private const string UnscopedSql = """
@@ -444,12 +474,20 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     }
 
     /// <summary>
-    /// The one place an operation is bound to the plans it may redact: <c>complete_erasure</c>
-    /// (<c>audit.redaction.apply</c>) redacts an erasure request's rows. A closure's Finalize joins here when ADR-0107
-    /// § 7's operation is registered.
+    /// The one place in this file an operation is bound to the plans it may redact: <c>complete_erasure</c>
+    /// (<c>audit.redaction.apply</c>) an erasure request's rows, and the closure's Finalize
+    /// (<c>platform.closure.finalize</c>, ADR-0107 § 7) a closure's tenant and sentinel passes. Neither redacts the other's
+    /// plan, and no other operation redacts anything. The platform scope checks the same pairing before it calls; this is
+    /// the executor's own, so neither check stands alone.
     /// </summary>
-    private static bool Sanctions(PlatformOperation operation, AuditRedactionPlan plan) =>
-        ReferenceEquals(operation, PlatformOperations.ErasureComplete) && plan.Subject.Kind == DataRequestKind.Erasure;
+    private static bool Sanctions(PlatformOperation operation, AuditRedactionPlan plan) => plan.Pass switch
+    {
+        AuditRedactionPass.Erasure =>
+            ReferenceEquals(operation, PlatformOperations.ErasureComplete) && plan.Subject.Kind == DataRequestKind.Erasure,
+        AuditRedactionPass.ClosureTenant or AuditRedactionPass.ClosureSentinel =>
+            ReferenceEquals(operation, PlatformOperations.ClosureFinalize),
+        _ => false,
+    };
 
     /// <summary>
     /// The declarations as the statements read them: per entity name, <c>p</c> maps a property to its shape and kind
@@ -526,8 +564,8 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     /// <summary>One redaction's statements, all on the caller's connection and transaction.</summary>
     private sealed class Run(AuditRedactionExecutor executor, AuditRedactionPlan plan, NpgsqlConnection connection, NpgsqlTransaction transaction)
     {
-        private readonly string _subject = plan.Subject.SubjectUserId.Value.ToString("D");
-        private readonly string[] _memberships = [.. plan.Subject.MembershipIds.Select(membership => membership.ToString("D"))];
+        private readonly string _subject = plan.SubjectUserId.Value.ToString("D");
+        private readonly string[] _memberships = [.. plan.MembershipIds.Select(membership => membership.ToString("D"))];
 
         /// <summary>Refuses any role but the platform's, switches JIT off, and returns whether it was on.</summary>
         public async Task<bool> EnterAsync(CancellationToken cancellationToken)
@@ -608,7 +646,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             CancellationToken cancellationToken)
         {
             var selected = new List<(Guid Id, DateTime Timestamp)>();
-            await using var command = Command(SelectionSql);
+            await using var command = Command(plan.Pass == AuditRedactionPass.ClosureSentinel ? SentinelSelectionSql : SelectionSql);
             Bind(command, "lower", lower);
             Bind(command, "upper", upper);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -660,13 +698,13 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         private NpgsqlCommand Command(string sql)
         {
             var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = (int)StatementTimeout.TotalSeconds };
-            var group = plan.Subject.Group;
             string[] identifiers = [_subject, .. _memberships];
-            command.Parameters.AddWithValue("tenant", group.TenantId.Value);
+            command.Parameters.AddWithValue("tenant", plan.TenantId.Value);
             command.Parameters.AddWithValue("whole_tenant", plan.WholeTenant);
-            command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)group.OrganizationId?.Value ?? DBNull.Value);
-            command.Parameters.AddWithValue("subject", plan.Subject.SubjectUserId.Value);
+            command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)plan.OrganizationId?.Value ?? DBNull.Value);
+            command.Parameters.AddWithValue("subject", plan.SubjectUserId.Value);
             command.Parameters.AddWithValue("subject_text", _subject);
+            command.Parameters.AddWithValue("subject_key", NpgsqlDbType.Text, (object?)plan.SubjectKey?.Hex ?? DBNull.Value);
             command.Parameters.Add(Texts("users", [_subject]));
             command.Parameters.Add(Texts("memberships", _memberships));
             command.Parameters.Add(Texts("identifiers", identifiers));

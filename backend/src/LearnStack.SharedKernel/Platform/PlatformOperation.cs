@@ -177,12 +177,34 @@ public static class PlatformOperations
         "audit.redaction.apply", "erasure_complete", PlatformPermissions.DataRequestWrite,
         PlatformOperationExecutor.PlatformScope);
 
+    /// <summary>
+    /// Begin a person's global account closure (<c>begin_closure</c>, ADR-0107 § 7): under the person's User fence and
+    /// every participant tenant's fence, move the User from Active to Closing and the closure request to
+    /// <c>fulfilling</c>, or record the refusal that stands, in one platform transaction whose result row names the
+    /// platform sentinel tenant. The slug names no module of its own because the operator result write refuses
+    /// <c>identity</c> (ADR-0044 Amendment 17, ADR-0107 § 8).
+    /// </summary>
+    public static PlatformOperation ClosureBegin { get; } = new(
+        "platform.closure.begin", "closure_begin", PlatformPermissions.DataRequestWrite,
+        PlatformOperationExecutor.PlatformScope);
+
+    /// <summary>
+    /// Finalize a person's global account closure (<c>finalize_closure</c>, ADR-0107 § 7, ADR-0108 § 8): redact the
+    /// person's audit rows in every participant tenant and the platform sentinel tenant and write the intent row that
+    /// carries the counts, remove the provider account, then set the User Closed, complete the participant requests and
+    /// the closure and write the result row. Both rows name the platform sentinel tenant. It is the one operation besides
+    /// <see cref="ErasureComplete"/> that may redact, and only a closure's passes.
+    /// </summary>
+    public static PlatformOperation ClosureFinalize { get; } = new(
+        "platform.closure.finalize", "closure_finalize", PlatformPermissions.DataRequestWrite,
+        PlatformOperationExecutor.PlatformScope, attemptAuditSlug: "platform.closure.finalize_attempt");
+
     /// <summary>Every registered operation.</summary>
     public static IReadOnlyList<PlatformOperation> All { get; } =
     [
         KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover,
         IdentityAuthorityRebind, DeliveryInspect, DeliveryReplay, DeliveryReset, FederationReport, FederationRemove,
-        FederationDisable, DataRequestInspect, ErasureComplete,
+        FederationDisable, DataRequestInspect, ErasureComplete, ClosureBegin, ClosureFinalize,
     ];
 
     /// <summary>Whether <paramref name="operation"/> is one of the registered instances.</summary>

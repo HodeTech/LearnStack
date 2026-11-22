@@ -254,7 +254,14 @@ will raise them — which this standard requires it to do.
   too: `platform.data_request.inspect` is audited by the platform scope's entry row,
   and `audit.redaction.apply` writes one result row under the request's real tenant,
   with no actor, no ticket and the operator attribution in `metadata`, on the
-  transaction that redacts the audit rows and completes the request.
+  transaction that redacts the audit rows and completes the request. A global account
+  closure's acts are `(off-path)` in the same way, and their rows name the platform
+  sentinel tenant and so carry the ticket: `platform.closure.begin` writes one result
+  row, and `platform.closure.finalize` writes an intent row on
+  `platform.closure.finalize_attempt` at the scope handle's checkpoint, on the
+  transaction that redacted the person's audit rows in every participant tenant and
+  the sentinel tenant, and then its result row
+  ([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 8).
 
 ## Baseline Coverage (LearnStack Core Modules)
 

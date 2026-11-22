@@ -65,6 +65,7 @@
     "LearnStack.Tests.Integration.Database.BackgroundJobStorageMigrationTests",
     "LearnStack.Tests.Integration.Database.BackgroundJobSubmissionTests",
     "LearnStack.Tests.Integration.Database.BoundedAdministrationHttpTests",
+    "LearnStack.Tests.Integration.Database.ClosureAuditRedactionTests",
     "LearnStack.Tests.Integration.Database.ConsentSubjectCapturedOwnerTests",
     "LearnStack.Tests.Integration.Database.ConsentSubjectPipelineAuditTests",
     "LearnStack.Tests.Integration.Database.CourseContentAccessMigrationTests",

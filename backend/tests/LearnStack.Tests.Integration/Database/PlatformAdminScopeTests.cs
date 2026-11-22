@@ -6,6 +6,7 @@ using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
@@ -1420,29 +1421,56 @@ public sealed class PlatformAdminScopeTests
     }
 
     [Fact]
-    public async Task Only_The_Erasure_Completion_May_Redact_And_A_Refusal_Runs_Nothing_And_Leaves_The_Scope_Usable()
+    public async Task Only_The_Erasure_Completion_And_The_Closure_Finalize_Redact_Each_Its_Own_Plans_And_A_Refusal_Leaves_The_Scope_Usable()
     {
-        // ADR-0108 § 2: the redaction is bound to the admitted operation. Every other operation that enters the platform
-        // scope is refused before the executor is resolved, and the refusal is not a failed statement.
+        // ADR-0108 § 2, ADR-0107 § 7: the redaction is bound to the admitted operation and the plan's pass. complete_erasure
+        // redacts an erasure's plan and the closure's Finalize a closure's tenant and sentinel passes; each is refused the
+        // other's, and every other operation that enters the platform scope is refused all three. A refusal comes before
+        // the executor is resolved and is not a failed statement.
         await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
         var redactor = new RecordingRedactor();
         var scope = Build(dataSource, NullLogger<PlatformAdminScope>.Instance, AuditStoreScopeFactory(redactor));
-        var others = PlatformOperations.All
-            .Where(operation => operation.NeedsPlatformRole && !ReferenceEquals(operation, PlatformOperations.ErasureComplete))
-            .ToList();
-        others.Should().NotBeEmpty();
+        var tenant = Guid.CreateVersion7();
+        var plans = new (string Name, AuditRedactionPlan Plan, PlatformOperation Owner)[]
+        {
+            ("erasure", Plan(tenant), PlatformOperations.ErasureComplete),
+            ("closure tenant pass", ClosureTenantPlan(tenant), PlatformOperations.ClosureFinalize),
+            ("closure sentinel pass", ClosureSentinelPlan(), PlatformOperations.ClosureFinalize),
+        };
+        var entering = PlatformOperations.All.Where(operation => operation.NeedsPlatformRole).ToList();
+        entering.Should().Contain([PlatformOperations.ErasureComplete, PlatformOperations.ClosureFinalize]).And.HaveCountGreaterThan(2);
 
-        foreach (var operation in others)
+        foreach (var operation in entering)
         {
             await using var handle = await scope.EnterAsync(TestPlatformAdmissions.Admission(operation));
+            foreach (var (name, plan, _) in plans.Where(candidate => !ReferenceEquals(candidate.Owner, operation)))
+            {
+                var redact = async () => await handle.RedactAuditAsync(plan);
 
-            var redact = async () => await handle.RedactAuditAsync(Plan(Guid.CreateVersion7()));
-
-            await redact.Should().ThrowAsync<InvalidOperationException>(operation.AuditSlug).WithMessage("*may not redact*");
-            (await ScalarAsync<int>(handle, "SELECT 1")).Should().Be(1, "a refusal before anything ran does not fault the scope");
+                await redact.Should().ThrowAsync<InvalidOperationException>(name + " under " + operation.AuditSlug)
+                    .WithMessage("*may not redact*");
+                (await ScalarAsync<int>(handle, "SELECT 1")).Should().Be(1, "a refusal before anything ran does not fault the scope");
+            }
         }
 
-        redactor.Calls.Should().BeEmpty("no other operation reaches the executor");
+        redactor.Calls.Should().BeEmpty("no pairing but the sanctioned ones reaches the executor");
+
+        // And each owner's own plans do reach it, with the admission its scope was entered with.
+        foreach (var owner in new[] { PlatformOperations.ErasureComplete, PlatformOperations.ClosureFinalize })
+        {
+            var admission = TestPlatformAdmissions.Admission(owner);
+            await using var handle = await scope.EnterAsync(admission);
+            foreach (var (_, plan, _) in plans.Where(candidate => ReferenceEquals(candidate.Owner, owner)))
+            {
+                await handle.RedactAuditAsync(plan);
+                var call = redactor.Calls[^1];
+                call.Plan.Should().BeSameAs(plan);
+                call.Admission.Should().BeSameAs(admission);
+            }
+        }
+
+        redactor.Calls.Select(call => call.Plan.Pass).Should().Equal(
+            AuditRedactionPass.Erasure, AuditRedactionPass.ClosureTenant, AuditRedactionPass.ClosureSentinel);
     }
 
     [Fact]
@@ -1587,6 +1615,14 @@ public sealed class PlatformAdminScopeTests
     private static AuditRedactionPlan Plan(Guid tenant) => new(new UserDataSubject(
         Guid.CreateVersion7(), DataRequestKind.Erasure, DataRequestOrigin.Self, UserId.From(Guid.CreateVersion7()),
         new DataRequestScopeGroup(TenantId.From(tenant), null), [Guid.CreateVersion7()]));
+
+    /// <summary>A closure's pass over a tenant; its identifiers are fresh.</summary>
+    private static AuditRedactionPlan ClosureTenantPlan(Guid tenant) =>
+        AuditRedactionPlan.ForClosureTenant(TenantId.From(tenant), UserId.From(Guid.CreateVersion7()), [Guid.CreateVersion7()]);
+
+    /// <summary>A closure's pass over the platform sentinel tenant; its identifiers are fresh.</summary>
+    private static AuditRedactionPlan ClosureSentinelPlan() => AuditRedactionPlan.ForClosureSentinel(
+        UserId.From(Guid.CreateVersion7()), IdentitySubjectKey.FromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
     /// <summary>Records each call and runs <paramref name="work"/> on the handed-over connection and transaction.</summary>
     private sealed class RecordingRedactor(
