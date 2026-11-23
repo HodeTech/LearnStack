@@ -421,6 +421,9 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 extended.GetProperty("expiresAt").GetDouble().Should().BeGreaterThan(session.GetProperty("expiresAt").GetDouble(),
                     "an explicit fresh-access extension must actually renew provider idle");
                 var otherAccount = SeedData.IdentityUsers.First(person => person.Tenant != tenant);
+                // The selected member page also reads the group's data requests, one more call
+                // under the same 60/min budget, so the first window ends before this journey.
+                await NextAnonymousWindowAsync(anonymousWindow);
                 await AssertDifferentProviderAccountCannotReplaceLiveDestinationAsync(provider, native, api, identity,
                     otherAccount, passwords.GetValueOrDefault(otherAccount.Username) ?? KeycloakFixture.DemoPassword,
                     cookies, extended, database);
@@ -581,8 +584,8 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                     "the actual BFF journey persists provider event type {0}", type);
             }
             (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) =>
-                auditBefore[index] + 12 + (site.MapHostToDefaultOrganization ? 0 : 1)),
-                "NULL-org administrator selections, seven selected-page read events and original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
+                auditBefore[index] + 13 + (site.MapHostToDefaultOrganization ? 0 : 1)),
+                "NULL-org administrator selections, eight selected-page read events and original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
             output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events/membership-revocation=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }

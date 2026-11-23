@@ -24,7 +24,8 @@ public sealed partial class TenantBffSessionTests
             ("/studio/members", [("identity.membership.list", "Membership", null)]),
             ("/studio/members/" + memberId,
                 [("identity.membership.read", "Membership", memberId),
-                 ("identity.membership.custom_fields_read", "Membership", memberId), ("identity.role.list", "Role", null)]),
+                 ("identity.membership.custom_fields_read", "Membership", memberId), ("identity.role.list", "Role", null),
+                 ("identity.data_request.list", "DataSubjectRequest", null)]),
             ("/studio/roles", [("identity.role.list", "Role", null)]),
             ("/studio/roles/" + roleId,
                 [("identity.role.read", "Role", roleId), ("identity.role.list_permissions", "Role", null)]),
@@ -75,7 +76,7 @@ public sealed partial class TenantBffSessionTests
         }
         var afterAudit = await AuditCountsAsync(database);
         afterAudit.Where((count, index) => count != beforeAudit[index]
-            + (SeedData.All[index] == identity.Tenant ? 7 : 0)).Any().Should().BeFalse();
+            + (SeedData.All[index] == identity.Tenant ? 8 : 0)).Any().Should().BeFalse();
     }
 
     private static async Task<List<SelectedPageAudit>> SelectedPageAuditsAsync(
