@@ -58,6 +58,11 @@ public sealed class AccountClosureEndToEndTests(SchemaFixture schema)
         var closure = await FileClosureAsync(database, TenantWideA, person, memberships[TenantWideA]);
         await DataErasureTestKit.BackdateAsync(database.MigrationConnectionString, TenantA, null, closure);
         var second = await FileClosureAsync(database, TenantWideB, person, memberships[TenantWideB]);
+        // A row of the tenant that is unserved only names the person, so the proof below that Finalize reaches that tenant too
+        // is not an empty search before and after: only a redaction of every participant tenant, served or not, removes it.
+        await AccountClosureCanary.PlantMembershipRowAsync(database.PlatformConnectionString, TenantC, memberships[Suspended], person);
+        (await DataErasureExecutionTests.IdentifiersInPayloadsAsync(database.PlatformConnectionString, TenantC, [person.ToString("D")]))
+            .Should().NotBeEmpty("the unserved tenant's row names the person before the closure");
         var subject = new GlobalIdentitySubject(Authority.AuthorityId, Authority.Issuer, "fixture-subject-" + person.ToString("N"));
         var removal = new RecordingAccountRemoval
         {

@@ -220,8 +220,9 @@ public sealed partial class PlatformOperatorHttpTests
         failed.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "the failure still propagates to the host");
         (await failed.Content.ReadAsStringAsync()).Should().NotContain("forced defect");
 
+        // The meter is process-wide: a closure's fan-out groups another class counts at the same time are not this route's.
         const string Slug = "platform.closure.finalize";
-        counted.Calls.Should().Equal(
+        counted.Calls.Where(call => call.Operation == Slug).Should().Equal(
             (Slug, "finalized"), (Slug, "already_finalized"), (Slug, "not_found"), (Slug, "not_closure"), (Slug, "not_finalizable"),
             (Slug, "groups_pending"), (Slug, "provider_refused"), (Slug, "provider_unavailable"), (Slug, "provider_uncertain"),
             (Slug, "audit_unavailable"), (Slug, "unavailable"), (Slug, "commit_unknown"), (Slug, "failed"));

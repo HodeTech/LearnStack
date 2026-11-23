@@ -63,6 +63,7 @@ public sealed partial class AccountClosureFinalizeTests(SchemaFixture schema)
         var removal = new RecordingAccountRemoval();
         var logs = new CapturingLogger<AccountClosureOperatorOperations>();
         var between = new List<string>();
+        var scope = new TappedScope(kit.Scope()) { RecordBackend = true };
         removal.Probe = async () =>
         {
             // Between the transactions: the redaction and its intent row committed, nothing else moved, and the platform
@@ -70,26 +71,28 @@ public sealed partial class AccountClosureFinalizeTests(SchemaFixture schema)
             (await kit.UserAsync(world.Person)).Status.Should().Be("Closing");
             (await kit.RequestAsync(world.Closure)).Status.Should().Be("fulfilling");
             (await kit.PlatformAdvisoryLocksAsync()).Should().BeEmpty("the first transaction's keys ended at its commit");
-            between.AddRange(await PlatformBackendStatesAsync(kit));
+            between.Add(await BackendStateAsync(kit, scope.Backend!.Value));
             (await PlantedAsync(kit, world)).Values.Should().OnlyContain(row => row.Address == null && row.Agent == null && row.Email == null,
                 "the redaction committed with the intent row, before the provider call");
         };
         var keyBefore = await SubjectKeyAsync(kit, world.Person);
         var admission = Admission("INC-801");
 
-        var result = await kit.Owner(removal: removal, logger: logs).FinalizeAsync(admission, world.Closure);
+        var result = await kit.Owner(removal: removal, logger: logs, scope: scope).FinalizeAsync(admission, world.Closure);
 
         result.Outcome.Should().Be(ClosureFinalizeOutcome.Finalized);
         result.Status.Should().Be("completed");
         result.Groups.Should().Be(new ClosureFinalizeTally(Served: 3, Ready: 3, Pending: 0, Unserved: 1, ErasuresCompleted: 3, ClosuresCompleted: 2));
         result.UnservedGroups.Should().Equal(BranchA2);
         result.Redaction!.Tenants.Keys.Should().BeEquivalentTo([TenantId.From(TenantA), TenantId.From(TenantB)],
-            "every participant tenant is redacted, the unserved group's tenant included");
+            "both tenants hold a served group here (the unserved branch belongs to tenant A, which two served groups name), so this "
+            + "proves the served tenants; " + nameof(A_tenant_whose_only_group_is_unserved_is_redacted_like_every_other_participant_tenant)
+            + " proves the tenant whose only group is unserved");
         result.Redaction.Total.Redacted[AuditRedactedColumn.IpAddress].Should().Be(3, "the two planted tenant rows and the sentinel one");
         result.Retained.Should().ContainKey("unserved_group").WhoseValue.Should().Be(1);
         removal.Subjects.Should().Equal([world.ProviderSubject], "the raw subject is read once and passed to the port");
-        between.Should().Contain("idle", "the act's own platform connection is observed while the provider runs")
-            .And.NotContain("idle in transaction", "the transaction the checkpoint opened is not begun on the server until its first statement");
+        between.Should().Equal(["idle"], "the act's own backend, read by its process, is idle while the provider runs: the transaction "
+            + "the checkpoint opened is not begun on the server until its first statement");
 
         // The person: Closed, the raw subject gone, the key and the creation evidence kept as the tombstone.
         var user = await kit.UserAsync(world.Person);
@@ -104,14 +107,17 @@ public sealed partial class AccountClosureFinalizeTests(SchemaFixture schema)
             erasure.Status.Should().Be("completed", group.ToString());
             var recorded = JsonNode.Parse(erasure.Result)!.AsObject();
             recorded["consent_evidence"]!.GetValue<long>().Should().Be(2, "the tenant side's record stays as its participants wrote it");
-            recorded.ContainsKey("audit_actor_reference").Should().BeTrue("the redaction's retained kinds replace the job's");
+            AssertRetainedCounts(recorded, result.Redaction.Tenants[group.TenantId], $"{group}: the redaction's retained kinds replace the job's");
+            recorded["audit_actor_reference"]!.GetValue<long>().Should().NotBe(9, "the job's own count of the kind is replaced, not kept");
         }
 
         foreach (var (group, closure) in new[] { (TenantWideA, world.Closure), (TenantWideB, world.SecondClosure) })
         {
             var completed = await RequestStateAsync(kit, group, closure);
             completed.Status.Should().Be("completed", "the never-begun second closure completes with the one finalized");
-            JsonNode.Parse(completed.Result)!["unserved_group"]!.GetValue<long>().Should().Be(1);
+            var recordedClosure = JsonNode.Parse(completed.Result)!.AsObject();
+            recordedClosure["unserved_group"]!.GetValue<long>().Should().Be(1);
+            AssertRetainedCounts(recordedClosure, result.Redaction.Total, "a closure records the total of every pass");
         }
 
         // The evidence: the entry, the intent with the summed counts and the result, all under the sentinel with the ticket.
@@ -143,6 +149,7 @@ public sealed partial class AccountClosureFinalizeTests(SchemaFixture schema)
         var again = await kit.Owner(removal: removal).FinalizeAsync(repeat, world.Closure);
         again.Outcome.Should().Be(ClosureFinalizeOutcome.AlreadyFinalized);
         again.Retained.Should().BeEquivalentTo(result.Retained);
+        AssertRetainedCounts(again.Retained!, result.Redaction.Total, "a repeat answers the closure's recorded counts, by value");
         removal.Subjects.Should().HaveCount(1);
         (await kit.AuditAsync(repeat.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
     }
@@ -495,20 +502,6 @@ public sealed partial class AccountClosureFinalizeTests(SchemaFixture schema)
         return await ScalarAsync<long>(platform, null,
             "SELECT count(*) FROM public.audit_log WHERE operation = 'identity.user.create' AND entity_id = @id",
             ("id", person.ToString("D")));
-    }
-
-    /// <summary>The transaction state of every other platform-role backend of this database.</summary>
-    private static async Task<List<string>> PlatformBackendStatesAsync(AccountClosureBeginKit kit)
-    {
-        await using var observer = await AccountClosureBeginKit.OpenAsync(kit.Database.PlatformConnectionString);
-        await using var command = new NpgsqlCommand("""
-            SELECT COALESCE(state, '') FROM pg_catalog.pg_stat_activity
-            WHERE datname = current_database() AND usename = 'learnstack_platform' AND pid <> pg_backend_pid()
-            """, observer);
-        await using var reader = await command.ExecuteReaderAsync();
-        var states = new List<string>();
-        while (await reader.ReadAsync()) states.Add(reader.GetString(0));
-        return states;
     }
 }
 

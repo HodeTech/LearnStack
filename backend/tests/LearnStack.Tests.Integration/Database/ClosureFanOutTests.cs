@@ -99,6 +99,8 @@ public sealed partial class ClosureFanOutTests(SchemaFixture fixture)
 
         // Each group's rows live under its own announcement only: the canonical row policy admits an organization the
         // tenant-wide rows, never another organization's or another tenant's.
+        foreach (var group in Groups)
+            (await VisibleAsync(group, requests[group])).Should().Be(1, $"{group} sees its own request, so a zero below is isolation and not an unreadable table");
         (await VisibleAsync(BranchA1, requests[BranchA2])).Should().Be(0);
         (await VisibleAsync(BranchA2, requests[BranchA1])).Should().Be(0);
         (await VisibleAsync(TenantWideB, requests[TenantWideA])).Should().Be(0);
@@ -410,21 +412,16 @@ public sealed partial class ClosureFanOutTests(SchemaFixture fixture)
         return (row.GetString(0), row.GetString(1));
     }
 
-    /// <summary>Whether a request is visible under another group's announcement at all.</summary>
+    /// <summary>
+    /// How many rows of the request the group's own announcement shows, as the application role: the plain count, so a row
+    /// the policy leaked is one however it is scoped.
+    /// </summary>
     private async Task<long> VisibleAsync(ClosureParticipantGroup group, Guid request)
     {
         await using var app = await DataExportTestKit.OpenAppAsync(_database!.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
         await ScopeAsync(app, transaction, group.TenantId.Value, group.OrganizationId?.Value);
-        var visible = await ScalarAsync<long>(app, transaction, "SELECT count(*) FROM public.data_subject_requests WHERE id=@id", ("id", request));
-        if (group.OrganizationId is null && visible > 0)
-        {
-            // A tenant-wide announcement shows the tenant-wide group's rows; an organization's rows stay hidden.
-            visible = await ScalarAsync<long>(app, transaction,
-                "SELECT count(*) FROM public.data_subject_requests WHERE id=@id AND organization_id IS NOT NULL", ("id", request));
-        }
-
-        return visible;
+        return await ScalarAsync<long>(app, transaction, "SELECT count(*) FROM public.data_subject_requests WHERE id=@id", ("id", request));
     }
 
     /// <summary>The erasure jobs of the request in its group, by the exact route the scheduler stored.</summary>

@@ -42,8 +42,8 @@ public sealed partial class AccountClosureBeginTests
             await kit.WaitUntilALockIsAwaitedAsync("learnstack_app", admitted, "the admission waits on the person's User fence");
             await ScopeAsync(revoking, revocation, TenantA, SchemaFixture.OrgA1);
             revoked = LockAsync(revoking, revocation, TenantA, person, exclusive: true);
-            await Task.Delay(TimeSpan.FromMilliseconds(100));
-            revoked.IsCompleted.Should().BeFalse("the revocation waits on the same fence");
+            await WaitUntilBackendsAwaitLocksAsync(kit, "learnstack_app", 2, [admitted, revoked],
+                "the admission and the revocation wait on the same fence, each on its own backend");
         }
         finally
         {

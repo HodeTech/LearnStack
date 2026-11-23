@@ -190,8 +190,9 @@ public sealed partial class PlatformOperatorHttpTests
         failed.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "the failure still propagates to the host");
         (await failed.Content.ReadAsStringAsync()).Should().NotContain("forced defect");
 
+        // The meter is process-wide: a closure's fan-out groups another class counts at the same time are not this route's.
         const string Slug = "platform.closure.begin";
-        counted.Calls.Should().Equal(
+        counted.Calls.Where(call => call.Operation == Slug).Should().Equal(
             (Slug, "begun"), (Slug, "begun_partial"), (Slug, "resumed"), (Slug, "resumed_partial"), (Slug, "blocked_window"),
             (Slug, "blocked_hold"), (Slug, "blocked_last_administrator"), (Slug, "not_found"), (Slug, "not_closure"),
             (Slug, "not_beginnable"), (Slug, "account_closed"), (Slug, "audit_unavailable"), (Slug, "unavailable"),
@@ -262,7 +263,8 @@ public sealed partial class PlatformOperatorHttpTests
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "a host that cannot fan out is a deployment defect");
         scope.Entered.Should().Be(0, "the act was refused before it entered the platform scope");
-        counted.Calls.Should().Equal(("platform.closure.begin", "failed"));
+        // The meter is process-wide: a closure's fan-out groups another class counts at the same time are not this route's.
+        counted.Calls.Where(call => call.Operation == "platform.closure.begin").Should().Equal(("platform.closure.begin", "failed"));
     }
 
     [Fact]
