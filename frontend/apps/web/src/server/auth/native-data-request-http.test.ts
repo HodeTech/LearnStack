@@ -7,236 +7,31 @@ import type { OwnDataRequest } from '@learnstack/sdk/administration-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DATA_REQUEST_HISTORY_SOURCE } from './data-request-html';
-import {
-  DATA_REQUEST_REFUSALS,
-  createNativeDataRequestHandler,
-  dataRequestRefusal,
-} from './native-data-request-http';
-import type {
-  NativeAdministrationCaller,
-  NativeOperationResult,
-  NativeRetainedDataRequestCaller,
-} from './native-operation-contract';
+import { DATA_REQUEST_REFUSALS, dataRequestRefusal } from './native-data-request-http';
+import type { NativeOperationResult } from './native-operation-contract';
+import { dataRequestProofView } from '../../../scripts/data-request-proof-view.mjs';
 import en from '../../i18n/messages/en/data.json';
 import tr from '../../i18n/messages/tr/data.json';
-import { bffFixture, bffHost, bffSource } from '../../test/bff-fixture';
-import { snapshotRequest, SnapshotWire } from '../../test/page-response-fixture';
-
-const id = '019a154b-0000-7000-8000-000000000041';
-const second = '019a154b-0000-7000-8000-000000000042';
-const organization = '019a154b-0000-7000-8000-0000000000a1';
-const ticket = 'T'.repeat(42) + 'A';
-const now = Date.parse('2026-11-23T12:00:00Z');
-const pageInfo = { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false };
-const ok = (data: unknown, extra: Partial<{ etag: string; location: string }> = {}) =>
-  ({
-    kind: 'success',
-    status: 200,
-    data,
-    etag: extra.etag ?? null,
-    location: extra.location ?? null,
-    replayed: false,
-  }) as NativeOperationResult;
-const refused = (status: number, code: string, errors?: Record<string, { key: string }[]>) =>
-  ({
-    kind: 'api-error',
-    status,
-    error: { code: 'unknown', correlationId: 'c' },
-    problem: {
-      type: 'https://errors.learnstack.dev/' + code,
-      title: 'Refused',
-      status,
-      instance: '/api/v1/identity/me/data-requests',
-      code,
-      messageKey: 'lockey_' + code,
-      correlationId: 'c',
-      ...(errors ? { errors } : {}),
-    },
-  }) as NativeOperationResult;
-const artifact = (value: Partial<NonNullable<OwnDataRequest['artifact']>> = {}) => ({
-  id: second,
-  status: 'available' as const,
-  expiresAt: '2026-11-30T10:00:00.0000000+00:00',
-  purgedAt: null,
-  byteCount: 131073,
-  chunkCount: 2,
-  truncations: [],
-  version: '9007199254740993',
-  readable: true,
-  ...value,
-});
-const request = (value: Partial<OwnDataRequest> = {}): OwnDataRequest => ({
+import {
+  DownloadWire,
+  artifact,
+  chunkBytes,
+  closeDataRequestFixtures,
+  count,
+  fixture,
+  formKey,
   id,
-  kind: 'export',
-  origin: 'self',
-  status: 'requested',
-  createdAt: '2026-11-23T10:00:00.0000000+00:00',
-  updatedAt: null,
-  completedAt: null,
-  lastRefusal: null,
-  failureReason: null,
-  retained: [],
-  artifact: null,
-  version: '3',
-  executeAt: null,
-  ...value,
-});
-const chunkBytes = (index: number) =>
-  Buffer.alloc(index === 0 ? 131072 : 1, index === 0 ? 0x61 : 0x62);
+  ok,
+  organization,
+  pageInfo,
+  refused,
+  request,
+  second,
+  shown,
+  ticket,
+} from '../../test/data-request-person-fixture';
 
-/**
- * A transport sink that takes each written buffer only when it acknowledges the write, a microtask later, as a socket
- * does: the relay zeroes the buffer after the write settles, so one zeroed early would arrive here as zeros.
- */
-class DownloadWire extends SnapshotWire {
-  readonly bytes: Buffer[] = [];
-  override write(chunk: string, ...args: unknown[]) {
-    this.flushHeaders();
-    const callback = args[args.length - 1];
-    queueMicrotask(() => {
-      if (typeof chunk === 'string') this.chunks.push(chunk);
-      else this.bytes.push(Buffer.from(chunk as unknown as Buffer));
-      if (typeof callback === 'function') Reflect.apply(callback, this, []);
-    });
-    return true;
-  }
-  override end(...args: unknown[]) {
-    const callback = args[args.length - 1];
-    const result = super.end(...args.filter((value) => typeof value !== 'function'));
-    if (typeof callback === 'function') queueMicrotask(() => Reflect.apply(callback, this, []));
-    return result;
-  }
-}
-
-const closes: (() => Promise<void>)[] = [];
-afterEach(async () => {
-  for (const close of closes.splice(0).reverse()) await close();
-});
-
-async function fixture(mode: 'session' | 'entry', page: readonly OwnDataRequest[] = []) {
-  const own = vi.fn<
-    (operation: Parameters<NativeAdministrationCaller>[2]) => NativeOperationResult
-  >((operation) => {
-    switch (operation.kind) {
-      case 'listOwnDataRequests':
-        return ok({ items: page, pageInfo });
-      case 'mintOwnDataExportTicket':
-        return ok({ ticket, expiresAt: '2026-11-23T12:15:00Z', chunkCount: 2, byteCount: 131073 });
-      case 'readOwnDataExportChunk':
-        return ok({
-          index: operation.index,
-          count: 2,
-          bytes: chunkBytes(operation.index).toString('base64'),
-        });
-      case 'createOwnDataExport':
-        return ok({ id, kind: 'export', status: 'requested', version: '0' });
-      default:
-        return ok({ version: '4' });
-    }
-  });
-  const retained = vi.fn<NativeRetainedDataRequestCaller>(async (_token, _binding, operation) => {
-    switch (operation.kind) {
-      case 'listRetainedDataRequestScopes':
-        return ok({
-          items: [
-            { tenantId: id, organizationId: null },
-            { tenantId: id, organizationId: organization },
-          ],
-          pageInfo,
-        });
-      case 'listRetainedDataRequests':
-        return ok({ items: page, pageInfo });
-      case 'mintRetainedDataExportTicket':
-        return ok({ ticket, expiresAt: '2026-11-23T12:15:00Z', chunkCount: 2, byteCount: 131073 });
-      case 'readRetainedDataExportChunk':
-        return ok({
-          index: operation.index,
-          count: 2,
-          bytes: chunkBytes(operation.index).toString('base64'),
-        });
-      default:
-        return ok({ version: '4' });
-    }
-  });
-  const f = bffFixture({ retainedDataRequest: retained });
-  const original = f.administration.getMockImplementation()!;
-  f.administration.mockImplementation(async (token, binding, operation, signal) =>
-    [
-      'listOwnDataRequests',
-      'createOwnDataExport',
-      'createOwnDataErasure',
-      'createOwnAccountClosure',
-      'cancelOwnDataRequest',
-      'revokeOwnDataExport',
-      'mintOwnDataExportTicket',
-      'readOwnDataExportChunk',
-    ].includes(operation.kind)
-      ? own(operation)
-      : original(token, binding, operation, signal),
-  );
-  const owner = mode === 'session' ? await f.login() : await f.enter();
-  const csrf =
-    mode === 'session'
-      ? f.store.peek((owner as Awaited<ReturnType<typeof f.login>>).binding)!.csrfToken
-      : (owner as Awaited<ReturnType<typeof f.enter>>).finished.entry.csrfToken;
-  f.account.mockClear();
-  f.administration.mockClear();
-  own.mockClear();
-  const handler = createNativeDataRequestHandler({
-    catalogues: { en, tr },
-    store: f.store,
-    responseLease: f.requestRuntime.nativeDataRequestResponse,
-    now: () => now,
-  });
-  closes.push(async () => {
-    await f.requestRuntime.stop();
-    await f.store.stop();
-    f.publicAdmission.shutdown();
-  });
-  const run = async (
-    method: string,
-    target: string,
-    form?: Record<string, string> | URLSearchParams,
-    options: {
-      origin?: string;
-      headers?: Record<string, string>;
-      wire?: SnapshotWire;
-      request?: (incoming: IncomingMessage) => void;
-    } = {},
-  ) => {
-    const incoming = snapshotRequest();
-    options.request?.(incoming);
-    incoming.method = method;
-    incoming.url = target;
-    incoming.headers.cookie = owner.cookie;
-    Object.assign(incoming.headers, options.headers ?? {});
-    if (form) {
-      incoming.headers.origin = options.origin ?? 'https://' + bffHost;
-      incoming.headers['content-type'] = 'application/x-www-form-urlencoded';
-      incoming.complete = true;
-      incoming.push(
-        (form instanceof URLSearchParams ? form : new URLSearchParams(form)).toString(),
-      );
-      incoming.push(null);
-    }
-    const binding = { host: bffHost, peer: bffSource, method, target };
-    const wire = options.wire ?? new SnapshotWire();
-    await f.publicAdmission.run(binding, incoming, wire.native, () =>
-      f.requestRuntime.run(binding, incoming, wire.native, () =>
-        handler(binding, incoming, wire.native),
-      ),
-    );
-    wire.drainCallbacks();
-    for (let turn = 0; turn < 16; ++turn) await Promise.resolve();
-    return Object.assign(wire, { html: wire.chunks.join('') });
-  };
-  return { ...f, own, retained, run, csrf, owner };
-}
-const count = (html: string, pattern: RegExp) => [...html.matchAll(pattern)].length;
-/** The renderer escapes every printed value; authored copy is compared as it appears in the document. */
-const shown = (text: string) => text.replaceAll('&', '&amp;').replaceAll("'", '&#39;');
-const formKey = (html: string) =>
-  /name="idempotencyKey" value="([A-Za-z0-9_-]{43})"/.exec(html)![1]!;
+afterEach(closeDataRequestFixtures);
 
 describe('the person’s own data-request page in a live session', () => {
   it('lists every closed state with its next step, dates and only the permitted actions', async () => {
@@ -521,9 +316,13 @@ describe('the person’s own data-request page in a live session', () => {
       cursor: 'raw-api-cursor',
     });
     f.own.mockClear();
-    expect(
-      (await f.run('GET', '/account/data?cursor=' + next.slice(0, -2) + 'AA')).statusCode,
-    ).toBe(400);
+    // One bit of the first ciphertext byte (after the version and the 12-byte nonce) flipped: never the genuine
+    // value, whatever the random nonce and tag are.
+    const bytes = Buffer.from(next, 'base64url');
+    bytes[13] = bytes[13]! ^ 1;
+    const forged = bytes.toString('base64url');
+    expect(forged).not.toBe(next);
+    expect((await f.run('GET', '/account/data?cursor=' + forged)).statusCode).toBe(400);
     expect(f.own).not.toHaveBeenCalled();
   });
 
@@ -591,7 +390,7 @@ describe('the retained own-scope entry', () => {
 
   it('states when the entry ends, restores the same group and leads a refused confirmation to the chooser', async () => {
     const f = await fixture('entry', [request()]);
-    const ends = (f.owner as Awaited<ReturnType<typeof f.enter>>).finished.entry.expiresAt;
+    const ends = f.entry!.finished.entry.expiresAt;
     const chooser = await f.run('GET', '/account/data');
     const view = await f.run('POST', '/api/auth/entry/data-requests', {
       csrfToken: f.csrf,
@@ -636,7 +435,7 @@ describe('the retained own-scope entry', () => {
       artifact: artifact(),
     });
     const f = await fixture('entry', [ready]);
-    const ends = (f.owner as Awaited<ReturnType<typeof f.enter>>).finished.entry.expiresAt;
+    const ends = f.entry!.finished.entry.expiresAt;
     const instant = '<time datetime="' + new Date(ends).toISOString() + '">';
     const times = (html: string) => html.split(instant).length - 1;
     const list = (await f.run('GET', '/account/data?group=tenant')).html;
@@ -729,11 +528,16 @@ describe('the retained own-scope entry', () => {
   });
 });
 
+/** Every console method and the error stream: a ticket, an identifier or a byte of the file must reach none. */
+const watchOutput = () => [
+  ...(['log', 'info', 'warn', 'error', 'debug'] as const).map((name) => vi.spyOn(console, name)),
+  vi.spyOn(process.stderr, 'write'),
+];
+
 describe('the export download relay', () => {
   it('streams the chunks in order as one no-store attachment and never shows the ticket', async () => {
     const f = await fixture('session');
-    const log = vi.spyOn(console, 'log');
-    const warn = vi.spyOn(console, 'warn');
+    const output = watchOutput();
     const wire = new DownloadWire();
     await f.run(
       'POST',
@@ -759,12 +563,12 @@ describe('the export download relay', () => {
       'readOwnDataExportChunk',
       'readOwnDataExportChunk',
     ]);
-    expect(log).not.toHaveBeenCalled();
-    expect(warn).not.toHaveBeenCalled();
+    for (const spy of output) expect(spy).not.toHaveBeenCalled();
   });
 
   it('destroys the connection on a failed chunk after the headers, with no completed body', async () => {
     const f = await fixture('session');
+    const output = watchOutput();
     f.own.mockImplementation((operation) =>
       operation.kind === 'mintOwnDataExportTicket'
         ? ok({ ticket, expiresAt: '2026-11-23T12:15:00Z', chunkCount: 2, byteCount: 131073 })
@@ -781,6 +585,8 @@ describe('the export download relay', () => {
     expect(wire.headersSent).toBe(true);
     expect(wire.destroyed).toBe(true);
     expect(wire.writableEnded).toBe(false);
+    // A failure leaves no trace either: no ticket, identifier or byte of the file in any output.
+    for (const spy of output) expect(spy).not.toHaveBeenCalled();
   });
 
   it('answers the ticket limit and a gone file with their sentences before any byte', async () => {
@@ -818,7 +624,7 @@ describe('the export download relay', () => {
 
   it('destroys a streaming download when the owner signs out between chunks', async () => {
     const f = await fixture('session');
-    const owner = f.owner as Awaited<ReturnType<typeof f.login>>;
+    const owner = f.session!;
     threeChunks(f, (index) => {
       if (index === 1) f.store.signout(owner.binding, f.csrf);
     });
@@ -1012,6 +818,96 @@ describe('data-request private history guard', () => {
     expect(response.html.indexOf(DATA_REQUEST_HISTORY_SOURCE)).toBeLessThan(
       response.html.indexOf('<body>'),
     );
+  });
+});
+
+describe('the closed observation controls read the documents the handler really serves', () => {
+  const items = [
+    request({
+      id: '019a154b-0000-7000-8000-000000000002',
+      status: 'completed',
+      completedAt: '2026-11-22T10:00:00Z',
+      artifact: artifact(),
+    }),
+    request({
+      id: '019a154b-0000-7000-8000-000000000004',
+      kind: 'erasure',
+      status: 'scheduled',
+      executeAt: '2026-11-24T10:00:00Z',
+    }),
+  ];
+  const observe = async (
+    f: Awaited<ReturnType<typeof fixture>>,
+    target: string,
+    policy?: string,
+  ) => {
+    const wire = await f.run('GET', target);
+    expect(wire.statusCode, target).toBe(200);
+    return dataRequestProofView(
+      wire.html,
+      policy ?? String(wire.headers.get('content-security-policy')),
+    );
+  };
+  const base = { kind: 'data_request_document', confirmationProtected: true } as const;
+
+  it('observes the session page and both confirmation steps with the real CSP header', async () => {
+    const f = await fixture('session', items);
+    expect(await observe(f, '/account/data')).toEqual({
+      ...base,
+      view: 'session',
+      // The export filing, the revocation and the cancellation; one download.
+      filingForms: 1,
+      actionForms: 2,
+      downloadForms: 1,
+      historyProtected: true,
+    });
+    const idle = await fixture('session');
+    expect(await observe(idle, '/account/data?step=erasure')).toEqual({
+      ...base,
+      view: 'session_erasure',
+      // The one confirmation form, with its fieldset and its required box.
+      filingForms: 1,
+      actionForms: 0,
+      downloadForms: 0,
+      historyProtected: true,
+    });
+    expect(await observe(idle, '/account/data?step=closure')).toMatchObject({
+      view: 'session_closure',
+      confirmationProtected: true,
+      historyProtected: true,
+    });
+    // The observation is of the header the page was really served with: another policy is not a protected history.
+    expect((await observe(f, '/account/data', "script-src 'self'")).historyProtected).toBe(false);
+  });
+
+  it('observes the retained chooser, a group and its confirmation steps', async () => {
+    const f = await fixture('entry', items);
+    expect(await observe(f, '/account/data')).toEqual({
+      ...base,
+      view: 'entry_scopes',
+      filingForms: 0,
+      actionForms: 2,
+      downloadForms: 0,
+      historyProtected: true,
+    });
+    expect(await observe(f, '/account/data?group=' + organization)).toEqual({
+      ...base,
+      view: 'entry',
+      filingForms: 1,
+      actionForms: 2,
+      downloadForms: 1,
+      historyProtected: true,
+    });
+    const idle = await fixture('entry');
+    for (const [step, view] of [
+      ['erasure', 'entry_erasure'],
+      ['closure', 'entry_closure'],
+    ] as const)
+      expect(await observe(idle, '/account/data?group=tenant&step=' + step)).toMatchObject({
+        view,
+        confirmationProtected: true,
+        historyProtected: true,
+      });
   });
 });
 

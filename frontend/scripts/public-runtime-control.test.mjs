@@ -205,7 +205,7 @@ async function fixture(options = {}) {
       export const loadLocalEnvironment = () => ({});
       export const publicServerConfiguration = () => ({certificate: ${JSON.stringify(join(credentials, 'certificate.pem'))}, privateKey: ${JSON.stringify(join(credentials, 'key.pem'))}});
       export const admitIncomingRequest = () => { state.event('incoming-admission'); return true; };
-      export const verifyProvenance = () => { state.event('provenance'); return {method: 'GET', target: '/', host: 'fixture.invalid'}; };
+      export const verifyProvenance = () => { state.event('provenance'); return {method: 'GET', target: state.options.target ?? '/', host: 'fixture.invalid'}; };
       export const refuseIngress = (response) => { response.writeHead(503); response.end(); };
     `,
     'admission.mjs': `
@@ -216,6 +216,7 @@ async function fixture(options = {}) {
       }
     `,
     'dependencies.mjs': `
+      import { state } from './state.mjs';
       export const createTenantProvider = () => ({});
       export const createAccountSiteCaller = () => ({});
       export const createNativeSessionApi = () => ({});
@@ -227,11 +228,15 @@ async function fixture(options = {}) {
       export const createPublicSignInReader = () => async () => null;
       export const nativeInvitationTarget = () => false;
       export const nativeConsentTarget = () => false;
-      export const nativeDataRequestTarget = () => false;
+      export const nativeDataRequestTarget = (target) => target.split('?', 1)[0] === '/account/data';
       export function createNativeDataRequestHandler({catalogues, store, responseLease}) {
         if (catalogues?.en?.fixture !== 'en' || catalogues?.tr?.fixture !== 'tr'
           || !store || typeof responseLease !== 'function') throw new Error('Fixture data request wiring failed');
-        return () => {};
+        return (binding, _request, response) => {
+          state.event('data-request-handler');
+          state.dataRequestTargets = [...(state.dataRequestTargets ?? []), binding.target];
+          response.end('data-request-control');
+        };
       }
       export function createNativeConsentHandler({catalogues, store, responseLease}) {
         if (catalogues?.en?.fixture !== 'en' || catalogues?.tr?.fixture !== 'tr'
@@ -652,6 +657,51 @@ try {
   assert.equal(healthy.state.server.listening, false);
   assert.equal(healthy.state.events.filter((event) => event === 'server-close').length, 1);
   assert.equal(healthy.state.events.includes('sink-close'), false);
+
+  // The data-request document is dispatched to its own handler, in a BFF runtime only, before Next sees it.
+  const fetchBody = (port) =>
+    new Promise((resolve, reject) => {
+      const outgoing = request(
+        { host: '127.0.0.1', port, rejectUnauthorized: false, agent: false },
+        (response) => {
+          let text = '';
+          response.setEncoding('utf8');
+          response.on('data', (chunk) => {
+            text += chunk;
+          });
+          response.on('end', () => resolve(text));
+        },
+      );
+      outgoing.on('error', reject);
+      outgoing.end();
+    });
+  for (const [target, handled] of [
+    ['/account/data', true],
+    ['/account/data?group=tenant&result=export', true],
+    ['/account/database', false],
+    ['/account', false],
+    ['/', false],
+  ]) {
+    const dispatching = await fixture({ bff: true, target });
+    await dispatching.start();
+    assert.equal(
+      await fetchBody(dispatching.port),
+      handled ? 'data-request-control' : 'native-control',
+      target,
+    );
+    const count = (event) => dispatching.state.events.filter((value) => value === event).length;
+    assert.equal(count('data-request-handler'), handled ? 1 : 0, target);
+    assert.equal(count('next-request'), handled ? 0 : 1, target);
+    assert.deepEqual(dispatching.state.dataRequestTargets ?? [], handled ? [target] : [], target);
+    await dispatching.stop();
+  }
+  // Without the BFF there is no data-request handler: the same target belongs to Next.
+  const withoutBff = await fixture({ target: '/account/data' });
+  await withoutBff.start();
+  assert.equal(await fetchBody(withoutBff.port), 'native-control');
+  assert.equal(withoutBff.state.events.includes('data-request-handler'), false);
+  assert.equal(withoutBff.state.events.includes('next-request'), true);
+  await withoutBff.stop();
 
   const upgraded = await fixture({ development: true, holdUpgrade: true });
   await upgraded.start();

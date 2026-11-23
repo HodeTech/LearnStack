@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import type { AdministrationFetch } from './administration-contract';
-import { createAdministrationServerSdk } from './administration-server';
+import { DATA_REQUEST_ORIGINS, createAdministrationServerSdk } from './administration-server';
 import { DATA_REQUEST_ADMINISTRATION_POST_CONTRACTS } from './data-request-contract';
 import type { DataExportArtifact, SubjectDataRequest } from './data-request-contract';
 import type { components, operations, paths } from './generated/schema';
@@ -112,6 +112,34 @@ describe('administrator data-request wrappers (ADR-0106 §§ 3, 6, 10, 13; ADR-0
       const { sdk: refused } = sdkWith(bad);
       expect((await refused.getDataRequest(id)).kind).toBe('invalid-response');
     }
+  });
+
+  it('admits a receipt at the Membership snapshot bound and one of every origin', async () => {
+    const ids = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, index) => member.slice(0, -3) + String(index).padStart(3, '0'),
+      );
+    // The bound is inclusive: 256 distinct Memberships are valid, one more is refused above.
+    const { sdk: bound } = sdkWith(json({ items: [item({ membershipIds: ids(256) })], pageInfo }));
+    expect(await bound.listDataRequests()).toMatchObject({ kind: 'success' });
+    const { sdk: one } = sdkWith(json({ items: [item({ membershipIds: ids(1) })], pageInfo }));
+    expect(await one.listDataRequests()).toMatchObject({ kind: 'success' });
+    const receipts = DATA_REQUEST_ORIGINS.map((origin, index) =>
+      item({
+        id: '019a154b-0000-7000-8000-0000000009' + String(index).padStart(2, '0'),
+        kind: 'erasure',
+        origin,
+        status: 'scheduled',
+        completedAt: null,
+        executeAt: '2026-11-24T10:00:00Z',
+        artifact: null,
+      }),
+    );
+    const { sdk: origins } = sdkWith(json({ items: receipts, pageInfo }));
+    const result = await origins.listDataRequests();
+    expect(result).toMatchObject({ kind: 'success' });
+    if (result.kind === 'success') expect(result.data.items).toEqual(receipts);
   });
 
   it('refuses a receipt an administrator never reads', async () => {

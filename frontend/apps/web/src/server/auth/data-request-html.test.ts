@@ -1,11 +1,12 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 import {
+  DATA_EXPORT_ARTIFACT_STATUSES,
   DATA_REQUEST_FAILURE_REASONS,
   DATA_REQUEST_KINDS,
   DATA_REQUEST_LAST_REFUSALS,
+  DATA_REQUEST_ORIGINS,
   DATA_REQUEST_RETAINED_KINDS,
   DATA_REQUEST_STATUSES,
 } from '@learnstack/sdk/administration-server';
@@ -26,9 +27,13 @@ import { DATA_REQUEST_REFUSALS } from './native-data-request-http';
 import snapshot from '../../../../../../backend/openapi/v1.json';
 import en from '../../i18n/messages/en/data.json';
 import tr from '../../i18n/messages/tr/data.json';
+import {
+  ENVELOPE_REASONS,
+  PERSON_ROUTES,
+  identityDataRequestReasons,
+} from '../../test/data-request-reasons';
 import { checkCatalogues, publicCallsiteKeys } from '../../test/ui-catalogue-checks';
 
-const repository = join(process.cwd(), '../../..');
 const nonce = 'N'.repeat(22) + '==';
 const proof = 'c'.repeat(43);
 const keys = Array.from({ length: 8 }, (_, index) => String(index).repeat(43));
@@ -75,49 +80,6 @@ const render = (value: Partial<DataRequestPage> = {}, locale: 'en' | 'tr' = 'en'
     ),
     'text/html',
   );
-
-/** Every `lockey_*` reason the person's data-request routes document, and every one the Identity module spells. */
-function apiReasons(): Set<string> {
-  const reasons = new Set<string>();
-  for (const [path, item] of Object.entries(
-    snapshot.paths as Record<
-      string,
-      Record<string, { responses?: Record<string, { description?: string }> }>
-    >,
-  )) {
-    if (
-      !path.startsWith('/api/v1/identity/me/data-requests') &&
-      !path.startsWith('/api/v1/identity/data-request-entry')
-    )
-      continue;
-    for (const operation of Object.values(item))
-      for (const response of Object.values(operation.responses ?? {}))
-        for (const match of (response.description ?? '').matchAll(
-          // A reason spelled with its wire prefix, or an artifact reason the document names without it.
-          /\b(?:lockey_([a-z_]+)|(data_export_[a-z_]+))\b/g,
-        ))
-          reasons.add('lockey_' + (match[1] ?? match[2]));
-  }
-  const directory = join(
-    repository,
-    'backend/src/Modules/Identity/LearnStack.Modules.Identity.Application/DataRequests',
-  );
-  for (const file of readdirSync(directory).filter((name) => name.endsWith('.cs')))
-    for (const match of readFileSync(join(directory, file), 'utf8').matchAll(/"(lockey_[a-z_]+)"/g))
-      reasons.add(match[1]!);
-  return reasons;
-}
-/** The generic envelope a refusal maps by HTTP status and code, never by a reason sentence. */
-const ENVELOPE = new Set([
-  'lockey_business_rule_violation',
-  'lockey_not_found',
-  'lockey_forbidden',
-  'lockey_dependency_unavailable',
-  'lockey_validation_failed',
-  'lockey_invalid_value',
-  'lockey_concurrency_conflict',
-  'lockey_identifier_required',
-]);
 
 describe('the closed data-request copy', () => {
   it('has equal, plain en/tr catalogues used through literal keys only', () => {
@@ -182,13 +144,18 @@ describe('the closed data-request copy', () => {
     expect([...DATA_REQUEST_RETAINED_KINDS].sort()).toEqual(
       [...schemas.DataRequestRetainedResponse!.properties.kind!.enum!].sort(),
     );
+    // The two lists a receipt is gated by that the renderer does not print by name: one drift refuses the whole page.
+    expect([...DATA_REQUEST_ORIGINS].sort()).toEqual([...own.origin!.enum!].sort());
+    expect([...DATA_EXPORT_ARTIFACT_STATUSES].sort()).toEqual(
+      [...schemas.DataExportArtifactResponse!.properties.status!.enum!].sort(),
+    );
   });
 
   it('has one sentence for every refusal reason the API documents or emits', () => {
-    const reasons = apiReasons();
+    const reasons = identityDataRequestReasons(PERSON_ROUTES);
     expect(reasons.size).toBeGreaterThan(12);
     const unmapped = [...reasons].filter(
-      (reason) => !Object.hasOwn(DATA_REQUEST_REFUSALS, reason) && !ENVELOPE.has(reason),
+      (reason) => !Object.hasOwn(DATA_REQUEST_REFUSALS, reason) && !ENVELOPE_REASONS.has(reason),
     );
     expect(unmapped).toEqual([]);
     for (const key of Object.values(DATA_REQUEST_REFUSALS)) expect(dataRequestKeys).toContain(key);
@@ -344,6 +311,62 @@ describe('accessible native data-request documents', () => {
         { locale: 'en', phrase: select('en').phrase, nonce },
       ),
     ).toThrow('Data request response unavailable');
+  });
+});
+
+describe('hostile request values never leave their attribute', () => {
+  it('escapes an id and a version in every hidden field the page prints', () => {
+    const hostile = '"><img src=x onerror=alert(1)><input value="';
+    const version = "3' onfocus='x\"><b>bold</b>";
+    const items = [
+      base({ id: hostile, version }),
+      base({
+        id: hostile + '2',
+        status: 'completed',
+        completedAt: '2026-11-22T10:00:00Z',
+        artifact: {
+          id: '019a154b-0000-7000-8000-0000000000f1',
+          status: 'available',
+          expiresAt: '2026-11-30T10:00:00Z',
+          purgedAt: null,
+          byteCount: 1536,
+          chunkCount: 1,
+          truncations: [],
+          version,
+          readable: true,
+        },
+      }),
+    ];
+    for (const mode of ['session', 'entry'] as const) {
+      const html = renderDataRequestDocument(
+        {
+          kind: 'page',
+          page: page({
+            mode,
+            scope: mode === 'session' ? 'organization' : null,
+            group: mode === 'entry' ? 'tenant' : null,
+            requests: { items, pageInfo: page().requests!.pageInfo },
+          }),
+        },
+        { locale: 'en', phrase: select('en').phrase, nonce },
+      );
+      // No markup of the hostile value survives in the document text…
+      expect(html).not.toContain('<img');
+      expect(html).not.toContain('<b>bold');
+      expect(html).toContain('&quot;&gt;&lt;img src=x onerror=alert(1)&gt;');
+      // …and read back as a document, each field holds the value whole.
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      expect(parsed.querySelector('img')).toBeNull();
+      expect(parsed.querySelector('b')).toBeNull();
+      const field = (name: string) =>
+        [
+          ...parsed.querySelectorAll<HTMLInputElement>('input[type="hidden"][name="' + name + '"]'),
+        ].map((input) => input.value);
+      // Cancel, download and revoke each carry the request; cancel and revoke carry a version.
+      expect(field('requestId')).toEqual([hostile, hostile + '2', hostile + '2']);
+      expect(field('version')).toEqual([version, version]);
+      expect(parsed.querySelectorAll('form')).toHaveLength(3);
+    }
   });
 });
 

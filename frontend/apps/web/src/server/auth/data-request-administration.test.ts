@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import type {
   MembershipDetail,
   SubjectDataRequest,
@@ -40,8 +37,12 @@ import {
 import snapshot from '../../../../../../backend/openapi/v1.json';
 import { dataRequestRefusalSentence } from '../../components/auth/admin-data-request-labels';
 import { createAdministrationTranslator } from '../../i18n/administration-catalogues';
+import {
+  ADMINISTRATOR_ROUTES,
+  ENVELOPE_REASONS,
+  identityDataRequestReasons,
+} from '../../test/data-request-reasons';
 
-const repository = join(process.cwd(), '../../..');
 const requestId = '019a154b-0000-7000-8000-000000000041';
 const memberId = '019a154b-0000-7000-8000-000000000012';
 const otherMember = '019a154b-0000-7000-8000-000000000013';
@@ -761,43 +762,6 @@ describe('administrator data-request forms (ADR-0106 §§ 3, 10, 11; ADR-0107 §
   });
 });
 
-/** Every `lockey_*` reason the administrator routes document, and every one the Identity data-request code spells. */
-function administratorReasons(): Set<string> {
-  const reasons = new Set<string>();
-  for (const [path, item] of Object.entries(
-    snapshot.paths as Record<
-      string,
-      Record<string, { responses?: Record<string, { description?: string }> }>
-    >,
-  )) {
-    if (!path.startsWith('/api/v1/identity/data-requests')) continue;
-    for (const operation of Object.values(item))
-      for (const response of Object.values(operation.responses ?? {}))
-        for (const match of (response.description ?? '').matchAll(
-          /\b(?:lockey_([a-z_]+)|(data_export_[a-z_]+))\b/g,
-        ))
-          reasons.add('lockey_' + (match[1] ?? match[2]));
-  }
-  const directory = join(
-    repository,
-    'backend/src/Modules/Identity/LearnStack.Modules.Identity.Application/DataRequests',
-  );
-  for (const file of readdirSync(directory).filter((name) => name.endsWith('.cs')))
-    for (const match of readFileSync(join(directory, file), 'utf8').matchAll(/"(lockey_[a-z_]+)"/g))
-      reasons.add(match[1]!);
-  return reasons;
-}
-/** Answered by HTTP status and code with the template's generic sentences, never by a reason sentence. */
-const ENVELOPE = new Set([
-  'lockey_business_rule_violation',
-  'lockey_not_found',
-  'lockey_forbidden',
-  'lockey_dependency_unavailable',
-  'lockey_validation_failed',
-  'lockey_invalid_value',
-  'lockey_concurrency_conflict',
-  'lockey_identifier_required',
-]);
 /** Reasons only the person's download routes answer; no administrator route can, and the test proves it. */
 const PERSON_ONLY = new Set(['lockey_data_export_ticket_limit']);
 const REFUSALS: readonly DataRequestAdministrationRefusal[] = [
@@ -822,12 +786,12 @@ describe('administrator data-request refusals (ADR-0106 § 7)', () => {
   });
 
   it('names every reason the administrator routes or the Identity code can answer', () => {
-    const reasons = administratorReasons();
+    const reasons = identityDataRequestReasons(ADMINISTRATOR_ROUTES);
     expect(reasons.size).toBeGreaterThan(15);
     const unmapped = [...reasons].filter(
       (reason) =>
         !Object.hasOwn(DATA_REQUEST_ADMIN_REFUSALS, reason) &&
-        !ENVELOPE.has(reason) &&
+        !ENVELOPE_REASONS.has(reason) &&
         !PERSON_ONLY.has(reason),
     );
     expect(unmapped).toEqual([]);

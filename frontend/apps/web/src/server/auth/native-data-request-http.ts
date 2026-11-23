@@ -295,7 +295,6 @@ export function createNativeDataRequestHandler(
         return;
       }
       const pinned = input.responseLease(binding);
-      lease = pinned;
       let mode: 'session' | 'entry' | undefined;
       let owner: SessionBinding | undefined;
       let retention: ReturnType<BffSessionStore['retainDataRequests']> | undefined;
@@ -314,7 +313,10 @@ export function createNativeDataRequestHandler(
           refusal = error;
         }
       }
+      // Only a pinned lease publishes: a refusal before any owner is chosen is an unpublished output, as the sign-in
+      // page and the 404 are, and never touches the lease.
       if (!retention || !mode || !owner) throw refusal ?? new BffSessionError('revoked');
+      lease = pinned;
       selected = mode;
       const csrf = retention.csrfToken;
       // The pin ends this response with its owner; nothing the response does is promised past it.

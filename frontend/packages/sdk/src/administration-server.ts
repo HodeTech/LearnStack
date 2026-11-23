@@ -61,10 +61,12 @@ export {
  * vocabularies the receipts are validated against, and the retained-group grammar.
  */
 export {
+  DATA_EXPORT_ARTIFACT_STATUSES,
   DATA_EXPORT_CHUNK_BYTES,
   DATA_REQUEST_FAILURE_REASONS,
   DATA_REQUEST_KINDS,
   DATA_REQUEST_LAST_REFUSALS,
+  DATA_REQUEST_ORIGINS,
   DATA_REQUEST_RETAINED_KINDS,
   DATA_REQUEST_STATUSES,
   dataRequestGroup as isDataRequestGroup,

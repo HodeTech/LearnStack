@@ -27,6 +27,14 @@ import {
 } from './ingress';
 
 const secret = randomBytes(32).toString('base64url');
+/** The person's data-request actions, as POST targets of the native handler. */
+const PERSON_DATA_REQUEST_POSTS = [
+  ...['export', 'erasure', 'closure', 'cancel', 'revoke', 'download'].flatMap((action) => [
+    '/api/account/data-requests/' + action,
+    '/api/auth/entry/data-requests/' + action,
+  ]),
+  '/api/auth/entry/data-requests',
+];
 const context = {
   host: 'tenant.example:3000',
   peer: '127.0.0.1',
@@ -57,6 +65,9 @@ describe('captured ingress provenance', () => {
         '/studio/roles/019a154b-0000-7000-8000-000000000022',
         '/portal/profile',
         '/api/auth/entry',
+        // The person's own data-request page is credentialed: it is served on the native authority only.
+        '/account/data',
+        '/account/data?group=tenant&result=export',
       ]) {
         const request = make(target);
         expect(admitIncomingRequest(request, secret, true)).toBe(false);
@@ -73,6 +84,7 @@ describe('captured ingress provenance', () => {
         '/api/studio/role-grants',
         '/api/studio/role-manifest-adoption',
         '/api/account/profile',
+        ...PERSON_DATA_REQUEST_POSTS,
       ])
         expect(admitIncomingRequest(make(target, 'POST'), secret, true)).toBe(false);
       const publicRead = make('/en/courses');
@@ -97,6 +109,22 @@ describe('captured ingress provenance', () => {
       expect(verifyProvenance(String(request.headers[INGRESS_HEADER]), secret)?.host).toBe(
         normalizeHost(host),
       );
+      // The person's data-request page and its fixed actions are admitted on that authority, with the same proof.
+      for (const [method, target] of [
+        ['GET', '/account/data'],
+        ['GET', '/account/data?group=tenant&result=export'],
+        ...PERSON_DATA_REQUEST_POSTS.map((path) => ['POST', path] as const),
+      ] as const) {
+        const document = new IncomingMessage(socket);
+        document.rawHeaders = ['Host', host];
+        document.headers = { host, 'content-length': '12' };
+        document.method = method;
+        document.url = target;
+        expect(admitIncomingRequest(document, secret, true), method + ' ' + target).toBe(true);
+        expect(
+          verifyProvenance(String(document.headers[INGRESS_HEADER]), secret, { method, target }),
+        ).toMatchObject({ host: normalizeHost(host), peer: '127.0.0.1', method, target });
+      }
     },
   );
   it.each([
