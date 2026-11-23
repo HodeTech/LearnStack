@@ -74,6 +74,13 @@ public interface IDataRequestStore : IAggregateWriteStore<DataSubjectRequest, Da
     /// </summary>
     Task<bool> HoldsErasureFencesAsync(UserId subject, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether the subject holds, in the ambient group, a closure's fan-out erasure that is <c>completed</c>. Only that
+    /// closure's Finalize completes one, in the transaction that moves the person to Closed, so its presence says the group's
+    /// part of the closure is done (ADR-0107 § 7).
+    /// </summary>
+    Task<bool> HoldsCompletedFanOutAsync(UserId subject, CancellationToken cancellationToken);
+
     /// <summary>The subject's non-terminal request of the kind in the ambient group, tracked and locked for update.</summary>
     Task<DataSubjectRequest?> FindActiveLockedAsync(UserId subject, DataRequestKind kind, CancellationToken cancellationToken);
 

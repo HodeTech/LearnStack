@@ -15,21 +15,31 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// <summary>The closure's Finalize (ADR-0107 § 7, ADR-0108 § 8, <c>finalize_closure</c>).</summary>
 /// <remarks>
 /// <para>
-/// <b>Two transactions around the provider.</b> The first takes the person's User fence and every participant tenant's
-/// fence, locks the closure and reads the person's account, finds every served group ready, redacts the person's audit rows
-/// in every participant tenant and then the platform sentinel tenant, and commits with the intent row that carries the
-/// summed counts, which is the redaction's MUST evidence. The fences end with that commit. The identity provider's account
-/// is deleted next, before any other statement, so the transaction the checkpoint opened holds nothing while the call runs.
-/// The second transaction takes the fences again, re-reads and re-judges everything the first judged, moves the User from
-/// Closing to Closed with the raw provider subject removed, completes every participant erasure awaiting the privileged
-/// step, this closure and every other open closure of the person, and commits with the result row.
+/// <b>Two transactions around the provider.</b> The first takes the person's User fence alone, reads the participant groups
+/// under it, locks the closure and reads the person's account, finds every required group ready, redacts the person's
+/// audit rows in every participant tenant and then the platform sentinel tenant, and commits with the intent row that
+/// carries the summed counts, which is the redaction's MUST evidence. It changes no User and no request, which is what the
+/// tenant fences order, so no participant tenant's identity writes wait for its redaction; the User fence keeps the
+/// participants fixed while it runs. The fence ends with that commit. The identity provider's account is deleted next,
+/// before any other statement, so the transaction the checkpoint opened holds nothing while the call runs. The second
+/// transaction takes the User fence and every participant tenant's fence, re-reads and re-judges everything the first
+/// judged, moves the User from Closing to Closed with the raw provider subject removed, completes every participant erasure
+/// awaiting the privileged step, this closure and every other open closure of the person, and commits with the result row.
 /// </para>
 /// <para>
-/// <b>Ready.</b> A served group is ready when its newest erasure of the person (an open one first, of any origin) awaits
+/// <b>Ready.</b> A required group is ready when its newest erasure of the person (an open one first, of any origin) awaits
 /// the privileged step, or completed at or after this closure's Begin, and its frozen Memberships include every Membership
-/// the person holds in the group. The Begin moment is the closure's own update stamp: the guard's Begin arrow wrote it from
-/// the database clock and no arrow writes the row again until this act. An erasure completed before the closure began, by
-/// a person admitted again since, never stands in for a fan-out that did not run.
+/// the person holds in the group. Every served group is required; so is an unserved one whose newest erasure is the
+/// closure's own fan-out and still open, because its job began before the group stopped allowing ordinary work, and once the
+/// person is Closed nothing completes a fan-out erasure. The Begin moment is the closure's own update stamp: the guard's
+/// Begin arrow wrote it from the database clock and no arrow writes the row again until this act. An erasure completed
+/// before the closure began, by a person admitted again since, never stands in for a fan-out that did not run.
+/// </para>
+/// <para>
+/// <b>Another act may complete a participant's erasure meanwhile.</b> The operator's erasure completion takes no closure
+/// fence and may complete the person's or an administrator's own erasure while this act runs. The second transaction locks
+/// the erasures it is about to complete and leaves one already completed as it found it: it is ready, and its own
+/// completion redacted its tenant.
 /// </para>
 /// <para>
 /// <b>Every attempt is recorded.</b> A refusal before the checkpoint changes nothing and ends by disposal, its entry row the
@@ -38,17 +48,19 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// ended: finalized, or stopped at the provider, or a group found pending again, or another call's finalization found.
 /// </para>
 /// <para>
-/// <b>The provider subject.</b> It is read once, under the fences, passed to the port, and never logged, audited, metered
-/// or returned; the second transaction removes it from the row.
+/// <b>The provider subject.</b> The one passed to the port is the one read under the User fence; the request's first read,
+/// shared with Begin, returns it too and Finalize does not use that copy. It is never logged, audited, metered or
+/// returned, and the second transaction removes it from the row.
 /// </para>
 /// </remarks>
 public sealed partial class AccountClosureOperatorOperations
 {
     /// <summary>
-    /// The most Memberships of the person one Finalize reads for its tenant passes: four for every group of the fence
-    /// read's bound. A person beyond it is refused as a defect rather than redacted partially.
+    /// The most Memberships of the person one Finalize reads for its tenant passes: what an admitted closure can hold
+    /// (<see cref="ClosureLimits.MaximumMemberships"/>). Begin refused a person past it, so one beyond is a defect, never
+    /// redacted partially.
     /// </summary>
-    internal const int MaximumMemberships = 4 * PlatformIdentityFences.MaximumGroups;
+    internal const int MaximumMemberships = ClosureLimits.MaximumMemberships;
 
     /// <summary>The budget a result row recording a stop at the provider is written on, detached from the caller.</summary>
     private static readonly TimeSpan CompletionBudget = TimeSpan.FromSeconds(3);
@@ -93,10 +105,10 @@ public sealed partial class AccountClosureOperatorOperations
 
     /// <summary>
     /// For each of the person's groups, the newest erasure of the person there: the open one if there is one (at most one,
-    /// by <c>ux_data_subject_requests_active</c>), else the newest terminal one, with whether it completed at or after the
-    /// closure's Begin and whether its frozen Memberships include every Membership the person holds in the group. It reads
-    /// the person's requests through <c>ix_data_subject_requests_subject_user_id</c> and each group's Memberships through
-    /// <c>ix_memberships_user_id</c>, so its cost is the person's own rows. Exposed so that a test can ask for its plan.
+    /// by <c>ux_data_subject_requests_active</c>), else the newest terminal one, with its origin, whether it completed at or
+    /// after the closure's Begin and whether its frozen Memberships include every Membership the person holds in the group.
+    /// It reads the person's requests through <c>ix_data_subject_requests_subject_user_id</c> and each group's Memberships
+    /// through <c>ix_memberships_user_id</c>, so its cost is the person's own rows. Exposed so that a test can ask for its plan.
     /// </summary>
     public static string ReadinessSql { get; } = """
         SELECT DISTINCT ON (r.tenant_id, r.organization_id)
@@ -105,7 +117,8 @@ public sealed partial class AccountClosureOperatorOperations
             NOT EXISTS (SELECT 1 FROM public.memberships AS member
                 WHERE member.user_id = r.subject_user_id AND member.tenant_id = r.tenant_id
                   AND member.organization_id IS NOT DISTINCT FROM r.organization_id
-                  AND NOT r.membership_snapshot @> jsonb_build_array(member.id::text))
+                  AND NOT r.membership_snapshot @> jsonb_build_array(member.id::text)),
+            r.origin
         FROM public.data_subject_requests AS r
         WHERE r.subject_user_id = @subject AND r.kind = 'erasure'
         ORDER BY r.tenant_id, r.organization_id,
@@ -116,6 +129,7 @@ public sealed partial class AccountClosureOperatorOperations
     /// Every Membership the person holds, of any status, by tenant: the identifiers each tenant pass compares. Read through
     /// <c>ix_memberships_user_id</c> and bounded by <see cref="MaximumMemberships"/>. Exposed so that a test can ask for its plan.
     /// </summary>
+    /// <remarks>Begin admitted the closure only within <see cref="ClosureLimits"/>, so each tenant's list fits one pass.</remarks>
     public static string MembershipsSql { get; } = """
         SELECT member.tenant_id, member.id FROM public.memberships AS member
         WHERE member.user_id = @subject
@@ -124,8 +138,16 @@ public sealed partial class AccountClosureOperatorOperations
         """;
 
     /// <summary>
+    /// The participant erasures the second transaction completes, locked by primary key in one order, so an erasure the
+    /// operator's erasure completion is finishing meanwhile is read as that act committed it.
+    /// </summary>
+    private const string LockErasures = """
+        SELECT id, status, row_version FROM public.data_subject_requests WHERE id = ANY(@ids) ORDER BY id FOR UPDATE
+        """;
+
+    /// <summary>
     /// The person's other open closures, locked: at most one a group by <c>ux_data_subject_requests_active</c>, so bounded by
-    /// the fence read's group bound, and read through <c>ix_data_subject_requests_subject_user_id</c>. Exposed so that a
+    /// the closure's group bound, and read through <c>ix_data_subject_requests_subject_user_id</c>. Exposed so that a
     /// test can ask for its plan.
     /// </summary>
     public static string OpenClosuresSql { get; } = """
@@ -147,9 +169,11 @@ public sealed partial class AccountClosureOperatorOperations
         }
 
         var commitSent = false;
+        var providerStepped = false;
         try
         {
-            return await FinalizeCoreAsync(admission, closureRequestId, () => commitSent = true, cancellationToken);
+            return await FinalizeCoreAsync(
+                admission, closureRequestId, () => providerStepped = true, () => commitSent = true, cancellationToken);
         }
         catch (Exception failure) when (commitSent && !IsFatal(failure))
         {
@@ -163,10 +187,19 @@ public sealed partial class AccountClosureOperatorOperations
             // a deleted account is found absent by the repeat, which is success.
             throw new OperatorRecoveryUnavailableException(cause: failure);
         }
+        catch (AuditWriteFailedException failure) when (providerStepped && !commitSent)
+        {
+            // The result row of the second transaction could not be written after the provider deleted the account, or
+            // found it absent: the closure's state rolled back with it, so the act is safe to repeat and the repeat finishes
+            // it, but "nothing changed" would be false. It is the retryable unavailable, never the audit refusal that says
+            // the provider was not asked.
+            throw new OperatorRecoveryUnavailableException(cause: failure);
+        }
     }
 
     private async Task<ClosureFinalizeResult> FinalizeCoreAsync(
-        PlatformAdmission admission, Guid requestId, Action sendingCommit, CancellationToken cancellationToken)
+        PlatformAdmission admission, Guid requestId, Action providerStepped, Action sendingCommit,
+        CancellationToken cancellationToken)
     {
         await using var handle = await scope.EnterAsync(admission, cancellationToken);
         var id = new PlatformSqlParameter("id", requestId);
@@ -191,8 +224,15 @@ public sealed partial class AccountClosureOperatorOperations
             return await EndedAsync(handle, id, early, cancellationToken);
         }
 
-        // 2. The first transaction: the fences, the participants read under the User fence among them.
-        var fences = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);
+        // 2. The first transaction: the User fence alone, and the participants read under it. It moves no User and no request,
+        //    so no participant tenant's fence is taken: their identity writes do not wait for the redaction.
+        var fences = await PlatformIdentityFences.AcquireUserAsync(handle, request.Subject, cancellationToken);
+        if (fences.Groups.Count > PlatformIdentityFences.MaximumGroups)
+        {
+            // Begin refused a person in more groups, and a Closing User is admitted to no Membership.
+            throw Defect("participants_beyond_bound");
+        }
+
         var (closure, account) = await LockAsync(handle, id, request.Subject, cancellationToken);
         if (Judge(closure.Status, account.Status) is { } judged)
         {
@@ -200,7 +240,7 @@ public sealed partial class AccountClosureOperatorOperations
             return await EndedAsync(handle, id, judged, cancellationToken);
         }
 
-        // 3. Ready: every served group's erasure has run and covers the group. The Begin moment is the closure's own stamp.
+        // 3. Ready: every required group's erasure has run and covers the group. The Begin moment is the closure's own stamp.
         var began = closure.BegunAt ?? throw Defect("fulfilling_closure_without_begin_stamp");
         var readiness = await ReadinessAsync(handle, request.Subject, began, fences.Groups, cancellationToken);
         if (readiness.Tally.Pending > 0)
@@ -233,10 +273,13 @@ public sealed partial class AccountClosureOperatorOperations
             return new ClosureFinalizeResult(outcome, StatusCode(DataRequestStatus.Fulfilling), Redaction: redaction);
         }
 
+        // From here the account may already be gone: a result row that cannot be written is no longer "the provider was not
+        // asked".
+        providerStepped();
         var provider = removal == AccountRemovalOutcome.Removed ? "removed" : "absent";
 
-        // 6. The second transaction: the fences again, because the first transaction's ended at the checkpoint, and every
-        //    judgment again under them.
+        // 6. The second transaction: the User fence and every participant tenant's fence, which its changes need and the
+        //    first transaction did not take, and every judgment again under them.
         var again = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);
         var (current, person) = await LockAsync(handle, id, request.Subject, cancellationToken);
         if (current.Status == DataRequestStatus.Completed && person.Status == UserAccount.Closed)
@@ -251,7 +294,7 @@ public sealed partial class AccountClosureOperatorOperations
         }
 
         if (current.Status != DataRequestStatus.Fulfilling || person.Status != UserAccount.Closing || current.Version != closure.Version
-            || current.BegunAt != began || !again.Groups.SequenceEqual(fences.Groups))
+            || current.BegunAt != began || !again.WithinBounds || !again.Groups.SequenceEqual(fences.Groups))
         {
             // Nothing returns a User to Active, admits a Membership for a Closing one or writes a fulfilling closure but this
             // act, so a change between the two transactions is a broken invariant.
@@ -277,20 +320,7 @@ public sealed partial class AccountClosureOperatorOperations
             throw Defect("account_not_closed");
         }
 
-        foreach (var erasure in ready.Awaiting)
-        {
-            var completed = await handle.ExecuteAsync(
-                CompleteErasure,
-                [
-                    new PlatformSqlParameter("id", erasure.Id), new PlatformSqlParameter("version", erasure.Version),
-                    new PlatformSqlParameter("result", Merge(erasure.Result, redaction.Tenants[erasure.Group.TenantId], unserved: null)),
-                ],
-                cancellationToken);
-            if (completed != 1)
-            {
-                throw Defect("erasure_not_completed");
-            }
-        }
+        var erasuresCompleted = await CompleteErasuresAsync(handle, ready.Awaiting, redaction, cancellationToken);
 
         var unserved = ready.Tally.Unserved;
         var closureResult = Merge(current.Result, redaction.Total, unserved);
@@ -312,7 +342,7 @@ public sealed partial class AccountClosureOperatorOperations
                 handle, other.Id, other.Status, other.Version, Merge(other.Result, redaction.Total, unserved), cancellationToken);
         }
 
-        var groups = ready.Tally with { ErasuresCompleted = ready.Awaiting.Count, ClosuresCompleted = others.Count + 1 };
+        var groups = ready.Tally with { ErasuresCompleted = erasuresCompleted, ClosuresCompleted = others.Count + 1 };
         await handle.WriteResultAsync(
             new PlatformResult(
                 TenantId.PlatformSentinel, EntityType, entity, Underway,
@@ -375,10 +405,12 @@ public sealed partial class AccountClosureOperatorOperations
     }
 
     /// <summary>
-    /// Where each participant group stands: the served groups that are ready and the participant erasures awaiting the
-    /// privileged step, which the second transaction completes. An unserved group needs no erasure; one that reached the
-    /// privileged step before its tenant or organization stopped allowing ordinary work is completed with the others, since
-    /// its job ran and its tenant is redacted.
+    /// Where each participant group stands: the required groups that are ready and the participant erasures awaiting the
+    /// privileged step, which the second transaction completes. Every served group is required. An unserved group needs no
+    /// erasure unless its newest one is the closure's own fan-out and still open: its job began before the group stopped
+    /// allowing ordinary work, and once the person is Closed nothing completes it, so the group stays required until it
+    /// awaits the privileged step. One that reached the privileged step, whatever its origin, is completed with the others,
+    /// since its job ran and its tenant is redacted.
     /// </summary>
     private async Task<Readiness> ReadinessAsync(
         IPlatformAdminScopeHandle handle, UserId subject, DateTimeOffset began, IReadOnlyList<ClosureParticipantGroup> groups,
@@ -392,21 +424,78 @@ public sealed partial class AccountClosureOperatorOperations
                 cancellationToken))
             .ToDictionary(erasure => erasure.Group);
         var served = participants.Served.ToHashSet();
-        var ready = participants.Served.Count(group => newest.TryGetValue(group, out var erasure) && erasure.Covers
+        var required = groups.Where(group => served.Contains(group)
+            || (newest.TryGetValue(group, out var erasure) && erasure.Origin == DataRequestOrigin.ClosureFanout && erasure.Open)).ToList();
+        var ready = required.Count(group => newest.TryGetValue(group, out var erasure) && erasure.Covers
             && (erasure.Status == DataRequestStatus.AwaitingPrivilegedStep
                 || (erasure.Status == DataRequestStatus.Completed && erasure.CompletedDuringClosure)));
         var awaiting = groups.Where(group => newest.TryGetValue(group, out var erasure)
                 && erasure.Status == DataRequestStatus.AwaitingPrivilegedStep)
             .Select(group => newest[group]).ToList();
         return new Readiness(
-            new ClosureFinalizeTally(served.Count, ready, served.Count - ready, groups.Count - served.Count), served, awaiting);
+            new ClosureFinalizeTally(served.Count, ready, required.Count - ready, groups.Count - served.Count), served, awaiting);
+    }
+
+    /// <summary>
+    /// Completes the participant erasures awaiting the privileged step, each locked first: one still awaiting at the version
+    /// read is completed with its tenant's retained audit kinds; one the operator's erasure completion finished meanwhile is
+    /// left as it completed, ready and redacted by its own act. Any other state is one no admitted path writes.
+    /// </summary>
+    /// <returns>How many erasures this call completed.</returns>
+    private async Task<int> CompleteErasuresAsync(
+        IPlatformAdminScopeHandle handle, IReadOnlyList<GroupErasure> awaiting, AuditRedactionAggregate redaction,
+        CancellationToken cancellationToken)
+    {
+        if (awaiting.Count == 0)
+        {
+            return 0;
+        }
+
+        var locked = (await handle.QueryAsync(
+                LockErasures,
+                [new PlatformSqlParameter("ids", awaiting.Select(erasure => erasure.Id).ToArray())],
+                reader => (Id: reader.GetGuid(0), Status: DataRequestCodes.Statuses.Parse(reader.GetString(1)), Version: reader.GetInt64(2)),
+                cancellationToken))
+            .ToDictionary(row => row.Id);
+        var completed = 0;
+        foreach (var erasure in awaiting)
+        {
+            if (!locked.TryGetValue(erasure.Id, out var now))
+            {
+                throw Defect("erasure_not_completed");
+            }
+
+            if (now.Status == DataRequestStatus.Completed)
+            {
+                // The operator's erasure completion committed it while this act ran; it stands as it completed.
+                continue;
+            }
+
+            if (now.Status != DataRequestStatus.AwaitingPrivilegedStep || now.Version != erasure.Version
+                || await handle.ExecuteAsync(
+                    CompleteErasure,
+                    [
+                        new PlatformSqlParameter("id", erasure.Id), new PlatformSqlParameter("version", erasure.Version),
+                        new PlatformSqlParameter("result", Merge(erasure.Result, redaction.Tenants[erasure.Group.TenantId], unserved: null)),
+                    ],
+                    cancellationToken) != 1)
+            {
+                throw Defect("erasure_not_completed");
+            }
+
+            completed++;
+        }
+
+        return completed;
     }
 
     /// <summary>
     /// The redaction: one pass over every participant tenant, served or not, with every Membership the person holds there,
-    /// then one over the platform sentinel tenant by the person's subject key; their reports summed.
+    /// then one over the platform sentinel tenant by the person's subject key; their reports summed. Begin admitted the
+    /// closure only within <see cref="ClosureLimits"/>, so a tenant's Memberships beyond one pass's bound, which the plan
+    /// refuses, are a defect named by its closed name, never an untyped failure.
     /// </summary>
-    private static async Task<AuditRedactionAggregate> RedactAsync(
+    private async Task<AuditRedactionAggregate> RedactAsync(
         IPlatformAdminScopeHandle handle, UserId subject, IdentitySubjectKey key, IReadOnlyList<ClosureParticipantGroup> groups,
         CancellationToken cancellationToken)
     {
@@ -417,15 +506,24 @@ public sealed partial class AccountClosureOperatorOperations
             cancellationToken);
         if (memberships.Count > MaximumMemberships)
         {
-            throw new InvalidOperationException(
-                "A closure's person holds more Memberships than one Finalize redacts by; the act is abandoned.");
+            throw Defect("memberships_beyond_bound");
         }
 
         var reports = new Dictionary<TenantId, AuditRedactionReport>();
         foreach (var tenant in groups.Select(group => group.TenantId).Distinct().OrderBy(tenant => tenant.Value))
         {
-            var plan = AuditRedactionPlan.ForClosureTenant(
-                tenant, subject, memberships.Where(member => member.Tenant == tenant).Select(member => member.Id));
+            AuditRedactionPlan plan;
+            try
+            {
+                plan = AuditRedactionPlan.ForClosureTenant(
+                    tenant, subject, memberships.Where(member => member.Tenant == tenant).Select(member => member.Id));
+            }
+            catch (ArgumentException)
+            {
+                // The plan's own refusal names the person's tenant and Memberships nowhere; neither does the defect.
+                throw Defect("redaction_plan_refused");
+            }
+
             reports[tenant] = await handle.RedactAuditAsync(plan, cancellationToken);
         }
 
@@ -590,13 +688,17 @@ public sealed partial class AccountClosureOperatorOperations
     /// <summary>One group's newest erasure of the person, and whether it stands for the group.</summary>
     private sealed record GroupErasure(
         ClosureParticipantGroup Group, Guid Id, DataRequestStatus Status, long Version, string Result,
-        bool CompletedDuringClosure, bool Covers)
+        bool CompletedDuringClosure, bool Covers, DataRequestOrigin Origin)
     {
+        /// <summary>Whether the erasure has not reached a terminal status.</summary>
+        internal bool Open => Status is DataRequestStatus.Scheduled or DataRequestStatus.Fulfilling
+            or DataRequestStatus.AwaitingPrivilegedStep;
+
         internal static GroupErasure Read(DbDataReader reader) => new(
             new ClosureParticipantGroup(
                 TenantId.From(reader.GetGuid(0)), reader.IsDBNull(1) ? null : OrganizationId.From(reader.GetGuid(1))),
             reader.GetGuid(2), DataRequestCodes.Statuses.Parse(reader.GetString(3)), reader.GetInt64(4), reader.GetString(5),
-            reader.GetBoolean(6), reader.GetBoolean(7));
+            reader.GetBoolean(6), reader.GetBoolean(7), DataRequestCodes.Origins.Parse(reader.GetString(8)));
 
         /// <summary>Never prints the request's group.</summary>
         public override string ToString() => nameof(GroupErasure);

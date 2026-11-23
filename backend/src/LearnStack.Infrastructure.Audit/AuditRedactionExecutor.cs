@@ -36,7 +36,9 @@ namespace LearnStack.Infrastructure.Audit;
 /// newest first along <c>ix_audit_log_tenant_id_timestamp</c>, each batch one statement: a cheap filter walks each
 /// payload column once for either canonical spelling of the identifiers, and only a row it keeps is rewritten to decide
 /// whether a declared path holds one. That test is the redaction itself, so a row is selected for its payload exactly
-/// when the redaction changes its payload.
+/// when the redaction changes its payload. The filter tests the walked strings against the spellings by array
+/// containment for a plan of few identifiers and by a hashed set lookup from <see cref="SetLookupFrom"/> spellings, so a
+/// closure's pass over a tenant where the person holds hundreds of Memberships costs what an erasure's pass costs.
 /// </para>
 /// <para>
 /// <b>The sentinel pass (ADR-0108 § 4).</b> A closure's Finalize also reaches the platform sentinel tenant, whose rows
@@ -46,7 +48,9 @@ namespace LearnStack.Infrastructure.Audit;
 /// is the subject's <c>User</c> as entity; nothing else of the sentinel tenant (the operators' entry, intent and result
 /// rows, the issuer rebind's) is selected, because none of those names a person. The batches and the rewrite are the
 /// tenant pass's, over the sentinel tenant: the key has no index, so each batch's rows are read once along
-/// <c>ix_audit_log_tenant_id_timestamp</c> and the three predicates filter them. A selected row is redacted at the same
+/// <c>ix_audit_log_tenant_id_timestamp</c> and the three predicates filter them. Its selection reads no payload, so its
+/// batch boundary sizes none (<c>@size_payload</c> is false) and only the row cap ends a batch; the handful of rows it
+/// selects are rewritten by the same bounded <c>UPDATE</c>s. A selected row is redacted at the same
 /// declared paths; the creation rows' address, agent and e-mail are NULL by the insert guard and their captured
 /// <c>User</c> holds its provider subject only as the capture's replacement, so today the pass selects and reports them
 /// and changes a payload only where a declared path names the subject.
@@ -59,7 +63,8 @@ namespace LearnStack.Infrastructure.Audit;
 /// read. Its lower end is the first row, newest first, at which the batch holds <see cref="BatchRows"/> rows or the
 /// decompressed size of the three payload columns of its rows in the reach reaches <see cref="BatchBytes"/>: the work of
 /// the selection and the <c>UPDATE</c> is proportional to the decompressed payload they walk, which a highly
-/// compressible value can make tens of times its stored size, and they walk no payload outside the reach. A value stored
+/// compressible value can make tens of times its stored size, and they walk no payload outside the reach, nor any in the
+/// sentinel pass, whose batches the row cap alone ends. A value stored
 /// uncompressed is sized by <c>pg_column_size</c> without detoasting it; a compressed one is decompressed in memory to
 /// measure it. A batch therefore holds at most <see cref="BatchRows"/> rows and less than <see cref="BatchBytes"/> of
 /// decompressed payload in the reach plus one row's, and a single row larger than the budget is a batch of its own.
@@ -127,6 +132,19 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
 
     /// <summary>The most selected rows one <c>UPDATE</c> rewrites.</summary>
     public const int UpdateRows = 1_000;
+
+    /// <summary>
+    /// The number of spellings (two for each identifier) from which the cheap payload filter looks each walked string up in
+    /// a hashed set of the spellings instead of testing the walked array for each spelling.
+    /// </summary>
+    /// <remarks>
+    /// From measurement on PostgreSQL 18.4 (Audit module performance budget). Over 300,000 rows of one tenant the
+    /// containment test took 2.1 s at six spellings (an erasure of two Memberships) and grew by about 0.03 s for every
+    /// spelling, to 16.7 s at 514 (a closure pass of 256 Memberships), while the set lookup took 4.0 to 5.5 s whatever the
+    /// count, its unnest paid on every row. They cross at about 110 spellings, so below this bound the containment test is
+    /// the cheaper, and above it a closure pass costs what a pass of a few identifiers costs.
+    /// </remarks>
+    public const int SetLookupFrom = 128;
 
     private const string PlatformRole = "learnstack_platform";
 
@@ -224,11 +242,25 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     // The cheap filter: one level-bounded walk per payload column for a string equal to either canonical spelling of
     // an identifier (the capture writes the lower-case one). It reaches every path the grammar can declare (a
     // property, an element of an array property, a member's property; a changes item's before and after and their
-    // elements) and more, so it only narrows: the rewrite decides.
-    private const string MayHold = """
+    // elements) and more, so it only narrows: the rewrite decides. Two forms answer the same question, chosen by the
+    // number of spellings (SetLookupFrom). The containment test asks the walked array for each spelling, so its cost
+    // is the spellings times the strings: the cheapest for an erasure's few identifiers, and about six times the act
+    // for a closure pass with 256 Memberships. The set lookup unnests each walked string once and looks it up in the
+    // spellings, which the statement is planned with as a constant array that PostgreSQL hashes, so its cost does not
+    // grow with the identifiers, at the price of the unnest on every row (Audit module performance budget).
+    private const string MayHoldByContainment = """
         (jsonb_path_query_array(a.before_state, 'lax $.**{1 to 3}') ?| @spellings
           OR jsonb_path_query_array(a.after_state, 'lax $.**{1 to 3}') ?| @spellings
           OR jsonb_path_query_array(a.changes, 'lax $.**{1 to 3}') ?| @spellings)
+        """;
+
+    private const string MayHoldInSet = """
+        EXISTS (SELECT 1 FROM jsonb_array_elements_text(
+                COALESCE(jsonb_path_query_array(a.before_state, 'lax $.**{1 to 3} ? (@.type() == "string")'), '[]'::jsonb)
+                || COALESCE(jsonb_path_query_array(a.after_state, 'lax $.**{1 to 3} ? (@.type() == "string")'), '[]'::jsonb)
+                || COALESCE(jsonb_path_query_array(a.changes, 'lax $.**{1 to 3} ? (@.type() == "string")'), '[]'::jsonb))
+            AS v(value)
+            WHERE v.value = ANY(@spellings))
         """;
 
     // A declared path holds an identifier exactly when the redaction would change the row's payload.
@@ -278,14 +310,17 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     // rows in order from ix_audit_log_tenant_id_timestamp (ties sorted by id incrementally) and sizes each row where
     // it reads it, so the sort carries a key and a number, never a payload. Its LIMIT is the row cap no batch exceeds,
     // which keeps the inner query a top-N that the index serves in order. The running sums stream, so the statement
-    // stops at the boundary. No row once fewer rows and bytes remain, and the last batch is open below.
+    // stops at the boundary. No row once fewer rows and bytes remain, and the last batch is open below. A pass whose selection
+    // walks no payload, the sentinel pass, binds @size_payload false: CASE evaluates no THEN whose condition is false, so
+    // no payload is decompressed to be sized, every row counts nothing and only the row cap ends its batches.
     private static readonly string BoundarySql = Checked(Sql(
         """
         SELECT b."timestamp", b.id FROM (
             SELECT s."timestamp", s.id, count(*) OVER batch AS n, sum(s.bytes) OVER batch AS bytes
             FROM (
                 SELECT a."timestamp", a.id,
-                    CASE WHEN @whole_tenant OR (@organization IS NULL AND a.organization_id IS NULL) OR a.organization_id = @organization
+                    CASE WHEN @size_payload AND (@whole_tenant OR (@organization IS NULL AND a.organization_id IS NULL)
+                        OR a.organization_id = @organization)
                     THEN
         """,
         Format(PayloadBytes, "a.before_state"), "+", Format(PayloadBytes, "a.after_state"), "+", Format(PayloadBytes, "a.changes"),
@@ -306,24 +341,28 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     // subject. Every value is the row's own, so a row two branches match is one row of the union. The rewrite that
     // decides a payload reference runs only where the cheap filter keeps the row, as in the third branch's WHERE: a row
     // matched for its metadata alone, or by the actor or entity branch, never pays it for nothing.
-    private static readonly string Matched = Sql(
+    private static string Matched(string mayHold) => Sql(
         "SELECT a.id, a.\"timestamp\",",
         "CASE WHEN a.actor_user_id = @subject OR a.entity_id = ANY(@identifiers) THEN true",
-        "WHEN", Declarations, "? a.entity_type::text AND", MayHold, "THEN", Holds, "ELSE false END,",
+        "WHEN", Declarations, "? a.entity_type::text AND", mayHold, "THEN", Holds, "ELSE false END,",
         "COALESCE(a.actor_user_id = @subject, false), COALESCE(a.entity_id = ANY(@identifiers), false),",
         NamesSubject,
         "FROM public.audit_log AS a WHERE", Reach, "AND", Batch);
 
     // One batch's selection: the actor and the entity branches, index-served, and one pass over the batch's rows of the
     // reach for a metadata or a payload reference. A row that names the subject only in its metadata is counted and
-    // never redacted.
-    private static readonly string SelectionSql = Checked(Sql(
-        Matched, "AND a.actor_user_id = @subject",
+    // never redacted. The two statements differ only in the cheap filter's form.
+    private static string Selection(string mayHold) => Checked(Sql(
+        Matched(mayHold), "AND a.actor_user_id = @subject",
         "UNION",
-        Matched, "AND a.entity_id = ANY(@identifiers)",
+        Matched(mayHold), "AND a.entity_id = ANY(@identifiers)",
         "UNION",
-        Matched, "AND (", NamesSubject,
-        "OR CASE WHEN", Declarations, "? a.entity_type::text AND", MayHold, "THEN", Holds, "ELSE false END)"));
+        Matched(mayHold), "AND (", NamesSubject,
+        "OR CASE WHEN", Declarations, "? a.entity_type::text AND", mayHold, "THEN", Holds, "ELSE false END)"));
+
+    private static readonly string SelectionSql = Selection(MayHoldByContainment);
+
+    private static readonly string SetSelectionSql = Selection(MayHoldInSet);
 
     // One batch of the sentinel pass, in the selection's column order: the rows of the platform sentinel tenant that
     // carry the subject key in their metadata (a global creation and its failed and undetermined attempts), whose actor
@@ -391,6 +430,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     private readonly int _batchRows;
     private readonly long _batchBytes;
     private readonly int _updateRows;
+    private readonly int _setLookupFrom;
 
     /// <summary>Merges and checks every registered locator's declarations once, and binds them as one map.</summary>
     /// <exception cref="ArgumentException">The declarations are empty, duplicated or ambiguous (<see cref="UserReferenceCatalog"/>).</exception>
@@ -399,14 +439,19 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     {
     }
 
-    /// <summary>The same executor with other batch and chunk sizes, so a test proves the batching with a few rows.</summary>
+    /// <summary>
+    /// The same executor with other batch and chunk sizes, so a test proves the batching with a few rows, and another bound
+    /// of the set lookup, so a test runs both forms of the cheap filter over the same rows.
+    /// </summary>
     /// <exception cref="ArgumentException">The declarations are empty, duplicated or ambiguous.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A size is not positive.</exception>
-    internal AuditRedactionExecutor(IEnumerable<IUserReferenceLocator> locators, int batchRows, long batchBytes, int updateRows)
+    internal AuditRedactionExecutor(
+        IEnumerable<IUserReferenceLocator> locators, int batchRows, long batchBytes, int updateRows, int setLookupFrom = SetLookupFrom)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchRows);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(updateRows);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(setLookupFrom);
         var catalog = new UserReferenceCatalog(locators);
         if (catalog.Redactable.IsEmpty)
         {
@@ -417,6 +462,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         _batchRows = batchRows;
         _batchBytes = batchBytes;
         _updateRows = updateRows;
+        _setLookupFrom = setLookupFrom;
     }
 
     /// <inheritdoc />
@@ -646,7 +692,8 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             CancellationToken cancellationToken)
         {
             var selected = new List<(Guid Id, DateTime Timestamp)>();
-            await using var command = Command(plan.Pass == AuditRedactionPass.ClosureSentinel ? SentinelSelectionSql : SelectionSql);
+            await using var command = Command(plan.Pass == AuditRedactionPass.ClosureSentinel ? SentinelSelectionSql
+                : 2 * (1 + _memberships.Length) >= executor._setLookupFrom ? SetSelectionSql : SelectionSql);
             Bind(command, "lower", lower);
             Bind(command, "upper", upper);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -701,6 +748,8 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
             string[] identifiers = [_subject, .. _memberships];
             command.Parameters.AddWithValue("tenant", plan.TenantId.Value);
             command.Parameters.AddWithValue("whole_tenant", plan.WholeTenant);
+            // The sentinel selection reads no payload, so its batches are cut by rows alone.
+            command.Parameters.AddWithValue("size_payload", plan.Pass != AuditRedactionPass.ClosureSentinel);
             command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)plan.OrganizationId?.Value ?? DBNull.Value);
             command.Parameters.AddWithValue("subject", plan.SubjectUserId.Value);
             command.Parameters.AddWithValue("subject_text", _subject);

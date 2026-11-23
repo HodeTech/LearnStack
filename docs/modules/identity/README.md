@@ -123,11 +123,13 @@ The identity-provider ports are four: `IIdentityEventProvider` (read-only histor
 `IFederationProvider` with `IFederationEgressFetcher` and `IFederationOperator`
 (tenant federation), and `IIdentityProviderAccountRemoval`
 ([ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)),
-whose single method deletes one account for the closure's Finalize alone. Each has a
-fail-closed default (the account-removal one is `RefusingIdentityProviderAccountRemoval`)
-and a confined Keycloak adapter selected at the composition root only when its own
-client secret is configured; the [provider specification](providers.md#account-removal-adapter)
-owns the account-removal adapter.
+whose one deleting method deletes one account for the closure's Finalize alone, beside
+a local preflight (`CanRemove`) the closure's Begin asks before the person leaves
+Active. Each has a fail-closed default (the account-removal one is
+`RefusingIdentityProviderAccountRemoval`, whose preflight answers no) and a confined
+Keycloak adapter selected at the composition root only when its own client secret is
+configured; the [provider specification](providers.md#account-removal-adapter) owns the
+account-removal adapter.
 
 ### Aggregate and storage contract
 
@@ -1044,6 +1046,12 @@ acts, and the operator documentation owns them.
   administrator caller before it takes a fence, and the administrator surface has no
   closure route, list row, read or cancellation (`DataRequestRules.Reaches` and
   `Mutates` exclude the kind, and the reader's administrator page filters it out).
+- **What a group's administrator learns.** They never read the closure, but they see
+  the group's erasure the closure's fan-out created (`origin` `closure_fanout`, with its
+  frozen Memberships) on their page and its receipt, and a filing of theirs for a member
+  whose account is closing answers `lockey_subject_not_admitted`. Both tell a
+  participant group that one of its members is closing their account, which is
+  intended: the group's own data of that member is being erased.
 - **Creation.** The erasure's creation path with the kind `closure`: the subject's
   exclusive User fence and the shared tenant fence, the authority recheck, the frozen
   snapshot of the subject's Memberships of any status in the group, `audit.Designate`
@@ -1224,10 +1232,20 @@ run by the [account closure runbook](../../runbooks/account-closure.md).
   by `AccountClosureOperatorOperations` in this module's Infrastructure, one class in
   one file per act, which enters the platform scope for a closure. It refuses before it
   enters when no single `IClosureFanOut` is registered.
-- **One transaction.** The request is read; `PlatformIdentityFences` takes the person's
-  User fence, reads the participant groups under it (every group with a Membership of
-  any status) and takes every participant tenant's fence ascending, each
-  transaction-scoped and bounded by a three-second `lock_timeout`
+- **What could never finish is refused first.** The request is read with the person's
+  raw provider subject, which only `IIdentityProviderAccountRemoval.CanRemove` sees: a
+  port that could never delete the account refuses the Begin (`RefusedProvider`). Then
+  `PlatformIdentityFences` takes the person's User fence and reads the participant
+  groups under it, with the Memberships the person holds in each, in one grouped
+  statement over `ix_memberships_user_id`; a person in more than
+  `ClosureLimits.MaximumParticipantGroups` (256) groups, served or not, or with more
+  than `ClosureLimits.MaximumTenantMemberships` (256) Memberships of any status in one
+  participant tenant, takes no tenant fence and is refused (`RefusedTooLarge`). Every
+  later step is bounded by those two numbers, so both refusals change nothing and record
+  no code: the scope ends by disposal with its entry row.
+- **One transaction.** `PlatformIdentityFences` then takes every participant tenant's
+  fence ascending, each transaction-scoped and bounded by a three-second `lock_timeout`
+  in a transaction it checks is READ COMMITTED
   ([Database Standards](../../standards/05-database.md#the-closures-fences)); the
   request is locked and read again with the User's status; then `blocked_window` (the
   database clock), `blocked_hold` (`IDataRequestHoldSource`, asked for the closure
@@ -1258,8 +1276,10 @@ the closure out to every participant group Begin judged served. The act is
   `FanOutClosureCommand(SubjectUserId, OrganizationId)` through the operator act
   executor for the group's tenant and organization. Groups run one after another in a
   fixed order (tenant, the tenant-wide group first, then each organization), at most
-  256; a refused admission, a refusal and an exception are each that group's `Failed`,
-  and only the operator's cancellation stops the loop.
+  `ClosureLimits.MaximumParticipantGroups` (256), the bound Begin judges, so a longer
+  list is the caller's programming error, thrown before any group runs; a refused
+  admission, a refusal and an exception are each that group's `Failed`, and only the
+  operator's cancellation stops the loop.
 - **The organization is announced**
   ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md) Amendment 2). The
   fan-out is the one operator act whose context names an organization: the executor
@@ -1272,7 +1292,11 @@ the closure out to every participant group Begin judged served. The act is
   and the group tenant's shared fence through the guard, checks the lifecycle again,
   stores a dead job's request `failed` as every creation path does, and reads the
   person's active erasure in the group.
-- **What the group holds decides.** None, or only terminal ones: a fan-out erasure is
+- **What the group holds decides.** None, and a `completed` fan-out erasure of the
+  person: only the closure's Finalize completes one, in the transaction that closes the
+  person, so a Begin repeated across that commit finds the group done and adopts it with
+  nothing stored and nothing designated (`Adopted`), its row naming no one. None
+  otherwise, or only terminal ones: a fan-out erasure is
   created `fulfilling`, with no window, the system actor's, its snapshot every
   Membership of the person in the group of any status, and its erasure job is enqueued
   on the same transaction (`Started`). A fan-out still `fulfilling`: adopted, and its
@@ -1316,36 +1340,47 @@ The operator's Finalize of
   answers are `ClosureFinalizeOutcome`: `Finalized`, `AlreadyFinalized`, `NotFound`,
   `NotClosure`, `NotFinalizable` (never begun or cancelled), `GroupsPending` and the
   provider's `ProviderRefused`, `ProviderUnavailable` and `ProviderUncertain`.
-- **Ready.** Under the first transaction's fences, every served group's newest erasure
-  of the person, of any origin, must await its privileged step, or have completed at or
-  after this closure's Begin (the closure's own update stamp), and its frozen
-  Memberships must include every Membership the person holds in the group. An erasure
-  completed before the person was admitted again and began closing never stands in for a
-  fan-out that did not run. An unserved group needs none.
-- **Transaction 1.** `PlatformIdentityFences` as Begin; the closure locked; the
-  account's status, raw provider subject and subject key read; the readiness; then the
-  redaction through the scope's `RedactAuditAsync`: one
-  `AuditRedactionPlan.ForClosureTenant` per participant tenant, served or not, with
+- **Ready.** Every required group's newest erasure of the person, of any origin, must
+  await its privileged step, or have completed at or after this closure's Begin (the
+  closure's own update stamp), and its frozen Memberships must include every Membership
+  the person holds in the group. Every served group is required, and so is an unserved
+  group whose newest erasure is the closure's own fan-out and still open: its job began
+  before the group stopped allowing ordinary work, and nothing completes a fan-out
+  erasure once the person is Closed. An erasure completed before the person was admitted
+  again and began closing never stands in for a fan-out that did not run. Any other
+  unserved group needs none.
+- **Transaction 1.** `PlatformIdentityFences.AcquireUserAsync`: the person's User fence
+  alone and the participant groups read under it, because this transaction moves no
+  User and no request, so no participant tenant's identity writes wait for its
+  redaction; the closure locked; the account's status, raw provider subject and subject
+  key read; the readiness; then the redaction through the scope's `RedactAuditAsync`:
+  one `AuditRedactionPlan.ForClosureTenant` per participant tenant, served or not, with
   every Membership the person holds there, then `ForClosureSentinel` by the subject key.
   The intent row carries the summed `AuditRedactionAggregate` and commits with the
-  redaction.
+  redaction. Groups past the bound (`participants_beyond_bound`) and a tenant whose
+  Memberships the plan refuses (`redaction_plan_refused`), which Begin refused while the
+  person was Active, are defects logged by their closed names (error 7122).
 - **The provider.** `RemoveAsync` with the raw subject, before any other statement, so
   nothing is held in the database while it runs. Removed or absent goes on; refused,
   unavailable, uncertain or a throw stops the act with a result row naming the stop,
   the closure `fulfilling` and the User Closing. The raw subject is never logged,
   audited, metered or returned.
-- **Transaction 2.** The fences again; the closure, the account, the participant set
+- **Transaction 2.** `PlatformIdentityFences.AcquireAsync`: the User fence and every
+  participant tenant's fence, as Begin; the closure, the account, the participant set
   and the readiness judged again; then `users` Closing to Closed with
   `provider_subject` NULL, every participant erasure awaiting its privileged step
-  completed with its tenant's retained audit kinds (a fan-out one through the closure
-  arm, the person's or an administrator's own through Step 2's arm), this closure and
+  locked and completed with its tenant's retained audit kinds (a fan-out one through the
+  closure arm, the person's or an administrator's own through Step 2's arm; one that
+  `complete_erasure` finished meanwhile is left as it completed), this closure and
   every other open closure of the person completed with the summed retained kinds and
   `unserved_group` (a never-begun one through the same arm, from `scheduled`), and the
   result row with closed counts.
 - **Repeat.** Every step is idempotent: a repeat after a stop or a crash redacts again,
   which changes no row, writes its own intent row, finds a deleted account absent and
   finishes; a repeat after the finish answers `AlreadyFinalized` and writes only its
-  entry row.
+  entry row. A result row the audit store refuses after the provider step is the
+  retryable unavailable, not the audit refusal, because the account may already be
+  deleted.
 
 ## Entity-relationship diagram
 

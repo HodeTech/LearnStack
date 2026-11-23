@@ -3,6 +3,7 @@ using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
@@ -73,6 +74,35 @@ public sealed class AccountClosureOperatorOperationsTests
         (await empty.Should().ThrowAsync<ArgumentException>()).Which.ParamName.Should().Be("closureRequestId");
         await scope.DidNotReceiveWithAnyArgs().EnterAsync(default!, default, default, default, default);
         await removal.DidNotReceiveWithAnyArgs().RemoveAsync(default!, default);
+    }
+
+    /// <summary>
+    /// One bound governs every step of a closure: the participant groups Begin admits are what the fan-out takes in one call
+    /// and what one lifecycle read answers, and the Memberships one tenant may hold are what one group's snapshot freezes and
+    /// one redaction pass compares, which the plan factory itself refuses past.
+    /// </summary>
+    [Fact]
+    public void One_bound_governs_the_closure_s_participant_read_fan_out_snapshot_and_redaction_pass()
+    {
+        ClosureLimits.MaximumParticipantGroups.Should().Be(256);
+        ClosureFanOut.MaximumGroups.Should().Be(ClosureLimits.MaximumParticipantGroups);
+        ClosureLimits.MaximumParticipantGroups.Should().BeLessThanOrEqualTo(IClosureGroupLifecycleReader.MaximumGroups,
+            "one lifecycle read answers every participant group");
+        ClosureLimits.MaximumTenantMemberships.Should().Be(DataRequestLimits.MaximumSnapshotMemberships);
+        ClosureLimits.MaximumMemberships.Should().Be(ClosureLimits.MaximumParticipantGroups * ClosureLimits.MaximumTenantMemberships);
+
+        ClosureLimits.Admits(ClosureLimits.MaximumParticipantGroups, ClosureLimits.MaximumTenantMemberships).Should().BeTrue();
+        ClosureLimits.Admits(ClosureLimits.MaximumParticipantGroups + 1, 1).Should().BeFalse();
+        ClosureLimits.Admits(1, ClosureLimits.MaximumTenantMemberships + 1).Should().BeFalse();
+
+        var tenant = TenantId.From(Guid.CreateVersion7());
+        var subject = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.CreateVersion7());
+        Guid[] Memberships(int count) => [.. Enumerable.Range(0, count).Select(_ => Guid.CreateVersion7())];
+        LearnStack.SharedKernel.Audit.AuditRedactionPlan.ForClosureTenant(tenant, subject, Memberships(ClosureLimits.MaximumTenantMemberships))
+            .MembershipIds.Should().HaveCount(ClosureLimits.MaximumTenantMemberships, "exactly the tenant bound is one pass");
+        FluentActions.Invoking(() => LearnStack.SharedKernel.Audit.AuditRedactionPlan.ForClosureTenant(
+                tenant, subject, Memberships(ClosureLimits.MaximumTenantMemberships + 1)))
+            .Should().Throw<ArgumentException>("one Membership past it is no pass, which is why Begin refuses such a person");
     }
 
     [Theory]

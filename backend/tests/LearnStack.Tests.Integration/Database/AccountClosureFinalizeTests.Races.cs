@@ -68,8 +68,10 @@ public sealed partial class AccountClosureFinalizeTests
     }
 
     /// <summary>
-    /// A fence another act holds past the bound (the person's User key, or a participant tenant's key) answers the retryable
-    /// unavailable within the bound: no commit was sent, the provider was never asked, and the entry row is the only record.
+    /// A fence another act holds past the bound answers the retryable unavailable within the bound, with no commit sent. The
+    /// person's User key is the first transaction's: the provider is never asked and the entry row is the only record. A
+    /// participant tenant's key is the second transaction's alone: the first redacted and recorded its intent and the
+    /// provider removed the account, and the second then waited and rolled back, leaving the person Closing.
     /// </summary>
     [Theory]
     [InlineData("user")]
@@ -78,7 +80,7 @@ public sealed partial class AccountClosureFinalizeTests
     {
         await using var kit = await AccountClosureBeginKit.CreateAsync(schema.Postgres);
         var world = await BegunAsync(kit);
-        var removal = new RecordingAccountRemoval();
+        var removal = new RecordingAccountRemoval { Answer = call => call == 1 ? AccountRemovalOutcome.Removed : AccountRemovalOutcome.Absent };
         await using var holder = await AccountClosureBeginKit.OpenAsync(kit.Database.PlatformConnectionString);
         await using var holding = await holder.BeginTransactionAsync();
         await ExecuteAsync(holder, holding, "SELECT pg_catalog.pg_advisory_xact_lock(@key)",
@@ -91,8 +93,19 @@ public sealed partial class AccountClosureFinalizeTests
         var failure = (await act.Should().ThrowAsync<OperatorRecoveryUnavailableException>()).Which;
         failure.CommitOutcomeUnknown.Should().BeFalse("no commit was sent");
         clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15), "each key waits at most three seconds");
-        removal.Subjects.Should().BeEmpty();
-        (await kit.AuditAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
+        var rows = (await kit.AuditAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation);
+        if (held == "user")
+        {
+            removal.Subjects.Should().BeEmpty();
+            rows.Should().Equal(PlatformAdminScope.EnterOperation);
+        }
+        else
+        {
+            removal.Subjects.Should().ContainSingle("the first transaction never waits for a participant tenant's key");
+            rows.Should().Equal(PlatformAdminScope.EnterOperation, Attempt);
+        }
+
+        (await kit.UserAsync(world.Person)).Status.Should().Be("Closing", "nothing of the second transaction committed");
         await holding.RollbackAsync();
 
         (await kit.Owner(removal: removal).FinalizeAsync(Admission(), world.Closure)).Outcome.Should().Be(ClosureFinalizeOutcome.Finalized,
@@ -275,7 +288,7 @@ public sealed partial class AccountClosureFinalizeTests
         public virtual Task<AuditRedactionReport> RedactAuditAsync(AuditRedactionPlan plan, CancellationToken cancellationToken = default) =>
             real.RedactAuditAsync(plan, cancellationToken);
 
-        public Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default) =>
+        public virtual Task WriteResultAsync(PlatformResult result, CancellationToken cancellationToken = default) =>
             real.WriteResultAsync(result, cancellationToken);
 
         public virtual Task CommitAsync(CancellationToken cancellationToken = default) => real.CommitAsync(cancellationToken);

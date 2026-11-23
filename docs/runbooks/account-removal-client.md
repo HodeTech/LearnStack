@@ -13,7 +13,7 @@ used by one caller, the closure's Finalize, through one port method.
 
 | Item | Value |
 |---|---|
-| Port | `IIdentityProviderAccountRemoval`, one method: delete the account whose provider subject is given |
+| Port | `IIdentityProviderAccountRemoval`: `RemoveAsync` deletes the account whose provider subject is given; `CanRemove` is the pure check Begin asks before it moves anyone |
 | Default | `RefusingIdentityProviderAccountRemoval`: every call answers refused, nothing is sent |
 | Adapter | `KeycloakAccountRemoval`, selected when `AccountRemoval:ClientSecret` is configured |
 | Realm client | `learnstack-account-removal` in the `learnstack` realm, role `realm-management/manage-users` only |

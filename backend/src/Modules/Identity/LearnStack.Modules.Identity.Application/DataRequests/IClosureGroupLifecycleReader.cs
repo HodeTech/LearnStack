@@ -22,7 +22,10 @@ public readonly record struct ClosureGroupLifecycle(
 /// </summary>
 public interface IClosureGroupLifecycleReader
 {
-    /// <summary>The most groups one read answers: Tenancy's platform read bound, which the closure's participant read shares.</summary>
+    /// <summary>
+    /// The most groups one read answers: Tenancy's platform read bound. A closure reads at most
+    /// <see cref="LearnStack.SharedKernel.DataProtection.ClosureLimits.MaximumParticipantGroups"/> groups, which is within it.
+    /// </summary>
     public const int MaximumGroups = IIdentityScopeLifecycleReader.MaximumPlatformScopes;
 
     /// <summary>

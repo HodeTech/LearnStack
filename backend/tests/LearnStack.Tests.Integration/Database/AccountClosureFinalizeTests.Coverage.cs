@@ -269,13 +269,13 @@ public sealed partial class AccountClosureFinalizeTests
     }
 
     /// <summary>
-    /// A row another session changed under the second transaction (the User no longer Closing when the act closes it, an
-    /// erasure whose version moved when the act completes it) is a defect by its closed name, and the whole second
-    /// transaction rolls back: no earlier statement of it, the Closed User included, survives.
+    /// A row another session changed under the second transaction (the User no longer Closing when the act closes it) is a
+    /// defect by its closed name, and the whole second transaction rolls back: no earlier statement of it, the Closed User
+    /// included, survives. An awaiting erasure cannot change under it: the transaction locks them first, so one the
+    /// operator's completion finished meanwhile is accepted as completed (the fences test of this class).
     /// </summary>
     [Theory]
     [InlineData("account_not_closed")]
-    [InlineData("erasure_not_completed")]
     public async Task A_row_changed_under_the_second_transaction_is_a_defect_that_rolls_the_whole_transaction_back(string defect)
     {
         await using var kit = await AccountClosureBeginKit.CreateAsync(schema.Postgres);
@@ -295,15 +295,6 @@ public sealed partial class AccountClosureFinalizeTests
                     armed = false;
                     await kit.SqlAsync($"SET session_replication_role = replica; UPDATE public.users SET status = 'Active' WHERE id = '{world.Person}'");
                 }
-
-                if (defect == "erasure_not_completed" && sql.Contains("kind = 'erasure' AND status = 'awaiting_privileged_step' AND row_version", StringComparison.Ordinal))
-                {
-                    armed = false;
-                    await kit.SqlAsync($"""
-                        SET session_replication_role = replica;
-                        UPDATE public.data_subject_requests SET row_version = row_version + 1 WHERE subject_user_id = '{world.Person}' AND kind = 'erasure'
-                        """);
-                }
             },
         };
         var removal = new RecordingAccountRemoval();
@@ -317,7 +308,7 @@ public sealed partial class AccountClosureFinalizeTests
         logs.Lines.Should().ContainSingle().Which.Should().StartWith("7122 Error ").And.Contain(defect).And.NotContain(world.Person.ToString("D"));
         removal.Subjects.Should().HaveCount(1);
         var user = await kit.UserAsync(world.Person);
-        (user.Status, user.SubjectPresent).Should().Be((defect == "account_not_closed" ? "Active" : "Closing", true),
+        (user.Status, user.SubjectPresent).Should().Be(("Active", true),
             "the User's move to Closed was rolled back with the rest");
         (await kit.RequestAsync(world.Closure)).Status.Should().Be("fulfilling");
         foreach (var group in Served)
@@ -335,8 +326,8 @@ public sealed partial class AccountClosureFinalizeTests
     /// add the bound less one and the bound.
     /// </summary>
     [Theory]
-    [InlineData(IClosureGroupLifecycleReader.MaximumGroups - 1, true)]
-    [InlineData(IClosureGroupLifecycleReader.MaximumGroups, false)]
+    [InlineData(ClosureLimits.MaximumParticipantGroups - 1, true)]
+    [InlineData(ClosureLimits.MaximumParticipantGroups, false)]
     public async Task The_closures_a_person_holds_beyond_the_bound_are_a_defect_that_rolls_the_second_transaction_back(int added, bool finalized)
     {
         await using var kit = await AccountClosureBeginKit.CreateAsync(schema.Postgres);
@@ -361,7 +352,7 @@ public sealed partial class AccountClosureFinalizeTests
         {
             var result = await act();
             result.Outcome.Should().Be(ClosureFinalizeOutcome.Finalized);
-            result.Groups!.ClosuresCompleted.Should().Be(IClosureGroupLifecycleReader.MaximumGroups + 1,
+            result.Groups!.ClosuresCompleted.Should().Be(ClosureLimits.MaximumParticipantGroups + 1,
                 "the bound many others and the closure itself complete: the bound itself is not beyond the bound");
             return;
         }

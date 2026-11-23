@@ -100,6 +100,13 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
         _client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan, MaxResponseContentBufferSize = TokenLimit };
     }
 
+    /// <summary>
+    /// Whether the deletion of <paramref name="providerSubject"/> could be sent: the subject is the canonical user identifier
+    /// <see cref="KeycloakAccountRemovalRoutes.TryCanonicalSubject"/> admits, the same pure check <see cref="RemoveAsync"/>
+    /// refuses by before any network effect. Nothing is read from the provider, logged or stored.
+    /// </summary>
+    public bool CanRemove(string providerSubject) => KeycloakAccountRemovalRoutes.TryCanonicalSubject(providerSubject, out _);
+
     public async Task<AccountRemovalOutcome> RemoveAsync(string providerSubject, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(providerSubject);

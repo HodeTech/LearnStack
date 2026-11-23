@@ -74,7 +74,9 @@ internal sealed record ClosureFinalizeResponse(
 /// <remarks>
 /// <para>
 /// A Begin judges and moves the person and the request in one platform transaction and then fans the closure out: a
-/// refusal answers <c>409</c> with the closed code it recorded on the request, a fan-out that did not reach every served
+/// refusal answers <c>409</c> with the closed code it recorded on the request, a closure that could never finish (a person
+/// past the closure's bounds, or an account the provider's port could never delete) answers <c>409</c> on
+/// <c>errors.participants</c> or <c>errors.provider</c> with nothing recorded, a fan-out that did not reach every served
 /// group answers <c>200</c> with <c>complete: false</c>, and a commit whose outcome is unknown answers <c>503</c> with
 /// <c>errors.outcome</c>, after which a repeat is safe and resumes.
 /// </para>
@@ -101,7 +103,13 @@ internal static partial class PlatformOperatorEndpoints
                     + "or moves the person's User from Active to Closing and the request from scheduled to fulfilling, and "
                     + "writes the result row under the platform sentinel with the ticket. After that commit the closure is "
                     + "fanned out to every served participant group, each in its own transaction. A group whose tenant does "
-                    + "not allow ordinary work or whose organization is not Active is unserved and is not fanned out. "
+                    + "not allow ordinary work or whose organization is not Active is unserved and is not fanned out. Before "
+                    + "any write, and with no code recorded, it refuses a closure that could never finish: a person with "
+                    + string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                        $"Memberships in more than {ClosureLimits.MaximumParticipantGroups} participant groups, served or not, ")
+                    + string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                        $"or with more than {ClosureLimits.MaximumTenantMemberships} Memberships in one participant tenant, ")
+                    + "and a person whose identity-provider account the account-removal client could never delete. "
                     + "complete is false while a served group is waiting or failed: repeat Begin, which resumes, judges "
                     + "nothing again and adopts what started. Closing cannot be undone."),
             typeof(ClosureBeginResponse));
@@ -118,7 +126,10 @@ internal static partial class PlatformOperatorEndpoints
                     + "missing account is success. The second transaction takes the fences again, moves the account from Closing "
                     + "to Closed with the raw provider subject removed, completes every participant erasure awaiting the "
                     + "privileged step, this closure and every other open closure of the person, and writes the result row under "
-                    + "the platform sentinel with the ticket. A provider that did not delete answers 503 and leaves the closure "
+                    + "the platform sentinel with the ticket. The first transaction holds the person's User fence alone, so no "
+                    + "participant tenant waits for the redaction; the second holds every participant tenant's fence too. A "
+                    + "group made unserved after the Begin whose fan-out erasure is still open stays required until it awaits "
+                    + "its privileged step. A provider that did not delete answers 503 and leaves the closure "
                     + "fulfilling; every step is idempotent, so a repeat resumes, and a repeat after the act landed answers "
                     + "already_finalized and writes nothing."),
             typeof(ClosureFinalizeResponse));
@@ -164,6 +175,9 @@ internal static partial class PlatformOperatorEndpoints
                     http, Rule("status", "lockey_data_request_closure_not_beginnable", result.Status)),
                 ClosureBeginOutcome.SubjectNotAdmitted => ResultProblem(
                     http, Rule("account", "lockey_data_request_closure_account_closed")),
+                ClosureBeginOutcome.RefusedTooLarge => ResultProblem(
+                    http, Rule("participants", "lockey_data_request_closure_too_large")),
+                ClosureBeginOutcome.RefusedProvider => ResultProblem(http, Rule("provider", "lockey_account_removal_unavailable")),
                 _ => throw new InvalidOperationException("A closure Begin outcome the route does not answer."),
             };
         }
@@ -310,6 +324,8 @@ internal static partial class PlatformOperatorEndpoints
         ClosureBeginOutcome.NotClosure => "not_closure",
         ClosureBeginOutcome.NotBeginnable => "not_beginnable",
         ClosureBeginOutcome.SubjectNotAdmitted => "account_closed",
+        ClosureBeginOutcome.RefusedTooLarge => "refused_too_large",
+        ClosureBeginOutcome.RefusedProvider => "refused_provider",
         _ => throw new InvalidOperationException("A closure Begin outcome the route does not count."),
     };
 }

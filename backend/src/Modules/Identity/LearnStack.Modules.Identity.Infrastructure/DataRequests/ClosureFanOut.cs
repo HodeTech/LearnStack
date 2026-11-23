@@ -1,5 +1,6 @@
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Platform;
 using Microsoft.Extensions.Logging;
@@ -39,8 +40,11 @@ public sealed partial class ClosureFanOut(
     PlatformOperatorActExecutor executor,
     ILogger<ClosureFanOut> logger) : IClosureFanOut
 {
-    /// <summary>The most participant groups one call fans out to; a person in more is a programming error of the caller.</summary>
-    public const int MaximumGroups = 256;
+    /// <summary>
+    /// The most participant groups one call fans out to: the closure's group bound, which Begin judges before the person
+    /// leaves Active, so a longer list is a programming error of the caller (<see cref="IClosureFanOut"/>).
+    /// </summary>
+    public const int MaximumGroups = ClosureLimits.MaximumParticipantGroups;
 
     public async Task<IReadOnlyList<ClosureGroupReport>> FanOutAsync(
         PlatformOperatorWitness operatorWitness,
@@ -62,7 +66,9 @@ public sealed partial class ClosureFanOut(
                 || group.OrganizationId is { } organization && !StronglyTypedId.IsAssigned(organization))
             || request.Groups.Distinct().Count() != request.Groups.Count)
         {
-            throw new ArgumentException("A closure's fan-out names at most 256 distinct participant groups.", nameof(request));
+            throw new ArgumentException(
+                "A closure's fan-out names at most " + MaximumGroups.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + " distinct participant groups.", nameof(request));
         }
 
         // Tenant, then the tenant-wide group before its organizations, then each organization: the same order whatever

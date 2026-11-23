@@ -94,6 +94,24 @@ public sealed class ClosureFanOutUnitTests
         rig.Acts.Should().ContainSingle("the second group is never started once the operator cancelled");
     }
 
+    /// <summary>
+    /// Exactly the closure's group bound, which Begin admits, is fanned out in one call: every group is one act. The bound is
+    /// the shared constant Begin judges, so no person Begin admits is refused here.
+    /// </summary>
+    [Fact]
+    public async Task Exactly_the_closure_s_group_bound_is_fanned_out_in_one_call()
+    {
+        using var rig = new Rig();
+        ClosureFanOut.MaximumGroups.Should().Be(LearnStack.SharedKernel.DataProtection.ClosureLimits.MaximumParticipantGroups);
+        var groups = Enumerable.Range(0, ClosureFanOut.MaximumGroups)
+            .Select(_ => new ClosureParticipantGroup(TenantId.From(Guid.CreateVersion7()), null)).ToArray();
+
+        var reports = await rig.FanOut.FanOutAsync(TestPlatformAdmissions.Witness(), null, new ClosureFanOutRequest(Person, groups));
+
+        reports.Should().HaveCount(ClosureFanOut.MaximumGroups).And.OnlyContain(report => report.Outcome == ClosureGroupOutcome.Started);
+        rig.Acts.Should().HaveCount(ClosureFanOut.MaximumGroups);
+    }
+
     [Theory]
     [InlineData("system_actor")]
     [InlineData("duplicate_group")]

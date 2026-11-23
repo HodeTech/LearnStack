@@ -102,6 +102,30 @@ public sealed class ClosureAuditRedactionTests(SchemaFixture schema)
         Kinds(tiny.Report).Should().Equal(Kinds(single.Report));
     }
 
+    /// <summary>
+    /// The sentinel selection walks no payload, so the sentinel pass's batch boundary sizes none: with a byte budget every
+    /// payload exceeds and a row cap above the tenant's rows, it reads the whole sentinel tenant in one batch, where a pass
+    /// that sized payloads would end a batch at each sentinel row that carries one.
+    /// </summary>
+    [Fact]
+    public async Task The_sentinel_pass_sizes_no_payload_so_only_the_row_cap_ends_its_batches()
+    {
+        await using var world = await SeedAsync();
+        await using (var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(world.Database.PlatformConnectionString))
+        {
+            (await IdentityMembershipFixture.ScalarAsync<long>(platform, null, """
+                SELECT count(*) FROM public.audit_log
+                WHERE tenant_id = @sentinel AND (before_state IS NOT NULL OR after_state IS NOT NULL OR changes IS NOT NULL)
+                """, ("sentinel", TenantId.PlatformSentinel.Value)))
+                .Should().BeGreaterThan(1, "the premise: several sentinel rows carry a payload a byte budget of one would cut at");
+        }
+
+        var run = await BatchRunAsync(world, new AuditRedactionExecutor(Locators(), batchRows: 1_000, batchBytes: 1, updateRows: 1));
+
+        run.Boundaries.Should().Be(1, "the row cap alone ends a sentinel batch, and no payload is decompressed to be sized");
+        run.Report.RowsSelected.Should().Be(SentinelSelected.Length);
+    }
+
     [Fact]
     public async Task Through_the_real_scope_Finalize_redacts_every_participant_and_the_sentinel_and_commits_it_with_its_intent_row()
     {

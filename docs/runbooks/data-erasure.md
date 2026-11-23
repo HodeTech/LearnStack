@@ -116,7 +116,7 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 |---|---|---|
 | `awaiting_privileged_step` (default) | Erasures whose tenant side finished | [Complete](#complete-an-erasure) each whose `origin` is `self` or `administrator`. A `closure_fanout` item is completed only by its closure and answers `409` here |
 | `overdue_scheduled` | Requests still `scheduled` once their window ended (`executeAt`), with no grace | Every erasure is listed here for the moments between the end of its window and its job's pickup. One still listed after a few minutes has a late or dead job. The [quarantined-jobs inspection](operator-recovery.md) shows only quarantined jobs, not one still retrying or out of attempts, so read the job table as [Data export § A stuck or dead export request](data-export.md#a-stuck-or-dead-export-request) does, with the definition keys `identity.data_erasure_tenant.v1` and `identity.data_erasure_organization.v1`. A dead job's request reads `failed` on the person's receipt and stays `scheduled` here until the person files again, which frees the slot and is the recovery: [tell them so](#when-a-person-asks) and escalate the job |
-| `stuck_fulfilling` | Requests still `fulfilling` two hours after they fell due (`executeAt`, or `createdAt` when there is no window) | An erasure job commits `fulfilling` only together with `awaiting_privileged_step`, so a dead run rolls back to `scheduled` and is listed above, never here. This list holds a request that starts `fulfilling` and whose job then stopped half-way (a closure's fan-out, [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)). Two hours outlast the job runtime's whole retry schedule: find the job and escalate |
+| `stuck_fulfilling` | Requests still `fulfilling` two hours after they fell due (`executeAt`, or `createdAt` when there is no window) | An erasure job commits `fulfilling` only together with `awaiting_privileged_step`, so a dead run rolls back to `scheduled` and is listed above, never here. This list holds a request that starts `fulfilling` and whose job then stopped half-way (a closure's fan-out, [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)). Two hours outlast the job runtime's whole retry schedule: find the job and escalate. A begun closure (`kind` `closure`) is also listed here until its Finalize, which is no escalation by itself: see [Account closure § When to look](account-closure.md#when-to-look) |
 | `expired_artifact` | Export artifacts past `expiresAt` whose purge has not run | See [Data export § An expired artifact whose purge died](data-export.md#an-expired-artifact-whose-purge-died) |
 
 - `limit` is 1 to 100 (default 20; a larger value is clamped, and zero or less is
@@ -364,7 +364,9 @@ where an erasure completed, ask whether the event concerns the erased person.
 - An erasure that keeps answering `503` or `500`, one listed under `overdue_scheduled`
   or `stuck_fulfilling`, and a quarantined erasure job are escalations to the
   deployment's owner, with the request identifier and the `correlationId` of each failed
-  call. Nothing here repairs a job.
+  call. Nothing here repairs a job. A closure listed under `stuck_fulfilling` is not an
+  erasure: [Account closure](account-closure.md#targets-and-escalation) says when it is
+  an escalation.
 - Never change an audit row or a request by hand. A statement outside the executor and
   the request guard's one arrow writes no record, and the guard refuses every other
   change to a request.

@@ -27,7 +27,11 @@ namespace LearnStack.Modules.Identity.Application.OperatorActs;
 /// dead job's request has been stored failed the way every creation path stores it (ADR-0106 § 8):
 /// </para>
 /// <list type="bullet">
-/// <item>none, or only terminal ones: a fan-out erasure is created, <c>fulfilling</c>, with no window, the system actor's,
+/// <item>none, and a <c>completed</c> fan-out erasure of the person: the group's part of the closure is done, because only
+/// the closure's Finalize completes one, in the transaction that moves the person to Closed. A repeated Begin that reaches
+/// the group after that adopts it with nothing written and nothing designated, so its row names no one
+/// (<see cref="ClosureGroupOutcome.Adopted"/>);</item>
+/// <item>none otherwise, or only terminal ones: a fan-out erasure is created, <c>fulfilling</c>, with no window, the system actor's,
 /// and its job is enqueued on the same transaction (<see cref="ClosureGroupOutcome.Started"/>);</item>
 /// <item>a fan-out still <c>fulfilling</c>: adopted, and its job enqueued again unless one is still in flight, so a job that
 /// died is retried by repeating Begin (<see cref="ClosureGroupOutcome.Adopted"/>);</item>
@@ -91,6 +95,14 @@ internal sealed class FanOutClosureCommandHandler(
             {
                 // A person's erasure whose job died past its window is now stored failed, which frees the group's slot.
                 active = null;
+            }
+
+            if (active is null && await store.HoldsCompletedFanOutAsync(subject, cancellationToken).ConfigureAwait(false))
+            {
+                // Finalize completed this group's fan-out and closed the person: a Begin repeated across that commit finds
+                // the group done. Nothing is designated, so the act's row names neither the person nor a request.
+                guard.MarkReplayed();
+                return Result.Ok(ClosureGroupOutcome.Adopted);
             }
 
             switch (active)

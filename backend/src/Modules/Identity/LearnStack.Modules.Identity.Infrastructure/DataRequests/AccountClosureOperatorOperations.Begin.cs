@@ -10,12 +10,20 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// <summary>The closure's Begin (ADR-0107 § 7, <c>begin_closure</c>).</summary>
 /// <remarks>
 /// <para>
-/// <b>One transaction, then the fan-out.</b> The request is read to find the person; the person's User fence is taken, the
-/// participant groups are read under it and every participant tenant's fence is taken, ascending; the request is locked
-/// and read again with the User's status; the closure is judged; and either the refusal is recorded or the User moves
-/// Active to Closing and the request <c>scheduled</c> to <c>fulfilling</c>. The result row names the platform sentinel
-/// tenant and commits with it. The fences end with that transaction, which is the nonadmitting transition they order, and
-/// only then is the closure fanned out to the served groups, each in its own transaction.
+/// <b>One transaction, then the fan-out.</b> The request is read to find the person, with the raw provider subject the
+/// identity provider's port is asked about; the person's User fence is taken, the participant groups and their Membership
+/// counts are read under it and every participant tenant's fence is taken, ascending; the request is locked and read again
+/// with the User's status; the closure is judged; and either the refusal is recorded or the User moves Active to Closing
+/// and the request <c>scheduled</c> to <c>fulfilling</c>. The result row names the platform sentinel tenant and commits
+/// with it. The fences end with that transaction, which is the nonadmitting transition they order, and only then is the
+/// closure fanned out to the served groups, each in its own transaction.
+/// </para>
+/// <para>
+/// <b>What could never finish is refused first.</b> A closure whose account the port could never delete
+/// (<see cref="ClosureBeginOutcome.RefusedProvider"/>) and a person past the closure's bounds
+/// (<see cref="ClosureBeginOutcome.RefusedTooLarge"/>) are refused before any write and before the person leaves Active:
+/// no refusal code is recorded on the request, because neither is the person's to act on, and the scope ends by disposal
+/// with its entry row the record. A person past the bounds takes no tenant fence.
 /// </para>
 /// <para>
 /// <b>Judging.</b> <c>blocked_window</c> by the database clock, which the request guard asks again; <c>blocked_hold</c>
@@ -59,6 +67,13 @@ public sealed partial class AccountClosureOperatorOperations
           AND person.status = 'Active'
         GROUP BY member.tenant_id
         """;
+
+    /// <summary>
+    /// The participant groups and the Memberships each holds, read under the person's User fence in one grouped statement
+    /// through <c>ix_memberships_user_id</c>: what Begin judges the closure's bounds by. Exposed so that a test can ask for
+    /// its plan.
+    /// </summary>
+    public static string ParticipantsSql => PlatformIdentityFences.ParticipantsSql;
 
     // The refusal record (ADR-0106 § 7): the request stays scheduled with its closed code. The guard's platform arm stamps
     // the update time and the system actor, and refuses a code equal to the one standing.
@@ -151,8 +166,21 @@ public sealed partial class AccountClosureOperatorOperations
             return await ResumeAsync(handle, request.Subject, request.Account, cancellationToken);
         }
 
-        // 3. The fences, the participants read under the User fence among them.
+        if (!ProviderAccepts(request.ProviderSubject))
+        {
+            // Finalize could never delete this account (the port is not configured, or refuses the subject before any
+            // call), so the person is never moved to a Closing they could not leave. Nothing is written.
+            return BeginDecision.Ended(new ClosureBeginResult(ClosureBeginOutcome.RefusedProvider, StatusCode(request.Status)));
+        }
+
+        // 3. The fences, the participants and their size read under the User fence among them.
         var fences = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);
+        if (!fences.WithinBounds)
+        {
+            // Every later step is bounded by the closure's size, so a person past it is refused while still Active; only the
+            // User key was taken, and nothing is written.
+            return BeginDecision.Ended(new ClosureBeginResult(ClosureBeginOutcome.RefusedTooLarge, StatusCode(request.Status)));
+        }
 
         // 4. The request again, locked, and the User status, both under the fences: what was read above may have moved.
         var locked = await handle.QueryAsync(LockRequest, [id], LockedClosure.Read, cancellationToken);
@@ -237,8 +265,14 @@ public sealed partial class AccountClosureOperatorOperations
             throw new InvalidOperationException("A fulfilling closure's person is not Closing; the act is abandoned.");
         }
 
-        var groups = await PlatformIdentityFences.ReadGroupsAsync(handle, subject, cancellationToken);
-        var participants = await ClassifyAsync(handle, groups, cancellationToken);
+        var read = await PlatformIdentityFences.ReadParticipantsAsync(handle, subject, cancellationToken);
+        if (!read.WithinBounds)
+        {
+            // Begin refused such a person while Active, and a Closing User is admitted to no Membership.
+            throw new InvalidOperationException("A begun closure's person is past the closure's bounds; the act is abandoned.");
+        }
+
+        var participants = await ClassifyAsync(handle, read.Groups, cancellationToken);
         return BeginDecision.FanOut(ClosureBeginOutcome.Resumed, subject, participants);
     }
 

@@ -40,6 +40,20 @@ public enum ClosureBeginOutcome
 
     /// <summary>The person's User is Closed: their closure has finished and nothing may begin for it.</summary>
     SubjectNotAdmitted,
+
+    /// <summary>
+    /// The person holds Memberships in more participant groups, served or not, or more Memberships in one participant tenant,
+    /// than one closure is admitted for (<see cref="DataProtection.ClosureLimits"/>). Nothing changed and no refusal code
+    /// was recorded: the person stays Active, and Phase 11's data operations serve them.
+    /// </summary>
+    RefusedTooLarge,
+
+    /// <summary>
+    /// The identity provider's account-removal port could never delete this person's account: it is not configured, or it
+    /// refuses the person's provider subject before any call. Nothing changed and no refusal code was recorded: the person
+    /// stays Active, and a Begin after the port is repaired is judged afresh.
+    /// </summary>
+    RefusedProvider,
 }
 
 /// <summary>
@@ -97,8 +111,9 @@ public enum ClosureFinalizeOutcome
     NotFinalizable,
 
     /// <summary>
-    /// A served participant group's newest erasure of the person neither awaits the privileged step nor completed during
-    /// this closure: its fan-out has not finished. Repeat Begin, wait for the group's erasure job, and finalize again.
+    /// A required participant group's newest erasure of the person neither awaits the privileged step nor completed during
+    /// this closure: its fan-out has not finished. A group is required when it is served, or when it is unserved but still
+    /// holds the closure's fan-out erasure open. Repeat Begin, wait for the group's erasure job, and finalize again.
     /// </summary>
     GroupsPending,
 
@@ -123,10 +138,11 @@ public enum ClosureFinalizeOutcome
 /// </summary>
 /// <param name="Served">The groups whose tenant allows ordinary work and whose organization, if any, is Active.</param>
 /// <param name="Ready">
-/// Served groups whose newest erasure of the person awaits the privileged step, or completed during this closure, and covers
-/// every Membership the person holds there.
+/// Required groups whose newest erasure of the person awaits the privileged step, or completed during this closure, and
+/// covers every Membership the person holds there. Every served group is required, and so is an unserved group whose
+/// fan-out erasure is still open, because its job started and nothing completes it after the person is Closed.
 /// </param>
-/// <param name="Pending">Served groups that are not ready.</param>
+/// <param name="Pending">Required groups that are not ready.</param>
 /// <param name="Unserved">
 /// Groups whose tenant does not allow ordinary work or whose organization is not Active (<c>unserved_group</c>): their data
 /// stays and Phase 11's offboarding owns it.
@@ -174,7 +190,9 @@ public interface IAccountClosureOperatorOperations
     /// Begins one person's closure: in one platform transaction under the person's User fence and every participant
     /// tenant's fence, refuses <c>blocked_window</c>, <c>blocked_hold</c> or <c>blocked_last_administrator</c> by recording
     /// it on the request, or moves the User to Closing and the request to <c>fulfilling</c>; after that commit, fans the
-    /// closure out to every served participant group. A repeat resumes: it skips what is done and fans out again.
+    /// closure out to every served participant group. A closure that could never finish, a person past the closure's
+    /// bounds or an account the provider's port could never delete, is refused before any write with no code recorded. A
+    /// repeat resumes: it skips what is done and fans out again.
     /// </summary>
     /// <exception cref="AuditWriteFailedException">A MUST row could not be written; nothing changed.</exception>
     /// <exception cref="OperatorRecoveryUnavailableException">
@@ -186,18 +204,21 @@ public interface IAccountClosureOperatorOperations
 
     /// <summary>
     /// Finalizes one person's begun closure (ADR-0107 § 7, ADR-0108 § 8). The first platform transaction, under the
-    /// person's User fence and every participant tenant's fence, finds every served group ready, redacts the person's
-    /// audit rows in every participant tenant and the platform sentinel tenant and commits with the intent row that carries
-    /// the summed counts. The identity provider's account is then deleted. The second transaction, under the fences again,
-    /// moves the User from Closing to Closed with its raw provider subject removed, completes every participant erasure
-    /// awaiting the privileged step, the closure and every other open closure of the person, and commits with the result
-    /// row. Every step is idempotent: a repeat after a crash or a provider failure resumes, and a missing account is success.
+    /// person's User fence alone, finds every required group ready, redacts the person's audit rows in every participant
+    /// tenant and the platform sentinel tenant and commits with the intent row that carries the summed counts; no
+    /// participant tenant waits for it. The identity provider's account is then deleted. The second transaction, under the
+    /// User fence and every participant tenant's fence, judges again, moves the User from Closing to Closed with its raw
+    /// provider subject removed, completes every participant erasure awaiting the privileged step, the closure and every
+    /// other open closure of the person, and commits with the result row. Every step is idempotent: a repeat after a crash
+    /// or a provider failure resumes, and a missing account is success.
     /// </summary>
     /// <exception cref="AuditWriteFailedException">
-    /// The intent row could not be written or committed: the provider step did not start.
+    /// The entry or the intent row could not be written or committed: the provider step did not start.
     /// </exception>
     /// <exception cref="OperatorRecoveryUnavailableException">
-    /// The database could not finish, a fence could not be taken in time, or the final commit's outcome is unknown.
+    /// The database could not finish, a fence could not be taken in time, the final commit's outcome is unknown, or the
+    /// result row could not be written after the provider step, when the account may already be deleted and a repeat
+    /// finishes the closure.
     /// </exception>
     Task<ClosureFinalizeResult> FinalizeAsync(
         PlatformAdmission admission, Guid closureRequestId, CancellationToken cancellationToken = default);

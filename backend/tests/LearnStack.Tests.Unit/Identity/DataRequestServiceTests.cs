@@ -977,6 +977,10 @@ public sealed class DataRequestServiceTests
         public Task<DataSubjectRequest?> FindActiveLockedAsync(UserId subject, DataRequestKind kind, CancellationToken cancellationToken) =>
             Task.FromResult(Requests.FirstOrDefault(request => request.SubjectUserId == subject && request.Kind == kind && !request.IsTerminal));
 
+        public Task<bool> HoldsCompletedFanOutAsync(UserId subject, CancellationToken cancellationToken) =>
+            Task.FromResult(Requests.Any(request => request.SubjectUserId == subject && request.Kind == DataRequestKind.Erasure
+                && request.Origin == DataRequestOrigin.ClosureFanout && request.Status == DataRequestStatus.Completed));
+
         public Task AddAsync(DataSubjectRequest aggregate, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("The cores file through the mapped one-active refusal.");
 

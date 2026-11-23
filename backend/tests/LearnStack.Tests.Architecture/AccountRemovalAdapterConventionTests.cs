@@ -144,8 +144,12 @@ public sealed partial class AccountRemovalAdapterConventionTests
     [Fact]
     public void Account_Removal_Port_Has_One_Method_And_A_Closed_Set_Of_Holders()
     {
-        typeof(IIdentityProviderAccountRemoval).GetMethods().Select(method => method.Name).Should().Equal(["RemoveAsync"],
-            "the client behind the port can create and update users, so the port deletes one account and does nothing else");
+        typeof(IIdentityProviderAccountRemoval).GetMethods().Select(method => method.Name).Order(StringComparer.Ordinal)
+            .Should().Equal(["CanRemove", "RemoveAsync"],
+                "the client behind the port can create and update users, so the port deletes one account and does nothing else; "
+                + "its one other member is the closure Begin's local preflight, which sends nothing");
+        typeof(IIdentityProviderAccountRemoval).GetMethod("CanRemove")!.ReturnType.Should().Be<bool>(
+            "the preflight answers synchronously, so it cannot reach the provider");
         typeof(IIdentityProviderAccountRemoval).GetProperties().Should().BeEmpty();
         PortHolders(Sources()).Should().BeEmpty(
             "Fix: the port is named only by its declaration, its default, the adapter and its composition, and the closure's Finalize "

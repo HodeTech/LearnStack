@@ -2742,22 +2742,26 @@ Implemented requires nonempty production subjects and dirty/clean controls.
 
 - **Asserts:** in the production IL, the methods that derive both a User and a Tenant
   identity lock key are exactly `IdentityMutationLocks.AcquireAsync` and
-  `PlatformIdentityFences.AcquireAsync`; in the production source, the one file that
-  names the platform scope's handle and derives an identity lock key is the closure's
-  acquirer; and that acquirer, read without comments, bounds the transaction's waits
-  once with a transaction-local `lock_timeout`, takes only exclusive
-  transaction-scoped keys, and takes in order the bound, the subject's one User key,
-  the participant read under it, the ascending tenant order and the tenant keys.
+  `PlatformIdentityFences.AcquireCoreAsync`, the one body of the acquirer's two forms;
+  in the production source, the one file that names the platform scope's handle and
+  derives an identity lock key is the closure's acquirer; and that acquirer, read
+  without comments, asks the transaction's isolation once and admits only
+  `read committed`, bounds the transaction's waits once with a transaction-local
+  `lock_timeout`, takes only exclusive transaction-scoped keys, and takes in order the
+  isolation question, the bound, the subject's one User key, the participant read under
+  it, the refusal of every tenant key for the User-only form and past the closure's
+  bounds, the ascending tenant order and the tenant keys.
 - **Why it matters:** the closure spans every tenant of the person on a connection that
   announces nothing, so `IIdentityMutationLocks` cannot fence it, and the census of that
   port never sees its acquirer. A second platform acquirer, an owner that takes a key
-  itself, a tenant key before the User key, a participant read before the User key, a
-  shared or session-level key, or an unbounded wait would break the canonical order or
-  the closure's witness.
+  itself, a tenant key before the User key, a participant read before the User key or in
+  a snapshot taken before it, tenant keys for a person past the bounds, a shared or
+  session-level key, or an unbounded wait would break the canonical order or the
+  closure's witness.
 - **Source:**
   [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7;
   [Database Standards § The closure's fences](05-database.md#the-closures-fences).
-- **Type:** xUnit — IL caller census, source scan, and seven planted departures
+- **Type:** xUnit — IL caller census, source scan, and eleven planted departures
   (`The_Acquirer_Census_Finds_A_Planted_Departure`); the behaviour is proven on
   PostgreSQL by `AccountClosureBeginTests` (the keys observed in `pg_locks` while a
   Begin is held, the bounded wait, and admissions that race a Begin). **Kind:**
@@ -2768,18 +2772,20 @@ Implemented requires nonempty production subjects and dirty/clean controls.
 #### `The_Closure_Finalize_Takes_Its_Fences_Through_The_Acquirer_Once_In_Each_Transaction`
 
 - **Asserts:** the closure's Finalize part of `AccountClosureOperatorOperations`, read
-  without comments, calls `PlatformIdentityFences.AcquireAsync` exactly twice, names no
-  advisory lock and derives no lock key, and in order acquires the fences, redacts,
-  writes its intent checkpoint, calls the provider, acquires the fences again and only
-  then moves the User to Closed.
-- **Why it matters:** the first transaction's keys end at the checkpoint's commit, so a
-  Finalize that did not take them again would move the User to Closed and complete the
+  without comments, calls the acquirer exactly twice, `AcquireUserAsync` once and
+  `AcquireAsync` once, names no advisory lock and derives no lock key, and in order
+  takes the User fence alone, redacts, writes its intent checkpoint, calls the
+  provider, takes every fence and only then moves the User to Closed.
+- **Why it matters:** the first transaction moves no User and no request, so the User
+  key alone keeps its participant set fixed and no participant tenant's identity writes
+  wait for its redaction; its key ends at the checkpoint's commit, so a Finalize that
+  did not take every key afterwards would move the User to Closed and complete the
   requests with no fence held; a Finalize that took them by hand would escape the
   acquirer's census and its bounded wait.
 - **Source:**
   [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7;
   [Database Standards § The closure's fences](05-database.md#the-closures-fences).
-- **Type:** xUnit — source scan with three planted departures
+- **Type:** xUnit — source scan with five planted departures
   (`The_Finalize_Census_Finds_A_Planted_Departure`); the behaviour is proven on
   PostgreSQL by `AccountClosureFinalizeTests`, whose second transaction the `users`
   trigger exception refuses without its own keys. **Kind:** structural.
@@ -8174,12 +8180,14 @@ sign-in read). The
 
 #### `Account_Removal_Port_Has_One_Method_And_A_Closed_Set_Of_Holders`
 
-- **Asserts:** `IIdentityProviderAccountRemoval` declares exactly one method and no
-  property, and production source names the port, its refusing default, the adapter or
-  its factory only in the declaration, the default, the adapter, the factory, the API
-  composition, the Identity foundation registration and the closure owner's constructor
-  file, whose Finalize is the one caller the ADR admits; the Finalize part calls the
-  port through the owner's field and names no port type.
+- **Asserts:** `IIdentityProviderAccountRemoval` declares exactly one deleting method,
+  `RemoveAsync`, beside one synchronous local preflight, `CanRemove`, which returns a
+  `bool` and so cannot reach the provider, and no property; production source names the
+  port, its refusing default, the adapter or its factory only in the declaration, the
+  default, the adapter, the factory, the API composition, the Identity foundation
+  registration and the closure owner's constructor file, whose Finalize is the one
+  caller of the deletion the ADR admits; the Finalize part calls the port through the
+  owner's field and names no port type.
 - **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
   ("exactly one method" and a single caller for a `manage-users` credential).
 - **Type:** reflection plus source scan with planted holders. **Kind:** structural.

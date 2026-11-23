@@ -5090,10 +5090,11 @@ held exclusively on the writing connection.
 > User nonadmitting; the per-group erasure that follows runs as the application role and
 > does not retain the keys. A tenant that does not allow ordinary work is an explicit,
 > named exception to the final-administrator check, and its data is reported as an
-> unserved group. The Finalize that makes the User Closed holds the keys through each of
-> its two transactions, the redaction with its intent row and the move to Closed with
-> the completions, and not between them, while the identity provider deletes the account
-> (2026-11-23).
+> unserved group. The Finalize that makes the User Closed holds the User key alone
+> through its first transaction, the redaction with its intent row, which moves no User
+> and no request, and the User key with every participant tenant key through its second,
+> the move to Closed with the completions, and no key between them, while the identity
+> provider deletes the account (2026-11-23).
  They cannot make
 the final administrator ineligible without a
 separately accepted recovery/termination contract; closure and Archived status
@@ -6843,8 +6844,11 @@ application role. The Identity migration `20261123100000_admit_account_closure`
 carries the grants, the trigger exception, the request guard's closure arrows and the
 User status witness below. The forward migration `20261123120000_admit_closure_finalize`
 then replaces the request guard so that Finalize's arrow also takes a closure of the
-subject that was never begun, and grants the request's update stamp. Both are
-forward-only, and the head of the Identity chain is pinned in `MigrationRollbackTests`.
+subject that was never begun, and grants the request's update stamp; and
+`20261123130000_harden_closure_request_guard` replaces it once more, so that the
+application role writes no closure that left `scheduled` and asks the subject's status
+only after the snapshot. All three are forward-only, and the head of the Identity chain
+is pinned in `MigrationRollbackTests`.
 Every arrow reads its witnesses in SQL on the
 connection that writes: the subject's User status, the request's own state and the
 advisory fences that connection holds. None of them trusts a flag a caller passes.
@@ -6863,23 +6867,36 @@ Transaction-level keys end at the commit, so a second transaction takes them aga
 
 **The acquirer.** One class takes them on the platform connection,
 `PlatformIdentityFences` in the Identity infrastructure, through the platform scope's
-statement facade and nothing else:
-`SELECT pg_catalog.set_config('lock_timeout', '3s', true)` first, so every wait of the
+statement facade and nothing else: first it refuses any transaction whose
+`transaction_isolation` is not `read committed`, because the participant read must take
+its snapshot after the User key is granted; then
+`SELECT pg_catalog.set_config('lock_timeout', '3s', true)`, so every wait of the
 transaction is bounded; then `pg_catalog.pg_advisory_xact_lock` of the subject's User
-key; then the participant groups, read under that key; then the key of every
-participant tenant and of the request's own tenant, ascending by key. It takes no
-shared and no session-level key. A key not granted within three seconds fails its
-statement with `55P03`, which abandons the scope, and the act answers the retryable
+key; then the participant groups, read under that key in one grouped statement through
+`ix_memberships_user_id` with the Memberships the subject holds in each, at most one
+group past the closure's bound; then, only for a person within
+[`ClosureLimits`](../../backend/src/LearnStack.SharedKernel/DataProtection/ClosureLimits.cs)
+(256 participant groups and 256 Memberships in one participant tenant), the key of
+every participant tenant and of the request's own tenant, ascending by key. A person
+past the bounds takes no tenant key, and Begin refuses them with nothing written. It
+takes no shared and no session-level key. A key not granted within three seconds fails
+its statement with `55P03`, which abandons the scope, and the act answers the retryable
 unavailable. It is not `IIdentityMutationLocks`, which fences one tenant inside a
 tenant-announced application transaction; `IdentityPlatformFenceConventionTests` pins
 it as the one platform acquirer and the order it takes the keys in.
 
-**Finalize takes them twice.** A closure's Finalize runs two platform transactions
-around the identity provider's account deletion, and calls the acquirer at the start of
-each: the first transaction's keys end at its intent checkpoint's commit, so none is
-held while the provider runs, and the second takes them again before the User moves to
-Closed. `IdentityPlatformFenceConventionTests` pins the two calls and their order;
-the second transaction's changes are refused without its own keys.
+**Fences per transaction.** The acquirer has two forms. `AcquireAsync` takes every key,
+for a transaction that moves the User or a closure's request, which the checks below
+admit only under all of them. `AcquireUserAsync` takes the User key alone and reads the
+participants under it, for a transaction that moves neither. A closure's Begin runs
+one transaction with every key. Its Finalize runs two platform transactions around the
+identity provider's account deletion: the first, the redaction with its intent row,
+holds the User key alone, so no participant tenant's identity writes wait for the
+redaction while the User key keeps the participant set fixed; the second takes every
+key before the User moves to Closed. Each transaction's keys end at its commit, so none
+is held while the provider runs. `IdentityPlatformFenceConventionTests` pins the two
+calls, their forms and their order; the second transaction's changes are refused
+without its own keys.
 
 **Finalize's reads.** Each reads the person's own rows by the person's indexes:
 `AccountClosureOperatorOperations.ReadinessSql`, each participant group's newest erasure
@@ -6887,12 +6904,16 @@ of the person with whether it completed at or after the closure's Begin and whet
 frozen Memberships include every Membership the person holds in the group, through
 `ix_data_subject_requests_subject_user_id` and `ix_memberships_user_id`;
 `MembershipsSql`, every Membership of the person by tenant for the tenant passes,
-through `ix_memberships_user_id`, bounded at 4,096; and `OpenClosuresSql`, the person's
-other open closures, locked, through `ix_data_subject_requests_subject_user_id` and
-bounded by the group bound. `AccountClosureFinalizeTests` asks PostgreSQL for their
-plans over thousands of other people's rows in the same groups. A begun closure's Begin
-moment is its own `updated_at`: the Begin arrow stamps it from the database clock and no
-arrow writes the row again until Finalize completes it.
+through `ix_memberships_user_id`, bounded at what an admitted closure can hold
+(`ClosureLimits.MaximumMemberships`, 65,536); and `OpenClosuresSql`, the person's other
+open closures, locked, through `ix_data_subject_requests_subject_user_id` and bounded by
+the group bound. The erasures the second transaction completes are locked by primary
+key first, so one an erasure completion finished meanwhile is read as it committed and
+left as it is. `AccountClosureFinalizeTests` asks PostgreSQL for the plans of these and
+of the acquirer's grouped participant read over thousands of other people's rows in the
+same groups. A begun closure's Begin moment is its own `updated_at`: the Begin arrow
+stamps it from the database clock, and no arrow writes the row again until Finalize
+completes it, because the application role writes no closure that left `scheduled`.
 
 **The last-administrator read.** A closure's Begin judges each participant tenant that
 allows ordinary work with `AccountClosureOperatorOperations.AdministratorStandingSql`:
@@ -6986,10 +7007,12 @@ hold an open closure in each group, and once the subject is Closed none of them 
 begun, so Finalize completes every one of them with the one it finalizes, under the
 same witnesses, and none stays open behind a closed account. Every other arrow, kind,
 origin and status stays refused. The
-application role's arrows are unchanged and include none of these four; its own
-refusal record
+application role's arrows include none of these four, and its `UPDATE` arm refuses
+every write of a closure's row but one that keeps it `scheduled` or cancels it
+(`Data request transition refused.`), so a closure the platform made `fulfilling` is
+written by these arrows alone; its own refusal record
 ([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) § 7)
-still admits a code on any scheduled request, a closure's included, and no
+still admits a code on a scheduled request, a closure's included, and no
 application path writes one on a closure.
 
 ### The User status witness
@@ -6999,7 +7022,8 @@ erasure, of kind `erasure` and origin `closure_fanout`, with no `execute_at`, no
 requester and the system actor as `created_by`. Every other origin, a closure and an
 export are still born `scheduled` or `requested`, and a fan-out is born nothing else
 (`Data request initial state refused.`). After its existing tenant fence and exclusive
-User fence, and before its exact snapshot check, the arm then admits every request only
+User fence, and after its exact snapshot check, so a refused snapshot is answered
+before any status is asked, the arm then admits every request only
 for a subject in the one status its origin allows: Closing for a closure's fan-out,
 Active for every export, erasure and closure of the person or an administrator
 (`Data request subject is not admitted.`). The status is read under the User fence, so
@@ -7014,8 +7038,11 @@ The application role cannot read another person's `users` row, so the arm asks
 `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC` and `EXECUTE` to `learnstack_app`
 only. It reads `users` through the table's owner arm and returns the subject's status
 and nothing else, or NULL for no such User, outside a trigger, or unless the calling
-backend holds the subject's User key exclusively, so it reads no other person's status
-for an arbitrary caller.
+backend holds the subject's User key exclusively, so inside the guard it reads only the
+status of the subject the writing transaction fences. The confinement is the guard's,
+not the caller's: a session that takes the key, which any application session may, and
+fires a trigger of its own can read that one closed status, as
+`fn_identity_admin_admission_state` already reads an administrator's.
 
 ### The delayed mirror's subject status
 

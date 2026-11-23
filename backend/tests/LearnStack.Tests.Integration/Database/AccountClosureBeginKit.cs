@@ -323,10 +323,21 @@ internal sealed class AccountClosureBeginKit : IAsyncDisposable
 /// <summary>
 /// The identity provider's stand-in: it records each subject it is asked to delete, may run a probe first (which sees the
 /// database while the act is between its two transactions), and answers what a test sets, removed by default, or throws.
+/// Its preflight accepts every subject unless a test says otherwise, and records what it was asked.
 /// </summary>
 internal sealed class RecordingAccountRemoval : IIdentityProviderAccountRemoval
 {
     public List<string> Subjects { get; } = [];
+
+    public List<string> Preflights { get; } = [];
+
+    public Func<string, bool> Accepts { get; set; } = _ => true;
+
+    public bool CanRemove(string providerSubject)
+    {
+        Preflights.Add(providerSubject);
+        return Accepts(providerSubject);
+    }
 
     public Func<int, AccountRemovalOutcome> Answer { get; set; } = _ => AccountRemovalOutcome.Removed;
 

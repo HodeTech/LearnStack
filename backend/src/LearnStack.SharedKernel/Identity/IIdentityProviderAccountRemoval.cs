@@ -41,9 +41,21 @@ public enum AccountRemovalOutcome
 /// A missing account is success. The raw provider subject is the provider's own user identifier; it is passed in and
 /// never logged, audited or stored by the port or its adapter.
 /// </para>
+/// <para>
+/// <b>The preflight.</b> <see cref="CanRemove"/> answers, with no network or provider effect, whether a deletion of the
+/// subject could be sent at all: the closure's Begin asks it before the person leaves Active, so a closure that could
+/// never finish is refused while nothing has changed.
+/// </para>
 /// </remarks>
 public interface IIdentityProviderAccountRemoval
 {
     /// <summary>Deletes the account whose provider subject is <paramref name="providerSubject"/>.</summary>
     Task<AccountRemovalOutcome> RemoveAsync(string providerSubject, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether this port would send the deletion of <paramref name="providerSubject"/>: false when the port is not
+    /// configured, or when it refuses the subject before any network call. A pure, local answer: nothing is sent, read
+    /// from the provider, logged or stored, and a true answer promises nothing about the provider's own reply.
+    /// </summary>
+    bool CanRemove(string providerSubject);
 }

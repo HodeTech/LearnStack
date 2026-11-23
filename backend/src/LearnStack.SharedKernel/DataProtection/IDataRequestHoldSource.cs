@@ -17,6 +17,14 @@ namespace LearnStack.SharedKernel.DataProtection;
 /// <para>
 /// A hold at creation is the refusal <c>blocked_hold</c> and writes no request.
 /// </para>
+/// <para>
+/// <b>A closure's query concerns the whole person.</b> A closure is global: its Begin asks once, with
+/// <see cref="DataRequestKind.Closure"/>, the person and the group the closure was filed in, and never asks per
+/// participant group, and a closure's fan-out erasures start <c>fulfilling</c> and ask nothing. A source therefore answers
+/// a <see cref="DataRequestKind.Closure"/> query for a hold on the person in any group, the named group being only where
+/// the closure was filed. Begin asks it while it holds every participant tenant's fence, so a source answers without I/O
+/// that could outlast those fences (ADR-0107 § 7).
+/// </para>
 /// </remarks>
 public interface IDataRequestHoldSource
 {

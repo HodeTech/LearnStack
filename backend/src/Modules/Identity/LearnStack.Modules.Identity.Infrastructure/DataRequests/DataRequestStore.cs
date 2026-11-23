@@ -122,6 +122,20 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
         return await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false) is true;
     }
 
+    public async Task<bool> HoldsCompletedFanOutAsync(UserId subject, CancellationToken cancellationToken)
+    {
+        Admit();
+        // The person's requests of the group, through the request subject index; a completed fan-out is terminal, so the
+        // one-active index does not bound it, and the EXISTS stops at the first.
+        await using var command = Command("""
+            SELECT EXISTS (SELECT 1 FROM public.data_subject_requests
+                WHERE tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization AND subject_user_id=@subject
+                  AND kind='erasure' AND origin='closure_fanout' AND status='completed')
+            """);
+        command.Parameters.AddWithValue("subject", subject.Value);
+        return await ExecuteAsync(token => command.ExecuteScalarAsync(token), cancellationToken).ConfigureAwait(false) is true;
+    }
+
     public async Task SaveAsync(DataSubjectRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);

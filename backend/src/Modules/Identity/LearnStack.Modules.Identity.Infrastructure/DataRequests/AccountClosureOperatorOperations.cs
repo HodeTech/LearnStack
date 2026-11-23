@@ -36,8 +36,15 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </para>
 /// <para>
 /// <b>The provider account.</b> This class is the one holder of <see cref="IIdentityProviderAccountRemoval"/>, whose client
-/// can also create and update users in the shared realm; only Finalize calls it, between its two transactions, with the raw
-/// provider subject it read on the platform connection, which it never logs, audits, meters or returns.
+/// can also create and update users in the shared realm; only Finalize asks it to delete, between its two transactions,
+/// with the raw provider subject it read on the platform connection, which it never logs, audits, meters or returns. Begin
+/// asks only the port's local preflight, with the subject its first read returns, and refuses a closure the port could
+/// never finish before the person leaves Active.
+/// </para>
+/// <para>
+/// <b>The bounds.</b> Every bound a later step enforces is judged by Begin before the person leaves Active
+/// (<see cref="ClosureLimits"/>): a person in more participant groups, or with more Memberships in one participant tenant,
+/// than one closure is admitted for is refused with nothing changed, never moved to Closing and then stranded.
 /// </para>
 /// <para>
 /// <b>Failures.</b> A transient database fault before the commit, a fence not granted within its bound included, is the
@@ -56,9 +63,10 @@ public sealed partial class AccountClosureOperatorOperations(
     private const string EntityType = "DataSubjectRequest";
 
     // The request as the act first meets it, before any fence: enough to refuse what is not a closure, to find the person,
-    // and to know whether the closure already began. The platform role reads these columns and the User's status by grant.
+    // to know whether the closure already began, and to ask the identity provider's port whether the person's account could
+    // ever be deleted. The platform role reads these columns and the User's status and raw subject by grant.
     private const string ReadRequest = """
-        SELECT r.tenant_id, r.organization_id, r.kind, r.subject_user_id, r.status, person.status
+        SELECT r.tenant_id, r.organization_id, r.kind, r.subject_user_id, r.status, person.status, person.provider_subject
         FROM data_subject_requests AS r LEFT JOIN users AS person ON person.id = r.subject_user_id
         WHERE r.id = @id
         """;
@@ -72,6 +80,14 @@ public sealed partial class AccountClosureOperatorOperations(
         """;
 
     private const string ReadUserStatus = "SELECT status FROM users WHERE id = @subject";
+
+    /// <summary>
+    /// Whether the identity provider's port could ever send the deletion of this raw subject: a local answer, asked by Begin
+    /// before the person leaves Active, so a closure whose Finalize could never finish is refused while nothing has changed.
+    /// The subject is passed to the port and nowhere else.
+    /// </summary>
+    private bool ProviderAccepts(string? providerSubject) =>
+        providerSubject is { Length: > 0 } subject && accountRemoval.CanRemove(subject);
 
     /// <summary>The one fan-out the act hands the served groups to, or a refusal when none or several are registered.</summary>
     private IClosureFanOut RequireFanOut()
@@ -183,9 +199,13 @@ public sealed partial class AccountClosureOperatorOperations(
         public override string ToString() => nameof(ClosureParticipants);
     }
 
-    /// <summary>The request as the act first reads it, before any fence; its group and person never change.</summary>
+    /// <summary>
+    /// The request as the act first reads it, before any fence; its group and person never change, and neither does the
+    /// raw provider subject of a person who is not Closed.
+    /// </summary>
     private sealed record ClosureRequest(
-        DataRequestScopeGroup Group, DataRequestKind Kind, UserId Subject, DataRequestStatus Status, UserAccount Account)
+        DataRequestScopeGroup Group, DataRequestKind Kind, UserId Subject, DataRequestStatus Status, UserAccount Account,
+        string? ProviderSubject)
     {
         internal TenantId Tenant => Group.TenantId;
 
@@ -193,9 +213,10 @@ public sealed partial class AccountClosureOperatorOperations(
             new DataRequestScopeGroup(
                 TenantId.From(reader.GetGuid(0)), reader.IsDBNull(1) ? null : OrganizationId.From(reader.GetGuid(1))),
             DataRequestCodes.Kinds.Parse(reader.GetString(2)), UserId.From(reader.GetGuid(3)),
-            DataRequestCodes.Statuses.Parse(reader.GetString(4)), ParseAccount(reader.IsDBNull(5) ? null : reader.GetString(5)));
+            DataRequestCodes.Statuses.Parse(reader.GetString(4)), ParseAccount(reader.IsDBNull(5) ? null : reader.GetString(5)),
+            reader.IsDBNull(6) ? null : reader.GetString(6));
 
-        /// <summary>Never prints the person.</summary>
+        /// <summary>Never prints the person or the raw subject.</summary>
         public override string ToString() => nameof(ClosureRequest);
     }
 

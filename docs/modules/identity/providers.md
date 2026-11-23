@@ -229,7 +229,7 @@ provisioning, rotation and leak response.
 
 | Boundary | Contract |
 |---|---|
-| Port | SharedKernel `IIdentityProviderAccountRemoval`, one method; its sole caller is the closure's Finalize, pinned by an architecture rule. Outcomes: removed, absent (success), refused, unavailable, uncertain |
+| Port | SharedKernel `IIdentityProviderAccountRemoval`, one deleting method (`RemoveAsync`) and the pure preflight `CanRemove`; the sole caller of the deletion is the closure's Finalize, pinned by an architecture rule. Outcomes: removed, absent (success), refused, unavailable, uncertain |
 | Default | SharedKernel `RefusingIdentityProviderAccountRemoval`, registered by the Identity foundation: every call is refused and nothing is sent |
 | Adapter | Internal sealed `KeycloakAccountRemoval` in `LearnStack.Infrastructure.Identity.AccountRemoval`; direct HTTP, no SDK |
 | Selection | API `AccountRemovalComposition` replaces the default only when `AccountRemoval:ClientSecret` is configured; `AccountRemovalAdapterFactory` is the only entry. Issuer from `Authentication:Tenant:Issuer`, which must end `/realms/learnstack`; HTTPS, or loopback HTTP in Development only |
@@ -241,7 +241,7 @@ provisioning, rotation and leak response.
 | Confidentiality | The subject and the secret are never logged, audited, placed in an exception message or returned; the closed fault type carries no provider text. A refusal logs one closed reason code at Warning (event 7125), listed in the [runbook](../../runbooks/account-removal-client.md#reading-a-refusal-in-the-log) |
 
 The role is realm-wide and can also create and update users and reset credentials; the
-single method, the single caller and the architecture rules in
+single deleting method, the single caller and the architecture rules in
 [Standard 20](../../standards/20-infrastructure-stack.md#confined-account-removal-adapter)
 confine what LearnStack sends, not what a leaked secret could do.
 

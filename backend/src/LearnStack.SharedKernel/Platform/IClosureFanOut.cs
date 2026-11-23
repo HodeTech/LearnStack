@@ -52,10 +52,23 @@ public sealed record ClosureFanOutRequest(UserId SubjectUserId, IReadOnlyList<Cl
 /// <para>
 /// It is idempotent: a repeat adopts what an earlier call started and starts what it lacked.
 /// </para>
+/// <para>
+/// <b>Its bound is the caller's guarantee.</b> One call names at most
+/// <see cref="DataProtection.ClosureLimits.MaximumParticipantGroups"/> distinct groups, none of them the platform sentinel
+/// tenant's, for a real person. Begin guarantees it: it refuses a person past the closure's bounds before the User leaves
+/// Active, and hands over only what it read within them. A request that breaks it is the caller's programming error and is
+/// thrown before any group runs, and Begin reports every group failed rather than lose its committed transition, so a
+/// caller that does not keep the bound strands the person; a group that fails is otherwise reported, never thrown.
+/// </para>
 /// </remarks>
 public interface IClosureFanOut
 {
     /// <summary>Fans the closure out to every group of <paramref name="request"/> and reports each group's outcome.</summary>
+    /// <exception cref="ArgumentException">
+    /// The request breaks the caller's guarantee: more than <see cref="DataProtection.ClosureLimits.MaximumParticipantGroups"/>
+    /// groups, a duplicate or invalid group, or no real person. Nothing ran.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">The operator's cancellation, after the groups that finished.</exception>
     Task<IReadOnlyList<ClosureGroupReport>> FanOutAsync(
         PlatformOperatorWitness operatorWitness,
         string? ticket,

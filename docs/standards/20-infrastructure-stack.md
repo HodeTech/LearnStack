@@ -503,8 +503,9 @@ client, the realm invariants and recovery.
 
 **Derives from:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md).
 
-`IIdentityProviderAccountRemoval` has one method, deletes one person's identity-provider
-account, and has one caller: the closure's Finalize, whose one call of the method an
+`IIdentityProviderAccountRemoval` has one deleting method and a pure preflight check
+(`CanRemove`, which Begin asks before it moves anyone), deletes one person's
+identity-provider account, and has one caller of the deletion: the closure's Finalize, whose one call of the method an
 architecture rule pins. Its default,
 `RefusingIdentityProviderAccountRemoval`, refuses every call without a network effect;
 the internal `KeycloakAccountRemoval` in

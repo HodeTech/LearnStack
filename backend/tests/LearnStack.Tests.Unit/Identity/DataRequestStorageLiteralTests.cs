@@ -269,6 +269,97 @@ public sealed class DataRequestStorageLiteralTests
             "the platform role gains the request's update stamp, a begun closure's Begin moment, and nothing else");
     }
 
+    /// <summary>The INSERT arm's status witness as the closure guard and its Finalize replacement place it, before the snapshot.</summary>
+    private const string StatusBeforeSnapshot = """
+                -- The subject is admitted in the one status its origin allows, read here under the User fence held above:
+                -- Closing for a closure's fan-out, Active for every other request (ADR-0107 § 7). A filing admitted while
+                -- the person was Active and fenced only after a Begin or a Finalize committed inserts nothing.
+                IF (public.fn_identity_user_status(NEW.subject_user_id)
+                    IS DISTINCT FROM (CASE WHEN NEW.origin = 'closure_fanout' THEN 'Closing' ELSE 'Active' END)) IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data request subject is not admitted.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    private const string SnapshotEnd = """
+                THEN RAISE EXCEPTION 'Data request snapshot refused.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    /// <summary>The same witness as the hardening places it, after the snapshot, so no refusal message reveals a status.</summary>
+    private const string StatusAfterSnapshot = """
+                -- The subject is admitted in the one status its origin allows, read here under the User fence held above:
+                -- Closing for a closure's fan-out, Active for every other request (ADR-0107 § 7). A filing admitted while
+                -- the person was Active and fenced only after a Begin or a Finalize committed inserts nothing. It is asked
+                -- after the snapshot, so a refused snapshot says nothing about the subject's status.
+                IF (public.fn_identity_user_status(NEW.subject_user_id)
+                    IS DISTINCT FROM (CASE WHEN NEW.origin = 'closure_fanout' THEN 'Closing' ELSE 'Active' END)) IS NOT FALSE
+                THEN RAISE EXCEPTION 'Data request subject is not admitted.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    private const string TerminalCheck = """
+            IF (OLD.status IN ('completed','blocked','failed','cancelled')) IS NOT FALSE
+            THEN RAISE EXCEPTION 'Data request is terminal.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    /// <summary>The application UPDATE arm's one new refusal: a closure is the application's only while it is scheduled.</summary>
+    private const string ClosureIsTheApplicationsOnlyWhileScheduled = """
+            -- A closure is the application's only while it is scheduled (ADR-0107 § 7): the person cancels it, and once it
+            -- leaves scheduled every write of its row is the platform's arrows, so its Begin moment, its result and its
+            -- version change only as Finalize reads them.
+            IF (OLD.kind = 'closure' AND NOT (OLD.status = 'scheduled' AND NEW.status IN ('scheduled','cancelled'))) IS NOT FALSE
+            THEN RAISE EXCEPTION 'Data request transition refused.' USING ERRCODE = '23514'; END IF;
+
+        """;
+
+    /// <summary>
+    /// <c>20261123130000_harden_closure_request_guard</c>: the guard Finalize installed but for exactly two changes to the
+    /// application arms. The INSERT arm's status witness moves after the snapshot check, and the UPDATE arm gains one
+    /// refusal right after the terminal check, so a closure the platform made <c>fulfilling</c> takes no application write.
+    /// Every platform arrow, every other witness and every message is Finalize's, character for character.
+    /// </summary>
+    [Fact]
+    public void The_hardened_guard_is_the_Finalize_guard_but_for_the_status_witness_s_place_and_the_closure_s_application_arm()
+    {
+        const string End = "END $guard$;";
+        var finalize = Ddl("FinalizeRequestGuard", "AccountClosureStorageDdl");
+        var hardened = Ddl("HardenedRequestGuard", "AccountClosureStorageDdl");
+        finalize = finalize[..(finalize.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+        hardened = hardened[..(hardened.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+        var statusBefore = StatusBeforeSnapshot.ReplaceLineEndings("\n");
+        var snapshotEnd = SnapshotEnd.ReplaceLineEndings("\n");
+        var statusAfter = StatusAfterSnapshot.ReplaceLineEndings("\n");
+        var terminal = TerminalCheck.ReplaceLineEndings("\n");
+        var closureArm = ClosureIsTheApplicationsOnlyWhileScheduled.ReplaceLineEndings("\n");
+
+        CountOf(finalize, statusBefore).Should().Be(1, "Finalize's guard asks the status once, before the snapshot");
+        CountOf(finalize, snapshotEnd).Should().Be(1);
+        CountOf(finalize, terminal).Should().Be(1);
+        var expected = finalize.Replace(statusBefore, string.Empty, StringComparison.Ordinal)
+            .Replace(snapshotEnd, snapshotEnd + statusAfter, StringComparison.Ordinal)
+            .Replace(terminal, terminal + closureArm, StringComparison.Ordinal);
+        hardened.Should().Be(expected,
+            "every arm, witness and message is Finalize's, character for character, but for the witness's place and the one refusal");
+        hardened.IndexOf("'Data request snapshot refused.'", StringComparison.Ordinal).Should().BeLessThan(
+            hardened.IndexOf("'Data request subject is not admitted.'", StringComparison.Ordinal),
+            "a refused snapshot is answered before the status is asked, so its message reveals no status");
+        var platformArm = hardened[..hardened.IndexOf("    IF (session_user <> 'learnstack_app'", StringComparison.Ordinal)];
+        platformArm.Should().NotContain(closureArm.Trim(), "the new refusal is the application's arm alone");
+        DdlMethodSql("InstallHardening").Should().Equal([Ddl("HardenedRequestGuard", "AccountClosureStorageDdl")],
+            "the hardening's migration replaces the guard and changes nothing else");
+    }
+
+    /// <summary>The statements an <c>AccountClosureStorageDdl</c> installer hands the migration builder, in order.</summary>
+    private static List<string> DdlMethodSql(string method)
+    {
+        var builder = new Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder("Npgsql.EntityFrameworkCore.PostgreSQL");
+        typeof(IdentityDbContext).Assembly
+            .GetType("LearnStack.Modules.Identity.Infrastructure.Persistence.AccountClosureStorageDdl", throwOnError: true)!
+            .GetMethod(method, BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [builder]);
+        return [.. builder.Operations.Cast<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>().Select(operation => operation.Sql)];
+    }
+
     private static int CountOf(string text, string value) =>
         System.Text.RegularExpressions.Regex.Count(text, System.Text.RegularExpressions.Regex.Escape(value));
 
