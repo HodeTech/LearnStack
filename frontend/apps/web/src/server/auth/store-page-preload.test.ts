@@ -484,4 +484,32 @@ describe('Store page preparation through the actual private native port', () => 
     ).rejects.toThrow();
     expect(f.administration).toHaveBeenCalledTimes(calls);
   });
+
+  it("prepares a Revoked Membership's erasure page with its one query and no member read (ADR-0106 § 3)", async () => {
+    const f = fixture();
+    const active = await f.login();
+    const membershipId = '019a154b-0000-7000-8000-000000000011';
+    const prepared = page(
+      await document(f, active.binding, {
+        target: '/studio/data-requests/erasure?membership=' + membershipId,
+      }).work,
+    );
+    expect(prepared.target).toBe('/studio/data-requests/erasure');
+    expect(prepared.outcome).toEqual({
+      kind: 'ready',
+      view: { kind: 'data_request_erasure', membershipId },
+    });
+    expect(prepared.formKeys).toHaveLength(32);
+    expect(f.administration.mock.calls.map((call) => call[2].kind)).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+    ]);
+    const calls = f.administration.mock.calls.length;
+    for (const target of [
+      '/studio/data-requests/erasure?membership=' + membershipId.toUpperCase(),
+      '/studio/data-requests/erasure?membership=' + membershipId + '&cursor=YWJj',
+    ])
+      await expect(document(f, active.binding, { target }).work).rejects.toThrow();
+    expect(f.administration).toHaveBeenCalledTimes(calls);
+  });
 });

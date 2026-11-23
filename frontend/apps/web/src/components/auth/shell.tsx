@@ -12,7 +12,12 @@ import type { AuthCopy } from '@/i18n/auth-catalogues';
 import { optionalPreparedPage } from '@/server/auth/page';
 import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
-import { DataRequestDetails, DataRequestDirectory } from './admin-data-requests';
+import { dataRequestResultCurrent } from './admin-data-request-labels';
+import {
+  DataRequestDetails,
+  DataRequestDirectory,
+  DataRequestErasure,
+} from './admin-data-requests';
 import { FederationPage } from './admin-federation';
 import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
 import { InvitationDetails, InvitationDirectory, InvitationPolicy } from './admin-invitations';
@@ -44,6 +49,7 @@ function title(kind: PageKind, admin: AdminCopy, profile: ProfileCopy, copy: Aut
     federation: admin('federation.title'),
     data_requests: admin('data_requests.title'),
     data_request: admin('data_requests.detail_title'),
+    data_request_erasure: admin('data_requests.erasure_page.title'),
   };
   return titles[kind];
 }
@@ -70,6 +76,8 @@ function PageContents({
       return <DataRequestDirectory snapshot={snapshot} view={view} copy={requestCopy} />;
     case 'data_request':
       return <DataRequestDetails snapshot={snapshot} view={view} copy={requestCopy} />;
+    case 'data_request_erasure':
+      return <DataRequestErasure snapshot={snapshot} view={view} copy={requestCopy} />;
     case 'custom_fields':
       return (
         <CustomFieldDirectory snapshot={snapshot} view={view} locale={locale} copy={fieldCopy} />
@@ -326,11 +334,13 @@ export async function accountPageMetadata(kind: PageKind) {
   const { admin, profile, dataRequest } = createAdministrationTranslator(locale);
   const { copy } = createAuthTranslator(locale);
   const outcome = prepared.snapshot.outcome;
-  // A settled data-request action is announced in the title too, as the person's own page does.
+  // A settled data-request action is announced in the title too, as the person's own page does, only while the
+  // request is still in the state the result describes.
   const done =
     outcome.kind === 'ready' &&
     outcome.view.kind === 'data_request' &&
     outcome.view.result !== null &&
+    dataRequestResultCurrent(outcome.view.result, outcome.view.request, outcome.view.preparedAt) &&
     kind === 'data_request';
   return {
     title: (done ? dataRequest('result.title') + ' – ' : '') + title(kind, admin, profile, copy),

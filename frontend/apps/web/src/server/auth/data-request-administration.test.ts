@@ -18,18 +18,25 @@ import {
   dataRequestAdministrationDestination,
   dataRequestAdministrationRefusal,
 } from './http-forms';
-import { BFF_POST_PATHS, bffActionDocumentTarget } from './http-paths';
+import { BFF_POST_PATHS, DATA_REQUEST_DOCUMENT_PATHS, bffActionDocumentTarget } from './http-paths';
 import type { BffPage } from './http-protocol';
+import { NativeApiError } from './native-contract';
 import { DATA_REQUEST_REFUSALS } from './native-data-request-http';
 import type { NativeOperation, NativeOperationResult } from './native-operation-contract';
 import type {
   DataRequestAdministrationRefusal,
   NativePageSnapshot,
   PageCapabilities,
+  PageDataRequest,
 } from './page-contract';
 import { nativeDocumentPlan, preloadPage } from './page-preload';
 import { BffSessionError } from './session-contract';
-import { isNativeReturnPath } from './session-path';
+import {
+  dataRequestErasureTarget,
+  isBffRecoveryTarget,
+  isBffRedirectTarget,
+  isNativeReturnPath,
+} from './session-path';
 import snapshot from '../../../../../../backend/openapi/v1.json';
 import { dataRequestRefusalSentence } from '../../components/auth/admin-data-request-labels';
 import { createAdministrationTranslator } from '../../i18n/administration-catalogues';
@@ -38,6 +45,9 @@ const repository = join(process.cwd(), '../../..');
 const requestId = '019a154b-0000-7000-8000-000000000041';
 const memberId = '019a154b-0000-7000-8000-000000000012';
 const otherMember = '019a154b-0000-7000-8000-000000000013';
+/** A Revoked Membership: the API answers its detail 404, as `MembershipAdministrationAssignmentTests` pins. */
+const revokedMember = '019a154b-0000-7000-8000-000000000019';
+const erasurePage = '/studio/data-requests/erasure?membership=' + memberId;
 const userId = '019a154b-0000-7000-8000-0000000000ff';
 const organizationId = '019a154b-0000-7000-8000-000000000014';
 const key = 'k'.repeat(43);
@@ -60,7 +70,8 @@ const membership = (id: string, value: Partial<MembershipDetail> = {}): Membersh
   membershipId: id,
   userId,
   organizationId: null,
-  status: 'Revoked',
+  // The detail read answers only an Active or Suspended Membership.
+  status: 'Active',
   displayName: 'Subject ' + id.slice(-2),
   preferredLocale: 'tr',
   roleIds: ['019a154b-0000-7000-8000-0000000000aa'],
@@ -140,7 +151,10 @@ function fixture(
 ) {
   const read = vi.fn(async (operation: NativeOperation): Promise<NativeOperationResult> => {
     if (operation.kind === 'getMembership')
-      return memberships[operation.id] ?? success(membership(operation.id));
+      return (
+        memberships[operation.id] ??
+        (operation.id === revokedMember ? refused(404) : success(membership(operation.id)))
+      );
     return (
       {
         getOwnCapabilities: success(capabilities),
@@ -171,10 +185,24 @@ const ready = <K extends string>(value: NativePageSnapshot, kind: K) => {
 
 describe('administrator data-request pages: native preparation (ADR-0106 §§ 3, 6, 13)', () => {
   it('lists twenty requests, names each subject as the member list does and seals the cursor', async () => {
+    const exportId = '019a154b-0000-7000-8000-000000000042';
+    const readmitted = receipt({
+      id: '019a154b-0000-7000-8000-000000000043',
+      kind: 'export',
+      executeAt: null,
+      // A re-admitted person: the Revoked tombstone first, the current Membership second.
+      membershipIds: [revokedMember, otherMember],
+    });
     const items = [
-      receipt(),
-      receipt({ id: '019a154b-0000-7000-8000-000000000042', kind: 'export', executeAt: null }),
-      receipt({ id: '019a154b-0000-7000-8000-000000000043', membershipIds: [otherMember] }),
+      receipt({ membershipIds: [revokedMember] }),
+      receipt({ id: exportId, kind: 'export', executeAt: null }),
+      readmitted,
+      receipt({
+        id: '019a154b-0000-7000-8000-000000000044',
+        origin: 'self',
+        requestedByYou: false,
+        membershipIds: [otherMember],
+      }),
     ];
     const test = fixture({ listDataRequests: page(items, 'raw-api-cursor') });
     const view = ready(await test.load('/studio/data-requests'), 'data_requests');
@@ -182,16 +210,25 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
       { kind: 'getOwnCapabilities' },
       { kind: 'getOwnProfile' },
       { kind: 'listDataRequests', limit: 20 },
-      // One read per distinct subject, never per request.
+      // One read per distinct first Membership, never per request, and none for the administrator's erasure.
       { kind: 'getMembership', id: memberId },
+      { kind: 'getMembership', id: revokedMember },
       { kind: 'getMembership', id: otherMember },
     ]);
     expect(view.endCursor).toBe('sealed-14');
     expect(test.wrap).toHaveBeenCalledExactlyOnceWith('raw-api-cursor');
+    const subject = (id: string) => ({
+      membershipId: id,
+      displayName: 'Subject ' + id.slice(-2),
+      status: 'Active',
+      organizationScoped: false,
+    });
     expect(view.items.map((item) => item.subject)).toEqual([
-      { displayName: 'Subject 12', status: 'Revoked', organizationScoped: false },
-      { displayName: 'Subject 12', status: 'Revoked', organizationScoped: false },
-      { displayName: 'Subject 13', status: 'Revoked', organizationScoped: false },
+      'revoked',
+      subject(memberId),
+      // Its tombstone's read was refused; the other request's read of its current Membership names it.
+      subject(otherMember),
+      subject(otherMember),
     ]);
     const serialized = JSON.stringify(view);
     for (const secret of [userId, 'raw-api-cursor', '0000000000aa', '"tr"', 'roleIds'])
@@ -199,12 +236,72 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     expect(Date.parse(view.preparedAt)).toBeGreaterThan(0);
   });
 
+  it.each([
+    ['an administrator erasure', { origin: 'administrator' }],
+    ['an erasure awaiting the operator', { origin: 'self', status: 'awaiting_privileged_step' }],
+    ['a completed erasure', { origin: 'self', status: 'completed' }],
+    ['a fan-out erasure that completed', { origin: 'closure_fanout', status: 'completed' }],
+  ] as const)(
+    'never reads the subject of %s, whose Memberships are all Revoked',
+    async (_, value) => {
+      const test = fixture({
+        listDataRequests: page([receipt({ ...value, membershipIds: [memberId, otherMember] })]),
+        getDataRequest: success(receipt({ ...value, membershipIds: [memberId, otherMember] })),
+      });
+      for (const target of ['/studio/data-requests', '/studio/data-requests/' + requestId]) {
+        const result = await test.load(target);
+        if (result.outcome.kind !== 'ready') throw new Error('Expected a ready page');
+        const view = result.outcome.view;
+        const item =
+          view.kind === 'data_requests'
+            ? view.items[0]!
+            : (view as { request: PageDataRequest }).request;
+        expect(item.subject).toBe('revoked');
+      }
+      expect(test.operations().map((operation) => operation.kind)).not.toContain('getMembership');
+    },
+  );
+
+  it('keeps reading the subject of a scheduled or running self-filed erasure and of every export', async () => {
+    const items = [
+      receipt({ origin: 'self', membershipIds: [memberId] }),
+      receipt({
+        id: '019a154b-0000-7000-8000-000000000045',
+        origin: 'self',
+        status: 'fulfilling',
+        membershipIds: [otherMember],
+      }),
+      receipt({
+        id: '019a154b-0000-7000-8000-000000000046',
+        kind: 'export',
+        status: 'completed',
+        executeAt: null,
+        membershipIds: [revokedMember],
+      }),
+    ];
+    const test = fixture({ listDataRequests: page(items) });
+    const view = ready(await test.load('/studio/data-requests'), 'data_requests');
+    expect(
+      test
+        .operations()
+        .filter((operation) => operation.kind === 'getMembership')
+        .map((operation) => (operation as { id: string }).id),
+    ).toEqual([memberId, otherMember, revokedMember]);
+    // An export of a revoked person is not known to be Revoked: its refused read leaves it unnamed.
+    expect(
+      view.items.map((item) =>
+        typeof item.subject === 'object' ? (item.subject?.membershipId ?? null) : item.subject,
+      ),
+    ).toEqual([memberId, otherMember, null]);
+  });
+
   it('keeps a page usable when a subject read is refused, and never fails it for a name', async () => {
-    const test = fixture({ listDataRequests: page([receipt()]) }, { [memberId]: refused(404) });
+    const exported = receipt({ kind: 'export', executeAt: null });
+    const test = fixture({ listDataRequests: page([exported]) }, { [memberId]: refused(404) });
     const view = ready(await test.load('/studio/data-requests'), 'data_requests');
     expect(view.items[0]!.subject).toBeNull();
     const mismatch = fixture(
-      { listDataRequests: page([receipt()]) },
+      { listDataRequests: page([exported]) },
       { [memberId]: success(membership(otherMember)) },
     );
     expect(
@@ -212,24 +309,29 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     ).toBeNull();
   });
 
-  it('reads subjects four at a time and lets no read outlive a failed page', async () => {
-    const ids = Array.from(
-      { length: 12 },
-      (_, index) => '019a154b-0000-7000-8000-0000000001' + String(index).padStart(2, '0'),
-    );
-    const listed = page(
+  const exportsOf = (ids: readonly string[]) =>
+    page(
       ids.map((id, index) =>
         receipt({
           id: '019a154b-0000-7000-8000-0000000002' + String(index).padStart(2, '0'),
+          kind: 'export',
+          executeAt: null,
           membershipIds: [id],
         }),
       ),
     );
+  const twelve = Array.from(
+    { length: 12 },
+    (_, index) => '019a154b-0000-7000-8000-0000000001' + String(index).padStart(2, '0'),
+  );
+
+  it('reads subjects four at a time and lets no read outlive a failed page', async () => {
+    const ids = twelve;
     let open = 0;
     let peak = 0;
     let settled = 0;
     const gate: (() => void)[] = [];
-    const test = fixture({ listDataRequests: listed });
+    const test = fixture({ listDataRequests: exportsOf(ids) });
     const common = test.read.getMockImplementation()!;
     test.read.mockImplementation(async (operation) => {
       if (operation.kind !== 'getMembership') return common(operation);
@@ -258,8 +360,57 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     expect(settled).toBe(started.length);
   });
 
+  const stopsAfter = async (failure: (id: string) => NativeOperationResult | never) => {
+    const ids = twelve;
+    const test = fixture({ listDataRequests: exportsOf(ids) });
+    const common = test.read.getMockImplementation()!;
+    test.read.mockImplementation(async (operation) =>
+      operation.kind === 'getMembership' && operation.id === ids[1]
+        ? failure(operation.id)
+        : common(operation),
+    );
+    const view = ready(await test.load('/studio/data-requests'), 'data_requests');
+    const started = test
+      .operations()
+      .filter((operation) => operation.kind === 'getMembership')
+      .map((operation) => (operation as { id: string }).id);
+    expect(started).toContain(ids[1]);
+    // No identifier is taken once the failure is known; every unread or failed subject stays unnamed.
+    expect(started.length).toBeLessThan(ids.length);
+    for (const item of view.items)
+      expect(item.subject === null).toBe(
+        !started.includes(item.membershipIds[0]!) || item.membershipIds[0] === ids[1],
+      );
+  };
+
+  it.each([429, 500, 503])(
+    'stops further subject reads after a %s and still renders the page',
+    (status) => stopsAfter(() => refused(status)),
+  );
+
+  it.each(['response', 'deadline'] as const)(
+    'degrades a thrown %s transport failure of a subject read instead of failing the page',
+    (reason) =>
+      stopsAfter(() => {
+        throw new NativeApiError(reason);
+      }),
+  );
+
+  it('still fails the page for a cancelled subject read', async () => {
+    const test = fixture(
+      { listDataRequests: exportsOf([memberId]) },
+      { [memberId]: { kind: 'cancelled' } },
+    );
+    await expect(test.load('/studio/data-requests')).rejects.toThrow(BffSessionError);
+  });
+
   it('withholds the pages before any data-request read without the membership capability', async () => {
-    for (const target of ['/studio/data-requests', '/studio/data-requests/' + requestId]) {
+    for (const target of [
+      '/studio/data-requests',
+      '/studio/data-requests/' + requestId,
+      erasurePage,
+      '/studio/data-requests/erasure',
+    ]) {
       const test = fixture({
         getOwnCapabilities: success({ ...capabilities, canManageMemberships: false }),
       });
@@ -282,13 +433,20 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
       await test.load('/studio/data-requests/' + requestId + '?result=erasure'),
       'data_request',
     );
-    expect(test.operations().slice(2)).toEqual([
+    // The administrator's erasure concerns a Revoked person: no member read.
+    expect(test.operations().slice(2)).toEqual([{ kind: 'getDataRequest', id: requestId }]);
+    expect(view.result).toBe('erasure');
+    expect(view.request.subject).toBe('revoked');
+    expect(view.request.membershipIds).toEqual(many.slice(0, 20));
+    expect(view.request.membershipCount).toBe(30);
+    const exported = fixture({
+      getDataRequest: success(receipt({ kind: 'export', executeAt: null, membershipIds: many })),
+    });
+    await exported.load('/studio/data-requests/' + requestId);
+    expect(exported.operations().slice(2)).toEqual([
       { kind: 'getDataRequest', id: requestId },
       { kind: 'getMembership', id: many[0] },
     ]);
-    expect(view.result).toBe('erasure');
-    expect(view.request.membershipIds).toEqual(many.slice(0, 20));
-    expect(view.request.membershipCount).toBe(30);
     expect(
       ready(
         await fixture({ getDataRequest: success(receipt()) }).load(
@@ -320,6 +478,61 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     expect(isNativeReturnPath('/studio/data-requests/' + requestId + '?result=export')).toBe(false);
   });
 
+  it('admits the erasure page with only one canonical Membership and reads nothing about it', async () => {
+    expect(nativeDocumentPlan(erasurePage, false)).toEqual({
+      target: '/studio/data-requests/erasure',
+      kind: 'data_request_erasure',
+      limit: 20,
+      selectedFieldId: null,
+      consentCursor: undefined,
+      membershipId: memberId,
+    });
+    expect(nativeDocumentPlan('/studio/data-requests/erasure', false)).toMatchObject({
+      kind: 'data_request_erasure',
+      membershipId: null,
+    });
+    for (const target of [
+      erasurePage.toUpperCase(),
+      '/studio/data-requests/erasure?membership=' + memberId.toUpperCase(),
+      '/studio/data-requests/erasure?membership=019a154b-0000-4000-8000-000000000012',
+      '/studio/data-requests/erasure?membership=x',
+      '/studio/data-requests/erasure?membership=',
+      erasurePage + '&membership=' + otherMember,
+      erasurePage + '&result=erasure',
+      erasurePage + '&cursor=YWJj',
+      '/studio/data-requests/erasure?result=erasure',
+      '/studio/data-requests/erasure/' + memberId,
+      '/studio/members/' + memberId + '?membership=' + memberId,
+      '/studio/data-requests/' + requestId + '?membership=' + memberId,
+    ])
+      expect(() => nativeDocumentPlan(target, false), target).toThrow();
+    const test = fixture({});
+    const view = ready(await test.load(erasurePage), 'data_request_erasure');
+    expect(view).toEqual({ kind: 'data_request_erasure', membershipId: memberId });
+    expect(test.operations()).toEqual([{ kind: 'getOwnCapabilities' }, { kind: 'getOwnProfile' }]);
+    // The erasure page is the one recovery and redirect target that carries a query; queries never return authority.
+    expect(dataRequestErasureTarget(memberId)).toBe(erasurePage);
+    expect(() => dataRequestErasureTarget(memberId.toUpperCase())).toThrow();
+    expect(isNativeReturnPath('/studio/data-requests/erasure')).toBe(true);
+    expect(isNativeReturnPath(erasurePage)).toBe(false);
+    expect(isBffRecoveryTarget(erasurePage)).toBe(true);
+    expect(isBffRedirectTarget(erasurePage)).toBe(true);
+    const result = '/studio/data-requests/' + requestId + '?result=erasure';
+    expect(isBffRecoveryTarget(result)).toBe(false);
+    expect(isBffRedirectTarget(result)).toBe(true);
+    for (const hostile of [
+      erasurePage + '&x=1',
+      erasurePage.replace('membership', 'member'),
+      '/studio/data-requests/' + requestId + '?result=closure',
+      '/studio/data-requests/' + requestId + '?result=export&result=erasure',
+      '//other.example' + erasurePage,
+      'https://other.example' + result,
+    ]) {
+      expect(isBffRecoveryTarget(hostile), hostile).toBe(false);
+      expect(isBffRedirectTarget(hostile), hostile).toBe(false);
+    }
+  });
+
   it("shows a member's own requests only in the member's exact group, and an unavailable list as such", async () => {
     const mine = receipt({ membershipIds: [otherMember, memberId] });
     const theirs = receipt({
@@ -335,8 +548,9 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     expect(view.dataRequests).toMatchObject({ complete: false });
     expect(view.dataRequests!.items!.map((item) => item.id)).toEqual([mine.id]);
     expect(view.dataRequests!.items![0]!.subject).toEqual({
+      membershipId: memberId,
       displayName: 'Subject 12',
-      status: 'Revoked',
+      status: 'Active',
       organizationScoped: false,
     });
     // Another group's member: the list would be the wrong group's, so it is not read.
@@ -356,6 +570,30 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     const unavailable = fixture({ listDataRequests: refused(503) });
     const degraded = ready(await unavailable.load('/studio/members/' + memberId), 'member');
     expect(degraded.dataRequests).toMatchObject({ items: null, complete: false });
+    // A transport failure (deadline, oversized or non-JSON body) also hides only the section.
+    for (const reason of ['response', 'deadline'] as const) {
+      const thrown = fixture({});
+      const common = thrown.read.getMockImplementation()!;
+      thrown.read.mockImplementation(async (operation) => {
+        if (operation.kind === 'listDataRequests') throw new NativeApiError(reason);
+        return common(operation);
+      });
+      const result = await thrown.load('/studio/members/' + memberId);
+      expect(result.outcome.kind).toBe('ready');
+      expect(ready(result, 'member').dataRequests).toMatchObject({ items: null, complete: false });
+    }
+    // A session failure or cancellation still fails the page.
+    for (const failure of [new BffSessionError('revoked'), new BffSessionError('cancelled')]) {
+      const failing = fixture({});
+      const common = failing.read.getMockImplementation()!;
+      failing.read.mockImplementation(async (operation) => {
+        if (operation.kind === 'listDataRequests') throw failure;
+        return common(operation);
+      });
+      await expect(failing.load('/studio/members/' + memberId)).rejects.toBe(failure);
+    }
+    const cancelled = fixture({ listDataRequests: { kind: 'cancelled' } });
+    await expect(cancelled.load('/studio/members/' + memberId)).rejects.toThrow(BffSessionError);
     const denied = fixture({
       getOwnCapabilities: success({ ...capabilities, canManageMemberships: false }),
     });
@@ -384,6 +622,12 @@ describe('administrator data-request forms (ADR-0106 §§ 3, 10, 11; ADR-0107 §
       expect(BFF_ADMIN_FORMS[path]).toBe(DATA_REQUEST_ADMIN_FORMS[path]);
       expect(bffActionDocumentTarget(path)).toBe(true);
     }
+    // The person's data-request routes answer their own native document, never an action document.
+    expect(DATA_REQUEST_DOCUMENT_PATHS.length).toBeGreaterThan(10);
+    for (const path of DATA_REQUEST_DOCUMENT_PATHS) {
+      expect(bffActionDocumentTarget(path), path).toBe(false);
+      expect(paths).not.toContain(path);
+    }
   });
 
   it('maps each form to its one operation and fixed destinations', () => {
@@ -395,13 +639,14 @@ describe('administrator data-request forms (ADR-0106 §§ 3, 10, 11; ADR-0107 §
       },
       destination: '/studio/members/' + memberId,
     });
+    // A Revoked Membership has no member page: the erasure recovers to the page it was filed from.
     expect(form('/api/studio/data-request-erasure', { ...create, confirm: 'erase' })).toEqual({
       operation: {
         kind: 'createDataErasureForSubject',
         membershipId: memberId,
         idempotencyKey: key,
       },
-      destination: '/studio/members/' + memberId,
+      destination: erasurePage,
     });
     expect(form('/api/studio/data-request-cancel', write)).toEqual({
       operation: {
@@ -571,6 +816,11 @@ const REFUSALS: readonly DataRequestAdministrationRefusal[] = [
 ];
 
 describe('administrator data-request refusals (ADR-0106 § 7)', () => {
+  it('maps every reason to the refusal of its own name', () => {
+    for (const [reason, refusal] of Object.entries(DATA_REQUEST_ADMIN_REFUSALS))
+      expect(refusal, reason).toBe(reason.slice('lockey_'.length));
+  });
+
   it('names every reason the administrator routes or the Identity code can answer', () => {
     const reasons = administratorReasons();
     expect(reasons.size).toBeGreaterThan(15);
@@ -641,7 +891,7 @@ describe('administrator data-request recovery document', () => {
       renderBffDocument(site, {
         kind: 'mutation_error',
         action: '/api/studio/data-request-erasure',
-        destination: '/studio/members/' + memberId,
+        destination: erasurePage,
         fields: [
           ['csrfToken', csrfToken],
           ['idempotencyKey', key],
@@ -665,11 +915,9 @@ describe('administrator data-request recovery document', () => {
         dataRequestRefusalSentence(refusal, admin, dataRequest),
       );
       expect(document.querySelector('form')).toBeNull();
-      expect(document.querySelector('a[href="/studio/members/' + memberId + '"]')).not.toBeNull();
+      expect(document.querySelector('a[href="' + erasurePage + '"]')).not.toBeNull();
       expect(document.body.textContent).not.toMatch(/private-|lockey_/);
-      expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(
-        '/studio/members/' + memberId,
-      );
+      expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(erasurePage);
       expect(document.querySelector('a[href="/account/data"]') !== null).toBe(
         refusal === 'subject_is_requester',
       );

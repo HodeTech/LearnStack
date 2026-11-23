@@ -5,6 +5,7 @@ import {
   administratorMayCancel,
   administratorMayRevoke,
   dataRequestDisplayState,
+  dataRequestResultCurrent,
 } from './admin-data-request-labels';
 import { PreparedAccountPage, accountPageMetadata } from './shell';
 import { dataRequestCancellable, dataRequestState } from '../../server/auth/data-request-html';
@@ -22,6 +23,12 @@ vi.mock('@/client/bff-session', () => ({ extendBffSession: vi.fn() }));
 
 const requestId = '019a154b-0000-7000-8000-000000000041';
 const preparedAt = '2026-11-23T12:00:00.000Z';
+const named = {
+  membershipId: uiMember.membershipId,
+  displayName: '<Subject>',
+  status: 'Active',
+  organizationScoped: false,
+} as const;
 const request = (value: Partial<PageDataRequest> = {}): PageDataRequest => ({
   id: requestId,
   kind: 'erasure',
@@ -39,7 +46,8 @@ const request = (value: Partial<PageDataRequest> = {}): PageDataRequest => ({
   requestedByYou: true,
   membershipIds: [uiMember.membershipId],
   membershipCount: 1,
-  subject: { displayName: '<Subject>', status: 'Revoked', organizationScoped: false },
+  // An administrator's erasure is filed only for a Revoked Membership, which is never read (ADR-0106 § 3).
+  subject: 'revoked',
   ...value,
 });
 const exported = (value: Partial<PageDataRequest> = {}) =>
@@ -49,6 +57,7 @@ const exported = (value: Partial<PageDataRequest> = {}) =>
     executeAt: null,
     completedAt: '2026-11-23T10:05:00.0000000+00:00',
     updatedAt: '2026-11-23T10:05:00.0000000+00:00',
+    subject: named,
     artifact: {
       id: '019a154b-0000-7000-8000-000000000042',
       status: 'available',
@@ -91,8 +100,9 @@ const detail = (
   value: PageDataRequest,
   result: Extract<PageView, { kind: 'data_request' }>['result'] = null,
 ): PageView => ({ kind: 'data_request', request: value, result, preparedAt });
+// The member page exists only for an Active or Suspended Membership: the API answers 404 for a Revoked one.
 const memberView = (
-  status: 'Active' | 'Suspended' | 'Revoked',
+  status: 'Active' | 'Suspended',
   dataRequests: Extract<PageView, { kind: 'member' }>['dataRequests'],
   inCurrentScope = true,
 ): PageView => ({
@@ -101,11 +111,15 @@ const memberView = (
     ...uiMember,
     status,
     inCurrentScope,
-    canChangeStatus: status !== 'Revoked',
+    canChangeStatus: true,
     canReplaceRoles: false,
   },
   roles: null,
   ...(dataRequests ? { dataRequests } : {}),
+});
+const erasurePage = (membershipId: string | null = uiMember.membershipId): PageView => ({
+  kind: 'data_request_erasure',
+  membershipId,
 });
 
 describe('Studio data requests: the list (ADR-0106 §§ 6, 13)', () => {
@@ -131,11 +145,17 @@ describe('Studio data requests: the list (ADR-0106 §§ 6, 13)', () => {
       expect(headings.map((link) => link.getAttribute('href'))).toEqual(
         items.map((item) => '/studio/data-requests/' + item.id),
       );
-      expect(headings[0]!.querySelector('bdi')?.textContent).toBe('<Subject>');
+      expect(headings[0]!.querySelector('bdi')).toBeNull();
+      expect(headings[1]!.querySelector('bdi')?.textContent).toBe('<Subject>');
       expect(document.querySelector('subject')).toBeNull();
+      // Each flex link holds one element, so the space before the name is never a flex item's trailing space.
+      for (const link of headings) {
+        expect(link.childNodes).toHaveLength(1);
+        expect((link.firstChild as Element).tagName).toBe('SPAN');
+      }
       if (locale === 'en') {
         expect(headings.map((link) => link.textContent)).toEqual([
-          'Erasure: <Subject>',
+          'Erasure: Revoked member',
           'Data export: <Subject>',
           'Erasure: Member name unavailable',
         ]);
@@ -207,13 +227,38 @@ describe('Studio data requests: one request', () => {
       },
       destination: '/studio/data-requests/' + requestId,
     });
-    expect(document.querySelector('.auth-resource-name a, dd a')?.getAttribute('href')).toBe(
-      '/studio/members/' + uiMember.membershipId,
+    // A Revoked subject has no member page: a truthful label, and no link to a page that answers 404.
+    expect(document.querySelector('.auth-resource-name a, dd a')).toBeNull();
+    expect(document.querySelector('.auth-resource-name')?.textContent).toBe(
+      'Erasure: Revoked member',
     );
     expect(document.body.textContent).toContain('Starts after');
     expect(document.body.textContent).toContain(
       'Until then the person can cancel it, and so can the administrator who asked for it.',
     );
+  });
+
+  it('links a named subject to the Membership whose read named it, and an unnamed one nowhere', () => {
+    const other = '019a154b-0000-7000-8000-000000000077';
+    const { document } = documentFor(
+      detail(exported({ subject: { ...named, membershipId: other } })),
+    );
+    const link = document.querySelector('dd a')!;
+    expect(link.getAttribute('href')).toBe('/studio/members/' + other);
+    expect(link.childNodes).toHaveLength(1);
+    expect(link.querySelector('span > bdi')?.textContent).toBe('<Subject>');
+    const unnamed = documentFor(detail(exported({ subject: null }))).document;
+    expect(unnamed.querySelector('dd a')).toBeNull();
+    expect(unnamed.body.textContent).toContain('Member name unavailable');
+  });
+
+  it("does not credit an administrator with a self-filed erasure's cancellation", () => {
+    const self = documentFor(detail(request({ origin: 'self', requestedByYou: false })));
+    const text = self.document.body.textContent!;
+    expect(text).toContain(
+      'Erasure starts after the time shown. Until then the person can cancel it.',
+    );
+    expect(text).not.toContain('the administrator who asked for it');
   });
 
   it('offers no cancellation once the window ended, nor to anyone but the administrator who filed it', () => {
@@ -304,8 +349,52 @@ describe('Studio data requests: one request', () => {
       expect((await accountPageMetadata('data_request')).title).toBe(
         locale === 'en' ? 'Data request' : 'Veri talebi',
       );
+      // The person cancelled it since: a reloaded, restored or shared URL no longer announces the filing.
+      const stale = administrationSnapshot(
+        detail(
+          request({ status: 'cancelled', updatedAt: '2026-11-23T11:00:00.0000000+00:00' }),
+          'erasure',
+        ),
+        inLocale(locale),
+      );
+      const html = renderToStaticMarkup(
+        <PreparedAccountPage snapshot={stale} kind="data_request" />,
+      );
+      expect(
+        new DOMParser().parseFromString(html, 'text/html').querySelector('[role="status"]'),
+      ).toBeNull();
+      vi.mocked(optionalPreparedPage).mockResolvedValueOnce({
+        snapshot: stale,
+        assertActive: () => undefined,
+      } as never);
+      expect((await accountPageMetadata('data_request')).title).toBe(
+        locale === 'en' ? 'Data request' : 'Veri talebi',
+      );
     },
   );
+
+  it('keeps a result only while it describes the request as prepared', () => {
+    const at = preparedAt;
+    const cases: [Parameters<typeof dataRequestResultCurrent>[0], PageDataRequest, boolean][] = [
+      ['erasure', request(), true],
+      ['erasure', request({ executeAt: '2026-11-23T11:00:00.0000000+00:00' }), false],
+      ['erasure', request({ status: 'cancelled' }), false],
+      ['erasure', exported({ status: 'requested', artifact: null }), false],
+      ['export', exported({ status: 'requested', artifact: null }), true],
+      ['export', exported({ status: 'fulfilling', artifact: null }), true],
+      ['export', exported(), true],
+      ['export', exported({ artifact: { ...exported().artifact!, readable: false } }), false],
+      ['export', exported({ status: 'failed', artifact: null }), false],
+      ['export', request(), false],
+      ['cancelled', request({ status: 'cancelled' }), true],
+      ['cancelled', request(), false],
+      ['revoked', exported({ artifact: { ...exported().artifact!, readable: false } }), true],
+      ['revoked', exported(), false],
+      ['revoked', exported({ artifact: null }), false],
+    ];
+    for (const [result, item, expected] of cases)
+      expect(dataRequestResultCurrent(result, item, at), result + ' ' + item.status).toBe(expected);
+  });
 
   it('explains what was kept, why a request stopped or failed, and every Membership it covers', () => {
     const completed = request({
@@ -329,6 +418,21 @@ describe('Studio data requests: one request', () => {
     expect(text).toContain('This list is not complete');
     expect(text).toContain('Membership record 2');
     expect(text).toContain('Only the first 20 records are listed.');
+    // An erasure that ran leaves every record a Revoked tombstone: none has a member page.
+    expect(
+      documentFor(detail(completed)).document.querySelectorAll('li a[href^="/studio/members/"]'),
+    ).toHaveLength(0);
+    const exportRecords = documentFor(
+      detail(exported({ membershipIds: completed.membershipIds, membershipCount: 2 })),
+    ).document.querySelectorAll<HTMLAnchorElement>('li > a[href^="/studio/members/"]');
+    expect([...exportRecords].map((link) => link.getAttribute('href'))).toEqual(
+      completed.membershipIds.map((id) => '/studio/members/' + id),
+    );
+    for (const link of exportRecords) {
+      expect(link.childNodes).toHaveLength(1);
+      expect(link.firstElementChild?.tagName).toBe('SPAN');
+    }
+    expect(exportRecords[1]!.textContent).toBe('Membership record 2');
     expect(text).not.toMatch(/\byou gave\b|\byour\b/i);
     const blocked = documentFor(
       detail(
@@ -358,7 +462,7 @@ describe('Studio data requests: one request', () => {
 describe("Studio data requests: the member's section", () => {
   const empty = { items: [], complete: true, preparedAt };
 
-  it('files an export for this Membership and states that erasure needs a Revoked membership', () => {
+  it('files an export for this Membership and sends erasure through the revocation', () => {
     const { document, snapshot } = documentFor(memberView('Active', empty));
     const section = document.querySelector(
       'section[aria-labelledby="member-data-requests-title"]',
@@ -379,6 +483,12 @@ describe("Studio data requests: the member's section", () => {
     expect(section.textContent).toContain(
       'This membership is still active or suspended. It has to end before an administrator can ask for its erasure.',
     );
+    expect(section.textContent).toContain(
+      'The revocation is recorded as its own action, and the page where its erasure is asked for then opens.',
+    );
+    // The erasure itself is filed on the page the revocation leads to, never here.
+    expect(document.querySelector('form[action="/api/studio/data-request-erasure"]')).toBeNull();
+    expect(section.querySelector('details')).toBeNull();
     expect(section.textContent).toContain('No data requests about this member');
     // Every idempotency key on the member page stays distinct.
     const keys = [
@@ -387,53 +497,12 @@ describe("Studio data requests: the member's section", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it.each(['en', 'tr'] as const)(
-    'confirms an erasure of a Revoked membership explicitly, stating what goes and what stays (%s)',
-    (locale) => {
-      const { document, snapshot } = documentFor(memberView('Revoked', empty), inLocale(locale));
-      const form = forms(document).find(
-        (candidate) => candidate.getAttribute('action') === '/api/studio/data-request-erasure',
-      )!;
-      const disclosure = form.closest('details.auth-danger')!;
-      expect(disclosure.querySelectorAll('ul')).toHaveLength(2);
-      expect(disclosure.textContent).toContain(locale === 'en' ? '24 hours' : '24 saat');
-      expect(disclosure.textContent).toContain(
-        locale === 'en'
-          ? 'the person can cancel it on their own data page'
-          : 'kişi talebi kendi veri sayfasından',
-      );
-      const fieldset = form.querySelector('fieldset')!;
-      expect(fieldset.querySelector('legend')?.textContent).toBe(
-        locale === 'en' ? 'Confirm the erasure' : 'Silme talebini onaylayın',
-      );
-      const box = fieldset.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
-      expect(box.required).toBe(true);
-      expect(box.getAttribute('aria-required')).toBe('true');
-      expect(box.closest('label')?.textContent).toContain(locale === 'en' ? 'Required' : 'Zorunlu');
-      expect(form.checkValidity()).toBe(false);
-      box.checked = true;
-      expect(form.checkValidity()).toBe(true);
-      expect(bffAdministrationForm('/api/studio/data-request-erasure', fields(form))).toEqual({
-        operation: {
-          kind: 'createDataErasureForSubject',
-          membershipId: uiMember.membershipId,
-          idempotencyKey: snapshot.formKeys[33],
-        },
-        destination: '/studio/members/' + uiMember.membershipId,
-      });
-      expect(form.querySelector('button')?.getAttribute('aria-describedby')).toBe(
-        'member-data-erasure-timing',
-      );
-      expect(document.getElementById('member-data-erasure-timing')).not.toBeNull();
-    },
-  );
-
   it('withholds a filing the visible list already proves futile, and lists only this member', () => {
     const active = documentFor(
-      memberView('Revoked', {
+      memberView('Suspended', {
         items: [
           exported({ status: 'requested', artifact: null, completedAt: null }),
-          request({ id: '019a154b-0000-7000-8000-000000000045' }),
+          request({ id: '019a154b-0000-7000-8000-000000000045', origin: 'self' }),
         ],
         complete: true,
         preparedAt,
@@ -443,7 +512,6 @@ describe("Studio data requests: the member's section", () => {
     expect(active.body.textContent).toContain(
       'An export for this member is already being prepared.',
     );
-    expect(active.body.textContent).toContain('already scheduled or in progress');
     expect(
       [
         ...active.querySelectorAll(
@@ -477,7 +545,7 @@ describe("Studio data requests: the member's section", () => {
   });
 
   it('sends another scope to its own access, and shows nothing without the capability', () => {
-    const outside = documentFor(memberView('Revoked', undefined, false)).document;
+    const outside = documentFor(memberView('Active', undefined, false)).document;
     expect(forms(outside)).toHaveLength(0);
     expect(outside.body.textContent).toContain("made in the member's own scope");
     const { snapshot } = documentFor(memberView('Active', empty));
@@ -485,6 +553,92 @@ describe("Studio data requests: the member's section", () => {
       capabilities: { ...snapshot.capabilities!, canManageMemberships: false },
     }).document;
     expect(without.querySelector('#member-data-requests-title')).toBeNull();
+  });
+});
+
+describe('Studio data requests: the erasure page of a Revoked Membership (ADR-0106 §§ 3, 11)', () => {
+  it.each(['en', 'tr'] as const)(
+    'confirms the erasure explicitly, stating what goes and what stays (%s)',
+    (locale) => {
+      const { document, snapshot } = documentFor(erasurePage(), inLocale(locale));
+      expect(document.querySelectorAll('h1')).toHaveLength(1);
+      expect(document.querySelector('h1')?.textContent).toBe(
+        locale === 'en'
+          ? "Erase a revoked member's data"
+          : 'Sonlandırılmış bir üyenin verilerini sil',
+      );
+      const text = document.querySelector('.auth-data-requests')!.textContent!;
+      expect(text).toContain(
+        locale === 'en' ? 'This membership was revoked.' : 'Bu üyelik sonlandırıldı.',
+      );
+      // Nothing about the Membership was read: no name, and no link to a member page that answers 404.
+      expect(document.querySelector('a[href^="/studio/members/"]')).toBeNull();
+      expect(document.body.textContent).not.toContain(uiMember.membershipId);
+      const [form, ...rest] = forms(document);
+      expect(rest).toHaveLength(0);
+      expect(form!.getAttribute('action')).toBe('/api/studio/data-request-erasure');
+      const disclosure = form!.closest('details.auth-danger')!;
+      expect(disclosure.querySelector('summary')?.textContent).toBe(
+        locale === 'en' ? 'Review the erasure' : 'Silme işlemini gözden geçir',
+      );
+      expect(disclosure.querySelectorAll('h2')).toHaveLength(2);
+      expect(disclosure.querySelectorAll('ul')).toHaveLength(2);
+      expect(disclosure.textContent).toContain(locale === 'en' ? '24 hours' : '24 saat');
+      expect(disclosure.textContent).toContain(
+        locale === 'en'
+          ? 'the person can cancel it on their own data page'
+          : 'kişi talebi kendi veri sayfasından',
+      );
+      expect(disclosure.textContent).toContain(
+        locale === 'en'
+          ? 'If the person is admitted to this scope again within those 24 hours, the erasure still runs.'
+          : 'Kişi bu 24 saat içinde bu kapsama yeniden üye olsa bile silme işlemi yine yapılır.',
+      );
+      const fieldset = form!.querySelector('fieldset')!;
+      expect(fieldset.querySelector('legend')?.textContent).toBe(
+        locale === 'en' ? 'Confirm the erasure' : 'Silme talebini onaylayın',
+      );
+      const box = fieldset.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+      expect(box.required).toBe(true);
+      expect(box.getAttribute('aria-required')).toBe('true');
+      expect(box.closest('label')?.textContent).toContain(locale === 'en' ? 'Required' : 'Zorunlu');
+      expect(form!.checkValidity()).toBe(false);
+      box.checked = true;
+      expect(form!.checkValidity()).toBe(true);
+      const values = fields(form!);
+      expect([...values.keys()]).toEqual([
+        'csrfToken',
+        'idempotencyKey',
+        'membershipId',
+        'confirm',
+      ]);
+      expect(bffAdministrationForm('/api/studio/data-request-erasure', values)).toEqual({
+        operation: {
+          kind: 'createDataErasureForSubject',
+          membershipId: uiMember.membershipId,
+          idempotencyKey: snapshot.formKeys[0],
+        },
+        destination: '/studio/data-requests/erasure?membership=' + uiMember.membershipId,
+      });
+      expect(form!.querySelector('button')?.getAttribute('aria-describedby')).toBe(
+        'data-erasure-timing',
+      );
+      expect(document.getElementById('data-erasure-timing')).not.toBeNull();
+      expect(document.querySelector('script')).toBeNull();
+    },
+  );
+
+  it('offers no filing when the page was opened without a Membership, nor without the capability', () => {
+    const missing = documentFor(erasurePage(null)).document;
+    expect(forms(missing)).toHaveLength(0);
+    expect(missing.body.textContent).toContain('No membership was named.');
+    expect(missing.querySelector('.auth-data-requests a[href="/studio/members"]')).not.toBeNull();
+    const { snapshot } = documentFor(erasurePage());
+    const without = documentFor(erasurePage(), {
+      capabilities: { ...snapshot.capabilities!, canManageMemberships: false },
+    }).document;
+    expect(forms(without)).toHaveLength(0);
+    expect(without.querySelector('.auth-data-requests')).toBeNull();
   });
 });
 

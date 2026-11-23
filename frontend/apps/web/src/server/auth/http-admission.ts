@@ -9,7 +9,7 @@ import { readPublicAdmission } from '../public-admission';
 import type { BffPageRenderer } from './http-protocol';
 import { bffRequestOwner } from './request-owner';
 import { bffSessionProtocol } from './session-owner';
-import { isNativeReturnPath } from './session-path';
+import { isBffRedirectTarget } from './session-path';
 
 /** Host admission must already be published by the real bootstrap. */
 export async function admitBffHttp(
@@ -53,10 +53,11 @@ export async function admitBffHttp(
     const headers = new Headers(response.headers);
     const location = headers.get('location');
     // Next's middleware adapter requires an absolute Location. Only the independently
-    // verified host and the owner's closed return paths can form a local redirect.
+    // verified host and the owner's closed destinations (return paths, and the data-request
+    // pages with their one closed query) can form a local redirect.
     if (location?.startsWith('/')) {
       if (
-        !isNativeReturnPath(location) &&
+        !isBffRedirectTarget(location) &&
         !['/api/auth/entry', '/api/auth/signin', '/invitations', '/invitations/confirm'].includes(
           location,
         )

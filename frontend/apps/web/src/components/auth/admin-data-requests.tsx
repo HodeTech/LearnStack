@@ -17,6 +17,7 @@ import {
   dataRequestKindLabel,
   dataRequestLastRefusal,
   dataRequestNextStep,
+  dataRequestResultCurrent,
   dataRequestResultSentence,
   dataRequestRetainedLabel,
   dataRequestStateIcon,
@@ -39,7 +40,6 @@ const ICONS = {
   problem: 'M1 21h22L12 2 1 21Zm12-3h-2v-2h2v2Zm0-4h-2v-4h2v4Z',
 } as const;
 const ACTIVE_EXPORT = ['requested', 'fulfilling'];
-const ACTIVE_ERASURE = ['scheduled', 'fulfilling', 'awaiting_privileged_step'];
 
 function Instant({ value, locale }: { readonly value: string; readonly locale: string }) {
   const text = new Intl.DateTimeFormat(locale, {
@@ -66,7 +66,10 @@ function Count({ value, locale }: { readonly value: number; readonly locale: str
   return <data value={value}>{new Intl.NumberFormat(locale).format(value)}</data>;
 }
 
-/** Who the request concerns, as the member list shows a member: the name, or a truthful unavailable label. */
+/**
+ * Who the request concerns, as the member list shows a member: the name, or a truthful label when no Membership of
+ * the snapshot could be named (all Revoked, so none was read, or no read answered).
+ */
 function SubjectName({
   item,
   admin,
@@ -74,6 +77,7 @@ function SubjectName({
   readonly item: PageDataRequest;
   readonly admin: AdminCopy;
 }) {
+  if (item.subject === 'revoked') return <>{admin('data_requests.subject_revoked')}</>;
   if (!item.subject) return <>{admin('data_requests.name_unavailable')}</>;
   return <bdi>{item.subject.displayName ?? admin('members.unnamed')}</bdi>;
 }
@@ -119,9 +123,16 @@ function Facts({
         <>
           <dt>{admin('data_requests.concerns')}</dt>
           <dd>
-            <a href={'/studio/members/' + item.membershipIds[0]}>
+            {item.subject !== null && item.subject !== 'revoked' ? (
+              // Only a Membership whose read named the person has a member page to open.
+              <a href={'/studio/members/' + item.subject.membershipId}>
+                <span>
+                  <SubjectName item={item} admin={admin} />
+                </span>
+              </a>
+            ) : (
               <SubjectName item={item} admin={admin} />
-            </a>
+            )}
           </dd>
         </>
       )}
@@ -252,8 +263,11 @@ export function DataRequestDirectory({
                 <article aria-labelledby={'data-request-' + String(index + 1)}>
                   <h3 id={'data-request-' + String(index + 1)}>
                     <a href={'/studio/data-requests/' + item.id}>
-                      {dataRequestKindLabel(item.kind, admin, dataRequest)}:{' '}
-                      <SubjectName item={item} admin={admin} />
+                      {/* One flex item: a text run beside an element would lose its separating space. */}
+                      <span>
+                        {dataRequestKindLabel(item.kind, admin, dataRequest)}:{' '}
+                        <SubjectName item={item} admin={admin} />
+                      </span>
                     </a>
                   </h3>
                   <StatusLine item={item} preparedAt={view.preparedAt} copy={copy} />
@@ -297,7 +311,7 @@ export function DataRequestDetails({
       <p>
         <a href="/studio/data-requests">{admin('data_requests.back')}</a>
       </p>
-      {view.result !== null && (
+      {view.result !== null && dataRequestResultCurrent(view.result, item, view.preparedAt) && (
         <div className="auth-notice" role="status" aria-labelledby="data-request-result-title">
           <h2 id="data-request-result-title">{dataRequest('result.title')}</h2>
           <p>{dataRequestResultSentence(view.result, admin, dataRequest)}</p>
@@ -335,14 +349,26 @@ export function DataRequestDetails({
         <>
           <p>{admin('data_requests.memberships_note')}</p>
           <ul>
-            {item.membershipIds.map((membershipId, index) => (
-              <li key={membershipId}>
-                <a href={'/studio/members/' + membershipId}>
+            {item.membershipIds.map((membershipId, index) => {
+              const record = (
+                <>
                   {admin('data_requests.membership_record')}{' '}
                   <data value={index + 1}>{index + 1}</data>
-                </a>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={membershipId}>
+                  {item.subject === 'revoked' ? (
+                    // Every Membership of this snapshot is Revoked: none has a member page.
+                    record
+                  ) : (
+                    <a href={'/studio/members/' + membershipId}>
+                      <span>{record}</span>
+                    </a>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           {item.membershipCount > item.membershipIds.length && (
             <p>{admin('data_requests.memberships_more')}</p>
@@ -463,65 +489,96 @@ export function MemberDataRequests({
           <section aria-labelledby="member-data-erasure-title">
             <h3 id="member-data-erasure-title">{admin('data_requests.erasure.title')}</h3>
             <p>{admin('data_requests.erasure.summary')}</p>
-            {member.status !== 'Revoked' ? (
-              <>
-                <p>{dataRequest('refusal.subject_membership_current')}</p>
-                <p>{admin('data_requests.erasure.revoke_first')}</p>
-              </>
-            ) : items.some(
-                (item) => item.kind === 'erasure' && ACTIVE_ERASURE.includes(item.status),
-              ) ? (
-              <p>{admin('data_requests.erasure.active')}</p>
-            ) : (
-              <details className="auth-danger">
-                <summary>{admin('data_requests.erasure.start')}</summary>
-                <h4>{admin('data_requests.erasure.erased_title')}</h4>
-                <ul>
-                  <li>{admin('data_requests.erasure.erased_profile')}</li>
-                  <li>{admin('data_requests.erasure.erased_roles')}</li>
-                  <li>{admin('data_requests.erasure.erased_exports')}</li>
-                  <li>{admin('data_requests.erasure.erased_invitations')}</li>
-                </ul>
-                <h4>{admin('data_requests.erasure.kept_title')}</h4>
-                <p>{admin('data_requests.erasure.kept_intro')}</p>
-                <ul>
-                  <li>{admin('data_requests.erasure.kept_consent')}</li>
-                  <li>{admin('data_requests.erasure.kept_invitations')}</li>
-                  <li>{admin('data_requests.erasure.kept_audit')}</li>
-                  <li>{admin('data_requests.erasure.kept_attribution')}</li>
-                  <li>{admin('data_requests.erasure.kept_receipt')}</li>
-                </ul>
-                <p>{dataRequest('retained.audit_retention')}</p>
-                <p>{dataRequest('erasure.kept_uncounted')}</p>
-                <p>{dataRequest('erasure.kept_partial')}</p>
-                <p id="member-data-erasure-timing">{admin('data_requests.erasure.timing')}</p>
-                <form action="/api/studio/data-request-erasure" method="post">
-                  <FormIdentityFields snapshot={snapshot} index={33} />
-                  <input type="hidden" name={subject[0]} value={subject[1]} />
-                  <fieldset className="auth-data-request-confirm">
-                    <legend>{admin('data_requests.erasure.legend')}</legend>
-                    <label>
-                      <input
-                        type="checkbox"
-                        name="confirm"
-                        value="erase"
-                        required
-                        aria-required="true"
-                      />
-                      <span>
-                        {admin('data_requests.erasure.confirm')} ({admin('invitations.required')})
-                      </span>
-                    </label>
-                  </fieldset>
-                  <button type="submit" aria-describedby="member-data-erasure-timing">
-                    {admin('data_requests.erasure.action')}
-                  </button>
-                </form>
-              </details>
-            )}
+            {/* ADR-0106 § 3: this page exists only for an Active or Suspended member; a Revoked one has none. */}
+            <p>{dataRequest('refusal.subject_membership_current')}</p>
+            <p>{admin('data_requests.erasure.revoke_first')}</p>
           </section>
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * ADR-0106 §§ 3, 11: the erasure filing for a Revoked Membership, the page a revocation leads to. A Revoked Membership
+ * has no member page and nothing about it is read here: the statement of what is erased and kept, the 24-hour window
+ * and the explicit confirmation precede the one form, and the API refuses any Membership it does not cover.
+ */
+export function DataRequestErasure({
+  snapshot,
+  view,
+  copy,
+}: {
+  readonly snapshot: NativePageSnapshot;
+  readonly view: Extract<PageView, { kind: 'data_request_erasure' }>;
+  readonly copy: Copy;
+}) {
+  const { admin, dataRequest } = copy;
+  if (!snapshot.capabilities?.canManageMemberships) return null;
+  return (
+    <div className="auth-data-requests">
+      <p>
+        <a href="/studio/data-requests">{admin('data_requests.back')}</a>
+      </p>
+      {view.membershipId === null ? (
+        <>
+          <p>{admin('data_requests.erasure_page.missing')}</p>
+          <p>
+            <a href="/studio/members">{admin('data_requests.open_members')}</a>
+          </p>
+        </>
+      ) : (
+        <>
+          <p>{admin('data_requests.erasure_page.revoked')}</p>
+          <p>{admin('data_requests.erasure.summary')}</p>
+          <p>{admin('data_requests.erasure_page.only_revoked')}</p>
+          <details className="auth-danger">
+            <summary>{admin('data_requests.erasure.start')}</summary>
+            <h2>{admin('data_requests.erasure.erased_title')}</h2>
+            <ul>
+              <li>{admin('data_requests.erasure.erased_profile')}</li>
+              <li>{admin('data_requests.erasure.erased_roles')}</li>
+              <li>{admin('data_requests.erasure.erased_exports')}</li>
+              <li>{admin('data_requests.erasure.erased_invitations')}</li>
+            </ul>
+            <h2>{admin('data_requests.erasure.kept_title')}</h2>
+            <p>{admin('data_requests.erasure.kept_intro')}</p>
+            <ul>
+              <li>{admin('data_requests.erasure.kept_consent')}</li>
+              <li>{admin('data_requests.erasure.kept_invitations')}</li>
+              <li>{admin('data_requests.erasure.kept_audit')}</li>
+              <li>{admin('data_requests.erasure.kept_attribution')}</li>
+              <li>{admin('data_requests.erasure.kept_receipt')}</li>
+            </ul>
+            <p>{dataRequest('retained.audit_retention')}</p>
+            <p>{dataRequest('erasure.kept_uncounted')}</p>
+            <p>{dataRequest('erasure.kept_partial')}</p>
+            <p id="data-erasure-timing">{admin('data_requests.erasure.timing')}</p>
+            <form action="/api/studio/data-request-erasure" method="post">
+              <FormIdentityFields snapshot={snapshot} index={0} />
+              <input type="hidden" name="membershipId" value={view.membershipId} />
+              <fieldset className="auth-data-request-confirm">
+                <legend>{admin('data_requests.erasure.legend')}</legend>
+                <label>
+                  <input
+                    type="checkbox"
+                    name="confirm"
+                    value="erase"
+                    required
+                    aria-required="true"
+                  />
+                  <span>
+                    {admin('data_requests.erasure.confirm')} ({admin('invitations.required')})
+                  </span>
+                </label>
+              </fieldset>
+              <button type="submit" aria-describedby="data-erasure-timing">
+                {admin('data_requests.erasure.action')}
+              </button>
+            </form>
+          </details>
+        </>
+      )}
+    </div>
   );
 }

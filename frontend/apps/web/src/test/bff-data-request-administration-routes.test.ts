@@ -24,6 +24,7 @@ const cancelPath = '/api/studio/data-request-cancel';
 const revokePath = '/api/studio/data-request-revoke';
 const memberPage = '/studio/members/' + membershipId;
 const requestPage = '/studio/data-requests/' + requestId;
+const erasurePage = '/studio/data-requests/erasure?membership=' + membershipId;
 const location = '/api/v1/identity/data-requests/' + requestId;
 const configuration = {
   apiOrigin: 'http://127.0.0.1:5100',
@@ -220,13 +221,25 @@ describe('native administrator data-request HTTP and actual SDK dispatch (ADR-01
       erasurePath,
       '$',
       'lockey_subject_membership_current',
-      'This membership is still active or suspended.',
+      'This person still has an active or suspended membership in this scope.',
     ],
     [
       erasurePath,
       '$',
       'lockey_blocked_last_administrator',
       "This member is the institution's only administrator.",
+    ],
+    [
+      erasurePath,
+      '$',
+      'lockey_blocked_hold',
+      "the institution has to keep this member's data for the moment",
+    ],
+    [
+      exportPath,
+      '$',
+      'lockey_snapshot_too_large',
+      'This person has more membership records in this scope than one request can hold.',
     ],
     [
       exportPath,
@@ -271,7 +284,13 @@ describe('native administrator data-request HTTP and actual SDK dispatch (ADR-01
       const rendered = await document(response);
       expect(rendered.querySelector('[role="alert"]')?.textContent).toContain(sentence);
       expect(rendered.querySelector('form')).toBeNull();
-      const back = path === cancelPath || path === revokePath ? requestPage : memberPage;
+      // A Revoked Membership has no member page: an erasure recovers to the page it was filed from.
+      const back =
+        path === cancelPath || path === revokePath
+          ? requestPage
+          : path === erasurePath
+            ? erasurePage
+            : memberPage;
       expect(rendered.querySelector('a[href="' + back + '"]')).not.toBeNull();
       expect(rendered.documentElement.getAttribute('data-bff-history-recovery')).toBe(back);
       expect(f.transport).toHaveBeenCalledTimes(1);
@@ -301,7 +320,8 @@ describe('native administrator data-request HTTP and actual SDK dispatch (ADR-01
         'Tick every confirmation box to go ahead.',
       );
       expect(rendered.querySelector('form')).toBeNull();
-      expect(rendered.querySelector('a[href="' + memberPage + '"]')).not.toBeNull();
+      expect(rendered.querySelector('a[href="' + erasurePage + '"]')).not.toBeNull();
+      expect(rendered.documentElement.getAttribute('data-bff-history-recovery')).toBe(erasurePage);
     }
     expect(f.transport).not.toHaveBeenCalled();
   });
@@ -333,27 +353,41 @@ describe('native administrator data-request HTTP and actual SDK dispatch (ADR-01
     expect(f.store.peek(f.active.binding)).not.toBeNull();
   });
 
-  it('restores a refusal by its fixed request page GET without replaying the POST', async () => {
-    const f = await fixture();
-    f.transport.mockImplementationOnce(async () => problem(409, 'concurrency_conflict'));
-    const rendered = await document(await f.post(revokePath, f.write));
-    const handlers = new Map<string, (event: { persisted?: boolean }) => void>();
-    const replace = vi.fn();
-    const style = { visibility: '' };
-    runInNewContext(BFF_HISTORY_SOURCE, {
-      document: {
-        documentElement: {
-          style,
-          getAttribute: (name: string) => rendered.documentElement.getAttribute(name),
+  it.each([
+    [revokePath, requestPage],
+    [erasurePath, erasurePage],
+  ] as const)(
+    'restores a refusal of %s by its fixed GET %s without replaying the POST',
+    async (path, page) => {
+      const f = await fixture();
+      f.transport.mockImplementationOnce(async () =>
+        path === erasurePath
+          ? problem(409, 'business_rule_violation', {
+              $: [{ key: 'lockey_subject_membership_current' }],
+            })
+          : problem(409, 'concurrency_conflict'),
+      );
+      const rendered = await document(
+        await f.post(path, path === erasurePath ? { ...f.create, confirm: 'erase' } : f.write),
+      );
+      const handlers = new Map<string, (event: { persisted?: boolean }) => void>();
+      const replace = vi.fn();
+      const style = { visibility: '' };
+      runInNewContext(BFF_HISTORY_SOURCE, {
+        document: {
+          documentElement: {
+            style,
+            getAttribute: (name: string) => rendered.documentElement.getAttribute(name),
+          },
         },
-      },
-      addEventListener: (name: string, handler: (event: { persisted?: boolean }) => void) =>
-        handlers.set(name, handler),
-      location: { replace, reload: vi.fn() },
-    });
-    handlers.get('pagehide')!({});
-    handlers.get('pageshow')!({ persisted: true });
-    expect(replace).toHaveBeenCalledWith(requestPage);
-    expect(f.transport).toHaveBeenCalledTimes(1);
-  });
+        addEventListener: (name: string, handler: (event: { persisted?: boolean }) => void) =>
+          handlers.set(name, handler),
+        location: { replace, reload: vi.fn() },
+      });
+      handlers.get('pagehide')!({});
+      handlers.get('pageshow')!({ persisted: true });
+      expect(replace).toHaveBeenCalledWith(page);
+      expect(f.transport).toHaveBeenCalledTimes(1);
+    },
+  );
 });

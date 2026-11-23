@@ -63,7 +63,9 @@ export function administrationSnapshot(
                           ? '/studio/members'
                           : view.kind === 'roles'
                             ? '/studio/roles'
-                            : (('/' + view.kind) as '/studio' | '/portal'),
+                            : view.kind === 'data_request_erasure'
+                              ? '/studio/data-requests/erasure'
+                              : (('/' + view.kind) as '/studio' | '/portal'),
     site: {
       displayName: 'Institution',
       defaultLocale: 'en',

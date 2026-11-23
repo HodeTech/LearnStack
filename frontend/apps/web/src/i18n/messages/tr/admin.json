@@ -157,7 +157,7 @@
     "intro": "Mevcut erişiminizdeki üyelerin verilerinin dışa aktarılması ya da silinmesi için yapılan talepler, en yenisi en üstte. Her talebin durumunu ve sayılarını görürsünüz; verilerin kendisini hiçbir zaman görmezsiniz.",
     "no_download": "Dışa aktarılan dosya yalnızca ilgili kişiye, kendi veri sayfasında sunulur. Yöneticiler bu dosyayı indiremez.",
     "no_closure": "Hesap kapatma, kişinin yalnızca kendisinin yapabileceği bir taleptir ve burada gösterilmez.",
-    "from_member": "Dışa aktarma ya da silme talebinde bulunmak için üyenin sayfasını açın.",
+    "from_member": "Dışa aktarma talebinde bulunmak için üyenin sayfasını açın. Silme talebinde bulunmak için önce üyeliği üyenin sayfasından sonlandırın; ardından silme talebinin yapıldığı sayfa açılır.",
     "open_members": "Üyelere git",
     "scope_tenant": "Bunlar kurum üyelikleriyle ilgili taleplerdir. Bir şube üyeliğiyle ilgili talepler o şubenin erişiminde yapılır ve orada gösterilir.",
     "scope_organization": "Bunlar, mevcut şubenizdeki üyeliklerle ilgili taleplerdir.",
@@ -167,7 +167,7 @@
     "back": "Veri taleplerine dön",
     "concerns": "Üye",
     "name_unavailable": "Üyenin adı gösterilemiyor",
-    "open_member": "Üyenin sayfasını aç",
+    "subject_revoked": "Üyeliği sonlandırılmış üye",
     "filed_by": "Talep eden",
     "memberships_note": "Bu talep, bu kişinin bu kapsamdaki birden fazla üyelik kaydını kapsıyor:",
     "membership_record": "Üyelik kaydı",
@@ -188,6 +188,7 @@
       "export_ready": "Dosya hazır. Kişi, gösterilen tarihe kadar dosyayı kendi veri sayfasından indirebilir.",
       "export_gone": "Dosya artık indirilemiyor.",
       "erasure_scheduled": "Silme işlemi gösterilen zamandan sonra başlar. O zamana kadar kişi ve talebi yapan yönetici işlemi iptal edebilir.",
+      "erasure_scheduled_self": "Silme işlemi gösterilen zamandan sonra başlar. O zamana kadar kişi işlemi iptal edebilir.",
       "erasure_fulfilling": "Üyenin bu kapsamdaki verileri siliniyor.",
       "erasure_awaiting": "Üyenin bu kapsamdaki verileri silindi. İşlem kayıtlarındaki son adımı şimdi bir operatör tamamlıyor."
     },
@@ -211,6 +212,7 @@
     },
     "refusal": {
       "request_already_active": "Bu kapsamda bu üye için aynı türden bir talep zaten sürüyor. Tamamlanmasını bekleyin ya da talebi siz yaptıysanız iptal edin.",
+      "subject_membership_current": "Bu kişinin bu kapsamda hâlâ etkin ya da askıdaki bir üyeliği var. Verileri ancak bu üyelik sonlandırıldıktan sonra silinebilir.",
       "blocked_hold": "Kurumun bu üyenin verilerini şimdilik saklaması gerektiği için, örneğin açık bir ödeme konusu nedeniyle, bu işlem şu anda ilerleyemiyor.",
       "blocked_last_administrator": "Bu üye kurumun tek yöneticisi. Silme talebinde bulunmadan önce başka bir yönetici atayın.",
       "snapshot_too_large": "Bu kişinin bu kapsamdaki üyelik kayıtları, tek bir talebin kapsayabileceğinden fazla. Yardım için platform operatörüne başvurun.",
@@ -241,8 +243,7 @@
     "erasure": {
       "title": "Bu üyenin verilerini sil",
       "summary": "Silme işlemi kişinin bu kapsamdaki profilini ve yanıtlarını temizler ve buradaki rollerini kaldırır. Hesabı ve başka yerlerdeki üyelikleri olduğu gibi kalır.",
-      "revoke_first": "Önce üyeliği Üyelik erişimi bölümünden sonlandırın. Bu, ayrı bir işlem olarak kaydedilir; ardından silme talep edilebilir.",
-      "active": "Bu üye için planlanmış ya da sürmekte olan bir silme işlemi zaten var.",
+      "revoke_first": "Önce üyeliği Üyelik erişimi bölümünden sonlandırın. Sonlandırma ayrı bir işlem olarak kaydedilir; ardından silme talebinin yapıldığı sayfa açılır.",
       "start": "Silme işlemini gözden geçir",
       "erased_title": "Neler silinir",
       "erased_profile": "Kişinin adı, dil tercihi ve bu kapsamda verdiği yanıtlar temizlenir.",
@@ -260,6 +261,12 @@
       "legend": "Silme talebini onaylayın",
       "confirm": "Nelerin silineceğini ve nelerin saklanacağını, silme işlemi başladıktan sonra geri alınamayacağını anlıyorum.",
       "action": "Silme talep et"
+    },
+    "erasure_page": {
+      "title": "Sonlandırılmış bir üyenin verilerini sil",
+      "revoked": "Bu üyelik sonlandırıldı. Artık üyeler arasında listelenmez ve bir üye sayfası yoktur.",
+      "only_revoked": "Silme talebi ancak kişinin bu kapsamda etkin ya da askıda bir üyeliği yokken yapılabilir. Aksi hâlde talep reddedilir ve hiçbir şey değişmez.",
+      "missing": "Hiçbir üyelik belirtilmedi. Bu sayfa, bir üyelik sonlandırıldıktan hemen sonra o üyelik için açılır."
     },
     "cancel": {
       "hint": "İptal etmek talebi sona erdirir. Üyeyle ilgili hiçbir şey değişmez.",

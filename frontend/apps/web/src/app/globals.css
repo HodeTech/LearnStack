@@ -305,13 +305,20 @@
   border: 0;
 }
 
-/* ADR-0106 data-request administration: 44 px targets, status glyphs and a 320 px reflow. */
+/* ADR-0106 data-request administration: 44 px targets, status glyphs and a 320 px reflow.
+   A link's content is one element: text beside an element in a flex container loses its space. */
 .auth-data-requests button,
-.auth-data-requests summary,
 .auth-data-requests :is(p, nav, dd, h3, li) > a {
   display: inline-flex;
   align-items: center;
   min-block-size: 44px;
+}
+/* A summary keeps display: list-item, which alone draws its open/closed marker. */
+.auth-data-requests summary {
+  display: list-item;
+  min-block-size: 44px;
+  padding-block: 0.5rem;
+  align-content: center;
 }
 .auth-data-request-status {
   display: flex;

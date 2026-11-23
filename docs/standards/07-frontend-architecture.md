@@ -1285,19 +1285,37 @@ credential ends the ticket) mints at most two new tickets and resumes at the fai
 index. The ticket stays inside the relay: never in a URL, header, page or log.
 
 **Administrator surface.** `/studio/data-requests` (only an opaque `cursor`, a fixed
-page of 20) and `/studio/data-requests/{RequestId}` (only a closed `result`) are
-protected Studio documents shown to holders of the advisory `canManageMemberships`
-capability; the API authorizes every operation. They list the context group's exports
-and erasures, never a closure or a bundle. A receipt names its subject only by
-Membership, so the page reads the first frozen Membership as the member page does and
-keeps only what the member list shows (name, status, branch or institution). The member
-page adds that member's requests in the exact group and the two filings for that
-Membership. The forms join the closed POST set under the administration form rules:
+page of 20), `/studio/data-requests/{RequestId}` (only a closed `result`) and
+`/studio/data-requests/erasure` (only one canonical `membership`; without it the page
+offers no form) are protected Studio documents shown to holders of the advisory
+`canManageMemberships` capability and denied before any data-request read without it;
+the API authorizes every operation. They list the context group's exports and erasures,
+never a closure or a bundle. A receipt names its subject only by Membership, so the list
+reads a member detail exactly as the member page does and keeps only what the member
+list shows (name, status, branch or institution). The audited reads are bounded: at most
+one per distinct first frozen Membership of the page's 20 requests, four at a time, and
+none for a subject known to be Revoked (an administrator's erasure, or an erasure
+awaiting the operator or completed), whose read the API refuses and records as a denial;
+that subject is labelled as revoked, with no link. A Membership another request's read
+already named names its request too. A session failure or cancellation fails the page; a
+`429`, a `5xx` or a transport failure only stops the further reads and leaves the rest
+unnamed, and the member page's own list degrades the same way.
+
+The member page adds that member's requests in the exact group and the export filing for
+that Membership. A member page exists only for an Active or Suspended Membership, so a
+successful revocation answers a 303 to the erasure page of that Membership instead. That
+page reads nothing about the Membership: it states that the membership was revoked, what
+is erased and what is kept, the 24-hour window and that the person may cancel, and holds
+the confirmed erasure form; its refusals recover to it. A Membership revoked earlier is
+reached by the same address with its identifier. A result notice and the title prefix
+show only while the request is still in the state the result describes. The erasure
+page, and the forms that join the closed POST set under the administration form rules:
 
 | Path | Operation |
 |---|---|
-| `/api/studio/data-request-export` | Export for a Membership of the group |
-| `/api/studio/data-request-erasure` | Erasure for a Revoked Membership, with a required confirmation |
+| `/studio/data-requests/erasure?membership={MembershipId}` | GET: the erasure page of a Revoked Membership, which reads nothing about it |
+| `/api/studio/data-request-export` | Export for a Membership of the group, from the member page |
+| `/api/studio/data-request-erasure` | Erasure for a Revoked Membership, from the erasure page, with a required confirmation |
 | `/api/studio/data-request-cancel` | Cancel a request the caller filed, at the request version |
 | `/api/studio/data-request-revoke` | Delete the file of an export the caller filed, at the artifact version |
 

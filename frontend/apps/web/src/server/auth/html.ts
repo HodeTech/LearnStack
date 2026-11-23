@@ -18,7 +18,7 @@ import { createPublicTranslator } from '@/i18n/catalogues';
 
 import type { BffPage } from './http-protocol';
 import type { PageSite } from './page-contract';
-import { isNativeReturnPath } from './session-path';
+import { isBffRecoveryTarget, isNativeReturnPath } from './session-path';
 
 function scopeContent(page: Extract<BffPage, { kind: 'scope_choices' }>, copy: AuthCopy): string {
   const selection = page.selection;
@@ -441,7 +441,7 @@ export function renderBffDocument(
       }
       <p><a href="/${escape(site.defaultLocale)}/courses">${escape(copy('shell.catalog'))}</a></p>`;
   const recovery =
-    page.kind === 'mutation_error' && isNativeReturnPath(page.destination)
+    page.kind === 'mutation_error' && isBffRecoveryTarget(page.destination)
       ? page.destination
       : page.kind === 'entry' ||
           page.kind === 'scope_choices' ||

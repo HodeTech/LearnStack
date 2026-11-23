@@ -157,7 +157,7 @@
     "intro": "Requests to export or erase the data of members in your current access, newest first. You see each request's status and counts, never the data itself.",
     "no_download": "An exported file is available only to the person it concerns, on their own data page. Administrators cannot download it.",
     "no_closure": "An account closure is the person's own request and is not shown here.",
-    "from_member": "To ask for an export or an erasure, open the member's page.",
+    "from_member": "To ask for an export, open the member's page. To ask for an erasure, revoke the membership on the member's page first; the page where its erasure is asked for then opens.",
     "open_members": "Go to members",
     "scope_tenant": "These are the requests about institution memberships. Requests about a branch membership are made and shown in that branch's access.",
     "scope_organization": "These are the requests about memberships in your current branch.",
@@ -167,7 +167,7 @@
     "back": "Back to data requests",
     "concerns": "Member",
     "name_unavailable": "Member name unavailable",
-    "open_member": "Open the member's page",
+    "subject_revoked": "Revoked member",
     "filed_by": "Requested by",
     "memberships_note": "This request covers more than one membership record of this person in this scope:",
     "membership_record": "Membership record",
@@ -188,6 +188,7 @@
       "export_ready": "The file is ready. The person can download it on their own data page until the date shown.",
       "export_gone": "The file can no longer be downloaded.",
       "erasure_scheduled": "Erasure starts after the time shown. Until then the person can cancel it, and so can the administrator who asked for it.",
+      "erasure_scheduled_self": "Erasure starts after the time shown. Until then the person can cancel it.",
       "erasure_fulfilling": "The member's data in this scope is being erased.",
       "erasure_awaiting": "The member's data in this scope has been erased. An operator now completes the last step on the activity records."
     },
@@ -211,6 +212,7 @@
     },
     "refusal": {
       "request_already_active": "A request of this kind is already in progress for this member in this scope. Wait for it to finish, or cancel it if you asked for it.",
+      "subject_membership_current": "This person still has an active or suspended membership in this scope. Their data can be erased only once that membership is revoked.",
       "blocked_hold": "This cannot go ahead right now because the institution has to keep this member's data for the moment, for example for an open payment matter.",
       "blocked_last_administrator": "This member is the institution's only administrator. Appoint another administrator before asking for an erasure.",
       "snapshot_too_large": "This person has more membership records in this scope than one request can hold. Ask the platform operator for help.",
@@ -241,8 +243,7 @@
     "erasure": {
       "title": "Erase this member's data",
       "summary": "Erasure clears the person's profile and answers in this scope and removes their roles here. Their account and their memberships elsewhere stay as they are.",
-      "revoke_first": "Revoke the membership in Membership access first. That is recorded as its own action; erasure can then be requested.",
-      "active": "An erasure for this member is already scheduled or in progress.",
+      "revoke_first": "Revoke it in Membership access first. The revocation is recorded as its own action, and the page where its erasure is asked for then opens.",
       "start": "Review the erasure",
       "erased_title": "What is erased",
       "erased_profile": "The person's name, language and the answers they gave in this scope are cleared.",
@@ -260,6 +261,12 @@
       "legend": "Confirm the erasure",
       "confirm": "I understand what is erased and what is kept, and that erasure cannot be undone once it starts.",
       "action": "Request erasure"
+    },
+    "erasure_page": {
+      "title": "Erase a revoked member's data",
+      "revoked": "This membership was revoked. It is no longer listed among the members and has no member page.",
+      "only_revoked": "An erasure can be asked for only while the person has no active or suspended membership in this scope. Otherwise the request is refused and nothing changes.",
+      "missing": "No membership was named. This page opens for a membership right after it is revoked."
     },
     "cancel": {
       "hint": "Cancelling ends the request. Nothing about the member changes.",

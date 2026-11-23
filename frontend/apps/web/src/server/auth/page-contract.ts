@@ -119,22 +119,27 @@ export type PageFederation = Readonly<{
   provider: 'not_read' | 'matches' | 'drift' | 'unavailable';
   values: Readonly<{ redirectUri: string; entityId: string; descriptorUrl: string }> | null;
 }>;
-/** ADR-0106 § 6: who a request concerns, exactly as the member list shows a member; never a role or a User. */
+/**
+ * ADR-0106 § 6: who a request concerns, exactly as the member list shows a member; never a role or a User. The
+ * Membership is the one whose read named the person, so it has a member page of its own.
+ */
 export type PageDataRequestSubject = Readonly<{
+  membershipId: string;
   displayName: string | null;
   status: 'Active' | 'Suspended' | 'Revoked';
   organizationScoped: boolean;
 }>;
 /**
  * ADR-0106 §§ 3, 6, 13: an administrator's receipt of a request of the context's group, for one page: status and
- * counts, never content. At most 20 of the frozen Membership identifiers are kept, with their count; the first names
- * the subject, whose member-list projection is `null` when its read was refused.
+ * counts, never content. At most 20 of the frozen Membership identifiers are kept, with their count. The subject is
+ * the member-list projection of a Membership of the snapshot that could be read; `revoked` when every Membership of
+ * the snapshot is known to be Revoked, so none was read (no member page exists); `null` when no read named it.
  */
 export type PageDataRequest = Readonly<
   Omit<SubjectDataRequest, 'membershipIds'> & {
     membershipIds: readonly string[];
     membershipCount: number;
-    subject: PageDataRequestSubject | null;
+    subject: PageDataRequestSubject | 'revoked' | null;
   }
 >;
 /** The closed outcome a Studio data-request action reports on its request's page after the 303. */
@@ -222,6 +227,14 @@ export type PageView =
       request: PageDataRequest;
       result: DataRequestAdministrationResult | null;
       preparedAt: string;
+    }>
+  | Readonly<{
+      /**
+       * ADR-0106 § 3: the erasure filing for a Revoked Membership, which has no member page. Nothing about the
+       * Membership is read (the API refuses a Revoked target's detail); `null` when the page was opened without one.
+       */
+      kind: 'data_request_erasure';
+      membershipId: string | null;
     }>
   | Readonly<{ kind: 'invitation_policy'; policy: PageInvitationPolicy }>
   | Readonly<{ kind: 'custom_fields'; definitions: CustomFieldPage; limit: number }>

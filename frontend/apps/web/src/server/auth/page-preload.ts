@@ -55,7 +55,8 @@ export type NativeDocumentPlan = Readonly<{
     | 'custom_field'
     | 'federation'
     | 'data_requests'
-    | 'data_request';
+    | 'data_request'
+    | 'data_request_erasure';
   id?: string;
   cursor?: string;
   limit: number;
@@ -63,6 +64,8 @@ export type NativeDocumentPlan = Readonly<{
   consentCursor?: string;
   /** The closed outcome a data-request action redirected with; only the request page reads it. */
   result?: DataRequestAdministrationResult | null;
+  /** The Revoked Membership the erasure page files for; only that page reads it. */
+  membershipId?: string | null;
 }>;
 /** ADR-0106 § 6: the data-request list resolves one subject per item, so its page size is fixed. */
 const DATA_REQUEST_PAGE = 20;
@@ -72,6 +75,19 @@ const MEMBER_DATA_REQUEST_PAGE = 100;
 const KEPT_MEMBERSHIPS = 20;
 /** Subject reads run at most this many at a time, so a list neither bursts nor serializes twenty round trips. */
 const SUBJECT_READS = 4;
+/**
+ * ADR-0106 § 3: an administrator files an erasure only once no Membership of the person in the group is current, and
+ * Revoked is terminal; an erasure that has run leaves every Membership of its snapshot a Revoked tombstone. The API
+ * refuses a Revoked Membership's detail (and records the refusal), so such a subject is never read.
+ */
+function revokedSubject(item: Pick<SubjectDataRequest, 'kind' | 'origin' | 'status'>) {
+  return (
+    item.kind === 'erasure' &&
+    (item.origin === 'administrator' ||
+      item.status === 'awaiting_privileged_step' ||
+      item.status === 'completed')
+  );
+}
 
 export function nativeDocumentPlan(target: string, flight: boolean): NativeDocumentPlan {
   const parsed = bffDocumentQuery(target, flight);
@@ -108,6 +124,9 @@ export function nativeDocumentPlan(target: string, flight: boolean): NativeDocum
     case '/studio/data-requests':
       kind = 'data_requests';
       break;
+    case '/studio/data-requests/erasure':
+      kind = 'data_request_erasure';
+      break;
     default:
       if (path.startsWith('/studio/members/')) kind = 'member';
       else if (path.startsWith('/studio/roles/')) kind = 'role';
@@ -136,6 +155,7 @@ export function nativeDocumentPlan(target: string, flight: boolean): NativeDocum
     selectedFieldId: parsed.selectedFieldId,
     consentCursor: parsed.consentCursor,
     ...(kind === 'data_request' ? { result: parsed.result } : {}),
+    ...(kind === 'data_request_erasure' ? { membershipId: parsed.membership } : {}),
   });
 }
 
@@ -227,33 +247,45 @@ export async function preloadPage(
     };
   };
   /**
-   * ADR-0106 § 6: a receipt names its subject by Membership only. The first identifier is read exactly as the member
-   * page reads it, and only what the member list shows is kept; a refused read leaves the subject unnamed.
+   * ADR-0106 § 6: a receipt names its subject by Membership only. Each identifier is read exactly as the member page
+   * reads it, and only what the member list shows is kept; a refused read leaves the subject unnamed. The names are
+   * optional: a session failure or cancellation still fails the page, but an overload, a server failure or a transport
+   * failure only stops the further reads and leaves the remaining subjects unnamed.
    */
   const subjects = async (
     identifiers: readonly string[],
   ): Promise<ReadonlyMap<string, PageDataRequestSubject | null>> => {
     const found = new Map<string, PageDataRequestSubject | null>();
     const pending = [...new Set(identifiers)];
-    let failed = false;
+    let stopped = false;
     const worker = async () => {
-      while (!failed) {
+      while (!stopped) {
         const next = pending.shift();
         if (next === undefined) return;
-        let result: NativeOperationResult;
+        let result: NativeOperationResult | null = null;
         try {
           result = await read({ kind: 'getMembership', id: next });
-          if (result.kind === 'cancelled') throw new BffSessionError('cancelled');
         } catch (error) {
           // The first failure stops the other workers taking further identifiers.
-          failed = true;
-          throw error;
+          stopped = true;
+          if (error instanceof BffSessionError) throw error;
         }
-        const value = result.kind === 'success' ? (result.data as MembershipDetail) : null;
+        if (result?.kind === 'cancelled') {
+          stopped = true;
+          throw new BffSessionError('cancelled');
+        }
+        if (
+          result === null ||
+          result.kind === 'transport-error' ||
+          (result.kind === 'api-error' && (result.status === 429 || result.status >= 500))
+        )
+          stopped = true;
+        const value = result?.kind === 'success' ? (result.data as MembershipDetail) : null;
         found.set(
           next,
           value && value.membershipId === next
             ? {
+                membershipId: next,
                 displayName: value.displayName,
                 status: value.status,
                 organizationScoped: value.organizationId !== null,
@@ -271,7 +303,7 @@ export async function preloadPage(
   };
   const projectRequest = (
     item: SubjectDataRequest,
-    subject: PageDataRequestSubject | null,
+    subject: PageDataRequest['subject'],
   ): PageDataRequest => {
     const { membershipIds, ...receipt } = item;
     return {
@@ -281,9 +313,22 @@ export async function preloadPage(
       subject,
     };
   };
+  /**
+   * One read per distinct first Membership of a request whose subject may still be current; a subject known to be
+   * Revoked is never read (see `revokedSubject`). Any Membership of a snapshot that another request's read already
+   * named names its subject too, at no further read.
+   */
   const named = async (items: readonly SubjectDataRequest[]) => {
-    const found = await subjects(items.map((item) => item.membershipIds[0]!));
-    return items.map((item) => projectRequest(item, found.get(item.membershipIds[0]!) ?? null));
+    const found = await subjects(
+      items.filter((item) => !revokedSubject(item)).map((item) => item.membershipIds[0]!),
+    );
+    return items.map((item) =>
+      projectRequest(
+        item,
+        item.membershipIds.map((id) => found.get(id)).find((subject) => subject) ??
+          (revokedSubject(item) ? 'revoked' : null),
+      ),
+    );
   };
   try {
     capabilities = await data<PageCapabilities>({ kind: 'getOwnCapabilities' });
@@ -457,11 +502,18 @@ export async function preloadPage(
         // ADR-0106 § 3: requests are filed in the context's group, so only an exact-scope member has them here.
         let dataRequests: Extract<PageView, { kind: 'member' }>['dataRequests'];
         if (capabilities.canManageMemberships && exact) {
-          // An unavailable list hides only this section's list; the member's own page stays usable.
-          const listed = await read({ kind: 'listDataRequests', limit: MEMBER_DATA_REQUEST_PAGE });
-          if (listed.kind === 'cancelled') throw new BffSessionError('cancelled');
-          const page = listed.kind === 'success' ? (listed.data as SubjectDataRequestPage) : null;
+          // An unavailable list hides only this section's list; the member's own page stays usable. A session
+          // failure or cancellation still fails the page; a transport failure only leaves the list unread.
+          let listed: NativeOperationResult | null = null;
+          try {
+            listed = await read({ kind: 'listDataRequests', limit: MEMBER_DATA_REQUEST_PAGE });
+          } catch (error) {
+            if (error instanceof BffSessionError) throw error;
+          }
+          if (listed?.kind === 'cancelled') throw new BffSessionError('cancelled');
+          const page = listed?.kind === 'success' ? (listed.data as SubjectDataRequestPage) : null;
           const subject: PageDataRequestSubject = {
+            membershipId: member.membershipId,
             displayName: member.displayName,
             status: member.status,
             organizationScoped: member.organizationScoped,
@@ -513,6 +565,11 @@ export async function preloadPage(
         };
         break;
       }
+      case 'data_request_erasure':
+        // ADR-0106 § 3: no member read; the API decides whether the Membership is Revoked and in this group.
+        if (!capabilities.canManageMemberships) throw new PageReadFailure('denied', 403);
+        view = { kind: 'data_request_erasure', membershipId: plan.membershipId ?? null };
+        break;
       case 'custom_fields': {
         if (!capabilities.canManageCustomFields || organizationId !== null)
           throw new PageReadFailure('denied', 403);

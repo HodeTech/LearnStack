@@ -52,7 +52,7 @@ import type {
   SessionBinding,
   SessionProjection,
 } from './session-contract.js';
-import { isNativeReturnPath } from './session-path.js';
+import { dataRequestErasureTarget, isNativeReturnPath } from './session-path.js';
 import { bffSecretEquals, isBffOpaque } from './session-store.js';
 
 const opaque = () => randomBytes(32).toString('base64url');
@@ -840,8 +840,9 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 {
                   kind: 'mutation_error',
                   action: path,
-                  // Thrown only after the Membership identifier passed its canonical grammar.
-                  destination: '/studio/members/' + fields.get('membershipId')!,
+                  // Thrown only after the Membership identifier passed its canonical grammar; a Revoked
+                  // Membership has no member page, so the erasure page it was filed from is the recovery.
+                  destination: dataRequestErasureTarget(fields.get('membershipId')!),
                   fields: [['csrfToken', csrf!]],
                   reason: 'validation',
                   retryable: false,
@@ -981,7 +982,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
               if (!match) throw new BffSessionError('response');
               return redirect(request, '/studio/invitations/' + match[1], []);
             }
-            return redirect(request, form.destination, []);
+            return redirect(request, form.settledDestination ?? form.destination, []);
           }
           const status =
             outcome.kind === 'api-error'

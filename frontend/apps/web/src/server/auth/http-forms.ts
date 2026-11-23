@@ -13,6 +13,7 @@ import type {
   DataRequestAdministrationRefusal,
   DataRequestAdministrationResult,
 } from './page-contract.js';
+import { dataRequestErasureTarget } from './session-path.js';
 
 export { bffCursor, bffPageQuery } from './page-query.js';
 
@@ -255,11 +256,15 @@ function profile(fields: URLSearchParams) {
   if (invalid.length) throw new BffProfileInputError(Object.freeze(invalid));
   return result;
 }
+/**
+ * One administration form's operation, the fixed GET its refusal recovers to, and, where it differs, the fixed GET a
+ * settled action answers with a 303.
+ */
 export function bffAdministrationForm(
   path: string,
   fields: URLSearchParams,
   customFields?: MembershipCustomFields,
-): Readonly<{ operation: NativeOperation; destination: string }> {
+): Readonly<{ operation: NativeOperation; destination: string; settledDestination?: string }> {
   if (Object.hasOwn(CUSTOM_FIELD_FORMS, path)) return customFieldForm(path, fields, customFields);
   // ADR-0099: federation forms carry no idempotency key; the connection revision converges them.
   if (Object.hasOwn(FEDERATION_FORMS, path)) return federationForm(path, fields);
@@ -346,7 +351,10 @@ export function bffAdministrationForm(
         membershipId,
         idempotencyKey,
       },
-      destination: '/studio/members/' + membershipId,
+      // A Revoked Membership has no member page: an erasure recovers to the erasure page it was filed from.
+      destination: erasure
+        ? dataRequestErasureTarget(membershipId)
+        : '/studio/members/' + membershipId,
     };
   }
   const write = { version: readVersion(), idempotencyKey };
@@ -406,6 +414,9 @@ export function bffAdministrationForm(
           status: status as 'Active' | 'Suspended' | 'Revoked',
         },
         destination: status === 'Revoked' ? '/studio/members' : destination,
+        // ADR-0106 § 3: a Revoked Membership has no member page; its erasure is filed on the page the revocation
+        // leads to, which reads nothing about it.
+        ...(status === 'Revoked' ? { settledDestination: dataRequestErasureTarget(member) } : {}),
       };
     }
   }

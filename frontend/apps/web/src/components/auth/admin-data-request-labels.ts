@@ -131,7 +131,10 @@ export function dataRequestNextStep(
   if (state === 'due') return dataRequest('next.erasure_due');
   switch (item.status) {
     case 'scheduled':
-      return admin('data_requests.next.erasure_scheduled');
+      // A fan-out erasure is never scheduled; only the person cancels what they filed themselves.
+      return item.origin === 'self'
+        ? admin('data_requests.next.erasure_scheduled_self')
+        : admin('data_requests.next.erasure_scheduled');
     case 'fulfilling':
       return admin('data_requests.next.erasure_fulfilling');
     case 'awaiting_privileged_step':
@@ -232,7 +235,8 @@ export function dataRequestRefusalSentence(
     case 'subject_export_available':
       return dataRequest('refusal.subject_export_available');
     case 'subject_membership_current':
-      return dataRequest('refusal.subject_membership_current');
+      // The API judges the person's current Membership of the group, which need not be the one named.
+      return admin('data_requests.refusal.subject_membership_current');
     case 'subject_is_requester':
       return dataRequest('refusal.subject_is_requester');
     case 'subject_not_admitted':
@@ -247,6 +251,31 @@ export function dataRequestRefusalSentence(
       return dataRequest('refusal.data_request_not_cancellable');
     case 'unknown':
       return admin('data_requests.refusal.unknown');
+  }
+}
+/**
+ * Whether a closed result the page was redirected with still describes the request as prepared: the notice and the
+ * title prefix are dropped once the request moved on (a reload, a restored or a shared URL keeps the query).
+ */
+export function dataRequestResultCurrent(
+  result: DataRequestAdministrationResult,
+  item: Pick<PageDataRequest, 'kind' | 'status' | 'executeAt' | 'artifact'>,
+  preparedAt: string,
+): boolean {
+  switch (result) {
+    case 'export':
+      return (
+        item.kind === 'export' &&
+        (item.status === 'requested' ||
+          item.status === 'fulfilling' ||
+          (item.status === 'completed' && item.artifact?.readable === true))
+      );
+    case 'erasure':
+      return item.kind === 'erasure' && dataRequestDisplayState(item, preparedAt) === 'scheduled';
+    case 'cancelled':
+      return item.status === 'cancelled';
+    case 'revoked':
+      return item.kind === 'export' && item.artifact !== null && !item.artifact.readable;
   }
 }
 export function dataRequestResultSentence(

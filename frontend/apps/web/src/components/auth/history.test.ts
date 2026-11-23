@@ -39,6 +39,22 @@ describe('fixed protected history lifecycle', () => {
       '/studio/data-requests/019a154b-0000-7000-8000-000000000041?result=export',
       '/api/auth/signin',
     ],
+    // A Revoked Membership's erasure page: the one recovery that carries its query.
+    [
+      '/studio/data-requests/erasure?membership=019a154b-0000-7000-8000-000000000011',
+      '/studio/data-requests/erasure?membership=019a154b-0000-7000-8000-000000000011',
+    ],
+    ['/studio/data-requests/erasure', '/api/auth/signin'],
+    [
+      '/studio/data-requests/erasure?membership=019A154B-0000-7000-8000-000000000011',
+      '/api/auth/signin',
+    ],
+    [
+      '/studio/data-requests/erasure?membership=019a154b-0000-7000-8000-000000000011&x=1',
+      '/api/auth/signin',
+    ],
+    ['/studio/members/erasure?membership=019a154b-0000-7000-8000-000000000011', '/api/auth/signin'],
+    ['/studio/data-requests/erasure/019a154b-0000-7000-8000-000000000011', '/api/auth/signin'],
     ['/api/auth/entry', '/api/auth/entry'],
     ['/api/auth/signin', '/api/auth/signin'],
     ['/api/account/profile', '/api/auth/signin'],

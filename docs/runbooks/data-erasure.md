@@ -296,19 +296,29 @@ them.
 
 ## What an administrator sees
 
-An administrator files an erasure from the member's page in Studio, only for a
-Membership that is already Revoked, after confirming a statement of what is erased, what
-is kept, the 24-hour window, that the person may cancel in it, and that a re-admission
-within it does not stop the erasure
+A Membership has a page in Studio only while it is Active or Suspended, so an
+administrator files an erasure in two acts: they revoke the Membership on the member's
+page, which is recorded as its own `identity.membership.change_status` row, and Studio
+then opens the erasure page `/studio/data-requests/erasure?membership=<MembershipId>`.
+That page reads nothing about the Membership; it files the erasure after the
+administrator confirms a statement of what is erased, what is kept, the 24-hour window,
+that the person may cancel in it, and that a re-admission within it does not stop the
+erasure
 ([Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests)).
-The request's page in `/studio/data-requests` then shows `Scheduled` and the end of the
-window, with a cancel form for the administrator who filed it; `Starting soon` once the
-window has passed and the job has not run; `Waiting for an operator` while it waits for
-you; and `Completed` with the retained counts after your completion. A blocked erasure
-says why (a hold, or the person is the last administrator). A closure is never listed; a
-closure's fan-out erasure is, filed by the person's account closure and with no cancel
-form. If an administrator asks why an erasure is not complete, the status on that page
-is what they see; answer as in [When a person asks](#when-a-person-asks).
+The API refuses it while the person still holds an Active or Suspended Membership of the
+group. For a Membership revoked earlier, the same address takes its identifier: give the
+administrator the `entity_id` of the revocation's `identity.membership.change_status`
+row. Studio does not list Revoked members. The request's page in `/studio/data-requests`
+then shows `Scheduled` and the end of the window, with a cancel form for the
+administrator who filed it; `Starting soon` once the window has passed and the job has
+not run; `Waiting for an operator` while it waits for you; and `Completed` with the
+retained counts after your completion. A blocked erasure says why (a hold, or the person
+is the last administrator). Studio never reads a Revoked Membership, so the list names
+the person of an administrator's erasure, and of an erasure that has run, as a revoked
+member, without a link. A closure is never listed; a closure's fan-out erasure is, filed
+by the person's account closure and with no cancel form. If an administrator asks why an
+erasure is not complete, the status on that page is what they see; answer as in
+[When a person asks](#when-a-person-asks).
 
 ## Deploying
 
