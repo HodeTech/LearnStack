@@ -432,4 +432,56 @@ describe('Store page preparation through the actual private native port', () => 
     expect(f.requestRuntime.snapshotCounts().active).toBe(4);
     expect(f.store.peek(active.binding)?.state).toBe('authenticated');
   });
+
+  it('seals the data-request list cursor under its own purpose and refuses the member purpose (ADR-0106)', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const raw = Buffer.from('data-requests:' + 'b'.repeat(64)).toString('base64url');
+    const rawMembers = Buffer.from('members:' + 'c'.repeat(64)).toString('base64url');
+    const original = f.administration.getMockImplementation()!;
+    const listed = (nextCursor: string) => ({
+      kind: 'success' as const,
+      status: 200 as const,
+      etag: null,
+      location: null,
+      replayed: false,
+      data: {
+        items: [],
+        pageInfo: { nextCursor, previousCursor: null, hasNext: true, hasPrevious: false },
+      },
+    });
+    f.administration.mockImplementation(async (...args) =>
+      args[2].kind === 'listDataRequests'
+        ? listed(raw)
+        : args[2].kind === 'listMemberships'
+          ? listed(rawMembers)
+          : original(...args),
+    );
+    const first = page(await document(f, active.binding, { target: '/studio/data-requests' }).work);
+    if (first.outcome.kind !== 'ready' || first.outcome.view.kind !== 'data_requests')
+      throw new Error('Expected data-request page');
+    const cursor = first.outcome.view.endCursor!;
+    expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(JSON.stringify(first)).not.toContain(raw);
+    const members = page(await document(f, active.binding, { target: '/studio/members' }).work);
+    if (members.outcome.kind !== 'ready' || members.outcome.view.kind !== 'members')
+      throw new Error('Expected member page');
+    await document(f, active.binding, { target: '/studio/data-requests?cursor=' + cursor }).work;
+    expect(f.administration).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(Object),
+      { kind: 'listDataRequests', limit: 20, cursor: raw },
+      expect.any(AbortSignal),
+    );
+    const calls = f.administration.mock.calls.length;
+    await expect(
+      document(f, active.binding, {
+        target: '/studio/data-requests?cursor=' + members.outcome.view.endCursor!,
+      }).work,
+    ).rejects.toThrow();
+    await expect(
+      document(f, active.binding, { target: '/studio/members?cursor=' + cursor }).work,
+    ).rejects.toThrow();
+    expect(f.administration).toHaveBeenCalledTimes(calls);
+  });
 });

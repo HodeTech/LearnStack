@@ -16,6 +16,8 @@ import type {
   OwnDataRequest,
   OwnDataRequestPage,
   RetainedDataRequestScopePage,
+  SubjectDataRequest,
+  SubjectDataRequestPage,
 } from './data-request-contract.js';
 import {
   dataExportChunkResponse,
@@ -26,12 +28,15 @@ import {
   ownDataRequest,
   ownDataRequestPage,
   retainedScopePage,
+  subjectDataRequest,
+  subjectDataRequestPage,
 } from './data-request-policy.js';
 import { appError, parseProblem } from './response-policy.js';
 export type * from './data-request-contract.js';
 
 const own = '/api/v1/identity/me/data-requests';
 const entry = '/api/v1/identity/data-request-entry';
+const administered = '/api/v1/identity/data-requests';
 const maximumBody = 256 * 1024;
 
 class BodyLimit extends Error {
@@ -103,8 +108,9 @@ type Plan = Readonly<{
 }>;
 
 /**
- * ADR-0106 § 9 and ADR-0107 § 4: the subject's own and retained-entry data-request operations. The injected native
- * caller owns credentials, host, scope and lifetime; nothing here selects a tenant, organization or credential.
+ * ADR-0106 §§ 3 and 9, ADR-0107 § 4: the subject's own and retained-entry data-request operations, and the
+ * administrator's operations on the requests of the context's group. The injected native caller owns credentials,
+ * host, scope and lifetime; nothing here selects a tenant, organization or credential.
  */
 export function createDataRequestServerSdk(transport: AdministrationFetch) {
   async function request<T, Status extends 200 | 202 = 200>(
@@ -221,8 +227,8 @@ export function createDataRequestServerSdk(transport: AdministrationFetch) {
     if (options?.limit !== undefined) query.set('limit', String(options.limit));
     return path + (query.size ? '?' + query.toString() : '');
   };
-  const resource = (id: string, suffix = '') =>
-    identifier(id) ? own + '/' + id + suffix : undefined;
+  const resource = (id: string, suffix = '', base = own) =>
+    identifier(id) ? base + '/' + id + suffix : undefined;
   const grouped = (group: DataRequestGroup, action: string) =>
     dataRequestGroup(group)
       ? entry + '/' + action + '?' + new URLSearchParams({ group }).toString()
@@ -231,22 +237,40 @@ export function createDataRequestServerSdk(transport: AdministrationFetch) {
     identifier(id) ? { requestId: id, ...extra } : undefined;
   const receipt = (value: unknown) =>
     object(value) && Object.keys(value).length === 1 && version(value.version);
+  /** A creation answers 202; its Location names the request under `located`, and a retained one has none. */
   const create =
-    (kind: 'export' | 'erasure' | 'closure', path: string | undefined, ownPath: boolean) =>
+    (
+      kind: 'export' | 'erasure' | 'closure',
+      path: string | undefined,
+      located: string | undefined,
+      body: unknown = {},
+    ) =>
     (options: AdministrationCreateOptions) =>
       request<DataRequestAccepted, 202>(
         {
           path,
           method: 'POST',
-          body: {},
+          body,
           idempotencyKey: options.idempotencyKey,
           etag: 'version',
-          ...(ownPath ? { location: (value) => own + '/' + String(value.id) } : {}),
+          ...(located === undefined
+            ? {}
+            : { location: (value) => located + '/' + String(value.id) }),
         },
         (value) => dataRequestAccepted(value, kind),
         202,
         options,
       );
+  /** ADR-0106 § 3: an administrator names the subject only by a Membership of the group, never by a User. */
+  const forSubject = (kind: 'export' | 'erasure', membershipId: string) =>
+    create(
+      kind,
+      identifier(membershipId)
+        ? administered + (kind === 'export' ? '/exports' : '/erasures')
+        : undefined,
+      administered,
+      { membershipId },
+    );
   const keyed = (path: string | undefined, body: unknown, options: AdministrationWriteOptions) =>
     request<AdministrationVersion>(
       {
@@ -288,9 +312,9 @@ export function createDataRequestServerSdk(transport: AdministrationFetch) {
         200,
         options,
       ),
-    createOwnDataExport: create('export', own + '/exports', true),
-    createOwnDataErasure: create('erasure', own + '/erasures', true),
-    createOwnAccountClosure: create('closure', own + '/closures', true),
+    createOwnDataExport: create('export', own + '/exports', own),
+    createOwnDataErasure: create('erasure', own + '/erasures', own),
+    createOwnAccountClosure: create('closure', own + '/closures', own),
     cancelOwnDataRequest: (id: string, options: AdministrationWriteOptions) =>
       keyed(resource(id, '/cancellations'), {}, options),
     revokeOwnDataExport: (id: string, options: AdministrationWriteOptions) =>
@@ -328,11 +352,11 @@ export function createDataRequestServerSdk(transport: AdministrationFetch) {
         options,
       ),
     createRetainedDataExport: (group: DataRequestGroup, options: AdministrationCreateOptions) =>
-      create('export', grouped(group, 'exports'), false)(options),
+      create('export', grouped(group, 'exports'), undefined)(options),
     createRetainedDataErasure: (group: DataRequestGroup, options: AdministrationCreateOptions) =>
-      create('erasure', grouped(group, 'erasures'), false)(options),
+      create('erasure', grouped(group, 'erasures'), undefined)(options),
     createRetainedAccountClosure: (group: DataRequestGroup, options: AdministrationCreateOptions) =>
-      create('closure', grouped(group, 'closures'), false)(options),
+      create('closure', grouped(group, 'closures'), undefined)(options),
     cancelRetainedDataRequest: (
       group: DataRequestGroup,
       id: string,
@@ -375,6 +399,31 @@ export function createDataRequestServerSdk(transport: AdministrationFetch) {
           : undefined,
         options,
       ),
+    /** The group's export and erasure requests, newest first: status and counts only (MUST read-sensitive). */
+    listDataRequests: (options?: AdministrationPageOptions) =>
+      request<SubjectDataRequestPage>(
+        { path: page(administered, options, 100, 1024), method: 'GET', etag: 'none' },
+        (value) => subjectDataRequestPage(value, 100),
+        200,
+        options,
+      ),
+    getDataRequest: (id: string, options?: AdministrationReadOptions) =>
+      request<SubjectDataRequest>(
+        { path: resource(id, '', administered), method: 'GET', etag: 'version' },
+        (value) => subjectDataRequest(value) && (value as { id: string }).id === id,
+        200,
+        options,
+      ),
+    createDataExportForSubject: (membershipId: string, options: AdministrationCreateOptions) =>
+      forSubject('export', membershipId)(options),
+    createDataErasureForSubject: (membershipId: string, options: AdministrationCreateOptions) =>
+      forSubject('erasure', membershipId)(options),
+    /** Only the administrator who filed the request cancels it; `version` is the request's. */
+    cancelDataRequest: (id: string, options: AdministrationWriteOptions) =>
+      keyed(resource(id, '/cancellations', administered), {}, options),
+    /** Only the administrator who filed the export revokes its artifact; `version` is the ARTIFACT's. */
+    revokeDataExport: (id: string, options: AdministrationWriteOptions) =>
+      keyed(resource(id, '/artifact/revocations', administered), {}, options),
   });
 }
 export type DataRequestServerSdk = ReturnType<typeof createDataRequestServerSdk>;

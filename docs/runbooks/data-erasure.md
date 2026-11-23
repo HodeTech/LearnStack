@@ -294,6 +294,22 @@ a pseudonymous reference; never say they are anonymous. A `failed`
 receipt means the job died: the person files again, and the old request stops blocking
 them.
 
+## What an administrator sees
+
+An administrator files an erasure from the member's page in Studio, only for a
+Membership that is already Revoked, after confirming a statement of what is erased, what
+is kept, the 24-hour window, that the person may cancel in it, and that a re-admission
+within it does not stop the erasure
+([Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests)).
+The request's page in `/studio/data-requests` then shows `Scheduled` and the end of the
+window, with a cancel form for the administrator who filed it; `Starting soon` once the
+window has passed and the job has not run; `Waiting for an operator` while it waits for
+you; and `Completed` with the retained counts after your completion. A blocked erasure
+says why (a hold, or the person is the last administrator). A closure is never listed; a
+closure's fan-out erasure is, filed by the person's account closure and with no cancel
+form. If an administrator asks why an erasure is not complete, the status on that page
+is what they see; answer as in [When a person asks](#when-a-person-asks).
+
 ## Deploying
 
 Every API host must run a build that registers the erasure definitions

@@ -160,6 +160,10 @@ function fixture(overrides: Partial<Record<NativeOperation['kind'], NativeOperat
       items: [{ ...member, organizationId, status: 'Active' }],
       pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
     }),
+    listDataRequests: success({
+      items: [],
+      pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+    }),
     ...overrides,
   };
   const read = vi.fn(
@@ -202,7 +206,7 @@ describe('finite native page preparation reads and safe projections', () => {
     [
       '/studio/members/' + memberId,
       'member',
-      ['getMembership', 'listRoles', 'getMembershipCustomFields'],
+      ['getMembership', 'listRoles', 'getMembershipCustomFields', 'listDataRequests'],
     ],
     ['/studio/roles', 'roles', ['listRoles']],
     ['/studio/invitations', 'invitations', ['listInvitations', 'listInvitableRoles']],
@@ -380,6 +384,7 @@ describe('finite native page preparation reads and safe projections', () => {
       'getOwnProfile',
       'getMembership',
       'getMembershipCustomFields',
+      'listDataRequests',
     ]);
     expect(result.outcome).toMatchObject({
       kind: 'ready',

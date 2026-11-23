@@ -30,6 +30,15 @@ describe('fixed protected history lifecycle', () => {
       '/studio/members/019a154b-0000-7000-8000-000000000011',
       '/studio/members/019a154b-0000-7000-8000-000000000011',
     ],
+    ['/studio/data-requests', '/studio/data-requests'],
+    [
+      '/studio/data-requests/019a154b-0000-7000-8000-000000000041',
+      '/studio/data-requests/019a154b-0000-7000-8000-000000000041',
+    ],
+    [
+      '/studio/data-requests/019a154b-0000-7000-8000-000000000041?result=export',
+      '/api/auth/signin',
+    ],
     ['/api/auth/entry', '/api/auth/entry'],
     ['/api/auth/signin', '/api/auth/signin'],
     ['/api/account/profile', '/api/auth/signin'],

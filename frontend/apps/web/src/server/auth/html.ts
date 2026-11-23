@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { dataRequestRefusalSentence } from '@/components/auth/admin-data-request-labels';
 import {
   languageLabel,
   permissionLabel,
@@ -268,6 +269,40 @@ function federationMutationContent(
   return `<p role="alert">${escape(message)}</p><p><a href="/studio/federation">${escape(copy('mutation.federation_back'))}</a></p>`;
 }
 
+/**
+ * ADR-0106 § 7: a refused or unconfirmed data-request action. A closed refusal has its own sentence and is never
+ * retried; a generic outcome keeps the template's sentence and its deliberate same-request retry. No API text is shown.
+ */
+function dataRequestMutationContent(
+  page: Extract<BffPage, { kind: 'mutation_error' }>,
+  copy: AuthCopy,
+  locale: string,
+): string {
+  const { admin, dataRequest } = createAdministrationTranslator(locale);
+  const refusal = page.dataRequest?.refusal ?? null;
+  const generic: Record<Extract<BffPage, { kind: 'mutation_error' }>['reason'], string> = {
+    denied: copy('mutation.denied'),
+    stale: copy('mutation.stale'),
+    in_progress: copy('mutation.in_progress'),
+    key_reuse: copy('mutation.key_reuse'),
+    unavailable: copy('mutation.unavailable'),
+    validation: dataRequest('error.confirmation'),
+  };
+  const message =
+    refusal === null
+      ? generic[page.reason]
+      : dataRequestRefusalSentence(refusal, admin, dataRequest);
+  const own =
+    refusal === 'subject_is_requester'
+      ? `<p><a href="/account/data">${escape(admin('data_requests.own_data'))}</a></p>`
+      : '';
+  const retry =
+    refusal === null && page.retryable
+      ? `<form action="${escape(page.action)}" method="post">${page.fields.map(([name, value]) => hidden(name, value)).join('')}<button type="submit">${escape(copy('mutation.retry'))}</button></form>`
+      : '';
+  return `<p role="alert">${escape(message)}</p>${own}<p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>${retry}`;
+}
+
 function mutationContent(
   page: Extract<BffPage, { kind: 'mutation_error' }>,
   copy: AuthCopy,
@@ -276,6 +311,8 @@ function mutationContent(
 ): string {
   if (page.action.startsWith('/api/studio/federation-'))
     return federationMutationContent(page, copy, locale);
+  if (page.action.startsWith('/api/studio/data-request-'))
+    return dataRequestMutationContent(page, copy, locale);
   const customField = customFieldMutationContent(page, locale, site);
   if (customField !== null) return customField;
   if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-'))

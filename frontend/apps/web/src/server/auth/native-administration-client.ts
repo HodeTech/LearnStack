@@ -272,6 +272,31 @@ function createCaller(configuration: NativeApiConfiguration, transport: typeof f
         );
         break;
 
+      case 'listDataRequests':
+        result = await sdk.listDataRequests({
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'getDataRequest':
+        result = await sdk.getDataRequest(operation.id, read);
+        break;
+      case 'createDataExportForSubject':
+      case 'createDataErasureForSubject':
+        result = await sdk[operation.kind](operation.membershipId, {
+          idempotencyKey: operation.idempotencyKey,
+          signal,
+        });
+        break;
+      case 'cancelDataRequest':
+      case 'revokeDataExport':
+        result = await sdk[operation.kind](
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+
       case 'listMemberships':
         result = await sdk.listMemberships({
           ...read,

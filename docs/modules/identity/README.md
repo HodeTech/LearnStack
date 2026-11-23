@@ -1014,6 +1014,18 @@ retained entry, the erasure and closure confirmations, and the export download r
 chunk by chunk as one attachment. Its copy names every refusal reason these routes emit,
 and the retained classes no count reaches.
 
+The administrator's surface is Studio's `/studio/data-requests` list and request page
+and a section of the member page, for a holder of `identity.membership.admin` in the
+context's group through the administrator routes above. It shows each request's status,
+dates, filer, retained counts and file size, never a closure and never the bundle: the
+page says the file reaches only the person. A receipt names its subject by the frozen
+Membership, so the page shows the first one as the member list does, after the same
+audited member read the member page makes. The member section files an export for that
+Membership, or an erasure once it is Revoked, behind an explicit confirmation that
+states what is erased and kept and the 24-hour window. Only the administrator who filed
+a request sees its cancel and revoke forms. Each refusal reason of these routes has its
+own sentence; the copy shares the person's catalogue where the wording is the same.
+
 #### Account closure filing (P03-10 Step 3)
 
 The person files the global account closure of

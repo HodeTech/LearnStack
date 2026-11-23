@@ -1,4 +1,5 @@
 import { BffInputError } from './input-error.js';
+import type { DataRequestAdministrationResult } from './page-contract.js';
 import { isNativeReturnPath } from './session-path.js';
 
 export const MAX_TARGET_BYTES = 8192;
@@ -99,7 +100,12 @@ export function bffDocumentQuery(target: string, nativeFlight = false) {
       ? ['cursor', 'limit']
       : path === '/portal/profile' || path.startsWith('/studio/members/')
         ? ['field', 'consentCursor']
-        : [];
+        : // The data-request list resolves one subject name per item, so its page size is fixed.
+          path === '/studio/data-requests'
+          ? ['cursor']
+          : path.startsWith('/studio/data-requests/')
+            ? ['result']
+            : [];
   const fields = bffQuery(target, nativeFlight ? [...allowed, '_rsc'] : allowed);
   if (fields.has('_rsc')) {
     if (!/^[\x21-\x7e]{1,128}$/.test(fields.get('_rsc')!)) throw new BffInputError();
@@ -112,5 +118,15 @@ export function bffDocumentQuery(target: string, nativeFlight = false) {
   )
     throw new BffInputError();
   const consentCursor = bffCursor(fields.get('consentCursor'));
-  return Object.freeze({ target: path, selectedFieldId, consentCursor, ...bffPageQuery(fields) });
+  const result = fields.get('result');
+  if (result !== null && !['export', 'erasure', 'cancelled', 'revoked'].includes(result))
+    throw new BffInputError();
+  fields.delete('result');
+  return Object.freeze({
+    target: path,
+    selectedFieldId,
+    consentCursor,
+    result: result as DataRequestAdministrationResult | null,
+    ...bffPageQuery(fields),
+  });
 }

@@ -367,7 +367,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       | 'custom_revisions'
       | 'consent_history'
       | 'data_requests'
-      | 'data_request_scopes',
+      | 'data_request_scopes'
+      | 'group_data_requests',
   ) {
     return { ...this.#cursorBinding(entry), purpose };
   }
@@ -381,7 +382,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       | 'custom_revisions'
       | 'consent_history'
       | 'data_requests'
-      | 'data_request_scopes',
+      | 'data_request_scopes'
+      | 'group_data_requests',
     cursor: string,
   ) {
     entry.pageCursorKey ??= randomBytes(32);
@@ -397,7 +399,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       | 'custom_revisions'
       | 'consent_history'
       | 'data_requests'
-      | 'data_request_scopes',
+      | 'data_request_scopes'
+      | 'group_data_requests',
     cursor: string | undefined,
   ) {
     if (cursor === undefined) return undefined;
@@ -526,7 +529,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
                     ? 'custom_fields'
                     : plan.kind === 'custom_field'
                       ? 'custom_revisions'
-                      : 'members',
+                      : plan.kind === 'data_requests'
+                        ? 'group_data_requests'
+                        : 'members',
                 plan.cursor,
               )
             : undefined;
@@ -732,7 +737,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
                   ? 'custom_fields'
                   : plan!.kind === 'custom_field'
                     ? 'custom_revisions'
-                    : 'members',
+                    : plan!.kind === 'data_requests'
+                      ? 'group_data_requests'
+                      : 'members',
               cursor,
             ),
           this.#dependencies.federationIssuer,

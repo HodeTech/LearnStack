@@ -42,6 +42,21 @@ failed browser download, never as a short file shown complete; the person downlo
 again. A `409 data_export_ticket_limit` is shown as "wait 15 minutes, or ask for a new
 copy", and `data_export_unavailable` as "ask for a new copy".
 
+## What an administrator sees
+
+A holder of `identity.membership.admin` sees the requests of their context's group on
+`/studio/data-requests` and on each member's page, and files an export from the member's
+page for that Membership, of any status
+([Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests)).
+The administrator sees the status, the dates, who filed it and, once it completes, the
+file's size and when it stops being available to the person; never the file. The page
+says that the file reaches only the person, on their own data page. The form is not
+offered while the member's list shows an export in progress or a file still available to
+the person, and the API refuses it then anyway: `subject_export_available` means a new
+export would delete the person's file, so wait until it expires or is deleted. Only the
+administrator who filed an export can cancel it before it starts or delete its file; a
+request filed by the person or by another administrator shows who may act instead.
+
 ## Signals
 
 | Signal | Meaning |

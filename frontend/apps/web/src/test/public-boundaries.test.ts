@@ -613,6 +613,8 @@ describe('ADR-0053 production public boundaries', () => {
         'apps/web/src/app/(studio)/studio/invitations/[invitationId]/page.tsx',
         'apps/web/src/app/(studio)/studio/invitation-policy/page.tsx',
         'apps/web/src/app/(studio)/studio/federation/page.tsx',
+        'apps/web/src/app/(studio)/studio/data-requests/page.tsx',
+        'apps/web/src/app/(studio)/studio/data-requests/[requestId]/page.tsx',
         'apps/web/src/app/(portal)/layout.tsx',
         'apps/web/src/app/(portal)/portal/page.tsx',
         'apps/web/src/app/(portal)/portal/profile/page.tsx',

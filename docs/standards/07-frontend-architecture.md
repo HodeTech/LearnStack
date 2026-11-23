@@ -331,8 +331,9 @@ closed switch operation. The
 P03-3 protected document set is `/studio`, `/studio/members`,
 `/studio/members/{MembershipId}`, `/studio/roles`, `/studio/roles/{RoleId}`,
 `/portal` and `/portal/profile`, with canonical resource IDs. Only member-list
-GET in that set accepts cursor/limit; the invitation documents below extend the
-set. Exact route/query/history censuses reject alternatives.
+GET in that set accepts cursor/limit; the invitation documents below and the
+[data-request documents](#subject-data-requests) extend the set. Exact
+route/query/history censuses reject alternatives.
 An actual native-captured `RSC: 1` request may additionally carry one nonblank
 safe-ASCII `_rsc` transport value of at most 128 characters. Remove only that
 field for route-query validation; keep the signed raw target and the native
@@ -1265,3 +1266,23 @@ document; a later failure, the ticket's expiry or the owner's revocation destroy
 connection, so a short body never completes. A `404` mid-download (a refreshed
 credential ends the ticket) mints at most two new tickets and resumes at the failed
 index. The ticket stays inside the relay: never in a URL, header, page or log.
+
+**Administrator surface.** `/studio/data-requests` (only an opaque `cursor`, a fixed
+page of 20) and `/studio/data-requests/{RequestId}` (only a closed `result`) are
+protected Studio documents shown to holders of the advisory `canManageMemberships`
+capability; the API authorizes every operation. They list the context group's exports
+and erasures, never a closure or a bundle. A receipt names its subject only by
+Membership, so the page reads the first frozen Membership as the member page does and
+keeps only what the member list shows (name, status, branch or institution). The member
+page adds that member's requests in the exact group and the two filings for that
+Membership. The forms join the closed POST set under the administration form rules:
+
+| Path | Operation |
+|---|---|
+| `/api/studio/data-request-export` | Export for a Membership of the group |
+| `/api/studio/data-request-erasure` | Erasure for a Revoked Membership, with a required confirmation |
+| `/api/studio/data-request-cancel` | Cancel a request the caller filed, at the request version |
+| `/api/studio/data-request-revoke` | Delete the file of an export the caller filed, at the artifact version |
+
+A closed refusal (`errors.$` or `errors.artifact`) renders its own sentence and offers
+no retry; success is a 303 to the request's page with a closed `result`.

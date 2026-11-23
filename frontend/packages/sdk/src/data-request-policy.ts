@@ -118,23 +118,49 @@ function artifact(value: unknown): boolean {
       item.included <= item.total,
   );
 }
+const RECEIPT_FIELDS = [
+  'id',
+  'kind',
+  'origin',
+  'status',
+  'createdAt',
+  'updatedAt',
+  'completedAt',
+  'lastRefusal',
+  'failureReason',
+  'retained',
+  'artifact',
+  'version',
+  'executeAt',
+] as const;
+/** ADR-0106 § 9: the person's own receipt, with exactly the receipt fields. */
 export function ownDataRequest(value: unknown): boolean {
+  return receipt(value, RECEIPT_FIELDS);
+}
+/**
+ * ADR-0106 §§ 3, 6, 13: an administrator's receipt of a request of the group. It adds who filed it relative to the
+ * caller and the frozen Membership snapshot (1 to 256 distinct identifiers), and is never a closure.
+ */
+export function subjectDataRequest(value: unknown): boolean {
+  return (
+    receipt(value, [...RECEIPT_FIELDS, 'requestedByYou', 'membershipIds']) &&
+    (value as { kind: string }).kind !== 'closure' &&
+    typeof (value as { requestedByYou: unknown }).requestedByYou === 'boolean' &&
+    memberships((value as { membershipIds: unknown }).membershipIds)
+  );
+}
+function memberships(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length >= 1 &&
+    value.length <= 256 &&
+    value.every(identifier) &&
+    new Set(value).size === value.length
+  );
+}
+function receipt(value: unknown, keys: readonly string[]): boolean {
   if (
-    !fields(value, [
-      'id',
-      'kind',
-      'origin',
-      'status',
-      'createdAt',
-      'updatedAt',
-      'completedAt',
-      'lastRefusal',
-      'failureReason',
-      'retained',
-      'artifact',
-      'version',
-      'executeAt',
-    ]) ||
+    !fields(value, keys) ||
     !identifier(value.id) ||
     !oneOf(value.kind, DATA_REQUEST_KINDS) ||
     !oneOf(value.origin, DATA_REQUEST_ORIGINS) ||
@@ -170,6 +196,16 @@ export function ownDataRequestPage(value: unknown, maximum: number): boolean {
     Array.isArray(value.items) &&
     value.items.length <= maximum &&
     value.items.every(ownDataRequest) &&
+    new Set(value.items.map((item) => (item as { id: string }).id)).size === value.items.length &&
+    pageInfo(value.pageInfo, 1024)
+  );
+}
+export function subjectDataRequestPage(value: unknown, maximum: number): boolean {
+  return (
+    fields(value, ['items', 'pageInfo']) &&
+    Array.isArray(value.items) &&
+    value.items.length <= maximum &&
+    value.items.every(subjectDataRequest) &&
     new Set(value.items.map((item) => (item as { id: string }).id)).size === value.items.length &&
     pageInfo(value.pageInfo, 1024)
   );

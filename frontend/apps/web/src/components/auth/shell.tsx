@@ -6,12 +6,13 @@ import {
   preferredPageLocale,
   getAdministrationCatalogue,
 } from '@/i18n/administration-catalogues';
-import type { AdminCopy, ProfileCopy } from '@/i18n/administration-catalogues';
+import type { AdminCopy, DataRequestUiCopy, ProfileCopy } from '@/i18n/administration-catalogues';
 import { createAuthTranslator } from '@/i18n/auth-catalogues';
 import type { AuthCopy } from '@/i18n/auth-catalogues';
 import { optionalPreparedPage } from '@/server/auth/page';
 import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
+import { DataRequestDetails, DataRequestDirectory } from './admin-data-requests';
 import { FederationPage } from './admin-federation';
 import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
 import { InvitationDetails, InvitationDirectory, InvitationPolicy } from './admin-invitations';
@@ -41,6 +42,8 @@ function title(kind: PageKind, admin: AdminCopy, profile: ProfileCopy, copy: Aut
     custom_fields: admin('custom_fields.title'),
     custom_field: admin('custom_fields.detail_title'),
     federation: admin('federation.title'),
+    data_requests: admin('data_requests.title'),
+    data_request: admin('data_requests.detail_title'),
   };
   return titles[kind];
 }
@@ -51,15 +54,22 @@ function PageContents({
   locale,
   admin,
   profile,
+  dataRequest,
 }: {
   readonly snapshot: NativePageSnapshot;
   readonly view: PageView;
   readonly locale: string;
   readonly admin: AdminCopy;
   readonly profile: ProfileCopy;
+  readonly dataRequest: DataRequestUiCopy;
 }) {
   const fieldCopy = getAdministrationCatalogue(locale).messages.admin.custom_fields;
+  const requestCopy = { admin, dataRequest, locale };
   switch (view.kind) {
+    case 'data_requests':
+      return <DataRequestDirectory snapshot={snapshot} view={view} copy={requestCopy} />;
+    case 'data_request':
+      return <DataRequestDetails snapshot={snapshot} view={view} copy={requestCopy} />;
     case 'custom_fields':
       return (
         <CustomFieldDirectory snapshot={snapshot} view={view} locale={locale} copy={fieldCopy} />
@@ -87,6 +97,7 @@ function PageContents({
           admin={admin}
           profile={profile}
           fieldCopy={fieldCopy}
+          requestCopy={requestCopy}
         />
       );
     case 'roles':
@@ -164,7 +175,8 @@ export function PreparedAccountPage({
   if (snapshot.outcome.kind === 'ready' && snapshot.outcome.view.kind !== kind)
     throw new Error('Prepared page mismatch');
   const preferred = preferredPageLocale(snapshot);
-  const { locale, direction, admin, profile } = createAdministrationTranslator(preferred);
+  const { locale, direction, admin, profile, dataRequest } =
+    createAdministrationTranslator(preferred);
   const { copy } = createAuthTranslator(preferred);
   const capabilities = snapshot.capabilities;
   const labels = {
@@ -230,6 +242,9 @@ export function PreparedAccountPage({
           {capabilities?.canManageMemberships && (
             <a href="/studio/invitations">{admin('navigation.invitations')}</a>
           )}
+          {capabilities?.canManageMemberships && (
+            <a href="/studio/data-requests">{admin('navigation.subject_data_requests')}</a>
+          )}
           {snapshot.scopeKind === 'tenant' && (
             <a href="/studio/invitation-policy">{admin('navigation.invitation_policy')}</a>
           )}
@@ -265,7 +280,9 @@ export function PreparedAccountPage({
                       ? '/studio/invitations'
                       : kind === 'custom_fields' || kind === 'custom_field'
                         ? '/studio/custom-fields'
-                        : '/studio/members'
+                        : kind === 'data_requests'
+                          ? '/studio/data-requests'
+                          : '/studio/members'
                     : snapshot.target
                 }
               >
@@ -282,6 +299,7 @@ export function PreparedAccountPage({
             locale={locale}
             admin={admin}
             profile={profile}
+            dataRequest={dataRequest}
           />
         )}
       </SessionControls>
@@ -305,8 +323,18 @@ export async function accountPageMetadata(kind: PageKind) {
   if (!prepared) return { robots: { index: false, follow: false } };
   prepared.assertActive();
   const locale = preferredPageLocale(prepared.snapshot);
-  const { admin, profile } = createAdministrationTranslator(locale);
+  const { admin, profile, dataRequest } = createAdministrationTranslator(locale);
   const { copy } = createAuthTranslator(locale);
-  return { title: title(kind, admin, profile, copy), robots: { index: false, follow: false } };
+  const outcome = prepared.snapshot.outcome;
+  // A settled data-request action is announced in the title too, as the person's own page does.
+  const done =
+    outcome.kind === 'ready' &&
+    outcome.view.kind === 'data_request' &&
+    outcome.view.result !== null &&
+    kind === 'data_request';
+  return {
+    title: (done ? dataRequest('result.title') + ' – ' : '') + title(kind, admin, profile, copy),
+    robots: { index: false, follow: false },
+  };
 }
 export const accountShellMetadata = (kind: 'studio' | 'portal') => accountPageMetadata(kind);

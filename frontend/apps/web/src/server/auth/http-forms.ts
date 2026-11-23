@@ -9,6 +9,10 @@ import { FEDERATION_FORMS, federationForm } from './federation-forms.js';
 import { BffInputError } from './input-error.js';
 import type { NativeScope } from './native-contract.js';
 import type { NativeOperation } from './native-operation-contract.js';
+import type {
+  DataRequestAdministrationRefusal,
+  DataRequestAdministrationResult,
+} from './page-contract.js';
 
 export { bffCursor, bffPageQuery } from './page-query.js';
 
@@ -134,15 +138,86 @@ export class BffProfileInputError extends BffInputError {
     super();
   }
 }
+/** A data-request erasure without its explicit confirmation is recoverable after its proof and target grammar. */
+export class BffDataRequestConfirmationError extends BffInputError {}
 /** User-editable invitation values are recoverable after proof/target grammar succeeds. */
 export class BffInvitationInputError extends BffInputError {
   constructor(readonly invalidFields: readonly ('email' | 'offeredRole' | 'days')[]) {
     super();
   }
 }
+/**
+ * ADR-0106 §§ 3, 10, 11 and ADR-0107 § 4: the administrator's data-request forms. A creation names a Membership of
+ * the context's group, never a User; cancellation carries the request's version and revocation the artifact's. The
+ * erasure's explicit confirmation is re-checked here, before any API work.
+ */
+export const DATA_REQUEST_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  '/api/studio/data-request-export': ['csrfToken', 'idempotencyKey', 'membershipId'],
+  '/api/studio/data-request-erasure': ['csrfToken', 'idempotencyKey', 'membershipId', 'confirm'],
+  '/api/studio/data-request-cancel': [...common, 'requestId'],
+  '/api/studio/data-request-revoke': [...common, 'requestId'],
+});
+/**
+ * The closed refusals of those routes (`errors.$` or `errors.artifact` of a 409 `business_rule_violation`). A reason
+ * missing here renders the generic refusal; the catalogue test fails on every API reason this table does not name.
+ */
+export const DATA_REQUEST_ADMIN_REFUSALS: Readonly<
+  Record<string, Exclude<DataRequestAdministrationRefusal, 'unknown'>>
+> = Object.freeze({
+  lockey_request_already_active: 'request_already_active',
+  lockey_blocked_hold: 'blocked_hold',
+  lockey_blocked_last_administrator: 'blocked_last_administrator',
+  lockey_subject_export_available: 'subject_export_available',
+  lockey_subject_membership_current: 'subject_membership_current',
+  lockey_subject_is_requester: 'subject_is_requester',
+  lockey_subject_not_admitted: 'subject_not_admitted',
+  lockey_snapshot_too_large: 'snapshot_too_large',
+  lockey_data_export_unavailable: 'data_export_unavailable',
+  lockey_data_request_window_ended: 'data_request_window_ended',
+  lockey_data_request_not_cancellable: 'data_request_not_cancellable',
+});
+/** One refusal from the reasons an API problem carries; never the API's own text. */
+export function dataRequestAdministrationRefusal(
+  errors: Readonly<Record<string, readonly Readonly<{ key: string }>[]>> | undefined,
+): DataRequestAdministrationRefusal {
+  for (const reason of [...(errors?.['$'] ?? []), ...(errors?.['artifact'] ?? [])])
+    if (Object.hasOwn(DATA_REQUEST_ADMIN_REFUSALS, reason.key))
+      return DATA_REQUEST_ADMIN_REFUSALS[reason.key]!;
+  return 'unknown';
+}
+const DATA_REQUEST_RESULTS: Readonly<Record<string, DataRequestAdministrationResult>> =
+  Object.freeze({
+    '/api/studio/data-request-export': 'export',
+    '/api/studio/data-request-erasure': 'erasure',
+    '/api/studio/data-request-cancel': 'cancelled',
+    '/api/studio/data-request-revoke': 'revoked',
+  });
+/**
+ * The fixed same-host 303 after a settled data-request action: the request's own page with its closed result. A
+ * creation's request comes only from the exact `Location` the SDK validated; anything else is refused (null).
+ */
+export function dataRequestAdministrationDestination(
+  path: string,
+  destination: string,
+  location: string | null,
+): string | null {
+  if (!Object.hasOwn(DATA_REQUEST_RESULTS, path)) return null;
+  const result = DATA_REQUEST_RESULTS[path]!;
+  let request = destination;
+  if (result === 'export' || result === 'erasure') {
+    const match =
+      /^\/api\/v1\/identity\/data-requests\/([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(
+        location ?? '',
+      );
+    if (!match) return null;
+    request = '/studio/data-requests/' + match[1];
+  }
+  return request + '?result=' + result;
+}
 export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   ...CUSTOM_FIELD_FORMS,
   ...FEDERATION_FORMS,
+  ...DATA_REQUEST_ADMIN_FORMS,
   '/api/studio/membership-profile': [...common, 'membershipId', 'displayName', 'preferredLocale'],
   '/api/studio/membership-roles': [...common, 'membershipId', 'roleIds'],
   '/api/studio/membership-status': [...common, 'membershipId', 'status'],
@@ -260,7 +335,32 @@ export function bffAdministrationForm(
       destination: '/studio/invitation-policy',
     };
   }
+  if (path === '/api/studio/data-request-export' || path === '/api/studio/data-request-erasure') {
+    const membershipId = id(required(fields, 'membershipId'));
+    const erasure = path === '/api/studio/data-request-erasure';
+    // ADR-0106 § 11: the explicit confirmation the page asked for, re-checked before any API work.
+    if (erasure && fields.get('confirm') !== 'erase') throw new BffDataRequestConfirmationError();
+    return {
+      operation: {
+        kind: erasure ? 'createDataErasureForSubject' : 'createDataExportForSubject',
+        membershipId,
+        idempotencyKey,
+      },
+      destination: '/studio/members/' + membershipId,
+    };
+  }
   const write = { version: readVersion(), idempotencyKey };
+  if (path === '/api/studio/data-request-cancel' || path === '/api/studio/data-request-revoke') {
+    const requestId = id(required(fields, 'requestId'));
+    return {
+      operation: {
+        kind: path === '/api/studio/data-request-cancel' ? 'cancelDataRequest' : 'revokeDataExport',
+        ...write,
+        id: requestId,
+      },
+      destination: '/studio/data-requests/' + requestId,
+    };
+  }
   if (path === '/api/studio/invitation-revoke' || path === '/api/studio/invitation-reissue') {
     const invitationId = id(required(fields, 'invitationId'));
     return {

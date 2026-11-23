@@ -15,7 +15,8 @@ type EntryCursorBinding = Readonly<{
     | 'custom_revisions'
     | 'consent_history'
     | 'data_requests'
-    | 'data_request_scopes';
+    | 'data_request_scopes'
+    | 'group_data_requests';
 }>;
 const VERSION = 1;
 const MAX_PLAINTEXT_BYTES = 739;

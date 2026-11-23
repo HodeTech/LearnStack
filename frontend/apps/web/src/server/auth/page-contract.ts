@@ -9,6 +9,7 @@ import type {
   FederationConnection,
   OwnDataRequestPage,
   RetainedDataRequestScopePage,
+  SubjectDataRequest,
 } from '@learnstack/sdk/administration-server';
 
 import type { EntryProjection, NativeReturnPath } from './session-contract.js';
@@ -118,6 +119,43 @@ export type PageFederation = Readonly<{
   provider: 'not_read' | 'matches' | 'drift' | 'unavailable';
   values: Readonly<{ redirectUri: string; entityId: string; descriptorUrl: string }> | null;
 }>;
+/** ADR-0106 § 6: who a request concerns, exactly as the member list shows a member; never a role or a User. */
+export type PageDataRequestSubject = Readonly<{
+  displayName: string | null;
+  status: 'Active' | 'Suspended' | 'Revoked';
+  organizationScoped: boolean;
+}>;
+/**
+ * ADR-0106 §§ 3, 6, 13: an administrator's receipt of a request of the context's group, for one page: status and
+ * counts, never content. At most 20 of the frozen Membership identifiers are kept, with their count; the first names
+ * the subject, whose member-list projection is `null` when its read was refused.
+ */
+export type PageDataRequest = Readonly<
+  Omit<SubjectDataRequest, 'membershipIds'> & {
+    membershipIds: readonly string[];
+    membershipCount: number;
+    subject: PageDataRequestSubject | null;
+  }
+>;
+/** The closed outcome a Studio data-request action reports on its request's page after the 303. */
+export type DataRequestAdministrationResult = 'export' | 'erasure' | 'cancelled' | 'revoked';
+/**
+ * The closed refusals the administrator's data-request routes answer in `errors.$` or `errors.artifact` (409
+ * `business_rule_violation`), without their `lockey_` prefix; `unknown` is a reason this release does not name.
+ */
+export type DataRequestAdministrationRefusal =
+  | 'request_already_active'
+  | 'blocked_hold'
+  | 'blocked_last_administrator'
+  | 'subject_export_available'
+  | 'subject_membership_current'
+  | 'subject_is_requester'
+  | 'subject_not_admitted'
+  | 'snapshot_too_large'
+  | 'data_export_unavailable'
+  | 'data_request_window_ended'
+  | 'data_request_not_cancellable'
+  | 'unknown';
 export type PageView =
   | Readonly<{ kind: 'studio' | 'portal' }>
   | Readonly<{ kind: 'federation'; federation: PageFederation }>
@@ -134,6 +172,16 @@ export type PageView =
       roles: readonly PageRole[] | null;
       customFields?: MembershipCustomFields;
       selectedFieldId?: string | null;
+      /**
+       * This member's requests among the newest 100 of the exact current group; present only for a membership
+       * administrator whose context is the member's group. `items` is null when the list could not be read, and
+       * `complete` is false when older requests were not read.
+       */
+      dataRequests?: Readonly<{
+        items: readonly PageDataRequest[] | null;
+        complete: boolean;
+        preparedAt: string;
+      }>;
     }>
   | Readonly<{ kind: 'roles'; roles: readonly PageRole[] }>
   | Readonly<{
@@ -161,6 +209,20 @@ export type PageView =
       limit: number;
     }>
   | Readonly<{ kind: 'invitation'; invitation: PageInvitation }>
+  | Readonly<{
+      kind: 'data_requests';
+      items: readonly PageDataRequest[];
+      endCursor: string | null;
+      hasNextPage: boolean;
+      /** The instant the page was prepared: a scheduled erasure past `executeAt` reads as due. */
+      preparedAt: string;
+    }>
+  | Readonly<{
+      kind: 'data_request';
+      request: PageDataRequest;
+      result: DataRequestAdministrationResult | null;
+      preparedAt: string;
+    }>
   | Readonly<{ kind: 'invitation_policy'; policy: PageInvitationPolicy }>
   | Readonly<{ kind: 'custom_fields'; definitions: CustomFieldPage; limit: number }>
   | Readonly<{
@@ -233,6 +295,8 @@ export type NativeActionPage = Readonly<
       roleLabels?: readonly Pick<PageRole, 'roleId' | 'builtInKey' | 'capabilityScope'>[];
       /** ADR-0099: the closed field names to correct, or the settled outcome; never a secret or provider text. */
       federation?: Readonly<{ invalid: readonly string[]; outcome: string | null }>;
+      /** ADR-0106: a data-request action's closed refusal, or null for a generic outcome; never API text. */
+      dataRequest?: Readonly<{ refusal: DataRequestAdministrationRefusal | null }>;
     }
   | { kind: 'account_change'; csrfToken: string }
 >;

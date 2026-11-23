@@ -175,6 +175,12 @@ describe('closed administration server SDK', () => {
       'revokeRetainedDataExport',
       'mintRetainedDataExportTicket',
       'readRetainedDataExportChunk',
+      'listDataRequests',
+      'getDataRequest',
+      'createDataExportForSubject',
+      'createDataErasureForSubject',
+      'cancelDataRequest',
+      'revokeDataExport',
     ]);
     expect(sdk).not.toHaveProperty('request');
     expectTypeOf<

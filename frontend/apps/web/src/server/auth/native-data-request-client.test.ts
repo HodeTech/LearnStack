@@ -116,4 +116,70 @@ describe('native data-request operation sources (ADR-0106 § 9)', () => {
     await expect(caller('owned-token', scoped, own, signal())).resolves.toBeDefined();
     await expect(other('owned-token', scoped, own, signal())).rejects.toThrow();
   });
+
+  it("performs the administrator's group operations in the session's exact scope only", async () => {
+    const organization = '019a154b-0000-7000-8000-0000000000ee';
+    const receipt = {
+      id,
+      kind: 'export',
+      origin: 'administrator',
+      status: 'requested',
+      createdAt: '2026-11-23T10:00:00Z',
+      updatedAt: null,
+      completedAt: null,
+      lastRefusal: null,
+      failureReason: null,
+      retained: [],
+      artifact: null,
+      version: '0',
+      executeAt: null,
+      requestedByYou: true,
+      membershipIds: [tenant.slice(0, -2) + '12'],
+    };
+    const transport = vi.fn<typeof fetch>(async (input) =>
+      String(input).endsWith('/data-requests?limit=20')
+        ? json({
+            items: [receipt],
+            pageInfo: {
+              nextCursor: null,
+              previousCursor: null,
+              hasNext: false,
+              hasPrevious: false,
+            },
+          })
+        : json(receipt, 200, { etag: '"0"' }),
+    );
+    const caller = createNativeAdministrationCaller(configuration, transport);
+    const scoped = { ...binding, tenantId: tenant, organizationId: organization };
+    expect(
+      (await caller('owned-token', scoped, { kind: 'listDataRequests', limit: 20 }, signal())).kind,
+    ).toBe('success');
+    expect(
+      (await caller('owned-token', scoped, { kind: 'getDataRequest', id }, signal())).kind,
+    ).toBe('success');
+    expect(transport.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.test/api/v1/identity/data-requests?limit=20',
+      'https://api.example.test/api/v1/identity/data-requests/' + id,
+    ]);
+    for (const [, init] of transport.mock.calls) {
+      const headers = new Headers(init!.headers);
+      expect(headers.get('X-LearnStack-Native-Tenant-Id')).toBe(tenant);
+      expect(headers.get('X-LearnStack-Native-Organization-Id')).toBe(organization);
+    }
+    // The retained entry never performs an administrator operation.
+    const retained = createNativeRetainedDataRequestCaller(configuration, transport);
+    for (const operation of [
+      { kind: 'listDataRequests', limit: 20 },
+      { kind: 'createDataExportForSubject', membershipId: id, idempotencyKey: 'k'.repeat(43) },
+    ])
+      expect(
+        await retained(
+          'owned-token',
+          binding,
+          operation as unknown as RetainedDataRequestOperation,
+          signal(),
+        ),
+      ).toEqual({ kind: 'invalid-request' });
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
 });

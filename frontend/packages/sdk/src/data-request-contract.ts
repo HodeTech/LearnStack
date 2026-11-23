@@ -15,13 +15,31 @@ export type DataExportChunk = components['schemas']['DataExportChunkResponse'];
 export type RetainedDataRequestScope = components['schemas']['RetainedDataRequestScopeResponse'];
 export type RetainedDataRequestScopePage =
   components['schemas']['RetainedDataRequestScopePageResponse'];
+/**
+ * An administrator's receipt of a request of the context's group (ADR-0106 §§ 3, 6, 13): the own receipt plus who
+ * filed it relative to the caller and the frozen Membership snapshot that names the subject. Never a closure.
+ */
+export type SubjectDataRequest = components['schemas']['DataRequestResponse'];
+export type SubjectDataRequestPage = components['schemas']['DataRequestPage'];
+export type DataRequestSubjectInput = components['schemas']['DataExportForSubjectInput'];
 /** The one retained group an entry operation acts in: `tenant` or an organization's canonical UUIDv7. */
 export type DataRequestGroup = string;
 export type DataRequestKind = OwnDataRequest['kind'];
 export type DataRequestStatus = OwnDataRequest['status'];
 /**
+ * Exact POST ownership of the administrator's wrappers (ADR-0106 §§ 3, 10; ADR-0107 § 4): creation for a Membership
+ * of the group, and cancellation and revocation of a request the caller filed. No ticket or chunk route exists here:
+ * an administrator never receives the bundle.
+ */
+export const DATA_REQUEST_ADMINISTRATION_POST_CONTRACTS = Object.freeze({
+  '/api/v1/identity/data-requests/exports': 'CreateDataExportForSubject',
+  '/api/v1/identity/data-requests/erasures': 'CreateDataErasureForSubject',
+  '/api/v1/identity/data-requests/{id}/cancellations': 'CancelDataRequest',
+  '/api/v1/identity/data-requests/{id}/artifact/revocations': 'RevokeDataExport',
+} as const);
+/**
  * Exact POST ownership of the person's own and retained-entry wrappers (ADR-0106 §§ 9–10, ADR-0107 § 4). The
- * administrator routes belong to the Studio surface and the operator routes to no web surface; none is here.
+ * administrator routes are above and the operator routes belong to no web surface.
  */
 export const DATA_REQUEST_POST_CONTRACTS = Object.freeze({
   '/api/v1/identity/me/data-requests/exports': 'CreateOwnDataExport',

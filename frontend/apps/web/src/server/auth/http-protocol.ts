@@ -23,12 +23,16 @@ import {
 } from './federation-forms.js';
 import {
   BFF_ADMIN_FORMS,
+  BffDataRequestConfirmationError,
   BffProfileInputError,
   BffInvitationInputError,
+  DATA_REQUEST_ADMIN_FORMS,
   bffAdministrationForm,
   bffContextHint,
   bffCursor,
   bffScope,
+  dataRequestAdministrationDestination,
+  dataRequestAdministrationRefusal,
 } from './http-forms.js';
 import { bffActivity, bffForm, bffQuery, bffRoute, exactBffOrigin } from './http-input.js';
 import type { BffHttpRequest } from './http-input.js';
@@ -740,6 +744,8 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           const csrf = fields.get('csrfToken');
           if (!current || !session || !bffSecretEquals(csrf, session.csrfToken))
             return result(request, { code: 'csrf' }, 403);
+          // ADR-0106: a data-request action's recovery names its closed refusal, or none for a generic outcome.
+          const dataRequestForm = Object.hasOwn(DATA_REQUEST_ADMIN_FORMS, path);
           let customFields: MembershipCustomFields | undefined;
           if (
             (path === '/api/account/custom-fields' ||
@@ -826,6 +832,24 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 400,
               );
             }
+            if (error instanceof BffDataRequestConfirmationError)
+              return await actionDocument(
+                request,
+                render,
+                current,
+                {
+                  kind: 'mutation_error',
+                  action: path,
+                  // Thrown only after the Membership identifier passed its canonical grammar.
+                  destination: '/studio/members/' + fields.get('membershipId')!,
+                  fields: [['csrfToken', csrf!]],
+                  reason: 'validation',
+                  retryable: false,
+                  dataRequest: { refusal: null },
+                },
+                { code: 'validation_failed' },
+                400,
+              );
             if (error instanceof BffFederationInputError)
               return await actionDocument(
                 request,
@@ -910,6 +934,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 reason: 'unavailable',
                 // An unconfirmed federation write is settled by Resume, never resubmitted (ADR-0099).
                 retryable: !Object.hasOwn(FEDERATION_FORMS, path),
+                ...(dataRequestForm ? { dataRequest: { refusal: null } } : {}),
               },
               { code: 'unavailable' },
               503,
@@ -938,6 +963,15 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 { code: settled },
                 200,
               );
+            if (dataRequestForm) {
+              const destination = dataRequestAdministrationDestination(
+                path,
+                form.destination,
+                outcome.location,
+              );
+              if (destination === null) throw new BffSessionError('response');
+              return redirect(request, destination, []);
+            }
             if (path === '/api/studio/invitation-create') {
               const location = outcome.location;
               const match =
@@ -999,23 +1033,33 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             outcome.kind === 'api-error' && outcome.error.code === 'validation_failed'
               ? Object.keys(outcome.error.fieldErrors)
               : [];
+          // ADR-0106 § 7: a closed business refusal is final for this request; it is explained, never retried.
+          const refusal =
+            dataRequestForm &&
+            outcome.kind === 'api-error' &&
+            outcome.status === 409 &&
+            outcome.problem.code === 'business_rule_violation'
+              ? dataRequestAdministrationRefusal(outcome.problem.errors)
+              : null;
           const reason =
-            code === 'validation_failed' &&
-            (path === '/api/account/profile' ||
-              path === '/api/studio/membership-profile' ||
-              path.startsWith('/api/studio/invitation-') ||
-              Object.hasOwn(CUSTOM_FIELD_FORMS, path) ||
-              Object.hasOwn(FEDERATION_FORMS, path))
-              ? 'validation'
-              : code === 'concurrency_conflict'
-                ? 'stale'
-                : code === 'request_in_progress'
-                  ? 'in_progress'
-                  : code === 'idempotency_key_reuse'
-                    ? 'key_reuse'
-                    : [401, 403, 404].includes(status)
-                      ? 'denied'
-                      : 'unavailable';
+            refusal !== null
+              ? 'denied'
+              : code === 'validation_failed' &&
+                  (path === '/api/account/profile' ||
+                    path === '/api/studio/membership-profile' ||
+                    path.startsWith('/api/studio/invitation-') ||
+                    Object.hasOwn(CUSTOM_FIELD_FORMS, path) ||
+                    Object.hasOwn(FEDERATION_FORMS, path))
+                ? 'validation'
+                : code === 'concurrency_conflict'
+                  ? 'stale'
+                  : code === 'request_in_progress'
+                    ? 'in_progress'
+                    : code === 'idempotency_key_reuse'
+                      ? 'key_reuse'
+                      : [401, 403, 404].includes(status)
+                        ? 'denied'
+                        : 'unavailable';
           return await actionDocument(
             request,
             render,
@@ -1044,6 +1088,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
               ...(Object.hasOwn(FEDERATION_FORMS, path)
                 ? { federation: { invalid: [], outcome: null } }
                 : {}),
+              ...(dataRequestForm ? { dataRequest: { refusal } } : {}),
             },
             { code },
             status,

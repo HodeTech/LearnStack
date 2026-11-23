@@ -106,6 +106,8 @@ export type NativeReturnPath =
   | `/studio/invitations/${string}`
   | '/studio/invitation-policy'
   | '/studio/federation'
+  | '/studio/data-requests'
+  | `/studio/data-requests/${string}`
   | '/studio/custom-fields'
   | `/studio/custom-fields/${string}`
   | '/studio/roles'
