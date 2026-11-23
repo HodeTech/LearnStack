@@ -439,7 +439,15 @@ export function createNativeDataRequestHandler(
             (action === 'closure' &&
               (fields.get('confirm') !== 'close' || fields.get('acknowledge') !== 'no_status'))
           ) {
-            refuse({ status: 400, message: 'error.confirmation', retryAfter: null });
+            // A refused confirmation leads back to the confirmation step it came from, not to the list.
+            write(
+              400,
+              render({
+                kind: 'error',
+                message: 'error.confirmation',
+                back: { kind: 'page', group, step: action },
+              }),
+            );
             return;
           }
           if (action === 'download') {
@@ -500,7 +508,8 @@ export function createNativeDataRequestHandler(
           write(303, '', '/account/data?' + destination.toString());
           return;
         }
-        // A posted view keeps the chosen group out of the address bar and history, as the consent entry does.
+        // A posted view selects the group by a proved form, as the consent entry does; its history guard then records
+        // only that group's fixed page, so a reload reopens the group and never a cursor, step or result.
         cursor = null;
         scopeCursor = null;
         step = null;
@@ -556,6 +565,8 @@ export function createNativeDataRequestHandler(
         step: step as 'erasure' | 'closure' | null,
         result: posted ? null : (resultParameter as DataRequestResult | null),
         preparedAt: new Date(now()).toISOString(),
+        entryExpiresAt:
+          retention.expiresAt === null ? null : new Date(retention.expiresAt).toISOString(),
         csrfToken: csrf,
         // One unused key per keyed form: the export, the confirmation step, and a revoke and cancel per request.
         formKeys: Array.from({ length: 2 + 2 * (requests?.items.length ?? 0) }, () =>

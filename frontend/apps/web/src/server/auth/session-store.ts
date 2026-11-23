@@ -2546,16 +2546,22 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   ): DataRequestRetention {
     if (mode === 'entry') {
       const owner = this.#findEntry(binding);
+      const ends = Math.min(owner.deadline, owner.credentials!.refreshExpiresAt);
       lease.pin(
         () => {
           this.#assert(owner, 'entry');
           if (lease.signal.aborted) throw new BffSessionError('revoked');
         },
         owner,
-        Math.max(1, Math.min(owner.deadline, owner.credentials!.refreshExpiresAt) - this.#now()),
+        Math.max(1, ends - this.#now()),
       );
       void this.#tracked(owner, () => lease.cleaned);
-      return Object.freeze({ csrfToken: owner.csrf, scope: null });
+      // The same bound on the wall clock, as the entry projection states it: the page tells the person when it ends.
+      return Object.freeze({
+        csrfToken: owner.csrf,
+        scope: null,
+        expiresAt: Math.round(owner.utcOffset + ends),
+      });
     }
     const owner = this.#find(binding);
     if (!owner?.identity) throw new BffSessionError('revoked');
@@ -2571,6 +2577,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     return Object.freeze({
       csrfToken: owner.csrf,
       scope: owner.identity.organizationId === null ? 'tenant' : 'organization',
+      expiresAt: null,
     });
   }
   /** The live session's own data requests; a list cursor is sealed to this owner and purpose. */

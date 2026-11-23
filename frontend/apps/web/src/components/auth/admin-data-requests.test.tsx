@@ -282,7 +282,9 @@ describe('Studio data requests: one request', () => {
     async (locale) => {
       const { document, snapshot } = documentFor(detail(request(), 'erasure'), inLocale(locale));
       const notice = document.querySelector('[role="status"]')!;
-      expect(notice.querySelector('h2')?.textContent).toBe(locale === 'en' ? 'Done' : 'Tamamlandı');
+      expect(notice.querySelector('h2')?.textContent).toBe(
+        locale === 'en' ? 'Your action has been recorded' : 'İşleminiz kaydedildi',
+      );
       expect(notice.textContent).toContain(
         locale === 'en' ? 'It starts after 24 hours' : 'İşlem 24 saat sonra başlar',
       );
@@ -291,7 +293,9 @@ describe('Studio data requests: one request', () => {
         assertActive: () => undefined,
       } as never);
       expect((await accountPageMetadata('data_request')).title).toBe(
-        locale === 'en' ? 'Done – Data request' : 'Tamamlandı – Veri talebi',
+        locale === 'en'
+          ? 'Your action has been recorded – Data request'
+          : 'İşleminiz kaydedildi – Veri talebi',
       );
       vi.mocked(optionalPreparedPage).mockResolvedValueOnce({
         snapshot: administrationSnapshot(detail(request()), inLocale(locale)),

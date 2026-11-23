@@ -6855,12 +6855,18 @@ the phase Status block owns packet state and qualification.
   instrumentation entries. Native preparation publishes a complete immutable
   page snapshot before rendering; the passive RSC facade exposes only that
   snapshot and its liveness assertion, never a credential, API operation or
-  preparation capability. The exact seven protected page views and their shared
-  render helpers have source-census and AST dirty controls against additional
-  asynchronous work, IO and framework background work, including transitive
-  aliases. Entry, member-list and current-scope continuations conceal upstream
-  cursor material and authenticate their distinct purposes.
-- **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
+  preparation capability. The exact protected page views, which the tests below pin
+  and this entry does not count, and their shared render helpers have source-census
+  and AST dirty controls against additional asynchronous work, IO and framework
+  background work, including transitive aliases. Entry, member-list,
+  current-scope and data-request continuations conceal upstream cursor material and
+  authenticate their distinct purposes. The data-request download relay keeps its
+  export ticket inside the relay, never in a URL, header, page or log; answers one
+  attachment only after the first chunk proves the bundle's geometry, or a refusal
+  before any byte; keeps one chunk in flight, zeroes each decoded buffer, and
+  destroys the connection on any later failure, so a short body never completes.
+- **Source:** ADR-0070/0071/0078/0079; ADR-0107 § 4; Security 11 § Tenant BFF sessions
+  and native entry and § Retained consent-subject admission.
 - **Type:** frontend source/production canaries. **Kind:** structural.
 - **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and
   `src/test/public-boundaries.test.ts`, using the production graph and AST
@@ -6869,10 +6875,13 @@ the phase Status block owns packet state and qualification.
   `src/server/auth/store-page-preload.test.ts`. Independent development canaries
   live in `src/test/bff-development-diagnostics.test.ts` and
   `src/test/bff-development-diagnostics-counter.test.ts`; their test-owned process
-  controls live in `src/test/bff-proof-lifeline.test.ts`.
+  controls live in `src/test/bff-proof-lifeline.test.ts`. The download relay's
+  controls live in `src/server/auth/data-export-download.test.ts` and
+  `src/server/auth/native-data-request-http.test.ts`.
 - **Status:** **Implemented** — frontend boundary, native protocol/canary and
   fixture-output controls named above.
-- **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views.
+- **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views;
+  P03-10 Step 4 adds the person's data-request document and its download relay.
 
 #### `Bff_Session_Refresh_And_Revocation_Have_One_Owner`
 
@@ -7066,9 +7075,13 @@ the phase Status block owns packet state and qualification.
   Role-read capability causes zero Role API calls. A legitimate missing own
   profile on a derived branch uses the site fallback. Failed AccountSite authority
   publishes only public failure data, without cached private fields or CSRF.
-  The exact twelve HTTP entries include seven protected views; the twelve
-  POST actions remain closed. Ordinary passive documents still preload without
-  idle/refresh writes, while HEAD and speculative prefetch avoid private preload.
+  The exact HTTP entry set, the protected views and the native documents among it,
+  and the closed POST set of Frontend Architecture § Native Entry and Administration
+  remain closed; nothing here counts them, the tests below pin them. Ordinary passive
+  documents still preload without idle/refresh writes, while HEAD and speculative
+  prefetch avoid private preload. Every data-request refusal reason the API documents
+  or emits maps to a closed localized sentence, on the person's document and on the
+  administrator's pages.
 - **Source:** ADR-0070/0078/0079; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
@@ -7083,9 +7096,14 @@ the phase Status block owns packet state and qualification.
   `src/components/auth/admin-pages.test.tsx` covers explicit replacement of an
   unavailable stored preference through the existing native field values; the
   no-script browser journey exercises that required choice and verifies its POST.
+  The data-request forms and refusal completeness use
+  `src/server/auth/native-data-request-http.test.ts`,
+  `src/server/auth/data-request-html.test.ts` (the person) and
+  `src/server/auth/data-request-administration.test.ts` (the administrator).
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
-- **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page preparation.
+- **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page
+  preparation; P03-10 Step 4 adds the data-request forms and documents.
 
 #### `Bff_Host_Cookies_And_History_Are_Isolated`
 
@@ -7096,7 +7114,7 @@ the phase Status block owns packet state and qualification.
   stored provider events. Real paginated entry JSON/HTML, stock-browser next/Back
   URLs/history and second-page selection keep subject/authority material private;
   the original disclosure has a real old-source negative control. Stopped-provider
-  public rendering remains independent. The seven prepared protected views retain
+  public rendering remains independent. The prepared protected views retain
   native forms when JavaScript is disabled. Actual stock-browser page checks
   require ready views and specific visible contents; an unavailable view retaining
   the wrapper/h1 fails the same guard. No-script profile save/sign-out runs on both
@@ -7116,10 +7134,16 @@ the phase Status block owns packet state and qualification.
   and `src/components/auth/session.test.tsx` cover fixed GET recovery, native forms
   and session/unsaved-edit behavior; `scripts/verify-bff-protocol.mjs` exercises
   the actual Next prepared views and `verify-bff-browser.mjs` the no-script flow.
+  The data-request document's guard, which restores the bare page or one retained
+  group's page and never a result, is covered by
+  `src/server/auth/data-request-html.test.ts`,
+  `src/server/auth/native-data-request-http.test.ts` and the observation of
+  `scripts/test-data-request-proof-view.mjs`.
 - **Status:** **Implemented** — `TenantBffSessionTests`, its real-chain/browser scripts
   and the stopped-provider public-demo lifecycle.
 - **Phase:** P02b-7 Step 5; P03-3 Step 9 extends selected views, no-script and history
-  controls. Phase 06 retains full browser OIDC end-to-end expansion. The Phase 03
+  controls; P03-10 Step 4 adds the data-request document's guard. Phase 06 retains
+  full browser OIDC end-to-end expansion. The Phase 03
   Status block owns current P03-3 qualification and review state.
 
 ## P02b-4 background-job obligations

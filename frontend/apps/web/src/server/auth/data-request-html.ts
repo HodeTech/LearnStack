@@ -3,11 +3,23 @@ import type { OwnDataRequest } from '@learnstack/sdk/administration-server';
 import type { DataRequestCopy, DataRequestKey } from './data-request-copy.js';
 import type { NativeDataRequestSnapshot } from './page-contract.js';
 
+const uuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+
 /**
- * A leaving or restored private document stays veiled until a fresh fixed GET is admitted. The constant destination
- * also keeps history restoration from replaying a POST result, exactly as the consent entry's guard does.
+ * A leaving or restored private document stays veiled until a fresh fixed GET is admitted. The fixed destination
+ * keeps history restoration from replaying a POST result, exactly as the consent entry's guard does: it is the bare
+ * page, or a retained group's page, so a reload or a restored page reopens that group while the entry lives instead
+ * of sending the person back to the chooser. No result, step or cursor survives.
  */
-export const DATA_REQUEST_HISTORY_SOURCE = `(()=>{try{history.replaceState(null,'','/account/data')}catch{document.documentElement.style.visibility='hidden';location.replace('/account/data');return}let leaving=false;addEventListener('pagehide',()=>{leaving=true;document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving){document.documentElement.style.visibility='hidden';location.replace('/account/data')}})})();`;
+export function dataRequestHistorySource(group: string | null = null): string {
+  if (group !== null && group !== 'tenant' && !uuid(group))
+    throw new Error('Data request response unavailable');
+  const destination = '/account/data' + (group === null ? '' : '?group=' + group);
+  return `(()=>{try{history.replaceState(null,'','${destination}')}catch{document.documentElement.style.visibility='hidden';location.replace('${destination}');return}let leaving=false;addEventListener('pagehide',()=>{leaving=true;document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving){document.documentElement.style.visibility='hidden';location.replace('${destination}')}})})();`;
+}
+/** The guard of every document that shows no retained group: the session page, the chooser, sign-in and refusals. */
+export const DATA_REQUEST_HISTORY_SOURCE = dataRequestHistorySource();
 
 export type DataRequestPage = Extract<NativeDataRequestSnapshot, { kind: 'data_requests' }>;
 /** The closed document set: a page, a sign-in prompt, or one refusal sentence with a fixed way back. */
@@ -17,8 +29,13 @@ export type DataRequestDocument =
   | Readonly<{
       kind: 'error';
       message: DataRequestKey;
-      /** Where "back" leads: the fixed GET, the same retained group, or sign-in after a 401. */
-      back: Readonly<{ kind: 'page'; group: string | null }> | Readonly<{ kind: 'signin' }>;
+      /**
+       * Where "back" leads: the fixed GET, the same retained group, the confirmation step a refused confirmation came
+       * from, or sign-in after a 401.
+       */
+      back:
+        | Readonly<{ kind: 'page'; group: string | null; step?: 'erasure' | 'closure' }>
+        | Readonly<{ kind: 'signin' }>;
     }>;
 
 const escape = (value: string) =>
@@ -30,8 +47,6 @@ const escape = (value: string) =>
 const hidden = (name: string, value: string) =>
   '<input type="hidden" name="' + name + '" value="' + escape(value) + '">';
 const proof = (value: string) => /^[A-Za-z0-9_-]{43}$/.test(value);
-const uuid = (value: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 
 const css = `*{box-sizing:border-box}html{color:#152238;background:#fff}body{margin:0;font:1rem/1.6 system-ui,sans-serif}main{width:min(100% - 2rem,48rem);margin:2rem auto;overflow-wrap:anywhere}h1,h2,h3,h4{line-height:1.25}a{color:#114499;text-underline-offset:.15em}a.action{display:inline-flex;align-items:center;min-height:44px;padding-block:.25rem}button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;max-width:100%;padding:.5rem 1rem;font:inherit;white-space:normal;color:#152238;background:#fff;border:2px solid currentColor;border-radius:.25rem;cursor:pointer}button.danger{color:#8a1c1c}section,article{margin-block:1.5rem}section>h2{border-top:1px solid #8a94a6;padding-top:1rem}ul.requests{list-style:none;padding:0}ul.requests>li{border:1px solid #8a94a6;border-radius:.5rem;padding:0 1rem;margin-block:1rem}dl{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:.25rem 1rem}dt{font-weight:700}dd{margin:0}.status{display:flex;gap:.5rem;align-items:center;font-weight:700}.status svg{flex:none;width:1.25rem;height:1.25rem}.notice{border:2px solid currentColor;border-radius:.5rem;padding:0 1rem;margin-block:1rem}fieldset{border:2px solid currentColor;border-radius:.5rem;margin-block:1rem;padding:.5rem 1rem}legend{font-weight:700;padding-inline:.25rem}label.check{display:flex;gap:.75rem;align-items:flex-start;min-height:44px;padding-block:.5rem;cursor:pointer}label.check input{flex:none;width:1.5rem;height:1.5rem;margin:.1rem 0 0}form{margin-block:1rem}:focus-visible{outline:3px solid #0759b8;outline-offset:3px}main:focus{outline:none}.skip{position:absolute;left:1rem;top:-10rem;background:#fff;padding:.75rem;z-index:1}.skip:focus{top:1rem}@media (max-width:30rem){dl{grid-template-columns:minmax(0,1fr)}dd{margin-bottom:.5rem}}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}`;
 
@@ -95,6 +110,16 @@ const LAST_REFUSALS: Readonly<Record<NonNullable<OwnDataRequest['lastRefusal']>,
     blocked_hold: 'last_refusal.blocked_hold',
     blocked_last_administrator: 'last_refusal.blocked_last_administrator',
   };
+/**
+ * Why an erasure stopped at its execution re-check (ADR-0106 § 7): the two codes `blocked` is stored with, each with
+ * what the person can do. A new request is refused for the same reason while it lasts, so none promises one.
+ */
+const BLOCKED_REASONS: Readonly<
+  Record<Exclude<NonNullable<OwnDataRequest['lastRefusal']>, 'blocked_window'>, DataRequestKey>
+> = {
+  blocked_hold: 'blocked_reason.blocked_hold',
+  blocked_last_administrator: 'blocked_reason.blocked_last_administrator',
+};
 const FAILURES: Readonly<Record<NonNullable<OwnDataRequest['failureReason']>, DataRequestKey>> = {
   export_too_large: 'failure.export_too_large',
   execution_failed: 'failure.execution_failed',
@@ -128,10 +153,17 @@ export const DATA_REQUEST_VOCABULARY = Object.freeze({
   KINDS,
   STATUSES,
   LAST_REFUSALS,
+  BLOCKED_REASONS,
   FAILURES,
   RETAINED,
   RESULTS,
 });
+/** Pages that tell the person the outcome is not known yet, rather than that the action failed. */
+const UNCONFIRMED = new Set<DataRequestKey>([
+  'error.unconfirmed',
+  'error.outcome_unavailable',
+  'error.in_progress',
+]);
 const active = (items: readonly OwnDataRequest[], kind: OwnDataRequest['kind']) =>
   items.some(
     (item) =>
@@ -202,6 +234,8 @@ export function renderDataRequestDocument(
   let title = phrase('common.title');
   let body: string;
   let view: string;
+  // Only a retained group's page keeps its group in the address the history guard restores.
+  let historyGroup: string | null = null;
   if (document.kind === 'signin') {
     view = 'signin';
     body =
@@ -212,24 +246,37 @@ export function renderDataRequestDocument(
       '</a></p>';
   } else if (document.kind === 'error') {
     view = 'error';
-    title = phrase('error.title') + ' – ' + title;
-    const back =
-      document.back.kind === 'signin'
+    // An unknown outcome is not a failure: its heading must not tell the person that nothing was recorded.
+    const heading = UNCONFIRMED.has(document.message)
+      ? text('error.title_unconfirmed')
+      : text('error.title');
+    title =
+      (UNCONFIRMED.has(document.message)
+        ? phrase('error.title_unconfirmed')
+        : phrase('error.title')) +
+      ' – ' +
+      title;
+    const back = document.back;
+    // A group that is not well formed is never echoed into a link: the way back is then the bare page.
+    const backGroup =
+      back.kind === 'page' && back.group !== null && (back.group === 'tenant' || uuid(back.group))
+        ? back.group
+        : null;
+    body =
+      '<div role="alert"><h2>' +
+      heading +
+      '</h2><p>' +
+      sentence(document.message) +
+      '</p></div>' +
+      (back.kind === 'signin'
         ? '<p><a class="action" href="/api/auth/signin">' +
           text('common.signin_action') +
           '</a></p>'
         : '<p><a class="action" href="' +
-          escape(pageHref(document.back.group)) +
+          escape(pageHref(backGroup, back.step ? { step: back.step } : {})) +
           '">' +
           text('common.back_page') +
-          '</a></p>';
-    body =
-      '<div role="alert"><h2>' +
-      text('error.title') +
-      '</h2><p>' +
-      sentence(document.message) +
-      '</p></div>' +
-      back;
+          '</a></p>');
   } else {
     const page = document.page;
     if (!proof(page.csrfToken) || !page.formKeys.every(proof))
@@ -251,7 +298,7 @@ export function renderDataRequestDocument(
       (group === null ? '' : hidden('group', group));
     const items = page.requests?.items ?? [];
     view = entry ? (group === null ? 'entry_scopes' : 'entry') : 'session';
-    if (page.result !== null) title = phrase('result.title') + ' – ' + title;
+    historyGroup = group;
     const result =
       page.result === null
         ? ''
@@ -260,6 +307,43 @@ export function renderDataRequestDocument(
           '</h2><p>' +
           sentence(RESULTS[page.result]) +
           '</p></div>';
+    // The result notice and its title prefix appear together, only on the documents that show the notice.
+    const resultTitle = (base: string) =>
+      page.result === null ? base : phrase('result.title') + ' – ' + base;
+    /**
+     * The retained entry's owner lives at most five minutes from the start of sign-in and is never extended, so every
+     * retained document says so, with the instant it ends and the time that was left when the page was prepared. The
+     * one helper for every retained notice of that limit.
+     */
+    const entryTimeLimit = () => {
+      if (!entry || page.entryExpiresAt === null) return '';
+      const ends = Date.parse(page.entryExpiresAt);
+      const prepared = Date.parse(page.preparedAt);
+      if (!Number.isFinite(ends) || !Number.isFinite(prepared))
+        throw new Error('Data request response unavailable');
+      const minutes = Math.floor(Math.max(0, ends - prepared) / 60_000);
+      return (
+        '<div class="notice"><p>' +
+        text('scope.entry_time_limit') +
+        '</p><dl><dt>' +
+        text('scope.entry_time_until') +
+        '</dt><dd>' +
+        time(page.entryExpiresAt) +
+        '</dd><dt>' +
+        text('scope.entry_time_left') +
+        '</dt><dd>' +
+        (minutes < 1
+          ? text('scope.entry_time_under_minute')
+          : escape(
+              new Intl.NumberFormat(locale, {
+                style: 'unit',
+                unit: 'minute',
+                unitDisplay: 'long',
+              }).format(minutes),
+            )) +
+        '</dd></dl></div>'
+      );
+    };
     const scopeText = entry
       ? '<p>' +
         text('scope.entry_intro') +
@@ -272,17 +356,21 @@ export function renderDataRequestDocument(
               : text('scope.entry_selected_organization')) +
             '</strong></p><p><a class="action" href="/account/data">' +
             text('scope.change') +
-            '</a></p>')
+            '</a></p>') +
+        entryTimeLimit()
       : '<p>' +
         (page.scope === 'organization'
           ? text('scope.session_organization')
           : text('scope.session_tenant')) +
+        '</p><p>' +
+        text('scope.session_retained') +
         '</p><p><a class="action" href="/api/auth/entry">' +
         text('scope.switch') +
         '</a></p>';
     if (entry && group === null) {
       const scopes = page.scopes;
       if (!scopes) throw new Error('Data request response unavailable');
+      title = resultTitle(phrase('scope.entry_choose') + ' – ' + title);
       let branch = 0;
       body =
         result +
@@ -300,19 +388,29 @@ export function renderDataRequestDocument(
               : '') +
             '<ul>' +
             scopes.items
-              .map((item) => {
+              .map((item, index) => {
                 const value = item.organizationId ?? 'tenant';
                 const label =
                   item.organizationId === null
                     ? text('scope.entry_tenant')
                     : text('scope.entry_organization') + ' ' + String(++branch);
+                // Each "Show requests" button is named by its own text and the place it opens.
+                const labelId = 'scope-' + String(index + 1);
                 return (
                   '<li><form method="post" action="/api/auth/entry/data-requests">' +
                   hidden('csrfToken', page.csrfToken) +
                   hidden('group', value) +
-                  '<p><strong>' +
+                  '<p id="' +
+                  labelId +
+                  '"><strong>' +
                   label +
-                  '</strong></p><button type="submit">' +
+                  '</strong></p><button type="submit" id="' +
+                  labelId +
+                  '-view" aria-labelledby="' +
+                  labelId +
+                  '-view ' +
+                  labelId +
+                  '">' +
                   text('scope.view') +
                   '</button></form></li>'
                 );
@@ -330,6 +428,9 @@ export function renderDataRequestDocument(
     } else if (page.step !== null) {
       const erasure = page.step === 'erasure';
       view += '_' + page.step;
+      // An irreversible confirmation is announced by its own title, never by the list's.
+      title =
+        (erasure ? phrase('erasure.step_title') : phrase('closure.step_title')) + ' – ' + title;
       const blocked = active(items, page.step);
       body =
         '<p>' +
@@ -369,7 +470,9 @@ export function renderDataRequestDocument(
             text('closure.warning_no_status') +
             '</strong></li><li>' +
             text('closure.warning_data') +
-            '</li></ul></div>' +
+            '</li><li><strong>' +
+            text('closure.warning_unserved') +
+            '</strong></li></ul></div>' +
             kept()) +
         (blocked
           ? '<p>' + (erasure ? text('erasure.active') : text('closure.active')) + '</p>'
@@ -408,6 +511,7 @@ export function renderDataRequestDocument(
       const requests = page.requests;
       if (!requests) throw new Error('Data request response unavailable');
       const exportActive = active(items, 'export');
+      title = resultTitle(title);
       const list = items
         .map((item, index) => {
           const state = dataRequestState(item, page.preparedAt);
@@ -445,15 +549,18 @@ export function renderDataRequestDocument(
           )
             rows.push('<dt>' + text('list.ended') + '</dt><dd>' + time(item.updatedAt) + '</dd>');
           if (artifact !== null) {
+            // Reads stop at the expiry or at a revocation, whichever came first; a purge after the expiry, however
+            // late its job ran, ended nothing.
+            const unavailableSince =
+              artifact.purgedAt !== null &&
+              Date.parse(artifact.purgedAt) < Date.parse(artifact.expiresAt)
+                ? artifact.purgedAt
+                : artifact.expiresAt;
             rows.push(
               '<dt>' +
                 (artifact.readable ? text('list.available_until') : text('list.expired_on')) +
                 '</dt><dd>' +
-                time(
-                  artifact.readable || artifact.status === 'expired'
-                    ? artifact.expiresAt
-                    : (artifact.purgedAt ?? artifact.expiresAt),
-                ) +
+                time(artifact.readable ? artifact.expiresAt : unavailableSince) +
                 '</dd>',
             );
             rows.push(
@@ -495,8 +602,16 @@ export function renderDataRequestDocument(
             notes.push('<p>' + text('list.by_closure') + '</p>');
           if (item.lastRefusal !== null && item.status === 'scheduled')
             notes.push('<p>' + sentence(LAST_REFUSALS[item.lastRefusal]) + '</p>');
+          // A stopped erasure always carries the code it stopped for; the reason says what the person can do.
+          if (
+            item.status === 'blocked' &&
+            item.lastRefusal !== null &&
+            item.lastRefusal !== 'blocked_window'
+          )
+            notes.push('<p>' + sentence(BLOCKED_REASONS[item.lastRefusal]) + '</p>');
           if (item.failureReason !== null && item.status === 'failed')
             notes.push('<p>' + sentence(FAILURES[item.failureReason]) + '</p>');
+          // Each shortened part as label and value pairs, so no language's word order is fixed around a number.
           if (artifact !== null && artifact.truncations.length > 0)
             notes.push(
               '<p>' +
@@ -511,15 +626,15 @@ export function renderDataRequestDocument(
                         : part.collection === 'identity.invitations_issued'
                           ? text('artifact.collection_invitations_issued')
                           : text('artifact.collection_other')) +
-                      ': ' +
+                      '<dl><dt>' +
+                      text('artifact.part_included') +
+                      '</dt><dd>' +
                       count(part.included) +
-                      ' ' +
-                      text('artifact.truncated_included') +
-                      ', ' +
+                      '</dd><dt>' +
+                      text('artifact.part_total') +
+                      '</dt><dd>' +
                       count(part.total) +
-                      ' ' +
-                      text('artifact.truncated_total') +
-                      '</li>',
+                      '</dd></dl></li>',
                   )
                   .join('') +
                 '</ul>',
@@ -549,13 +664,31 @@ export function renderDataRequestDocument(
                       .join('') +
                     '</ul>'
                   : '') +
-                (item.status === 'completed' ? '' : '<p>' + text('retained.pending') + '</p>') +
+                // Counts are provisional only until the operator's completion replaces the audit ones.
+                (['fulfilling', 'awaiting_privileged_step'].includes(item.status)
+                  ? '<p>' + text('retained.pending') + '</p>'
+                  : '') +
                 '<p>' +
                 text('retained.partial') +
                 '</p><p>' +
                 text('retained.audit_retention') +
                 '</p>',
             );
+          // Every repeated button is named by its own text followed by its request's heading (the kind and the date),
+          // so a list of buttons tells them apart while the visible label still begins the name.
+          const label = 'request-' + String(index + 1);
+          const named = (action: 'download' | 'delete' | 'cancel') =>
+            ' id="' +
+            label +
+            '-' +
+            action +
+            '" aria-labelledby="' +
+            label +
+            '-' +
+            action +
+            ' ' +
+            label +
+            '"';
           const actions: string[] = [];
           if (artifact?.readable)
             actions.push(
@@ -566,7 +699,9 @@ export function renderDataRequestDocument(
                 hidden('requestId', item.id) +
                 '<p>' +
                 text('artifact.download_hint') +
-                '</p><button type="submit">' +
+                '</p><button type="submit"' +
+                named('download') +
+                '>' +
                 text('artifact.download') +
                 '</button></form><form method="post" action="' +
                 scoped +
@@ -576,7 +711,9 @@ export function renderDataRequestDocument(
                 hidden('version', artifact.version) +
                 '<p>' +
                 text('artifact.delete_hint') +
-                '</p><button type="submit" class="danger">' +
+                '</p><button type="submit" class="danger"' +
+                named('delete') +
+                '>' +
                 text('artifact.delete') +
                 '</button></form>',
             );
@@ -588,11 +725,12 @@ export function renderDataRequestDocument(
                 fields(true) +
                 hidden('requestId', item.id) +
                 hidden('version', item.version) +
-                '<button type="submit">' +
+                '<button type="submit"' +
+                named('cancel') +
+                '>' +
                 (item.kind === 'closure' ? text('action.cancel_closure') : text('action.cancel')) +
                 '</button></form>',
             );
-          const label = 'request-' + String(index + 1);
           return (
             '<li><article aria-labelledby="' +
             label +
@@ -600,7 +738,9 @@ export function renderDataRequestDocument(
             label +
             '">' +
             sentence(KINDS[item.kind]) +
-            '</h3><p class="status">' +
+            ' (' +
+            time(item.createdAt) +
+            ')</h3><p class="status">' +
             icon(iconName) +
             '<span>' +
             text('list.status') +
@@ -667,7 +807,8 @@ export function renderDataRequestDocument(
         text('list.title') +
         '</h2>' +
         (items.length
-          ? '<ul class="requests">' + list + '</ul>'
+          ? // WebKit drops the list role of a list styled without markers; the explicit role keeps "list, N items".
+            '<ul class="requests" role="list">' + list + '</ul>'
           : '<p>' + text('list.empty') + '</p>') +
         (requests.pageInfo.nextCursor === null
           ? ''
@@ -688,7 +829,7 @@ export function renderDataRequestDocument(
     '" dir="ltr"><head><meta charset="utf-8"><script nonce="' +
     nonce +
     '">' +
-    DATA_REQUEST_HISTORY_SOURCE +
+    dataRequestHistorySource(historyGroup) +
     '</script><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>' +
     escape(title) +
     '</title><style>' +

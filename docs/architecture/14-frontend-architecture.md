@@ -354,6 +354,17 @@ purpose whose callback publishes nothing, and the Studio federation page. The
 the purposes, the closed forms and the page; [Security](../standards/11-security.md#federation-host-binding)
 owns the host binding.
 
+Accepted [ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) and
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) add the
+person's data-request document `/account/data`, served by the same native owner on a
+live session or on the retained entry, the administrator's Studio data-request pages,
+and the first BFF binary relay: the export download, which streams the API's chunks
+as one attachment and keeps its ticket inside the relay. The
+[Frontend contract](../standards/07-frontend-architecture.md#subject-data-requests)
+owns the routes, the closed forms and the relay;
+[Security](../standards/11-security.md#retained-consent-subject-admission) owns the
+owners and the ticket's confinement.
+
 ## Page-Block Resolver
 
 The CMS stores pages as ordered lists of blocks. The renderer resolves each block to a

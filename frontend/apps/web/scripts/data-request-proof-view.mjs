@@ -76,16 +76,26 @@ export function dataRequestProofView(html, policy) {
     scripts.length === 1 ? /\bnonce="([A-Za-z0-9+/]{22}==)"/.exec(scripts[0][1])?.[1] : undefined;
   const script = scripts[0]?.[2] ?? '';
   const scriptPolicy = /(?:^|;)\s*script-src\s+([^;]+)/.exec(policy ?? '')?.[1]?.trim();
+  // The one fixed destination: the bare page, or a retained group's page on exactly a retained group's view. No
+  // result, step or cursor is restored, and every restoration goes to the address the page recorded.
+  const destination = /history\.replaceState\(null,'','([^']*)'\)/.exec(script)?.[1];
+  const group = /^\/account\/data(?:\?group=(.+))?$/.exec(destination ?? '');
+  const grouped = ['entry', 'entry_erasure', 'entry_closure'].includes(view ?? '');
   const historyProtected =
     nonce !== undefined &&
     scriptPolicy === "'nonce-" + nonce + "'" &&
     html.indexOf('<script') < html.indexOf('<body>') &&
-    script.includes("history.replaceState(null,'','/account/data')") &&
+    group !== null &&
+    (group[1] === undefined
+      ? !grouped
+      : grouped && (group[1] === 'tenant' || uuid.test(group[1]))) &&
     script.includes("addEventListener('pagehide'") &&
     script.includes("addEventListener('pageshow'") &&
     script.includes('e.persisted||leaving') &&
     script.includes("document.documentElement.style.visibility='hidden'") &&
-    script.includes("location.replace('/account/data')") &&
+    script.includes("location.replace('" + destination + "')") &&
+    script.split('location.replace(').length ===
+      script.split("location.replace('" + destination + "')").length &&
     !script.includes('location.reload');
   return Object.freeze({
     kind: 'data_request_document',

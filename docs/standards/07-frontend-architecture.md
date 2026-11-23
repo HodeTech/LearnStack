@@ -136,10 +136,10 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#r
 
 - Admit GET/HEAD on HTTP paths reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
-  The existing ADR-0070 sign-in/sign-out/extend POSTs, the exact ADR-0078/0079
-  [entry/administration form set](#native-entry-and-administration) and ADR-0093's
-  [invitation form set](#verified-invitation-experience) are the only
-  additional admitted methods, with their closed proof/body rules. All other
+  The existing ADR-0070 sign-in/sign-out/extend POSTs and the closed POST set of
+  [Native Entry and Administration](#native-entry-and-administration), with the
+  sections it names, are the only additional admitted methods, with their
+  closed proof/body rules. All other
   methods receive masked no-store 404 without bootstrap or Next method
   conversion. HEAD is bodyless; Node owns malformed protocol input. Adding the
   new form set requires atomic ingress/route/CSRF/owner qualification; acceptance
@@ -229,7 +229,9 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
 - The root exports generated types and the exact authenticated path/operation
   contract. `/authenticated-server` supplies the injected AccountSite method;
   `/administration-server` supplies the closed ADR-0078/0079 administration
-  operations, with no-store requests and bounded response parsing. Aggregate
+  operations and their later closed extensions, the ADR-0106/0107 data-request
+  operations and the export ticket and chunk reads among them, with no-store
+  requests and bounded response parsing. Aggregate
   versions remain canonical decimal strings through JSON, ETag and If-Match;
   creation preserves 201/Location and replay preserves its explicit header.
   The native configured caller owns credentials and the
@@ -1223,7 +1225,9 @@ resubmitted, and Resume settles an uncertain write.
 **Derives from:**
 [ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) §§ 9–11 and
 [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 4, 6
-and 7; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
+and 7; the administrator surface from ADR-0106 §§ 3, 6 and 13 and the
+[ADR-0079](../decisions/0079-bounded-identity-administration.md) form rules. The
+[Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
 
 `GET /account/data` is a fixed native document served before Next, like the consent
 entry, with no public-site bootstrap. Its owner selects its mode and the browser selects
@@ -1254,8 +1258,21 @@ not find refuses before the API. Success is a 303 to the fixed GET with a closed
 reason (`errors.$` or `errors.artifact`), a generic sentence for an unknown reason, and
 its own sentence for an unconfirmed outcome; nothing is retried or replayed. The one
 nonce-bound history guard veils a leaving or restored document and returns to
-`/account/data`. The copy is `i18n/messages/{en,tr}/data.json`, a closed key set that
-native startup refuses when incomplete, parameterized or marked up.
+`/account/data`, or from a retained group's document to that group's
+`/account/data?group=` page, never to a result, step or cursor. The copy is
+`i18n/messages/{en,tr}/data.json`, a closed key set that native startup refuses when
+incomplete, parameterized or marked up.
+
+[Security](11-security.md#retained-consent-subject-admission) owns the owner rules:
+which owner serves a document, the fallback from a stale entry, the pin to the
+owner's life and the ticket's confinement. A retained document states the instant its
+entry ends. The language follows `Accept-Language` alone in both modes, Turkish when
+the first range is Turkish and English otherwise, as the consent entry decides, and
+the stylesheet is fixed and neutral: the document reads no site, branding or
+Membership preference. It is served without the public-site bootstrap, so no site or
+theme read stands between a person and their data request, and a retained person's
+Membership may have ended and carry no preference; the protected pages' preferred
+locale and tenant theme therefore do not apply to it.
 
 **Download.** The POST mints a ticket and proves the first chunk (index, count, exact
 size) before it answers one `attachment` with the bundle's

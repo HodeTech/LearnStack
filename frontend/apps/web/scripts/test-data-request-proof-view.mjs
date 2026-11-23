@@ -8,8 +8,12 @@ const proof = 'P'.repeat(43);
 const key = 'K'.repeat(43);
 const policy = "default-src 'none'; script-src 'nonce-" + nonce + "'; form-action 'self'";
 // Independent proof subject. This contains only the security-bearing pieces the observation checks.
-const guard =
-  "history.replaceState(null,'','/account/data');addEventListener('pagehide',()=>{document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving)location.replace('/account/data')})";
+const guard = (destination = '/account/data') =>
+  "history.replaceState(null,'','" +
+  destination +
+  "');addEventListener('pagehide',()=>{document.documentElement.style.visibility='hidden'});addEventListener('pageshow',e=>{if(e.persisted||leaving)location.replace('" +
+  destination +
+  "')})";
 const hidden = (name, value) => '<input type="hidden" name="' + name + '" value="' + value + '">';
 const filing =
   '<form method="post" action="/api/account/data-requests/export">' +
@@ -33,11 +37,11 @@ const erasure =
   hidden('csrfToken', proof) +
   hidden('idempotencyKey', key) +
   '<fieldset><legend>Confirm</legend><label class="check"><input type="checkbox" name="confirm" value="erase" required aria-required="true"><span>I understand</span></label></fieldset><button>Erase</button></form>';
-const page = (body, view = 'session') =>
+const page = (body, view = 'session', destination = undefined) =>
   '<html><head><script nonce="' +
   nonce +
   '">' +
-  guard +
+  guard(destination) +
   '</script></head><body><main id="main" data-data-request-view="' +
   view +
   '">' +
@@ -60,6 +64,14 @@ test('actual form, confirmation and nonce observations remain closed and payload
   const confirmation = dataRequestProofView(page(erasure, 'session_erasure'), policy);
   assert.equal(confirmation.view, 'session_erasure');
   assert.equal(confirmation.confirmationProtected, true);
+  // A retained group's view restores exactly that group's fixed page; the chooser restores the bare page.
+  for (const group of ['tenant', id])
+    assert.equal(
+      dataRequestProofView(page('', 'entry_closure', '/account/data?group=' + group), policy)
+        .historyProtected,
+      true,
+    );
+  assert.equal(dataRequestProofView(page('', 'entry_scopes'), policy).historyProtected, true);
 });
 test('anonymous 200 HTML cannot masquerade as a credentialed request page', () => {
   assert.deepEqual(
@@ -96,6 +108,24 @@ test('wrong nonce, unrestricted script policy, removed veil, POST reload and an 
   assert.equal(
     dataRequestProofView(
       html.replace("location.replace('/account/data')", 'location.reload()'),
+      policy,
+    ).historyProtected,
+    false,
+  );
+  for (const [view, destination] of [
+    ['session', '/account/data?group=tenant'],
+    ['entry', '/account/data'],
+    ['entry', '/account/data?group=tenant&result=export'],
+    ['entry', '/account/data?group=not-a-group'],
+    ['entry_scopes', '/account/data?group=tenant'],
+  ])
+    assert.equal(dataRequestProofView(page('', view, destination), policy).historyProtected, false);
+  assert.equal(
+    dataRequestProofView(
+      page('', 'entry', '/account/data?group=tenant').replace(
+        "location.replace('/account/data?group=tenant')",
+        "location.replace('/account/data')",
+      ),
       policy,
     ).historyProtected,
     false,

@@ -30,8 +30,8 @@ answer by their old values.
 
 The person files and downloads on `/account/data`
 ([Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests)):
-through a live session for that session's group, or through the retained entry for a
-group where their Membership is suspended or has ended. Each request shows its status
+through a live session for that session's group, or through the retained entry for any
+group where they hold or held a Membership, of any status. Each request shows its status
 and next step; an available export shows when it stops being available, its size, any
 part that was shortened at a cap, and a download and a delete button. The download
 arrives as one `data-export.json` file. The BFF mints one ticket per download; when the

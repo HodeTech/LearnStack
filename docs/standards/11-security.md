@@ -1980,6 +1980,23 @@ retained credential under its own domain and is never honoured on the live path,
 live ticket here. The three global-self descriptors, roles and four physical context
 writers remain unchanged.
 
+The native `/account/data` document and its closed POSTs
+([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) § 9,
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 4,
+[Frontend Architecture § Subject data requests](07-frontend-architecture.md#subject-data-requests))
+have exactly two owners. A document prefers a live `__Host-ls-entry` owner and falls
+back to the live session's owner only when the entry is absent, revoked or expired;
+any other owner failure is the answer. A POST names its owner by its path, the entry
+under `/api/auth/entry/data-requests` and the session under
+`/api/account/data-requests/`, and never falls back. The response is pinned to that
+owner for at most its remaining life, the entry's fixed deadline (at most five minutes
+from the start of sign-in, never extended) or the session's effective expiry, and holds
+one snapshot credit from the first read to the last byte, a download's ticket mint and
+every chunk included. The export ticket stays inside the BFF's download relay: it never
+appears in a URL, header, page, form or log. As for the consent entry, no branding or
+public configuration read is admitted, and every POST proves the exact Origin and the
+owner's CSRF token before any API work.
+
 New P03-5 body-bearing replay uses only the [scoped versioned HMAC ring and
 metadata read](05-database.md#custom-field-replay-key-custody). Existing fingerprint
 bytes and unrelated route behavior remain unchanged. Key IDs/HMAC and retained

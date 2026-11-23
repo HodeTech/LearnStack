@@ -208,6 +208,26 @@ it('entry recovery does not manufacture a selection when a label or membership i
   expect(empty.body.textContent).toContain('No institution access');
   expect(empty.querySelector('form[action="/api/auth/entry/select"]')).toBeNull();
   expect(empty.querySelector('a[href="/api/auth/entry"]')).not.toBeNull();
+  // The data-request page serves an account; a person with none is not sent to a page that cannot admit them.
+  expect(empty.querySelector('a[href="/account/data"]')).not.toBeNull();
+  const unread = new DOMParser().parseFromString(
+    renderBffDocument(site(), {
+      kind: 'entry',
+      entry: { ...entry, displayLabel: 'My account', contexts: null },
+    }),
+    'text/html',
+  );
+  expect(unread.querySelector('a[href="/account/data"]')).not.toBeNull();
+  const missing = new DOMParser().parseFromString(
+    renderBffDocument(site(), {
+      kind: 'entry',
+      entry: { ...entry, displayLabel: 'My account', identityState: 'missing', contexts: null },
+    }),
+    'text/html',
+  );
+  expect(missing.querySelector('form[action="/api/auth/entry/create"]')).not.toBeNull();
+  expect(missing.querySelector('a[href="/account/data"]')).toBeNull();
+  expect(missing.querySelector('a[href="/account/consents"]')).not.toBeNull();
 });
 it('uncertain mutation recovery keeps the original key and edits escaped in a deliberate native form', () => {
   const fields = [

@@ -63,11 +63,13 @@ function entryContent(page: Extract<BffPage, { kind: 'entry' }>, copy: AuthCopy)
   if (entry.displayLabel === null)
     return `<p>${escape(copy('entry.reauthenticate'))}</p>${signout}`;
   const label = `<p>${escape(copy('entry.account'))}: <strong>${escape(entry.displayLabel)}</strong></p><p>${escape(copy('entry.confirm'))}</p>`;
-  const retry = `<p><a href="/api/auth/entry">${escape(copy('entry.retry'))}</a></p><p><a href="/account/consents">${escape(copy('consents.title'))}</a></p><p><a href="/account/data">${escape(copy('entry.data_requests'))}</a></p>`;
+  const retry = `<p><a href="/api/auth/entry">${escape(copy('entry.retry'))}</a></p><p><a href="/account/consents">${escape(copy('consents.title'))}</a></p>`;
+  // A person with no account holds no data here, and the data-request routes refuse an unknown binding as signed out.
+  const dataRequests = `<p><a href="/account/data">${escape(copy('entry.data_requests'))}</a></p>`;
   if (entry.identityState === 'missing')
     return `${label}<p>${escape(copy('entry.missing'))}</p><form action="/api/auth/entry/create" method="post">${proof}<button type="submit">${escape(copy('entry.create'))}</button></form>${retry}${signout}`;
   if (!entry.contexts)
-    return `${label}<p>${escape(copy('entry.unavailable'))}</p>${retry}${signout}`;
+    return `${label}<p>${escape(copy('entry.unavailable'))}</p>${retry}${dataRequests}${signout}`;
   const choices = entry.contexts.items
     .map(
       (item) =>
@@ -78,7 +80,7 @@ function entryContent(page: Extract<BffPage, { kind: 'entry' }>, copy: AuthCopy)
     entry.contexts.hasNextPage && entry.contexts.endCursor !== null
       ? `<p><a href="/api/auth/entry?cursor=${encodeURIComponent(entry.contexts.endCursor)}">${escape(copy('entry.next'))}</a></p>`
       : '';
-  return `${label}${choices ? `<ul>${choices}</ul>` : `<p>${escape(copy('entry.empty'))}</p>`}${next}${retry}${signout}`;
+  return `${label}${choices ? `<ul>${choices}</ul>` : `<p>${escape(copy('entry.empty'))}</p>`}${next}${retry}${dataRequests}${signout}`;
 }
 function entryFailureContent(
   page: Extract<BffPage, { kind: 'entry_error' }>,

@@ -277,6 +277,7 @@ describe('the person’s own data-request page in a live session', () => {
         id: '019a154b-0000-7000-8000-000000000008',
         kind: 'erasure',
         status: 'blocked',
+        lastRefusal: 'blocked_hold',
         updatedAt: '2026-11-19T10:00:00Z',
       }),
       request({
@@ -319,6 +320,7 @@ describe('the person’s own data-request page in a live session', () => {
       en.next.erasure_awaiting,
       en.next.erasure_completed,
       en.next.blocked,
+      en.blocked_reason.blocked_hold,
       en.next.failed,
       en.next.cancelled,
       en.next.closure_scheduled,
@@ -573,6 +575,43 @@ describe('the retained own-scope entry', () => {
     // The retained path never performs a scoped live-session operation.
     expect(f.administration).not.toHaveBeenCalled();
     expect(f.native.self).not.toHaveBeenCalled();
+  });
+
+  it('states when the entry ends, restores the same group and returns a refused confirmation to its step', async () => {
+    const f = await fixture('entry', [request()]);
+    const ends = (f.owner as Awaited<ReturnType<typeof f.enter>>).finished.entry.expiresAt;
+    const chooser = await f.run('GET', '/account/data');
+    const view = await f.run('POST', '/api/auth/entry/data-requests', {
+      csrfToken: f.csrf,
+      group: organization,
+    });
+    // The page states the very bound its response is pinned to: the entry's own expiry.
+    for (const html of [chooser.html, view.html])
+      expect(html).toContain(
+        '<dt>' +
+          en.scope.entry_time_until +
+          '</dt><dd><time datetime="' +
+          new Date(ends).toISOString(),
+      );
+    expect(chooser.html).toContain("history.replaceState(null,'','/account/data')");
+    expect(view.html).toContain(
+      "history.replaceState(null,'','/account/data?group=" + organization + "')",
+    );
+    const refused = await f.run('POST', '/api/auth/entry/data-requests/erasure', {
+      csrfToken: f.csrf,
+      idempotencyKey: 'k'.repeat(43),
+      group: organization,
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.html).toContain(
+      'href="/account/data?group=' + organization + '&amp;step=erasure"',
+    );
+    expect(f.retained).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ kind: 'createRetainedDataErasure' }),
+      expect.anything(),
+    );
   });
 
   it('refuses an invalid group, a session-only route and a missing CSRF proof', async () => {

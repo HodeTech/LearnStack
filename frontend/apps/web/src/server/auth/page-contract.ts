@@ -349,6 +349,11 @@ export type NativeDataRequestSnapshot =
       result: DataRequestResult | null;
       /** The instant the document was prepared: an erasure past `executeAt` but still scheduled is due. */
       preparedAt: string;
+      /**
+       * The retained mode's owner expiry: the instant the entry stops serving this page (at most five minutes from the
+       * start of sign-in, never extended). Null in the session mode.
+       */
+      entryExpiresAt: string | null;
       csrfToken: string;
       formKeys: readonly string[];
     }>
