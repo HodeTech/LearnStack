@@ -1,9 +1,10 @@
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using LearnStack.Infrastructure.Messaging;
-using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging;
@@ -11,8 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 
 /// <summary>
-/// The confined owner of the operator's global account closure acts (ADR-0107 §§ 7 and 8): Begin here, and Finalize
-/// beside it in its own part of this class.
+/// The confined owner of the operator's global account closure acts (ADR-0107 §§ 7 and 8): Begin and Finalize, each in its
+/// own part of this class.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,6 +35,11 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// person to Closing.
 /// </para>
 /// <para>
+/// <b>The provider account.</b> This class is the one holder of <see cref="IIdentityProviderAccountRemoval"/>, whose client
+/// can also create and update users in the shared realm; only Finalize calls it, between its two transactions, with the raw
+/// provider subject it read on the platform connection, which it never logs, audits, meters or returns.
+/// </para>
+/// <para>
 /// <b>Failures.</b> A transient database fault before the commit, a fence not granted within its bound included, is the
 /// unavailable owner and safe to repeat; any failure once the commit was sent is the unknown outcome. Anything else, a
 /// refused credential or a missing grant included, is the defect it is.
@@ -41,9 +47,10 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </remarks>
 public sealed partial class AccountClosureOperatorOperations(
     IPlatformAdminScope scope,
-    IIdentityScopeLifecycleReader lifecycle,
+    IClosureGroupLifecycleReader lifecycle,
     IDataRequestHoldSource holds,
     IEnumerable<IClosureFanOut> fanOuts,
+    IIdentityProviderAccountRemoval accountRemoval,
     ILogger<AccountClosureOperatorOperations> logger) : IAccountClosureOperatorOperations
 {
     private const string EntityType = "DataSubjectRequest";
@@ -83,9 +90,8 @@ public sealed partial class AccountClosureOperatorOperations(
     private async Task<ClosureParticipants> ClassifyAsync(
         IPlatformAdminScopeHandle handle, IReadOnlyList<ClosureParticipantGroup> groups, CancellationToken cancellationToken)
     {
-        var facts = await lifecycle.ReadOnPlatformScopeAsync(
-            handle, [.. groups.Select(group => new IdentityLifecycleScope(group.TenantId, group.OrganizationId))],
-            cancellationToken);
+        var facts = await lifecycle.ReadAsync(
+            handle, [.. groups.Select(group => (group.TenantId, group.OrganizationId))], cancellationToken);
         var served = new List<ClosureParticipantGroup>();
         var operable = new HashSet<TenantId>();
         for (var index = 0; index < groups.Count; index++)

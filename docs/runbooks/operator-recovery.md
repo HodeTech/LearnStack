@@ -236,7 +236,12 @@ access](operator-access.md#signals). Each inspection page also logs the scope-en
   [Data erasure](data-erasure.md#erasure-never-resets-replay)). Before you replay or
   reset in a tenant where an erasure completed, ask whether the event concerns the
   erased person. The rule that the tenant is serving still applies, and it is not locked
-  against a suspension that commits at the same moment.
+  against a suspension that commits at the same moment. A delivery about a person whose
+  [account closure](account-closure.md) has begun or was finalized is different: its
+  replay or reset runs the handler, which refuses the Closing or Closed person and
+  writes nothing, and resets nothing else. Two delayed jobs read no closing person's
+  status, an invitation e-mail the person issued and an export they filed before the
+  Begin; both are listed in [Account closure](account-closure.md#what-is-not-here).
 - **The invitation path.** A stuck or unknown outbound invitation email is a *job*, and
   nothing here releases it. Reissuing an invitation helps only while the tenant has a
   free slot; it neither reconciles nor releases the old effect, and four unresolved

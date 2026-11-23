@@ -299,15 +299,24 @@ public sealed partial class PlatformOperatorHttpTests
     private sealed class RecordingClosures : IAccountClosureOperatorOperations
     {
         public List<(PlatformAdmission Admission, Guid RequestId)> Calls { get; } = [];
+        public List<(PlatformAdmission Admission, Guid RequestId)> FinalizeCalls { get; } = [];
         public Exception? Failure { get; set; }
         public ClosureBeginResult Result { get; set; } = new(
             ClosureBeginOutcome.Begun, "fulfilling", Groups: new ClosureBeginTally(2, 1, 1, 0, 0, 1));
+        public ClosureFinalizeResult FinalizeResult { get; set; } = FinalizedResult();
 
         public Task<ClosureBeginResult> BeginAsync(
             PlatformAdmission admission, Guid closureRequestId, CancellationToken cancellationToken = default)
         {
             Calls.Add((admission, closureRequestId));
             return Failure is not null ? Task.FromException<ClosureBeginResult>(Failure) : Task.FromResult(Result);
+        }
+
+        public Task<ClosureFinalizeResult> FinalizeAsync(
+            PlatformAdmission admission, Guid closureRequestId, CancellationToken cancellationToken = default)
+        {
+            FinalizeCalls.Add((admission, closureRequestId));
+            return Failure is not null ? Task.FromException<ClosureFinalizeResult>(Failure) : Task.FromResult(FinalizeResult);
         }
     }
 }

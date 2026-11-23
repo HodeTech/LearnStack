@@ -1,10 +1,12 @@
 using System.Globalization;
 using FluentAssertions;
+using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.Modules.Identity.Infrastructure.DataRequests;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
@@ -67,9 +69,11 @@ internal sealed class AccountClosureBeginKit : IAsyncDisposable
         new SystemClock(), new SystemGuidFactory(), NullLogger<PlatformAdminScope>.Instance);
 
     internal AccountClosureOperatorOperations Owner(
-        IClosureFanOut? fanOut = null, IDataRequestHoldSource? holds = null, IPlatformAdminScope? scope = null) => new(
-        scope ?? Scope(), new IdentityScopeLifecycleReader(_unused), holds ?? new NoHoldSource(),
-        [fanOut ?? new RecordingFanOut()], NullLogger<AccountClosureOperatorOperations>.Instance);
+        IClosureFanOut? fanOut = null, IDataRequestHoldSource? holds = null, IPlatformAdminScope? scope = null,
+        IIdentityProviderAccountRemoval? removal = null, Microsoft.Extensions.Logging.ILogger<AccountClosureOperatorOperations>? logger = null) => new(
+        scope ?? Scope(), new ClosureGroupLifecycleReader(new IdentityScopeLifecycleReader(_unused)), holds ?? new NoHoldSource(),
+        [fanOut ?? new RecordingFanOut()], removal ?? new RecordingAccountRemoval(),
+        logger ?? NullLogger<AccountClosureOperatorOperations>.Instance);
 
     /// <summary>A fresh Active person with a creation row, as the product binds one.</summary>
     internal async Task<Guid> PersonAsync()
@@ -282,6 +286,16 @@ internal sealed class AccountClosureBeginKit : IAsyncDisposable
     internal static async Task<NpgsqlConnection> OpenAsync(string connectionString) =>
         (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
 
+    /// <summary>Every module's reference locator, as the production composition registers them.</summary>
+    internal static IReadOnlyList<IUserReferenceLocator> Locators()
+    {
+        var services = new ServiceCollection();
+        services.AddIdentityContextualFoundation();
+        services.AddDataExportCustody(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+        using var provider = services.BuildServiceProvider();
+        return [.. provider.GetServices<IUserReferenceLocator>()];
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _unused.DisposeAsync();
@@ -290,7 +304,9 @@ internal sealed class AccountClosureBeginKit : IAsyncDisposable
         await Database.DisposeAsync();
     }
 
+    /// <summary>The audit store and the real redaction executor over the production locators, as the scope resolves them.</summary>
     private static IServiceScopeFactory AuditServices() => new ServiceCollection()
+        .AddSingleton<IAuditRedactor>(new AuditRedactionExecutor(Locators()))
         .AddMetrics()
         .AddLogging()
         .AddScoped<IAuditStateCapture, AuditStateCapture>()
@@ -302,6 +318,29 @@ internal sealed class AccountClosureBeginKit : IAsyncDisposable
         .AddScoped<IAuditStore, PostgresAuditStore>()
         .BuildServiceProvider()
         .GetRequiredService<IServiceScopeFactory>();
+}
+
+/// <summary>
+/// The identity provider's stand-in: it records each subject it is asked to delete, may run a probe first (which sees the
+/// database while the act is between its two transactions), and answers what a test sets, removed by default, or throws.
+/// </summary>
+internal sealed class RecordingAccountRemoval : IIdentityProviderAccountRemoval
+{
+    public List<string> Subjects { get; } = [];
+
+    public Func<int, AccountRemovalOutcome> Answer { get; set; } = _ => AccountRemovalOutcome.Removed;
+
+    public Func<Task>? Probe { get; set; }
+
+    public Exception? Failure { get; set; }
+
+    public async Task<AccountRemovalOutcome> RemoveAsync(string providerSubject, CancellationToken cancellationToken = default)
+    {
+        Subjects.Add(providerSubject);
+        if (Probe is { } probe) await probe();
+        if (Failure is { } failure) throw failure;
+        return Answer(Subjects.Count);
+    }
 }
 
 /// <summary>

@@ -43,7 +43,8 @@ public sealed partial class AccountClosureStorageTests
             ("last_refusal='blocked_window',completed_at=now(),row_version=row_version+1", "Data request completion refused."),
             ("last_refusal='blocked_window',status='cancelled',row_version=row_version+1", RefusalRecord),
             ("status='cancelled',row_version=row_version+1", Transition),
-            ("status='completed',row_version=row_version+1", Transition),
+            // A never-begun closure completes only on Finalize's arm, which refuses a subject not yet Closed.
+            ("status='completed',row_version=row_version+1", Subject),
         })
         {
             var refusal = await PlatformRefusedAsync(database, Unfenced, Format(set), ("id", arranged.PendingClosureA1));
@@ -148,8 +149,9 @@ public sealed partial class AccountClosureStorageTests
     }
 
     /// <summary>
-    /// A closure's Finalize (<c>fulfilling → completed</c>) once the subject is Closed, under the fences of Begin, with the
-    /// result changed only in the audit kinds and the unserved groups; and the completion of its fan-out erasures
+    /// A closure's Finalize (<c>fulfilling → completed</c>, and <c>scheduled → completed</c> for another closure of the
+    /// subject never begun) once the subject is Closed, under the fences of Begin, with the result changed only in the audit
+    /// kinds and the unserved groups; and the completion of its fan-out erasures
     /// (<c>awaiting_privileged_step → completed</c>) once the subject is Closing or Closed, under the subject's User key and
     /// the request's own tenant key, with the result changed only in the audit kinds. The application role takes none of
     /// the closure's arrows.
@@ -224,27 +226,31 @@ public sealed partial class AccountClosureStorageTests
 
         (await PlatformRefusedAsync(database, FullFencesOfPersonA, Format(Finalize), ("id", arranged.DueClosureA)))
             .MessageText.Should().Be(Subject, "Finalize completes the closure only once the subject is Closed");
+        (await PlatformRefusedAsync(database, FullFencesOfPersonA, Format(Finalize), ("id", arranged.PendingClosureA1)))
+            .MessageText.Should().Be(Subject, "a never-begun closure of the subject is completed only once the subject is Closed");
 
         await MoveAsync(database, PersonA, Closed, (SchemaFixture.TenantA, Mode.Exclusive), (SchemaFixture.TenantB, Mode.Exclusive));
         (await PlatformRefusedAsync(database, FullFencesOfPersonA, Format(Begin), ("id", arranged.PendingClosureA1)))
             .MessageText.Should().Be(Subject, "no closure is begun once the subject is Closed");
 
-        // Finalize: every condition but one, each time.
+        // Finalize: every condition but one, each time, for the closure it finalizes from fulfilling and for another closure
+        // of the subject never begun, which the same arm completes under the same witnesses (20261123120000).
         const string Report = "result='{\"audit_actor_reference\":3,\"unserved_group\":1}'";
-        foreach (var (user, tenantA, tenantB, reason, because) in new (Mode, Mode, Mode, string, string)[]
-        {
-            (Mode.None, Mode.Exclusive, Mode.Exclusive, UserFence, "without the User key"),
-            (Mode.Shared, Mode.Exclusive, Mode.Exclusive, UserFence, "with the User key shared"),
-            (Mode.Exclusive, Mode.None, Mode.Exclusive, TenantFence, "without the request's own tenant key"),
-            (Mode.Exclusive, Mode.Shared, Mode.Exclusive, TenantFence, "with the request's tenant key shared"),
-            (Mode.Exclusive, Mode.Exclusive, Mode.None, TenantFence, "without the tombstone tenant's key"),
-            (Mode.Exclusive, Mode.Exclusive, Mode.Shared, TenantFence, "with the tombstone tenant's key shared"),
-        })
-        {
-            var refusal = await PlatformRefusedAsync(database, PersonAFences(user, tenantA, tenantB), Format(Finalize + "," + Report),
-                ("id", arranged.DueClosureA));
-            (refusal.SqlState, refusal.MessageText).Should().Be(("23514", reason), because);
-        }
+        foreach (var completing in new[] { arranged.DueClosureA, arranged.PendingClosureA1 })
+            foreach (var (user, tenantA, tenantB, reason, because) in new (Mode, Mode, Mode, string, string)[]
+            {
+                (Mode.None, Mode.Exclusive, Mode.Exclusive, UserFence, "without the User key"),
+                (Mode.Shared, Mode.Exclusive, Mode.Exclusive, UserFence, "with the User key shared"),
+                (Mode.Exclusive, Mode.None, Mode.Exclusive, TenantFence, "without the request's own tenant key"),
+                (Mode.Exclusive, Mode.Shared, Mode.Exclusive, TenantFence, "with the request's tenant key shared"),
+                (Mode.Exclusive, Mode.Exclusive, Mode.None, TenantFence, "without the tombstone tenant's key"),
+                (Mode.Exclusive, Mode.Exclusive, Mode.Shared, TenantFence, "with the tombstone tenant's key shared"),
+            })
+            {
+                var refusal = await PlatformRefusedAsync(database, PersonAFences(user, tenantA, tenantB), Format(Finalize + "," + Report),
+                    ("id", completing));
+                (refusal.SqlState, refusal.MessageText).Should().Be(("23514", reason), because);
+            }
 
         foreach (var (set, reason) in new[]
         {
@@ -258,11 +264,19 @@ public sealed partial class AccountClosureStorageTests
             (refusal.SqlState, refusal.MessageText).Should().Be(("23514", reason), set);
         }
 
-        (await PlatformRefusedAsync(database, FullFencesOfPersonA, Format(Finalize), ("id", arranged.PendingClosureA1)))
-            .MessageText.Should().Be(Transition, "a scheduled closure is not completed without its Begin");
+        foreach (var (set, reason) in new[]
+        {
+            (Finalize + ",result='{\"request_receipt\":1}'", ResultRefused),
+            (Finalize + ",last_refusal='blocked_window'", RefusalRecord),
+            ("status='completed'," + Report, ImmutableState),
+        })
+        {
+            var refusal = await PlatformRefusedAsync(database, FullFencesOfPersonA, Format(set), ("id", arranged.PendingClosureA1));
+            (refusal.SqlState, refusal.MessageText).Should().Be(("23514", reason), set);
+        }
 
-        // Finalize's second transaction: every fan-out erasure and the closure completed, under the fences of Begin, with
-        // the completion time the database clock's whatever the statement says.
+        // Finalize's second transaction: every fan-out erasure, the closure and the subject's never-begun closure completed,
+        // under the fences of Begin, with the completion time the database clock's whatever the statement says.
         await using (var platform = await OpenAsync(database.PlatformConnectionString))
         await using (var transaction = await platform.BeginTransactionAsync())
         {
@@ -270,8 +284,13 @@ public sealed partial class AccountClosureStorageTests
             foreach (var fan in new[] { fanA, fanB })
                 await ExecuteAsync(platform, transaction, Format(Finalize + "," + Redacted + ",completed_at='2001-01-01T00:00:00Z'"), ("id", fan));
             await ExecuteAsync(platform, transaction, Format(Finalize + "," + Report), ("id", arranged.DueClosureA));
+            await ExecuteAsync(platform, transaction, Format(Finalize + "," + Report), ("id", arranged.PendingClosureA1));
             await transaction.CommitAsync();
         }
+
+        var neverBegun = await RequestStateAsync(database, SchemaFixture.TenantA, SchemaFixture.OrgA1, arranged.PendingClosureA1);
+        neverBegun.Should().Be(new RequestState("completed", 1, null, neverBegun.CompletedAt, SystemActor,
+            "{\"unserved_group\": 1, \"audit_actor_reference\": 3}"), "a never-begun closure goes from scheduled to completed in one step");
 
         var closure = await RequestStateAsync(database, SchemaFixture.TenantA, null, arranged.DueClosureA);
         closure.Should().Be(new RequestState("completed", 2, null, closure.CompletedAt, SystemActor, "{\"unserved_group\": 1, \"audit_actor_reference\": 3}"));
@@ -286,7 +305,7 @@ public sealed partial class AccountClosureStorageTests
 
         (await RequestStampedAsync(database, SchemaFixture.TenantA, null, arranged.DueClosureA)).Should().BeTrue(
             "the completion time is the update stamp the arm wrote");
-        foreach (var id in new[] { arranged.DueClosureA, fanA })
+        foreach (var id in new[] { arranged.DueClosureA, arranged.PendingClosureA1, fanA })
         {
             var refusal = await PlatformRefusedAsync(database, FullFencesOfPersonA, Format(Finalize), ("id", id));
             (refusal.SqlState, refusal.MessageText).Should().Be(("23514", Transition), "a completed request is terminal");

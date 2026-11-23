@@ -303,33 +303,51 @@ public sealed partial class DataErasureReplayFloorTests(SchemaFixture fixture)
             ("inbox_messages", "public.inbox_messages", "t.tenant_id, t.subscription_id, t.event_id", "true"),
             ("background_jobs", "public.background_jobs", "t.id", "t.id <> @erasureJob"),
         };
-        // The table owner reads every column but is subject to the forced row policy, so it announces the tenant; the
-        // dispatcher role bypasses the policy and can only count, which proves the announcement hid no row.
+        // The table owner reads every column but is subject to the forced row policy, so it announces the tenant, once for
+        // its tenant-wide rows and once for each organization's (a closure's fan-out writes rows in both); the dispatcher
+        // role bypasses the policy and can only count, which proves the announcements together hid no row.
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(world.Database.MigrationConnectionString);
         await using var dispatcher = (NpgsqlConnection)await PostgresFixture.OpenAsync(world.Database.OutboxConnectionString);
-        await using var transaction = await owner.BeginTransactionAsync();
-        await ScopeAsync(owner, transaction, SchemaFixture.TenantA);
         foreach (var (name, table, order, filter) in statements)
         {
-            await using var command = new NpgsqlCommand($"""
-                SELECT count(*), coalesce(md5(string_agg(row_to_json(t)::text, '|' ORDER BY {order})), '')
-                FROM {table} t WHERE {filter}
-                """, owner, transaction);
-            if (filter.Contains("@erasureJob", StringComparison.Ordinal))
-                command.Parameters.AddWithValue("erasureJob", ErasureJobOf(world));
-            await using (var row = await command.ExecuteReaderAsync())
+            var count = 0L;
+            var digests = new List<string>();
+            var scoped = await ScalarAsync<bool>(owner, null, """
+                SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = @table AND column_name = 'organization_id')
+                """, ("table", name));
+            foreach (var organization in scoped ? new Guid?[] { null, SchemaFixture.OrgA1, SchemaFixture.OrgA2 } : [null])
             {
-                (await row.ReadAsync()).Should().BeTrue();
-                trail[name] = row.GetInt64(0) + ":" + row.GetString(1);
+                await using var announced = await owner.BeginTransactionAsync();
+                await ScopeAsync(owner, announced, SchemaFixture.TenantA, organization);
+                await using var command = new NpgsqlCommand($"""
+                    SELECT count(*), coalesce(md5(string_agg(row_to_json(t)::text, '|' ORDER BY {order})), '')
+                    FROM {table} t WHERE {filter}{(scoped ? " AND t.organization_id IS NOT DISTINCT FROM @organization::uuid" : string.Empty)}
+                    """, owner, announced);
+                command.Parameters.AddWithValue("organization", (object?)organization ?? DBNull.Value);
+                if (filter.Contains("@erasureJob", StringComparison.Ordinal))
+                    command.Parameters.AddWithValue("erasureJob", ErasureJobOf(world));
+                await using (var row = await command.ExecuteReaderAsync())
+                {
+                    (await row.ReadAsync()).Should().BeTrue();
+                    count += row.GetInt64(0);
+                    digests.Add(row.GetString(1));
+                }
+
+                await announced.CommitAsync();
             }
+
+            trail[name] = count + ":" + string.Join('/', digests);
 
             // The dispatcher role has no grant on the inbox, which only the application role reads.
             if (name != "inbox_messages")
                 (await ScalarAsync<long>(dispatcher, null, $"SELECT count(*) FROM {table} t WHERE {filter}",
                     ("erasureJob", ErasureJobOf(world))))
-                    .Should().Be(long.Parse(trail[name].Split(':')[0], System.Globalization.CultureInfo.InvariantCulture), $"the tenant announcement hides no {name} row");
+                    .Should().Be(count, $"the tenant's announcements hide no {name} row");
         }
 
+        await using var transaction = await owner.BeginTransactionAsync();
+        await ScopeAsync(owner, transaction, SchemaFixture.TenantA);
         await using var targets = new NpgsqlCommand("""
             SELECT count(*), coalesce(md5(string_agg(row_to_json(t)::text, '|' ORDER BY t.id)), '')
             FROM public.identity_provider_event_targets t WHERE t.affected_user_id = @person

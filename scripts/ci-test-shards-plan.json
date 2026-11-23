@@ -35,6 +35,8 @@
     "LearnStack.Tests.Integration.CrossCuttingFoundationHttpTests",
     "LearnStack.Tests.Integration.Database.AccountClosureAdministratorParityTests",
     "LearnStack.Tests.Integration.Database.AccountClosureBeginTests",
+    "LearnStack.Tests.Integration.Database.AccountClosureEndToEndTests",
+    "LearnStack.Tests.Integration.Database.AccountClosureFinalizeTests",
     "LearnStack.Tests.Integration.Database.AccountClosureStorageTests",
     "LearnStack.Tests.Integration.Database.AccountSiteHttpTests",
     "LearnStack.Tests.Integration.Database.AccountSiteQueryTests",

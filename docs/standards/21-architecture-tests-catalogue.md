@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**417 test methods run in
+**422 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**305 rules in this catalogue are Implemented, and 186 of them are in that assembly.**
+**308 rules in this catalogue are Implemented, and 189 of them are in that assembly.**
 The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -2762,6 +2762,27 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   PostgreSQL by `AccountClosureBeginTests` (the keys observed in `pg_locks` while a
   Begin is held, the bounded wait, and admissions that race a Begin). **Kind:**
   structural and behavioural.
+- **Status:** **Implemented** (`IdentityPlatformFenceConventionTests`, P03-10 Step 3).
+- **Phase:** P03-10.
+
+#### `The_Closure_Finalize_Takes_Its_Fences_Through_The_Acquirer_Once_In_Each_Transaction`
+
+- **Asserts:** the closure's Finalize part of `AccountClosureOperatorOperations`, read
+  without comments, calls `PlatformIdentityFences.AcquireAsync` exactly twice, names no
+  advisory lock and derives no lock key, and in order acquires the fences, redacts,
+  writes its intent checkpoint, calls the provider, acquires the fences again and only
+  then moves the User to Closed.
+- **Why it matters:** the first transaction's keys end at the checkpoint's commit, so a
+  Finalize that did not take them again would move the User to Closed and complete the
+  requests with no fence held; a Finalize that took them by hand would escape the
+  acquirer's census and its bounded wait.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7;
+  [Database Standards § The closure's fences](05-database.md#the-closures-fences).
+- **Type:** xUnit — source scan with three planted departures
+  (`The_Finalize_Census_Finds_A_Planted_Departure`); the behaviour is proven on
+  PostgreSQL by `AccountClosureFinalizeTests`, whose second transaction the `users`
+  trigger exception refuses without its own keys. **Kind:** structural.
 - **Status:** **Implemented** (`IdentityPlatformFenceConventionTests`, P03-10 Step 3).
 - **Phase:** P03-10.
 
@@ -6156,10 +6177,9 @@ structural test proves — and what it does not.
   `DataRequestOperatorOperations` in code (the port's name contains it, so the owner's
   class is found too) are exactly the port, its one owner, the persistence composition
   and the data-request routes; and the files that name the scope handle's
-  `RedactAuditAsync` in code are exactly the handle's interface, the scope and that
-  owner. Adding a caller of either is a deliberate edit here, with its denied proof; a
-  closure's Finalize, whose operation is registered, joins the second list in the
-  commit that adds its owner.
+  `RedactAuditAsync` in code are exactly the handle's interface, the scope, that owner
+  and the closure owner's Finalize part. Adding a caller of either is a deliberate edit
+  here, with its denied proof.
 - **Why it matters:** the inspection reads data requests across every tenant, and the
   completion is the one way any code reaches the audit log's redactable columns. The
   scope also refuses the redaction at run time to every admitted operation but the
@@ -6180,11 +6200,12 @@ structural test proves — and what it does not.
 
 - **Asserts:** the files, by their path under `backend/src`, that name
   `AccountClosureOperatorOperations` in code (the port's name contains it, so the
-  owner's class is found too) are exactly the port, the owner's two parts, the
-  persistence composition and the closure route. Adding a caller is a deliberate edit
-  here, with its denied proof.
+  owner's class is found too) are exactly the port, the owner's three parts (its
+  constructor, Begin and Finalize), the persistence composition and the closure routes'
+  file. Adding a caller is a deliberate edit here, with its denied proof.
 - **Why it matters:** a Begin makes a person's account stop working in every tenant and
-  cannot be undone; the operator route, after the gate, is the one way to it.
+  cannot be undone, and a Finalize deletes the account at the identity provider; the
+  operator routes, after the gate, are the one way to either.
 - **Source:**
   [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7
   and 8.
@@ -6199,7 +6220,8 @@ structural test proves — and what it does not.
   `IPlatformAdminScope` (the handle's name contains it) are exactly the interface, the
   scope, the persistence composition and the operator services that perform an admitted
   act (today the killswitch toggle, the delivery inspection, the federation owner, the
-  data-request owner and the account-closure owner with its Begin part), and the code
+  data-request owner and the account-closure owner with its Begin and Finalize parts),
+  and the code
   that works on a handle such an owner entered and can enter none: the closure's fence
   acquirer and Tenancy's lifecycle port and reader. Adding a file is a deliberate edit
   here, with its denied proof.
@@ -8131,8 +8153,9 @@ sign-in read). The
 - **Asserts:** `IIdentityProviderAccountRemoval` declares exactly one method and no
   property, and production source names the port, its refusing default, the adapter or
   its factory only in the declaration, the default, the adapter, the factory, the API
-  composition and the Identity foundation registration. The closure's Finalize owner is
-  the one caller the ADR admits; the change that adds it adds its file to the list.
+  composition, the Identity foundation registration and the closure owner's constructor
+  file, whose Finalize is the one caller the ADR admits; the Finalize part calls the
+  port through the owner's field and names no port type.
 - **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
   ("exactly one method" and a single caller for a `manage-users` credential).
 - **Type:** reflection plus source scan with planted holders. **Kind:** structural.

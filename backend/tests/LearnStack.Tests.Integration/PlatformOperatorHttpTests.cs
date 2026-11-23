@@ -1217,6 +1217,7 @@ public sealed partial class PlatformOperatorHttpTests : IAsyncLifetime
         "/api/platform/v1/data-requests",
         "/api/platform/v1/data-requests/{requestId}/complete-erasure",
         "/api/platform/v1/data-requests/{requestId}/begin-closure",
+        "/api/platform/v1/data-requests/{requestId}/finalize-closure",
     ];
 
     /// <summary>
@@ -1230,6 +1231,7 @@ public sealed partial class PlatformOperatorHttpTests : IAsyncLifetime
                 ? route.EndsWith("/remove", StringComparison.Ordinal) || route.EndsWith("/disable", StringComparison.Ordinal) ? "post" : "get"
                 : route.Contains("/data-requests", StringComparison.Ordinal)
                     ? route.EndsWith("/complete-erasure", StringComparison.Ordinal) || route.EndsWith("/begin-closure", StringComparison.Ordinal)
+                        || route.EndsWith("/finalize-closure", StringComparison.Ordinal)
                         ? "post" : "get"
                     : "put";
 
@@ -1266,7 +1268,7 @@ public sealed partial class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public void The_Operator_Surface_Is_Exactly_The_Seventeen_Authorized_Endpoints_Under_Its_Prefix()
+    public void The_Operator_Surface_Is_Exactly_The_Eighteen_Authorized_Endpoints_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
         // its population is closed here instead: every routed endpoint under /api/platform (whatever

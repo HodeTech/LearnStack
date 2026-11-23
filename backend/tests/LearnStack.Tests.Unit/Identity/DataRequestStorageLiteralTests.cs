@@ -224,6 +224,51 @@ public sealed class DataRequestStorageLiteralTests
         CountOf(users, Held).Should().Be(1);
     }
 
+    /// <summary>
+    /// A1's Finalize arm, as <c>20261123100000_admit_account_closure</c> applied it: a closure completes from
+    /// <c>fulfilling</c> only.
+    /// </summary>
+    private const string BegunClosureCompletion = """
+                ELSIF OLD.kind = 'closure' AND OLD.status = 'fulfilling' AND NEW.status = 'completed' THEN
+                    -- A closure's Finalize (ADR-0107 § 7, ADR-0108 § 8): with the subject already Closed, under the fences
+                    -- of Begin. The result records the redaction's four audit kinds and the unserved groups, nothing else.
+
+        """;
+
+    /// <summary>
+    /// The same arm as <c>20261123120000_admit_closure_finalize</c> replaces it: a closure of the subject that was never
+    /// begun completes too, under exactly the same witnesses, because the arm's body is unchanged.
+    /// </summary>
+    private const string EveryOpenClosureCompletion = """
+                ELSIF OLD.kind = 'closure' AND OLD.status IN ('scheduled', 'fulfilling') AND NEW.status = 'completed' THEN
+                    -- A closure's Finalize (ADR-0107 § 7, ADR-0108 § 8): with the subject already Closed, under the fences
+                    -- of Begin, the closure it finalizes from fulfilling and every other closure of the subject from where
+                    -- it stands, begun or not. The result records the redaction's four audit kinds and the unserved groups,
+                    -- nothing else.
+
+        """;
+
+    [Fact]
+    public void The_Finalize_guard_is_the_closure_guard_but_for_the_one_arm_condition_that_admits_a_never_begun_closure()
+    {
+        const string End = "END $guard$;";
+        var closure = Ddl("RequestGuard", "AccountClosureStorageDdl");
+        var finalize = Ddl("FinalizeRequestGuard", "AccountClosureStorageDdl");
+        closure = closure[..(closure.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+        finalize = finalize[..(finalize.IndexOf(End, StringComparison.Ordinal) + End.Length)];
+        var before = BegunClosureCompletion.ReplaceLineEndings("\n");
+        var after = EveryOpenClosureCompletion.ReplaceLineEndings("\n");
+
+        CountOf(closure, before).Should().Be(1, "A1's arm is replaced exactly once");
+        finalize.Should().Be(closure.Replace(before, after, StringComparison.Ordinal),
+            "every arm, every witness and the application's arms are A1's, character for character, but for the one condition");
+        CountOf(finalize, "NEW.status = 'completed'").Should().Be(CountOf(closure, "NEW.status = 'completed'"),
+            "no arm is added: the never-begun closure takes the Finalize arm's own witnesses");
+        Ddl("FinalizeGrants", "AccountClosureStorageDdl").Trim().Should().Be(
+            "GRANT SELECT (updated_at) ON public.data_subject_requests TO learnstack_platform;",
+            "the platform role gains the request's update stamp, a begun closure's Begin moment, and nothing else");
+    }
+
     private static int CountOf(string text, string value) =>
         System.Text.RegularExpressions.Regex.Count(text, System.Text.RegularExpressions.Regex.Escape(value));
 

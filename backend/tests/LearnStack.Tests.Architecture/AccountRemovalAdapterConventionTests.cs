@@ -211,8 +211,9 @@ public sealed partial class AccountRemovalAdapterConventionTests
             .Select(pair => pair.Key).Order(StringComparer.Ordinal)];
 
     /// <summary>
-    /// Every production file that may name the port or its concrete types, with its role. The closure's Finalize owner is
-    /// the one caller ADR-0107 § 7 admits; the wave that adds it adds its file here.
+    /// Every production file that may name the port or its concrete types, with its role. The closure owner is the one
+    /// caller ADR-0107 § 7 admits: its constructor file takes the port, and its Finalize part calls it through that field
+    /// without naming the type, so the Finalize file is not a holder and stays out of this list.
     /// </summary>
     private static readonly HashSet<string> AdmittedPortHolders = new(StringComparer.Ordinal)
     {
@@ -222,6 +223,7 @@ public sealed partial class AccountRemovalAdapterConventionTests
         AdapterDirectory + "AccountRemovalAdapterFactory.cs",
         "LearnStack.Api/Composition/AccountRemovalComposition.cs",
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Bindings/IdentityFoundationRegistration.cs",
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/AccountClosureOperatorOperations.cs",
     };
 
     private static List<string> PortHolders(IReadOnlyDictionary<string, string> sources) =>

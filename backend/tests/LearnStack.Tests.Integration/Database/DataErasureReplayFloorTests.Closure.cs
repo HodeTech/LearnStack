@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Platform;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
+using static LearnStack.Tests.Integration.Database.DataRequestSchemaSeed;
 using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -14,7 +15,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>
 /// ADR-0107 §§ 7 and 9 and ADR-0103 Amendment 2, the closure half of the replay floor, through the actual provider-event
 /// path and the actual operator recovery owner: a subject-linked delivery dead-lettered while the person was Active, then
-/// replayed after the person's User became Closing, or Closed, re-runs the real handler, whose subject rule now refuses
+/// replayed after the person's User became Closing, or Closed by the person's real Finalize, re-runs the real handler, whose subject rule now refuses
 /// the person. The delivery completes as a recorded no-op: no audit row names the person, nothing fails or is retried, the
 /// replay counter advanced once, and the transport trail is otherwise untouched.
 /// </summary>
@@ -28,6 +29,57 @@ public sealed partial class DataErasureReplayFloorTests
         await using var world = await ArrangeDeliveriesAsync();
         world.Host = CreateHost(world.Database);
         await CloseAsync(world.Database, status);
+        await ReplayIsRefusedAsync(world, status);
+    }
+
+    /// <summary>
+    /// The same floor after the person's real closure: Begin fans it out to person A's three groups with the actual fan-out
+    /// act, each group's actual erasure job runs, and the actual Finalize redacts, removes the account at the stand-in
+    /// provider and closes the person. The observation accepted while the person was Active is retained, by entity and
+    /// provider metadata, with nothing of the person in its redacted columns; the replay of the dead-lettered fact writes
+    /// nothing and resets nothing.
+    /// </summary>
+    [Fact]
+    public async Task A_replay_after_the_persons_closure_was_finalized_runs_the_handler_which_refuses_and_writes_nothing()
+    {
+        await using var world = await ArrangeDeliveriesAsync();
+        var removal = new RecordingAccountRemoval();
+        world.Host = AccountClosureFlow.Host(world.Database, removal);
+        var closure = Guid.CreateVersion7();
+        await using (var app = await DataExportTestKit.OpenAppAsync(world.Database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await FenceAsync(app, transaction, SchemaFixture.TenantA, null, PersonA);
+            await InsertRequestAsync(app, transaction, closure, SchemaFixture.TenantA, null, PersonA, [LearnerMembershipA], "closure");
+            await transaction.CommitAsync();
+        }
+
+        await DataErasureTestKit.BackdateAsync(world.Database.MigrationConnectionString, SchemaFixture.TenantA, null, closure);
+        var begun = await AccountClosureFlow.BeginAsync(world.Host, closure);
+        begun.Groups.Should().Be(new ClosureBeginTally(Served: 3, Started: 3, Adopted: 0, Waiting: 0, Failed: 0, Unserved: 0));
+        foreach (var group in new ClosureParticipantGroup[]
+                 {
+                     new(TenantId.From(SchemaFixture.TenantA), null),
+                     new(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1)),
+                     new(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA2)),
+                 })
+        {
+            await AccountClosureFlow.RunErasureJobAsync(world.Host, world.Database, group,
+                await AccountClosureFlow.FanOutRequestAsync(world.Database, group, PersonA));
+        }
+
+        var finalized = await AccountClosureFlow.FinalizeAsync(world.Host,
+            AccountClosureFlow.Admission(PlatformOperations.ClosureFinalize, "INC-REPLAY-CLOSURE"), closure);
+        finalized.Outcome.Should().Be(ClosureFinalizeOutcome.Finalized);
+        removal.Subjects.Should().ContainSingle();
+        (await ObservationAsync(world, world.CompletedFact)).Should().NotBeNull("the earlier observation is retained, redacted, never deleted");
+
+        await ReplayIsRefusedAsync(world, "Closed");
+    }
+
+    /// <summary>The floor itself, once the person's User is <paramref name="status"/>: the replay re-runs the handler, which refuses.</summary>
+    private static async Task ReplayIsRefusedAsync(World world, string status)
+    {
         world.Before = await TrailAsync(world);
         world.Before["inbox_messages"].Should().StartWith("1:", "only the completed delivery left an inbox row");
         (await ObservationsAsync(world, world.CompletedFact)).Should().Be(1, "the fact accepted and delivered while the person was Active");

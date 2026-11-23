@@ -5090,7 +5090,10 @@ held exclusively on the writing connection.
 > User nonadmitting; the per-group erasure that follows runs as the application role and
 > does not retain the keys. A tenant that does not allow ordinary work is an explicit,
 > named exception to the final-administrator check, and its data is reported as an
-> unserved group.
+> unserved group. The Finalize that makes the User Closed holds the keys through each of
+> its two transactions, the redaction with its intent row and the move to Closed with
+> the completions, and not between them, while the identity provider deletes the account
+> (2026-11-23).
  They cannot make
 the final administrator ineligible without a
 separately accepted recovery/termination contract; closure and Archived status
@@ -6838,8 +6841,11 @@ A global account closure moves a User Active to Closing and Closing to Closed on
 `learnstack_platform` in the platform scope, and erases each participant group as the
 application role. The Identity migration `20261123100000_admit_account_closure`
 carries the grants, the trigger exception, the request guard's closure arrows and the
-User status witness below; it is forward-only, and the head of the Identity chain is
-pinned in `MigrationRollbackTests`. Every arrow reads its witnesses in SQL on the
+User status witness below. The forward migration `20261123120000_admit_closure_finalize`
+then replaces the request guard so that Finalize's arrow also takes a closure of the
+subject that was never begun, and grants the request's update stamp. Both are
+forward-only, and the head of the Identity chain is pinned in `MigrationRollbackTests`.
+Every arrow reads its witnesses in SQL on the
 connection that writes: the subject's User status, the request's own state and the
 advisory fences that connection holds. None of them trusts a flag a caller passes.
 
@@ -6868,6 +6874,26 @@ unavailable. It is not `IIdentityMutationLocks`, which fences one tenant inside 
 tenant-announced application transaction; `IdentityPlatformFenceConventionTests` pins
 it as the one platform acquirer and the order it takes the keys in.
 
+**Finalize takes them twice.** A closure's Finalize runs two platform transactions
+around the identity provider's account deletion, and calls the acquirer at the start of
+each: the first transaction's keys end at its intent checkpoint's commit, so none is
+held while the provider runs, and the second takes them again before the User moves to
+Closed. `IdentityPlatformFenceConventionTests` pins the two calls and their order;
+the second transaction's changes are refused without its own keys.
+
+**Finalize's reads.** Each reads the person's own rows by the person's indexes:
+`AccountClosureOperatorOperations.ReadinessSql`, each participant group's newest erasure
+of the person with whether it completed at or after the closure's Begin and whether its
+frozen Memberships include every Membership the person holds in the group, through
+`ix_data_subject_requests_subject_user_id` and `ix_memberships_user_id`;
+`MembershipsSql`, every Membership of the person by tenant for the tenant passes,
+through `ix_memberships_user_id`, bounded at 4,096; and `OpenClosuresSql`, the person's
+other open closures, locked, through `ix_data_subject_requests_subject_user_id` and
+bounded by the group bound. `AccountClosureFinalizeTests` asks PostgreSQL for their
+plans over thousands of other people's rows in the same groups. A begun closure's Begin
+moment is its own `updated_at`: the Begin arrow stamps it from the database clock and no
+arrow writes the row again until Finalize completes it.
+
 **The last-administrator read.** A closure's Begin judges each participant tenant that
 allows ordinary work with `AccountClosureOperatorOperations.AdministratorStandingSql`:
 the administrator predicate of the deferred complete-graph guard, with
@@ -6891,7 +6917,7 @@ bound; none is table-wide:
 | `membership_role_assignments` | `SELECT` of `tenant_id`, `membership_id` and `role_id` |
 | `roles` | `SELECT` of `id`, `tenant_id`, `built_in_key`, `permission_scope`, `deleted_at` and `deleted_by` |
 | `role_permission_grants` | `SELECT` of `tenant_id`, `role_id`, `permission_scope` and `permission_key` |
-| `data_subject_requests` | `UPDATE` of `last_refusal`, beside the four columns of the [platform arm](#data-request-operator-storage) |
+| `data_subject_requests` | `SELECT` of `updated_at`, a begun closure's Begin moment; `UPDATE` of `last_refusal`, beside the four columns of the [platform arm](#data-request-operator-storage) |
 | `fn_identity_lock_held`, `fn_identity_contextual_lock_key` | `EXECUTE`; both read only the calling backend's own `pg_locks` rows |
 
 `provider_subject` is what Finalize removes from the identity provider, and
@@ -6945,7 +6971,7 @@ written by the guard.
 |---|---|---|
 | Closure `scheduled → scheduled`, the refusal record | the new `last_refusal` is `blocked_window`, `blocked_hold` or `blocked_last_administrator` and differs from the standing one; `completed_at` unchanged | unchanged |
 | Closure `scheduled → fulfilling`, Begin | `clock_timestamp()` is at or past `execute_at`; the subject is Closing; the User key, the request's tenant key and every participant tenant key are held exclusively; `completed_at` unchanged | unchanged |
-| Closure `fulfilling → completed`, Finalize | the subject is Closed; the fences of Begin | changes only in the four audit kinds and `unserved_group` |
+| Closure `fulfilling → completed` or `scheduled → completed`, Finalize | the subject is Closed; the fences of Begin | changes only in the four audit kinds and `unserved_group` |
 | Erasure of origin `closure_fanout`, `awaiting_privileged_step → completed` | the subject is Closing or Closed; the User key and the request's tenant key are held exclusively | changes only in the four audit kinds |
 
 A refusal record is set or replaced, never cleared: a Begin that succeeds later moves
@@ -6955,7 +6981,11 @@ no change, is refused. The new refusals are `Data request refusal record refused
 `Data request closure user fence refused.` and
 `Data request closure tenant fence refused.`. Begin reads the subject Closing, so it
 follows the User's move in its transaction; Finalize reads it Closed, so it follows
-the move to Closed. Every other arrow, kind, origin and status stays refused. The
+the move to Closed. Finalize's arrow takes a closure from `scheduled` too: a person may
+hold an open closure in each group, and once the subject is Closed none of them can be
+begun, so Finalize completes every one of them with the one it finalizes, under the
+same witnesses, and none stays open behind a closed account. Every other arrow, kind,
+origin and status stays refused. The
 application role's arrows are unchanged and include none of these four; its own
 refusal record
 ([ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) § 7)
@@ -7023,8 +7053,9 @@ disposable copy of the seeded schema:
   under a widened grant, for the application role and the migration owner holding
   every fence, for a superuser session switched to the platform role, for `DELETE` and
   `TRUNCATE` under widened grants, and for a subject with no Membership;
-- Begin, the refusal record, Finalize and the fan-out completion admitted with their
-  exact witnesses and refused with each removed alone: a missing or shared fence, a
+- Begin, the refusal record, Finalize from `fulfilling` and from `scheduled`, and the
+  fan-out completion admitted with their exact witnesses and refused with each removed
+  alone: a missing or shared fence, a
   subject in the wrong state, a closure still in its window, a result changing a kind
   outside its arrow, a column outside the grant, a missing version step, a refusal
   record cleared or repeated, and `INSERT` and `DELETE` under a widened grant; the
@@ -7043,7 +7074,14 @@ disposable copy of the seeded schema:
   `DataErasureReplayFloorTests`: a delivery dead-lettered while the person was Active
   and replayed after the User became Closing, and again Closed, runs the handler, which
   writes no audit row, fails nothing and advances the replay count once, and the subject
-  status definer is in the definer census.
+  status definer is in the definer census; and again after the person's real Begin,
+  fan-out, erasure jobs and Finalize;
+- Finalize itself, in `AccountClosureFinalizeTests` and `AccountClosureEndToEndTests`:
+  the User moved to Closed with the raw subject removed only under the second
+  transaction's own keys, every participant erasure and every open closure completed,
+  and the readiness, the plans and the races above; and `DataRequestStorageLiteralTests`
+  pins that the Finalize migration's guard is the earlier guard but for the one arrow
+  condition.
 
 `DataRequestStorageLiteralTests` pins the guard's application arms to the request
 storage migration's text but for the INSERT arm's one block, and the definer and

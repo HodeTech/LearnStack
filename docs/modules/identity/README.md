@@ -1278,11 +1278,59 @@ the closure out to every participant group Begin judged served. The act is
   `fulfilling`, so it never asks eligibility again and never blocks; it erases every
   Membership of the snapshot, a Revoked tombstone's profile included, records the
   retained report and parks the request `awaiting_privileged_step`. Only the closure's
-  Finalize completes it; `complete_erasure` refuses it.
+  [Finalize](#account-closure-finalize-p03-10-step-3) completes it; `complete_erasure`
+  refuses it.
 - **Audit.** One MUST row per group in that tenant, about the request created, adopted
   or waited for, with the operator in `metadata.operator` and the reason
   `closure_fan_out`, never the ticket; a replaced erasure travels in its `changes`.
   These rows are the closure's evidence in every affected tenant.
+
+#### Account closure Finalize (P03-10 Step 3)
+
+The operator's Finalize of
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md) and
+[ADR-0108 § 8](../../decisions/0108-privileged-audit-redaction.md), run by the
+[account closure runbook](../../runbooks/account-closure.md#finalize):
+`finalize_closure` (`PlatformOperations.ClosureFinalize`, audit slug
+`platform.closure.finalize`, intent slug `platform.closure.finalize_attempt`, reason
+`closure_finalize`, `platform.data_request.write`), routed at
+`POST /api/platform/v1/data-requests/{requestId}/finalize-closure`.
+
+- **Owner.** The Finalize part of `AccountClosureOperatorOperations`, whose constructor
+  takes `IIdentityProviderAccountRemoval`; the class is the port's one holder. Its
+  answers are `ClosureFinalizeOutcome`: `Finalized`, `AlreadyFinalized`, `NotFound`,
+  `NotClosure`, `NotFinalizable` (never begun or cancelled), `GroupsPending` and the
+  provider's `ProviderRefused`, `ProviderUnavailable` and `ProviderUncertain`.
+- **Ready.** Under the first transaction's fences, every served group's newest erasure
+  of the person, of any origin, must await its privileged step, or have completed at or
+  after this closure's Begin (the closure's own update stamp), and its frozen
+  Memberships must include every Membership the person holds in the group. An erasure
+  completed before the person was admitted again and began closing never stands in for a
+  fan-out that did not run. An unserved group needs none.
+- **Transaction 1.** `PlatformIdentityFences` as Begin; the closure locked; the
+  account's status, raw provider subject and subject key read; the readiness; then the
+  redaction through the scope's `RedactAuditAsync`: one
+  `AuditRedactionPlan.ForClosureTenant` per participant tenant, served or not, with
+  every Membership the person holds there, then `ForClosureSentinel` by the subject key.
+  The intent row carries the summed `AuditRedactionAggregate` and commits with the
+  redaction.
+- **The provider.** `RemoveAsync` with the raw subject, before any other statement, so
+  nothing is held in the database while it runs. Removed or absent goes on; refused,
+  unavailable, uncertain or a throw stops the act with a result row naming the stop,
+  the closure `fulfilling` and the User Closing. The raw subject is never logged,
+  audited, metered or returned.
+- **Transaction 2.** The fences again; the closure, the account, the participant set
+  and the readiness judged again; then `users` Closing to Closed with
+  `provider_subject` NULL, every participant erasure awaiting its privileged step
+  completed with its tenant's retained audit kinds (a fan-out one through the closure
+  arm, the person's or an administrator's own through Step 2's arm), this closure and
+  every other open closure of the person completed with the summed retained kinds and
+  `unserved_group` (a never-begun one through the same arm, from `scheduled`), and the
+  result row with closed counts.
+- **Repeat.** Every step is idempotent: a repeat after a stop or a crash redacts again,
+  which changes no row, writes its own intent row, finds a deleted account absent and
+  finishes; a repeat after the finish answers `AlreadyFinalized` and writes only its
+  entry row.
 
 ## Entity-relationship diagram
 

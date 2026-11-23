@@ -53,7 +53,11 @@ That is the step left to you.
   ([ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)).
   Its acts are in [Account closure](account-closure.md), and these routes never act on
   a `closure` request or on a closure's fan-out erasure: the completion refuses the
-  latter, which only its closure's finalization completes.
+  latter, which only its closure's Finalize completes. A person's own erasure that a
+  closure adopted can still be completed here; the closure's Finalize completes it with
+  the others if it still awaits its privileged step. The two delayed jobs that do not
+  read a closing person's status are listed in that runbook's
+  [What is not here](account-closure.md#what-is-not-here).
 - **Cancelling or failing a request.** The person, or the administrator who filed it,
   cancels within the window. A request `blocked`, `failed` or `cancelled` is terminal;
   the person files a new one.
@@ -321,7 +325,8 @@ operator replays or resets later re-runs its handler under that handler's own su
 rules, which refuse a Closing or Closed User but not a tenant-erased person, whose User
 stays Active. So a replayed delivery about the person may write rows for them again in
 that tenant; those rows are retained transport evidence that no report counts, and they
-are not undone. Before a
+are not undone. A delivery about a person whose closure has begun, or was finalized,
+runs its handler, which refuses the person and writes nothing. Before a
 [replay or a producer reset](operator-recovery.md#choose-replay-or-reset) in a tenant
 where an erasure completed, ask whether the event concerns the erased person.
 

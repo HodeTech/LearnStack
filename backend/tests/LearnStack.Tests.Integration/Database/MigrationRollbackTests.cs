@@ -242,14 +242,16 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         accountClosure.Should().Throw<NotSupportedException>().WithMessage("The account closure storage requires a reviewed forward migration.");
         Action providerSubjectStatus = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.refuse_closing_provider_event_delivery().DownOperations;
         providerSubjectStatus.Should().Throw<NotSupportedException>().WithMessage("The provider event subject status requires a reviewed forward migration.");
+        Action closureFinalize = () => _ = new LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.admit_closure_finalize().DownOperations;
+        closureFinalize.Should().Throw<NotSupportedException>().WithMessage("The closure finalize storage requires a reviewed forward migration.");
         foreach (var (context, immediate, historical, head, reason) in new (DbContext, string, string, string, string)[]
         {
             (tenancy, "20261029112940_guard_retained_tenancy_defaults", TenancyReversibleHead,
                 "20261109230237_membership_field_consent_evidence", "Retained consent evidence requires a reviewed forward migration."),
             (platform, "20261120120000_grant_platform_delivery_inspection", PlatformReversibleHead,
                 "20261122160000_add_data_request_protected_receipts", "Retained data request receipts require a reviewed forward migration."),
-            (identity, "20261123100000_admit_account_closure", IdentityReversibleHead,
-                "20261123110000_refuse_closing_provider_event_delivery", "The provider event subject status requires a reviewed forward migration."),
+            (identity, "20261123110000_refuse_closing_provider_event_delivery", IdentityReversibleHead,
+                "20261123120000_admit_closure_finalize", "The closure finalize storage requires a reviewed forward migration."),
             (customization, CustomizationReversibleHead, CustomizationReversibleHead,
                 "20261109230218_membership_custom_field_definitions", "Retained custom field definitions require a reviewed forward migration."),
         })

@@ -319,6 +319,8 @@ public static class PersistenceCompositionExtensions
         // ADR-0107 § 7: the operator's closure Begin in the platform scope. It hands the served groups to IClosureFanOut,
         // which is registered beside it; with none registered the Begin refuses before it enters the scope, so no person
         // is moved to Closing by a deployment that cannot fan the closure out.
+        services.TryAddScoped<LearnStack.Modules.Identity.Application.DataRequests.IClosureGroupLifecycleReader,
+            LearnStack.Modules.Identity.Application.DataRequests.ClosureGroupLifecycleReader>();
         services.TryAddScoped<IAccountClosureOperatorOperations,
             LearnStack.Modules.Identity.Infrastructure.DataRequests.AccountClosureOperatorOperations>();
         // ADR-0107 § 7: a closure's per-group fan-out, one pipeline act per participant group through the operator act

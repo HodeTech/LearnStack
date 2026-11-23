@@ -57,7 +57,7 @@ public sealed partial class DataErasureExecutionTests
             "profile-canary", "@example.invalid"];
 
         // The job's rows came from the capture and name the person: the proof below is not vacuous.
-        var named = await IdentifiersInPayloadsAsync(SchemaFixture.TenantA, identifiers);
+        var named = await IdentifiersInPayloadsAsync(_database!.PlatformConnectionString, SchemaFixture.TenantA, identifiers);
         named.Select(occurrence => occurrence.EntityType).Distinct().Should()
             .Contain(["Membership", "Invitation", "DataSubjectRequest", "DataExportArtifact"]);
 
@@ -90,7 +90,7 @@ public sealed partial class DataErasureExecutionTests
         }
 
         // Every survivor at once, one a line, so a failure names each undeclared reference rather than the first.
-        string.Join(Environment.NewLine, await IdentifiersInPayloadsAsync(SchemaFixture.TenantA, identifiers)).Should()
+        string.Join(Environment.NewLine, await IdentifiersInPayloadsAsync(_database!.PlatformConnectionString, SchemaFixture.TenantA, identifiers)).Should()
             .BeEmpty("no payload names the person or a request Membership after the privileged step, except own keys");
 
         // The scalar columns of every row that named the person, and of the row the person acted in, are cleared.
@@ -113,7 +113,7 @@ public sealed partial class DataErasureExecutionTests
     private static readonly string[] Sides = ["before", "after"];
 
     /// <summary>Where an identifier occurs in one audit row's payload.</summary>
-    private sealed record PayloadOccurrence(Guid Row, string EntityType, string EntityId, string Column, string Pointer, string Text)
+    internal sealed record PayloadOccurrence(Guid Row, string EntityType, string EntityId, string Column, string Pointer, string Text)
     {
         public override string ToString() => $"{EntityType} {EntityId} {Column}{Pointer}: {Text}";
     }
@@ -122,11 +122,12 @@ public sealed partial class DataErasureExecutionTests
     /// Every occurrence, case-insensitive and as a substring, of the identifiers in the tenant's <c>before_state</c>,
     /// <c>after_state</c> and <c>changes</c>, in values, object keys and <c>changes</c> paths, read as the platform role;
     /// the retained keys of a User or a Membership (a row's own <c>Id</c> state, and the instance segment of every
-    /// User or Membership <c>changes</c> path with that instance's <c>Id</c> item) are left out.
+    /// User or Membership <c>changes</c> path with that instance's <c>Id</c> item) are left out. The closure's end-to-end
+    /// proof asks it of every participant tenant and of the platform sentinel tenant.
     /// </summary>
-    private async Task<List<PayloadOccurrence>> IdentifiersInPayloadsAsync(Guid tenant, string[] identifiers)
+    internal static async Task<List<PayloadOccurrence>> IdentifiersInPayloadsAsync(string platformConnectionString, Guid tenant, string[] identifiers)
     {
-        await using var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database!.PlatformConnectionString);
+        await using var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(platformConnectionString);
         await using var command = new NpgsqlCommand("""
             SELECT id, entity_type, COALESCE(entity_id, ''), before_state::text, after_state::text, changes::text
             FROM public.audit_log WHERE tenant_id = @tenant

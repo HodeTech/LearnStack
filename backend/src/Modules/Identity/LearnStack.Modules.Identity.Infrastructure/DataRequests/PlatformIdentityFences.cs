@@ -1,4 +1,4 @@
-using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
+using LearnStack.Modules.Identity.Application.DataRequests;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Platform;
@@ -42,7 +42,7 @@ internal static class PlatformIdentityFences
     /// The most participant groups one closure is read with: the bound of the platform lifecycle read. A person reaching it
     /// is refused as a defect rather than fenced partially.
     /// </summary>
-    internal const int MaximumGroups = IIdentityScopeLifecycleReader.MaximumPlatformScopes;
+    internal const int MaximumGroups = IClosureGroupLifecycleReader.MaximumGroups;
 
     private const string BoundTheWait = "SELECT pg_catalog.set_config('lock_timeout', '3s', true)";
 

@@ -1,6 +1,9 @@
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Platform;
+using LearnStack.SharedKernel.Results;
 
 namespace LearnStack.Api.Platform;
 
@@ -26,19 +29,66 @@ internal sealed record ClosureGroupsResponse(int Served, int Started, int Adopte
 internal sealed record ClosureBeginResponse(
     string Outcome, Guid RequestId, string Status, bool Complete, ClosureGroupsResponse Groups, string CorrelationId);
 
+/// <summary>Where a Finalize found the participant groups: closed counts, never an identifier.</summary>
+/// <param name="Served">Groups whose tenant allows ordinary work and whose organization, if any, is Active.</param>
+/// <param name="Ready">Served groups whose erasure awaits the privileged step or completed during the closure.</param>
+/// <param name="Pending">Served groups that are not ready.</param>
+/// <param name="Unserved">Groups of a tenant that does not allow ordinary work or of an organization not Active.</param>
+/// <param name="ErasuresCompleted">The participant erasures this call completed.</param>
+/// <param name="ClosuresCompleted">The person's closure requests this call completed, this one included.</param>
+internal sealed record ClosureFinalizeGroupsResponse(
+    int Served, int Ready, int Pending, int Unserved, int ErasuresCompleted, int ClosuresCompleted);
+
+/// <summary>One unserved group, which Phase 11's offboarding owns: a tenant and its organization, or none.</summary>
+internal sealed record ClosureUnservedGroupResponse(Guid TenantId, Guid? OrganizationId);
+
+/// <summary>This call's redaction passes, summed: closed counts per column and per retained kind.</summary>
+/// <param name="Tenants">The participant tenants a pass ran over; the platform sentinel tenant's pass is in the totals.</param>
+/// <param name="RowsSelected">The audit rows the passes selected.</param>
+/// <param name="Redacted">The rows changed per redacted column; zero everywhere on a repeat.</param>
+/// <param name="Retained">The retained references per closed kind.</param>
+internal sealed record ClosureRedactionResponse(
+    int Tenants, long RowsSelected, IReadOnlyDictionary<string, long> Redacted, IReadOnlyDictionary<string, long> Retained);
+
 /// <summary>
-/// The account-closure route of the operator surface (ADR-0107 §§ 7 and 8): the Begin of one person's global closure. It
-/// runs the gate first, under <c>platform.data_request.write</c>.
+/// What a Finalize that completed the closure, or found it completed, answers. A repeat of a finalization that had landed
+/// answers <c>already_finalized</c> with the recorded result and no counts of its own.
+/// </summary>
+/// <param name="Outcome"><c>finalized</c> or <c>already_finalized</c>.</param>
+/// <param name="RequestId">The closure request.</param>
+/// <param name="Status">The request's stored status, <c>completed</c>.</param>
+/// <param name="Groups">For the call that finalized, the per-group counts.</param>
+/// <param name="UnservedGroups">For the call that finalized, the unserved groups by tenant and organization.</param>
+/// <param name="Redaction">For the call that finalized, its redaction passes summed.</param>
+/// <param name="Retained">The closure request's recorded result: the retained audit kinds and <c>unserved_group</c>.</param>
+/// <param name="CorrelationId">The correlation id the intent and result rows carry.</param>
+internal sealed record ClosureFinalizeResponse(
+    string Outcome, Guid RequestId, string Status, ClosureFinalizeGroupsResponse? Groups,
+    IReadOnlyList<ClosureUnservedGroupResponse> UnservedGroups, ClosureRedactionResponse? Redaction,
+    IReadOnlyDictionary<string, long> Retained, string CorrelationId);
+
+/// <summary>
+/// The account-closure routes of the operator surface (ADR-0107 §§ 7 and 8): the Begin and the Finalize of one person's
+/// global closure. Each runs the gate first, under <c>platform.data_request.write</c>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// A Begin judges and moves the person and the request in one platform transaction and then fans the closure out: a
 /// refusal answers <c>409</c> with the closed code it recorded on the request, a fan-out that did not reach every served
 /// group answers <c>200</c> with <c>complete: false</c>, and a commit whose outcome is unknown answers <c>503</c> with
 /// <c>errors.outcome</c>, after which a repeat is safe and resumes.
+/// </para>
+/// <para>
+/// A Finalize redacts and records its intent, deletes the provider account, then closes the account and completes the
+/// requests: a closure not ready answers <c>409</c> with the closed tallies on <c>errors.groups</c>, a provider that did not
+/// delete answers <c>503</c> with the provider's closed outcome on <c>errors.provider</c>, and a repeat resumes from where
+/// any earlier call stopped.
+/// </para>
 /// </remarks>
 internal static partial class PlatformOperatorEndpoints
 {
-    private static void MapClosure(RouteGroupBuilder group) =>
+    private static void MapClosure(RouteGroupBuilder group)
+    {
         Describe(
             group.MapPost(DataRequestPrefix + "/{requestId:guid}/begin-closure", BeginClosureAsync)
                 .WithName("PlatformClosureBegin")
@@ -55,6 +105,24 @@ internal static partial class PlatformOperatorEndpoints
                     + "complete is false while a served group is waiting or failed: repeat Begin, which resumes, judges "
                     + "nothing again and adopts what started. Closing cannot be undone."),
             typeof(ClosureBeginResponse));
+        Describe(
+            group.MapPost(DataRequestPrefix + "/{requestId:guid}/finalize-closure", FinalizeClosureAsync)
+                .WithName("PlatformClosureFinalize")
+                .WithSummary("Finalize a begun closure: redact the person's audit rows, delete the provider account, close the account.")
+                .WithDescription(
+                    "Allowed once every served participant group's newest erasure of the person awaits its privileged step or "
+                    + "completed during the closure; a group whose tenant does not allow ordinary work or whose organization is "
+                    + "not Active is unserved and needs none. The first platform transaction takes the person's fences, redacts "
+                    + "the person's audit rows in every participant tenant and in the platform sentinel tenant, and commits with "
+                    + "the intent row that carries the summed counts. The person's identity-provider account is then deleted; a "
+                    + "missing account is success. The second transaction takes the fences again, moves the account from Closing "
+                    + "to Closed with the raw provider subject removed, completes every participant erasure awaiting the "
+                    + "privileged step, this closure and every other open closure of the person, and writes the result row under "
+                    + "the platform sentinel with the ticket. A provider that did not delete answers 503 and leaves the closure "
+                    + "fulfilling; every step is idempotent, so a repeat resumes, and a repeat after the act landed answers "
+                    + "already_finalized and writes nothing."),
+            typeof(ClosureFinalizeResponse));
+    }
 
     private static async Task<IResult> BeginClosureAsync(
         Guid requestId, HttpContext http, IPlatformOperatorGate gate, IAccountClosureOperatorOperations operations,
@@ -114,6 +182,122 @@ internal static partial class PlatformOperatorEndpoints
             throw;
         }
     }
+
+    private static async Task<IResult> FinalizeClosureAsync(
+        Guid requestId, HttpContext http, IPlatformOperatorGate gate, IAccountClosureOperatorOperations operations,
+        ILoggerFactory loggers, CancellationToken cancellationToken)
+    {
+        var operation = PlatformOperations.ClosureFinalize;
+        var (body, refusal, admission) = await AdmitWithBodyAsync<DataRequestActBody>(
+            http, gate, operation, request => request.Ticket, cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        // A request identifier is a UUIDv7 the database assigned; anything else names no request and reaches nothing.
+        if (body is null || !IsOperatorId(requestId))
+        {
+            return Problem(http, StatusCodes.Status400BadRequest, "lockey_validation_failed");
+        }
+
+        try
+        {
+            var result = await operations.FinalizeAsync(admission!, requestId, cancellationToken);
+            PlatformOperatorMetrics.DataRequest(operation, FinalizeOutcomeToken(result.Outcome));
+            return result.Outcome switch
+            {
+                ClosureFinalizeOutcome.Finalized or ClosureFinalizeOutcome.AlreadyFinalized => Results.Ok(new ClosureFinalizeResponse(
+                    result.Outcome == ClosureFinalizeOutcome.Finalized ? "finalized" : "already_finalized", requestId, result.Status!,
+                    result.Outcome == ClosureFinalizeOutcome.Finalized && result.Groups is { } groups
+                        ? new ClosureFinalizeGroupsResponse(
+                            groups.Served, groups.Ready, groups.Pending, groups.Unserved, groups.ErasuresCompleted, groups.ClosuresCompleted)
+                        : null,
+                    result.Outcome == ClosureFinalizeOutcome.Finalized
+                        ? [.. (result.UnservedGroups ?? []).Select(group =>
+                            new ClosureUnservedGroupResponse(group.TenantId.Value, group.OrganizationId?.Value))]
+                        : [],
+                    result.Outcome == ClosureFinalizeOutcome.Finalized && result.Redaction is { } redaction
+                        ? new ClosureRedactionResponse(
+                            redaction.Tenants.Count, redaction.Total.RowsSelected,
+                            redaction.Total.Redacted.ToDictionary(
+                                entry => AuditRedactionCodes.Columns.ToCode(entry.Key), entry => entry.Value, StringComparer.Ordinal),
+                            redaction.Total.Retained.ToDictionary(
+                                entry => DataRequestCodes.RetainedKinds.ToCode(entry.Kind), entry => entry.Count, StringComparer.Ordinal))
+                        : null,
+                    result.Retained ?? new Dictionary<string, long>(StringComparer.Ordinal),
+                    admission!.Operator.CorrelationId ?? http.TraceIdentifier)),
+                ClosureFinalizeOutcome.NotFound => Problem(http, StatusCodes.Status404NotFound, "lockey_not_found"),
+                ClosureFinalizeOutcome.NotClosure => ResultProblem(http, Rule("kind", "lockey_data_request_not_closure")),
+                ClosureFinalizeOutcome.NotFinalizable => ResultProblem(
+                    http, Rule("status", "lockey_data_request_closure_not_finalizable", result.Status)),
+                ClosureFinalizeOutcome.GroupsPending => ResultProblem(http, GroupsPending(result.Groups!)),
+                ClosureFinalizeOutcome.ProviderRefused => ResultProblem(http, ProviderStopped("lockey_provider_refused")),
+                ClosureFinalizeOutcome.ProviderUnavailable => ResultProblem(http, ProviderStopped("lockey_provider_unavailable")),
+                ClosureFinalizeOutcome.ProviderUncertain => ResultProblem(http, ProviderStopped("lockey_provider_outcome_unknown")),
+                _ => throw new InvalidOperationException("A closure Finalize outcome the route does not answer."),
+            };
+        }
+        catch (AuditWriteFailedException failure)
+        {
+            PlatformOperatorMetrics.DataRequest(operation, "audit_unavailable");
+            return AuditUnavailableProblem(http, loggers, operation, failure);
+        }
+        catch (OperatorRecoveryUnavailableException failure)
+        {
+            PlatformOperatorMetrics.DataRequest(operation, failure.CommitOutcomeUnknown ? "commit_unknown" : "unavailable");
+            return UnavailableProblem(http, loggers, operation, failure);
+        }
+        catch (Exception) when (CountFailure(operation))
+        {
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// A 409 with the closed tallies on <c>errors.groups</c>: how many served groups are ready and pending and how many are
+    /// unserved. No group is named, because a group's tenant and organization are the person's memberships.
+    /// </summary>
+    private static Error GroupsPending(ClosureFinalizeTally tally) => new(
+        new LocalizedMessage("lockey_business_rule_violation"),
+        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+        {
+            ["groups"] = [new LocalizedMessage(
+                "lockey_data_request_closure_groups_pending",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["served"] = tally.Served.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["ready"] = tally.Ready.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["pending"] = tally.Pending.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["unserved"] = tally.Unserved.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                })],
+        });
+
+    /// <summary>
+    /// A 503 whose reason is the provider's closed outcome on <c>errors.provider</c>: the redaction and its intent row
+    /// committed, the closure stays <c>fulfilling</c>, and a repeat resumes. The status map is closed, so the reason travels
+    /// on the field of <c>dependency_unavailable</c>.
+    /// </summary>
+    private static Error ProviderStopped(string reason) => new(
+        new LocalizedMessage("lockey_dependency_unavailable"),
+        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+        {
+            ["provider"] = [new LocalizedMessage(reason)],
+        });
+
+    private static string FinalizeOutcomeToken(ClosureFinalizeOutcome outcome) => outcome switch
+    {
+        ClosureFinalizeOutcome.Finalized => "finalized",
+        ClosureFinalizeOutcome.AlreadyFinalized => "already_finalized",
+        ClosureFinalizeOutcome.NotFound => "not_found",
+        ClosureFinalizeOutcome.NotClosure => "not_closure",
+        ClosureFinalizeOutcome.NotFinalizable => "not_finalizable",
+        ClosureFinalizeOutcome.GroupsPending => "groups_pending",
+        ClosureFinalizeOutcome.ProviderRefused => "provider_refused",
+        ClosureFinalizeOutcome.ProviderUnavailable => "provider_unavailable",
+        ClosureFinalizeOutcome.ProviderUncertain => "provider_uncertain",
+        _ => throw new InvalidOperationException("A closure Finalize outcome the route does not count."),
+    };
 
     private static string ClosureOutcomeToken(ClosureBeginResult result) => result.Outcome switch
     {

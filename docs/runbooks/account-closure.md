@@ -13,6 +13,7 @@ Decided in
 |---|---|---|
 | `GET /api/platform/v1/data-requests` | Lists the requests that need an operator, closures included (the [inspection](data-erasure.md#inspect)) | `platform.data_request.read` |
 | `POST /api/platform/v1/data-requests/{requestId}/begin-closure` | Fences the person, judges the closure, makes the account Closing and fans the closure out (a **Begin**) | `platform.data_request.write` |
+| `POST /api/platform/v1/data-requests/{requestId}/finalize-closure` | Redacts the person's audit rows, deletes their identity-provider account, makes the account Closed and completes every request of the closure (a **Finalize**) | `platform.data_request.write` |
 
 Authentication, the token profile and how a grant is given are in
 [Platform operator access](operator-access.md). The served operator document,
@@ -24,6 +25,11 @@ read the person's Memberships, and the act fails with a permission error, a `500
 named in the API's log. Its fan-out runs on the application role, as each group's own
 act, and needs `ConnectionStrings:Default`. A host with no fan-out registered refuses
 every Begin with a `500` before it enters the platform scope, so nothing changes.
+Finalize runs on the same credential and also needs the Identity migration
+`20261123120000_admit_closure_finalize`, and the
+[account removal client](account-removal-client.md): with no client secret configured
+the port refuses every deletion, and every Finalize stops at its provider step with
+`errors.provider` = `lockey_provider_refused` after its redaction committed.
 
 ## What the person already did
 
@@ -52,6 +58,14 @@ admits no session, and no in-product status remains
   owns it.
 - **A read of one request.** As in [data erasure](data-erasure.md#what-is-not-here),
   the lists are oldest due first and cannot be filtered by tenant or person.
+- **Restoring a deleted account.** Once Finalize's provider step deleted the person's
+  identity-provider account, nothing here recreates it.
+- **Two delayed consumers that do not read the account's status.** Between a Begin and
+  the erasure job of a group, an invitation e-mail the person issued in that group may
+  still be sent (the job then revokes the invitation, and its acceptance is refused),
+  and an export the person filed before the Begin may still store its artifact (the job
+  then withdraws it). Both are known gaps of P03-10, carried open in its Step 3 record
+  for the maintainer: closing them needs a status read of the person in those jobs.
 
 ## When to look
 
@@ -228,27 +242,156 @@ to three seconds and then answers `503`. While it is open, other identity writes
 person's tenants wait for it. The fan-out then runs one act per served group in turn,
 each a short transaction, and does not wait for the erasure jobs it enqueues.
 
+## When to finalize
+
+Finalize once every served group's erasure has run: the Begin answered `complete: true`
+(or a repeat did), and each group's erasure job has finished, so that group's newest
+erasure of the person awaits its privileged step, or completed after the Begin through
+an [erasure completion](data-erasure.md#complete-an-erasure). The groups' erasures,
+`origin` `closure_fanout` or the person's own adopted one, appear under
+`awaiting_privileged_step` in the [inspection](data-erasure.md#inspect). You need not
+check them one by one: a Finalize before they are ready answers `409` on `errors.groups`
+and changes nothing. Unserved groups need no erasure.
+
+A served group is not ready while its newest erasure is still `scheduled` or
+`fulfilling`, failed or was cancelled, completed before this closure began (the person
+was admitted to the group again since), or does not hold every Membership the person has
+in the group. Each is repaired by a repeated Begin, whose fan-out starts a new erasure
+or re-queues a dead job, followed by that group's job. A person's own erasure that
+awaits its privileged step but holds fewer Memberships than the person has in the group
+is adopted as it is by the fan-out: complete it through the
+[erasure completion](data-erasure.md#complete-an-erasure), then repeat Begin, which
+replaces the completed one with a fan-out of the whole group.
+
 ## Finalize
 
-The Finalize act redacts the person's audit rows in every participant tenant and the
-platform sentinel tenant, removes the person's identity-provider account through the
-[account removal client](account-removal-client.md), and completes the closure. It has
-no route yet, so a begun closure stays `fulfilling` and each served group's erasure
-`awaiting_privileged_step`. Its sections are:
+```sh
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  "$API/api/platform/v1/data-requests/$REQUEST/finalize-closure" -d '{"ticket":"CHG-9"}'
+```
 
-- When to finalize
-- Finalize
-- Answers
-- An unknown outcome
-- When the provider step does not finish
-- Reading the result
+The body is `{}` or `{"ticket":"..."}`. In order:
+
+1. The platform scope is entered: its entry row, under the platform sentinel with the
+   reason `closure_finalize`, your attribution and your ticket, commits first.
+2. The request is read. An absent request, one that is not a closure, a closure never
+   begun (`scheduled`) or cancelled are refused, and nothing else is written. A closure
+   already `completed` whose person is Closed answers `200 already_finalized` with what
+   it recorded, and writes nothing more.
+3. **The first transaction.** The fences, as Begin takes them (each waits at most three
+   seconds); the request locked and read again with the person's account; and every
+   served group's readiness. A group not ready refuses the act with nothing written.
+4. **The redaction**, on that transaction: the person's audit rows in every participant
+   tenant, served or not, by the person and every Membership they hold there, then in
+   the platform sentinel tenant by the person's subject key
+   ([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 4). The intent row,
+   `platform.closure.finalize_attempt`, is written under the sentinel with your ticket
+   and the summed counts, and commits with the redaction. The fences end there.
+5. **The provider** deletes the person's account through the
+   [account removal client](account-removal-client.md). A missing account is success.
+   Nothing is held in the database while it runs.
+6. **The second transaction.** The fences again, and everything judged again under
+   them. The account moves from Closing to Closed and its raw provider subject is
+   removed; every participant group's erasure that awaits its privileged step is
+   completed with its tenant's retained audit counts; this closure and every other open
+   closure of the person, begun or not, are completed with the summed audit counts and
+   the number of unserved groups; and the result row, `platform.closure.finalize`, is
+   written under the sentinel with your ticket and closed counts. All of it commits
+   together.
+
+The database checks every part of step 6 itself: it admits the account's move to
+Closed only from the platform role, only from Closing, only with the raw subject
+removed, and only with the person's fence and every participant tenant's fence held by
+the moving connection; and each request's completion only for a Closed person under the
+same fences.
+
+## Answers to a Finalize
+
+| Answer | Meaning |
+|---|---|
+| `200`, `outcome: finalized` | This call finished the closure: see [Reading the result](#reading-the-result) |
+| `200`, `outcome: already_finalized` | An earlier call finished it. `retained` is what it recorded; nothing was written but the entry row |
+| `404` | No request has that identifier, or the identifier is not a UUID at all |
+| `409`, `errors.kind` = `lockey_data_request_not_closure` | The request is an export or an erasure. Nothing changed |
+| `409`, `errors.status` = `lockey_data_request_closure_not_finalizable` | The closure was never begun (`scheduled`) or was cancelled; `params.cause` is its stored status. Begin it first, or, once another closure of the person is finalized, it is completed with that one |
+| `409`, `errors.groups` = `lockey_data_request_closure_groups_pending` | A served group is not ready: see [When to finalize](#when-to-finalize). `params` holds the closed counts `served`, `ready`, `pending` and `unserved`, and no group is named |
+| `400` | The request identifier is a UUID but not a UUIDv7 (or is the nil or the sentinel identifier), or the body or the ticket is malformed |
+| `401`, `403`, `413`, `415`, `429` | As in [operator recovery](operator-recovery.md#act) |
+| `503`, `audit_unavailable` | The entry row or the intent row could not be written: the provider was not asked, and nothing of the closure changed. Retry after the delay; error line 7105 is in the API's log |
+| `503`, `dependency_unavailable` | Another act held one of the person's fences for more than three seconds, or the database could not be reached. Nothing of the closure changed; a redaction that had committed with its intent row is repeated harmlessly. Retry after the delay; warning 7110 is in the API's log |
+| `503`, `dependency_unavailable` with `errors.provider` | The provider did not delete the account: see [When the provider step does not finish](#when-the-provider-step-does-not-finish) |
+| `503`, `dependency_unavailable` with `errors.outcome` = `lockey_outcome_unknown` | The final commit was sent and its answer was lost: see [An unknown outcome of a Finalize](#an-unknown-outcome-of-a-finalize) |
+| `500` | An unexpected failure or a deployment defect (a missing grant or migration, a state no admitted path writes, which error line 7122 names without the person). Nothing of the closure changed since its last commit |
+
+## When the provider step does not finish
+
+The redaction and its intent row committed, a result row records where the act stopped,
+the closure stays `fulfilling` and the account Closing: the person is already locked out
+everywhere. `errors.provider` names the provider's closed answer, and warning 7121 the
+same in the API's log:
+
+- `lockey_provider_refused`: nothing was deleted. The account removal client is not
+  configured or is refused, or the person's provider identifier is not one the provider
+  issued. Repair it by
+  [its runbook](account-removal-client.md#when-a-closures-last-step-does-not-finish) and
+  repeat. An identifier the adapter refuses for ever (an imported user's) is deleted by
+  hand in the realm console, after which a repeat finds it absent.
+- `lockey_provider_unavailable`: nothing was deleted; the provider was unreachable or
+  busy. Repeat after the delay.
+- `lockey_provider_outcome_unknown`: the deletion was sent and its answer was lost, so
+  the account may be gone. Repeat: a deleted account is found absent, which is success.
+
+Every repeat redacts again, which changes no row, writes an intent row of its own and
+asks the provider again.
+
+## An unknown outcome of a Finalize
+
+Repeat the same Finalize. If the second transaction had landed, the repeat answers
+`200 already_finalized` and asks the provider nothing; if it had not, the repeat
+redacts again (a no-op), finds the account absent at the provider and finishes. A
+client that never received an answer is in the same position.
+
+## Reading the result
+
+The answer of a finalization carries closed counts and no person:
+
+- `groups`: `served`, `ready`, `pending` (zero), `unserved`, `erasuresCompleted` and
+  `closuresCompleted` (this closure and every other open one of the person).
+- `unservedGroups`: each unserved group by `tenantId` and `organizationId`. Their data
+  stays and is reported; [Phase 11](../roadmap/phase-11-production-hardening.md)
+  offboarding owns it. Record the list on your ticket.
+- `redaction`: this call's passes summed: the participant `tenants` redacted, the
+  `rowsSelected`, the rows changed per column (zero on a repeat, whose earlier attempt's
+  intent row holds the counts that changed rows) and the retained references per kind.
+- `retained`: the closure request's recorded result: the audit log's retained kinds
+  summed over every pass, and `unserved_group`.
+
+What remains of the person is the tombstone: the `users` row with its identifier, its
+subject key, its authority and its creation evidence, Closed and with no raw provider
+subject; each served group's Revoked Membership; the requests as receipts; and in the
+audit log the actor and entity identifiers and all of `metadata`, which stay linkable
+through the subject key and are never called anonymous
+([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 6). The person has no
+in-product status: confirm the completion to them through the address you confirmed the
+request against.
+
+**A second closure.** A person may have filed a closure in more than one group. Begin
+any one of them; Finalize of the one you began completes every other open closure of
+the person with it, also one never begun or still in its window. A second closure that
+is `fulfilling` because you began it too may be finalized instead; the first is then
+completed with it. Finalizing a closure that was never begun answers `409` on
+`errors.status`.
 
 ## Targets and escalation
 
-- Begin every confirmed closure soon after its `executeAt`, and finish it well inside
+- Begin every confirmed closure soon after its `executeAt`, and finalize it well inside
   the 30 days of
   [ADR-0106 § 12](../decisions/0106-subject-data-requests-authority-and-status.md);
   the count starts when the request was filed.
+- A Finalize that keeps answering `errors.provider` = `lockey_provider_refused` after
+  the client was checked, and a group that stays pending over several repeated Begins
+  and jobs, are escalations to the deployment's owner, with the request identifier and
+  the `correlationId` of each call.
 - A Begin that keeps answering `503` or `500`, a group that stays `failed` over several
   repeats, and a closure listed under `stuck_fulfilling` whose groups are all started
   but whose erasures do not finish are escalations to the deployment's owner, with the
@@ -271,12 +414,22 @@ it ended: `begun`, `begun_partial`, `resumed`, `resumed_partial`, `blocked_windo
 `not_beginnable`, `account_closed`, `audit_unavailable`, `unavailable`,
 `commit_unknown` and `failed` (an unexpected failure, answered `500`). A `*_partial`
 outcome is a Begin that owes a repeat. A fan-out that threw after its Begin committed
-logs error line 7120. The admission and refusal counters are in
+logs error line 7120. With `operation` `platform.closure.finalize` the same counter's
+outcomes are `finalized`, `already_finalized`, `not_found`, `not_closure`,
+`not_finalizable`, `groups_pending`, `provider_refused`, `provider_unavailable`,
+`provider_uncertain`, `audit_unavailable`, `unavailable`, `commit_unknown` and `failed`;
+`learnstack_platform_operator_results_total{operation="platform.closure.finalize"}`
+counts the Finalize transactions that committed a result row, a stop at the provider
+included. A Finalize logs warning 7121 when it stops at the provider, warning 7124 when
+the provider port threw (its exception's type only), error 7122 for a state no admitted
+path writes, and critical 7123 when a stop's result row could not be written; none names
+the person, a tenant or the ticket. The admission and refusal counters are in
 [Platform operator access](operator-access.md#signals).
 
 ## Not recoverable here
 
 - An account that is Closing or Closed: it never returns to Active.
+- An identity-provider account Finalize deleted.
 - The data of an unserved group, until
   [Phase 11](../roadmap/phase-11-production-hardening.md) offboarding.
 - A dashboard.

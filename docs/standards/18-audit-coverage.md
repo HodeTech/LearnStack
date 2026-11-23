@@ -260,9 +260,14 @@ will raise them — which this standard requires it to do.
   row for a Begin or a refusal it records, and none for a repeat that changes nothing,
   whose entry row is its record, and `platform.closure.finalize` writes an intent row on
   `platform.closure.finalize_attempt` at the scope handle's checkpoint, on the
-  transaction that redacted the person's audit rows in every participant tenant and
-  the sentinel tenant, and then its result row
-  ([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 8).
+  transaction that redacted the person's audit rows in every participant tenant and the
+  sentinel tenant, and then its result row
+  ([ADR-0108](../decisions/0108-privileged-audit-redaction.md) § 8). Every Finalize
+  attempt that reaches the checkpoint writes its own intent row, a repeat's included,
+  and unless a fault stops it a result row whose closed `outcome` says how it ended:
+  `finalized`, a stop at the provider, a group found pending again under the second
+  transaction's fences, or another call's finalization found. A Finalize refused before
+  the checkpoint, and a repeat of one that landed, writes only its entry row.
 
 ## Baseline Coverage (LearnStack Core Modules)
 

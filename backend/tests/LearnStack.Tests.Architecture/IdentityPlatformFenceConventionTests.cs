@@ -80,6 +80,77 @@ public sealed class IdentityPlatformFenceConventionTests
     }
 
     /// <summary>
+    /// The closure's Finalize takes its fences only through the acquirer, once in each of its two transactions: before its
+    /// redaction and intent checkpoint, and again after the provider call and before the User moves to Closed, because the
+    /// first transaction's keys ended at the checkpoint's commit. The database refuses the second transaction's changes
+    /// without the keys; this pins the source that takes them.
+    /// </summary>
+    [Fact]
+    public void The_Closure_Finalize_Takes_Its_Fences_Through_The_Acquirer_Once_In_Each_Transaction()
+    {
+        var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot, FinalizeFile.Replace('/', Path.DirectorySeparatorChar)));
+        FinalizeViolations(source).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("no second acquisition", "var again = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);",
+        "var again = fences;")]
+    [InlineData("the first acquisition after the checkpoint", "var fences = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);",
+        "var fences = (PlatformIdentityFenceSet)null!;")]
+    [InlineData("a key taken by hand", "var again = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);",
+        "await handle.ExecuteAsync(\"SELECT pg_catalog.pg_advisory_xact_lock(@key)\", null, cancellationToken); var again = await PlatformIdentityFences.AcquireAsync(handle, request.Subject, request.Tenant, cancellationToken);")]
+    public void The_Finalize_Census_Finds_A_Planted_Departure(string departure, string original, string planted)
+    {
+        var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot, FinalizeFile.Replace('/', Path.DirectorySeparatorChar)));
+        source.Should().Contain(original, departure);
+        var changed = source.Replace(original, planted, StringComparison.Ordinal);
+
+        changed.Should().NotBe(source, departure);
+        FinalizeViolations(changed).Should().NotBeEmpty(departure);
+    }
+
+    private const string FinalizeFile =
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/AccountClosureOperatorOperations.Finalize.cs";
+
+    /// <summary>
+    /// What Finalize's code must say, read without comments and whitespace: exactly two acquisitions, the first before the
+    /// redaction and the checkpoint, the second after the provider call and before the account moves, and no advisory key of
+    /// its own.
+    /// </summary>
+    private static List<string> FinalizeViolations(string source)
+    {
+        var code = SourceText.WithoutWhitespace(SourceText.WithoutComments(source));
+        var violations = new List<string>();
+        const string Acquire = "awaitPlatformIdentityFences.AcquireAsync(handle,request.Subject,request.Tenant,cancellationToken);";
+        if (CountOf(code, Acquire) != 2)
+            violations.Add("Finalize takes the fences through the acquirer exactly twice, once a transaction");
+        if (System.Text.RegularExpressions.Regex.IsMatch(code, "advisory|IdentityAdvisoryLockKey", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            violations.Add("Finalize takes no advisory key and derives no lock key itself");
+
+        string[] order =
+        [
+            Acquire,
+            "awaitRedactAsync(",
+            "awaithandle.WriteIntentAsync(",
+            "awaitRemoveAccountAsync(providerSubject,cancellationToken);",
+            Acquire,
+            "awaithandle.ExecuteAsync(CloseAccount,",
+        ];
+        var position = -1;
+        foreach (var step in order)
+        {
+            position = code.IndexOf(step, position + 1, StringComparison.Ordinal);
+            if (position < 0)
+            {
+                violations.Add("the fences, the redaction, the checkpoint, the provider, the fences again, then the account's move");
+                break;
+            }
+        }
+
+        return violations;
+    }
+
+    /// <summary>
     /// What the acquirer's code must say, read without comments and whitespace: a transaction-scoped bound set first, the
     /// exclusive transaction-scoped key only, and in order the bound, the User key, the participant read, the ascending
     /// tenant order and the tenant keys.
