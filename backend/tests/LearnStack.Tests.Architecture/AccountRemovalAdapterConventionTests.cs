@@ -21,6 +21,9 @@ public sealed partial class AccountRemovalAdapterConventionTests
     private const string RoutesSource = AdapterDirectory + "KeycloakAccountRemovalRoutes.cs";
     private const string AdapterSource = AdapterDirectory + "KeycloakAccountRemoval.cs";
     private const string OptionsSource = AdapterDirectory + "KeycloakAccountRemovalOptions.cs";
+    private const string OwnerDirectory = "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/";
+    private const string OwnerFilePrefix = OwnerDirectory + "AccountClosureOperatorOperations";
+    private const string OwnerFinalizeSource = OwnerFilePrefix + ".Finalize.cs";
 
     [Fact]
     public void Account_Removal_Client_Is_Held_Only_By_The_Adapter()
@@ -163,6 +166,61 @@ public sealed partial class AccountRemovalAdapterConventionTests
             "Modules/Tenancy/LearnStack.Modules.Tenancy.Application/Planted.cs");
     }
 
+    [Fact]
+    public void Account_Removal_Port_Is_Called_Only_From_The_Closure_Finalize()
+    {
+        var sources = Sources();
+        CallSiteOffenders(sources).Should().BeEmpty(
+            "Fix: the port's one method deletes an account with a manage-users credential and has one call, in the closure owner's "
+            + "Finalize part, after the redaction checkpoint (ADR-0107 § 7). The captured port is held only by the owner's partial "
+            + "files and is used only as the receiver of a call, never passed on or kept");
+        sources.Should().ContainKey(OwnerFinalizeSource, "the premise: the scan reads the file that makes the one call");
+        CallCount(SourceText.WithoutCommentsOrLiterals(sources[OwnerFinalizeSource])).Should().Be(1, "the premise: Finalize makes the call, once");
+    }
+
+    [Fact]
+    public void The_call_site_detector_refuses_planted_departures()
+    {
+        const string Constructor = "public sealed partial class AccountClosureOperatorOperations(IIdentityProviderAccountRemoval accountRemoval) { }";
+        const string Finalize = "var outcome = await accountRemoval.RemoveAsync(providerSubject, cancellationToken);";
+        Dictionary<string, string> Owner(string file, string text) => new()
+        {
+            [OwnerFilePrefix + ".cs"] = Constructor,
+            [OwnerFinalizeSource] = Finalize,
+            [OwnerFilePrefix + file] = text,
+        };
+
+        // The clean shape, with prose, a literal and a comment that merely say the words, and a file that does not name the port.
+        CallSiteOffenders(new Dictionary<string, string>
+        {
+            [OwnerFilePrefix + ".cs"] = Constructor,
+            [OwnerFinalizeSource] = Finalize + " // accountRemoval.RemoveAsync(again) in a comment\nvar prose = \"accountRemoval.RemoveAsync(\";",
+            [OwnerFilePrefix + ".Begin.cs"] = "var judged = Judge(subject); /* accountRemoval.RemoveAsync( */",
+            [AdapterDirectory + "AccountRemovalAdapterFactory.cs"] = "public const string PortName = \"accountRemoval\";",
+            ["LearnStack.Api/Identity/Clean.cs"] = "var accountRemovalSettings = 1; // accountRemoval",
+        }).Should().BeEmpty();
+
+        CallSiteOffenders(Owner(".Begin.cs", "var outcome = await accountRemoval.RemoveAsync(subject, cancellationToken);"))
+            .Should().Equal(OwnerFilePrefix + ".Begin.cs");
+        CallSiteOffenders(Owner(".Begin.cs", "var outcome = await accountRemoval . RemoveAsync (subject, ct);"))
+            .Should().Equal(OwnerFilePrefix + ".Begin.cs");
+        CallSiteOffenders(new Dictionary<string, string> { [OwnerFilePrefix + ".cs"] = Constructor, [OwnerFinalizeSource] = Finalize + Finalize })
+            .Should().Equal(OwnerFinalizeSource);
+        CallSiteOffenders(new Dictionary<string, string> { [OwnerFilePrefix + ".cs"] = Constructor, [OwnerFinalizeSource] = "var nothing = 1;" })
+            .Should().Equal(OwnerFinalizeSource);
+        CallSiteOffenders(Owner(".Begin.cs", "var port = accountRemoval;")).Should().Equal(OwnerFilePrefix + ".Begin.cs");
+        CallSiteOffenders(Owner(".Begin.cs", "Run(() => accountRemoval);")).Should().Equal(OwnerFilePrefix + ".Begin.cs");
+        CallSiteOffenders(Owner(".Begin.cs", "Helper(accountRemoval, subject);")).Should().Equal(OwnerFilePrefix + ".Begin.cs");
+        CallSiteOffenders(Owner(".Begin.cs", "var remove = accountRemoval.RemoveAsync;")).Should().Equal(OwnerFilePrefix + ".Begin.cs");
+        CallSiteOffenders(new Dictionary<string, string>
+        {
+            [OwnerFilePrefix + ".cs"] = Constructor,
+            [OwnerFinalizeSource] = Finalize,
+            ["LearnStack.Api/Identity/Planted.cs"] = "await accountRemoval.RemoveAsync(subject, ct);",
+            [OwnerDirectory + "IdentityDeletion.cs"] = "var port = accountRemoval;",
+        }).Should().Equal("LearnStack.Api/Identity/Planted.cs", OwnerDirectory + "IdentityDeletion.cs");
+    }
+
     private static Dictionary<string, string> Sources() =>
         Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
@@ -226,6 +284,32 @@ public sealed partial class AccountRemovalAdapterConventionTests
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/AccountClosureOperatorOperations.cs",
     };
 
+    /// <summary>
+    /// The one call. <c>accountRemoval</c> is the closure owner's captured port: only the owner's partial files (the constructor,
+    /// Begin and Finalize parts) may name it, only as the receiver of a call (never aliased, passed on or captured), and its one
+    /// method is called exactly once, in the Finalize part. A file that names the port types is already confined by
+    /// <see cref="AdmittedPortHolders"/>; this rule covers the files that reach the port without naming a type.
+    /// </summary>
+    private static List<string> CallSiteOffenders(IReadOnlyDictionary<string, string> sources)
+    {
+        var offenders = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var (path, text) in sources.Where(pair => pair.Key.EndsWith(".cs", StringComparison.Ordinal)))
+        {
+            var code = SourceText.WithoutCommentsOrLiterals(text);
+            var isOwner = path.StartsWith(OwnerFilePrefix, StringComparison.Ordinal);
+            if (CapturedPort().IsMatch(code) && !isOwner)
+                offenders.Add(path);
+            else if (isOwner && CapturedPortUse().Matches(code).Any(use => !use.Groups["receiver"].Success && !use.Groups["declaration"].Success))
+                offenders.Add(path);
+            if (CallCount(code) != (path == OwnerFinalizeSource ? 1 : 0))
+                offenders.Add(path);
+        }
+
+        return [.. offenders];
+    }
+
+    private static int CallCount(string code) => CapturedPortCall().Count(code);
+
     private static List<string> PortHolders(IReadOnlyDictionary<string, string> sources) =>
         [.. sources.Where(pair => !AdmittedPortHolders.Contains(pair.Key) && AccountRemovalNames().IsMatch(Code(pair.Value)))
             .Select(pair => pair.Key).Order(StringComparer.Ordinal)];
@@ -250,4 +334,19 @@ public sealed partial class AccountRemovalAdapterConventionTests
 
     [GeneratedRegex(@"\b(IIdentityProviderAccountRemoval|RefusingIdentityProviderAccountRemoval|KeycloakAccountRemoval|AccountRemovalAdapterFactory)\b")]
     private static partial Regex AccountRemovalNames();
+
+    /// <summary>The closure owner's captured port, by its parameter name, outside comments and literals.</summary>
+    [GeneratedRegex(@"\baccountRemoval\b")]
+    private static partial Regex CapturedPort();
+
+    /// <summary>
+    /// Each use of the captured port: as the receiver of a member access (<c>accountRemoval.</c>) or in the constructor's own
+    /// parameter declaration (the port type then the name). Any other use matches neither group: an alias, an argument, a capture.
+    /// </summary>
+    [GeneratedRegex(@"(?<declaration>\bIIdentityProviderAccountRemoval\s+accountRemoval\b)|\baccountRemoval\b(?<receiver>\s*\.\s*\w+\s*\()?")]
+    private static partial Regex CapturedPortUse();
+
+    /// <summary>A call of the port's deleting method through the captured port, with any spacing.</summary>
+    [GeneratedRegex(@"\baccountRemoval\s*\.\s*RemoveAsync\s*\(")]
+    private static partial Regex CapturedPortCall();
 }

@@ -336,8 +336,9 @@ same in the API's log:
   [its runbook](account-removal-client.md#when-a-closures-last-step-does-not-finish) and
   repeat. An identifier the adapter refuses for ever (an imported user's) is deleted by
   hand in the realm console, after which a repeat finds it absent.
-- `lockey_provider_unavailable`: nothing was deleted; the provider was unreachable or
-  busy. Repeat after the delay.
+- `lockey_provider_unavailable`: no deletion was confirmed; the provider was
+  unreachable or busy. Repeat after the delay: a deletion that had landed is found
+  absent.
 - `lockey_provider_outcome_unknown`: the deletion was sent and its answer was lost, so
   the account may be gone. Repeat: a deleted account is found absent, which is success.
 

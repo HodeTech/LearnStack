@@ -51,7 +51,8 @@ internal static class AccountRemovalComposition
             var development = provider.GetRequiredService<IHostEnvironment>().IsDevelopment();
             var options = new KeycloakAccountRemovalOptions(configuration["Authentication:Tenant:Issuer"] ?? "", development);
             return AccountRemovalAdapterFactory.Create(options, secrets,
-                provider.GetRequiredService<IProviderResilience<IIdentityProviderAccountRemoval>>());
+                provider.GetRequiredService<IProviderResilience<IIdentityProviderAccountRemoval>>(),
+                provider.GetRequiredService<ILoggerFactory>());
         }));
         return services;
     }

@@ -6,13 +6,19 @@ public enum AccountRemovalOutcome
     /// <summary>The provider deleted the account.</summary>
     Removed = 1,
 
-    /// <summary>The provider holds no such account, which is success: the closure's goal already holds.</summary>
+    /// <summary>
+    /// The provider holds no such account, which is success: the closure's goal already holds. Only the provider's own
+    /// answer counts; a "not found" that is not the provider's (a hop in front of it) is <see cref="Refused"/>.
+    /// </summary>
     Absent = 2,
 
     /// <summary>The provider definitively refused the deletion (a configuration or authority fault). Nothing changed.</summary>
     Refused = 3,
 
-    /// <summary>The provider could not be reached, or answered with a server fault, before the request was applied.</summary>
+    /// <summary>
+    /// The provider could not be reached, or it or a hop in front of it answered with a server fault or a throttle. No
+    /// deletion was confirmed: a repeat finds the account absent if one had landed.
+    /// </summary>
     Unavailable = 4,
 
     /// <summary>The request may have been applied: its answer was lost. A repeat is safe, because the deletion is idempotent.</summary>

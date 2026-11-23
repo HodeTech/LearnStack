@@ -177,7 +177,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**422 test methods run in
+**424 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6,
@@ -217,7 +217,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**308 rules in this catalogue are Implemented, and 189 of them are in that assembly.**
+**309 rules in this catalogue are Implemented, and 190 of them are in that assembly.**
 The other 119 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -8162,6 +8162,25 @@ sign-in read). The
 - **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
 - **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
 - **Phase:** 03 (P03-10 Step 3).
+
+#### `Account_Removal_Port_Is_Called_Only_From_The_Closure_Finalize`
+
+- **Asserts:** the identifier `accountRemoval`, the closure owner's captured port,
+  appears in production source only in the owner's partial files (the constructor,
+  Begin and Finalize parts), only as the receiver of a call or in the constructor's
+  parameter declaration (never aliased, passed on or captured), and
+  `accountRemoval.RemoveAsync(` is called exactly once, in the Finalize part. The
+  port-holder rule above confines the files that name a port type; this one covers the
+  files that reach the port without naming one, which a second call in Begin would
+  otherwise pass. Comments and literals are set aside; planted calls in Begin, a second
+  and a missing call in Finalize, an alias, an argument, a capture, a method group and
+  a foreign file are refused, and a prose-only mention is not.
+- **Source:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md#7-global-account-closure)
+  (a single caller for a `manage-users` credential).
+- **Type:** source scan, planted departures and a clean control. **Kind:** structural.
+- **Status:** **Implemented** (`AccountRemovalAdapterConventionTests`).
+- **Test owner:** [AccountRemovalAdapterConventionTests.cs](../../backend/tests/LearnStack.Tests.Architecture/AccountRemovalAdapterConventionTests.cs).
+- **Phase:** 03 (P03-10 Step 3, review round 1).
 
 #### `Federation_Host_Alias_Setter_Is_Read_Only_And_Host_Only`
 

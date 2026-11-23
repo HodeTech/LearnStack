@@ -123,6 +123,7 @@ public sealed class AccountRemovalCompositionTests
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<ISecretProvider>(new ConfigurationSecrets(configuration));
         services.AddSingleton<IHostEnvironment>(new Environment(environment));
+        services.AddLogging();
         // The module's default is registered first, exactly as the Identity foundation does.
         services.TryAddSingleton<IIdentityProviderAccountRemoval, RefusingIdentityProviderAccountRemoval>();
         services.AddLearnStackAccountRemovalAdapter(configuration);

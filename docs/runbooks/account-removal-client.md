@@ -5,9 +5,9 @@ credential that can delete a person's identity-provider account: the realm clien
 closing step of a global account closure uses. Decided in
 [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md). The
 closure's own steps and their operator routes are in
-[Data erasure](data-erasure.md) and the closure runbook; this document is about the
-credential. There is **no route of its own**: the credential is used by one caller, the
-closure's Finalize, through one port method.
+[Data erasure](data-erasure.md) and the [closure runbook](account-closure.md); this
+document is about the credential. There is **no route of its own**: the credential is
+used by one caller, the closure's Finalize, through one port method.
 
 ## What exists
 
@@ -20,11 +20,13 @@ closure's Finalize, through one port method.
 | Secret | `KEYCLOAK_ACCOUNT_REMOVAL_SECRET` in the realm's private source; the API reads the same value as `AccountRemoval__ClientSecret` |
 | Calls | One token request, then `DELETE users/{id}` for a canonical lowercase UUID; nothing else |
 | Resilience | `Resilience:accountRemoval`, fixed: no retry, 5-second call ceiling, breaker on, one call at a time |
+| Log | One Warning, event 7125, per refusal, carrying one closed reason code ([below](#reading-a-refusal-in-the-log)) |
 
 The adapter refuses a malformed subject and a missing or unusable secret before any
 request leaves the process, and a token wider than the role before the deletion is
-sent. It never logs or audits the subject or the secret. With no secret configured every
-closure stops at its last step and nothing reaches the provider.
+sent. It never logs, audits or returns the subject or the secret, and a refusal logs
+its reason code only. With no secret configured every closure stops at its last step
+and nothing reaches the provider.
 
 ## What the credential can do
 
@@ -88,34 +90,64 @@ with exactly these properties, and nothing broader:
 
 Store the secret in the deployment's secret provider under `AccountRemoval:ClientSecret`
 and set `Authentication:Tenant:Issuer` to the realm's issuer; the adapter reads both and
-selects no other target.
+selects no other target. A configured secret with an issuer the adapter refuses (not
+HTTPS, or not ending `/realms/learnstack`) stops the API from building the closure's
+operations at all: Begin and Finalize both answer `500` and nothing changes. Fix the
+issuer; do not clear the secret to get past it.
 
 ## Verify the confined client
 
 The adapter refuses a token that is not exactly this client's, but check the client
-yourself after provisioning and after any provider upgrade.
+yourself after provisioning and after any provider upgrade. `ISSUER` below is the value
+of `Authentication:Tenant:Issuer`, and `ADMIN` is its admin address:
+`ADMIN="${ISSUER%/realms/learnstack}/admin/realms/learnstack"`.
 
 1. In the realm console the client has service accounts on, every browser flow off, no
    client scopes and full scope off. Its service account has one role mapping,
    `manage-users`, and no group.
-2. Request a client-credentials token and read its claims. The secret goes in a file,
-   never on the command line or in shell history:
+2. Put the secret in a file, never on the command line or in shell history, and without
+   a trailing newline: curl sends a file's newline as part of the value (`%0A`), and the
+   provider then refuses a correct secret.
 
    ```bash
-   curl --silent --data-urlencode grant_type=client_credentials \
+   umask 077
+   printf 'Client secret: '; read -r -s SECRET; echo
+   printf %s "$SECRET" > account-removal.secret; unset SECRET
+   ```
+
+   Request a client-credentials token and read its claims:
+
+   ```bash
+   TOKEN=$(curl --silent --data-urlencode grant_type=client_credentials \
      --data-urlencode client_id=learnstack-account-removal \
      --data-urlencode client_secret@account-removal.secret \
-     "$ISSUER/protocol/openid-connect/token" \
-     | jq -r .access_token \
-     | jq -R 'split(".")[1] | @base64d | fromjson
+     "$ISSUER/protocol/openid-connect/token" | jq -r .access_token)
+   printf %s "$TOKEN" \
+     | jq -R 'split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson
          | {azp, realm_access, resource_access}'
    ```
 
    `azp` is `learnstack-account-removal`, `realm_access` is absent or has no roles, and
    `resource_access` has one entry, `realm-management`, whose roles are exactly
    `["manage-users"]`. Delete the secret file afterwards.
-3. The token is refused for brokers and clients: `GET .../identity-provider/instances`
-   and `GET .../clients` with it answer `403`.
+3. The token is refused for brokers and clients:
+   `GET $ADMIN/identity-provider/instances` and `GET $ADMIN/clients` with it answer
+   `403`.
+4. The deletion route answers as the provider itself. Ask it to delete an identifier no
+   user has:
+
+   ```bash
+   curl --silent --include --request DELETE --header "Authorization: Bearer $TOKEN" \
+     "$ADMIN/users/$(uuidgen | tr 'A-Z' 'a-z')"
+   ```
+
+   The answer is `404` with `Content-Type: application/json` and the body
+   `{"error":"User not found"}` (read from the pinned Keycloak, `26.7.5`). A `401` or
+   `403` means the token or its role is wrong: repeat the steps above. Any other answer
+   (an HTML or empty page, other JSON) means a proxy or gateway in front of the provider
+   answers for it: fix that route before the first closure. The adapter refuses a `404`
+   that is not JSON (`delete_not_found_foreign`), but it cannot tell a gateway's JSON
+   `404` from the provider's own and would report the account absent.
 
 ## Rotate it
 
@@ -153,16 +185,39 @@ compromise.
 
 ## When a closure's last step does not finish
 
-The closure's Finalize reports what the provider answered. The adapter's answers mean:
+The closure's Finalize reports what the provider answered; the
+[closure runbook](account-closure.md#when-the-provider-step-does-not-finish) says what
+each answer does to the closure. The adapter's answers mean:
 
 | Answer | Meaning | What to do |
 |---|---|---|
-| refused | Nothing changed. The secret is missing, unusable or wrong; the client is disabled or broader than `manage-users`; the subject is not a provider user identifier; or the provider answered `401`, `403` or another `4xx` | Fix the cause (configuration, secret, client), then repeat the step. Repeating without a repair answers the same |
-| unavailable | Nothing was deleted: the provider was unreachable, answered `5xx` or `429`, the breaker is open after repeated faults, or another deletion is in flight | Wait (the breaker closes after its break duration, 30 seconds by default) and repeat |
-| uncertain | The deletion may have happened and its answer was lost | Look the person up in the realm console with the e-mail you confirmed the request against, then repeat the step. A repeat reports the account absent, which is success |
+| refused | Nothing changed. The secret is missing, unusable or wrong; the client is disabled or broader than `manage-users`; the subject is not a provider user identifier; the provider answered `401`, `403` or another `4xx`; or a `404` came back that is not the provider's own JSON | Read the reason code in the API's log ([below](#reading-a-refusal-in-the-log)), fix that cause, then repeat the step. Repeating without a repair answers the same |
+| unavailable | No deletion was confirmed: the provider was unreachable, it or a hop in front of it answered `5xx`, `429`, `408` or `425`, the breaker is open after repeated faults, or another deletion is in flight | Wait (the breaker closes after its break duration, 30 seconds by default) and repeat. A deletion that had landed is found absent, which is success |
+| uncertain | The deletion may have happened and its answer was lost: a timeout, a connection that failed or broke while the deletion was being sent, or an answer that is not a deletion's | Look the person up in the realm console with the e-mail you confirmed the request against, then repeat the step. A repeat reports the account absent, which is success |
 
 There are no automatic retries by design: a repeat is the operator's, so a lost answer
-is never hidden behind a quiet success. A missing account is success.
+is never hidden behind a quiet success. A missing account is success, but only the
+provider's own answer counts: a `404` that is not JSON is a refusal, because a proxy
+or gateway in front of the provider may be answering for it.
+
+### Reading a refusal in the log
+
+Every refusal writes one Warning, event 7125, `The account removal adapter refused the
+deletion: <code>`, with one of these closed codes. The line carries no subject, address,
+secret or provider text. The closure's own line (warning 7121) follows it.
+
+| Code | Cause | What to do |
+|---|---|---|
+| `subject_shape` | The person's provider subject is not a lowercase hyphenated UUID, so no request is sent | Nothing in the realm or the secret changes this answer, and a hand deletion in the realm console does not either: the account cannot be deleted through LearnStack. Escalate to engineering |
+| `secret_unusable` | `AccountRemoval:ClientSecret` is empty, blank, over 1,024 bytes, the mask literal or a `${` reference | Set it as in [Provision it](#provision-it), then restart the API |
+| `token_refused` | The token endpoint answered `4xx` or a redirect: the secret is wrong, or the client is disabled | Compare the secret with the provider's ([Rotate it](#rotate-it)); enable the client |
+| `token_malformed` | The token endpoint answered `200` but not a usable token response (not JSON, too large, no access token, not a JWT) | A proxy or a wrong `Authentication:Tenant:Issuer` is answering for the provider: check the address |
+| `token_not_confined` | A usable token that is not exactly this client's: another issuer or client, a realm role, or roles other than `manage-users` | The client is misprovisioned: repeat [Verify the confined client](#verify-the-confined-client) and repair it |
+| `delete_unauthorized` | The deletion answered `401` or `403` | The role is missing or the realm differs from the issuer's: repeat the verification |
+| `delete_redirect` | The deletion answered a redirect, which is never followed | A proxy is redirecting the admin path: fix the route |
+| `delete_rejected` | The deletion answered another `4xx` | Read the provider's own log for the cause |
+| `delete_not_found_foreign` | The deletion answered `404` in a type other than JSON | A proxy or gateway hides the admin path: fix the route (verification step 4) |
+| `unclassified` | A refusal that named no cause: a defect of the adapter | Report it with the log line |
 
 ## What is not here
 

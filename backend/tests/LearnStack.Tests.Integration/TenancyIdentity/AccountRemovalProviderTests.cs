@@ -8,6 +8,7 @@ using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Resilience;
 using LearnStack.SharedKernel.Secrets;
 using LearnStack.Tests.Integration.Database;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
 using Polly;
 using Xunit;
@@ -50,6 +51,36 @@ public sealed class AccountRemovalProviderTests(AccountRemovalKeycloakFixture pr
             "dirty control: the deletion named one identifier and removed that account only");
         (await adapter.RemoveAsync(Guid.CreateVersion7().ToString("D"))).Should().Be(AccountRemovalOutcome.Absent,
             "an identifier the provider never issued is absent");
+    }
+
+    [Fact]
+    public async Task Keycloaks_own_not_found_for_a_deletion_is_json_which_is_what_the_adapter_reads_as_absence()
+    {
+        // The adapter treats a 404 as absence only when it carries the provider's own JSON type (it never reads the body). That
+        // rule rests on this observation of the pinned image: a missing user, in any spelling of its identifier, is answered 404
+        // with application/json. A proxy that hides the admin path answers in another type, and the unit cases plant it.
+        using var client = KeycloakHttp.Create(Keycloak.BaseAddress, Keycloak.RootCertificate);
+        var admin = AdminClient(await TokenAsync(client, "learnstack-account-removal", KeycloakFixture.AccountRemovalSecret));
+        var unknown = Guid.CreateVersion7().ToString("D");
+
+        foreach (var path in new[] { "users/" + unknown, "users/" + unknown.ToUpperInvariant(), "users/not-a-uuid" })
+        {
+            using var response = await KeycloakHttp.SendAsync(admin, HttpMethod.Delete, path);
+            response.StatusCode.Should().Be(HttpStatusCode.NotFound, path);
+            response.Content.Headers.ContentType?.MediaType.Should().Be("application/json",
+                "the provider's own not-found answer carries its JSON type: " + path);
+            (await KeycloakHttp.ReadBodyAsync(response)).Should().Contain("User not found");
+        }
+
+        // Dirty control: a path the provider does not route answers 404 as well, and also in JSON. The adapter never builds such a
+        // path (the architecture rules pin its two routes), so this is why the type alone is not asked to prove more than the
+        // deletion route's own answer, and why the runbook has the operator exercise that route after provisioning.
+        using var unrouted = await KeycloakHttp.SendAsync(admin, HttpMethod.Delete, "unrouted/" + unknown);
+        unrouted.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        unrouted.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
+
+        using var adapter = Adapter();
+        (await adapter.RemoveAsync(unknown)).Should().Be(AccountRemovalOutcome.Absent);
     }
 
     [Fact]
@@ -122,7 +153,7 @@ public sealed class AccountRemovalProviderTests(AccountRemovalKeycloakFixture pr
     }
 
     private KeycloakAccountRemoval Adapter(string secret = KeycloakFixture.AccountRemovalSecret) =>
-        new(new KeycloakAccountRemovalOptions(Keycloak.Issuer), new Secrets(secret), new Resilience(),
+        new(new KeycloakAccountRemovalOptions(Keycloak.Issuer), new Secrets(secret), new Resilience(), NullLogger.Instance,
             KeycloakHttp.CreateHandler(Keycloak.RootCertificate));
 
     private HttpClient AdminClient(string access)

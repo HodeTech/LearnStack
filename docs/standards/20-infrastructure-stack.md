@@ -504,7 +504,8 @@ client, the realm invariants and recovery.
 **Derives from:** [ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md).
 
 `IIdentityProviderAccountRemoval` has one method, deletes one person's identity-provider
-account, and has one caller: the closure's Finalize. Its default,
+account, and has one caller: the closure's Finalize, whose one call of the method an
+architecture rule pins. Its default,
 `RefusingIdentityProviderAccountRemoval`, refuses every call without a network effect;
 the internal `KeycloakAccountRemoval` in
 `LearnStack.Infrastructure.Identity.AccountRemoval` replaces it at the API composition
@@ -513,11 +514,16 @@ is configured. The client holds `manage-users`, which can also create and update
 and reset credentials in the shared realm, so the adapter builds two routes (the token
 endpoint and `users/{id}` for a canonical UUID), sends two verbs (the token POST and the
 deletion DELETE), and keeps the subject and the secret out of every log, audit row and
-exception message. Its resilience is `IProviderResilience<IIdentityProviderAccountRemoval>`
-from `Resilience:accountRemoval`: no retry, because the closure's Finalize is the
-repeatable retry and a repeat inside the pipeline would hide a lost answer; the timeout
-is 5 s, the circuit breaker is on within the federation adapter's ranges and the bulkhead
-is exactly 1 without a queue. These values are fixed: the composition root refuses any
+exception message. A refusal logs one closed reason code at Warning (event 7125) and
+nothing else of the call; the [runbook](../runbooks/account-removal-client.md) lists the
+codes. A `404` is absence only when it carries the provider's own JSON type, so a hop
+in front of the provider cannot make a closure finish. Its resilience is
+`IProviderResilience<IIdentityProviderAccountRemoval>` from `Resilience:accountRemoval`:
+no retry, because the closure's Finalize is the repeatable retry and a repeat inside
+the pipeline would hide a lost answer; the timeout is 5 s and the adapter's own
+cancellation sits one second later, so that the breaker records the timeout; the
+circuit breaker is on within the federation adapter's ranges and the bulkhead is
+exactly 1 without a queue. These values are fixed: the composition root refuses any
 other value at startup. The [provider specification](../modules/identity/providers.md#account-removal-adapter)
 owns the call, answer and token rules, and the
 [runbook](../runbooks/account-removal-client.md) owns the client, its blast radius,
