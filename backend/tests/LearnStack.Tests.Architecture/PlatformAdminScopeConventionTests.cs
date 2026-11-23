@@ -266,14 +266,16 @@ public sealed partial class PlatformAdminScopeConventionTests
                     FederationOperationsFile,
                     DataRequestOperationsFile,
                     // ADR-0107 § 7: the closure's owner enters the scope; its Begin, its Finalize and its fence acquirer
-                    // work on the handle the owner entered, and Tenancy's lifecycle port reads on a handle it is given.
-                    // None of them can enter a scope of its own.
+                    // work on the handle the owner entered, and Tenancy's lifecycle port reads on a handle it is given, as
+                    // does Identity's own port over it (the module-dependency rule keeps Tenancy's contract out of
+                    // Identity.Infrastructure). None of them can enter a scope of its own.
                     ClosureOperationsFile,
                     ClosureBeginFile,
                     ClosureFinalizeFile,
                     ClosureFencesFile,
                     "Modules/Tenancy/LearnStack.Modules.Tenancy.Application.Contracts/IdentityLifecycle/IIdentityScopeLifecycleReader.cs",
                     "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/IdentityScopeLifecycleReader.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Application/DataRequests/IClosureGroupLifecycleReader.cs",
                 ],
                 "each new operator service is added here deliberately, with its denied proof");
     }
