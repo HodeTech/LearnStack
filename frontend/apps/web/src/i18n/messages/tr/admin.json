@@ -8,7 +8,8 @@
     "invitations": "Davetler",
     "invitation_policy": "Davet geçerlilik süresi",
     "custom_fields": "Özel alanlar",
-    "federation": "Çoklu oturum açma"
+    "federation": "Çoklu oturum açma",
+    "data_requests": "Verileriniz"
   },
   "scope": {
     "tenant": "Kurum genelinde erişim",

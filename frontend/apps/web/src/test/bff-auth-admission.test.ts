@@ -16,6 +16,7 @@ import {
   bffQuery,
   bffRoute,
 } from '../server/auth/http-input';
+import { DATA_REQUEST_DOCUMENT_PATHS } from '../server/auth/http-paths';
 
 const postPaths = [
   '/api/auth/invitation/capture',
@@ -26,6 +27,19 @@ const postPaths = [
   '/api/auth/invitation/cancel',
   '/api/auth/entry/consents',
   '/api/auth/entry/consents/withdraw',
+  '/api/auth/entry/data-requests',
+  '/api/auth/entry/data-requests/export',
+  '/api/auth/entry/data-requests/erasure',
+  '/api/auth/entry/data-requests/closure',
+  '/api/auth/entry/data-requests/cancel',
+  '/api/auth/entry/data-requests/revoke',
+  '/api/auth/entry/data-requests/download',
+  '/api/account/data-requests/export',
+  '/api/account/data-requests/erasure',
+  '/api/account/data-requests/closure',
+  '/api/account/data-requests/cancel',
+  '/api/account/data-requests/revoke',
+  '/api/account/data-requests/download',
   '/api/studio/custom-field-create',
   '/api/studio/custom-field-revise',
   '/api/studio/custom-field-publish',
@@ -62,6 +76,10 @@ const postPaths = [
   '/api/account/profile',
 ];
 const readPaths = ['/api/auth/signin', '/api/auth/csrf', '/api/auth/session', '/api/auth/error'];
+const dataRequestDocumentPaths = [
+  '/account/data',
+  ...postPaths.filter((path) => path.includes('/data-requests')),
+];
 const methods = [
   'GET',
   'HEAD',
@@ -89,6 +107,8 @@ afterEach(async () => {
 describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
   it('admits only the exact method/route set', () => {
     expect(BFF_POST_PATHS).toEqual(postPaths);
+    expect(DATA_REQUEST_DOCUMENT_PATHS).toEqual(dataRequestDocumentPaths);
+    expect(Object.isFrozen(DATA_REQUEST_DOCUMENT_PATHS)).toBe(true);
     const paths = [
       ...readPaths,
       ...postPaths,
@@ -97,6 +117,10 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
       '/api/auth/refresh',
       '/api/auth/entry/consents/scopes',
       '/api/auth/entry/consents/withdraw/extra',
+      '/api/auth/entry/data-requests/view',
+      '/api/account/data-requests',
+      '/api/account/data-requests/export/extra',
+      '/account/data',
       '/api/studio/custom-field-create/extra',
       '/api/account/consent-grant/extra',
       '/api/auth/providers',
@@ -254,7 +278,12 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
     if (origin === null) request.headers.delete('origin');
     else request.headers.set('origin', origin);
     const response = await f.http.handle(request);
-    expect(response!.status).toBe(path.startsWith('/api/auth/invitation/') ? 404 : 400);
+    // Recipient and data-request actions belong only to their pre-Next native handlers.
+    expect(response!.status).toBe(
+      path.startsWith('/api/auth/invitation/') || DATA_REQUEST_DOCUMENT_PATHS.includes(path)
+        ? 404
+        : 400,
+    );
     expect(response!.headers.getSetCookie()).toEqual([]);
     expect(f.store.counts()).toEqual(counts);
     if (current) expect(f.store.peek(current.binding)).toEqual(before);

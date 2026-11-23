@@ -26,7 +26,7 @@ export type AdministrationError =
     };
 
 /** Aggregate versions never pass through a JavaScript number, including error hints. */
-export type AdministrationResult<T, Status extends 200 | 201 = 200> =
+export type AdministrationResult<T, Status extends 200 | 201 | 202 = 200> =
   | Exclude<ApiResult<T>, { kind: 'success' } | { kind: 'api-error' }>
   | {
       readonly kind: 'api-error';

@@ -3,6 +3,7 @@ import type {
   NativeEntrySnapshot,
   NativePageSnapshot,
   NativeConsentSnapshot,
+  NativeDataRequestSnapshot,
   PageSite,
 } from './page-contract.js';
 
@@ -26,6 +27,7 @@ export type NativePageLease = Readonly<{
   publish: (page: NativePageSnapshot) => NativePageSnapshot;
   publishEntry: (entry: NativeEntrySnapshot) => NativeEntrySnapshot;
   publishConsent: (value: NativeConsentSnapshot) => NativeConsentSnapshot;
+  publishDataRequest: (value: NativeDataRequestSnapshot) => NativeDataRequestSnapshot;
   abort: () => void;
 }>;
 

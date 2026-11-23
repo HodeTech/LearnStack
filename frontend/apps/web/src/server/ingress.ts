@@ -202,6 +202,7 @@ export function admitIncomingRequest(
     path?.startsWith('/api/auth/') ||
     (path !== undefined && BFF_POST_PATHS.includes(path)) ||
     path === '/account/consents' ||
+    path === '/account/data' ||
     path === '/invitations' ||
     path === '/invitations/confirm' ||
     path === '/studio' ||

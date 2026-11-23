@@ -2,14 +2,22 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EventEmitter } from 'node:events';
 import type { IncomingHttpHeaders, ServerResponse } from 'node:http';
 
-import type { NativeConsentResponseLease } from './consent-response-contract.js';
+import type {
+  NativeConsentResponseLease,
+  NativeDataRequestResponseLease,
+} from './consent-response-contract.js';
 import { canonicalAddress, normalizeHost, validTarget } from '../ingress.js';
 import type { IngressContext } from '../ingress.js';
 import type { PublicAdmissionHolder, PublicAdmissionRead } from '../public-admission-runtime.js';
 import { BFF_POST_PATHS, bffActivity } from './http-input.js';
-import { bffActionDocumentTarget } from './http-paths.js';
+import { bffActionDocumentTarget, DATA_REQUEST_DOCUMENT_PATHS } from './http-paths.js';
 import type { InvitationResponseLease } from './invitation-session.js';
-import type { NativePageSnapshot, NativeConsentSnapshot, PageSite } from './page-contract.js';
+import type {
+  NativePageSnapshot,
+  NativeConsentSnapshot,
+  NativeDataRequestSnapshot,
+  PageSite,
+} from './page-contract.js';
 import { protectPageResponse } from './page-response.js';
 import type { NativePagePreparation, NativeSnapshotTicket } from './page-snapshot-contract.js';
 import { createPageSnapshotPool, SnapshotAdmissionError } from './page-snapshot-pool.js';
@@ -457,6 +465,48 @@ export function createBffRequestRuntime(admission?: Pick<PublicAdmissionHolder, 
         publish(value: NativeConsentSnapshot) {
           if (!frame.lease) return unavailable();
           return frame.lease.lease.publishConsent(value);
+        },
+      });
+    },
+    /** ADR-0106 § 9: one snapshot credit for the data-request document, download or action. */
+    nativeDataRequestResponse(binding: IngressContext): NativeDataRequestResponseLease {
+      const frame = current(binding, 'pending');
+      const path = binding.target.split('?', 1)[0]!;
+      if (
+        !DATA_REQUEST_DOCUMENT_PATHS.includes(path) ||
+        !frame.guarded ||
+        frame.outputStarted ||
+        frame.lease
+      )
+        return unavailable();
+      return Object.freeze({
+        signal: frame.controller.signal,
+        cleaned: frame.cleaned,
+        pin(assert: () => void, owner: object, expiresInMs: number) {
+          frame.assertCurrent();
+          if (frame.outputStarted || frame.lease) return unavailable();
+          const result = pool.reserve(owner, {
+            signal: frame.controller.signal,
+            cleaned: frame.cleaned,
+            assertCurrent: frame.assertCurrent,
+            invalidate: frame.invalidate,
+            publishPage() {
+              return unavailable();
+            },
+          });
+          frame.lease = result;
+          result.lease.pin(() => {
+            try {
+              assert();
+              return true;
+            } catch {
+              return false;
+            }
+          }, expiresInMs);
+        },
+        publish(value: NativeDataRequestSnapshot) {
+          if (!frame.lease) return unavailable();
+          return frame.lease.lease.publishDataRequest(value);
         },
       });
     },

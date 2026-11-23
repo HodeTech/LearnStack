@@ -606,6 +606,7 @@ export function productionDemoSources(
       'src/server/auth/logout-response.ts',
       'src/server/auth/native-administration-client.ts',
       'src/server/auth/native-consent-http.ts',
+      'src/server/auth/native-data-request-http.ts',
       'src/server/auth/native-federation-client.ts',
       'src/server/auth/native-invitation-client.ts',
       'src/server/auth/native-invitation-http.ts',
@@ -840,7 +841,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '0eeda0c30c4bc4fe0b83be4d005a888131fe601a70a08cc4829db82a83603d13',
+            'dfb7dc1b56b30698d1b1d8b53b5f979e64c79ddbc2e28c38f7250c1116a1cb01',
           ],
           [
             'frontend/apps/web/scripts/bff-custom-fields-fixture.mjs',
@@ -940,6 +941,8 @@ export function productionDemoSources(
               '../src/i18n/messages/tr/invitation.json',
               '../src/i18n/messages/en/auth.json',
               '../src/i18n/messages/tr/auth.json',
+              '../src/i18n/messages/en/data.json',
+              '../src/i18n/messages/tr/data.json',
             ].includes(value.text) ||
             node.arguments.length !== 2 ||
             !options ||

@@ -221,11 +221,18 @@ async function fixture(options = {}) {
       export const createNativeSessionApi = () => ({});
       export const createNativeAdministrationCaller = () => ({});
       export const createNativeRetainedConsentCaller = () => ({});
+      export const createNativeRetainedDataRequestCaller = () => ({});
       export const createNativeInvitationApi = () => ({});
       export const createNativeFederationTestApi = () => ({});
       export const createPublicSignInReader = () => async () => null;
       export const nativeInvitationTarget = () => false;
       export const nativeConsentTarget = () => false;
+      export const nativeDataRequestTarget = () => false;
+      export function createNativeDataRequestHandler({catalogues, store, responseLease}) {
+        if (catalogues?.en?.fixture !== 'en' || catalogues?.tr?.fixture !== 'tr'
+          || !store || typeof responseLease !== 'function') throw new Error('Fixture data request wiring failed');
+        return () => {};
+      }
       export function createNativeConsentHandler({catalogues, store, responseLease}) {
         if (catalogues?.en?.fixture !== 'en' || catalogues?.tr?.fixture !== 'tr'
           || !store || typeof responseLease !== 'function') throw new Error('Fixture consent wiring failed');
@@ -242,13 +249,15 @@ async function fixture(options = {}) {
     `,
     'invitation-en.json': JSON.stringify({ fixture: 'en' }),
     'invitation-tr.json': JSON.stringify({ fixture: 'tr' }),
+    'data-en.json': JSON.stringify({ fixture: 'en' }),
+    'data-tr.json': JSON.stringify({ fixture: 'tr' }),
     'auth-en.json': JSON.stringify({ consents: { fixture: 'en' } }),
     'auth-tr.json': JSON.stringify({ consents: { fixture: 'tr' } }),
     'requests.mjs': `
       import { state } from './state.mjs';
       export function installBffRequestRuntime() {
         state.event('requests-created');
-        return {preparation: {}, nativeResponse() { throw new Error('Unused fixture response lease'); }, nativeConsentResponse() { throw new Error('Unused fixture consent response lease'); }, run(_binding, _request, _response, work) { return work(); }, async stop() { state.event('requests-stop'); if (state.options.holdRequests) await state.requestsGate.promise; state.event('requests-joined'); }};
+        return {preparation: {}, nativeResponse() { throw new Error('Unused fixture response lease'); }, nativeConsentResponse() { throw new Error('Unused fixture consent response lease'); }, nativeDataRequestResponse() { throw new Error('Unused fixture data request response lease'); }, run(_binding, _request, _response, work) { return work(); }, async stop() { state.event('requests-stop'); if (state.options.holdRequests) await state.requestsGate.promise; state.event('requests-joined'); }};
       }
     `,
     'sessions.mjs': `
@@ -329,6 +338,9 @@ async function fixture(options = {}) {
     ['../.server/auth/native-invitation-client.js', './dependencies.mjs'],
     ['../.server/auth/native-invitation-http.js', './dependencies.mjs'],
     ['../.server/auth/native-consent-http.js', './dependencies.mjs'],
+    ['../.server/auth/native-data-request-http.js', './dependencies.mjs'],
+    ['../src/i18n/messages/en/data.json', './data-en.json'],
+    ['../src/i18n/messages/tr/data.json', './data-tr.json'],
     ['../.server/auth/native-federation-client.js', './dependencies.mjs'],
     ['../.server/auth/invitation-html.js', './dependencies.mjs'],
     ['../src/i18n/messages/en/invitation.json', './invitation-en.json'],

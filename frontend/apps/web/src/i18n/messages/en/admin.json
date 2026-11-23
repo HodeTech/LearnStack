@@ -8,7 +8,8 @@
     "invitations": "Invitations",
     "invitation_policy": "Invitation lifetime",
     "custom_fields": "Custom fields",
-    "federation": "Single sign-on"
+    "federation": "Single sign-on",
+    "data_requests": "Your data"
   },
   "scope": {
     "tenant": "Institution-wide access",

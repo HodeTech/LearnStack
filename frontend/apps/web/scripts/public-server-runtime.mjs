@@ -15,6 +15,8 @@ export async function startPublicRuntime(control) {
   let nativeInvitationTarget;
   let consentHandler;
   let nativeConsentTarget;
+  let dataRequestHandler;
+  let nativeDataRequestTarget;
   let upgradeSink;
   let app;
   let server;
@@ -211,7 +213,11 @@ export async function startPublicRuntime(control) {
         { createTenantProvider },
         { createAccountSiteCaller },
         { createNativeSessionApi },
-        { createNativeAdministrationCaller, createNativeRetainedConsentCaller },
+        {
+          createNativeAdministrationCaller,
+          createNativeRetainedConsentCaller,
+          createNativeRetainedDataRequestCaller,
+        },
         { installBffSessionRuntime },
         { installBffRequestRuntime },
         { createNativeInvitationApi },
@@ -223,6 +229,9 @@ export async function startPublicRuntime(control) {
         { default: authEn },
         { default: authTr },
         { createNativeFederationTestApi, createPublicSignInReader },
+        { createNativeDataRequestHandler, nativeDataRequestTarget: dataRequestTarget },
+        { default: dataEn },
+        { default: dataTr },
       ] = await Promise.all([
         ownSetup(import('../.server/auth/provider-core.js')),
         ownSetup(import('../.server/auth/account-client.js')),
@@ -239,6 +248,9 @@ export async function startPublicRuntime(control) {
         ownSetup(import('../src/i18n/messages/en/auth.json', { with: { type: 'json' } })),
         ownSetup(import('../src/i18n/messages/tr/auth.json', { with: { type: 'json' } })),
         ownSetup(import('../.server/auth/native-federation-client.js')),
+        ownSetup(import('../.server/auth/native-data-request-http.js')),
+        ownSetup(import('../src/i18n/messages/en/data.json', { with: { type: 'json' } })),
+        ownSetup(import('../src/i18n/messages/tr/data.json', { with: { type: 'json' } })),
       ]);
       assertStarting();
       const nativeConfiguration = {
@@ -264,6 +276,10 @@ export async function startPublicRuntime(control) {
         native,
         administration,
         retainedConsent: createNativeRetainedConsentCaller(nativeConfiguration, globalThis.fetch),
+        retainedDataRequest: createNativeRetainedDataRequestCaller(
+          nativeConfiguration,
+          globalThis.fetch,
+        ),
         invitations: createNativeInvitationApi(nativeConfiguration, globalThis.fetch),
         // ADR-0099: the server-side sign-in option read and the BFF-only federation test owner.
         publicSignIn: createPublicSignInReader(configuration, globalThis.fetch),
@@ -295,6 +311,12 @@ export async function startPublicRuntime(control) {
       }
       nativeInvitationTarget = invitationTarget;
       nativeConsentTarget = consentTarget;
+      nativeDataRequestTarget = dataRequestTarget;
+      dataRequestHandler = createNativeDataRequestHandler({
+        catalogues: { en: dataEn, tr: dataTr },
+        store: bffSessions.store,
+        responseLease: bffRequests.nativeDataRequestResponse,
+      });
       consentHandler = createNativeConsentHandler({
         catalogues: { en: authEn.consents, tr: authTr.consents },
         store: bffSessions.store,
@@ -360,9 +382,11 @@ export async function startPublicRuntime(control) {
                 ? bffRequests.run(binding, request, response, () =>
                     nativeConsentTarget(binding.target)
                       ? consentHandler(binding, request, response)
-                      : nativeInvitationTarget(binding.target)
-                        ? invitationHandler(binding, request, response)
-                        : handle(request, response),
+                      : nativeDataRequestTarget(binding.target)
+                        ? dataRequestHandler(binding, request, response)
+                        : nativeInvitationTarget(binding.target)
+                          ? invitationHandler(binding, request, response)
+                          : handle(request, response),
                   )
                 : handle(request, response),
             ),

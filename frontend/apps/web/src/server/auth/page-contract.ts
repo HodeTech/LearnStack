@@ -7,6 +7,8 @@ import type {
   LocalizedText,
   FormLabel,
   FederationConnection,
+  OwnDataRequestPage,
+  RetainedDataRequestScopePage,
 } from '@learnstack/sdk/administration-server';
 
 import type { EntryProjection, NativeReturnPath } from './session-contract.js';
@@ -262,3 +264,28 @@ export type NativeConsentSnapshot =
       formKeys: readonly string[];
     }>
   | Readonly<{ kind: 'consent_result'; status: number }>;
+
+/** The closed outcome a data-request action reports on the fixed GET after its 303 (never a replayed POST). */
+export type DataRequestResult = 'export' | 'erasure' | 'closure' | 'cancelled' | 'revoked';
+/**
+ * ADR-0106 § 9, ADR-0107 §§ 4, 6 and 7: the person's own data-request document. The session mode shows the live
+ * context's group; the retained mode first lists the groups the entry owner retains, then one named group.
+ */
+export type NativeDataRequestSnapshot =
+  | Readonly<{
+      kind: 'data_requests';
+      mode: 'session' | 'entry';
+      /** The session's group, for the explanation only; null in the retained mode. */
+      scope: 'tenant' | 'organization' | null;
+      /** The retained group shown (`tenant` or an organization UUIDv7); null while choosing one. */
+      group: string | null;
+      scopes: RetainedDataRequestScopePage | null;
+      requests: OwnDataRequestPage | null;
+      step: 'erasure' | 'closure' | null;
+      result: DataRequestResult | null;
+      /** The instant the document was prepared: an erasure past `executeAt` but still scheduled is due. */
+      preparedAt: string;
+      csrfToken: string;
+      formKeys: readonly string[];
+    }>
+  | Readonly<{ kind: 'data_request_result'; status: number }>;

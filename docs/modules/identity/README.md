@@ -1005,6 +1005,15 @@ the definer and the setter.
   longer matches, that download's cursor ends, and the resumed download mints a new
   ticket.
 
+#### Web surface (P03-10 Step 4)
+
+The person's own page is the native `/account/data` document of
+[Frontend Architecture § Subject data requests](../../standards/07-frontend-architecture.md#subject-data-requests):
+the live session's group through the own routes above, the retained groups through the
+retained entry, the erasure and closure confirmations, and the export download relayed
+chunk by chunk as one attachment. Its copy names every refusal reason these routes emit,
+and the retained classes no count reaches.
+
 #### Account closure filing (P03-10 Step 3)
 
 The person files the global account closure of

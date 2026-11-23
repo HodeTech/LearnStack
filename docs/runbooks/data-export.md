@@ -26,6 +26,22 @@ Both settings are read once per process. A change takes effect on a host only wh
 host restarts, so restart every API host after changing either one; until then, hosts
 answer by their old values.
 
+## What the person sees
+
+The person files and downloads on `/account/data`
+([Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests)):
+through a live session for that session's group, or through the retained entry for a
+group where their Membership is suspended or has ended. Each request shows its status
+and next step; an available export shows when it stops being available, its size, any
+part that was shortened at a cap, and a download and a delete button. The download
+arrives as one `data-export.json` file. The BFF mints one ticket per download; when the
+person's credential is refreshed during a long download, the next chunk read answers
+`404`, and the BFF mints at most two more tickets and resumes at the failed index, each
+mint counting against the ticket bounds. A download that fails after it began ends as a
+failed browser download, never as a short file shown complete; the person downloads
+again. A `409 data_export_ticket_limit` is shown as "wait 15 minutes, or ask for a new
+copy", and `data_export_unavailable` as "ask for a new copy".
+
 ## Signals
 
 | Signal | Meaning |

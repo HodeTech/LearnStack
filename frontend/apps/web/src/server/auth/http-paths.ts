@@ -10,6 +10,19 @@ export const BFF_POST_PATHS = Object.freeze([
   '/api/auth/invitation/cancel',
   '/api/auth/entry/consents',
   '/api/auth/entry/consents/withdraw',
+  '/api/auth/entry/data-requests',
+  '/api/auth/entry/data-requests/export',
+  '/api/auth/entry/data-requests/erasure',
+  '/api/auth/entry/data-requests/closure',
+  '/api/auth/entry/data-requests/cancel',
+  '/api/auth/entry/data-requests/revoke',
+  '/api/auth/entry/data-requests/download',
+  '/api/account/data-requests/export',
+  '/api/account/data-requests/erasure',
+  '/api/account/data-requests/closure',
+  '/api/account/data-requests/cancel',
+  '/api/account/data-requests/revoke',
+  '/api/account/data-requests/download',
   '/api/studio/custom-field-create',
   '/api/studio/custom-field-revise',
   '/api/studio/custom-field-publish',
@@ -45,6 +58,18 @@ export const BFF_POST_PATHS = Object.freeze([
   '/api/studio/role-manifest-adoption',
   '/api/account/profile',
 ]);
+/**
+ * ADR-0106 § 9, ADR-0107 § 4: the native data-request document and its fixed actions. Only the pre-Next data-request
+ * handler serves them; Next and the BFF protocol answer them `404`.
+ */
+export const DATA_REQUEST_DOCUMENT_PATHS = Object.freeze([
+  '/account/data',
+  ...BFF_POST_PATHS.filter(
+    (path) =>
+      path.startsWith('/api/auth/entry/data-requests') ||
+      path.startsWith('/api/account/data-requests/'),
+  ),
+]);
 export function bffPostTarget(method: string, target: string): boolean {
   return method === 'POST' && BFF_POST_PATHS.includes(target);
 }
@@ -53,6 +78,7 @@ export function bffPostTarget(method: string, target: string): boolean {
 export function bffActionDocumentTarget(target: string): boolean {
   return (
     BFF_POST_PATHS.includes(target) &&
+    !DATA_REQUEST_DOCUMENT_PATHS.includes(target) &&
     (target.startsWith('/api/studio/') ||
       target.startsWith('/api/account/') ||
       target === '/api/auth/switch' ||

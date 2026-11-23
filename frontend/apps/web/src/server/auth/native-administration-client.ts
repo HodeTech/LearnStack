@@ -6,16 +6,43 @@ import type { NativeBinding, NativeScope } from './native-contract.js';
 import type {
   NativeAdministrationCaller,
   NativeRetainedConsentCaller,
+  NativeRetainedDataRequestCaller,
   NativeOperationResult,
   NativeOperation,
+  RetainedDataRequestOperation,
 } from './native-operation-contract.js';
+
+/** The closed retained data-request entry set (ADR-0106 § 9); only its own caller performs these. */
+const RETAINED_DATA_REQUESTS: readonly string[] = Object.freeze([
+  'listRetainedDataRequestScopes',
+  'listRetainedDataRequests',
+  'createRetainedDataExport',
+  'createRetainedDataErasure',
+  'createRetainedAccountClosure',
+  'cancelRetainedDataRequest',
+  'revokeRetainedDataExport',
+  'mintRetainedDataExportTicket',
+  'readRetainedDataExportChunk',
+] satisfies readonly RetainedDataRequestOperation['kind'][]);
+/** Selector-free operations: a retained entry carries no tenant or organization header. */
+const UNSCOPED: readonly string[] = Object.freeze([
+  'listOwnConsentScopes',
+  'listOwnConsentHistory',
+  'withdrawOwnFieldConsent',
+  ...RETAINED_DATA_REQUESTS,
+]);
 
 /** One explicit dispatcher over the generated SDK's finite operations; no generic HTTP capability escapes. */
 export function createNativeAdministrationCaller(
   configuration: NativeApiConfiguration,
   transport: typeof fetch,
 ) {
-  return createCaller(configuration, transport) satisfies NativeAdministrationCaller;
+  const caller = createCaller(configuration, transport);
+  // A session credential never performs a retained-entry data-request operation.
+  return ((token, binding, operation, signal) =>
+    RETAINED_DATA_REQUESTS.includes(operation.kind)
+      ? Promise.resolve({ kind: 'invalid-request' })
+      : caller(token, binding, operation, signal)) satisfies NativeAdministrationCaller;
 }
 export function createNativeRetainedConsentCaller(
   configuration: NativeApiConfiguration,
@@ -23,12 +50,23 @@ export function createNativeRetainedConsentCaller(
 ): NativeRetainedConsentCaller {
   return createCaller(configuration, transport);
 }
+/** The retained data-request entry's own caller: only its closed operations, never a scoped one. */
+export function createNativeRetainedDataRequestCaller(
+  configuration: NativeApiConfiguration,
+  transport: typeof fetch,
+): NativeRetainedDataRequestCaller {
+  const caller = createCaller(configuration, transport);
+  return (token, binding, operation, signal) =>
+    RETAINED_DATA_REQUESTS.includes(operation.kind)
+      ? caller(token, binding, operation, signal)
+      : Promise.resolve({ kind: 'invalid-request' });
+}
 function createCaller(configuration: NativeApiConfiguration, transport: typeof fetch) {
   const request = createNativeApiTransport(configuration, transport);
   return async (
     token: string,
     binding: NativeBinding & Partial<NativeScope>,
-    operation: NativeOperation,
+    operation: NativeOperation | RetainedDataRequestOperation,
     signal: AbortSignal,
   ): Promise<NativeOperationResult> => {
     if (signal.aborted) return { kind: 'cancelled' };
@@ -38,11 +76,7 @@ function createCaller(configuration: NativeApiConfiguration, transport: typeof f
         return await request(
           token,
           binding,
-          ['listOwnConsentScopes', 'listOwnConsentHistory', 'withdrawOwnFieldConsent'].includes(
-            operation.kind,
-          )
-            ? null
-            : (binding as NativeBinding & NativeScope),
+          UNSCOPED.includes(operation.kind) ? null : (binding as NativeBinding & NativeScope),
           path,
           init,
           signal,
@@ -163,6 +197,79 @@ function createCaller(configuration: NativeApiConfiguration, transport: typeof f
           ...read,
           idempotencyKey: operation.idempotencyKey,
         });
+        break;
+
+      case 'listOwnDataRequests':
+        result = await sdk.listOwnDataRequests({
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'createOwnDataExport':
+      case 'createOwnDataErasure':
+      case 'createOwnAccountClosure':
+        result = await sdk[operation.kind]({ idempotencyKey: operation.idempotencyKey, signal });
+        break;
+      case 'cancelOwnDataRequest':
+      case 'revokeOwnDataExport':
+        result = await sdk[operation.kind](
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'mintOwnDataExportTicket':
+        result = await sdk.mintOwnDataExportTicket(operation.id, read);
+        break;
+      case 'readOwnDataExportChunk':
+        result = await sdk.readOwnDataExportChunk(
+          operation.id,
+          operation.ticket,
+          operation.index,
+          read,
+        );
+        break;
+      case 'listRetainedDataRequestScopes':
+        result = await sdk.listRetainedDataRequestScopes({
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'listRetainedDataRequests':
+        result = await sdk.listRetainedDataRequests(operation.group, {
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'createRetainedDataExport':
+      case 'createRetainedDataErasure':
+      case 'createRetainedAccountClosure':
+        result = await sdk[operation.kind](operation.group, {
+          idempotencyKey: operation.idempotencyKey,
+          signal,
+        });
+        break;
+      case 'cancelRetainedDataRequest':
+      case 'revokeRetainedDataExport':
+        result = await sdk[operation.kind](
+          operation.group,
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'mintRetainedDataExportTicket':
+        result = await sdk.mintRetainedDataExportTicket(operation.group, operation.id, read);
+        break;
+      case 'readRetainedDataExportChunk':
+        result = await sdk.readRetainedDataExportChunk(
+          operation.group,
+          operation.id,
+          operation.ticket,
+          operation.index,
+          read,
+        );
         break;
 
       case 'listMemberships':

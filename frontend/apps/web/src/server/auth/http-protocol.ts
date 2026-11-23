@@ -32,6 +32,7 @@ import {
 } from './http-forms.js';
 import { bffActivity, bffForm, bffQuery, bffRoute, exactBffOrigin } from './http-input.js';
 import type { BffHttpRequest } from './http-input.js';
+import { DATA_REQUEST_DOCUMENT_PATHS } from './http-paths.js';
 import { NativeApiError } from './native-contract.js';
 import type { NativeOperationResult } from './native-operation-contract.js';
 import type { NativeActionPage, NativeEntrySnapshot, ScopeChoices } from './page-contract.js';
@@ -368,8 +369,8 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
       const httpSignal = request.signal;
       let postDeadline: AbortSignal | undefined;
       const path = request.target.split('?', 1)[0]!;
-      // Recipient actions belong only to the pre-Next native handler.
-      if (path.startsWith('/api/auth/invitation/'))
+      // Recipient and data-request actions belong only to their pre-Next native handlers.
+      if (path.startsWith('/api/auth/invitation/') || DATA_REQUEST_DOCUMENT_PATHS.includes(path))
         return result(request, { code: 'not_found' }, 404);
       // An inert public query is not a logout action. Only an owned proof-cookie
       // family selects the root return protocol; unrecognized states touch nothing.

@@ -159,7 +159,8 @@ export function createNativeApiTransport(
       if (
         response.redirected ||
         response.headers.has('set-cookie') ||
-        (response.status < 400 && ![200, 201].includes(response.status)) ||
+        // 202 is only a data-request creation's acceptance (ADR-0106 § 10); every other success is 200 or 201.
+        (response.status < 400 && ![200, 201, 202].includes(response.status)) ||
         media !== (response.status < 400 ? 'application/json' : 'application/problem+json')
       )
         throw new NativeApiError('response');

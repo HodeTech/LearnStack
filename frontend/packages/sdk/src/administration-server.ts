@@ -42,11 +42,13 @@ import {
 } from './administration-policy.js';
 import type { AdministrationShape } from './administration-policy.js';
 import { createCustomFieldServerSdk } from './custom-field-server.js';
+import { createDataRequestServerSdk } from './data-request-server.js';
 import { createFederationServerSdk } from './federation-server.js';
 import { appError, parseProblem } from './response-policy.js';
 
 export type * from './administration-contract.js';
 export type * from './custom-field-contract.js';
+export type * from './data-request-contract.js';
 export type * from './federation-contract.js';
 export {
   createCustomFieldServerSdk,
@@ -54,6 +56,16 @@ export {
   parseCustomFieldNumber,
   isCustomFieldSchema,
 } from './custom-field-server.js';
+/** The download relay's exact chunk geometry (ADR-0107 § 4); no wire value is trusted without it. */
+export {
+  DATA_EXPORT_CHUNK_BYTES,
+  DATA_REQUEST_FAILURE_REASONS,
+  DATA_REQUEST_KINDS,
+  DATA_REQUEST_LAST_REFUSALS,
+  DATA_REQUEST_RETAINED_KINDS,
+  DATA_REQUEST_STATUSES,
+  dataRequestGroup as isDataRequestGroup,
+} from './data-request-policy.js';
 /** The invitation API's mailbox grammar, for callers that must refuse a recipient before sending. */
 export { invitationEmail as isInvitationEmail } from './administration-policy.js';
 
@@ -545,6 +557,7 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
         identifier(organizationId),
         options,
       ),
+    ...createDataRequestServerSdk(transport),
   });
 }
 

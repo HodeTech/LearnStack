@@ -293,8 +293,10 @@ native AccountSite/session entry. The source credential, subject association,
 live candidate and exact host ceiling follow Security 11. Public wrappers remain
 anonymous; no browser-controlled header, cookie or hidden field selects authority.
 
-The P03-3 additional native POST set is below; ADR-0093 extends it only with the
-[invitation form set](#verified-invitation-experience).
+The P03-3 additional native POST set is below; ADR-0093 extends it with the
+[invitation form set](#verified-invitation-experience), ADR-0099 with the
+[federation forms](#tenant-federation) and ADR-0106 with the
+[data-request forms](#subject-data-requests).
 
 | Path | Fixed operation |
 |---|---|
@@ -1214,3 +1216,52 @@ idempotency key. A secret is never prefilled, echoed into a recovery document or
 retried. Refusals and unsettled outcomes (failed, uncertain, drift, expired,
 superseded) render a localized explanation and a link back to the page; nothing is
 resubmitted, and Resume settles an uncertain write.
+
+## Subject data requests
+
+**Derives from:**
+[ADR-0106](../decisions/0106-subject-data-requests-authority-and-status.md) §§ 9–11 and
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 4, 6
+and 7; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns qualification.
+
+`GET /account/data` is a fixed native document served before Next, like the consent
+entry, with no public-site bootstrap. Its owner selects its mode and the browser selects
+none: a live `__Host-ls-entry` owner serves the retained own scope of ADR-0106 § 9 (the
+person's retained groups, then one named group); otherwise a live session serves its own
+context's group. No tenant, organization, credential or owner comes from the browser; a
+retained group (`tenant` or an organization UUIDv7) is proved by the API for the entry
+owner on every operation. The document lists the requests with their closed status,
+dates, next step and retained kinds, offers the filings, and shows the erasure and
+closure confirmations as GET steps of their own. Continuation cursors are sealed to the
+owner and purpose. The data-request forms join the closed POST set:
+
+| Path | Operation |
+|---|---|
+| `/api/account/data-requests/export` | Own export |
+| `/api/account/data-requests/erasure` | Own erasure, with a required confirmation |
+| `/api/account/data-requests/closure` | Own account closure, with two required confirmations |
+| `/api/account/data-requests/cancel` | Cancel a request at its version |
+| `/api/account/data-requests/revoke` | Delete an available export at its artifact version |
+| `/api/account/data-requests/download` | Mint a ticket and relay the export |
+| `/api/auth/entry/data-requests` | View one retained group |
+| `/api/auth/entry/data-requests/{export,erasure,closure,cancel,revoke,download}` | The same in that group, on the entry owner |
+
+Each form carries the owner's CSRF proof and the exact Origin, strict single-valued
+fields and, when keyed, a fresh opaque idempotency key; a confirmation the server does
+not find refuses before the API. Success is a 303 to the fixed GET with a closed
+`result`. A refusal is a no-store document with one localized sentence for each API
+reason (`errors.$` or `errors.artifact`), a generic sentence for an unknown reason, and
+its own sentence for an unconfirmed outcome; nothing is retried or replayed. The one
+nonce-bound history guard veils a leaving or restored document and returns to
+`/account/data`. The copy is `i18n/messages/{en,tr}/data.json`, a closed key set that
+native startup refuses when incomplete, parameterized or marked up.
+
+**Download.** The POST mints a ticket and proves the first chunk (index, count, exact
+size) before it answers one `attachment` with the bundle's
+`application/json; charset=utf-8`, the exact `Content-Length`, `no-store` and a sandbox
+policy. It relays one chunk at a time, each after the previous write settled, and
+zeroes each decoded buffer. A refused ticket or first chunk is an ordinary refusal
+document; a later failure, the ticket's expiry or the owner's revocation destroys the
+connection, so a short body never completes. A `404` mid-download (a refreshed
+credential ends the ticket) mints at most two new tickets and resumes at the failed
+index. The ticket stays inside the relay: never in a URL, header, page or log.

@@ -240,6 +240,7 @@ export function PreparedAccountPage({
             <a href="/studio/federation">{admin('navigation.federation')}</a>
           )}
           <a href="/account/consents">{admin('custom_fields.consent_history')}</a>
+          <a href="/account/data">{admin('navigation.data_requests')}</a>
           <a href="/portal/profile">{admin('navigation.profile')}</a>
           <a href="/api/auth/entry">{admin('navigation.contexts')}</a>
           <a href={'/' + snapshot.site.defaultLocale + '/courses'}>{copy('shell.catalog')}</a>

@@ -318,6 +318,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/data-request-entry/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The subject files an erasure of their own data in one retained group (ADR-0106 § 3, § 9; ADR-0107 § 5): the path of a Suspended person and of one whose Membership was revoked. The request is scheduled and its job runs once the 24-hour window ends; until then it can be cancelled. Refused when the subject holds no Membership of any status there, while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or while a hold applies. Strict empty JSON object. MUST audited. */
+        post: operations["CreateRetainedDataErasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/data-request-entry/closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The subject files the closure of their whole account from one retained group, its originating group (ADR-0106 § 3, § 9; ADR-0107 § 7): the path of a Suspended person and of one whose Membership was revoked. An account closure ends the person's account in every tenant and organization where they hold a Membership, not only in this group. The request is scheduled with its execution time 24 hours after it is filed and holds the frozen snapshot of the subject's Memberships of any status in the group. No job is queued: an operator confirms the request with the person and Begins it at or after its execution time, and the person can cancel it until that Begin commits. Once begun it is irreversible: the account stops working at once, the person's data is erased group by group, and the sign-in account is removed when an operator finalizes the closure. No in-product status remains afterwards; the person can read the receipt only while the account still works. Refused when the subject holds no Membership of any status there, while another closure of the subject is active in the group, or while a hold applies. Strict empty JSON object. MUST audited. */
+        post: operations["CreateRetainedAccountClosure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/identity/data-request-entry/cancellations": {
         parameters: {
             query?: never;
@@ -327,8 +361,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description The subject cancels their own requested export in one retained group (requested to cancelled). Strict JSON object with requestId only. MUST audited. */
+        /** @description The subject cancels their own request in one retained group: a requested export (requested to cancelled), or a scheduled erasure before its execution time (scheduled to cancelled). Strict JSON object with requestId only. MUST audited. A scheduled closure is cancelled the same way (scheduled to cancelled) until an operator's Begin commits, also after its execution time; a begun closure is fulfilling and cannot be cancelled. */
         post: operations["CancelRetainedDataRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/data-request-entry/revocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The subject revokes an unexpired available artifact of their own request in one retained group, which deletes its chunks at once; the metadata stays as the receipt (ADR-0107 § 4). If-Match carries the ARTIFACT version: the receipt's artifact.version, not the request's. Strict JSON object with requestId only. MUST audited. */
+        post: operations["RevokeRetainedDataExport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -386,6 +437,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/me/data-requests/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The subject files an erasure of their own data in the session's group (ADR-0106 § 3; ADR-0107 § 5). Requires an Active Membership in exactly that group; no permission key. The request is scheduled, holds the frozen snapshot of the subject's Memberships of any status in the group, and its job is submitted on the same transaction, due when the 24-hour cancellable window ends. The job then revokes the subject's export artifacts in the group, removes the Membership's role assignments, clears its profile, leaves it as a Revoked tombstone and revokes the pending invitations the subject issued there; the request then awaits the operator's privileged step. Refused while the subject is the tenant's only eligible tenant-wide administrator (tenant-wide group) or while a hold applies. Strict empty JSON object. MUST audited. */
+        post: operations["CreateOwnDataErasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/me/data-requests/closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The subject files the closure of their whole account from the session's group, its originating group (ADR-0106 § 3; ADR-0107 § 7). Only the person files one; no administrator can file, read or cancel a closure. Requires an Active Membership in exactly that group; no permission key. An account closure ends the person's account in every tenant and organization where they hold a Membership, not only in this group. The request is scheduled with its execution time 24 hours after it is filed and holds the frozen snapshot of the subject's Memberships of any status in the group. No job is queued: an operator confirms the request with the person and Begins it at or after its execution time, and the person can cancel it until that Begin commits. Once begun it is irreversible: the account stops working at once, the person's data is erased group by group, and the sign-in account is removed when an operator finalizes the closure. No in-product status remains afterwards; the person can read the receipt only while the account still works. Refused while another closure of the subject is active in the group or while a hold applies. Strict empty JSON object. MUST audited. */
+        post: operations["CreateOwnAccountClosure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/identity/me/data-requests": {
         parameters: {
             query?: never;
@@ -410,7 +495,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds this step counts with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body. */
+        /** @description The subject's own request receipt: identity, kind, origin, status, timestamps, the recorded refusal or failure code, the closed retained-reference kinds with their counts (the list is partial: a kind absent from it is not counted, which is not zero) and the artifact's metadata. No content. Audit Off. No request body. */
         get: operations["GetOwnDataRequest"];
         put?: never;
         post?: never;
@@ -429,7 +514,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description The subject cancels a requested export (requested to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited. */
+        /** @description The subject cancels a requested export (requested to cancelled) or a scheduled erasure before its execution time (scheduled to cancelled). A request already fulfilling finishes. Strict empty JSON object. MUST audited. A scheduled closure is cancelled the same way (scheduled to cancelled) until an operator's Begin commits, also after its execution time; a begun closure is fulfilling and cannot be cancelled. */
         post: operations["CancelOwnDataRequest"];
         delete?: never;
         options?: never;
@@ -505,6 +590,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/data-requests/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description An administrator holding identity.membership.admin over the group files an erasure for the person who held the named Membership in the group, only once that Membership is Revoked: an Active or Suspended member is revoked first, by the separately audited administration act (ADR-0106 § 3). Never for themselves. The request is scheduled and runs when its 24-hour window ends; the administrator who filed it may cancel it until then. Status and counts only. Strict JSON object with membershipId only. MUST audited. */
+        post: operations["CreateDataErasureForSubject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/identity/data-requests": {
         parameters: {
             query?: never;
@@ -548,7 +650,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description The administrator who filed an export cancels it while it is still requested. Strict empty JSON object. MUST audited. */
+        /** @description The administrator who filed a request cancels it: an export while it is still requested, an erasure before its execution time. Strict empty JSON object. MUST audited. */
         post: operations["CancelDataRequest"];
         delete?: never;
         options?: never;
@@ -1365,6 +1467,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountClosureAcceptedResponse: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "closure";
+            /** @enum {string} */
+            status: "scheduled";
+            /** @description Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number. */
+            version: string;
+        };
         AccountSite: {
             actorId: components["schemas"]["UserId"];
             tenantId: components["schemas"]["TenantId"];
@@ -1652,6 +1764,16 @@ export interface components {
             [key: string]: components["schemas"]["CustomFieldValueNode2"];
         };
         CustomFieldValueNode2: string | number | boolean;
+        DataErasureAcceptedResponse: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "erasure";
+            /** @enum {string} */
+            status: "scheduled";
+            /** @description Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number. */
+            version: string;
+        };
         DataExportArtifactResponse: {
             /** Format: uuid */
             id: string;
@@ -1726,22 +1848,40 @@ export interface components {
             kind: "export" | "erasure" | "closure";
             /** @enum {string} */
             origin: "self" | "administrator" | "closure_fanout";
-            /** @enum {string} */
+            /**
+             * @description An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a 'due, running shortly' state from status and executeAt.
+             * @enum {string}
+             */
             status: "requested" | "scheduled" | "fulfilling" | "awaiting_privileged_step" | "completed" | "blocked" | "failed" | "cancelled";
             /** Format: date-time */
             createdAt: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the request last changed; for a cancelled, blocked or failed request this is when it ended.
+             */
             updatedAt: null | string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Set only for a completed request; a cancelled, blocked or failed request has none (read updatedAt).
+             */
             completedAt: null | string;
-            /** @enum {null|string} */
+            /**
+             * @description The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys.
+             * @enum {null|string}
+             */
             lastRefusal: "blocked_window" | "blocked_hold" | "blocked_last_administrator" | null;
             /** @enum {null|string} */
             failureReason: "export_too_large" | "execution_failed" | null;
+            /** @description What the request retains, a partial list: a kind not listed is retained and not counted, never zero. The audit log's kinds appear only once the request is completed. invitation_record counts the offers the person issued or accepted; a pending offer addressed to their e-mail address is retained and not counted, because it is not locatable by person. */
             retained: components["schemas"]["DataRequestRetainedResponse"][];
             artifact: components["schemas"]["DataExportArtifactResponse"] | null;
             /** @description Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number. */
             version: string;
+            /**
+             * Format: date-time
+             * @description An erasure's cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export.
+             */
+            executeAt: null | string;
             requestedByYou: boolean;
             membershipIds: string[];
         };
@@ -2106,22 +2246,40 @@ export interface components {
             kind: "export" | "erasure" | "closure";
             /** @enum {string} */
             origin: "self" | "administrator" | "closure_fanout";
-            /** @enum {string} */
+            /**
+             * @description An erasure is scheduled until its window ends, then fulfilling and awaiting_privileged_step together (the job commits both at once, so fulfilling is not observed for an ordinary erasure), and completed once an operator finishes the audit redaction. After executeAt and before the job has run a request still reads scheduled: a client derives a 'due, running shortly' state from status and executeAt. A closure has no job: it reads scheduled until an operator Begins it, at or after its executeAt, then fulfilling (the account no longer works, so its owner rarely reads it), and completed once an operator finalizes it; it is never blocked or failed.
+             * @enum {string}
+             */
             status: "requested" | "scheduled" | "fulfilling" | "awaiting_privileged_step" | "completed" | "blocked" | "failed" | "cancelled";
             /** Format: date-time */
             createdAt: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the request last changed; for a cancelled, blocked or failed request this is when it ended.
+             */
             updatedAt: null | string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Set only for a completed request; a cancelled, blocked or failed request has none (read updatedAt).
+             */
             completedAt: null | string;
-            /** @enum {null|string} */
+            /**
+             * @description The closed refusal code of the last refused attempt, without the lockey_ prefix of the 409 keys. For a scheduled closure it is the reason an operator's Begin was refused (blocked_window, blocked_hold or blocked_last_administrator: another eligible tenant-wide administrator must be appointed first); the closure stays scheduled and cancellable.
+             * @enum {null|string}
+             */
             lastRefusal: "blocked_window" | "blocked_hold" | "blocked_last_administrator" | null;
             /** @enum {null|string} */
             failureReason: "export_too_large" | "execution_failed" | null;
+            /** @description What the request retains, a partial list: a kind not listed is retained and not counted, never zero. The audit log's kinds appear only once the request is completed. invitation_record counts the offers the person issued or accepted; a pending offer addressed to their e-mail address is retained and not counted, because it is not locatable by person. */
             retained: components["schemas"]["DataRequestRetainedResponse"][];
             artifact: components["schemas"]["DataExportArtifactResponse"] | null;
             /** @description Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number. */
             version: string;
+            /**
+             * Format: date-time
+             * @description An erasure's cancellable window ends here and its job may run from here: the deadline for a cancellation, to be read from the receipt and never computed as createdAt plus a constant. Null for an export. For a closure it is the earliest time an operator may Begin it, not a cancellation deadline: a scheduled closure can be cancelled until that Begin commits.
+             */
+            executeAt: null | string;
         };
         OwnFieldConsentCurrentResponse: {
             consent: components["schemas"]["ConsentDetailsResponse"] | null;
@@ -5183,7 +5341,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5305,7 +5463,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5402,7 +5560,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5444,7 +5602,285 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateRetainedDataErasure: {
+        parameters: {
+            query: {
+                /** @description The one retained group the operation acts in: tenant for the real host's tenant-wide group, or the organization's canonical UUIDv7. On an organization host only that organization. A group the subject does not retain is not_found. */
+                group: string;
+            };
+            header: {
+                /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its 24-hour cancellable window ends; read the group's requests for its status. */
+            202: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The request's version. */
+                    ETag: string;
+                    /** @description Present only after fresh original-request disclosure on a replay. */
+                    "Idempotency-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErasureAcceptedResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, a missing or extra group, extra or repeated query, an unexpected body, a tenant or organization selector header, an invalid key or precondition, or a key or precondition on an operation that takes none. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials, a missing or invalid native session source, or a binding that is not Active; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden when the request carries no retained-entry credential a ticket can bind, or its witness closed. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; request bodies are at most 4 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity, ticket or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateRetainedAccountClosure: {
+        parameters: {
+            query: {
+                /** @description The one retained group the operation acts in: tenant for the real host's tenant-wide group, or the organization's canonical UUIDv7. On an organization host only that organization. A group the subject does not retain is not_found. */
+                group: string;
+            };
+            header: {
+                /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted: the request's initial resource, scheduled. No job runs it: an operator may Begin it from its executeAt, and until that Begin commits it can be cancelled. Read the group's requests for its status while the account still works. */
+            202: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The request's version. */
+                    ETag: string;
+                    /** @description Present only after fresh original-request disclosure on a replay. */
+                    "Idempotency-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountClosureAcceptedResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, a missing or extra group, extra or repeated query, an unexpected body, a tenant or organization selector header, an invalid key or precondition, or a key or precondition on an operation that takes none. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials, a missing or invalid native session source, or a binding that is not Active; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden when the request carries no retained-entry credential a ticket can bind, or its witness closed. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; request bodies are at most 4 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity, ticket or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5543,7 +5979,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            /** @description concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. A closure is never window_ended: its not_cancellable means an operator's Begin committed, after which the closure is irreversible. */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5585,7 +6021,148 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RevokeRetainedDataExport: {
+        parameters: {
+            query: {
+                /** @description The one retained group the operation acts in: tenant for the real host's tenant-wide group, or the organization's canonical UUIDv7. On an organization host only that organization. A group the subject does not retain is not_found. */
+                group: string;
+            };
+            header: {
+                /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
+                "Idempotency-Key": string;
+                /** @description One canonical strong quoted decimal ARTIFACT version: the receipt's artifact.version, not the request's version. Missing, weak, wildcard, list and noncanonical values are 400; a valid stale artifact version is 409. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetainedDataRequestTargetInput"];
+            };
+        };
+        responses: {
+            /** @description Committed receipt, or the retained receipt of a completed exact-key replay. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The request's version. */
+                    ETag: string;
+                    /** @description Present only after fresh original-request disclosure on a replay. */
+                    "Idempotency-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdministrationVersionReceipt"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, a missing or extra group, extra or repeated query, an unexpected body, a tenant or organization selector header, an invalid key or precondition, or a key or precondition on an operation that takes none. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials, a missing or invalid native session source, or a binding that is not Active; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden when the request carries no retained-entry credential a ticket can bind, or its witness closed. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for a group the subject does not retain on this host, a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description concurrency_conflict for a valid stale artifact version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; request bodies are at most 4 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity, ticket or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5717,7 +6294,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5839,7 +6416,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5935,7 +6512,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group) or blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -5977,7 +6554,283 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateOwnDataErasure: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its 24-hour cancellable window ends; read the Location for its status. */
+            202: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The request's version. */
+                    ETag: string;
+                    /** @description Present only after fresh original-request disclosure on a replay. */
+                    "Idempotency-Replayed"?: "true";
+                    /** @description Exact same-API relative location of the new request's receipt. */
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErasureAcceptedResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, extra or repeated query, an unexpected body, an invalid key or precondition, or a key or precondition on a ticket operation. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden when the request carries no live session the ticket can bind. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; request bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity, ticket or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateOwnAccountClosure: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmptyAdministrationInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted: the request's initial resource, scheduled. No job runs it: an operator may Begin it from its executeAt, and until that Begin commits it can be cancelled. Read the Location for its status while the account still works. */
+            202: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The request's version. */
+                    ETag: string;
+                    /** @description Present only after fresh original-request disclosure on a replay. */
+                    "Idempotency-Replayed"?: "true";
+                    /** @description Exact same-API relative location of the new request's receipt. */
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountClosureAcceptedResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, extra or repeated query, an unexpected body, an invalid key or precondition, or a key or precondition on a ticket operation. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden when the request carries no live session the ticket can bind. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found without an Active Membership in exactly the context's group, for a request about another person or of another group, and for every ticket or chunk refusal alike. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; request bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity, ticket or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6097,7 +6950,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6217,7 +7070,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6316,7 +7169,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            /** @description concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. A closure is never window_ended: its not_cancellable means an operator's Begin committed, after which the closure is irreversible. */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6358,7 +7211,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6499,7 +7352,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6631,7 +7484,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6753,7 +7606,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6849,7 +7702,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description business_rule_violation: errors.$ carries request_already_active (a request of this kind is still active in the group), blocked_hold, or subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired), or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -6891,7 +7744,145 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateDataErasureForSubject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataExportForSubjectInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted: the request's initial resource, scheduled. Its erasure runs as a background job once its 24-hour cancellable window ends; read the Location for its status. */
+            202: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description The request's version. */
+                    ETag: string;
+                    /** @description Present only after fresh original-request disclosure on a replay. */
+                    "Idempotency-Replayed"?: "true";
+                    /** @description Exact same-API relative location of the new request's receipt. */
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErasureAcceptedResponse"];
+                };
+            };
+            /** @description validation_failed for malformed or noncanonical input, extra or repeated query, an unexpected body, an invalid key or precondition, or a key or precondition on a ticket operation. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid, expired or undecidable credentials; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden without current identity.membership.admin covering the context's group. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for noncoverage, for a request or Membership of another group, a closure, or a request another administrator filed (cancel, revoke). */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and scope gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first), or lockey_subject_not_admitted (the person's account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            409: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large; request bodies are at most 16 KiB. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited by the existing visitor/subject admission. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query, identity, ticket or submitted-value diagnostics. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -7011,7 +8002,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -7131,7 +8122,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -7230,7 +8221,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description concurrency_conflict for a valid stale version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
+            /** @description concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state. */
             409: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -7272,7 +8263,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
@@ -7413,7 +8404,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. */
+            /** @description dependency_unavailable or audit_unavailable; nothing is disclosed or confirmed without its committed MUST audit row. A write that waits for the tenant's identity fence behind another person's running erasure gives up after two seconds with dependency_unavailable: back off at least 30 seconds (the runtime sends Retry-After: 30 although this contract does not declare the header). */
             503: {
                 headers: {
                     "Cache-Control": "no-store";
