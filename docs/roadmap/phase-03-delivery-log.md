@@ -534,7 +534,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 418 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 552 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
   - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
   - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
@@ -544,6 +544,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-10 Step 2 — review round 1 and its fixes (2026-11-23)](#p03-10-step-2--review-round-1-and-its-fixes-2026-11-23) — 15 lines
   - [P03-10 Step 2 — review round 2 and its fixes (2026-11-23)](#p03-10-step-2--review-round-2-and-its-fixes-2026-11-23) — 23 lines
   - [P03-10 Step 2 — verification and closeout (2026-11-23)](#p03-10-step-2--verification-and-closeout-2026-11-23) — 66 lines
+  - [P03-10 Step 3 — global account closure (2026-11-23)](#p03-10-step-3--global-account-closure-2026-11-23) — 51 lines
+  - [P03-10 Step 4 — the web surface (2026-11-23)](#p03-10-step-4--the-web-surface-2026-11-23) — 13 lines
+  - [P03-10 Steps 3 and 4 — review round 1 and its fixes (2026-11-23)](#p03-10-steps-3-and-4--review-round-1-and-its-fixes-2026-11-23) — 48 lines
+  - [P03-10 Steps 3 and 4 — review round 2 and the usage limit (2026-11-23)](#p03-10-steps-3-and-4--review-round-2-and-the-usage-limit-2026-11-23) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -26051,3 +26055,137 @@ Open for the maintainer, as the amendments the code needs and the choices the AD
 - **Unreleased migrations of this packet:** `20261122200000` and `20261122203000` are
   new, and four Step 1 migrations were edited in place; a development database created
   from an intermediate commit of this branch must be dropped and migrated again.
+
+### P03-10 Step 3 — global account closure (2026-11-23)
+
+Step 3 delivers the closure half of
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7 to 10:
+the person files a closure of their whole account, an operator Begins it, a per-group
+fan-out erases each participant group's tenant-side data, and an operator Finalizes it,
+which redacts the person's audit rows in every participant tenant and the platform
+sentinel, deletes the identity-provider account and moves the User to Closed. It landed
+in ten commits: `6c6d8389` (the ports), `877ffda1` (the Keycloak removal adapter),
+`100ee968` (the closure redaction plans), `e807ad84` (the person's filing), `60eea19e`
+(storage and guards), `38c5c65c` (the census), `25d0776e` (Begin), `b94e4290` (the
+fan-out), `9e780196` (Finalize) and `056422ca`.
+
+Delivered:
+
+- **Filing.** The person alone files a closure, live (`POST /api/v1/identity/me/data-requests/closures`)
+  or through the retained entry (`…/data-request-entry/closures`). An administrator never
+  files, reads or cancels one. The request waits 24 hours and is cancellable until a
+  Begin commits.
+- **Storage.** `20261123100000_admit_account_closure`: platform grants for the
+  person's status, subject key and Memberships; a `users` trigger exception that admits
+  Active to Closing and Closing to Closed only for the platform role with the person's
+  fence and every participant tenant's fence held on that connection (read from
+  `pg_locks`, never a flag); the request guard's closure arrows and the fan-out INSERT
+  witness; the definer `fn_identity_user_status`. A second migration
+  (`20261123110000`) refuses a delayed provider-event delivery about a person who is not
+  Active, and a third (`20261123120000`) lets the platform complete a closure that never
+  began, so a second closure inside its window cannot outlive the person.
+- **Begin.** `POST /api/platform/v1/data-requests/{id}/begin-closure`: one platform
+  transaction takes the person's User fence and every participant tenant's fence
+  (`PlatformIdentityFences`, transaction-scoped, ordered, bounded by a three-second lock
+  timeout), judges the window, the hold port and the last administrator of every
+  participant tenant that allows ordinary work, moves the User to Closing and the request
+  to `fulfilling`, and commits; the fan-out follows.
+- **Fan-out.** One admitted pipeline act per served group
+  (`identity.data_request.fan_out_closure`) creates or adopts the person's erasure of
+  that group, born `fulfilling` with no window; the operator act executor announces the
+  group's organization for this one operation. A repeated Begin resumes.
+- **Finalize.** `POST …/finalize-closure`: transaction 1 redacts every participant tenant
+  and the sentinel and writes an attempt row; the provider account is deleted with no
+  transaction or lock held; transaction 2 takes the fences again, moves the User to
+  Closed with the raw provider subject removed, completes the participants' erasures and
+  every open closure of the person, and writes the result row. Every step repeats safely.
+- **The provider port.** `IIdentityProviderAccountRemoval` with the fail-closed default
+  and a Keycloak adapter whose confined realm client holds `manage-users` only; the
+  runbook is [Account removal client](../runbooks/account-removal-client.md) and the
+  operator's is [Account closure](../runbooks/account-closure.md).
+
+Decisions the code took that the ADR text does not state are items 56 to 70 of the
+maintainer list; they are summarised under the closeout.
+
+### P03-10 Step 4 — the web surface (2026-11-23)
+
+Step 4 delivers the web surface of ADR-0106 and ADR-0107 on the native BFF in two
+commits: `28e23840` (the person's own pages) and `bd996a0b` (the administrator's surface
+in Studio). The person opens `/account/data` and sees their requests, files an export, an
+erasure or a closure, cancels, revokes an export and downloads it as one attachment relayed
+chunk by chunk under a short-lived ticket, with working forms and no required script, in
+English and Turkish, in the live session or through the retained entry. An administrator
+sees the requests of their scope in Studio, files an export or an erasure for a Revoked
+member with an explicit confirmation, cancels what they filed and revokes an available
+export. The SDK gains 24 wrappers over the committed OpenAPI; the copy has one sentence for
+every refusal the API emits and a test that fails when the API gains a key the copy lacks.
+
+### P03-10 Steps 3 and 4 — review round 1 and its fixes (2026-11-23)
+
+Fourteen fresh read-only reviewers read the head by lens: for Step 3 the database and
+guards, the owner and fences, the fan-out and delayed consumers, the audit redaction, the
+Keycloak adapter, the API and catalogue, the tests and the documents; for Step 4 the BFF
+security, the SDK contract, the copy and accessibility, the Studio surface, the frontend
+tests and the standards text. No Blocker was found; the verified findings were fixed by
+six isolated units and merged. The ones that changed behaviour:
+
+- **A person Begin could strand in Closing** (found by four reviewers). Begin accepted
+  up to 1,024 participant groups while the fan-out refused more than 256, the redaction
+  plan refused more than 256 Memberships in one tenant, and a provider subject the adapter
+  refuses could never be deleted. Begin now judges every such bound and the removal port's
+  preflight before the irreversible move and writes nothing when it refuses
+  (`RefusedTooLarge`, `RefusedProvider`). One constant, `ClosureLimits`, holds the bounds.
+- **Finalize held every participant tenant's fence for the whole redaction.** Its first
+  transaction now takes only the person's User fence; the tenant fences are taken in the
+  second transaction, where the database witnesses need them. The second transaction
+  locks the awaiting erasures, accepts one the operator completed meanwhile, keeps a
+  now-unserved group with an open fan-out erasure required, and answers an audit failure
+  after the provider step as retryable. A forward migration
+  (`20261123130000_harden_closure_request_guard`) stops the application role writing a
+  begun closure and removes a status oracle.
+- **The redaction and the adapter.** The payload filter has a hashed form from 128
+  spellings (a closure tenant pass with 256 Memberships went from 76-80 s to 21-23 s), the
+  sentinel pass sizes no payload, a 404 is "absent" only with the provider's JSON media
+  type, the adapter's ceiling sits behind the pipeline timeout, and every refusal logs one
+  closed reason code.
+- **The download relay.** The API admits 60 requests a minute per visitor and a chunk read
+  is one request, so an export above about 7.5 MiB could never finish; a 429, or a 503 with
+  `Retry-After`, is now a pause within the ticket's deadline, a stalled client is cut after
+  a no-progress limit, and a failure after the headers always destroys the connection.
+- **The Studio surface was unreachable.** A Revoked Membership's page is not readable, so
+  the erasure form never rendered; a successful revoke now leads to an erasure page keyed
+  by the Membership id. Every successful administrator action also failed in production,
+  because the BFF admission refused any redirect that carried a query; it admits exactly
+  the result targets now, with tests through the real middleware.
+- **The person's page told some untruths.** A stopped erasure now shows its reason, the
+  retained intro no longer assumes a suspended membership, the closure warning names the
+  groups that keep their data, no sentence claims a retention rule that does not exist,
+  the retained pages state when the five-minute entry ends, and the Turkish copy was revised
+  for meaning and register.
+- **Proof.** Test-only units closed the gaps the test reviewers named by value (each
+  participant tenant redacted, including an unserved one; each erasure's own counts; the
+  judgment order; a lost commit answer; Begin and Finalize racing another operator) and
+  frontend tests now post every route in both modes and drive the retained flows and the
+  owner-mode selection.
+
+### P03-10 Steps 3 and 4 — review round 2 and the usage limit (2026-11-23)
+
+Round 2 launched eight fresh Step 3 reviewers on the head of round 1. Their runs stopped
+when the agent account reached its weekly usage limit, which resets on 2026-11-26: the API
+and vocabulary slice and the Keycloak and operability slice reported in full, and the
+database, owner and fences, red team, audit redaction, test adequacy and documents slices
+did not. Round 2 for Step 4 was not started. Both are owed and are listed under the
+closeout; nothing in them is treated as passed.
+
+What the two completed slices found and what changed: the removal port's preflight did not
+cover an unusable secret (a masked or oversized secret would have admitted a Begin that
+no Finalize could finish; `CanRemove` now requires a secret the client can present); the
+served contract and the operator runbooks said "nothing changed" for a Finalize that fails
+after the provider step, and an audit failure at its last row was no longer counted (the
+text, the runbooks and the audit-failure counter are corrected); the console search by
+identifier needs the `id:` form; and a few stale statements. The full architecture and
+integration suites on the head of round 1 then found two regressions the targeted runs had
+not: the fan-out's registration required the operator gate in hosts that compose
+persistence alone, which stopped 224 HTTP integration tests from starting, and the setter
+census matched the fence acquirer's `lock_timeout` bound. Both are fixed
+(`ac687dc3`).
