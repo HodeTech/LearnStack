@@ -19,18 +19,19 @@ namespace LearnStack.SharedKernel.Platform;
 /// </remarks>
 public sealed class PlatformOperatorAttribution
 {
-    private PlatformOperatorAttribution(string issuer, string subjectDigest, string acr, string executor, string reasonSlug)
+    private PlatformOperatorAttribution(string issuer, string subjectDigest, string acr, string executor, PlatformOperation operation)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(issuer);
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectDigest);
         ArgumentException.ThrowIfNullOrWhiteSpace(acr);
         ArgumentException.ThrowIfNullOrWhiteSpace(executor);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reasonSlug);
+        ArgumentNullException.ThrowIfNull(operation);
         Issuer = issuer;
         SubjectDigest = subjectDigest;
         Acr = acr;
         Executor = executor;
-        ReasonSlug = reasonSlug;
+        Operation = operation;
+        ReasonSlug = operation.ReasonSlug;
     }
 
     /// <summary>The pinned operator issuer.</summary>
@@ -48,12 +49,19 @@ public sealed class PlatformOperatorAttribution
     /// <summary>The closed reason slug of the admitted operation.</summary>
     public string ReasonSlug { get; }
 
+    /// <summary>
+    /// The registered operation the act was admitted for, so a handler-side guard can tell one operator act from
+    /// another by reference rather than by text (ADR-0102 Amendment 2: only <c>fan_out_closure</c> announces an
+    /// organization). It is never written to a row.
+    /// </summary>
+    public PlatformOperation Operation { get; }
+
     /// <summary>The attribution of an admitted act.</summary>
     public static PlatformOperatorAttribution From(PlatformAdmission admission)
     {
         ArgumentNullException.ThrowIfNull(admission);
         var op = admission.Operator;
-        return new(op.Issuer, op.SubjectDigest, op.Acr, op.Executor, admission.Operation.ReasonSlug);
+        return new(op.Issuer, op.SubjectDigest, op.Acr, op.Executor, admission.Operation);
     }
 
     /// <summary>

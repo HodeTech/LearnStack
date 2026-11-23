@@ -1,6 +1,7 @@
 using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Platform;
 using LearnStack.SharedKernel.Results;
 using MediatR;
 
@@ -50,3 +51,19 @@ public sealed record OperatorRecoverAdminCommand(
     Guid MembershipId,
     Guid RoleId,
     [property: PiiSensitive] string ProviderSubject) : IRequest<Result<Guid>>;
+
+/// <summary>
+/// Fans a begun closure out to one participant group (<c>fan_out_closure</c>, ADR-0107 § 7): creates the closing
+/// person's fan-out erasure in the group and enqueues its job, or adopts the erasure the group already has.
+/// </summary>
+/// <remarks>
+/// Reachable only through the operator source, one admission per group, which the closure's Begin owner mints after its
+/// transaction commits. The tenant is the executor's: the group's tenant, announced with
+/// <paramref name="OrganizationId"/>, which names the same group so the handler can refuse a context the executor did
+/// not build for it. The answer is how the group ended; a refusal is the failure result, which the fan-out reports as
+/// a failed group.
+/// </remarks>
+/// <param name="SubjectUserId">The person whose User is Closing.</param>
+/// <param name="OrganizationId">The group's organization, or <see langword="null"/> for the tenant-wide group.</param>
+public sealed record FanOutClosureCommand(UserId SubjectUserId, OrganizationId? OrganizationId)
+    : IRequest<Result<ClosureGroupOutcome>>;

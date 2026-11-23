@@ -5744,7 +5744,9 @@ adds no logical tenant setter. The
 [retained own data-request scope](#retained-own-data-request-scope) is the seventeenth
 definer and the fifteenth logical tenant setter, implemented by the same four physical
 writers. The [User status witness](#the-user-status-witness) of the data-request guard
-is the eighteenth definer; it adds no logical tenant setter. The operator act executor
+is the eighteenth definer; it adds no logical tenant setter. The
+[delayed mirror's subject status](#the-delayed-mirrors-subject-status) is the nineteenth
+definer; it adds no logical tenant setter either. The operator act executor
 that installs an operator act's resolved context is a fifth logical writer of the
 context accessor, beside the four of
 [ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) (the Hub
@@ -6985,6 +6987,31 @@ and nothing else, or NULL for no such User, outside a trigger, or unless the cal
 backend holds the subject's User key exclusively, so it reads no other person's status
 for an arbitrary caller.
 
+### The delayed mirror's subject status
+
+A delayed delivery refuses a person whose User is no longer Active, as intake does
+([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7 and
+9). The tenant mirror of a provider fact reads its retained target on the application
+role, which cannot read the affected person's `users` row, so the Identity migration
+`20261123110000_refuse_closing_provider_event_delivery` adds
+`public.fn_identity_provider_event_subject_status(target uuid)`, which returns `text`: a
+`plpgsql` `VOLATILE STRICT` definer owned by the NOBYPASSRLS `learnstack_migration`,
+with a fixed `search_path=pg_catalog`, `REVOKE ALL FROM PUBLIC` and `EXECUTE` to
+`learnstack_app` only. It answers for one target only: one of the tenant the transaction
+announced (`app.tenant_id`), already enqueued, whose affected person it names. It then
+takes that person's User key shared, transaction-scoped, as intake's
+`fn_identity_provider_event_accept` does, and returns the person's status and nothing
+else, or NULL for any other target. The shared key orders the read against a closure's
+Begin and Finalize, which hold the key exclusively: a delivery that read Active commits
+before the User leaves Active, so its row is one Finalize's redaction selects, and a
+delivery that waited reads the status they committed. It is the only key the delivery
+takes, so it orders no cycle; the delivery's five-second command budget bounds the wait.
+The fact reader selects it with the target in one statement through the target's primary
+key and the `users` primary key; the Audit subscriber withholds the observation of a
+person it does not report Active, so the delivery completes with its inbox row and no
+audit row.
+
+
 ### Proof
 
 Real PostgreSQL as each role, in `AccountClosureStorageTests`, each case on its own
@@ -7012,6 +7039,11 @@ disposable copy of the seeded schema:
 - the platform grants read from the attribute ACLs, the participant read and its index,
   and the last-administrator predicate answering on the platform connection as on the
   announced application connection.
+- the delayed mirror's refusal through an actual replay, in
+  `DataErasureReplayFloorTests`: a delivery dead-lettered while the person was Active
+  and replayed after the User became Closing, and again Closed, runs the handler, which
+  writes no audit row, fails nothing and advances the replay count once, and the subject
+  status definer is in the definer census.
 
 `DataRequestStorageLiteralTests` pins the guard's application arms to the request
 storage migration's text but for the INSERT arm's one block, and the definer and

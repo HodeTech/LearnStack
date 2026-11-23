@@ -6847,7 +6847,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7176,7 +7176,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -7505,7 +7505,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9087,7 +9087,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9411,7 +9411,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -9735,7 +9735,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still active in the group), lockey_blocked_hold, or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -11859,7 +11859,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired), or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -12183,7 +12183,7 @@
             }
           },
           "409": {
-            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, or lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "description": "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), lockey_blocked_last_administrator (the person is the tenant\u0027s only eligible tenant-wide administrator; another must be appointed first), lockey_blocked_hold, lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first), or lockey_subject_not_admitted (the person\u0027s account is closing or closed: nothing is filed); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
             "headers": {
               "Cache-Control": {
                 "required": true,

@@ -152,7 +152,8 @@ public static class PlatformOperatorMetrics
     /// <c>completed</c>, <c>already_completed</c>, <c>not_found</c>, <c>not_erasure</c>, <c>closure_fanout</c> or
     /// <c>not_awaiting</c>; either may end <c>unavailable</c>, or <c>commit_unknown</c> when a completion's commit may
     /// have landed. A refused MUST row is <c>audit_unavailable</c> and an unexpected failure (answered 500) is
-    /// <c>failed</c>.
+    /// <c>failed</c>. A closure's fan-out counts each participant group once: <c>fan_out_started</c>,
+    /// <c>fan_out_adopted</c>, <c>fan_out_waiting</c> or <c>fan_out_failed</c>.
     /// </summary>
     public static void DataRequest(PlatformOperation operation, string outcome) =>
         DataRequestCalls.Add(1, new KeyValuePair<string, object?>("operation", operation.AuditSlug),

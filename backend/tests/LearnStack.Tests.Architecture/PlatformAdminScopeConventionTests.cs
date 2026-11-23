@@ -282,14 +282,17 @@ public sealed partial class PlatformAdminScopeConventionTests
     {
         // ADR-0102: the executor is the one place an operator's tenant reaches the pipeline, and an admission is
         // the only thing that lets it run. The files that name it in code are the executor, the registration beside
-        // the source it enters and the onboarding routes, and nothing else: a second caller is a second route to an
-        // act, and is added here deliberately with its own denied proof.
+        // the source it enters, the onboarding routes and the closure's fan-out (ADR-0107 § 7), which runs one
+        // admitted act per participant group and is reached only from the closure's Begin owner, and nothing else:
+        // a second caller is a second route to an act, and is added here deliberately with its own denied proof. The
+        // fan-out's is ClosureFanOutTests' gate refusal: an operator without the write key starts no group.
         SourceScan.FilesContaining(SourceScan.SourceRoot, "PlatformOperatorActExecutor", except: null)
             .Should().BeEquivalentTo(
                 [
                     "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorActExecutor.cs",
                     "LearnStack.Infrastructure/PlatformOperator/PlatformOperatorOperationSource.cs",
                     "LearnStack.Api/Platform/PlatformOperatorEndpoints.Onboarding.cs",
+                    "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/ClosureFanOut.cs",
                 ],
                 "each new caller of an operator act is added here deliberately, with its denied proof");
     }

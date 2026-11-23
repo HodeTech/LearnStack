@@ -45,9 +45,13 @@ public static class DataErasureJobKeys
 /// What a new request's fulfilment needs, as values rather than the aggregate: submitting a job writes no request, and
 /// the aggregate write port stays the one the census counts.
 /// </summary>
-/// <param name="ExecuteAt">When a scheduled request may execute; <see langword="null"/> for an export, which runs at once.</param>
+/// <param name="ExecuteAt">
+/// When a scheduled request may execute; <see langword="null"/> for an export, which runs at once, and for a closure's
+/// fan-out erasure, which is born <c>fulfilling</c>.
+/// </param>
+/// <param name="Origin">Who filed the request: the person, an administrator, or a closure's fan-out.</param>
 public sealed record DataRequestFulfillment(Guid RequestId, DataRequestKind Kind, DataRequestStatus Status, DataRequestScopeGroup Group,
-    DateTimeOffset? ExecuteAt);
+    DateTimeOffset? ExecuteAt, DataRequestOrigin Origin);
 
 /// <summary>
 /// Submits a data request's fulfilment work on the caller's own transaction
@@ -62,13 +66,19 @@ public interface IDataRequestFulfillmentScheduler
 {
     /// <summary>
     /// Submits the job of the request's kind and group: a requested export's at once, a scheduled erasure's at its
-    /// execution time, the end of the cancellable window (ADR-0107 § 2). A scheduled closure is accepted and submits
-    /// nothing: it has no job, because its execution is the operator's Begin (ADR-0107 § 7).
+    /// execution time, the end of the cancellable window (ADR-0107 § 2), and a closure's fan-out erasure's at once, because
+    /// it is born <c>fulfilling</c> and its job resumes it from there (ADR-0107 § 7). A scheduled closure is accepted and
+    /// submits nothing: it has no job, because its execution is the operator's Begin (ADR-0107 § 7).
     /// </summary>
+    /// <remarks>
+    /// A fan-out erasure's job is submitted again when a repeated Begin finds the request still <c>fulfilling</c> with no
+    /// job in flight; the job runs a <c>fulfilling</c> request past the participants its progress records, and a second job
+    /// of a request the first one finished is a recorded no-op.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// The request is not a <c>requested</c> export, nor a <c>scheduled</c> erasure or closure with its execution time,
-    /// of the announced group: a programming error, because the creation path decides the kind and the group before it
-    /// submits.
+    /// The request is not a <c>requested</c> export, a <c>scheduled</c> erasure or closure with its execution time, or a
+    /// <c>fulfilling</c> fan-out erasure without one, of the announced group: a programming error, because the creation
+    /// path decides the kind and the group before it submits.
     /// </exception>
     ValueTask SubmitAsync(DataRequestFulfillment fulfillment, CancellationToken cancellationToken);
 
@@ -96,7 +106,11 @@ public sealed class DataRequestFulfillmentScheduler(IBackgroundJobScheduler sche
                 await scheduler.EnqueueAsync(DataExportJobKeys.ExportFor(group), new DataExportJobParameters(fulfillment.RequestId),
                     cancellationToken).ConfigureAwait(false);
                 return;
-            case { Kind: DataRequestKind.Erasure, Status: DataRequestStatus.Scheduled, ExecuteAt: { } due } when due != default:
+            case
+            {
+                Kind: DataRequestKind.Erasure, Status: DataRequestStatus.Scheduled, ExecuteAt: { } due,
+                Origin: not DataRequestOrigin.ClosureFanout
+            } when due != default:
                 // ADR-0107 § 2: due when the window ends, so no recurrence is introduced; the runtime has no cancel call,
                 // and a job whose request was cancelled meanwhile completes as a recorded no-op.
                 await scheduler.ScheduleAsync(DataErasureJobKeys.ErasureFor(group), new DataErasureJobParameters(fulfillment.RequestId),
@@ -106,9 +120,15 @@ public sealed class DataRequestFulfillmentScheduler(IBackgroundJobScheduler sche
                 // ADR-0107 § 7: a closure is executed by the operator's Begin, an act in the platform scope that no job
                 // holds the authority for; filing one submits nothing.
                 return;
+            case { Kind: DataRequestKind.Erasure, Status: DataRequestStatus.Fulfilling, ExecuteAt: null, Origin: DataRequestOrigin.ClosureFanout }:
+                // ADR-0107 § 7: a closure's fan-out erasure has no window; its job runs now, on the producer transaction
+                // that created or adopted the request, so the two commit together or not at all.
+                await scheduler.EnqueueAsync(DataErasureJobKeys.ErasureFor(group), new DataErasureJobParameters(fulfillment.RequestId),
+                    cancellationToken).ConfigureAwait(false);
+                return;
             default:
                 throw new InvalidOperationException(
-                    "Only a requested export, or a scheduled erasure or closure, of the announced group is a fulfilment.");
+                    "Only a requested export, a scheduled erasure or closure, or a closure's fulfilling fan-out erasure, of the announced group is a fulfilment.");
         }
     }
 

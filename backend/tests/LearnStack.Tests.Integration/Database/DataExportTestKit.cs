@@ -61,17 +61,21 @@ internal static class DataExportTestKit
         return refusal;
     }
 
-    /// <summary>An application-role transaction announced for one group, with the group's Identity context.</summary>
+    /// <summary>
+    /// An application-role transaction announced for one group, with the group's Identity context; unless
+    /// <paramref name="fenced"/> is false, holding the given User fences and the shared tenant fence as its one lock plan.
+    /// </summary>
     internal static async Task<GroupScope> OpenAsync(string appConnectionString, Guid tenant, Guid? organization,
-        IEnumerable<Guid>? userFences = null)
+        IEnumerable<Guid>? userFences = null, bool fenced = true)
     {
         var source = ApplicationDataSource.Build(appConnectionString);
         var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
         var frame = await unit.BeginTransactionAsync();
         var context = new SeedTenantContext(TenantId.From(tenant), organization is { } org ? OrganizationId.From(org) : null);
         await unit.SetTenantContextAsync(context);
-        await new IdentityMutationLocks(unit).AcquireAsync(new((userFences ?? []).Select(UserId.From), context.TenantId,
-            IdentityTenantLockMode.Shared));
+        if (fenced)
+            await new IdentityMutationLocks(unit).AcquireAsync(new((userFences ?? []).Select(UserId.From), context.TenantId,
+                IdentityTenantLockMode.Shared));
         var db = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(unit.Connection).Options,
             new StaticTenantContextAccessor(context), EmptyIdentityScope.Instance);
         await db.Database.UseTransactionAsync(unit.Transaction);

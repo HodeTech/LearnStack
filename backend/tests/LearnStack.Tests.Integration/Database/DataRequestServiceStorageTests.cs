@@ -76,9 +76,94 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
         var second = DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(Guid.CreateVersion7()), DataRequestKind.Export, UserId.From(PersonB),
             new DataRequestScopeGroup(scope.Context.TenantId, scope.Context.OrganizationId), [MembershipId.From(BranchMembershipB)],
             DateTimeOffset.UtcNow).Value!;
-        (await store.TryAddAsync(second, CancellationToken.None)).Should().BeFalse();
+        (await store.TryAddAsync(second, CancellationToken.None)).Should().Be(DataRequestInsertion.AlreadyActive);
         scope.Unit.IsRollbackOnly.Should().BeTrue();
         scope.Db.ChangeTracker.Entries<DataSubjectRequest>().Should().NotContain(entry => entry.Entity == second);
+    }
+
+    /// <summary>
+    /// ADR-0107 § 7: the request guard admits every person's and administrator's request only for a subject whose User is
+    /// Active, read under the subject's User fence. A filing that reaches the insertion after the person's account began
+    /// closing (a Begin that committed while the filing waited for the fence, or an administrator filing for a person whose
+    /// account is closing) is refused by the database, and the real creation core maps that refusal to the closed
+    /// <c>subject_not_admitted</c> business refusal: nothing is stored, nothing is submitted, and the transaction is
+    /// rollback-only. Every kind each role files is taken through the real store, eligibility, fences and guard; the live and
+    /// retained entries share this core.
+    /// </summary>
+    [Theory]
+    [InlineData("export", DataRequestRole.Subject)]
+    [InlineData("erasure", DataRequestRole.Subject)]
+    [InlineData("closure", DataRequestRole.Subject)]
+    [InlineData("export", DataRequestRole.Administrator)]
+    [InlineData("erasure", DataRequestRole.Administrator)]
+    public async Task A_filing_for_a_person_whose_account_is_closing_is_the_closed_subject_not_admitted_refusal(string kind, DataRequestRole role)
+    {
+        await using var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
+        var person = Guid.CreateVersion7();
+        var membership = Guid.CreateVersion7();
+        await InsertUserAsync(database.AppConnectionString, person);
+        await using (var app = await DataExportTestKit.OpenAppAsync(database.AppConnectionString))
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+            await LockAsync(app, transaction, SchemaFixture.TenantA, person, false);
+            await InsertMemberAsync(app, transaction, SchemaFixture.TenantA, null, membership, person,
+                RoleId(SchemaFixture.TenantA, LearnStack.SharedKernel.Permissions.BuiltInRoleKey.Learner,
+                    LearnStack.SharedKernel.Permissions.PermissionScope.Tenant));
+            if (role == DataRequestRole.Administrator && kind == "erasure")
+            {
+                // An administrator erases only a person whose Membership of the group is already Revoked (ADR-0106 § 3).
+                await ExecuteAsync(app, transaction, """
+                    UPDATE public.memberships SET status='Revoked', deleted_at=clock_timestamp(), deleted_by=@system,
+                        updated_at=clock_timestamp(), updated_by=@system, row_version=row_version+1 WHERE id=@member
+                    """, ("member", membership), ("system", SystemActor));
+            }
+
+            await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
+            await transaction.CommitAsync();
+        }
+
+        // The closure's Begin, as its acquirer holds the fences: the User key, then the person's one participant tenant.
+        await using (var platform = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.PlatformConnectionString))
+        {
+            await using var transaction = await platform.BeginTransactionAsync();
+            await ExecuteAsync(platform, transaction, "SELECT pg_catalog.pg_advisory_xact_lock(@key)",
+                ("key", LearnStack.SharedKernel.Identity.IdentityAdvisoryLockKey.ForUser(UserId.From(person))));
+            await ExecuteAsync(platform, transaction, "SELECT pg_catalog.pg_advisory_xact_lock(@key)",
+                ("key", LearnStack.SharedKernel.Identity.IdentityAdvisoryLockKey.ForTenant(TenantId.From(SchemaFixture.TenantA))));
+            await ExecuteAsync(platform, transaction, "UPDATE public.users SET status='Closing' WHERE id=@user", ("user", person));
+            await transaction.CommitAsync();
+        }
+
+        // No lock plan yet: the creation core takes its own, as the request pipeline's would.
+        await using (var scope = await DataExportTestKit.OpenAsync(database.AppConnectionString, SchemaFixture.TenantA, null, fenced: false))
+        {
+            var service = Service(scope);
+            var caller = new DataRequestCaller(UserId.From(role == DataRequestRole.Subject ? person : AdminA), role,
+                _ => Task.FromResult(LearnStack.SharedKernel.Results.Result.Ok(LearnStack.SharedKernel.Results.None.Value)));
+            var subject = UserId.From(person);
+            var refused = (kind, role) switch
+            {
+                ("export", DataRequestRole.Subject) => await service.CreateExportAsync(caller, subject, CancellationToken.None),
+                ("erasure", DataRequestRole.Subject) => await service.CreateErasureAsync(caller, subject, CancellationToken.None),
+                ("closure", _) => await service.CreateClosureAsync(caller, subject, CancellationToken.None),
+                ("export", _) => await service.CreateExportForMembershipAsync(caller, membership, CancellationToken.None),
+                _ => await service.CreateErasureForMembershipAsync(caller, membership, CancellationToken.None),
+            };
+
+            refused.IsFailure.Should().BeTrue();
+            refused.Error!.Code.Should().Be("business_rule_violation");
+            refused.Error.Details!["$"].Single().Key.Should().Be("lockey_subject_not_admitted",
+                "the guard's refusal of the subject is a closed business refusal, never a storage fault");
+            scope.Unit.IsRollbackOnly.Should().BeTrue("the refused insertion aborted the transaction");
+            await scope.Frame.FailAsync();
+        }
+
+        await using var reader = await DataExportTestKit.OpenAppAsync(database.AppConnectionString);
+        await using var read = await reader.BeginTransactionAsync();
+        await ScopeAsync(reader, read, SchemaFixture.TenantA);
+        (await ScalarAsync<long>(reader, read, "SELECT count(*) FROM public.data_subject_requests WHERE subject_user_id=@person", ("person", person)))
+            .Should().Be(0, "nothing is stored");
     }
 
     /// <summary>
@@ -280,4 +365,43 @@ public sealed class DataRequestServiceStorageTests(SchemaFixture fixture)
 
     private static DataRequestStore Store(DataExportTestKit.GroupScope scope) =>
         new(scope.Db, scope.Unit, new ProducerExecution(scope.Unit), scope.Context);
+
+    /// <summary>The real creation core over the scope's group, with no job runtime: a refused filing submits nothing.</summary>
+    private static DataRequestService Service(DataExportTestKit.GroupScope scope)
+    {
+        var store = Store(scope);
+        var phases = new DataRequestJobPhaseReader(scope.Unit, scope.Context);
+        var locks = new LearnStack.Infrastructure.Persistence.IdentityMutationLocks(scope.Unit);
+        var clock = new LearnStack.SharedKernel.Time.SystemClock();
+        return new DataRequestService(store, new DataRequestReader(scope.Db, scope.Unit, scope.Context), phases,
+            new DataRequestFailureReconciler(store, phases, locks, scope.Context, clock),
+            new DataRequestEligibility(store, new NoHoldSource(), scope.Context), new NoSubmissions(), new NoArtifacts(), locks,
+            scope.Context, new DataExportTestKit.NoAuditSubject(), new LearnStack.SharedKernel.Identifiers.SystemGuidFactory(), clock);
+    }
+
+    private sealed class NoSubmissions : IDataRequestFulfillmentScheduler
+    {
+        public ValueTask SubmitAsync(DataRequestFulfillment fulfillment, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A refused filing submits nothing.");
+
+        public ValueTask SchedulePurgeAsync(Guid artifactId, DateTimeOffset dueAt, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A refused filing schedules nothing.");
+    }
+
+    private sealed class NoArtifacts : IDataExportArtifactStore
+    {
+        public Task<DataExportArtifactMetadata> PutAsync(DataExportArtifactPut put, IAsyncEnumerable<ReadOnlyMemory<byte>> plaintextChunks,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<DataExportArtifactMetadata?> ReadMetadataAsync(DataExportArtifactLocator artifact, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public bool CanOpen(string keyVersion) => false;
+
+        public Task<DataExportPlaintextChunk?> ReadChunkAsync(DataExportArtifactLocator artifact, int index, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<DataExportArtifactStatus?> PurgeAsync(DataExportArtifactLocator artifact, DataExportArtifactStatus outcome,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
 }

@@ -3,6 +3,7 @@ using FluentAssertions;
 using LearnStack.Application.Authorization;
 using LearnStack.Infrastructure.PlatformOperator;
 using LearnStack.Modules.Identity.Application;
+using LearnStack.Modules.Identity.Application.Contracts.OperatorActs;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Errors;
@@ -41,6 +42,9 @@ public sealed class PlatformOperatorActExecutorTests
 
     private static OperatorProvisionTenantCommand Provision(TenantId? tenant = null) => new(
         tenant ?? Tenant, "acme", "Acme", OrganizationId.From(Guid.CreateVersion7()), "main", "Main");
+
+    private static FanOutClosureCommand FanOut(OrganizationId? organization) =>
+        new(UserId.From(Guid.CreateVersion7()), organization);
 
     [Fact]
     public async Task An_Admitted_Act_Runs_On_A_Resolved_Ambient_Context_Of_The_Tenant_It_Names_And_Nothing_Else()
@@ -235,6 +239,104 @@ public sealed class PlatformOperatorActExecutorTests
         rig.LoggedEvents.Should().Equal([7109], "the warning an operator can alert on, since this refusal writes no audit row");
     }
 
+    /// <summary>
+    /// ADR-0102 Amendment 2: a closure's fan-out is the one act whose context names an organization, the participant
+    /// group's, so the ordinary transaction behavior announces that group; its descriptor is minted for that operation alone.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_Closure_Fan_Out_Runs_In_Its_Groups_Organization_Or_The_Tenant_Wide_Group(bool organization)
+    {
+        await using var rig = new Rig();
+        var group = organization ? OrganizationId.From(Guid.CreateVersion7()) : (OrganizationId?)null;
+        var admission = TestPlatformAdmissions.Admission(PlatformOperations.ClosureFanOut, issuedAt: Now);
+
+        var result = await rig.Executor.ExecuteAsync(admission, Tenant, group, FanOut(group));
+
+        result.IsSuccess.Should().BeTrue();
+        var seen = rig.Observed.Should().ContainSingle().Subject;
+        seen.Context.TenantId.Should().Be(Tenant);
+        seen.Context.OrganizationId.Should().Be(group, "the group's organization is announced with its tenant");
+        seen.Context.UserId.Should().BeNull();
+        seen.Context.HostScope.Should().BeNull();
+        seen.Context.Origin.Should().Be(TenantContextOrigin.Ambient);
+        seen.Descriptor.Should().NotBeNull();
+        seen.Descriptor!.RequestType.Should().Be<FanOutClosureCommand>();
+        seen.Descriptor.Operator!.Operation.Should().BeSameAs(PlatformOperations.ClosureFanOut);
+        seen.Descriptor.Operator.ReasonSlug.Should().Be("closure_fan_out");
+        seen.MatchedWhileLive.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// ADR-0102 Amendment 2: no other operation's act announces an organization, and an organization nobody assigned is
+    /// no group; each is refused before the admission is spent or the pipeline is reached.
+    /// </summary>
+    [Theory]
+    [InlineData("tenant_provision")]
+    [InlineData("host_map")]
+    [InlineData("unassigned_organization")]
+    public async Task An_Organization_Is_Announced_Only_For_A_Closure_Fan_Out(string variant)
+    {
+        await using var rig = new Rig();
+        var slot = new OrganizationId[1];
+        var (admission, organization) = variant switch
+        {
+            "tenant_provision" => (TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now),
+                OrganizationId.From(Guid.CreateVersion7())),
+            "host_map" => (TestPlatformAdmissions.Admission(PlatformOperations.HostMap, issuedAt: Now), OrganizationId.From(Guid.CreateVersion7())),
+            _ => (TestPlatformAdmissions.Admission(PlatformOperations.ClosureFanOut, issuedAt: Now), slot[0]),
+        };
+
+        Func<Task> act = variant switch
+        {
+            "tenant_provision" => () => rig.Executor.ExecuteAsync(admission, Tenant, organization, Provision()),
+            "host_map" => () => rig.Executor.ExecuteAsync(admission, Tenant, organization,
+                new OperatorMapHostCommand("acme.test")),
+            _ => () => rig.Executor.ExecuteAsync(admission, Tenant, organization, FanOut(organization)),
+        };
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        rig.Observed.Should().BeEmpty("the pipeline was never reached");
+        admission.TryConsume().Should().BeTrue("a refusal before the act leaves the admission unspent");
+    }
+
+    /// <summary>
+    /// The source restates the rule on its own frame: a context that names an organization is evidence only for a closure's
+    /// fan-out, so a frame an onboarding admission opened over one is refused at entry and captures nothing.
+    /// </summary>
+    [Fact]
+    public void The_Source_Opens_A_Frame_With_An_Organization_Only_For_A_Closure_Fan_Out()
+    {
+        // One source per act, as the executor resolves one per scope: a source whose frame was refused opens no other.
+        var accessor = new StaticTenantContextAccessor(null);
+        PlatformOperatorOperationSource Source() => new(
+            new OperationPolicyCatalog([new TenancyOperationPolicySource(), new IdentityOperationPolicySource()]),
+            new PlatformOperatorActCatalog(
+            [
+                new(typeof(OperatorProvisionTenantCommand), new(PlatformOperations.TenantProvision)),
+                new(typeof(FanOutClosureCommand), new(PlatformOperations.ClosureFanOut)),
+            ]),
+            accessor);
+        var organization = OrganizationId.From(Guid.CreateVersion7());
+
+        using var refusing = Source();
+        var onboarding = new OperatorTenantContext(Tenant, organization, "00-test");
+        accessor.Current = onboarding;
+        var refused = () => refusing.Enter(TestPlatformAdmissions.Admission(PlatformOperations.TenantProvision, issuedAt: Now), onboarding);
+        refused.Should().Throw<InvalidOperationException>("an onboarding act never runs in an organization");
+        refusing.Capture(typeof(OperatorProvisionTenantCommand), onboarding).Should().BeNull();
+
+        using var admitting = Source();
+        var fanOut = new OperatorTenantContext(Tenant, organization, "00-test");
+        accessor.Current = fanOut;
+        using (admitting.Enter(TestPlatformAdmissions.Admission(PlatformOperations.ClosureFanOut, issuedAt: Now), fanOut))
+        {
+            admitting.Capture(typeof(FanOutClosureCommand), fanOut).Should().NotBeNull("the fan-out's own request in its group");
+            admitting.Capture(typeof(OperatorProvisionTenantCommand), fanOut).Should().BeNull("one admission, one act");
+        }
+    }
+
     [Fact]
     public void The_Act_Catalog_Refuses_An_Operation_That_Needs_The_Platform_Role_Or_No_Acts_At_All()
     {
@@ -263,6 +365,7 @@ public sealed class PlatformOperatorActExecutorTests
             [
                 new(typeof(OperatorProvisionTenantCommand), new(PlatformOperations.TenantProvision)),
                 new(typeof(OperatorMapHostCommand), new(PlatformOperations.HostMap)),
+                new(typeof(FanOutClosureCommand), new(PlatformOperations.ClosureFanOut)),
                 // A request whose policy admits the seed source and not the operator's: bound in the catalog
                 // here so the source's own check of the policy's sources is what has to refuse it.
                 new(typeof(MapHostToTenantCommand), new(PlatformOperations.TenantProvision)),
@@ -305,6 +408,15 @@ public sealed class PlatformOperatorActExecutorTests
                     return Task.FromResult(Refusal is { } refusal
                         ? Result.FailFor<Result<ProvisionedTenantDto>>(refusal)
                         : Result.Ok(new ProvisionedTenantDto(Tenant, "acme", OrganizationId.From(Guid.CreateVersion7()), "main")));
+                });
+                sender.Send(Arg.Any<IRequest<Result<ClosureGroupOutcome>>>(), Arg.Any<CancellationToken>()).Returns(_ =>
+                {
+                    var context = Accessor.Current!;
+                    var source = provider.GetServices<ITrustedOperationSource>().Single();
+                    var descriptor = source.Capture(typeof(FanOutClosureCommand), context);
+                    Observed.Add(new Observation(context, source, descriptor,
+                        descriptor?.Matches(typeof(FanOutClosureCommand), context) ?? false, []));
+                    return Task.FromResult(Result.Ok(ClosureGroupOutcome.Started));
                 });
                 return sender;
             });

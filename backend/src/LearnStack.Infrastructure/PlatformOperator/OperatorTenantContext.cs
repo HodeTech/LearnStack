@@ -10,9 +10,12 @@ namespace LearnStack.Infrastructure.PlatformOperator;
 /// Resolved and ambient, as a seed, event or job context is, with no actor: the business columns of
 /// an operator act carry the registry actor and the audit rows carry the operator in metadata
 /// (ADR-0101 § 9), so nothing here names a user. Only
-/// <see cref="PlatformOperatorActExecutor"/> constructs one.
+/// <see cref="PlatformOperatorActExecutor"/> constructs one, and it names an organization only for a
+/// closure's fan-out, which runs in a participant group's organization (ADR-0102 Amendment 2); every
+/// onboarding act's context has none.
 /// </remarks>
-internal sealed class OperatorTenantContext(TenantId tenantId, string? correlationId) : ITenantContext
+internal sealed class OperatorTenantContext(TenantId tenantId, OrganizationId? organizationId, string? correlationId)
+    : ITenantContext
 {
     public bool IsResolved => true;
 
@@ -20,7 +23,7 @@ internal sealed class OperatorTenantContext(TenantId tenantId, string? correlati
 
     public TenantId TenantId { get; } = tenantId;
 
-    public OrganizationId? OrganizationId => null;
+    public OrganizationId? OrganizationId { get; } = organizationId;
 
     public UserId? UserId => null;
 

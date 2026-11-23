@@ -78,14 +78,33 @@ public interface IDataRequestStore : IAggregateWriteStore<DataSubjectRequest, Da
     Task<DataSubjectRequest?> FindActiveLockedAsync(UserId subject, DataRequestKind kind, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Inserts a new request of the ambient group. <see langword="false"/> when the one-active partial unique index
-    /// refused it (ADR-0106 § 7): the transaction is then rollback-only and nothing was stored.
+    /// Inserts a new request of the ambient group. Any answer but <see cref="DataRequestInsertion.Added"/> leaves the
+    /// transaction rollback-only with nothing stored: the one-active partial unique index refused it (ADR-0106 § 7), or the
+    /// request guard refused its subject because the person's User is not in the one status the request's origin allows
+    /// (ADR-0107 § 7).
     /// </summary>
-    Task<bool> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken);
+    Task<DataRequestInsertion> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken);
 
     /// <inheritdoc cref="SaveAsync"/>
     Task IAggregateWriteStore<DataSubjectRequest, DataSubjectRequestId>.UpdateAsync(DataSubjectRequest aggregate,
         CancellationToken cancellationToken) => SaveAsync(aggregate, cancellationToken);
+}
+
+/// <summary>How the insertion of a new request ended; every refusal stored nothing.</summary>
+public enum DataRequestInsertion
+{
+    /// <summary>The request is stored.</summary>
+    Added = 1,
+
+    /// <summary>A request of the kind is already active for the subject in the group (ADR-0106 § 7).</summary>
+    AlreadyActive = 2,
+
+    /// <summary>
+    /// The request guard refused the subject, judged under the subject's User fence: Closing for a closure's fan-out
+    /// erasure, Active for every other request (ADR-0107 § 7). A filing admitted while the person was Active meets it when
+    /// a closure's Begin or Finalize committed first, and an administrator's when the person's account is closing.
+    /// </summary>
+    SubjectNotAdmitted = 3,
 }
 
 /// <summary>

@@ -6214,15 +6214,20 @@ structural test proves — and what it does not.
 
 - **Asserts:** the files, by their path under `backend/src`, that name
   `PlatformOperatorActExecutor` in code, comments stripped, are exactly the executor,
-  the registration beside the source it enters and the onboarding routes. A second
-  caller is a second route to an act; adding one is a deliberate edit here, with its
-  denied proof.
+  the registration beside the source it enters, the onboarding routes and the closure's
+  fan-out (`ClosureFanOut`), which runs one admitted `fan_out_closure` act per
+  participant group for Begin's owner. A second caller is a second route to an act;
+  adding one is a deliberate edit here, with its denied proof; the fan-out's is
+  `ClosureFanOutTests`' gate refusal, under which no group starts.
 - **Why it matters:** the executor installs a tenant context from an admission, so what
   may call it is what may run an operator act. The admission is the barrier, and this
   keeps the set of places that can spend one small and visible.
-- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1.
+- **Source:** [ADR-0102](../decisions/0102-production-tenant-onboarding.md) § 1 and
+  Amendment 2,
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7.
 - **Type:** xUnit + source scan. **Kind:** structural.
-- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2).
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-9 Step 2; the
+  fan-out joined in P03-10 Step 3).
 - **Phase:** P03-9.
 
 #### `Only_The_Operator_Administrator_Core_Resolves_An_Operator_Subject`
@@ -7811,7 +7816,11 @@ The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns packet/proof s
   stable EventId through ordinary outbox/inbox and central typed Audit evidence.
   SystemActor differs from the affected account; provider time/result does not
   establish a tenant login. Duplicate/unknown commit, expired claim, closure,
-  overflow and Audit failure cannot duplicate, forge or silently lose success.
+  overflow and Audit failure cannot duplicate, forge or silently lose success. The
+  subscriber is the one caller of `AttachProviderEvent` and of `WithholdProviderEvent`,
+  which withdraws the observation of a person whose User is no longer Active
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md)
+  §§ 7, 9).
 - **Source:** [ADR-0097](../decisions/0097-retained-provider-events-and-tenant-audit-mirror.md),
   [Database](05-database.md#provider-event-intake-storage).
 - **Type:** real app/ingress-role isolation, concurrency, transport, Audit and

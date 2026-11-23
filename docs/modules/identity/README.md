@@ -109,6 +109,16 @@ consumer uses the ordinary inbox and central typed-evidence writer. The
 [provider specification](providers.md#retained-user-event-reader) owns adapter and
 deployment configuration; the phase Status owns final qualification.
 
+A delivery of the tenant mirror refuses a person whose User is no longer Active, as
+intake does
+([ADR-0107](../../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7
+and 9): the fact reader asks the confined definer
+`fn_identity_provider_event_subject_status` for the affected person's status under that
+person's User fence held shared, so the read orders against a closure's Begin and
+Finalize, and the Audit subscriber then withholds its observation. The delivery
+completes as a recorded no-op with its inbox row and no audit row, and a replayed
+delivery runs the same rule.
+
 The identity-provider ports are four: `IIdentityEventProvider` (read-only history),
 `IFederationProvider` with `IFederationEgressFetcher` and `IFederationOperator`
 (tenant federation), and `IIdentityProviderAccountRemoval`
@@ -1019,6 +1029,11 @@ acts, and the operator documentation owns them.
   (`lockey_request_already_active`) and the hold port (`lockey_blocked_hold`). It is
   never refused for the last administrator: Begin judges that across every participant
   tenant. Asked about a closure's execution, the port refuses to answer.
+- **A closing person files nothing.** The request guard admits every person's and
+  administrator's request only for a subject whose User is Active, read under the User
+  fence the creation holds, so a filing of any kind that reaches its insertion after a
+  Begin committed, or an administrator's filing for a person whose account is closing,
+  stores nothing and answers `409` with `lockey_subject_not_admitted` in `errors.$`.
 - **No job.** The request is `scheduled` with `executeAt` 24 hours after its creation.
   `DataRequestFulfillmentScheduler` accepts a scheduled closure explicitly and submits
   nothing; the receipt never reads a job phase for it and
@@ -1202,6 +1217,63 @@ run by the [account closure runbook](../../runbooks/account-closure.md).
   each in its own pipeline act; a group that does not report a start or an adoption
   makes the answer incomplete, and the operator repeats Begin. A repeat on a
   `fulfilling` closure fences, judges and writes nothing and fans out again.
+
+#### Closure fan-out (P03-10 Step 3)
+
+The per-group half of a closure's Begin
+([ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)):
+after Begin's transaction commits and releases the fences, the same operator call fans
+the closure out to every participant group Begin judged served. The act is
+`fan_out_closure` (`PlatformOperations.ClosureFanOut`, audit slug
+`identity.data_request.fan_out_closure`, reason `closure_fan_out`,
+`platform.data_request.write`, the pipeline executor); it has no route.
+
+- **One admitted act per group.** `ClosureFanOut`, this module's `IClosureFanOut`, asks
+  the gate for one admission of `fan_out_closure` per group from the operator's witness
+  and ticket, so the grant is evaluated per act, and runs
+  `FanOutClosureCommand(SubjectUserId, OrganizationId)` through the operator act
+  executor for the group's tenant and organization. Groups run one after another in a
+  fixed order (tenant, the tenant-wide group first, then each organization), at most
+  256; a refused admission, a refusal and an exception are each that group's `Failed`,
+  and only the operator's cancellation stops the loop.
+- **The organization is announced**
+  ([ADR-0102](../../decisions/0102-production-tenant-onboarding.md) Amendment 2). The
+  fan-out is the one operator act whose context names an organization: the executor
+  refuses one for any other operation, the operator source opens no such frame for
+  another operation, and `OperatorActGuard` admits it only for this operation, by
+  reference, on a transaction that announced the same tenant and organization. Every
+  onboarding act still runs with none.
+- **Under the fences.** `FanOutClosureCommandHandler` checks the group's lifecycle
+  (Tenancy's `IIdentityScopeLifecycleReader`), takes the person's exclusive User fence
+  and the group tenant's shared fence through the guard, checks the lifecycle again,
+  stores a dead job's request `failed` as every creation path does, and reads the
+  person's active erasure in the group.
+- **What the group holds decides.** None, or only terminal ones: a fan-out erasure is
+  created `fulfilling`, with no window, the system actor's, its snapshot every
+  Membership of the person in the group of any status, and its erasure job is enqueued
+  on the same transaction (`Started`). A fan-out still `fulfilling`: adopted, and its
+  job enqueued again unless one is still queued, running or retrying (`Adopted`), which
+  is how a repeated Begin retries a dead job. Any erasure awaiting its privileged step:
+  adopted as it is (`Adopted`). The person's or an administrator's erasure still in its
+  window: cancelled by the system actor and replaced in the same transaction, the
+  cancellation saved first so the one-active index frees the slot (`Started`). Such an
+  erasure past its window: its own job runs it (`Waiting`); a repeated Begin adopts it
+  once it awaits its privileged step.
+- **The database is the witness.** The request guard admits a request born `fulfilling`
+  only as a closure's fan-out erasure of a person whose User is Closing, read under the
+  User fence; a refused insertion rolls the group back, the replaced erasure's
+  cancellation included, and answers `lockey_subject_not_admitted`. A group whose tenant
+  or organization stopped allowing ordinary work after Begin judged it answers
+  `not_found`; both are the group's `Failed`.
+- **The job.** The ordinary erasure job of the group's scope runs the fan-out from
+  `fulfilling`, so it never asks eligibility again and never blocks; it erases every
+  Membership of the snapshot, a Revoked tombstone's profile included, records the
+  retained report and parks the request `awaiting_privileged_step`. Only the closure's
+  Finalize completes it; `complete_erasure` refuses it.
+- **Audit.** One MUST row per group in that tenant, about the request created, adopted
+  or waited for, with the operator in `metadata.operator` and the reason
+  `closure_fan_out`, never the ticket; a replaced erasure travels in its `changes`.
+  These rows are the closure's evidence in every affected tenant.
 
 ## Entity-relationship diagram
 

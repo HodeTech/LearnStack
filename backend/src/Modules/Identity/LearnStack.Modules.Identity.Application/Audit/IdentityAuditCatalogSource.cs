@@ -11,6 +11,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Federation;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Platform;
 
 namespace LearnStack.Modules.Identity.Application.Audit;
 
@@ -101,6 +102,10 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<OperatorInitializeRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));
         builder.MustAudit<OperatorCreateFirstAdminCommand>("identity.membership.create_first_admin", OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<OperatorRecoverAdminCommand>("identity.membership.recover_admin", OperationType.SecurityEvent, typeof(Membership));
+        // ADR-0107 §§ 7, 8: a closure's fan-out writes one row in the participant tenant, about the group's fan-out erasure it
+        // created or the erasure it adopted or waits for; a person's or administrator's erasure it cancelled and replaced
+        // travels in that row's changes. A refused group writes the row with its refusal and no subject.
+        builder.MustAudit<FanOutClosureCommand>(PlatformOperations.ClosureFanOut.AuditSlug, OperationType.SecurityEvent, typeof(DataSubjectRequest));
         builder.Off<GetRoleSeedStateQuery>();
         builder.Off<GetMembershipSeedStateQuery>();
         builder.MustAudit<ListMembershipsQuery>(IdentityOperationPolicySource.MembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));

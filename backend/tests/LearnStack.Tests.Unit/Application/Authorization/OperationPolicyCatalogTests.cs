@@ -37,7 +37,7 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(169, actual.Length);
+        Assert.Equal(170, actual.Length);
         Assert.Equal(5, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
         Assert.Equal(68, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
@@ -89,7 +89,7 @@ public sealed class OperationPolicyCatalogTests
         Assert.Equal(new[] { typeof(WithdrawOwnMembershipFieldConsentCommand), typeof(ReadOwnWithdrawnFieldConsentReceiptQuery), typeof(ListOwnFieldConsentScopesQuery), typeof(ListOwnMembershipFieldConsentsQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal),
             catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnConsentEntry).Select(policy => policy.RequestType));
-        Assert.Equal(57, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        Assert.Equal(58, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
         var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);
@@ -144,6 +144,7 @@ public sealed class OperationPolicyCatalogTests
             typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.OperatorInitializeRoleCommand),
             typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.OperatorCreateFirstAdminCommand),
             typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.OperatorRecoverAdminCommand),
+            typeof(LearnStack.Modules.Identity.Application.Contracts.OperatorActs.FanOutClosureCommand),
         ];
 
         foreach (var act in operatorActs)

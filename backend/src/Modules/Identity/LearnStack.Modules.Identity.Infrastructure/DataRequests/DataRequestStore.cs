@@ -51,6 +51,12 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
 
     private const string ActiveIndex = "ux_data_subject_requests_active";
 
+    /// <summary>
+    /// The request guard's refusal of a subject not in the status the request's origin allows (ADR-0107 § 7): the closed
+    /// message the migration installs, matched with its SQLSTATE so no other check violation is read as it.
+    /// </summary>
+    internal const string SubjectNotAdmittedMessage = "Data request subject is not admitted.";
+
     private NpgsqlCommand Command(string sql) => DataRequestSql.Command(unit, tenant, sql);
 
     private Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> statement, CancellationToken cancellationToken) =>
@@ -213,17 +219,17 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
             .ConfigureAwait(false);
     }
 
-    /// <summary>The aggregate port's insertion: a creation refused by the one-active index is a storage refusal here.</summary>
+    /// <summary>The aggregate port's insertion: a creation the store refuses is a storage refusal here.</summary>
     async Task IAggregateWriteStore<DataSubjectRequest, DataSubjectRequestId>.AddAsync(DataSubjectRequest aggregate,
         CancellationToken cancellationToken)
     {
-        if (!await TryAddAsync(aggregate, cancellationToken).ConfigureAwait(false))
+        if (await TryAddAsync(aggregate, cancellationToken).ConfigureAwait(false) != DataRequestInsertion.Added)
         {
-            throw new InfrastructureException("Data request already active.");
+            throw new InfrastructureException("Data request not stored.");
         }
     }
 
-    public async Task<bool> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+    public async Task<DataRequestInsertion> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         Admit();
@@ -236,7 +242,7 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
         try
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return true;
+            return DataRequestInsertion.Added;
         }
         catch (DbUpdateException failure) when (failure.InnerException is PostgresException
         {
@@ -246,7 +252,18 @@ public sealed class DataRequestStore(IdentityDbContext db, IUnitOfWork unit, Pro
             // ADR-0106 § 7: two concurrent creations cannot both pass. Nothing was stored and the transaction is aborted.
             db.Entry(request).State = EntityState.Detached;
             unit.MarkRollbackOnly();
-            return false;
+            return DataRequestInsertion.AlreadyActive;
+        }
+        catch (DbUpdateException failure) when (failure.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.CheckViolation, MessageText: SubjectNotAdmittedMessage,
+        })
+        {
+            // ADR-0107 § 7: the guard read the subject's User status under the User fence and refused it, so the person's
+            // account is closing or closed (or, for a fan-out, not closing). Nothing was stored and the transaction is aborted.
+            db.Entry(request).State = EntityState.Detached;
+            unit.MarkRollbackOnly();
+            return DataRequestInsertion.SubjectNotAdmitted;
         }
         catch (DbUpdateException)
         {

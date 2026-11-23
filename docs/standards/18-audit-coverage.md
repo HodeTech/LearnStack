@@ -714,6 +714,14 @@ the HTTP, seed, integration-delivery and job authorization sources remain unchan
   separate. Account history is not evidence of a login in a particular tenant.
 - The central MUST write and inbox/delivery completion share the business
   transaction. Duplicate deliveries cannot create another successful observation.
+- A delivery whose affected person's User is no longer Active refuses the person
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7,
+  9): the Identity fact reader reports the status from a confined definer under the
+  person's User fence, and the subscriber, with the evidence it alone mints, calls
+  `AuditStateCapture.WithholdProviderEvent`, which withdraws that invocation's one
+  unclaimed, still-pending observation intent. No row names a closing or closed person;
+  the delivery completes with its inbox row as a recorded no-op, never a failure, and a
+  replay runs the same rule. No other intent or operation can be withheld.
 - Global admission receipts are operational records, not global Audit rows.
   Tenant targets, delivery envelopes and Audit retain their independent replay/
   retention dependencies; expiry of global receipts does not erase those links.

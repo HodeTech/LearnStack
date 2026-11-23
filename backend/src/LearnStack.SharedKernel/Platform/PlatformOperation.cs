@@ -199,12 +199,23 @@ public static class PlatformOperations
         "platform.closure.finalize", "closure_finalize", PlatformPermissions.DataRequestWrite,
         PlatformOperationExecutor.PlatformScope, attemptAuditSlug: "platform.closure.finalize_attempt");
 
+    /// <summary>
+    /// Fan a begun closure out to one participant group (<c>fan_out_closure</c>, ADR-0107 § 7): a pipeline act on the
+    /// application role, announced for the group's tenant and organization (ADR-0102 Amendment 2), that creates the
+    /// closing person's fan-out erasure there and enqueues its job, or adopts the erasure the group already has. Begin's
+    /// owner mints one admission of it per group after Begin's transaction commits; it is not a routed endpoint. It is the
+    /// one operation whose act may announce an organization.
+    /// </summary>
+    public static PlatformOperation ClosureFanOut { get; } = new(
+        "identity.data_request.fan_out_closure", "closure_fan_out", PlatformPermissions.DataRequestWrite,
+        PlatformOperationExecutor.Pipeline);
+
     /// <summary>Every registered operation.</summary>
     public static IReadOnlyList<PlatformOperation> All { get; } =
     [
         KillswitchToggle, TenantProvision, HostMap, RoleInitialize, FirstAdminCreate, AdminRecover,
         IdentityAuthorityRebind, DeliveryInspect, DeliveryReplay, DeliveryReset, FederationReport, FederationRemove,
-        FederationDisable, DataRequestInspect, ErasureComplete, ClosureBegin, ClosureFinalize,
+        FederationDisable, DataRequestInspect, ErasureComplete, ClosureBegin, ClosureFinalize, ClosureFanOut,
     ];
 
     /// <summary>Whether <paramref name="operation"/> is one of the registered instances.</summary>

@@ -1965,7 +1965,10 @@ filing by the person alone. They are selector-free native requests: the
 native session source credential and a stock-validated bearer credential, which
 `ValidatedOwnDataRequestCredential` captures for exactly these requests, and an existing
 Active global binding; a tenant or organization selector header is refused, and a
-Closing/Closed or unknown binding never reaches them. Every purpose but discovery names
+Closing/Closed or unknown binding never reaches them. A filing admitted while the person
+was Active whose transaction takes the subject's User fence only after a closure's Begin
+committed stores nothing: the request guard reads the User status under that fence, and
+the creation answers `lockey_subject_not_admitted`. Every purpose but discovery names
 its one group, and `fn_identity_own_data_request_scopes` proves it for the normalized
 actor under the independently classified host ceiling before the context exists; no
 submitted field names the actor or widens the host. The `OwnDataRequestScope` witness is

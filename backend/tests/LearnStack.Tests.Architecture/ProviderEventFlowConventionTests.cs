@@ -67,6 +67,10 @@ public sealed class ProviderEventFlowConventionTests
         using var census = new CallCensus();
         census.Callers("LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachProviderEvent")
             .Should().Equal("LearnStack.Modules.Audit.Application.ProviderEvents.ProviderEventObservationHandler.HandleAsync");
+        // ADR-0107 §§ 7, 9: the same subscriber, and nothing else, withholds the observation of a person whose User is no
+        // longer Active, with the evidence it alone mints.
+        census.Callers("LearnStack.SharedKernel.Audit.IAuditStateCapture", "WithholdProviderEvent")
+            .Should().Equal("LearnStack.Modules.Audit.Application.ProviderEvents.ProviderEventObservationHandler.HandleAsync");
         census.Callers("LearnStack.Api.Identity.ProviderEventProductionBinding", "Bind")
             .Should().Equal("LearnStack.Api.Identity.ProviderEventMirrorService.ProduceAsync");
         census.Callers("LearnStack.SharedKernel.Audit.ProviderEventAuditEvidence/MintingSource", "Observe")

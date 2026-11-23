@@ -36,11 +36,12 @@ namespace LearnStack.Tests.Integration.Database;
 /// <c>affected_user_id</c>), and the whole production chain from a provider fact to the Audit observation runs against a
 /// plain database with no hand-built transport row. Two facts about person A are mirrored: the first completes (outbox
 /// row processed, delivery processed, inbox row, observation), the second is made to fail durably at the audit write and
-/// is then dead-lettered, so a replay is possible. The closing and closed User case is Step 3's, not this class's.
+/// is then dead-lettered, so a replay is possible. The Closing and Closed User half of the floor is in the class's closure
+/// part.
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
+public sealed partial class DataErasureReplayFloorTests(SchemaFixture fixture)
 {
     private const string Subscription = "audit.provider-event-mirror.v1";
     private static readonly string[] Tables = ["outbox_messages", "event_deliveries", "inbox_messages", "background_jobs", "provider_targets"];
@@ -151,6 +152,45 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
     /// </summary>
     private async Task<World> ArrangeAsync()
     {
+        var world = await ArrangeDeliveriesAsync();
+        var database = world.Database;
+        try
+        {
+            await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, "identity.data_export_tenant.v1",
+                    tenant: SchemaFixture.TenantA, parameters: BackgroundJobPayloadContract.Serialize(
+                        new DataExportJobParameters(TenantWideA.Request), typeof(DataExportJobParameters),
+                        BackgroundJobPayloadKind.Parameters));
+            var erasure = await FileDueErasureAsync(database);
+            world.ErasureRequest = erasure;
+            world.ErasureJob = await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure);
+            world.Host = CreateHost(database);
+            world.Before = await TrailAsync(world);
+
+            var executor = world.Host.Services.GetRequiredService<JobExecutor>();
+            var start = await executor.ExecuteAsync(
+                await DataExportTestKit.RoutingClaim.ClaimAsync(database.OutboxConnectionString, world.ErasureJob),
+                BackgroundJobTestRun.Create());
+            start.Outcome.Should().Be(JobStartExecutionOutcome.Started);
+            (await executor.ExecuteBusinessAsync(start.Receipt!, start.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional)))
+                .Committed();
+
+            world.After = await TrailAsync(world);
+            return world;
+        }
+        catch
+        {
+            await world.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The two provider facts about person A through the real intake, producer, outbox, dispatcher, inbox and Audit handler:
+    /// the first completes and the second is dead-lettered as exhausted with its handler never completed. Tenant A is
+    /// left Active, so a replay of the second is admitted.
+    /// </summary>
+    private async Task<World> ArrangeDeliveriesAsync()
+    {
         var database = await DataExportTestKit.CreateSeededDatabaseAsync(fixture.Postgres);
         var at = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds());
         var key = IdentitySubjectKey.Compute(Authority.AuthorityId, "fixture-subject-" + PersonA.ToString("N"));
@@ -204,25 +244,6 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
             }
 
             await SetTenantStatusAsync(database, "Active");
-            await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, "identity.data_export_tenant.v1",
-                    tenant: SchemaFixture.TenantA, parameters: BackgroundJobPayloadContract.Serialize(
-                        new DataExportJobParameters(TenantWideA.Request), typeof(DataExportJobParameters),
-                        BackgroundJobPayloadKind.Parameters));
-            var erasure = await FileDueErasureAsync(database);
-            world.ErasureRequest = erasure;
-            world.ErasureJob = await DataErasureTestKit.SubmitAsync(database, SchemaFixture.TenantA, null, erasure);
-            world.Host = CreateHost(database);
-            world.Before = await TrailAsync(world);
-
-            var executor = world.Host.Services.GetRequiredService<JobExecutor>();
-            var start = await executor.ExecuteAsync(
-                await DataExportTestKit.RoutingClaim.ClaimAsync(database.OutboxConnectionString, world.ErasureJob),
-                BackgroundJobTestRun.Create());
-            start.Outcome.Should().Be(JobStartExecutionOutcome.Started);
-            (await executor.ExecuteBusinessAsync(start.Receipt!, start.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional)))
-                .Committed();
-
-            world.After = await TrailAsync(world);
             return world;
         }
         catch
@@ -295,7 +316,7 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
                 FROM {table} t WHERE {filter}
                 """, owner, transaction);
             if (filter.Contains("@erasureJob", StringComparison.Ordinal))
-                command.Parameters.AddWithValue("erasureJob", world.ErasureJob.Value);
+                command.Parameters.AddWithValue("erasureJob", ErasureJobOf(world));
             await using (var row = await command.ExecuteReaderAsync())
             {
                 (await row.ReadAsync()).Should().BeTrue();
@@ -305,7 +326,7 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
             // The dispatcher role has no grant on the inbox, which only the application role reads.
             if (name != "inbox_messages")
                 (await ScalarAsync<long>(dispatcher, null, $"SELECT count(*) FROM {table} t WHERE {filter}",
-                    ("erasureJob", world.ErasureJob.Value)))
+                    ("erasureJob", ErasureJobOf(world))))
                     .Should().Be(long.Parse(trail[name].Split(':')[0], System.Globalization.CultureInfo.InvariantCulture), $"the tenant announcement hides no {name} row");
         }
 
@@ -324,6 +345,9 @@ public sealed class DataErasureReplayFloorTests(SchemaFixture fixture)
         trail.Keys.Should().BeEquivalentTo(Tables);
         return trail;
     }
+
+    /// <summary>The erasure job the trail leaves out, or none when the arrangement ran no erasure.</summary>
+    private static Guid ErasureJobOf(World world) => world.ErasureJob.IsInitialized() ? world.ErasureJob.Value : Guid.Empty;
 
     /// <summary>The audit observations the mirror handler wrote about person A for one provider fact.</summary>
     private static async Task<long> ObservationsAsync(World world, Guid providerEvent)

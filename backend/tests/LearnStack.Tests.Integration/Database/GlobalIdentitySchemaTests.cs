@@ -55,7 +55,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
     }
 
     [Fact]
-    public async Task Applied_census_has_seventy_tables_and_exactly_eighteen_confined_definers()
+    public async Task Applied_census_has_seventy_tables_and_exactly_nineteen_confined_definers()
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
         await SchemaTableClasses.AssertCompleteAsync(owner);
@@ -64,11 +64,12 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
             SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             WHERE n.nspname='public' AND p.prosecdef ORDER BY p.proname
             """, null);
-        // The eighteenth is the request guard's User status witness (ADR-0107 § 7), the one read of another person's status.
+        // The eighteenth is the request guard's User status witness (ADR-0107 § 7); the nineteenth is the delayed provider
+        // mirror's subject status (ADR-0107 § 9). They are the two reads of another person's status.
         names.Should().Equal("fn_identity_admin_admission_state", "fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
             "fn_identity_creation_attempt_admission", "fn_identity_invitation_entry", "fn_identity_membership_admission_guard",
             "fn_identity_operator_resolve_user", "fn_identity_own_data_request_scopes", "fn_identity_provider_event_accept",
-            "fn_identity_provider_event_claim", "fn_identity_provider_event_retire",
+            "fn_identity_provider_event_claim", "fn_identity_provider_event_retire", "fn_identity_provider_event_subject_status",
             "fn_identity_self_membership_scopes", "fn_identity_user_capacity_guard", "fn_identity_user_creation_audit_guard",
             "fn_identity_user_status", "fn_invitation_smtp_claim_or_read", "fn_invitation_smtp_complete_attempt",
             "fn_tenancy_own_field_consent_scope");
@@ -79,7 +80,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
               AND r.rolname='learnstack_migration' AND NOT r.rolbypassrls
               AND 'search_path=pg_catalog'=ANY(p.proconfig)
               AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) acl WHERE acl.grantee=0)
-            """)).Should().Be(18);
+            """)).Should().Be(19);
         (await ScalarAsync<long>(owner, null, """
             SELECT count(*) FROM pg_class WHERE oid IN ('public.users'::regclass,'public.identity_authority'::regclass)
               AND relrowsecurity AND relforcerowsecurity

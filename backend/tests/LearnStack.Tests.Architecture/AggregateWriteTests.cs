@@ -230,6 +230,13 @@ public sealed class AggregateWriteTests
         // here so the hole stays visible: it writes exactly these three and no other.
         AggregatesWrittenBy(typeof(DataErasureJobHandlers).GetConstructors().Single())
             .Should().BeEquivalentTo([typeof(DataSubjectRequest)], "the erasure job writes the request root only");
+        // ADR-0107 § 7: a closure's per-group fan-out is an operator act in the operator-act namespace, not a data-request
+        // handler: it writes the request root only, the fan-out it creates and the erasure it cancels and replaces.
+        var fanOut = typeof(DataRequestService).Assembly.GetType(
+            "LearnStack.Modules.Identity.Application.OperatorActs.FanOutClosureCommandHandler", throwOnError: true)!;
+        IsMessageHandler(fanOut).Should().BeTrue();
+        AggregatesWrittenBy(fanOut.GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(DataSubjectRequest)], "a closure's fan-out writes the request root only");
         IsMessageHandler(typeof(DataErasureService)).Should().BeFalse("the erasure service is reached only through the participant");
         AggregatesWrittenBy(typeof(DataErasureService).GetConstructors().Single())
             .Should().BeEquivalentTo([typeof(DataSubjectRequest), typeof(Membership), typeof(Invitation)],

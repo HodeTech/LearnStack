@@ -61,8 +61,11 @@ public sealed class ProviderEventTargetStore(IUnitOfWork unit, ITenantContext co
         }
         try
         {
+            // ADR-0107 §§ 7, 9: the affected person's status, from the confined definer, under the person's User fence held
+            // shared until this delivery commits; anything but Active refuses the mirror.
             await using var command = new NpgsqlCommand("""
-                SELECT id,event_id,tenant_id,authority_id,realm_id,provider_event_id,affected_user_id,source_occurred_at,source_kind,receipt_id
+                SELECT id,event_id,tenant_id,authority_id,realm_id,provider_event_id,affected_user_id,source_occurred_at,source_kind,receipt_id,
+                    public.fn_identity_provider_event_subject_status(id) IS NOT DISTINCT FROM 'Active'
                 FROM public.identity_provider_event_targets
                 WHERE id=@target AND event_id=@event AND tenant_id=@tenant AND enqueued_at IS NOT NULL
                 """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 };
@@ -74,7 +77,7 @@ public sealed class ProviderEventTargetStore(IUnitOfWork unit, ITenantContext co
                 throw new InvalidOperationException("Provider observation has no exact retained target.");
             var fact = new ProviderEventAuditFact(row.GetGuid(0), row.GetGuid(9), row.GetGuid(1), TenantId.From(row.GetGuid(2)),
                 IdentityAuthorityId.From(row.GetGuid(3)), row.GetString(4), row.GetGuid(5), UserId.From(row.GetGuid(6)),
-                row.GetFieldValue<DateTimeOffset>(7), kind);
+                row.GetFieldValue<DateTimeOffset>(7), kind, row.GetBoolean(10));
             cancellationToken.ThrowIfCancellationRequested();
             if (!unit.IsTenantContextIssuedOn(unit.Transaction) || unit.IsRollbackOnly)
                 throw new InvalidOperationException("Provider observation lost its delivery owner.");

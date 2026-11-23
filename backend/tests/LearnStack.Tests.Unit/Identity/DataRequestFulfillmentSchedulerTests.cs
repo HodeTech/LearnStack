@@ -12,7 +12,7 @@ namespace LearnStack.Tests.Unit.Identity;
 
 /// <summary>
 /// ADR-0107 § 2, § 7: the fulfilment job of a request's kind and group (an export's at once, an erasure's at the end of
-/// its window, a closure's none), and the purge at the artifact's expiry.
+/// its window, a closure's fan-out erasure's at once, a closure's none), and the purge at the artifact's expiry.
 /// </summary>
 public sealed class DataRequestFulfillmentSchedulerTests
 {
@@ -68,6 +68,26 @@ public sealed class DataRequestFulfillmentSchedulerTests
         jobs.Submitted.Should().BeEmpty("a closure is executed by the operator's Begin, never by a job");
     }
 
+    /// <summary>
+    /// ADR-0107 § 7: a closure's fan-out erasure is born <c>fulfilling</c> with no window, so its job is enqueued at once,
+    /// on the producer transaction that created or adopted it, as the erasure definition of its own group.
+    /// </summary>
+    [Theory]
+    [InlineData("tenant", "identity.data_erasure_tenant.v1")]
+    [InlineData("organization", "identity.data_erasure_organization.v1")]
+    public async Task A_closures_fulfilling_fan_out_erasure_enqueues_the_erasure_definition_of_its_group_now(string scope, string key)
+    {
+        var organization = scope == "tenant" ? (OrganizationId?)null : Organization;
+        var jobs = new RecordingScheduler();
+        var request = FanOut(organization);
+        request.Status.Should().Be(DataRequestStatus.Fulfilling);
+
+        await new DataRequestFulfillmentScheduler(jobs, new Context(organization)).SubmitAsync(Fulfillment(request), CancellationToken.None);
+
+        jobs.Submitted.Should().ContainSingle().Which.Should().Be((key, (object)new DataErasureJobParameters(request.Id.Value), (DateTimeOffset?)null),
+            "the fan-out's job runs now, never at a window's end");
+    }
+
     [Theory]
     [InlineData("other_group")]
     [InlineData("fulfilling")]
@@ -76,29 +96,39 @@ public sealed class DataRequestFulfillmentSchedulerTests
     [InlineData("closure_without_due_time")]
     [InlineData("closure_fulfilling")]
     [InlineData("closure_of_another_group")]
-    public async Task Anything_but_a_requested_export_or_scheduled_erasure_or_closure_of_the_announced_group_is_a_programming_error(string variant)
+    [InlineData("fan_out_with_due_time")]
+    [InlineData("fan_out_of_another_group")]
+    [InlineData("fan_out_origin_on_a_scheduled_erasure")]
+    [InlineData("person_erasure_fulfilling")]
+    public async Task Anything_but_a_requested_export_or_scheduled_erasure_or_closure_or_fulfilling_fan_out_of_the_announced_group_is_a_programming_error(
+        string variant)
     {
         var jobs = new RecordingScheduler();
         var request = variant switch
         {
-            "erasure_without_due_time" => Request(DataRequestKind.Erasure, null),
+            "erasure_without_due_time" or "fan_out_origin_on_a_scheduled_erasure" or "person_erasure_fulfilling" => Request(DataRequestKind.Erasure, null),
             "closure_without_due_time" or "closure_fulfilling" or "closure_of_another_group" => Request(DataRequestKind.Closure, null),
+            "fan_out_with_due_time" or "fan_out_of_another_group" => FanOut(null),
             _ => Request(DataRequestKind.Export, null),
         };
         if (variant == "fulfilling")
         {
             request.StartFulfilling(At, UserId.SystemActor).IsSuccess.Should().BeTrue();
         }
-        else if (variant == "closure_fulfilling")
+        else if (variant is "closure_fulfilling" or "person_erasure_fulfilling")
         {
             request.StartFulfilling(At + DataRequestLimits.CancellationWindow, UserId.SystemActor).IsSuccess.Should().BeTrue();
         }
 
-        var context = new Context(variant is "other_group" or "closure_of_another_group" ? Organization : null);
+        var context = new Context(variant is "other_group" or "closure_of_another_group" or "fan_out_of_another_group" ? Organization : null);
         var fulfillment = variant switch
         {
             "erasure_without_due_time" or "closure_without_due_time" => Fulfillment(request) with { ExecuteAt = null },
-            "export_with_due_time" => Fulfillment(request) with { ExecuteAt = At },
+            "export_with_due_time" or "fan_out_with_due_time" => Fulfillment(request) with { ExecuteAt = At },
+            // A person's erasure the closure does not own: neither a scheduled one passing as a fan-out, nor a fulfilling
+            // one passing as anything but its own job's.
+            "fan_out_origin_on_a_scheduled_erasure" => Fulfillment(request) with { Origin = DataRequestOrigin.ClosureFanout },
+            "person_erasure_fulfilling" => Fulfillment(request) with { ExecuteAt = null },
             _ => Fulfillment(request),
         };
 
@@ -126,7 +156,11 @@ public sealed class DataRequestFulfillmentSchedulerTests
     }
 
     private static DataRequestFulfillment Fulfillment(DataSubjectRequest request) =>
-        new(request.Id.Value, request.Kind, request.Status, request.Group, request.ExecuteAt);
+        new(request.Id.Value, request.Kind, request.Status, request.Group, request.ExecuteAt, request.Origin);
+
+    private static DataSubjectRequest FanOut(OrganizationId? organization) =>
+        DataSubjectRequest.FanOutErasure(DataSubjectRequestId.From(Guid.CreateVersion7()), UserId.From(Guid.CreateVersion7()),
+            new DataRequestScopeGroup(Tenant, organization), [MembershipId.From(Guid.CreateVersion7())], At).Value!;
 
     private static DataSubjectRequest Request(DataRequestKind kind, OrganizationId? organization) =>
         DataSubjectRequest.FileForSelf(DataSubjectRequestId.From(Guid.CreateVersion7()), kind, UserId.From(Guid.CreateVersion7()),

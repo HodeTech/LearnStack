@@ -195,6 +195,8 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForTrusted<OperatorInitializeRoleCommand>("identity.operator.initialize_role", AuthorizationSourceKind.PlatformOperator),
         OperationPolicy.ForTrusted<OperatorCreateFirstAdminCommand>("identity.operator.create_first_admin", AuthorizationSourceKind.PlatformOperator),
         OperationPolicy.ForTrusted<OperatorRecoverAdminCommand>("identity.operator.recover_admin", AuthorizationSourceKind.PlatformOperator),
+        // ADR-0107 § 7: a closure's per-group fan-out, admitted per group by the operator's grant and nothing else.
+        OperationPolicy.ForTrusted<FanOutClosureCommand>("identity.operator.fan_out_closure", AuthorizationSourceKind.PlatformOperator),
     ];
 
     private static OperationPolicy Federation<TRequest>(string id) =>

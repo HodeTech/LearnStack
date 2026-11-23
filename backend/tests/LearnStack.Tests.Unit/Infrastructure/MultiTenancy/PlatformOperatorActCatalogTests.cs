@@ -63,6 +63,8 @@ public sealed class PlatformOperatorActCatalogTests
         PlatformOperations.DeliveryReplay.Executor.Should().Be(PlatformOperationExecutor.RecoveryOwner);
         PlatformOperations.DeliveryReset.Executor.Should().Be(PlatformOperationExecutor.RecoveryOwner);
         PlatformOperations.DeliveryInspect.Executor.Should().Be(PlatformOperationExecutor.PlatformScope);
+        PlatformOperations.ClosureFanOut.Executor.Should().Be(PlatformOperationExecutor.Pipeline,
+            "a closure's fan-out writes each group's rows on the application role, never in the platform scope (ADR-0107 § 7)");
     }
 
     [Fact]

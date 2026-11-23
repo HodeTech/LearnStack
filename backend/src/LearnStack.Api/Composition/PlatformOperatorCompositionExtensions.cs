@@ -31,7 +31,8 @@ internal static class PlatformOperatorCompositionExtensions
         services.TryAddSingleton<IPlatformOperatorGate, PlatformOperatorGate>();
 
         // The five onboarding acts the operator may run through the ordinary pipeline on the application
-        // role (ADR-0102 § 2): the closed list the executor and the operator source both judge by.
+        // role (ADR-0102 § 2), and a closure's per-group fan-out (ADR-0107 § 7), which the closure's Begin
+        // owner runs and no route does: the closed list the executor and the operator source both judge by.
         services.AddPlatformOperatorActs(new PlatformOperatorActCatalog(
         [
             Act<OperatorProvisionTenantCommand>(PlatformOperations.TenantProvision),
@@ -39,6 +40,7 @@ internal static class PlatformOperatorCompositionExtensions
             Act<OperatorInitializeRoleCommand>(PlatformOperations.RoleInitialize),
             Act<OperatorCreateFirstAdminCommand>(PlatformOperations.FirstAdminCreate),
             Act<OperatorRecoverAdminCommand>(PlatformOperations.AdminRecover),
+            Act<FanOutClosureCommand>(PlatformOperations.ClosureFanOut),
         ]));
 
         var settings = PlatformOperatorSettings.FromConfiguration(configuration, deploymentMode);

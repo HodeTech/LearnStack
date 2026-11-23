@@ -197,7 +197,7 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             {
                 Shape.Create when Erasure(contract) => OwnErasureConflict,
                 Shape.Create when Closure(contract) => ClosureConflict,
-                Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold" + SubjectNotAdmitted + "; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
                 _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => OwnCancelConflict,
                 _ when contract.Name.StartsWith("Revoke", StringComparison.Ordinal) => "concurrency_conflict for a valid stale artifact version; business_rule_violation for a status the transition does not admit (errors.artifact carries data_export_unavailable for an artifact already revoked, expired or purged); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
@@ -331,8 +331,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
             {
                 Shape.Create when Erasure(contract) => contract.Own ? OwnErasureConflict : AdministratorErasureConflict,
                 Shape.Create when Closure(contract) => ClosureConflict,
-                Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, or lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
-                Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Create when !contract.Own => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold, lockey_subject_export_available (the person holds a readable export artifact in the group, of any origin, which this export would revoke: it can be filed once that artifact is revoked or has expired)" + SubjectNotAdmitted + "; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+                Shape.Create => "business_rule_violation: errors.$ carries lockey_request_already_active (a request of this kind is still active in the group), lockey_blocked_hold" + SubjectNotAdmitted + "; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
                 Shape.Ticket => TicketConflict,
                 Shape.Chunk => "Never: a chunk refusal is not_found.",
                 _ when contract.Name.StartsWith("Cancel", StringComparison.Ordinal) => contract.Own ? OwnCancelConflict : CancelConflict,
@@ -384,16 +384,23 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
     private static readonly string WindowHours = string.Create(System.Globalization.CultureInfo.InvariantCulture,
         $"{DataRequestLimits.CancellationWindow.TotalHours}");
 
+    /// <summary>
+    /// The refusal every creation shares (ADR-0107 § 7): the request guard reads the subject's User status under the User
+    /// fence, so a filing that reaches it after the person's account began closing stores nothing.
+    /// </summary>
+    private const string SubjectNotAdmitted = ", or lockey_subject_not_admitted (the person's account is closing or closed: "
+        + "nothing is filed)";
+
     /// <summary>The creation refusals of an erasure the person files (ADR-0106 § 3, § 7): each a closed code in errors.$.</summary>
     private const string OwnErasureConflict = "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), "
-        + "lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first) or "
-        + "lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+        + "lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
+        + "lockey_blocked_hold" + SubjectNotAdmitted + "; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
 
     /// <summary>The creation refusals of an erasure an administrator files for a Membership: the person's own, and its eligibility.</summary>
     private const string AdministratorErasureConflict = "business_rule_violation: errors.$ carries lockey_request_already_active (an erasure is still active in the group), "
         + "lockey_blocked_last_administrator (the person is the tenant's only eligible tenant-wide administrator; another must be appointed first), "
-        + "lockey_blocked_hold, or lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first); "
-        + "request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+        + "lockey_blocked_hold, lockey_subject_membership_current (the person still holds an Active or Suspended Membership in the group: revoke it first)"
+        + SubjectNotAdmitted + "; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
 
     private static bool Erasure(Contract contract) => contract.Name.Contains("Erasure", StringComparison.Ordinal);
 
@@ -417,7 +424,8 @@ internal sealed class DataRequestDocumentTransformer : IOpenApiDocumentTransform
 
     /// <summary>The creation refusals of a closure: its originating group's structure and a hold; never the last administrator, which its Begin judges.</summary>
     private const string ClosureConflict = "business_rule_violation: errors.$ carries lockey_request_already_active (another closure of the person is still "
-        + "active in the group) or lockey_blocked_hold; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
+        + "active in the group), lockey_blocked_hold" + SubjectNotAdmitted
+        + "; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";
 
     /// <summary>A cancellation's refusals (ADR-0106 § 8, § 11).</summary>
     private const string CancelConflict = "concurrency_conflict for a valid stale version; business_rule_violation with errors.$ carrying lockey_data_request_window_ended (an erasure's cancellable window has ended and it runs now) or lockey_data_request_not_cancellable (the request is no longer one a cancellation admits: it already ended, or an export already started); request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.";

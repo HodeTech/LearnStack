@@ -40,9 +40,26 @@ public sealed partial class PlatformOperatorActExecutor(
 {
     /// <summary>Runs <paramref name="request"/> for <paramref name="tenantId"/> under <paramref name="admission"/>.</summary>
     /// <exception cref="InvalidOperationException">The admission or the request is not admissible.</exception>
+    public Task<TResponse> ExecuteAsync<TResponse>(
+        PlatformAdmission admission,
+        TenantId tenantId,
+        IRequest<TResponse> request,
+        CancellationToken cancellationToken = default)
+        where TResponse : IResultBase =>
+        ExecuteAsync(admission, tenantId, null, request, cancellationToken);
+
+    /// <summary>
+    /// Runs <paramref name="request"/> for <paramref name="tenantId"/> and, for a closure's fan-out alone,
+    /// <paramref name="organizationId"/> under <paramref name="admission"/> (ADR-0102 Amendment 2): the context it installs
+    /// carries that organization, so the ordinary transaction behavior announces the group's tenant and organization and the
+    /// group's organization-bound rows are writable. An organization named for any other operation is refused before the
+    /// admission is spent.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The admission, the request or the group is not admissible.</exception>
     public async Task<TResponse> ExecuteAsync<TResponse>(
         PlatformAdmission admission,
         TenantId tenantId,
+        OrganizationId? organizationId,
         IRequest<TResponse> request,
         CancellationToken cancellationToken = default)
         where TResponse : IResultBase
@@ -51,7 +68,9 @@ public sealed partial class PlatformOperatorActExecutor(
         ArgumentNullException.ThrowIfNull(request);
         if (!PlatformOperations.IsRegistered(admission.Operation) || !admission.Operation.RunsInPipeline
             || !acts.TryGet(request.GetType(), out var act) || !ReferenceEquals(act.Operation, admission.Operation)
-            || !StronglyTypedId.IsAssigned(tenantId) || tenantId == TenantId.PlatformSentinel)
+            || !StronglyTypedId.IsAssigned(tenantId) || tenantId == TenantId.PlatformSentinel
+            || organizationId is { } organization && (!ReferenceEquals(admission.Operation, PlatformOperations.ClosureFanOut)
+                || !StronglyTypedId.IsAssigned(organization) || organization.Value == Guid.Empty))
         {
             throw new InvalidOperationException("The operator act is not admissible.");
         }
@@ -73,7 +92,7 @@ public sealed partial class PlatformOperatorActExecutor(
         {
             // Install in this async method, not a helper: an AsyncLocal write in a helper does not
             // flow back to this scope's later resolutions.
-            ITenantContext context = new OperatorTenantContext(tenantId, admission.Operator.CorrelationId);
+            ITenantContext context = new OperatorTenantContext(tenantId, organizationId, admission.Operator.CorrelationId);
             accessor.Current = context;
 
             var source = services.GetServices<ITrustedOperationSource>().OfType<PlatformOperatorOperationSource>().Single();

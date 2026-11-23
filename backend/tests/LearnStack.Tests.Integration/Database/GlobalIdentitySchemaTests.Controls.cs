@@ -412,10 +412,12 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(41, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver, the identity authority key guard, "
-            + "the four data-request guards, their chunk and completed-export completeness checks, three canonical parent-scope checks, the retained own data-request scope definer "
-            + "and the request guard's User status witness");
-        functions.Count(function => function.Definer).Should().Be(18);
+        functions.Should().HaveCount(42, "the closed set includes three provider definers, one target transition guard, the federation connection guard, the operator resolver, the identity authority key guard, "
+            + "the four data-request guards, their chunk and completed-export completeness checks, three canonical parent-scope checks, the retained own data-request scope definer, "
+            + "the request guard's User status witness and the delayed provider mirror's subject status");
+        functions.Count(function => function.Definer).Should().Be(19);
+        functions.Single(function => function.Name == "fn_identity_provider_event_subject_status").Signature
+            .Should().Be("public.fn_identity_provider_event_subject_status(uuid)");
         functions.Single(function => function.Name == "fn_identity_user_status").Signature
             .Should().Be("public.fn_identity_user_status(uuid)");
         functions.Single(function => function.Name == "fn_identity_own_data_request_scopes").Signature

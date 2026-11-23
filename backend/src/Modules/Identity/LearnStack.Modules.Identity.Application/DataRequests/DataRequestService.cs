@@ -164,13 +164,18 @@ public sealed class DataRequestService(IDataRequestStore store, IDataRequestRead
             var request = created.Value;
             audit.Designate(request);
             locks.RequireCurrent(plan);
-            if (!await store.TryAddAsync(request, cancellationToken).ConfigureAwait(false))
+            var insertion = await store.TryAddAsync(request, cancellationToken).ConfigureAwait(false);
+            if (insertion != DataRequestInsertion.Added)
             {
-                return DataRequestRules.AlreadyActive<DataRequestMutationResult>();
+                // ADR-0107 § 7: a subject not admitted is a person whose account began closing after this filing was
+                // admitted, or for whom an administrator filed while it closes. A closed refusal, never a storage fault.
+                return insertion == DataRequestInsertion.SubjectNotAdmitted
+                    ? DataRequestRules.Rule<DataRequestMutationResult>("$", "lockey_subject_not_admitted")
+                    : DataRequestRules.AlreadyActive<DataRequestMutationResult>();
             }
 
             await scheduler.SubmitAsync(new DataRequestFulfillment(request.Id.Value, request.Kind, request.Status, request.Group,
-                request.ExecuteAt), cancellationToken).ConfigureAwait(false);
+                request.ExecuteAt, request.Origin), cancellationToken).ConfigureAwait(false);
             return Result.Ok(new DataRequestMutationResult(request.Id.Value, request.Version));
         }
         catch (IdentityMutationLockException)

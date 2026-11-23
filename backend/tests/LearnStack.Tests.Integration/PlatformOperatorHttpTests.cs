@@ -1452,7 +1452,8 @@ public sealed partial class PlatformOperatorHttpTests : IAsyncLifetime
         (await failedInspection.Content.ReadAsStringAsync()).Should().NotContain("forced defect");
         (await failedCompletion.Content.ReadAsStringAsync()).Should().NotContain("forced defect");
 
-        counted.Calls.Should().Equal(
+        // The meter is process-wide: a closure's fan-out groups another class counts at the same time are not this route's.
+        counted.Calls.Where(call => call.Operation != PlatformOperations.ClosureFanOut.AuditSlug).Should().Equal(
             ("platform.data_request.inspect", "ok"), ("audit.redaction.apply", "completed"), ("audit.redaction.apply", "closure_fanout"),
             ("audit.redaction.apply", "commit_unknown"), ("platform.data_request.inspect", "invalid_cursor"),
             ("audit.redaction.apply", "not_found"), ("audit.redaction.apply", "not_erasure"), ("audit.redaction.apply", "not_awaiting"),

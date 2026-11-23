@@ -81,7 +81,7 @@ public sealed class DataRequestServiceTests
         }
         else
         {
-            harness.Store.RejectAdd = true;
+            harness.Store.Refusal = DataRequestInsertion.AlreadyActive;
         }
 
         var refused = await harness.Service.CreateExportAsync(harness.Caller(Subject, DataRequestRole.Subject), Subject, CancellationToken.None);
@@ -89,6 +89,44 @@ public sealed class DataRequestServiceTests
         Code(refused).Should().Be("business_rule_violation");
         refused.Error!.Details!["$"].Single().Key.Should().Be("lockey_request_already_active");
         harness.Scheduler.Submitted.Should().HaveCount(path == "eligibility" ? 1 : 0, "a refused creation submits nothing");
+    }
+
+    /// <summary>
+    /// ADR-0107 § 7: the request guard refuses a subject whose User is not in the one status the request's origin allows,
+    /// read under the User fence: a filing admitted while the person was Active and fenced after a closure's Begin, or an
+    /// administrator's filing for a person whose account is closing. Every kind each role files maps it to the one closed
+    /// refusal, writes nothing and submits nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("export", DataRequestRole.Subject)]
+    [InlineData("erasure", DataRequestRole.Subject)]
+    [InlineData("closure", DataRequestRole.Subject)]
+    [InlineData("export", DataRequestRole.Administrator)]
+    [InlineData("erasure", DataRequestRole.Administrator)]
+    public async Task A_subject_the_request_guard_does_not_admit_is_a_closed_refusal_for_every_kind_and_role(string kind, DataRequestRole role)
+    {
+        var harness = new Harness();
+        harness.Store.Refusal = DataRequestInsertion.SubjectNotAdmitted;
+        if (role == DataRequestRole.Administrator && kind == "erasure")
+        {
+            // An administrator erases only a person whose Membership of the group is Revoked (ADR-0106 § 3).
+            harness.Store.Current.Remove(Subject);
+        }
+
+        var caller = harness.Caller(role == DataRequestRole.Subject ? Subject : Administrator, role);
+        var refused = (kind, role) switch
+        {
+            ("export", DataRequestRole.Subject) => await harness.Service.CreateExportAsync(caller, Subject, CancellationToken.None),
+            ("erasure", DataRequestRole.Subject) => await harness.Service.CreateErasureAsync(caller, Subject, CancellationToken.None),
+            ("closure", _) => await harness.Service.CreateClosureAsync(caller, Subject, CancellationToken.None),
+            ("export", _) => await harness.Service.CreateExportForMembershipAsync(caller, SubjectMembership.Value, CancellationToken.None),
+            _ => await harness.Service.CreateErasureForMembershipAsync(caller, SubjectMembership.Value, CancellationToken.None),
+        };
+
+        Code(refused).Should().Be("business_rule_violation");
+        refused.Error!.Details!["$"].Single().Key.Should().Be("lockey_subject_not_admitted");
+        harness.Store.Requests.Should().BeEmpty();
+        harness.Scheduler.Submitted.Should().BeEmpty("a refused creation submits nothing");
     }
 
     [Fact]
@@ -549,7 +587,8 @@ public sealed class DataRequestServiceTests
         request.Status.Should().Be(DataRequestStatus.Scheduled);
         request.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
         harness.Scheduler.Fulfillments.Should().ContainSingle().Which.Should().Be(new DataRequestFulfillment(request.Id.Value,
-            DataRequestKind.Erasure, DataRequestStatus.Scheduled, request.Group, At + DataRequestLimits.CancellationWindow));
+            DataRequestKind.Erasure, DataRequestStatus.Scheduled, request.Group, At + DataRequestLimits.CancellationWindow,
+            DataRequestOrigin.Self));
         harness.Locks.Acquired.Should().ContainSingle().Which.UserIds.Should().Equal(Subject);
         harness.Locks.Acquired[0].TenantMode.Should().Be(IdentityTenantLockMode.Shared);
         harness.Audit.Designated.Should().Contain(request);
@@ -715,7 +754,8 @@ public sealed class DataRequestServiceTests
         request.ExecuteAt.Should().Be(At + DataRequestLimits.CancellationWindow);
         request.SnapshotMembershipIds.Should().Equal(SubjectMembership);
         fresh.Scheduler.Fulfillments.Should().ContainSingle().Which.Should().Be(new DataRequestFulfillment(request.Id.Value,
-            DataRequestKind.Closure, DataRequestStatus.Scheduled, request.Group, At + DataRequestLimits.CancellationWindow));
+            DataRequestKind.Closure, DataRequestStatus.Scheduled, request.Group, At + DataRequestLimits.CancellationWindow,
+            DataRequestOrigin.Self));
         fresh.Locks.Acquired.Should().ContainSingle().Which.UserIds.Should().Equal(Subject);
         fresh.Locks.Acquired[0].TenantMode.Should().Be(IdentityTenantLockMode.Shared);
         fresh.Audit.Designated.Should().ContainSingle().Which.Should().BeSameAs(request);
@@ -913,7 +953,7 @@ public sealed class DataRequestServiceTests
         public List<DataSubjectRequest> Requests { get; } = [];
         public Dictionary<DataSubjectRequestId, DataRequestArtifactRow> Artifacts { get; } = [];
         public List<DataExportTicket> Tickets { get; } = [];
-        public bool RejectAdd { get; set; }
+        public DataRequestInsertion? Refusal { get; set; }
         public bool FailConsumption { get; set; }
         public int TicketSaves { get; private set; }
 
@@ -940,15 +980,15 @@ public sealed class DataRequestServiceTests
         public Task AddAsync(DataSubjectRequest aggregate, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("The cores file through the mapped one-active refusal.");
 
-        public Task<bool> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken)
+        public Task<DataRequestInsertion> TryAddAsync(DataSubjectRequest request, CancellationToken cancellationToken)
         {
-            if (RejectAdd)
+            if (Refusal is { } refusal)
             {
-                return Task.FromResult(false);
+                return Task.FromResult(refusal);
             }
 
             Requests.Add(request);
-            return Task.FromResult(true);
+            return Task.FromResult(DataRequestInsertion.Added);
         }
 
         public Task<DataRequestArtifactRow?> FindArtifactLockedAsync(DataSubjectRequestId requestId, CancellationToken cancellationToken) =>
