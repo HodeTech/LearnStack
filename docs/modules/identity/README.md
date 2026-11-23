@@ -330,12 +330,17 @@ templates, without a
 bootstrap Boolean, receipt or table. Trial, Active and Suspended retain their
 admin. No Archived/termination exemption exists until separately admitted by
 G13/G16. Final-admin removal/suspension/revocation or kernel stripping refuses.
-Future global closure cannot make the final admin ineligible before its separate
-recovery/termination authority and guards are Accepted and implemented.
+A global closure's Begin refuses `blocked_last_administrator` for the only eligible
+tenant-wide administrator of a tenant that allows ordinary work; a tenant that does not
+is the named exception of
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md)
+and is not judged.
 
 P03-1 supplies the bounded Tenancy Application.Contracts port
-`IIdentityScopeLifecycleReader.ReadAsync(TenantId, OrganizationId?, CancellationToken)`.
-Its immutable `IdentityScopeLifecycle` result has four Booleans:
+`IIdentityScopeLifecycleReader.ReadAsync(TenantId, OrganizationId?, CancellationToken)`;
+a closure's Begin reads the same facts for every participant group at once with
+`ReadOnPlatformScopeAsync`, on the platform scope's handle and in one statement over
+Tenancy's own tables. Its immutable `IdentityScopeLifecycle` result has four Booleans:
 `TenantExistsAndNotDeleted`, `TenantAllowsOrdinaryWork`,
 `OrganizationBelongsToTenant` and `OrganizationAllowsOrdinaryWork`. Organization
 facts are false when no organization is requested; it returns no row or list.
@@ -1154,8 +1159,9 @@ The operator's two acts of
 
 - **Port and owner.** `IDataRequestOperatorOperations` (SharedKernel) is implemented by
   `DataRequestOperatorOperations` in this module's Infrastructure, the one class that
-  enters the platform scope for data requests. Each call is one entered scope on
-  `learnstack_platform`; no route and no other module touches the request tables.
+  enters the platform scope for these two acts; a closure's acts have their own owner,
+  below. Each call is one entered scope on `learnstack_platform`; no route and no other
+  module touches the request tables.
 - **`inspect`** (`platform.data_request.read`) lists four closed states, metadata only,
   oldest due first and keyset-paged: `awaiting_privileged_step`, `overdue_scheduled`,
   `stuck_fulfilling` and `expired_artifact`. Its audit is the scope's entry row.
@@ -1168,6 +1174,34 @@ The operator's two acts of
   closure's arrows of
   [Account closure storage](../../standards/05-database.md#account-closure-storage),
   and stamps each itself; every other request change belongs to the tenant side.
+
+#### Account closure Begin (P03-10 Step 3)
+
+The operator's Begin of
+[ADR-0107 § 7](../../decisions/0107-data-request-fulfillment-and-account-closure.md),
+run by the [account closure runbook](../../runbooks/account-closure.md).
+
+- **Port and owner.** `IAccountClosureOperatorOperations` (SharedKernel) is implemented
+  by `AccountClosureOperatorOperations` in this module's Infrastructure, one class in
+  one file per act, which enters the platform scope for a closure. It refuses before it
+  enters when no single `IClosureFanOut` is registered.
+- **One transaction.** The request is read; `PlatformIdentityFences` takes the person's
+  User fence, reads the participant groups under it (every group with a Membership of
+  any status) and takes every participant tenant's fence ascending, each
+  transaction-scoped and bounded by a three-second `lock_timeout`
+  ([Database Standards](../../standards/05-database.md#the-closures-fences)); the
+  request is locked and read again with the User's status; then `blocked_window` (the
+  database clock), `blocked_hold` (`IDataRequestHoldSource`, asked for the closure
+  directly, not through eligibility) and `blocked_last_administrator` (each
+  participant tenant that allows ordinary work, read through Tenancy's lifecycle port)
+  are judged, and the refusal is recorded or the User moves Active to Closing and the
+  request to `fulfilling`. The result row names the platform sentinel. A User already
+  Closing for another closure is not moved again and is not judged for the last
+  administrator, which its first Begin judged.
+- **Then the fan-out.** After the commit the served groups go to `IClosureFanOut`,
+  each in its own pipeline act; a group that does not report a start or an adoption
+  makes the answer incomplete, and the operator repeats Begin. A repeat on a
+  `fulfilling` closure fences, judges and writes nothing and fans out again.
 
 ## Entity-relationship diagram
 
@@ -1318,7 +1352,7 @@ above.
 | `Permission_Definitions_DeclareScope` | Implemented for the finite foundation and live operation contracts | `IdentityFoundationConventionTests`, `OperationPermissionConventionTests` and actual command metadata; [catalogue](../../standards/21-architecture-tests-catalogue.md) owns live authorization controls |
 | `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including contextual Identity | `DataProtectionConventionTests`; complete census and neutral-name omission controls |
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | Implemented; no-write/interrupted/conflict actual seed controls | `IdentityFoundationConventionTests` / `IdentitySeederTests`; [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification |
-| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races, live Membership transitions and Organization lifecycle/default invariants | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`, `MembershipAdministrationRaceTests` and `TenancyAdministrationRaceTests`; broader closure/locators remain P03-10 |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races, live Membership transitions and Organization lifecycle/default invariants | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`, `MembershipAdministrationRaceTests` and `TenancyAdministrationRaceTests`; the closure's platform acquirer has its own leg, `IdentityPlatformFenceConventionTests`, and its races are `AccountClosureBeginTests` |
 | Per-sink PII canaries/child audit/MUST rollback | Implemented actual child snapshots/redacted diffs, MUST rollback and value-bearing diagnostic controls | `IdentitySeederTests`, `IdentityDiagnosticSinkTests`, `TenantExistingBindingAdmissionTests` and canonical [data-protection proof ownership](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership); classification alone does not establish sink safety |
 | `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global storage/creation, exact self-entry HTTP and deliberate native activation | `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests`, `GlobalIdentityBootstrapTests`, `IdentitySelfEntryHttpTests` and native `session-store.test.ts`; [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification and reviews |
 

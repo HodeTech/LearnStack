@@ -316,6 +316,11 @@ public static class PersistenceCompositionExtensions
         // ADR-0107 § 8, ADR-0108: the operator's data-request inspection and erasure completion in the platform scope.
         services.TryAddScoped<IDataRequestOperatorOperations,
             LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestOperatorOperations>();
+        // ADR-0107 § 7: the operator's closure Begin in the platform scope. It hands the served groups to IClosureFanOut,
+        // which its implementation registers beside it; with none registered the Begin refuses before it enters the scope,
+        // so no person is moved to Closing by a deployment that cannot fan the closure out.
+        services.TryAddScoped<IAccountClosureOperatorOperations,
+            LearnStack.Modules.Identity.Infrastructure.DataRequests.AccountClosureOperatorOperations>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default

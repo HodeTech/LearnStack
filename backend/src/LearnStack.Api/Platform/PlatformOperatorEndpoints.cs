@@ -71,6 +71,7 @@ internal static partial class PlatformOperatorEndpoints
         MapRecovery(group);
         MapFederation(group);
         MapDataRequests(group);
+        MapClosure(group);
         return app;
     }
 

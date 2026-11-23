@@ -265,6 +265,14 @@ public sealed partial class PlatformAdminScopeConventionTests
                     DeliveryInspectionFile,
                     FederationOperationsFile,
                     DataRequestOperationsFile,
+                    // ADR-0107 § 7: the closure's owner enters the scope; its Begin and its fence acquirer work on the
+                    // handle the owner entered, and Tenancy's lifecycle port reads on a handle it is given. None of the
+                    // three can enter a scope of its own.
+                    ClosureOperationsFile,
+                    ClosureBeginFile,
+                    ClosureFencesFile,
+                    "Modules/Tenancy/LearnStack.Modules.Tenancy.Application.Contracts/IdentityLifecycle/IIdentityScopeLifecycleReader.cs",
+                    "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/IdentityScopeLifecycleReader.cs",
                 ],
                 "each new operator service is added here deliberately, with its denied proof");
     }
@@ -399,6 +407,38 @@ public sealed partial class PlatformAdminScopeConventionTests
     }
 
     [Fact]
+    public void Only_The_Closure_Route_And_Its_Owner_Name_The_Closure_Operator_Port()
+    {
+        // ADR-0107 §§ 7 and 8: a person's closure begins from its operator route alone, through the one owner. The scan names
+        // the owner's class, which the port's name contains, so a holder of the concrete owner is found too.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "AccountClosureOperatorOperations", except: null)
+            .Should().BeEquivalentTo(
+                [
+                    "LearnStack.SharedKernel/Platform/IAccountClosureOperatorOperations.cs",
+                    ClosureOperationsFile,
+                    ClosureBeginFile,
+                    CompositionFile,
+                    "LearnStack.Api/Platform/PlatformOperatorEndpoints.Closure.cs",
+                ],
+                "each new caller of a closure operator act is added here deliberately, with its denied proof");
+
+        var planted = Directory.CreateTempSubdirectory("closure-holder-");
+        try
+        {
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaPort.cs"), "class A(IAccountClosureOperatorOperations operations) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "ViaOwner.cs"), "class B(AccountClosureOperatorOperations owner) { }");
+            File.WriteAllText(Path.Combine(planted.FullName, "Commented.cs"), "class C { /* AccountClosureOperatorOperations */ }");
+
+            SourceScan.FilesContaining(planted.FullName, "AccountClosureOperatorOperations", except: null)
+                .Should().BeEquivalentTo(["ViaPort.cs", "ViaOwner.cs"]);
+        }
+        finally
+        {
+            planted.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void The_Data_Request_Port_Census_Finds_A_Planted_Holder_Of_The_Port_The_Owner_Or_The_Redaction()
     {
         var planted = Directory.CreateTempSubdirectory("data-request-holder-");
@@ -436,6 +476,15 @@ public sealed partial class PlatformAdminScopeConventionTests
 
     private const string DataRequestOperationsFile =
         "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/DataRequestOperatorOperations.cs";
+
+    private const string ClosureOperationsFile =
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/AccountClosureOperatorOperations.cs";
+
+    private const string ClosureBeginFile =
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/AccountClosureOperatorOperations.Begin.cs";
+
+    private const string ClosureFencesFile =
+        "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/DataRequests/PlatformIdentityFences.cs";
 
     private const string KillswitchWriterFile =
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchToggle.cs";

@@ -6853,6 +6853,30 @@ distinct tenant. Memberships are never deleted and a new one needs the subject's
 exclusive User key, so the participant set cannot change while that key is held.
 Transaction-level keys end at the commit, so a second transaction takes them again.
 
+**The acquirer.** One class takes them on the platform connection,
+`PlatformIdentityFences` in the Identity infrastructure, through the platform scope's
+statement facade and nothing else:
+`SELECT pg_catalog.set_config('lock_timeout', '3s', true)` first, so every wait of the
+transaction is bounded; then `pg_catalog.pg_advisory_xact_lock` of the subject's User
+key; then the participant groups, read under that key; then the key of every
+participant tenant and of the request's own tenant, ascending by key. It takes no
+shared and no session-level key. A key not granted within three seconds fails its
+statement with `55P03`, which abandons the scope, and the act answers the retryable
+unavailable. It is not `IIdentityMutationLocks`, which fences one tenant inside a
+tenant-announced application transaction; `IdentityPlatformFenceConventionTests` pins
+it as the one platform acquirer and the order it takes the keys in.
+
+**The last-administrator read.** A closure's Begin judges each participant tenant that
+allows ordinary work with `AccountClosureOperatorOperations.AdministratorStandingSql`:
+the administrator predicate of the deferred complete-graph guard, with
+`users.status = 'Active'`, which the application role's read cannot see, read under the
+fences. `AccountClosureAdministratorParityTests` proves it answers as the guard over
+Active, Suspended, Revoked and Closing administrators, an organization administrator, a
+tenant-wide learner and a Role missing a kernel grant. Its index path is the current
+`TenantAdmin` Role of each tenant (`ux_roles_current_builtin_scope`), its assignments
+(`ix_membership_role_assignments_tenant_id_role_id`), and the Memberships, grants and
+Users by their keys.
+
 ### The platform grants
 
 `learnstack_platform` bypasses row security, so these column grants are its whole

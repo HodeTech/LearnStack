@@ -22,7 +22,7 @@ The surface does not exist until an issuer is configured; with none, every
 | `PlatformOperator:AuthorizedParties` | The allowed `azp` clients. The shipped realm's is `learnstack-operator` |
 | `PlatformOperator:MaxAuthenticationAge` | How old `auth_time` may be, as a time span such as `00:15:00`; at most one hour, default 15 minutes |
 | `PlatformOperator:Grants` | Each operator's `Subject` (the issuer's `sub`) and the Platform permission keys held |
-| `ConnectionStrings:PlatformAdmin` | The `learnstack_platform` credential the killswitch act, the [recovery](operator-recovery.md) inspections, the [federation](federation-operator.md) report, remove and disable, and the [data-request](data-erasure.md) inspection and erasure completion run under. Required for them: without it the first one fails with an error that names this key. The [onboarding](tenant-onboarding.md) acts run on the application role and do not use it |
+| `ConnectionStrings:PlatformAdmin` | The `learnstack_platform` credential the killswitch act, the [recovery](operator-recovery.md) inspections, the [federation](federation-operator.md) report, remove and disable, and the [data-request](data-erasure.md) inspection and erasure completion and the [account closure](account-closure.md) Begin run under. Required for them: without it the first one fails with an error that names this key. The [onboarding](tenant-onboarding.md) acts run on the application role and do not use it |
 | `ConnectionStrings:OutboxDispatcher` | The dispatcher's outbox-role credential, which the two recovery acts (replay and reset) use through the dispatcher's own stores. Without it they cannot run, as the dispatcher cannot |
 
 List settings are indexed in environment variables, and the double underscore is the
@@ -50,7 +50,8 @@ routes and the second for a replay or a producer reset. `platform.federation.rea
 operator](federation-operator.md): the first for the report and the second for a remove
 or a disable. `platform.data_request.read` and `platform.data_request.write` are the two
 permissions of [data erasure](data-erasure.md): the first for the inspection of data
-requests and the second for the completion of an erasure's privileged step.
+requests and the second for the completion of an erasure's privileged step and for the
+Begin of an [account closure](account-closure.md).
 
 A Self-Hosted issuer other than the shipped realm must issue access tokens that meet the
 profile below. If it cannot, no operator can act, by design.
@@ -170,11 +171,11 @@ production realm.
 | 401, `Bearer` challenge | The token is missing, malformed, expired, signed by another issuer, for another audience or client, lacks an accepted `acr`, has no `auth_time`, was authenticated too long ago, or lives longer than 15 minutes. It also covers an issuer that cannot be reached: at start, or for more than 15 minutes after its keys were last fetched | Decode the token and compare it with the profile; sign in again; check the issuer settings and the signals below |
 | 403 | The token is good and this operator holds no grant for the act | Ask for the grant |
 | 400 | The ticket or the body is malformed | Fix the request |
-| 404 | Unknown killswitch key, an onboarding route's tenant that does not exist, a recovery that names no such row, a federation disable of an alias no instance has, an erasure completion that names no request, or the surface is not configured | Check the key, the tenant or the row and the issuer setting |
-| 409 | An onboarding act refused the state it found (a `failed` audit row is written in the tenant), or a recovery found a stale fence or a row it may not act on, or a federation act refused its state (`errors.owner`, `errors.connection`, `errors.class` or `errors.provider`; see the [federation runbook](federation-operator.md#act)), or an erasure completion refused its request (`errors.kind`, `errors.origin` or `errors.status`; see the [data erasure runbook](data-erasure.md#complete-an-erasure)) | See the [onboarding runbook](tenant-onboarding.md#when-an-act-answers-something-else) or the [recovery runbook](operator-recovery.md#act) |
+| 404 | Unknown killswitch key, an onboarding route's tenant that does not exist, a recovery that names no such row, a federation disable of an alias no instance has, an erasure completion or a closure Begin that names no request, or the surface is not configured | Check the key, the tenant or the row and the issuer setting |
+| 409 | An onboarding act refused the state it found (a `failed` audit row is written in the tenant), or a recovery found a stale fence or a row it may not act on, or a federation act refused its state (`errors.owner`, `errors.connection`, `errors.class` or `errors.provider`; see the [federation runbook](federation-operator.md#act)), or an erasure completion refused its request (`errors.kind`, `errors.origin` or `errors.status`; see the [data erasure runbook](data-erasure.md#complete-an-erasure)), or a closure Begin refused its closure (`errors.refusal`, `errors.kind`, `errors.status` or `errors.account`; see the [account closure runbook](account-closure.md#answers)) | See the [onboarding runbook](tenant-onboarding.md#when-an-act-answers-something-else) or the [recovery runbook](operator-recovery.md#act) |
 | 415 | The body is not `application/json` | Send the header shown above |
-| 503 | The audit row could not be written, or a connection or a lane was unavailable, so nothing changed, except that a recovery's, a federation act's or an erasure completion's `503` can carry `errors.outcome` for a change that may have landed. `Retry-After` says when to try again | Retry; the act is safe to repeat. For a recovery that names `errors.outcome`, read the [recovery runbook](operator-recovery.md#an-unknown-outcome) first, for a federation act the [federation runbook](federation-operator.md#an-unknown-outcome), and for an erasure completion the [data erasure runbook](data-erasure.md#an-unknown-outcome) |
-| 500 | Something unexpected failed. For a toggle, a commit whose outcome is unknown may have landed | Read the switch's state before repeating (see the [killswitch runbook](killswitch.md)); an onboarding act is idempotent, so repeat the same request. A recovery is not: list again first; nor is a federation act, which may have changed the provider. An erasure completion is: a repeat after one that landed answers `already_completed` |
+| 503 | The audit row could not be written, or a connection or a lane was unavailable, so nothing changed, except that a recovery's, a federation act's, an erasure completion's or a closure Begin's `503` can carry `errors.outcome` for a change that may have landed. `Retry-After` says when to try again | Retry; the act is safe to repeat. For a recovery that names `errors.outcome`, read the [recovery runbook](operator-recovery.md#an-unknown-outcome) first, for a federation act the [federation runbook](federation-operator.md#an-unknown-outcome), for an erasure completion the [data erasure runbook](data-erasure.md#an-unknown-outcome), and for a closure Begin the [account closure runbook](account-closure.md#an-unknown-outcome) |
+| 500 | Something unexpected failed. For a toggle, a commit whose outcome is unknown may have landed | Read the switch's state before repeating (see the [killswitch runbook](killswitch.md)); an onboarding act is idempotent, so repeat the same request. A recovery is not: list again first; nor is a federation act, which may have changed the provider. An erasure completion is: a repeat after one that landed answers `already_completed`; so is a closure Begin, whose repeat answers `resumed` |
 
 The answer to a refused credential is always the same; the reason is in the signals, not
 the response.
@@ -185,10 +186,10 @@ the response.
 |---|---|
 | `learnstack_platform_operator_admissions_total{outcome,operation}` | Acts admitted or refused at the gate; `operation` is the audit slug, for example `tenancy.killswitch.toggle` |
 | `learnstack_platform_operator_refusals_total{cause}` | Refusals, by cause: `request_aborted`, `metadata_stale`, `metadata_unavailable`, `token_missing`, `token_expired`, `token_lifetime`, `token_signature`, `token_issuer`, `token_audience`, `token_type`, `token_algorithm`, `token_invalid`, `profile_issuer`, `profile_subject`, `profile_azp`, `profile_acr`, `profile_iat`, `profile_auth_time`, `profile_lifetime`, `profile_auth_age`, and at the gate `invalid_ticket`, `missing_permission`, `unknown_operation`, `invalid_witness` |
-| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by an operator act: the killswitch toggle, a federation remove or disable (the completion row) and an erasure completion in the platform scope, and a replay or a reset on the dispatcher's outbox role |
+| `learnstack_platform_operator_results_total{operation}` | MUST result rows committed by an operator act: the killswitch toggle, a federation remove or disable (the completion row), an erasure completion and a closure Begin in the platform scope, and a replay or a reset on the dispatcher's outbox role |
 | `learnstack_platform_operator_recoveries_total{operation,outcome}` | Recovery transitions by how they ended; see the [recovery runbook](operator-recovery.md#signals) |
 | `learnstack_platform_operator_federation_total{operation,outcome}` | Federation reports, removes and disables by how they ended; see the [federation runbook](federation-operator.md#signals) |
-| `learnstack_platform_operator_data_requests_total{operation,outcome}` | Data-request inspections and erasure completions by how they ended; see the [erasure runbook](data-erasure.md#signals) |
+| `learnstack_platform_operator_data_requests_total{operation,outcome}` | Data-request inspections, erasure completions and closure Begins by how they ended; see the [erasure runbook](data-erasure.md#signals) and the [closure runbook](account-closure.md#signals) |
 | `learnstack_platform_operator_acts_total{operation,outcome}` | Onboarding acts by how they ended (`applied`, `replayed`, `refused`, `failed`); see the [onboarding runbook](tenant-onboarding.md#signals) |
 | `learnstack_platform_operator_audit_failures_total{operation}` | Acts refused because the MUST row was not durable (the 503) |
 | `learnstack_platform_operator_metadata_failures_total` | The issuer's discovery document or key set could not be read, was refused, or named another origin. While it climbs, new keys are not learned; a fetch that failed is not retried for 30 seconds, and once the keys held are more than 15 minutes old with a later fetch failed, every operator is refused (`metadata_stale`) |
@@ -198,17 +199,19 @@ A log line accompanies each. Search by event id: 7102 (Warning) a refused act, 7
 (Error) a refused audit write, and 7101 (Error) a grant configuration that failed
 validation on reload; while 7101 appears every operator act is refused until the
 configuration is valid. Every admitted killswitch act, recovery inspection page,
-federation report, remove or disable, data-request inspection page and erasure
-completion logs a Warning with event 7001 and the text "Platform-admin scope entered"
-(other hosts reuse the number for unrelated lines, so match the text too); the
-onboarding acts and the two recovery acts do not enter the platform scope, so they log
-no event 7001. Event 7109 (Warning) is an onboarding act the request pipeline itself
-refused as forbidden, which is a defect. Event 7110 (Warning) is a recovery, an
-inspection, a federation call or a data-request call the owner could not finish, with
-whether its commit's outcome is unknown; see the
-[recovery runbook](operator-recovery.md#a-503-that-does-not-clear). A refused operator
-leaves no database row; the one exception is an onboarding act an admitted operator had
-refused for a business reason, which writes a `failed` row in the tenant.
+federation report, remove or disable, data-request inspection page, erasure completion
+and closure Begin logs a Warning with event 7001 and the text
+"Platform-admin scope entered" (other hosts reuse the number for unrelated lines, so
+match the text too); the onboarding acts and the two recovery acts do not enter the
+platform scope, so they log no event 7001. Event 7109 (Warning) is an onboarding act
+the request pipeline itself refused as forbidden, which is a defect. Event 7110
+(Warning) is a recovery, an inspection, a federation call or a data-request call the
+owner could not finish, with whether its commit's outcome is unknown; see the
+[recovery runbook](operator-recovery.md#a-503-that-does-not-clear). Event 7120 (Error)
+is a closure's fan-out that threw after its Begin committed; see the
+[closure runbook](account-closure.md#a-partial-answer). A refused operator leaves no
+database row; the one exception is an onboarding act an admitted operator had refused
+for a business reason, which writes a `failed` row in the tenant.
 
 ## Not recoverable here
 

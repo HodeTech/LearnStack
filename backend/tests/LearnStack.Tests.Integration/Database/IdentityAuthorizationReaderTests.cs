@@ -675,6 +675,9 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
     {
         public Task<IdentityScopeLifecycle> ReadAsync(TenantId tenantId, OrganizationId? organizationId,
             CancellationToken cancellationToken = default) => inner.ReadAsync(tenantId, organizationId, cancellationToken);
+        public Task<IReadOnlyList<IdentityScopeLifecycle>> ReadOnPlatformScopeAsync(
+            LearnStack.SharedKernel.Tenancy.IPlatformAdminScopeHandle handle, IReadOnlyList<IdentityLifecycleScope> scopes,
+            CancellationToken cancellationToken = default) => inner.ReadOnPlatformScopeAsync(handle, scopes, cancellationToken);
         public async Task<IdentityScopeLifecycle> ReadAuthorizationAsync(IUnitOfWork child, AuthorizationCandidate candidate,
             CancellationToken cancellationToken = default)
         {

@@ -282,6 +282,10 @@ public sealed partial class AuthorizationPoolProgressTests(AuthorizationPoolProg
         public Task<IdentityScopeLifecycle> ReadAsync(TenantId tenantId, OrganizationId? organizationId,
             CancellationToken cancellationToken = default) => _actual.ReadAsync(tenantId, organizationId, cancellationToken);
 
+        public Task<IReadOnlyList<IdentityScopeLifecycle>> ReadOnPlatformScopeAsync(
+            LearnStack.SharedKernel.Tenancy.IPlatformAdminScopeHandle handle, IReadOnlyList<IdentityLifecycleScope> scopes,
+            CancellationToken cancellationToken = default) => _actual.ReadOnPlatformScopeAsync(handle, scopes, cancellationToken);
+
         public async Task<IdentityScopeLifecycle> ReadAuthorizationAsync(IUnitOfWork child, AuthorizationCandidate candidate,
             CancellationToken cancellationToken = default)
         {

@@ -51,9 +51,9 @@ That is the step left to you.
 
 - **A global account closure**
   ([ADR-0107 § 7](../decisions/0107-data-request-fulfillment-and-account-closure.md)).
-  It ships with P03-10 Step 3 and these routes never act on a `closure` request or on a
-  closure's fan-out erasure: the completion refuses the latter, which only its closure's
-  finalization completes.
+  Its acts are in [Account closure](account-closure.md), and these routes never act on
+  a `closure` request or on a closure's fan-out erasure: the completion refuses the
+  latter, which only its closure's finalization completes.
 - **Cancelling or failing a request.** The person, or the administrator who filed it,
   cancels within the window. A request `blocked`, `failed` or `cancelled` is terminal;
   the person files a new one.

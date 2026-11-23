@@ -2734,6 +2734,36 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   command-path measurement. Current qualification/review state lives in the
   [phase Status block](../roadmap/phase-03-identity-admin.md).
 - **Phase:** P03-1 Step 4.
+- **Note:** the global account closure's acquirer on the platform connection is not
+  this census's subject; it has its own leg,
+  [the closure fences rule](#the_closure_fences_are_taken_by_one_platform_acquirer_user_first_then_each_tenant_ascending_for_the_transaction).
+
+#### `The_Closure_Fences_Are_Taken_By_One_Platform_Acquirer_User_First_Then_Each_Tenant_Ascending_For_The_Transaction`
+
+- **Asserts:** in the production IL, the methods that derive both a User and a Tenant
+  identity lock key are exactly `IdentityMutationLocks.AcquireAsync` and
+  `PlatformIdentityFences.AcquireAsync`; in the production source, the one file that
+  names the platform scope's handle and derives an identity lock key is the closure's
+  acquirer; and that acquirer, read without comments, bounds the transaction's waits
+  once with a transaction-local `lock_timeout`, takes only exclusive
+  transaction-scoped keys, and takes in order the bound, the subject's one User key,
+  the participant read under it, the ascending tenant order and the tenant keys.
+- **Why it matters:** the closure spans every tenant of the person on a connection that
+  announces nothing, so `IIdentityMutationLocks` cannot fence it, and the census of that
+  port never sees its acquirer. A second platform acquirer, an owner that takes a key
+  itself, a tenant key before the User key, a participant read before the User key, a
+  shared or session-level key, or an unbounded wait would break the canonical order or
+  the closure's witness.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 7;
+  [Database Standards § The closure's fences](05-database.md#the-closures-fences).
+- **Type:** xUnit — IL caller census, source scan, and seven planted departures
+  (`The_Acquirer_Census_Finds_A_Planted_Departure`); the behaviour is proven on
+  PostgreSQL by `AccountClosureBeginTests` (the keys observed in `pg_locks` while a
+  Begin is held, the bounded wait, and admissions that race a Begin). **Kind:**
+  structural and behavioural.
+- **Status:** **Implemented** (`IdentityPlatformFenceConventionTests`, P03-10 Step 3).
+- **Phase:** P03-10.
 
 #### `Identity_Seed_Uses_Finite_Adopted_Manifests`
 
@@ -5875,8 +5905,10 @@ structural test proves — and what it does not.
   The EF leg bans `Organizations.Find` and `FindAsync`, which cannot express that
   composite key. The validator's tenant announcement and composite predicate are
   checked separately.
-- **SQL census:** eight direct runtime SQL subjects include the validator, job
-  lifecycle readers, identity/self-discovery readers and the awaited
+- **SQL census:** nine direct runtime SQL subjects include the validator, job
+  lifecycle readers, identity/self-discovery readers, the identity lifecycle reader's
+  platform form (many scopes in one statement on an entered platform scope's handle,
+  bound to its one executed call) and the awaited
   `OrganizationWriteStore.FindForUpdateAsync` composite-key lock followed by
   tenant-bound EF materialization. ADR-0047's bounded lifecycle inventory and
   bounds are the named enumeration exception. Two further composed page owners
@@ -6144,13 +6176,33 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-10 Step 2).
 - **Phase:** P03-10.
 
+#### `Only_The_Closure_Route_And_Its_Owner_Name_The_Closure_Operator_Port`
+
+- **Asserts:** the files, by their path under `backend/src`, that name
+  `AccountClosureOperatorOperations` in code (the port's name contains it, so the
+  owner's class is found too) are exactly the port, the owner's two parts, the
+  persistence composition and the closure route. Adding a caller is a deliberate edit
+  here, with its denied proof.
+- **Why it matters:** a Begin makes a person's account stop working in every tenant and
+  cannot be undone; the operator route, after the gate, is the one way to it.
+- **Source:**
+  [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 7
+  and 8.
+- **Type:** xUnit + source scan, with a planted holder of the port and of the concrete
+  owner, and a mention in a comment that is not counted. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, P03-10 Step 3).
+- **Phase:** P03-10.
+
 #### `Only_The_Operator_Services_Hold_The_Platform_Scope`
 
 - **Asserts:** the files, by their path under `backend/src`, that name
-  `IPlatformAdminScope` are exactly the interface, the scope, the persistence
-  composition and the operator services that perform an admitted act (today the
-  killswitch toggle, the delivery inspection, the federation owner and the data-request
-  owner). Adding a service is a deliberate edit here, with its denied proof.
+  `IPlatformAdminScope` (the handle's name contains it) are exactly the interface, the
+  scope, the persistence composition and the operator services that perform an admitted
+  act (today the killswitch toggle, the delivery inspection, the federation owner, the
+  data-request owner and the account-closure owner with its Begin part), and the code
+  that works on a handle such an owner entered and can enter none: the closure's fence
+  acquirer and Tenancy's lifecycle port and reader. Adding a file is a deliberate edit
+  here, with its denied proof.
 - **Why it matters:** a request handler holding the scope would enter a cross-tenant
   scope from a tenant request path.
 - **Source:** [ADR-0101](../decisions/0101-platform-operator-authority.md) § 8.

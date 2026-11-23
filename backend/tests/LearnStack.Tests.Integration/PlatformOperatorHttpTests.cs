@@ -38,7 +38,7 @@ namespace LearnStack.Tests.Integration;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "xUnit disposes the fields through IAsyncLifetime.DisposeAsync.")]
-public sealed class PlatformOperatorHttpTests : IAsyncLifetime
+public sealed partial class PlatformOperatorHttpTests : IAsyncLifetime
 {
     private const string Path = "/api/platform/v1/killswitches/killswitch.classroom.recording";
     private const string Subject = "operator-sub-1";
@@ -51,6 +51,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     private RecordingInspection _inspection = null!;
     private RecordingBrokers _brokers = null!;
     private RecordingDataRequests _dataRequests = null!;
+    private RecordingClosures _closures = null!;
     private CapturingLogs _logs = null!;
     private HttpClient _client = null!;
 
@@ -63,6 +64,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         _inspection = new RecordingInspection();
         _brokers = new RecordingBrokers();
         _dataRequests = new RecordingDataRequests();
+        _closures = new RecordingClosures();
         _logs = new CapturingLogs();
         _factory = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
             services: registrations =>
@@ -73,6 +75,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
                 registrations.AddScoped<IDeliveryInspection>(_ => _inspection);
                 registrations.AddScoped<IFederationBrokerOperations>(_ => _brokers);
                 registrations.AddScoped<IDataRequestOperatorOperations>(_ => _dataRequests);
+                registrations.AddScoped<IAccountClosureOperatorOperations>(_ => _closures);
             });
         _client = _factory.CreateClient();
     }
@@ -1213,6 +1216,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
         "/api/platform/v1/federation/brokers/{alias}/disable",
         "/api/platform/v1/data-requests",
         "/api/platform/v1/data-requests/{requestId}/complete-erasure",
+        "/api/platform/v1/data-requests/{requestId}/begin-closure",
     ];
 
     /// <summary>
@@ -1225,7 +1229,8 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
             : route.Contains("/federation/", StringComparison.Ordinal)
                 ? route.EndsWith("/remove", StringComparison.Ordinal) || route.EndsWith("/disable", StringComparison.Ordinal) ? "post" : "get"
                 : route.Contains("/data-requests", StringComparison.Ordinal)
-                    ? route.EndsWith("/complete-erasure", StringComparison.Ordinal) ? "post" : "get"
+                    ? route.EndsWith("/complete-erasure", StringComparison.Ordinal) || route.EndsWith("/begin-closure", StringComparison.Ordinal)
+                        ? "post" : "get"
                     : "put";
 
     [Fact]
@@ -1261,7 +1266,7 @@ public sealed class PlatformOperatorHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public void The_Operator_Surface_Is_Exactly_The_Sixteen_Authorized_Endpoints_Under_Its_Prefix()
+    public void The_Operator_Surface_Is_Exactly_The_Seventeen_Authorized_Endpoints_Under_Its_Prefix()
     {
         // The tenant surface census excludes this surface by exact type (it has its own scheme), so
         // its population is closed here instead: every routed endpoint under /api/platform (whatever

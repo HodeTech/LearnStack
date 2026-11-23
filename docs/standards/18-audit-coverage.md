@@ -257,7 +257,8 @@ will raise them — which this standard requires it to do.
   transaction that redacts the audit rows and completes the request. A global account
   closure's acts are `(off-path)` in the same way, and their rows name the platform
   sentinel tenant and so carry the ticket: `platform.closure.begin` writes one result
-  row, and `platform.closure.finalize` writes an intent row on
+  row for a Begin or a refusal it records, and none for a repeat that changes nothing,
+  whose entry row is its record, and `platform.closure.finalize` writes an intent row on
   `platform.closure.finalize_attempt` at the scope handle's checkpoint, on the
   transaction that redacted the person's audit rows in every participant tenant and
   the sentinel tenant, and then its result row
