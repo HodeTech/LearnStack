@@ -534,7 +534,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 873 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 925 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
   - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
   - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
@@ -548,7 +548,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-10 Step 4 — the web surface (2026-11-23)](#p03-10-step-4--the-web-surface-2026-11-23) — 14 lines
   - [P03-10 Steps 3 and 4 — review round 1 and its fixes (2026-11-23)](#p03-10-steps-3-and-4--review-round-1-and-its-fixes-2026-11-23) — 50 lines
   - [P03-10 Steps 3 and 4 — review round 2 and the usage limit (2026-11-23)](#p03-10-steps-3-and-4--review-round-2-and-the-usage-limit-2026-11-23) — 22 lines
-  - [P03-10 — owed ADR amendments and maintainer decisions (2026-11-23)](#p03-10--owed-adr-amendments-and-maintainer-decisions-2026-11-23) — 317 lines
+  - [P03-10 — owed ADR amendments and maintainer decisions (2026-11-23)](#p03-10--owed-adr-amendments-and-maintainer-decisions-2026-11-23) — 324 lines
+  - [P03-10 Steps 3 and 4 — verification and closeout (2026-11-23)](#p03-10-steps-3-and-4--verification-and-closeout-2026-11-23) — 45 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -26203,7 +26204,7 @@ records above cite its item numbers. No Accepted ADR body was edited: each item 
 changes a decision is owed a dated Amendment under
 [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md), written
 once the maintainer has ruled; the items marked DECISION, OPEN or owed to the user need
-a ruling first. Items 1 to 20 are Step 1, 21 to 55 Step 2, and 56 to 70 Steps 3 and 4
+a ruling first. Items 1 to 20 are Step 1, 21 to 55 Step 2, and 56 to 71 Steps 3 and 4
 with the review fixes; some earlier items were superseded by later ones, as item 52
 says.
 
@@ -26511,3 +26512,55 @@ says.
 70. Chromium proof: no browser proof of `/account/data` or the Studio pages was run (the
     proof views are unit-tested; `verify-bff-session.mjs` is not wired for them): a
     Status-block item.
+71. The Studio member page (Step 4) also reads the group's data requests, so each view
+    of a member page adds one MUST `identity.data_request.list` audit row and one call
+    under the 60/min visitor budget (ADR-0064). The warm-realm BFF proof counted both
+    exactly and failed on the extra row and then on a 429; it is corrected in
+    `a1ce6b12`. A `membershipId` filter on `ListDataRequests` (item 68) would let the
+    page ask for one member's requests only; the extra read per member page view stays
+    until a maintainer decides whether it is worth its audit row and permit.
+
+### P03-10 Steps 3 and 4 — verification and closeout (2026-11-23)
+
+Steps 3 and 4 are delivered and have had one review round each; the second round is
+owed (see the round 2 entry above). The code head `ca2b08e0` ran the full architecture
+and integration suites in clean clones, and the head `a1ce6b12` ran the unit, contract
+and frontend suites in the working tree:
+
+- **Architecture:** 725 passed, none failed, 1 hour 51 minutes.
+- **Integration, first run:** 4,754 passed and 618 failed, 1 hour 30 minutes. This was a
+  host failure, not a defect: 562 of the failures are `Can't assign requested address`
+  from the HTTP clients, the rest are cleanup failures of the same collections and two
+  Keycloak readiness timeouts, and the container runtime (OrbStack) had stopped when the
+  run ended and stopped twice more while it was restarted. After it stayed up, the 35
+  failed classes that need no frontend dependencies were rerun serialized: 573 passed,
+  none failed, 40 minutes.
+- **Integration, frontend-fixture classes:** the native BFF session, public rendering,
+  admission and local-launch classes need the frontend dependencies a clean clone lacks,
+  so they ran in the working tree with the runtime up: 39 of 40 passed. The one failure
+  was a defect of the packet's own proof, and is fixed (below).
+- **Unit** 5,083 passed, **contract** 15 passed. **Frontend:** `pnpm typecheck` and
+  `pnpm lint` clean; `pnpm test` 5,222 passed in two packages with no skips; no Chromium
+  proof was run.
+- One test fails only inside a full Release run, `AuthenticatedHttpSurfaceRuntimeTests`
+  `Production_endpoint_union_has_exact_patterns_methods_handlers_and_requests`
+  (Development). It asserts the text FluentAssertions builds from the source file,
+  passes alone in Release (7 of 7 in the same clean clone) and failed the same way at
+  the Step 2 head, so the Step 2 closeout's "only in a Release build" is narrowed here
+  to "only inside the full run"; the packet does not cause it.
+
+**The defect the frontend-fixture run found.** The Studio member page lists the group's
+data requests, which adds one MUST `identity.data_request.list` audit row to the page
+and one call under the 60/min visitor budget. `TenantBffSessionTests` pins both: it
+expected seven selected-page audit rows and ended its first budget window after the
+replacement check, which used exactly the sixty permits, so it failed on the eighth row
+and then on a 429. `a1ce6b12` expects eight rows and ends the window before the
+replacement check. The base commit `211b9fd3` passes the unchanged test with the same
+instrumented counts (22 anonymous and 8 authenticated reads), so the difference is the
+one extra call (item 71). Step 4's targeted runs could not reach this test because it
+needs the frontend dependencies; a frontend-fixture run belongs to every later change
+of a native page.
+
+Open for the maintainer: the rulings listed under "P03-10 — owed ADR amendments and
+maintainer decisions" above (items 1 to 71), and the round 2 that the usage limit
+stopped. Nothing in this packet's review is treated as passed beyond what is recorded.
