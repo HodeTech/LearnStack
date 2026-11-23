@@ -38,7 +38,7 @@
 > | P03-7 | Back-channel session revocation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-7-merge-and-delivery-closeout-2026-11-12); final-head opposite-layout/pair qualification remains open |
 > | P03-8 | Tenant federation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-8-merge-and-delivery-closeout-2026-11-19); final-head opposite-layout/pair qualification and manual accessibility evidence remain open; the contract-transition items, G20 and the Phase 11 realm items are owned in the closeout |
 > | P03-9 | Platform authority and operational recovery | Complete and merged — [closeout](phase-03-delivery-log.md#p03-9-merge-and-delivery-closeout-2026-11-21); final-head opposite-layout/pair qualification remains open (the layout-B filter ceiling was raised by [ADR-0105](../decisions/0105-ci-selector-filter-and-argument-bounds.md), [qualified](phase-03-delivery-log.md#adr-0105-merge-and-hosted-qualification-2026-11-22)); the maintainer items, the P03-10 and Phase 11 constraint and the tooling note are owned in the closeout |
-> | P03-10 | DSAR and global account closure | In progress — G15 and the G16 workflow Accepted ([package](phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)); Step 1 (request core and export) delivered and twice reviewed ([record](phase-03-delivery-log.md#p03-10-step-1--verification-and-closeout-2026-11-22)); Steps 2 to 4 not started |
+> | P03-10 | DSAR and global account closure | In progress — G15 and the G16 workflow Accepted ([package](phase-03-delivery-log.md#p03-10-decision-package-and-acceptance-2026-11-22)); Steps 1 (request core and export) and 2 (tenant erasure and privileged audit redaction) delivered and twice reviewed ([Step 1](phase-03-delivery-log.md#p03-10-step-1--verification-and-closeout-2026-11-22), [Step 2](phase-03-delivery-log.md#p03-10-step-2--verification-and-closeout-2026-11-23)); Steps 3 and 4 in progress |
 > | P03-11 | Exit enforcement | Not started |
 
 ## Goal
@@ -716,23 +716,17 @@ and export/downloads as applicable MUST `read-sensitive` acts. No failed write i
 hidden by a duplicate HTTP/application audit or a generalized assertion budget.
 Extend every affected module matrix, including consent and federation changes.
 
-**The erasure's audit redaction owes a decision before its handler lands.** The handler
-[Audit Subsystem § 10](../architecture/31-audit-subsystem.md#10-gdpr--pii-redaction)
-sketches writes its `audit.redaction.apply` row on the platform transaction that does the
-redaction, before that transaction commits — a MUST row never follows the commit it
-describes. `IAuditStore.WritePlatformScopeAsync` is the write that takes a caller's
-platform transaction, and its contract admits one caller, the scope's own entry row. This
-phase amends [ADR-0044 § 10](../decisions/0044-audit-write-path.md) to admit the redaction
-result as a second, bounded caller or to give it a method of its own, and settles the
-inbox boundary with it: the inbox mark lives on another connection, so a redelivery must
-find the result row already written rather than record a second one.
-
-The same decision must account for immutable `actor_user_id`, entity/causation
-identifiers and new `metadata.causal_actor_user_id` references. Current redaction
-permits only `actor_email`, `ip_address`, `user_agent`, `before_state`,
-`after_state` and `changes`; `metadata` is outside the column grant. Preserve
-those boundaries until the bounded decision and any required migration ship.
-Redacting the six columns alone does not establish complete anonymisation.
+**The erasure's audit redaction is decided.**
+[ADR-0044](../decisions/0044-audit-write-path.md) Amendments 17 to 19 added the
+witness-bound result and intent writes, so `IAuditStore.WritePlatformScopeAsync` keeps
+its one caller and no store method was added, and
+[ADR-0108](../decisions/0108-privileged-audit-redaction.md) (Accepted 2026-11-22)
+settles the rest: the redaction runs in one platform transaction, its result row names
+the tenant, the grant stays at the six columns, and `actor_user_id`, entity and
+causation identifiers and `metadata` stay outside it as pseudonymous keys, so the
+redaction at each module's declared pointers is conditional on value. Redacting the six
+columns alone does not establish complete anonymisation, and ADR-0108 § 6 states what
+is retained.
 
 ### DSAR fulfillment and global closure
 
@@ -759,6 +753,10 @@ remain their respective authorities.
   Before making a User nonadmitting, P03-10 takes the canonical User fence, then
   all affected exclusive Tenant keys, and retains them through completion under
   [Standard 05](../standards/05-database.md#lock-snapshot-and-adoption-conditions).
+  *Erratum (2026-11-23, [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md)
+  § 7):* "through completion" means through each nonadmitting transaction, Begin's and
+  Finalize's second. Advisory transaction locks end at a commit, so Finalize takes the
+  fences again after the provider call.
   Final-admin recovery/termination still requires its separately accepted contract.
 - Include ADR-0097's provider receipts, retained targets and their transport/Audit
   links in the subject-store inventory. P03-6 supplies receipt subject-key/User

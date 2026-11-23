@@ -534,7 +534,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 352 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 418 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
   - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
   - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
@@ -543,6 +543,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-10 Step 2 — tenant erasure and privileged audit redaction (2026-11-23)](#p03-10-step-2--tenant-erasure-and-privileged-audit-redaction-2026-11-23) — 53 lines
   - [P03-10 Step 2 — review round 1 and its fixes (2026-11-23)](#p03-10-step-2--review-round-1-and-its-fixes-2026-11-23) — 15 lines
   - [P03-10 Step 2 — review round 2 and its fixes (2026-11-23)](#p03-10-step-2--review-round-2-and-its-fixes-2026-11-23) — 23 lines
+  - [P03-10 Step 2 — verification and closeout (2026-11-23)](#p03-10-step-2--verification-and-closeout-2026-11-23) — 66 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25984,3 +25985,69 @@ verified findings were fixed in isolated clones and merged:
   replay-floor proof runs the real operator completion before the replay; the runbook,
   the Audit and Identity module documents and the standards were corrected against the
   code; a third wave of unit and integration tests closed the gaps the reviewers named.
+
+### P03-10 Step 2 — verification and closeout (2026-11-23)
+
+Step 2 is delivered and twice reviewed. The head of round 2 (`7d830535`) ran the full
+architecture suite in a clean clone: 693 passed and one failed, 1 hour 25 minutes. The
+failure was `BackgroundJobManifestBoundaryTests.JobManifestControllerActions`, a pin
+that lacked the new erasure, closure and revocation actions of the data-request
+controllers, fixed in `38c5c65c`. The same head ran the full integration suite in a
+clean clone: 5,117 passed and 40 failed, 2 hours 17 minutes, and none of the 40 is a
+defect of the packet:
+
+- Twenty-six need the frontend dependencies that a clean clone lacks (the native BFF
+  session, public rendering, admission and local launch fixtures).
+- One fails only in a Release build, because FluentAssertions cannot name the subject
+  without the source path (`AuthenticatedHttpSurfaceRuntimeTests`, a federation census);
+  it passes in Debug.
+- Thirteen are one pin, the Identity function census in `GlobalIdentitySchemaTests` and
+  `IdentityCommandQualificationTests`: the completed-export guard of Step 1 (`a0e560fc`)
+  and its constraint trigger were never counted, so the census asserted 39 functions
+  where the chain had 40. Step 1's targeted runs did not reach it. It is corrected in
+  `60eea19e` (Step 3), which also counts that unit's own definer.
+
+The head of Step 2 contains all of Step 1's code, so this run also closes Step 1's open
+verification: no request, export, retained-scope or migration class failed apart from
+the census above. The unit suite on the working tree passes (5,041), the contract suite
+passes (15), and the OpenAPI document differs from the Step 1 head only by additions.
+
+Open for the maintainer, as the amendments the code needs and the choices the ADRs left
+(numbers refer to the maintainer list kept with the PR):
+
+- **A person re-admitted during the 24-hour window is erased at execution** (34).
+  ADR-0106 § 3 holds "an administrator erases only for a Revoked Membership" at creation
+  only. Either add a closed refusal `blocked_membership_current` at execution, which
+  touches ADR-0106 §§ 7 and 8, the DDL vocabulary, one migration and the copy, or accept
+  that the person may cancel in the window.
+- **`ip_address`, `user_agent` and `actor_email` become NULL on every selected row**
+  (38), also on a row whose actor is an administrator that the selection reached through
+  a payload reference, as ADR-0108 § 5 reads literally. Keep it, or narrow it to rows
+  whose actor is the subject.
+- **The act is linear in the tenant's audit volume** (39, 49, 54): about 12 seconds
+  for 1.5 million ordinary rows, and a batch is cut at 100,000 rows or 64 MiB of
+  decompressed payload in the request's reach. A GIN index over payload identifiers
+  would remove the scan and needs its own decision. A client or gateway abort rolls the
+  act back.
+- **The retained classes the list cannot count** (31, 47, 50): transport and execution
+  evidence, the idempotency cache, external copies and the invitation envelope have no
+  subject-keyed count, and a pending offer addressed to the person's e-mail address is
+  not locatable by person, so the receipt's list is partial and says so. The web copy of
+  Step 4 and Phase 11's counting beside the purge own it.
+- **The 30-day target of an awaiting erasure has no automated detector** (53); Phase 11
+  owns a backlog gauge and its alert rules.
+- **Smaller text amendments:** the locator registrations fall under the no-cross-module
+  rule (32); the retained-entry set is larger than ADR-0106 § 9 counts (33); the
+  contextual guard's exception clears a Revoked parent only, so Active and Suspended
+  Memberships are cleared before they are revoked (30); a request is never born
+  `fulfilling` outside a closure's fan-out (44); the window's lower bound is judged
+  against `transaction_timestamp()` (45); the erasure holds the tenant's identity fence
+  exclusively while it computes the retained report (42); the completion replaces the
+  three audit kinds the participant counted and adds `unscoped_audit_rows` for an
+  administrator's request (50); an invitation-revocation `changes` array is elided
+  above about 700 offers by the 256 KiB audit cap (41); the redaction is a one-time
+  rewrite, so a later edit of a record the person created writes the identifier again
+  (37, 55).
+- **Unreleased migrations of this packet:** `20261122200000` and `20261122203000` are
+  new, and four Step 1 migrations were edited in place; a development database created
+  from an intermediate commit of this branch must be dropped and migrated again.
