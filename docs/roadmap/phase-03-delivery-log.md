@@ -534,12 +534,15 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 261 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 352 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
   - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
   - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
   - [P03-10 Step 1 — review round 2 and its fixes (2026-11-22)](#p03-10-step-1--review-round-2-and-its-fixes-2026-11-22) — 32 lines
   - [P03-10 Step 1 — verification and closeout (2026-11-22)](#p03-10-step-1--verification-and-closeout-2026-11-22) — 69 lines
+  - [P03-10 Step 2 — tenant erasure and privileged audit redaction (2026-11-23)](#p03-10-step-2--tenant-erasure-and-privileged-audit-redaction-2026-11-23) — 53 lines
+  - [P03-10 Step 2 — review round 1 and its fixes (2026-11-23)](#p03-10-step-2--review-round-1-and-its-fixes-2026-11-23) — 15 lines
+  - [P03-10 Step 2 — review round 2 and its fixes (2026-11-23)](#p03-10-step-2--review-round-2-and-its-fixes-2026-11-23) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -25890,3 +25893,94 @@ Open for the maintainer, as the amendments the code needs and the choices the AD
   and keep port leakage (`CanOpen`, the locking read in the reader) in view in Steps 2
   to 4.
 
+
+### P03-10 Step 2 — tenant erasure and privileged audit redaction (2026-11-23)
+
+Step 2 delivers the erasure half of
+[ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 5, 6
+and 8 and of [ADR-0108](../decisions/0108-privileged-audit-redaction.md): a person, or
+an administrator for a Revoked Membership, files an erasure of one scope group; after
+its 24-hour cancellable window a job erases the group's tenant-side data and parks the
+request; an operator then redacts the person's audit rows in a platform transaction and
+completes it. Five units landed in `cdbb58f6` (platform keys, registry entries and the
+redactor port), `8a27e5be` (operator inspection and completion), `1d010cad` (the Audit
+executor and the user-reference locators), `ec1f26bd` (the real executor run through
+the operator act) and `7d6b0d88` (the Identity erasure). Closure and the web surface
+are Steps 3 and 4.
+
+Delivered:
+
+- **Request path.** An erasure is `scheduled` for 24 hours, then `fulfilling`, then
+  `awaiting_privileged_step`, then `completed` by the operator; the person may cancel
+  while it is `scheduled`. The same create and cancel paths serve the live own,
+  administrator and retained-entry callers.
+- **Tenant erasure.** One job per group takes the person's User fence and the tenant
+  key, then, in one transaction, revokes the person's export artifacts and unstarted
+  exports, removes the frozen Membership snapshot's assignments, clears its profile and
+  revokes it, revokes the pending invitations the person issued, records every
+  participant's retained report and parks the request. The Membership and Invitation
+  erasure operations run only under a sealed `DataErasureWitness` with one minting
+  source, and a forward migration
+  (`20261122203000_admit_erasure_profile_clearing`) admits one clearing UPDATE of a
+  Revoked Membership's profile columns while the request is `fulfilling` and both fences
+  are held.
+- **Privileged redaction.** `IAuditRedactor` (SharedKernel) and its executor in the
+  Audit module redact in keyset batches on `(timestamp, id)`, at the pointers each
+  module's `IUserReferenceLocator` declares, and only where the value equals the
+  subject's identifier or a frozen Membership id. A batch is cut at 100,000 rows or 64
+  MiB of decompressed payload in the request's reach. The report is aggregate and
+  closed; no subject identifier appears in it, in a payload or in a log.
+- **Operator surface.** `GET /api/platform/v1/data-requests` (inspection;
+  `platform.data_request.read`) and
+  `POST /api/platform/v1/data-requests/{requestId}/complete-erasure` (completion;
+  `platform.data_request.write`), each through the operator gate for the operation
+  `platform.data_request.inspect` or `audit.redaction.apply`. A completion runs the
+  redaction, the request guard's platform arm and the result row in one platform
+  transaction
+  (`20261122200000_grant_platform_data_request_operations`). A closure's fan-out erasure
+  is refused here with `lockey_data_request_closure_fanout`.
+- **Proof.** `DataErasureReplayFloorTests` run the real operator completion and then
+  replay the person's events, and an erasure never resets the replay floor
+  ([ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) § 9).
+  The runbook is [Data erasure](../runbooks/data-erasure.md).
+
+The decisions the code took that the ADR text does not state are items 21 to 55 of the
+list under the closeout.
+
+### P03-10 Step 2 — review round 1 and its fixes (2026-11-23)
+
+Seven fresh read-only reviewers read the head of the five units by lens (audit
+redaction, database guards, the erasure core, the operator surface, the API, test
+adequacy and documentation) and every finding was checked against the code before it
+was fixed. The ones that changed code:
+
+- **Fan-out refusal and guards (`b62a1122`).** The standalone completion refuses an
+  erasure born of a closure's fan-out, and the platform arm's arrow excludes that
+  origin; the request guard was hardened, the counter
+  `learnstack_platform_operator_data_requests_total` was added, the replay-floor test
+  was written and the runbook was corrected against the code.
+- **Proof gaps (`7dd82523`).** The test additions the test-adequacy slice named, for the
+  erasure core and the redaction's pins.
+
+### P03-10 Step 2 — review round 2 and its fixes (2026-11-23)
+
+Six fresh reviewers read the head of round 1: a regression check of the fixes, the
+database guards, the erasure core, the operator surface, test adequacy and
+documentation, and a replay-floor strengthening agent. None found a blocker. The
+verified findings were fixed in isolated clones and merged:
+
+- **A request born `fulfilling` (`1d1057bc`).** The request guard admits no request born
+  `fulfilling` in this step, because a closure's fan-out erasure would otherwise stand
+  in, with no window, for the witness of the profile clearing; Step 3 relaxes the INSERT
+  arm with its own witness. The contextual guard's witness also requires the request's
+  frozen snapshot to name the Membership.
+- **The batch and its census (`a1af5c32`, `367bb9e4`).** A redaction batch is bounded by
+  payload bytes, not rows alone, and the budget counts decompressed bytes in the
+  request's reach (a heavy-payload tenant of 150,000 rows of about 100 KiB completes in
+  about four minutes with every statement under two seconds, where the row-only cut timed
+  out). The locator census is closed and an end-to-end test asserts no subject
+  identifier survives in a payload.
+- **Proof and documents (`4bb52e4f`, `b3653eff`, `560cbed4`, `7d830535`).** The
+  replay-floor proof runs the real operator completion before the replay; the runbook,
+  the Audit and Identity module documents and the standards were corrected against the
+  code; a third wave of unit and integration tests closed the gaps the reviewers named.
