@@ -26189,3 +26189,205 @@ not: the fan-out's registration required the operator gate in hosts that compose
 persistence alone, which stopped 224 HTTP integration tests from starting, and the setter
 census matched the fence acquirer's `lock_timeout` bound. Both are fixed
 (`ac687dc3`).
+
+### P03-10 — owed ADR amendments and maintainer decisions (2026-11-23)
+
+The list below collects what the implementation found that the Accepted ADR text does not
+say, the decisions the code took and the choices left to the maintainer. The step records
+above cite its item numbers. No Accepted ADR body was edited: each item that changes a
+decision is owed a dated Amendment under
+[ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md), written once
+the maintainer has ruled; the items marked DECISION, OPEN or owed to the user need a ruling
+first. Items 1 to 20 are Step 1, 21 to 55 Step 2, and 56 to 70 Steps 3 and 4 with the
+review fixes; some earlier items were superseded by later ones, as item 52 says.
+
+1. ADR-0107 § 8 platform UPDATE list lacks `last_refusal` (closure Begin refusal must record it, § 7).
+   Step 3: add `last_refusal` to the platform column UPDATE grant; the platform arm of the request guard
+   stamps `updated_at`/`updated_by` itself (trigger-set NEW columns need no column grant).
+2. ADR-0107 § 8 gives the platform role no privilege on `data_export_artifacts`, but `inspect` (§ 8)
+   lists expired artifacts not yet purged. Step 2: column-limited platform SELECT on artifacts
+   (id, tenant_id, request_id, status, expires_at: five columns; the group comes from the joined request; no subject, no counts).
+3. ADR-0106 § 8 "failed is read from the job phase" vs the one-active partial unique index, which frees a slot only
+   for a STORED terminal status. Resolution: reconcile-on-observe (store failed/execution_failed when a dead job is
+   observed by the create path / operator inspect), receipt derives failed for display. Unit 2 builds the reconciler.
+4. ADR-0107 § 3 says a cap hit is stated "in the receipt"; the request `result` column is the closed retained-kind
+   vocabulary. Resolution: `truncation` jsonb on `data_export_artifacts` (set at insert, closed shape).
+5. Unit 1 deviations accepted: app UPDATE columns wider than § 8 text (last_refusal, failure_reason, completed_at,
+   updated_at, updated_by, purged_at); request guard requires the User exclusive fence at creation; Down migration
+   forward-only; platform writes refused by the guard until Steps 2 and 3 add their arms; DELETE refused for all roles.
+
+**Added by Step 1 review round 1 (2026-11-22)**
+6. ADR-0107 § 3 / ADR-0108 § 4 say a self-requested export selects audit rows "across the whole tenant". The export job
+   runs as a background job: it has no Protected tenant-wide read witness, so `app.scope` is never `tenant` and RLS
+   shows an organization group its own organization's rows plus tenant-level (NULL organization) rows; a tenant-wide
+   group sees only NULL-organization rows. Consequence: a tenant-wide Membership holder who acted inside an
+   organization context has audit rows no export can reach (they hold no Membership of that group). Step 1 makes the
+   reach explicit in the bundle (`audit_scope`) and the docs. MAINTAINER DECISION (PR): either amend § 3/§ 4 to the
+   RLS-visible reach (current behaviour), or decide a sanctioned tenant-wide read for the export job (needs an ADR; touches
+   ADR-0047 trusted job policy and the operation read witness).
+7. ADR-0107 § 4: the ticket "authorizes the sequential chunk reads of one download"; implemented as: any chunk index
+   below the count, any order, until the final index is served (then consumed); no position column exists (§ 8 grants only
+   `consumed_at`). Amend § 4 to say so; outstanding tickets per artifact are bounded (3) by this step.
+8. ADR-0107 § 8 app-role UPDATE grants: the implementation also grants last_refusal, failure_reason, completed_at,
+   updated_at, updated_by (requests) and purged_at, row_version, updated_at, updated_by (artifacts); exact lists are in
+   `DataRequestStorageDdl.Grants`.
+9. ADR-0106 § 7 lets the retained path file "where the person has a request"; a request needs >= 1 Membership snapshot and
+   Memberships are never deleted, so a request-only group is unreachable; eligibility requires a Membership row.
+10. ADR-0106 § 8: an export reads `requested` until it completes (the job runs requested -> fulfilling -> completed in one
+    runtime transaction); `fulfilling` is not observable for exports.
+11. Retained path cannot revoke an artifact (`OwnDataRequestPurpose` has no Revoke); ADR-0107 § 4 says "the subject may
+    revoke". Decide at Step 2/4.
+12. PRE-EXISTING (not this packet): `pg_current_xact_id()::text::xid` fails with 22003 once the cluster passes its first xid
+    epoch (verified on postgres:18.4: `'4294967296'::xid` errors; `pg_current_xact_id()::xid` works). Sites:
+    TenancyAdministrationDdl.cs:52, TenancyRetainedDefaultDdl.cs:51, ContextualIdentityStorageDdl.cs:173,391.
+    P03-10 removes its own use; the four older sites need a follow-up migration (owner: maintainer / next Identity-Tenancy packet).
+13. Retained recheck (R3-1): `RetainedDataRequestAdmission.RecheckAsync` is identity-only; Step 3 (user closure) must
+    re-validate the binding and User status under the User fence on both paths.
+14. Expired-artifact purge has one scheduled job (6 attempts, ~1 h): no automated sweeper; `inspect` (Step 2) lists
+    expired-unpurged artifacts; the automated sweeper is Phase 11 (retention purge, ADR-0107 § 6).
+
+**Added by Step 1 review round 2 (2026-11-22)**
+15. New rule: an ADMINISTRATOR-origin export is refused (409, `errors.$` = `lockey_subject_export_available`) while the subject
+    holds a readable (available, unexpired) artifact of any origin, because completing it revokes that artifact (ADR-0107 § 4
+    "a new export revokes the previous"). A subject's own export is unchanged. ADR-0106 § 7 / ADR-0107 § 4 amendment owed.
+16. Ticket bounds: at most 3 open (unconsumed, unexpired) tickets per session binding per artifact
+    (`DataRequestLimits.MaximumOpenTicketsPerBinding`), at most 20 ever minted per artifact (`MaximumTicketsPerArtifact`);
+    distinct refusals `data_export_unavailable` (artifact gone / key left the ring) vs `data_export_ticket_limit`. Enforced
+    in the application under the artifact row lock (a DB guard would race). ADR-0107 § 4 amendment owed.
+17. `audit_scope` in the bundle is a closed record `{"reach":…,"complete":false}`; audit selection is windowed per branch
+    (two disjoint partial indexes, measured 2.2-3.4 s -> ~1 ms on 2.3M rows); `audit_metadata_reference` is a lower bound
+    beyond a 500k-row scan window. Counts of retained references are a partial list (a kind absent is not zero).
+18. Metrics/logs added: counter `learnstack_data_export_downloads_total{operation,outcome}`, purge outcome `failed`,
+    event 7507; custody refusal logs Critical once per (artifact,key) pair per process, Warning after.
+19. A job-dead export is stored `failed/execution_failed` by the reconciler (create path); a receipt can show `failed`
+    while the stored row still reads `requested` until observed (runbook documents it).
+20. Four unreleased Step 1 migrations were edited in place (index, trigger, grants): dev databases created from
+    intermediate commits must be dropped and re-migrated.
+
+**Added by Step 2 planning (2026-11-22)**
+21. ADR-0108 § 5: redaction at a declared pointer is conditional on value (equals the subject's UserId or a frozen
+    Membership id); an unconditional replacement would also erase other people's values (an administrator's UpdatedBy).
+22. ADR-0107 § 1: the erasure job runs every participant's Erase in the job's one transaction (ADR-0047 gives one
+    transaction per root attempt); only Identity writes today; progress still names each participant.
+23. ADR-0107 § 8 "in the style of ADR-0103 § 6" should read ADR-0103 Decision item 1 / the `platform.delivery.inspect` row.
+24. Audit slug placement: `platform.data_request.inspect` (module platform) and `audit.redaction.apply` (module audit) are
+    declared from the Tenancy catalogue source with the other platform off-path slugs.
+25. Operator-side status writes stamp `updated_by = UserId.SystemActor`; the operator attribution is in metadata.operator.
+26. ADR-0107 § 8: platform SELECT on data_export_artifacts is column-limited (no subject, no counts) for `inspect`.
+
+**Added during Step 2 review round 1 (2026-11-22)**
+27. ADR-0108 § 6: the redaction report and the request receipt carry no retention target for the audit row's class; only
+    the runbook links Audit Coverage § Retention. Owner: P03-10 Step 4's receipt copy, or the amendment says a link suffices.
+28. ADR-0108 § 8: "aggregated beyond 200 groups" is not implemented and not needed: the report's keys are closed (< 1 KiB).
+29. ADR-0107 § 1: "Audit's participant plans": the Identity owner builds the plan from the locked request row
+    (`new AuditRedactionPlan(request.Subject())`); the Audit participant plans nothing.
+30. ADR-0107 § 5: the contextual-guard exception covers "a Membership of any status" only for a Revoked parent; Active and
+    Suspended Memberships are cleared through the ordinary path before `RevokeForErasure` (cleared, then revoked).
+31. ADR-0107 § 9 / ADR-0107 § 6: "reported as retained transport evidence" has no producer: `transport_evidence`,
+    `execution_evidence`, `idempotency_cache`, `external_copy` and `invitation_envelope` have no subject-keyed count (the
+    app role holds no SELECT on the envelope table). The list is partial; docs say so. Owners: P03-10 Step 4 (the web
+    surface names those classes in its copy) and Phase 11 (counting beside the purge). `unserved_group` is Step 3's.
+32. ADR-0010 Amendment 6: locator registrations fall under the no-cross-module-reference rule
+    (`No_Module_References_Another_Modules_User_Reference_Locator`).
+33. ADR-0106 § 9: the closed retained-entry set is eight operations (list, discovery, export creation, erasure creation,
+    cancel, revoke, ticket, chunk) and keyed operations 30, 31, 34, 35 (ADR-0106 § 9 says six).
+34. DECISION OWED (maintainer): ADR-0106 § 3 holds "an administrator erases only for a Revoked Membership" at creation only;
+    a person re-admitted during the 24 h window is erased at execution (artifacts, exports, issued invitations, and an
+    administrator-origin audit redaction in the group). Options: new closed refusal `blocked_membership_current` at
+    execution (ADR-0106 §§ 7/8, the DDL vocabulary, one migration, copy) or accept (the person may cancel in the window).
+35. Step 4 copy owed for every `errors.$` key of the data-request API: `request_already_active`, `blocked_hold`,
+    `blocked_last_administrator`, `subject_export_available`, `subject_membership_current`, `data_export_unavailable`,
+    and the round-2 keys `data_request_window_ended`, `data_request_not_cancellable`, `subject_is_requester`, `snapshot_too_large`
+    (all with the `lockey_` prefix on the wire).
+36. ADR-0107 § 7/§ 8: the standalone `complete_erasure` refuses a closure's fan-out erasure (409 `errors.origin` =
+    `lockey_data_request_closure_fanout`, and the platform arm's arrow excludes `origin = closure_fanout`); Step 3's Finalize
+    extends the one marked arrow condition.
+37. ADR-0108 § 6: the redaction is a one-time rewrite; attribution columns stay on the tenant's records, so a later edit
+    of a record the person created or last updated writes the identifier again. Runbook states it.
+38. ADR-0108 § 5 read literally: `ip_address`, `user_agent` and `actor_email` become NULL on EVERY selected row, including a
+    row whose actor is an administrator (the selection reached it through a payload reference): the administrator's
+    address and e-mail are lost with it. Maintainer decision: keep (literal) or narrow to rows whose actor is the subject.
+39. The act's duration is linear in the tenant's audit volume (~10 s per 1.5 M rows measured); a GIN index over payload
+    identifiers would remove the scan and needs its own decision. A client or gateway abort rolls the act back.
+40. ADR-0107 § 8: a per-outcome counter `learnstack_platform_operator_data_requests_total{operation,outcome}` exists (not in
+    the ADR text).
+41. Invitation revocation evidence: above ~700 pending offers one erasure's `changes` array is elided by the 256 KiB cap
+    (ADR-0044 § 7); the invitations' own `Revoked` rows are the record. The job's time is not a limit (10 000 offers ~5 s).
+42. The erasure job holds the tenant's identity fence exclusively while it computes every participant's retained report
+    (the Audit counts are up to a 15 s budget): other identity writers wait 2 s then 503. Documented in the runbook.
+43. Steps 1-2: Identity migrations `20261122200000` and `20261122203000` are new in this packet; databases created from
+    intermediate commits of this branch must be dropped and re-migrated (as for item 20).
+44. ADR-0107 § 7 / ADR-0106 § 8: the request guard admits no request born `fulfilling` in Step 2 (a closure's fan-out erasure
+    would otherwise stand in, with no window, for the witness of the profile clearing); Step 3 relaxes the INSERT arm with its own
+    witness. The contextual guard's witness also requires the request's frozen snapshot to name the Membership.
+45. ADR-0106 § 5: the 24-hour window's lower bound is judged against `transaction_timestamp()`, so a filing transaction held open
+    for an hour commits a request whose window already lost about an hour (low risk; not changed).
+46. LATENT (C-4): the erasure withdraws only `available` artifacts; no path writes `expired` today, and the purge job moves an
+    expired artifact to `purged`. If a future writer records `expired`, `FindAvailableArtifactsAsync` must include it.
+47. ADR-0107 § 6: `invitation_record` counts the offers the person issued or accepted; a pending offer addressed to their e-mail
+    address is retained and not locatable by person, so not counted (runbook, README and the OpenAPI `retained` text say so).
+48. ADR-0108 § 6: the key of a second instance of a User or Membership that a row carries (a person admitted again: the row's
+    designated Membership is the first, the second travels in `changes`) survives only as the instance segment of the
+    `changes` path (`/Membership/<id>/…`). It is the same pseudonymous key ADR-0108 § 6 retains as `entity_id`, and is
+    retained the same way (no value of it is redacted; the end-to-end redaction test allows exactly those segments). Such a
+    row is not counted in `audit_entity_reference` for the second instance (a lower bound).
+49. ADR-0108 § 4 / amend-u2 items 4 and 10: a selection batch is a half-open range on `("timestamp", id)`, newest first, cut at
+    100 000 rows or 64 MiB of stored payload (`pg_column_size` of the three payload columns, never detoasted), whichever is
+    first; a row larger than the budget is a batch of its own. Heavy-payload tenants complete (150 k rows of ~100 KiB: ~4 min,
+    every statement ≤ 2 s) where the earlier row-only cut timed out. The act's duration is in stored bytes, not rows.
+50. ADR-0107 § 6 / ADR-0108 § 6: the operator's completion REPLACES the three audit kinds (`audit_actor_reference`,
+    `audit_entity_reference`, `audit_metadata_reference`) the Audit participant had counted while the request waited with the
+    redaction's exact counts (`audit_metadata_reference` goes from a lower bound to exact) and ADDS `unscoped_audit_rows` for an
+    administrator's request; every other kind stays as its participant recorded it. A receipt's numbers change at completion.
+51. Step 4 copy also owes `lockey_data_export_ticket_limit` (the data-request API emits it).
+52. Superseded or obsolete list items: amend-u3 #10 (the actual-replay proof is delivered: `DataErasureReplayFloorTests`, with the
+    real operator completion before the replay), amend-u3 #12 (the Standard 18 and Identity README carriers are written),
+    amend-u1 #7's last sentence, amendments-owed #39 and amend-u2 #4/#10 (see #49: 100 000 rows or 64 MiB, duration in stored bytes).
+53. ADR-0106 § 12 / Phase 11: the 30-day target of an awaiting erasure has no automated detector; Phase 11 owns a backlog gauge and
+    its alert rules (written into the Phase 11 observability sentence).
+54. ADR-0108 § 4 (supersedes the stored-bytes part of #49): the batch budget (64 MiB) counts payload DECOMPRESSED and only for rows in
+    the request's reach (a compressed column is sized by the decompressed document; an uncompressed one by its stored size; rows outside
+    the reach count 0, because the selection never reads their payload). Measured: 1.5 M ordinary rows ~12 s whole tenant (was ~8 s
+    when counting stored bytes), 30 000 × 250 KB compressible ~3-4 s, no statement above ~1.2 s anywhere. A larger decompressed budget
+    with a separate UPDATE chunk limit was considered and not done.
+55. The redaction covers rows committed before the act begins; a row committed during it is not redacted (one-time rewrite, #37). Two
+    requests for the same person (self + administrator) can wait on or deadlock with each other: 503, retry.
+
+**Added during Step 3 and Step 4 implementation (2026-11-23)**
+56. Step 4a: `RetainedDataRequestScopeResponse` carries no organization display name, so a retained person with several organization groups sees
+    "This institution as a whole" or "Branch 1, 2, ..." and the copy says names cannot be shown. A label would need the discovery definer to read
+    Tenancy's `organizations` table (cross-module) or a separate Tenancy read: needs its own decision (see `amend-s4a.md` § 4).
+57. Step 4a: ADR-0106 § 9 lists a retained "read"; the API has no such operation (the retained list carries the full receipt). Amend the list.
+58. Step 3 A4 item 6 (a filing racing Begin/Finalize) is closed by A1 item 2a: the request guard's INSERT arm reads `users.status` under the
+    exclusive User fence, and B2 maps its refusal to `lockey_subject_not_admitted` on every creation route.
+59. Step 3 B2 findings not closed (owner Phase 11 or the maintainer): the invitation e-mail jobs do not check the inviter's User status between
+    Begin and that group's fan-out erasure, and an export job filed before Begin may store an artifact before the fan-out erasure withdraws it.
+
+**Added by review round 1 and its fixes (2026-11-23)**
+60. ADR-0107 § 7 (dated amendment, from fx1): Begin refuses before the move, with nothing written, a person with more than 256 participant groups or more than 256 Memberships in one
+    tenant (`ClosureLimits`; closed answer `errors.participants`), and a person the removal port cannot delete (`CanRemove`: a subject the adapter refuses, or no client configured;
+    `errors.provider`); the Finalize bullet's first transaction takes only the User fence and the second all fences (Standard 05 erratum); readiness = newest erasure awaiting the privileged
+    step or completed at/after Begin with a covering snapshot, a now-unserved group with an open fan-out erasure stays required; the second transaction locks the awaiting erasures and accepts
+    one the operator completed; an audit failure after the provider step answers a retryable 503; the fan-out adopts a group that already holds a completed fan-out erasure.
+61. ADR-0106 § 8: the closure state table gains `scheduled -> completed` (platform role only, Closed person, all fences), from Finalize; the application arm refuses any UPDATE of a closure
+    that has left `scheduled` (migration `20261123130000_harden_closure_request_guard`).
+62. ADR-0108 §§ 4-5: the payload filter has two forms (array test below 128 spellings, hashed set lookup from 128: a closure tenant pass with 256 Memberships went from 76-80 s to 21-23 s);
+    the sentinel pass sizes no payload. Measured on a loaded host: ratios hold, absolute seconds are rough.
+63. ADR-0107 § 7 "a missing user is success" means the provider's own JSON 404 only; any other 404 is a refusal (a proxy's 404 must not close a person whose account exists). The adapter logs
+    one closed reason code per refusal (event 7125). Real Keycloak 26.7.5 answers `404 application/json {"error":"User not found"}` (evidence `p0310/fx3-e2-evidence.txt`).
+64. KNOWN LIMITS (no code): rows naming the person that an unserved tenant, a late job or a late sign-in writes AFTER Finalize's redaction are not redacted (one-time rewrite, #37/#55); an
+    administrator filing for a Closed person's tombstone writes a failure row naming the person's UserId (needs `fn_identity_user_status` outside trigger depth); an unserved tenant's rewritten
+    rows have no record in its own trail (its fan-out request does not exist); a tenant administrator can see a fan-out erasure (`origin = closure_fanout`) and learns a member is closing
+    (intended; one sentence in the Identity README, amendment to ADR-0106 § 3 "never reads a closure").
+65. ADR-0064 DECISION OWED (maintainer): the API budget is 60 requests/minute per visitor IP and every chunk read is one request, so an export above about 7.5 MiB takes minutes (the relay now pauses
+    on 429/503 Retry-After and finishes within the ticket deadline); a dedicated, larger budget for chunk reads, or larger chunks (ADR-0107 § 4), is the real fix. Also: the production ingress idle
+    timeout must exceed ~70 s; browser behaviour on a destroyed connection (Chrome/Firefox/Safari) is not verified.
+66. WCAG 2.2.1 (maintainer): the retained entry (and the consent entry) is limited to 5 minutes from sign-in, never extended; the page states the end time; an extension mechanism or a recorded
+    "essential" justification is owed. C20 exception record for `/account/data` (locale from `Accept-Language`, fixed neutral stylesheet, Standard 07).
+67. ADR-0107 § 6 / Standard 04: idempotency rows are said to last 24 hours but expired `idempotency_keys` rows (response bodies included) are never deleted: Phase 11 purge or an amendment.
+68. Contract asks from the web surface: a list/read of Revoked Memberships for an administrator (today the erasure page is reached only from the revoke redirect or an id from the audit row), a
+    subject name on the administrator receipt, a `membershipId` filter on `ListDataRequests`, an organization label on the retained scope response (#56). The erasure page takes the Membership id as a
+    query (`/studio/data-requests/erasure?membership=`): a path id would survive sign-in/re-authentication returns.
+69. Owed to the user (a `.claude` file): `.claude/skills/local-dev-setup/SKILL.md:84` omits `KEYCLOAK_ACCOUNT_REMOVAL_SECRET` (compose requires it). Turkish consent copy in `auth.json` still says "izin"
+    where the portal says "rıza"; the entry page's consents link has the no-account 401 problem the data link had (not changed).
+70. Chromium proof: no browser proof of `/account/data` or the Studio pages was run (the proof views are unit-tested; `verify-bff-session.mjs` is not wired for them): a Status-block item.
