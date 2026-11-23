@@ -360,6 +360,29 @@ describe('subject data-request wrappers (ADR-0106 § 9, ADR-0107 § 4)', () => {
     });
   });
 
+  it('labels a body that breaks off as a transport failure and only an undecodable body as malformed', async () => {
+    const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+    let pulls = 0;
+    const broken = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (pulls++ === 0) controller.enqueue(new TextEncoder().encode('{"index":0,'));
+          else controller.error(new TypeError('terminated'));
+        },
+      }),
+      { headers },
+    );
+    const { sdk } = sdkWith(broken);
+    expect(await sdk.readOwnDataExportChunk(id, ticket, 0)).toEqual({ kind: 'transport-error' });
+    for (const body of ['{"index":0,', new Uint8Array([0x7b, 0x22, 0xc3, 0x28, 0x22, 0x7d])]) {
+      const { sdk: garbled } = sdkWith(new Response(body, { headers }));
+      expect(await garbled.readOwnDataExportChunk(id, ticket, 0)).toEqual({
+        kind: 'invalid-response',
+        reason: 'malformed-json',
+      });
+    }
+  });
+
   it('keeps the API refusal reason for the person-facing sentence', async () => {
     const { sdk } = sdkWith(
       problem(409, 'business_rule_violation', {

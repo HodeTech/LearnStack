@@ -56,7 +56,10 @@ export {
   parseCustomFieldNumber,
   isCustomFieldSchema,
 } from './custom-field-server.js';
-/** The download relay's exact chunk geometry (ADR-0107 § 4); no wire value is trusted without it. */
+/**
+ * The data-request policy callers share: the download relay's exact chunk geometry (ADR-0107 § 4), closed wire
+ * vocabularies the receipts are validated against, and the retained-group grammar.
+ */
 export {
   DATA_EXPORT_CHUNK_BYTES,
   DATA_REQUEST_FAILURE_REASONS,

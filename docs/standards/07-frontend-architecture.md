@@ -1256,7 +1256,9 @@ fields and, when keyed, a fresh opaque idempotency key; a confirmation the serve
 not find refuses before the API. Success is a 303 to the fixed GET with a closed
 `result`. A refusal is a no-store document with one localized sentence for each API
 reason (`errors.$` or `errors.artifact`), a generic sentence for an unknown reason, and
-its own sentence for an unconfirmed outcome; nothing is retried or replayed. The one
+its own sentence for an unconfirmed outcome; nothing is retried or replayed. Its way
+back never repeats a submitted group: it is the fixed page (in the session mode a
+refused confirmation's own step) and the mode's exit, account entry or portal. The one
 nonce-bound history guard veils a leaving or restored document and returns to
 `/account/data`, or from a retained group's document to that group's
 `/account/data?group=` page, never to a result, step or cursor. The copy is
@@ -1278,11 +1280,39 @@ locale and tenant theme therefore do not apply to it.
 size) before it answers one `attachment` with the bundle's
 `application/json; charset=utf-8`, the exact `Content-Length`, `no-store` and a sandbox
 policy. It relays one chunk at a time, each after the previous write settled, and
-zeroes each decoded buffer. A refused ticket or first chunk is an ordinary refusal
-document; a later failure, the ticket's expiry or the owner's revocation destroys the
-connection, so a short body never completes. A `404` mid-download (a refreshed
-credential ends the ticket) mints at most two new tickets and resumes at the failed
-index. The ticket stays inside the relay: never in a URL, header, page or log.
+zeroes each decoded buffer; the native transport zeroes the response bytes it read. A
+refused ticket or first chunk is an ordinary refusal document; any later failure
+destroys the connection, so a short body never completes. Nothing outlives the
+relay's deadline: the ticket's expiry, fifteen minutes, or the end of the owner the
+response is pinned to, whichever is first. The retained entry's owner ends five
+minutes after its sign-in began and is never extended: the document states that
+instant once, and the download and the confirmation steps each say they must finish
+before it. The ticket stays inside the relay: never in a URL, header, page or log.
+
+- **Resume.** The API answers every chunk refusal with the same `404`: a refreshed
+  credential ends the ticket, and a chunk the API cannot open answers alike. Any `404`
+  mints a new ticket and resumes at the failed index, at most twice per download. Each
+  mint counts against the
+  [ticket bounds](../modules/identity/README.md#subject-data-request-api-p03-10-step-1)
+  (three open per session binding until consumed or expired, twenty per artifact). A
+  chunk whose ciphertext fails to open therefore leaves three open tickets after one
+  download, and the person's next attempt within 15 minutes is refused as the ticket
+  limit; a key that left the ring refuses the renewal itself
+  (`data_export_unavailable`).
+- **Pause.** Every chunk read is one API request under the admission budget of
+  [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md): 60 a minute per
+  visitor and 600 per physical peer, which for the BFF is the BFF node. A bundle above
+  about 7.5 MiB therefore meets `429`. A `429`, or a `503` that names its
+  `Retry-After`, is a pause, not a failure: the relay waits the advertised seconds (at
+  least one, at most 60, five when a `429` names none) and repeats the same call. A
+  chunk read keeps its index and its ticket, which a refusal at admission or a
+  rolled-back read did not consume; a renewal is minted again. A pause spends no
+  resume. A pause that would reach the deadline is not taken, and before the headers
+  the first chunk must start within one minute, so the person gets the refusal
+  document rather than a long wait.
+- **Stall.** A write or the end that makes no progress for 60 seconds, or is still
+  pending at the deadline, destroys the connection like any failure after the headers:
+  a client that stops reading holds no snapshot credit or plaintext beyond it.
 
 **Administrator surface.** `/studio/data-requests` (only an opaque `cursor`, a fixed
 page of 20), `/studio/data-requests/{RequestId}` (only a closed `result`) and

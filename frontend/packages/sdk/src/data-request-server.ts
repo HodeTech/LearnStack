@@ -44,7 +44,12 @@ class BodyLimit extends Error {
     super('Data request response refused');
   }
 }
-/** Reads one bounded UTF-8 body. Every raw buffer is zeroed: a chunk body is decrypted plaintext. */
+/**
+ * Reads one bounded UTF-8 body and zeroes every byte buffer it holds, because a chunk body is decrypted plaintext.
+ * That covers this reader's own buffers only: the transport's buffers are the transport's to clear, and the decoded
+ * text and the parsed strings (the chunk's base64 included) cannot be cleared, so this is best effort. A failure to
+ * decode or parse is a `SyntaxError`; a failure of the body stream itself propagates as it is.
+ */
 async function read(response: Response, signal?: AbortSignal): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new SyntaxError('Data request response refused');
@@ -169,7 +174,10 @@ export function createDataRequestServerSdk(transport: AdministrationFetch) {
           kind: 'invalid-response',
           reason: response.status === expected ? 'invalid-success' : 'invalid-problem',
         };
-      return { kind: 'invalid-response', reason: 'malformed-json' };
+      // Only a body that arrived and does not decode is malformed; a body that broke off is the transport's failure.
+      if (error instanceof SyntaxError)
+        return { kind: 'invalid-response', reason: 'malformed-json' };
+      return { kind: 'transport-error' };
     }
     if (signal?.aborted) return { kind: 'cancelled' };
     if (response.status !== expected) {

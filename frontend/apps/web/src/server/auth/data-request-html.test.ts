@@ -278,15 +278,16 @@ describe('accessible native data-request documents', () => {
     expect(done.title.startsWith(en.result.title)).toBe(true);
     const failure = new DOMParser().parseFromString(
       renderDataRequestDocument(
-        { kind: 'error', message: 'refusal.blocked_hold', back: { kind: 'page', group: 'tenant' } },
+        { kind: 'error', message: 'refusal.blocked_hold', back: { kind: 'page', mode: 'entry' } },
         { locale: 'tr', phrase: select('tr').phrase, nonce },
       ),
       'text/html',
     );
     expect(failure.querySelector('[role="alert"]')?.textContent).toContain(tr.refusal.blocked_hold);
-    expect(failure.querySelector('a.action')?.getAttribute('href')).toBe(
-      '/account/data?group=tenant',
-    );
+    expect([...failure.querySelectorAll('a.action')].map((a) => a.getAttribute('href'))).toEqual([
+      '/account/data',
+      '/api/auth/entry',
+    ]);
   });
 
   it('derives due and cancellable from the closed status and executeAt only', () => {
@@ -689,33 +690,35 @@ describe('accessible names, titles and refusal headings', () => {
       'error.outcome_unavailable',
       'error.in_progress',
     ] as const) {
-      const document = documentOf({ kind: 'error', message, back: { kind: 'page', group: null } });
+      const document = documentOf({ kind: 'error', message, back: { kind: 'page', mode: null } });
       expect(document.querySelector('[role="alert"] h2')?.textContent).toBe(
         en.error.title_unconfirmed,
       );
       expect(document.title).toBe(en.error.title_unconfirmed + ' – ' + en.common.title);
     }
     const refused = documentOf(
-      { kind: 'error', message: 'error.not_found', back: { kind: 'page', group: null } },
+      { kind: 'error', message: 'error.not_found', back: { kind: 'page', mode: null } },
       'tr',
     );
     expect(refused.querySelector('[role="alert"] h2')?.textContent).toBe(tr.error.title);
     expect(en.error.title).not.toContain('could not be completed');
   });
 
-  it('leads a refused confirmation back to its step and never echoes a malformed group', () => {
-    const back = (group: string | null, step?: 'erasure' | 'closure') =>
-      documentOf({
-        kind: 'error',
-        message: 'error.confirmation',
-        back: { kind: 'page', group, step },
-      })
-        .querySelector('a.action')
-        ?.getAttribute('href');
-    expect(back(null, 'erasure')).toBe('/account/data?step=erasure');
-    expect(back('tenant', 'closure')).toBe('/account/data?group=tenant&step=closure');
-    expect(back('<script>')).toBe('/account/data');
-    expect(back('019a154b-0000-4000-8000-0000000000a1')).toBe('/account/data');
+  it('leads a refused session confirmation back to its step and never names a group', () => {
+    const links = (mode: 'session' | 'entry' | null, step?: 'erasure' | 'closure') =>
+      [
+        ...documentOf({
+          kind: 'error',
+          message: 'error.confirmation',
+          back: { kind: 'page', mode, ...(step ? { step } : {}) },
+        }).querySelectorAll('a.action'),
+      ].map((link) => link.getAttribute('href'));
+    expect(links('session', 'erasure')).toEqual(['/account/data?step=erasure', '/portal']);
+    expect(links('session', 'closure')).toEqual(['/account/data?step=closure', '/portal']);
+    expect(links('session')).toEqual(['/account/data', '/portal']);
+    // A retained step needs its group, and a refusal never repeats a submitted one: the way back is the chooser.
+    expect(links('entry', 'closure')).toEqual(['/account/data', '/api/auth/entry']);
+    expect(links(null)).toEqual(['/account/data']);
     expect(render().querySelector('noscript')?.textContent).toBe(en.common.script_note);
   });
 

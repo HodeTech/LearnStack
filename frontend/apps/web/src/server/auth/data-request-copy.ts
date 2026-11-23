@@ -142,6 +142,8 @@ export const dataRequestKeys = [
   'artifact.collection_audit_entries',
   'artifact.collection_invitations_issued',
   'artifact.collection_other',
+  'entry.download_deadline',
+  'entry.step_deadline',
   'retained.title',
   'retained.intro',
   'retained.pending',

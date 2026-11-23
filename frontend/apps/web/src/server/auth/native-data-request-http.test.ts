@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
+import type { IncomingMessage } from 'node:http';
 import { runInNewContext } from 'node:vm';
 
 import type { OwnDataRequest } from '@learnstack/sdk/administration-server';
@@ -83,15 +84,20 @@ const request = (value: Partial<OwnDataRequest> = {}): OwnDataRequest => ({
 const chunkBytes = (index: number) =>
   Buffer.alloc(index === 0 ? 131072 : 1, index === 0 ? 0x61 : 0x62);
 
-/** A transport sink that copies each written buffer (the relay zeroes it after the write) and acknowledges it. */
+/**
+ * A transport sink that takes each written buffer only when it acknowledges the write, a microtask later, as a socket
+ * does: the relay zeroes the buffer after the write settles, so one zeroed early would arrive here as zeros.
+ */
 class DownloadWire extends SnapshotWire {
   readonly bytes: Buffer[] = [];
   override write(chunk: string, ...args: unknown[]) {
     this.flushHeaders();
-    if (typeof chunk === 'string') this.chunks.push(chunk);
-    else this.bytes.push(Buffer.from(chunk as unknown as Buffer));
     const callback = args[args.length - 1];
-    if (typeof callback === 'function') queueMicrotask(() => Reflect.apply(callback, this, []));
+    queueMicrotask(() => {
+      if (typeof chunk === 'string') this.chunks.push(chunk);
+      else this.bytes.push(Buffer.from(chunk as unknown as Buffer));
+      if (typeof callback === 'function') Reflect.apply(callback, this, []);
+    });
     return true;
   }
   override end(...args: unknown[]) {
@@ -191,9 +197,15 @@ async function fixture(mode: 'session' | 'entry', page: readonly OwnDataRequest[
     method: string,
     target: string,
     form?: Record<string, string> | URLSearchParams,
-    options: { origin?: string; headers?: Record<string, string>; wire?: SnapshotWire } = {},
+    options: {
+      origin?: string;
+      headers?: Record<string, string>;
+      wire?: SnapshotWire;
+      request?: (incoming: IncomingMessage) => void;
+    } = {},
   ) => {
     const incoming = snapshotRequest();
+    options.request?.(incoming);
     incoming.method = method;
     incoming.url = target;
     incoming.headers.cookie = owner.cookie;
@@ -577,7 +589,7 @@ describe('the retained own-scope entry', () => {
     expect(f.native.self).not.toHaveBeenCalled();
   });
 
-  it('states when the entry ends, restores the same group and returns a refused confirmation to its step', async () => {
+  it('states when the entry ends, restores the same group and leads a refused confirmation to the chooser', async () => {
     const f = await fixture('entry', [request()]);
     const ends = (f.owner as Awaited<ReturnType<typeof f.enter>>).finished.entry.expiresAt;
     const chooser = await f.run('GET', '/account/data');
@@ -603,15 +615,96 @@ describe('the retained own-scope entry', () => {
       group: organization,
     });
     expect(refused.statusCode).toBe(400);
-    expect(refused.html).toContain(
-      'href="/account/data?group=' + organization + '&amp;step=erasure"',
-    );
+    // A retained step needs its group, and a refusal never repeats a submitted one: the way back is the chooser.
+    expect([...refused.html.matchAll(/class="action" href="([^"]*)"/g)].map((m) => m[1])).toEqual([
+      '/account/data',
+      '/api/auth/entry',
+    ]);
+    expect(refused.html).not.toContain('group=');
     expect(f.retained).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
       expect.objectContaining({ kind: 'createRetainedDataErasure' }),
       expect.anything(),
     );
+  });
+
+  it('states the entry’s end once per page and warns beside the download and the confirmation', async () => {
+    const ready = request({
+      status: 'completed',
+      completedAt: '2026-11-23T11:00:00Z',
+      artifact: artifact(),
+    });
+    const f = await fixture('entry', [ready]);
+    const ends = (f.owner as Awaited<ReturnType<typeof f.enter>>).finished.entry.expiresAt;
+    const instant = '<time datetime="' + new Date(ends).toISOString() + '">';
+    const times = (html: string) => html.split(instant).length - 1;
+    const list = (await f.run('GET', '/account/data?group=tenant')).html;
+    const download = list.indexOf('action="/api/auth/entry/data-requests/download"');
+    expect(download).toBeGreaterThan(0);
+    const form = list.slice(download, list.indexOf('</form>', download));
+    // The page-level notice states when, above; the download form says what that means for a download.
+    expect(times(list)).toBe(1);
+    expect(list.indexOf(instant)).toBeLessThan(download);
+    expect(form).toContain(shown(en.entry.download_deadline));
+    expect(form).not.toContain('<time');
+    for (const step of ['erasure', 'closure']) {
+      const html = (await f.run('GET', '/account/data?group=tenant&step=' + step)).html;
+      const action = html.indexOf('action="/api/auth/entry/data-requests/' + step + '"');
+      expect(times(html)).toBe(1);
+      expect(html.indexOf(instant)).toBeLessThan(html.indexOf(shown(en.entry.step_deadline)));
+      expect(html.indexOf(shown(en.entry.step_deadline))).toBeLessThan(action);
+    }
+    const chooser = (await f.run('GET', '/account/data')).html;
+    expect(times(chooser)).toBe(1);
+    expect(chooser).not.toContain(shown(en.entry.download_deadline));
+    expect(chooser).not.toContain(shown(en.entry.step_deadline));
+    const session = await fixture('session', [ready]);
+    for (const target of ['/account/data', '/account/data?step=erasure']) {
+      const html = (await session.run('GET', target)).html;
+      expect(html).not.toContain(shown(en.scope.entry_time_until));
+      expect(html).not.toContain(shown(en.entry.download_deadline));
+      expect(html).not.toContain(shown(en.entry.step_deadline));
+    }
+  });
+
+  it('links a refusal back by the owner’s mode, never by the submitted group', async () => {
+    const f = await fixture('entry');
+    f.retained.mockImplementationOnce(async () => refused(404, 'not_found'));
+    const refusedList = await f.run('GET', '/account/data?group=' + organization);
+    expect(refusedList.statusCode).toBe(404);
+    const links = (html: string) =>
+      [...html.matchAll(/class="action" href="([^"]*)"/g)].map((m) => m[1]);
+    expect(links(refusedList.html)).toEqual(['/account/data', '/api/auth/entry']);
+    f.retained.mockImplementationOnce(async () =>
+      refused(409, 'business_rule_violation', { $: [{ key: 'lockey_request_already_active' }] }),
+    );
+    const refusedFiling = await f.run('POST', '/api/auth/entry/data-requests/export', {
+      csrfToken: f.csrf,
+      idempotencyKey: 'k'.repeat(43),
+      group: organization,
+    });
+    expect(refusedFiling.statusCode).toBe(409);
+    expect(links(refusedFiling.html)).toEqual(['/account/data', '/api/auth/entry']);
+    const session = await fixture('session');
+    session.own.mockReturnValueOnce(refused(409, 'business_rule_violation'));
+    const refusedOwn = await session.run('POST', '/api/account/data-requests/export', {
+      csrfToken: session.csrf,
+      idempotencyKey: 'k'.repeat(43),
+    });
+    expect(links(refusedOwn.html)).toEqual(['/account/data', '/portal']);
+    // A refused session confirmation returns to its own step; that address names no group.
+    const refusedStep = await session.run('POST', '/api/account/data-requests/closure', {
+      csrfToken: session.csrf,
+      idempotencyKey: 'k'.repeat(43),
+      confirm: 'close',
+    });
+    expect(refusedStep.statusCode).toBe(400);
+    expect(links(refusedStep.html)).toEqual(['/account/data?step=closure', '/portal']);
+    // Refused before any owner is chosen: only the fixed page.
+    const unread = await session.run('GET', '/account/data?result=export&result=export');
+    expect(unread.statusCode).toBe(400);
+    expect(links(unread.html)).toEqual(['/account/data']);
   });
 
   it('refuses an invalid group, a session-only route and a missing CSRF proof', async () => {
@@ -659,6 +752,7 @@ describe('the export download relay', () => {
     const body = Buffer.concat(wire.bytes);
     expect(body.equals(Buffer.concat([chunkBytes(0), chunkBytes(1)]))).toBe(true);
     expect(wire.destroyed).toBe(false);
+    expect(wire.writableEnded).toBe(true);
     expect(JSON.stringify([...wire.headers])).not.toContain(ticket);
     expect(f.own.mock.calls.map(([operation]) => operation.kind)).toEqual([
       'mintOwnDataExportTicket',
@@ -706,6 +800,122 @@ describe('the export download relay', () => {
       expect(wire.headers.get('content-type')).toBe('text/html; charset=utf-8');
       expect(wire.html).toContain(sentence);
     }
+  });
+
+  /** A three-chunk bundle, so a failure after the second chunk still leaves a read to refuse. */
+  const threeChunks = (f: Awaited<ReturnType<typeof fixture>>, during: (index: number) => void) =>
+    f.own.mockImplementation((operation) => {
+      if (operation.kind === 'mintOwnDataExportTicket')
+        return ok({ ticket, expiresAt: '2026-11-23T12:15:00Z', chunkCount: 3, byteCount: 262145 });
+      if (operation.kind !== 'readOwnDataExportChunk') return ok({ version: '4' });
+      during(operation.index);
+      return ok({
+        index: operation.index,
+        count: 3,
+        bytes: Buffer.alloc(operation.index < 2 ? 131072 : 1, 0x61).toString('base64'),
+      });
+    });
+
+  it('destroys a streaming download when the owner signs out between chunks', async () => {
+    const f = await fixture('session');
+    const owner = f.owner as Awaited<ReturnType<typeof f.login>>;
+    threeChunks(f, (index) => {
+      if (index === 1) f.store.signout(owner.binding, f.csrf);
+    });
+    const wire = new DownloadWire();
+    await f.run(
+      'POST',
+      '/api/account/data-requests/download',
+      { csrfToken: f.csrf, requestId: id },
+      { wire },
+    );
+    expect(wire.statusCode).toBe(200);
+    expect(wire.destroyed).toBe(true);
+    expect(wire.writableEnded).toBe(false);
+    // The answer to a read the owner signed out during is not relayed, and no further read is made.
+    expect(Buffer.concat(wire.bytes).length).toBe(131072);
+    expect(
+      f.own.mock.calls.filter(([operation]) => operation.kind === 'readOwnDataExportChunk'),
+    ).toHaveLength(2);
+  });
+
+  it('destroys a streaming download when the browser goes away between chunks', async () => {
+    const f = await fixture('session');
+    let incoming: IncomingMessage | undefined;
+    threeChunks(f, (index) => {
+      if (index === 1) {
+        incoming!.aborted = true;
+        incoming!.emit('aborted');
+      }
+    });
+    const wire = new DownloadWire();
+    await f.run(
+      'POST',
+      '/api/account/data-requests/download',
+      { csrfToken: f.csrf, requestId: id },
+      {
+        wire,
+        request: (value) => {
+          incoming = value;
+        },
+      },
+    );
+    expect(wire.headersSent).toBe(true);
+    expect(wire.destroyed).toBe(true);
+    expect(wire.writableEnded).toBe(false);
+    expect(Buffer.concat(wire.bytes).length).toBe(131072);
+    expect(f.requestRuntime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+  });
+
+  it('answers a first chunk the API admits too late with the busy refusal, never an attachment', async () => {
+    const f = await fixture('session');
+    f.own.mockImplementation((operation) =>
+      operation.kind === 'mintOwnDataExportTicket'
+        ? ok({ ticket, expiresAt: '2026-11-23T12:15:00Z', chunkCount: 2, byteCount: 131073 })
+        : ({
+            ...refused(429, 'rate_limited'),
+            error: { code: 'rate_limited', retryAfter: 60 },
+          } as NativeOperationResult),
+    );
+    const wire = await f.run('POST', '/api/account/data-requests/download', {
+      csrfToken: f.csrf,
+      requestId: id,
+    });
+    expect(wire.statusCode).toBe(429);
+    expect(wire.headers.get('retry-after')).toBe('60');
+    expect(wire.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(wire.headers.has('content-disposition')).toBe(false);
+    expect(wire.html).toContain(shown(en.error.busy));
+    expect(wire.html).not.toContain(ticket);
+    expect(f.own.mock.calls.map(([operation]) => operation.kind)).toEqual([
+      'mintOwnDataExportTicket',
+      'readOwnDataExportChunk',
+    ]);
+  });
+
+  it('takes no pause the retained entry cannot outlast: the person is told to wait instead', async () => {
+    const f = await fixture('entry');
+    f.retained.mockImplementation(async (_token, _binding, operation) =>
+      operation.kind === 'mintRetainedDataExportTicket'
+        ? ok({ ticket, expiresAt: '2026-11-23T12:15:00Z', chunkCount: 2, byteCount: 131073 })
+        : ({
+            ...refused(429, 'rate_limited'),
+            error: { code: 'rate_limited', retryAfter: 20 },
+          } as NativeOperationResult),
+    );
+    // Ten seconds of the entry remain: a twenty-second pause would outlive the response's owner.
+    f.advance(290_000);
+    const wire = await f.run('POST', '/api/auth/entry/data-requests/download', {
+      csrfToken: f.csrf,
+      requestId: id,
+      group: 'tenant',
+    });
+    expect(wire.statusCode).toBe(429);
+    expect(wire.headers.has('content-disposition')).toBe(false);
+    expect(f.retained.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+      'mintRetainedDataExportTicket',
+      'readRetainedDataExportChunk',
+    ]);
   });
 
   it('downloads through the retained chunks for an entry owner', async () => {

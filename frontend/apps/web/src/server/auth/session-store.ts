@@ -2546,14 +2546,16 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   ): DataRequestRetention {
     if (mode === 'entry') {
       const owner = this.#findEntry(binding);
+      // The entry's deadline is fixed at sign-in and never extended: the response ends with it.
       const ends = Math.min(owner.deadline, owner.credentials!.refreshExpiresAt);
+      const remainingMs = Math.max(1, ends - this.#now());
       lease.pin(
         () => {
           this.#assert(owner, 'entry');
           if (lease.signal.aborted) throw new BffSessionError('revoked');
         },
         owner,
-        Math.max(1, ends - this.#now()),
+        remainingMs,
       );
       void this.#tracked(owner, () => lease.cleaned);
       // The same bound on the wall clock, as the entry projection states it: the page tells the person when it ends.
@@ -2561,23 +2563,26 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         csrfToken: owner.csrf,
         scope: null,
         expiresAt: Math.round(owner.utcOffset + ends),
+        remainingMs,
       });
     }
     const owner = this.#find(binding);
     if (!owner?.identity) throw new BffSessionError('revoked');
+    const remainingMs = Math.max(1, this.#effective(owner) - this.#now());
     lease.pin(
       () => {
         this.#assert(owner, 'active');
         if (!this.#live(owner) || lease.signal.aborted) throw new BffSessionError('revoked');
       },
       owner,
-      Math.max(1, this.#effective(owner) - this.#now()),
+      remainingMs,
     );
     void this.#tracked(owner, () => lease.cleaned);
     return Object.freeze({
       csrfToken: owner.csrf,
       scope: owner.identity.organizationId === null ? 'tenant' : 'organization',
       expiresAt: null,
+      remainingMs,
     });
   }
   /** The live session's own data requests; a list cursor is sealed to this owner and purpose. */

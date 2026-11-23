@@ -169,6 +169,10 @@
     "collection_invitations_issued": "Gönderdiğiniz davetler",
     "collection_other": "Dosyanın başka bir bölümü"
   },
+  "entry": {
+    "download_deadline": "İndirme, bu sayfa yukarıda gösterilen zamanda çalışmayı bırakmadan önce bitmelidir: o sırada süren bir indirme, dosya tamamlanmadan durur. Büyük bir dosyanın inmesi birkaç dakika sürebilir; az zaman kaldıysa indirmeden önce yeniden giriş yapın.",
+    "step_deadline": "Formu, bu sayfa yukarıda gösterilen zamanda çalışmayı bırakmadan önce gönderin. Sonrasında yeniden giriş yapıp bu adıma dönün: formu gönderene kadar hiçbir şey kaydedilmez."
+  },
   "retained": {
     "title": "Neler saklanıyor",
     "intro": "Aşağıdaki kayıtlar, kurumun sayabildiği adetlerle birlikte saklanıyor:",

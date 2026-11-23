@@ -201,14 +201,15 @@ export class BffSessionError extends Error {
 }
 
 /**
- * The pinned owner's proof, for a live session whether its group is tenant-wide, and for the retained entry the wall
- * clock instant (epoch milliseconds) at which the entry ends, exactly the bound the response is pinned to; never an
- * identifier.
+ * The pinned owner's proof, for a live session whether its group is tenant-wide, for the retained entry the wall
+ * clock instant (epoch milliseconds) at which the entry ends, and in both modes how long the pinned response may
+ * live (the owner's remaining lifetime, exactly the bound the pin enforces); never an identifier.
  */
 export type DataRequestRetention = Readonly<{
   csrfToken: string;
   scope: 'tenant' | 'organization' | null;
   expiresAt: number | null;
+  remainingMs: number;
 }>;
 export type SessionDependencies = Readonly<{
   provider: SessionProvider;

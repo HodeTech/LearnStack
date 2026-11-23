@@ -169,6 +169,10 @@
     "collection_invitations_issued": "Invitations you sent",
     "collection_other": "Another part of the file"
   },
+  "entry": {
+    "download_deadline": "A download must finish before this page stops working at the time shown above: one that is still running then stops without a complete file. A large file can take several minutes, so if little time is left, sign in again before you download.",
+    "step_deadline": "Send this form before this page stops working at the time shown above. After that, sign in again and come back to this step: nothing is recorded until you send the form."
+  },
   "retained": {
     "title": "What is kept",
     "intro": "These records are kept, with the numbers the institution could count:",

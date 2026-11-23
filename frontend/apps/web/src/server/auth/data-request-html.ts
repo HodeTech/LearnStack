@@ -30,11 +30,12 @@ export type DataRequestDocument =
       kind: 'error';
       message: DataRequestKey;
       /**
-       * Where "back" leads: the fixed GET, the same retained group, the confirmation step a refused confirmation came
-       * from, or sign-in after a 401.
+       * Where "back" leads: the fixed GET (never a submitted group, which may be the refusal's cause), in the session
+       * mode the confirmation step a refused confirmation came from, and the owner mode's own exit; or sign-in after a
+       * 401.
        */
       back:
-        | Readonly<{ kind: 'page'; group: string | null; step?: 'erasure' | 'closure' }>
+        | Readonly<{ kind: 'page'; mode: 'session' | 'entry' | null; step?: 'erasure' | 'closure' }>
         | Readonly<{ kind: 'signin' }>;
     }>;
 
@@ -257,11 +258,6 @@ export function renderDataRequestDocument(
       ' – ' +
       title;
     const back = document.back;
-    // A group that is not well formed is never echoed into a link: the way back is then the bare page.
-    const backGroup =
-      back.kind === 'page' && back.group !== null && (back.group === 'tenant' || uuid(back.group))
-        ? back.group
-        : null;
     body =
       '<div role="alert"><h2>' +
       heading +
@@ -273,10 +269,18 @@ export function renderDataRequestDocument(
           text('common.signin_action') +
           '</a></p>'
         : '<p><a class="action" href="' +
-          escape(pageHref(backGroup, back.step ? { step: back.step } : {})) +
+          // A retained step needs its group, so only the session mode returns to its step.
+          escape(pageHref(null, back.mode === 'session' && back.step ? { step: back.step } : {})) +
           '">' +
           text('common.back_page') +
-          '</a></p>');
+          '</a></p>' +
+          (back.mode === 'entry'
+            ? '<p><a class="action" href="/api/auth/entry">' +
+              text('common.back_entry') +
+              '</a></p>'
+            : back.mode === 'session'
+              ? '<p><a class="action" href="/portal">' + text('common.back_portal') + '</a></p>'
+              : ''));
   } else {
     const page = document.page;
     if (!proof(page.csrfToken) || !page.formKeys.every(proof))
@@ -297,6 +301,14 @@ export function renderDataRequestDocument(
       (keyed ? hidden('idempotencyKey', formKey()) : '') +
       (group === null ? '' : hidden('group', group));
     const items = page.requests?.items ?? [];
+    // The retained entry is never extended: a download or a confirmation still running when it ends is cut off. The
+    // page-level notice (`entryTimeLimit`) states when; beside these two actions the page says what that means.
+    const entryDeadline = (purpose: 'download' | 'step') =>
+      entry && page.entryExpiresAt !== null
+        ? '<p>' +
+          (purpose === 'download' ? text('entry.download_deadline') : text('entry.step_deadline')) +
+          '</p>'
+        : '';
     view = entry ? (group === null ? 'entry_scopes' : 'entry') : 'session';
     historyGroup = group;
     const result =
@@ -476,7 +488,8 @@ export function renderDataRequestDocument(
             kept()) +
         (blocked
           ? '<p>' + (erasure ? text('erasure.active') : text('closure.active')) + '</p>'
-          : '<form method="post" action="' +
+          : entryDeadline('step') +
+            '<form method="post" action="' +
             scoped +
             page.step +
             '">' +
@@ -699,7 +712,9 @@ export function renderDataRequestDocument(
                 hidden('requestId', item.id) +
                 '<p>' +
                 text('artifact.download_hint') +
-                '</p><button type="submit"' +
+                '</p>' +
+                entryDeadline('download') +
+                '<button type="submit"' +
                 named('download') +
                 '>' +
                 text('artifact.download') +

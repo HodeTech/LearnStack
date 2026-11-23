@@ -34,13 +34,13 @@ through a live session for that session's group, or through the retained entry f
 group where they hold or held a Membership, of any status. Each request shows its status
 and next step; an available export shows when it stops being available, its size, any
 part that was shortened at a cap, and a download and a delete button. The download
-arrives as one `data-export.json` file. The BFF mints one ticket per download; when the
-person's credential is refreshed during a long download, the next chunk read answers
-`404`, and the BFF mints at most two more tickets and resumes at the failed index, each
-mint counting against the ticket bounds. A download that fails after it began ends as a
-failed browser download, never as a short file shown complete; the person downloads
-again. A `409 data_export_ticket_limit` is shown as "wait 15 minutes, or ask for a new
-copy", and `data_export_unavailable` as "ask for a new copy".
+arrives as one `data-export.json` file, relayed by the BFF chunk by chunk; how it
+resumes, pauses and gives up is owned by
+[Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests),
+and [Capacity](#capacity) lists what that means for operations. A download that fails
+after it began ends as a failed browser download, never as a short file shown complete;
+the person downloads again. A `409 data_export_ticket_limit` tells the person to wait
+15 minutes or ask for a new copy, and `data_export_unavailable` to ask for a new copy.
 
 ## What an administrator sees
 
@@ -64,14 +64,14 @@ while it still can be cancelled, and offers no way to delete its file.
 | Signal | Meaning |
 |---|---|
 | Start refused: `the setting DataExport:KeyRing (environment DataExport__KeyRing) is absent or malformed` | The host has no usable ring. |
-| Critical log `DataExportChunkCustodyRefused` (event 3193) with tenant, artifact, chunk index and key label | A stored chunk could not be opened: its key left the ring, or the ciphertext was altered. The subject saw `404 not_found`. Logged critical the first time an artifact is refused under a key label in the process; every repeat (the other chunks, retries) is the same event at warning. A restart reports it critical again. |
+| Critical log `DataExportChunkCustodyRefused` (event 3193) with tenant, artifact, chunk index and key label | A stored chunk could not be opened: its key left the ring, or the ciphertext was altered. The subject saw `404 not_found`. Logged critical the first time an artifact is refused under a key label in the process; every repeat (the other chunks, retries) is the same event at warning. One download repeats it for the same chunk: the BFF resumes twice on a refused chunk, and with an altered chunk both resumes reach it again. A restart reports it critical again. |
 | `409 data_export_unavailable` on a ticket mint for an artifact the receipt shows `available` and `readable` | The ring no longer holds the artifact's key. Only a new export helps. |
-| `409 data_export_ticket_limit` on a ticket mint | A ticket bound is reached: the session already holds the most open tickets (it frees when one is consumed or expires), or the artifact has had its last ticket, which is final. The numbers are in the [Identity module](../modules/identity/README.md). |
+| `409 data_export_ticket_limit` on a ticket mint | A ticket bound is reached: the session already holds the most open tickets (it frees when one is consumed or expires), or the artifact has had its last ticket, which is final. One download can spend three tickets (the first and two resumes), so a download that failed over an altered chunk leaves its session at the bound until they expire. The numbers are in the [Identity module](../modules/identity/README.md). |
 | `learnstack_data_export_total{outcome}` | Export job runs: `completed`, `failed_too_large`, `noop`, `failed`. A steady `failed` rate means attempts keep rolling back; see [A stuck or dead export request](#a-stuck-or-dead-export-request). |
 | `learnstack_data_export_duration_seconds{outcome}`, `learnstack_data_export_bundle_bytes` | Run time and stored bundle size. Bundles near `DataExport:MaxBytes` precede `failed_too_large`. |
 | `learnstack_data_export_truncations_total` | Collections stored bundles state as truncated at their cap. Not an error; a rising rate means more people reach a section cap. |
 | `learnstack_data_export_purges_total{outcome}` | Purge job runs: `purged`, `noop`, `not_due`, `failed`. Alert on any sustained `failed`: expired ciphertext is staying in storage. `not_due` is a purge that ran before the database clock reached the expiry; the runtime retries it. |
-| `learnstack_data_export_downloads_total{operation,outcome}` | Ticket mints (`mint`) and chunk reads (`chunk`) by `served`, `refused`, `limit`, `custody_failed`. Page on any `custody_failed`: a key left the ring too early or ciphertext was altered (a chunk read racing a revocation or the expiry can also land here once). A sustained `limit` rate from few artifacts suggests a client retry loop. |
+| `learnstack_data_export_downloads_total{operation,outcome}` | Ticket mints (`mint`) and chunk reads (`chunk`) by `served`, `refused`, `limit`, `custody_failed`. Page on any `custody_failed`: a key left the ring too early or ciphertext was altered (a chunk read racing a revocation or the expiry can also land here once). The BFF resumes a download twice on a refused chunk, so one download over an altered chunk counts three `chunk` `custody_failed`, and the person's next attempt within 15 minutes counts `mint` `limit` (its three tickets are still open); a lost key counts one `chunk` `custody_failed`, then a `mint` `custody_failed` for the refused renewal. A `limit` that follows `custody_failed` is that; otherwise a sustained `limit` rate from few artifacts suggests a client retry loop. |
 | A request shown `requested` long after it was filed | The export job keeps failing and rolling back, or it stopped; see below. |
 | An artifact past `expires_at` still `available` or `expired` | Its purge job died; see below. |
 
@@ -89,6 +89,28 @@ many exports delays the others' on that host. An export holds no Identity fence 
 builds its bundle and takes the shared tenant fence only for its writes, so it does not
 hold up administration in its tenant; it does hold its worker for up to the job
 runtime's stage budget. Add API hosts to add export throughput.
+
+Downloads are paced by the API's admission budget, not by the export hosts: each chunk
+of 128 KiB is one API request, under the person's 60-a-minute visitor budget and the
+BFF node's 600-a-minute peer budget
+([Frontend Architecture § Subject data requests](../standards/07-frontend-architecture.md#subject-data-requests)
+owns how the relay pauses for them).
+
+- A download moves at most about 7.5 MiB a minute: about two minutes at the default
+  16 MiB ceiling, about nine at 64 MiB. Raising `DataExport:MaxBytes` lengthens every
+  large download accordingly.
+- The retained entry lives five minutes from the start of its sign-in and is never
+  extended, so a bundle above about 30 MiB rarely finishes through it; the page states
+  when the entry ends, and the person signs in again and starts the download at once.
+- People behind one address share one visitor budget, and every person on a BFF node
+  shares its peer budget: about ten concurrent large downloads on one node spend it,
+  and the node's other requests get `429` for the rest of that minute.
+- A paused download sends no byte for up to a minute. An ingress or proxy idle timeout
+  shorter than about 70 seconds cuts it as a failed download.
+- A budget of its own for chunk reads is not a setting:
+  [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) requires an
+  explicit decision for a different authenticated ingress policy, and
+  [Phase 11](../roadmap/phase-11-production-hardening.md) owns distributed capacity.
 
 ## Deploying
 

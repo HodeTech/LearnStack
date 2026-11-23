@@ -220,6 +220,8 @@ export function createNativeDataRequestHandler(
       renderDataRequestDocument(document, { locale, phrase, nonce });
     let group: string | null = null;
     let mutation = false;
+    // The owner's mode once one is selected; a refusal links back by it, never by a submitted group.
+    let selected: 'session' | 'entry' | null = null;
     const refuse = (
       outcome: Readonly<{ status: number; message: DataRequestKey; retryAfter: number | null }>,
     ) =>
@@ -228,7 +230,7 @@ export function createNativeDataRequestHandler(
         render({
           kind: 'error',
           message: outcome.message,
-          back: outcome.status === 401 ? { kind: 'signin' } : { kind: 'page', group },
+          back: outcome.status === 401 ? { kind: 'signin' } : { kind: 'page', mode: selected },
         }),
         undefined,
         outcome.retryAfter,
@@ -313,7 +315,10 @@ export function createNativeDataRequestHandler(
         }
       }
       if (!retention || !mode || !owner) throw refusal ?? new BffSessionError('revoked');
+      selected = mode;
       const csrf = retention.csrfToken;
+      // The pin ends this response with its owner; nothing the response does is promised past it.
+      const ownerDeadline = now() + retention.remainingMs;
       const http: BffHttpRequest = {
         host: binding.host,
         source: binding.peer,
@@ -398,8 +403,13 @@ export function createNativeDataRequestHandler(
           sink,
           signal: pinned.signal,
           now,
+          ownerDeadline,
         });
-        if (outcome.kind !== 'refused' || begun) return;
+        if (begun || outcome.kind !== 'refused') {
+          // Once the headers are out, anything short of a completed body ends with a destroyed connection.
+          if (outcome.kind !== 'completed' && !response.destroyed) response.destroy();
+          return;
+        }
         const refused = dataRequestRefusal(outcome.result, false);
         // A ticket refusal has its own sentence (the limit, a gone file); a failed first chunk is "could not start".
         refuse(
@@ -439,13 +449,14 @@ export function createNativeDataRequestHandler(
             (action === 'closure' &&
               (fields.get('confirm') !== 'close' || fields.get('acknowledge') !== 'no_status'))
           ) {
-            // A refused confirmation leads back to the confirmation step it came from, not to the list.
+            // A refused confirmation names the step it came from; the document returns to it in the session mode
+            // only, because a retained step needs its group and a refusal never repeats a submitted group.
             write(
               400,
               render({
                 kind: 'error',
                 message: 'error.confirmation',
-                back: { kind: 'page', group, step: action },
+                back: { kind: 'page', mode: currentMode, step: action },
               }),
             );
             return;
