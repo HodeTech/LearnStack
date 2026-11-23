@@ -28,8 +28,9 @@ Its fan-out runs on the application role, as each group's own act, and needs
 a `500` before it enters the platform scope, so nothing changes. Begin also asks the
 [account removal client](account-removal-client.md) whether it could ever delete the
 person's identity-provider account: with no client secret configured, or for a provider
-identifier the client refuses, every Begin is refused on `errors.provider` before
-anything changes. Finalize runs on the same credential and migrations, and deletes the
+identifier the client refuses, a Begin of a closure that has not begun is refused on
+`errors.provider` before anything changes (a repeat of a begun closure resumes and
+asks nothing). Finalize runs on the same credential and migrations, and deletes the
 account through that client.
 
 ## What the person already did
@@ -104,8 +105,8 @@ admits no session, and no in-product status remains
    an erasure completion. The read and the write are separate grants.
 2. **The account removal client is configured** in this deployment and passes
    [its verification](account-removal-client.md#verify-the-confined-client). Without it
-   every Begin is refused on `errors.provider` and nothing changes, because no Finalize
-   could delete the account.
+   a first Begin is refused on `errors.provider` and nothing changes, because no
+   Finalize could delete the account.
 3. **Confirm the request with the person** through the e-mail address the identity
    provider holds for them, before the first Begin of the closure. A repeated Begin of a
    closure that began needs none, and the query below returns no row for it. This is the
@@ -123,8 +124,11 @@ admits no session, and no in-product status remains
       WHERE r.id = '<requestId>' AND r.kind = 'closure' AND r.status = 'scheduled';
       ```
 
-   2. In the realm console of the tenant realm, open **Users**, search by that
-      identifier, and read the user's e-mail address there.
+   2. In the realm console of the tenant realm, open **Users**, type `id:` immediately
+      followed by that identifier into the search box (a bare identifier finds
+      nothing), and read the user's e-mail address there. The console also opens the
+      user directly at
+      `<provider base>/admin/master/console/#/learnstack/users/<identifier>/settings`.
    3. Write to that address, name the closure's request identifier and its
       consequences (the account stops working at once, for every tenant, and cannot be
       reopened), and wait for the person's explicit answer from that address.
@@ -410,10 +414,10 @@ the closure stays `fulfilling` and the account Closing: the person is already lo
 everywhere. `errors.provider` names the provider's closed answer, and warning 7121 the
 same in the API's log:
 
-- `lockey_provider_refused`: nothing was deleted. The account removal client is not
-  configured or is refused since the Begin: Begin refused a closure the client could
-  never delete, a provider identifier it refuses included, so there is nothing to delete
-  by hand. Repair the client by
+- `lockey_provider_refused`: nothing was deleted. Begin admits only a closure the
+  client could delete, so the client's configuration has changed since the Begin (the
+  secret removed or wrong, the client disabled or broadened, the admin address
+  blocked); there is nothing to delete by hand. Repair the client by
   [its runbook](account-removal-client.md#when-a-closures-last-step-does-not-finish) and
   repeat.
 - `lockey_provider_unavailable`: no deletion was confirmed; the provider was
@@ -516,7 +520,10 @@ outcomes are `finalized`, `already_finalized`, `not_found`, `not_closure`,
 `learnstack_platform_operator_results_total{operation="platform.closure.finalize"}`
 counts the Finalize transactions that committed a result row, a stop at the provider
 included. A Finalize logs warning 7121 when it stops at the provider, warning 7124 when
-the provider port threw (its exception's type only), error 7122 for a state no admitted
+the provider port threw (its exception's type only), warning 7125 when the account
+removal adapter refused the deletion (a closed reason code; see its
+[runbook](account-removal-client.md#when-a-closures-last-step-does-not-finish)), error
+7122 for a state no admitted
 path writes, and critical 7123 when a stop's result row could not be written; none names
 the person, a tenant or the ticket. The admission and refusal counters are in
 [Platform operator access](operator-access.md#signals).

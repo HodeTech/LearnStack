@@ -969,13 +969,13 @@ rotation and leak response.
   An existing private `.env` must add it before `make dev` will start: compose's `:?`
   guard stops the provider without it. It should also add the same value as
   `AccountRemoval__ClientSecret`; nothing stops `make dev` without it, but the API then
-  keeps the refusing default and every closure stops at its last step. Reconciliation
+  keeps the refusing default and refuses every first Begin of a closure. Reconciliation
   refuses a different value.
 - **API.** The API reads the same value as `AccountRemoval__ClientSecret`. When the
   private file declares both, they must be identical. Without the API value the port
   keeps its fail-closed default and refuses every call; nothing reaches the provider.
   The managed launcher behind `make public-api` and `make demo` hands the API a closed
-  inventory that carries no `AccountRemoval__*`, so under it a closure cannot finish;
+  inventory that carries no `AccountRemoval__*`, so under it no closure can begin;
   the real-provider proof runs against the test fixtures.
 - **Continuity.** Reconciliation creates the client on a realm that lacks it and
   verifies an existing one exactly. An existing secret that differs refuses with

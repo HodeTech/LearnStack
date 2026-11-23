@@ -43,6 +43,11 @@ internal static class PlatformOperatorCompositionExtensions
             Act<FanOutClosureCommand>(PlatformOperations.ClosureFanOut),
         ]));
 
+        // ADR-0107 § 7: a closure's per-group fan-out, one admitted pipeline act per participant group through the act
+        // executor, which the closure's Begin owner calls after its transaction commits. It lives with the gate and the
+        // executor it is built from, so a host that composes persistence alone still validates its service graph.
+        services.TryAddScoped<IClosureFanOut, LearnStack.Modules.Identity.Infrastructure.DataRequests.ClosureFanOut>();
+
         var settings = PlatformOperatorSettings.FromConfiguration(configuration, deploymentMode);
         if (settings is not null)
         {

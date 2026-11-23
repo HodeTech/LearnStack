@@ -30,9 +30,9 @@ internal sealed record ClosureBeginResponse(
     string Outcome, Guid RequestId, string Status, bool Complete, ClosureGroupsResponse Groups, string CorrelationId);
 
 /// <summary>Where a Finalize found the participant groups: closed counts, never an identifier.</summary>
-/// <param name="Served">Groups whose tenant allows ordinary work and whose organization, if any, is Active.</param>
-/// <param name="Ready">Served groups whose erasure awaits the privileged step or completed during the closure.</param>
-/// <param name="Pending">Served groups that are not ready.</param>
+/// <param name="Served">Groups whose tenant allows ordinary work and whose organization, if any, is Active; a group that is no longer served but still holds an open closure erasure is required as well, so ready and pending count required groups.</param>
+/// <param name="Ready">Required groups whose erasure awaits the privileged step or completed during the closure.</param>
+/// <param name="Pending">Required groups that are not ready.</param>
 /// <param name="Unserved">Groups of a tenant that does not allow ordinary work or of an organization not Active.</param>
 /// <param name="ErasuresCompleted">The participant erasures this call completed.</param>
 /// <param name="ClosuresCompleted">The person's closure requests this call completed, this one included.</param>
@@ -260,6 +260,14 @@ internal static partial class PlatformOperatorEndpoints
         catch (OperatorRecoveryUnavailableException failure)
         {
             PlatformOperatorMetrics.DataRequest(operation, failure.CommitOutcomeUnknown ? "commit_unknown" : "unavailable");
+            if (failure.InnerException is AuditWriteFailedException durable)
+            {
+                // A MUST row refused after the provider step answers a retryable 503, but the audit store's failure is still the
+                // alert's signal: the act that failed at its last row had already deleted the account.
+                PlatformOperatorMetrics.AuditFailed(operation);
+                LogAuditRefused(loggers.CreateLogger(typeof(PlatformOperatorEndpoints).FullName!), durable);
+            }
+
             return UnavailableProblem(http, loggers, operation, failure);
         }
         catch (Exception) when (CountFailure(operation))

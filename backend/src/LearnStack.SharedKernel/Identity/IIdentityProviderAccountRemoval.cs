@@ -35,7 +35,8 @@ public enum AccountRemovalOutcome
 /// refuses every call, so a deployment that has not configured the adapter's confined realm client fails closed and
 /// no closure finishes; the Keycloak adapter is selected at the composition root when its secret is present. The
 /// adapter's client holds <c>manage-users</c>, which can also create and update users in the shared realm: that
-/// authority is why the port has this one method and a single caller, the closure's Finalize.
+/// authority is why the port has one deleting method, whose single caller is the closure's Finalize, and a pure preflight
+/// that Begin asks.
 /// </para>
 /// <para>
 /// A missing account is success. The raw provider subject is the provider's own user identifier; it is passed in and

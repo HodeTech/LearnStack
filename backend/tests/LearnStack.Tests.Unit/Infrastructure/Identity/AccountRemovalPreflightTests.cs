@@ -50,9 +50,38 @@ public sealed class AccountRemovalPreflightTests
         provider.Requests.Should().Be(accepted ? 1 : 0);
     }
 
-    private sealed class Secrets : ISecretProvider
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("**********")]
+    [InlineData("${ACCOUNT_REMOVAL_SECRET}")]
+    public async Task An_unusable_secret_fails_the_preflight_exactly_as_the_deletion_refuses_it(string? secret)
     {
-        public string? GetSecret(string key) => key == "AccountRemoval:ClientSecret" ? "account-removal-secret-canary" : null;
+        var provider = new Recording();
+        using var adapter = new KeycloakAccountRemoval(
+            new KeycloakAccountRemovalOptions(Issuer), new Secrets(secret), new Resilience(), NullLogger.Instance, provider);
+
+        adapter.CanRemove(Canonical).Should().BeFalse("a secret the client cannot present would stop every Finalize");
+        (await adapter.RemoveAsync(Canonical)).Should().Be(AccountRemovalOutcome.Refused);
+        provider.Requests.Should().Be(0, "an unusable secret never leaves");
+    }
+
+    [Fact]
+    public async Task A_secret_over_the_size_limit_fails_the_preflight_too()
+    {
+        var provider = new Recording();
+        using var adapter = new KeycloakAccountRemoval(new KeycloakAccountRemovalOptions(Issuer),
+            new Secrets(new string('x', 1025)), new Resilience(), NullLogger.Instance, provider);
+
+        adapter.CanRemove(Canonical).Should().BeFalse();
+        (await adapter.RemoveAsync(Canonical)).Should().Be(AccountRemovalOutcome.Refused);
+        provider.Requests.Should().Be(0);
+    }
+
+    private sealed class Secrets(string? value = "account-removal-secret-canary") : ISecretProvider
+    {
+        public string? GetSecret(string key) => key == "AccountRemoval:ClientSecret" ? value : null;
     }
 
     private sealed class Resilience : IProviderResilience<IIdentityProviderAccountRemoval>

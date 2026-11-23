@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -17,7 +18,7 @@ namespace LearnStack.Infrastructure.Identity.AccountRemoval;
 /// ADR-0107 § 7's confined Keycloak adapter. It holds the account-removal client
 /// (<see cref="KeycloakAccountRemovalRoutes.ClientId"/>, <c>manage-users</c> only) alone, takes a fresh client-credentials
 /// token per call, and sends exactly one request: <c>DELETE users/{id}</c> for a canonical user identifier. The client's role
-/// can also create and update users, which is why this class has one method, builds no other route and never reads a
+/// can also create and update users, which is why this class has one deleting method (and a pure preflight), builds no other route and never reads a
 /// response body of the deletion. The subject, the client secret and every provider body or message stay inside this class:
 /// the port sees a closed outcome only, and the only thing logged is one closed reason code per refusal.
 /// </summary>
@@ -102,10 +103,19 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
 
     /// <summary>
     /// Whether the deletion of <paramref name="providerSubject"/> could be sent: the subject is the canonical user identifier
-    /// <see cref="KeycloakAccountRemovalRoutes.TryCanonicalSubject"/> admits, the same pure check <see cref="RemoveAsync"/>
-    /// refuses by before any network effect. Nothing is read from the provider, logged or stored.
+    /// <see cref="KeycloakAccountRemovalRoutes.TryCanonicalSubject"/> admits and the configured secret is one the client can
+    /// present, the two checks <see cref="RemoveAsync"/> refuses by before any network effect. Nothing is read from the
+    /// provider, logged or stored; the secret is read locally and never kept.
     /// </summary>
-    public bool CanRemove(string providerSubject) => KeycloakAccountRemovalRoutes.TryCanonicalSubject(providerSubject, out _);
+    public bool CanRemove(string providerSubject) =>
+        KeycloakAccountRemovalRoutes.TryCanonicalSubject(providerSubject, out _)
+        && UsableSecret(_secrets.GetSecret(SecretKey), out _);
+
+    private static bool UsableSecret(string? configured, [NotNullWhen(true)] out FederationClientSecret? secret)
+    {
+        secret = null;
+        return !string.IsNullOrWhiteSpace(configured) && FederationClientSecret.TryCreate(configured, out secret);
+    }
 
     public async Task<AccountRemovalOutcome> RemoveAsync(string providerSubject, CancellationToken cancellationToken = default)
     {
@@ -115,7 +125,7 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
         var configured = _secrets.GetSecret(SecretKey);
         if (!KeycloakAccountRemovalRoutes.TryCanonicalSubject(providerSubject, out var user))
             return Refuse(RefusalReason.SubjectShape);
-        if (string.IsNullOrWhiteSpace(configured) || !FederationClientSecret.TryCreate(configured, out var secret))
+        if (!UsableSecret(configured, out var secret))
             return Refuse(RefusalReason.SecretUnusable);
         using var suppression = SuppressInstrumentationScope.Begin();
         using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

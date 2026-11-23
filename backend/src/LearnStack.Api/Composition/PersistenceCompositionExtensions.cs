@@ -317,15 +317,13 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IDataRequestOperatorOperations,
             LearnStack.Modules.Identity.Infrastructure.DataRequests.DataRequestOperatorOperations>();
         // ADR-0107 § 7: the operator's closure Begin in the platform scope. It hands the served groups to IClosureFanOut,
-        // which is registered beside it; with none registered the Begin refuses before it enters the scope, so no person
+        // which the operator authority registers with the gate and the act executor it needs (a host that composes
+        // persistence alone has neither); with none registered the Begin refuses before it enters the scope, so no person
         // is moved to Closing by a deployment that cannot fan the closure out.
         services.TryAddScoped<LearnStack.Modules.Identity.Application.DataRequests.IClosureGroupLifecycleReader,
             LearnStack.Modules.Identity.Application.DataRequests.ClosureGroupLifecycleReader>();
         services.TryAddScoped<IAccountClosureOperatorOperations,
             LearnStack.Modules.Identity.Infrastructure.DataRequests.AccountClosureOperatorOperations>();
-        // ADR-0107 § 7: a closure's per-group fan-out, one pipeline act per participant group through the operator act
-        // executor, which the closure's Begin owner calls after its transaction commits.
-        services.TryAddScoped<IClosureFanOut, LearnStack.Modules.Identity.Infrastructure.DataRequests.ClosureFanOut>();
 
         // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
         // not Development only: ADR-0035 names NullEntitlementProvider the working default

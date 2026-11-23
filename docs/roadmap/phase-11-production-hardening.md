@@ -712,11 +712,13 @@ new erasure permission.
   [ADR-0107](../decisions/0107-data-request-fulfillment-and-account-closure.md) §§ 6, 7
   and 10): the data of an `unserved_group` (a participant group whose tenant or
   organization did not allow ordinary work when a global closure finished) and
-  whole-tenant offboarding; closure of a person with no Membership; the retained classes
-  no subject-keyed count reaches (transport and execution evidence, the idempotency
-  cache, external copies and the invitation e-mail envelopes); the purge of expired
-  export artifacts; the backlog gauge and alert rules for an erasure that waits more
-  than 30 days for its operator step; production provisioning of the
+  whole-tenant offboarding; closure of a person with no Membership, of a person past the
+  closure's bounds (more than 256 participant groups or 256 Memberships in one tenant)
+  and of a person whose provider identifier the account-removal client refuses; the
+  retained classes no subject-keyed count reaches (transport and execution evidence, the
+  idempotency cache, external copies and the invitation e-mail envelopes); the purge of
+  expired export artifacts; the backlog gauge and alert rules for an erasure that waits
+  more than 30 days for its operator step; production provisioning of the
   `learnstack-account-removal` realm client and retention of the identity provider's
   admin events. Phase 03 ships the writers and their runbooks; this phase owns the
   production operation and the first request that triggers each item.

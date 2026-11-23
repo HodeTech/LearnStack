@@ -25,8 +25,8 @@ used by one caller, the closure's Finalize, through one port method.
 The adapter refuses a malformed subject and a missing or unusable secret before any
 request leaves the process, and a token wider than the role before the deletion is
 sent. It never logs, audits or returns the subject or the secret, and a refusal logs
-its reason code only. With no secret configured every closure stops at its last step
-and nothing reaches the provider.
+its reason code only. With no secret configured every first Begin is refused on
+`errors.provider`, nothing changes and nothing reaches the provider.
 
 ## What the credential can do
 
@@ -98,7 +98,10 @@ issuer; do not clear the secret to get past it.
 ## Verify the confined client
 
 The adapter refuses a token that is not exactly this client's, but check the client
-yourself after provisioning and after any provider upgrade. `ISSUER` below is the value
+yourself after provisioning and after any provider upgrade. Run the steps from the host
+or network position the API uses for its own egress: the adapter reaches the issuer's
+token endpoint and its admin address and nothing else, and a check from another network
+may pass where the API is refused. `ISSUER` below is the value
 of `Authentication:Tenant:Issuer`, and `ADMIN` is its admin address:
 `ADMIN="${ISSUER%/realms/learnstack}/admin/realms/learnstack"`.
 
@@ -213,7 +216,7 @@ secret or provider text. The closure's own line (warning 7121) follows it.
 | `token_refused` | The token endpoint answered `4xx` or a redirect: the secret is wrong, or the client is disabled | Compare the secret with the provider's ([Rotate it](#rotate-it)); enable the client |
 | `token_malformed` | The token endpoint answered `200` but not a usable token response (not JSON, too large, no access token, not a JWT) | A proxy or a wrong `Authentication:Tenant:Issuer` is answering for the provider: check the address |
 | `token_not_confined` | A usable token that is not exactly this client's: another issuer or client, a realm role, or roles other than `manage-users` | The client is misprovisioned: repeat [Verify the confined client](#verify-the-confined-client) and repair it |
-| `delete_unauthorized` | The deletion answered `401` or `403` | The role is missing or the realm differs from the issuer's: repeat the verification |
+| `delete_unauthorized` | The deletion answered `401` or `403` | The role is missing or the realm differs from the issuer's, or a proxy or firewall in front of the admin path refuses the API: repeat the verification from the API's network position |
 | `delete_redirect` | The deletion answered a redirect, which is never followed | A proxy is redirecting the admin path: fix the route |
 | `delete_rejected` | The deletion answered another `4xx` | Read the provider's own log for the cause |
 | `delete_not_found_foreign` | The deletion answered `404` in a type other than JSON | A proxy or gateway hides the admin path: fix the route (verification step 4) |
