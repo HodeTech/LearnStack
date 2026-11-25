@@ -534,7 +534,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 925 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 1,077 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
   - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
   - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
@@ -548,8 +548,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-10 Step 4 — the web surface (2026-11-23)](#p03-10-step-4--the-web-surface-2026-11-23) — 14 lines
   - [P03-10 Steps 3 and 4 — review round 1 and its fixes (2026-11-23)](#p03-10-steps-3-and-4--review-round-1-and-its-fixes-2026-11-23) — 50 lines
   - [P03-10 Steps 3 and 4 — review round 2 and the usage limit (2026-11-23)](#p03-10-steps-3-and-4--review-round-2-and-the-usage-limit-2026-11-23) — 22 lines
-  - [P03-10 — owed ADR amendments and maintainer decisions (2026-11-23)](#p03-10--owed-adr-amendments-and-maintainer-decisions-2026-11-23) — 324 lines
-  - [P03-10 Steps 3 and 4 — verification and closeout (2026-11-23)](#p03-10-steps-3-and-4--verification-and-closeout-2026-11-23) — 45 lines
+  - [P03-10 — owed ADR amendments and maintainer decisions (2026-11-23)](#p03-10--owed-adr-amendments-and-maintainer-decisions-2026-11-23) — 380 lines
+  - [P03-10 Steps 3 and 4 — verification and closeout (2026-11-23)](#p03-10-steps-3-and-4--verification-and-closeout-2026-11-23) — 46 lines
+  - [P03-10 Steps 3 and 4 — review round 2 completed and its fixes (2026-11-26)](#p03-10-steps-3-and-4--review-round-2-completed-and-its-fixes-2026-11-26) — 95 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -26204,7 +26205,7 @@ records above cite its item numbers. No Accepted ADR body was edited: each item 
 changes a decision is owed a dated Amendment under
 [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md), written
 once the maintainer has ruled; the items marked DECISION, OPEN or owed to the user need
-a ruling first. Items 1 to 20 are Step 1, 21 to 55 Step 2, and 56 to 71 Steps 3 and 4
+a ruling first. Items 1 to 20 are Step 1, 21 to 55 Step 2, and 56 to 76 Steps 3 and 4
 with the review fixes; some earlier items were superseded by later ones, as item 52
 says.
 
@@ -26250,6 +26251,9 @@ says.
    failure_reason, completed_at, updated_at, updated_by (requests) and purged_at,
    row_version, updated_at, updated_by (artifacts); exact lists are in
    `DataRequestStorageDdl.Grants`.
+   Round 2 narrowed the closure's row: the application role may write a closure only to
+   cancel a scheduled one (`20261123130000`, in place), so a closure's refusal code and
+   Begin moment are the platform arms' alone.
 9. ADR-0106 § 7 lets the retained path file "where the person has a request"; a request
    needs >= 1 Membership snapshot and Memberships are never deleted, so a request-only
    group is unreachable; eligibility requires a Membership row.
@@ -26475,6 +26479,12 @@ says.
     The adapter logs one closed reason code per refusal (event 7125). Real Keycloak
     26.7.5 answers `404 application/json {"error":"User not found"}` (evidence
     `p0310/fx3-e2-evidence.txt`).
+    Round 2 (E2-2): a JSON type alone is not the provider's own answer (a gateway and
+    Keycloak's unrouted path answer 404 in JSON too), so the adapter also reads at most
+    256 bytes of an uncompressed JSON 404 and takes absence only when its `error` is
+    exactly `User not found`; anything else is refused as `delete_not_found_foreign`.
+    Standard 20 and the runbooks say so, and a call that neither finishes nor is
+    refused logs one closed cause (event 7126).
 64. KNOWN LIMITS (no code): rows naming the person that an unserved tenant, a late job
     or a late sign-in writes AFTER Finalize's redaction are not redacted (one-time
     rewrite, #37/#55); an administrator filing for a Closed person's tombstone writes a
@@ -26485,11 +26495,11 @@ says.
     sentence in the Identity README, amendment to ADR-0106 § 3 "never reads a closure").
 65. ADR-0064 DECISION OWED (maintainer): the API budget is 60 requests/minute per
     visitor IP and every chunk read is one request, so an export above about 7.5 MiB
-    takes minutes (the relay now pauses on 429/503 Retry-After and finishes within the
-    ticket deadline); a dedicated, larger budget for chunk reads, or larger chunks
-    (ADR-0107 § 4), is the real fix. Also: the production ingress idle timeout must
-    exceed ~70 s; browser behaviour on a destroyed connection (Chrome/Firefox/Safari) is
-    not verified.
+    takes minutes (the relay now pauses on 429/503 Retry-After and finishes within its
+    owner's life, renewing its ticket ahead of its end); a dedicated, larger budget for
+    chunk reads, or larger chunks (ADR-0107 § 4), is the real fix. Also: the production
+    ingress idle timeout must exceed ~70 s; browser behaviour on a destroyed connection
+    (Chrome/Firefox/Safari) is not verified.
 66. WCAG 2.2.1 (maintainer): the retained entry (and the consent entry) is limited to 5
     minutes from sign-in, never extended; the page states the end time; an extension
     mechanism or a recorded "essential" justification is owed. C20 exception record for
@@ -26519,6 +26529,53 @@ says.
     `a1ce6b12`. A `membershipId` filter on `ListDataRequests` (item 68) would let the
     page ask for one member's requests only; the extra read per member page view stays
     until a maintainer decides whether it is worth its audit row and permit.
+72. ADR-0107 § 7 (round 2, decision #60 changed): Finalize no longer requires an
+    unserved group whose fan-out erasure is still open. Two reviewers showed it could
+    leave a person Closing for ever: Begin hands the fan-out served groups only, the
+    fan-out act refuses a group that does not allow ordinary work before it re-queues a
+    dead job, nothing fails a `fulfilling` fan-out and an archive is permanent. Only a
+    served group is required now; an unserved group's erasure is completed if it had
+    reached the privileged step, and the group is reported as unserved
+    (`unserved_group`, `unservedGroups`) only when this closure did not erase it. An
+    erasure left `fulfilling` in an unserved group stays so after the person is Closed
+    (a cosmetic orphan; its data is Phase 11 offboarding's). Amend § 7's readiness
+    statement.
+73. ADR-0107 § 7 / ADR-0108 § 4 (round 2, D2-3, maintainer): the closure redacts every
+    tenant where the person holds a Membership and the platform sentinel. An audit row
+    that names the person as actor with their address and agent in a tenant where they
+    never held a Membership (a refused invitation acceptance, a claim-assertion denial)
+    keeps both after Closed; the runbook's "What is not here" says so. Reaching those
+    tenants needs `ForClosureTenant` to admit a Membership-less pass and a bounded read
+    of `audit_log.actor_user_id`: an ADR decision, not taken here.
+74. ADR-0107 § 7 (round 2, C2-3, maintainer, defence in depth): the `users` trigger
+    exception admits Active to Closing and Closing to Closed for any platform session
+    that holds the fences, without a matching closure row. No shipped path does that,
+    but a defect in any platform act could strand a person (Closing without a closure)
+    or orphan a provider account (Closed without Finalize). Binding both moves to a
+    `scheduled`-and-due or a `fulfilling` closure of the person in the trigger is a
+    forward migration and a dated note beyond the three requirements the ADR names.
+75. Round 2 notes that need no decision (recorded, not defects):
+    `memberships_beyond_bound` (65,536) in the redaction is unreachable behind Begin's
+    bounds and is unpinned by a test on purpose; a NULL or empty `provider_subject` of
+    an Active User cannot exist (`ck_users_subject_lifecycle`), so Begin's `{ Length: >
+    0 }` guard is defensive; the provider-event status function assumes READ COMMITTED
+    and fails open otherwise (no current path uses another level; a later migration may
+    check it); Finalize's first transaction makes provider-event deliveries wait for the
+    User fence for the whole redaction and a delivery that waits past its command
+    timeout is dead-lettered, which is noise only, since a Closing person's deliveries
+    are withheld anyway; the platform data source does not pin `Log Parameters=false`
+    and `Include Error Detail=false` (both default off; a server-side
+    `log_min_duration_statement` would log the redaction's bind values).
+76. Step 4 (round 2, maintainer): `?result=` is a query the person's page now drops
+    unless the list still shows what it says (the same rule the Studio has), but the
+    notice is still a statement the browser address can ask for; carrying it in the
+    sealed session store as a one-time flash would remove the query and is a Standard 07
+    change. The Studio erasure page by Membership id still reads nothing about the
+    Membership (it states the identifier it was opened for and says what a revoked
+    Membership looks like); a read of a Revoked Membership for an administrator (item
+    68) would let it name the subject. The Turkish word for consent is "rıza" in the
+    portal, the Studio and the data page and "izin" in `auth.json` (item 69): one term
+    is for the maintainer to pick.
 
 ### P03-10 Steps 3 and 4 — verification and closeout (2026-11-23)
 
@@ -26562,5 +26619,101 @@ needs the frontend dependencies; a frontend-fixture run belongs to every later c
 of a native page.
 
 Open for the maintainer: the rulings listed under "P03-10 — owed ADR amendments and
-maintainer decisions" above (items 1 to 71), and the round 2 that the usage limit
-stopped. Nothing in this packet's review is treated as passed beyond what is recorded.
+maintainer decisions" above (items 1 to 76). The round 2 that the usage limit stopped
+ran afterwards and is recorded in the entry that follows. Nothing in this packet's
+review is treated as passed beyond what is recorded.
+
+### P03-10 Steps 3 and 4 — review round 2 completed and its fixes (2026-11-26)
+
+The usage limit reset on 2026-11-26 and the owed round 2 ran on a fresh clone of the
+head `f3ce89b7`: ten fresh read-only reviewers, five on opus (Step 3's database and
+migrations, owner and fences, red team and audit redaction, and Step 4's native BFF
+security and download relay) and five on sonnet (Step 3's test adequacy and documents,
+Step 4's SDK contract and Studio, its copy and accessibility, and its tests and
+documents). No Blocker was found. One defect was found by two reviewers independently;
+the rest are Minor or Nit. The hosted CI of the PR head `24632400` also failed one test,
+which is recorded first.
+
+**The hosted CI failure.** `public-boundaries.test.ts` rebuilds the whole TypeScript
+graph for each planted variant of two tests; Step 4 grew the graph, and the hosted
+runner, about four times slower than the workstation, measured 24.2 s against a 20 s
+bound that had passed at 13.4 s. The bound is 60 s for both (`f3ce89b7`); no assertion
+changed.
+
+**The Major finding, and the decision it changes.** Finalize required an unserved group
+whose fan-out erasure was still open (decision #60 of round 1). Begin hands the fan-out
+served groups only, the fan-out act refuses a group that does not allow ordinary work
+before it can re-queue a dead job, nothing fails a `fulfilling` fan-out, and an archive
+is permanent: a closure whose fan-out job died and whose branch was then archived could
+never finish, which leaves the person Closing for ever and contradicts ADR-0107 § 7
+("closing cannot stick"). Only a served group is required now. An unserved group's
+erasure that had reached the privileged step is completed with the others and the group
+is not reported as kept; any other unserved group is reported (`unserved_group`,
+`unservedGroups`) with the data it still holds, and an erasure left `fulfilling` there
+stays so (owed item 72).
+
+What else changed in Step 3:
+
+- **The provider step.** A 404 is absence only when its body, read up to 256 bytes, is
+  JSON whose `error` is `User not found`: a JSON type alone is also what a gateway and
+  Keycloak's unrouted path answer, and Finalize then clears the subject, so a wrong
+  "absent" could never be found again. A call that neither finishes nor is refused logs
+  one closed cause (event 7126), so an expired certificate reads differently from a busy
+  provider (`04980324`).
+- **After the provider step.** A `409 groups_pending` the second transaction finds
+  carries the closed `provider` parameter (`removed` or `absent`); the contract text,
+  the runbook and the 500 row no longer say "nothing changed" for it.
+- **Readiness** counts an erasure completed since the person's earliest Begin, so a
+  second begun closure does not redo an erasure that already ran.
+- **The request guard** refuses every application write of a closure but its
+  cancellation (the closure's refusal code and Begin moment are the platform arms'
+  alone), in the head migration `20261123130000`, which no environment has applied.
+- **The redaction** runs its statements with custom plans (`plan_cache_mode`), so a
+  prepared-statement setting cannot turn the set lookup linear again, and its canary now
+  runs every declared shape under both forms of the filter.
+- **Tests** for the audit failure after the provider step, the registered fan-out of a
+  production host, the changed-erasure defect, the unserved rules, and the removal of a
+  timing assertion that measured a cold connection.
+
+What changed in Step 4:
+
+- **The person's page** printed "your request has been recorded" from the address alone,
+  so a shared link could announce a closure that does not exist. The notice and its
+  title prefix appear only while the list still shows what they say (the Studio's rule),
+  and an older page of requests offers no new request, because it cannot see what is
+  already waiting. The refusal notes of a stopped closure read as history, not as the
+  present state.
+- **The download relay** renews its ticket about seventy seconds before it ends, at most
+  twice and apart from the resumes a `404` forces, and is bounded by its owner's end
+  instead of the first ticket's fifteen minutes: a large download behind a shared
+  visitor budget could not finish before.
+- **Studio:** a request of a Membership that another request on the page shows to be
+  Revoked is not read again (each refused read is a recorded denial); the erasure page
+  says what its address names and shows the identifier instead of claiming that it was
+  revoked; one date for "no longer available since" on both surfaces; the audit-scope
+  limit of an administrator's erasure is in the confirmation.
+- **Tests:** the relay's renewal, the non-404 refusals that mint nothing, each renewal
+  geometry clause, the real `Retry-After` through the SDK, the hostile-form table on
+  every filing and action route in both modes, and the result-notice rules.
+
+Recorded, not changed (owed items 73 to 76): the audit rows a person wrote as actor in a
+tenant where they never held a Membership; the proposed binding of the `users` trigger
+to a matching closure row; the unreachable and defensive cases the reviewers listed; and
+the one-time-flash alternative to the result query.
+
+**Verification of this round** (working tree and head `96fde053`): the unit suite passed
+(5,106), the contract suite (15), and the frontend suite in both packages (apps/web
+4,958, sdk 285, plus the tests added after the run began, rerun alone: 92 and 42).
+Integration classes that cover the changed code ran serialized: 429 cases, 427 passing
+on the first run, and the two failures were pins of the behaviour this round changed on
+purpose (the served contract's "stays required" sentence and a test that expected the
+application role to write a closure's refusal code); both are updated and the two
+classes pass (206). The related architecture rules passed (192). The hosted CI of
+`f3ce89b7` failed two backend shards (`ordinary-1`, `ordinary-3`) on the Keycloak
+fixture's two-minute start bound (`KeycloakFixture.cs`,
+`TenantRealmFederationReconciliationTests` failed at 2:01 and the classes sharing the
+fixture after it), which the previous green run's same test had met at 2:17 inside the
+same bound: the head differed from that run only in a frontend test file, so it is a
+host-speed flake at the bound and not this packet's. The full architecture and
+integration suites on the final head are recorded in the closeout entry that follows,
+when they finish.
