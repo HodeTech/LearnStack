@@ -254,7 +254,7 @@
       "kept_intro": "Bazı kayıtların saklanması gerekir. Bu kayıtlarda artık kişinin adı ya da yanıtları yer almaz, ancak kişiyi bir iç numarayla göstermeye devam ederler:",
       "kept_consent": "kişinin verdiği ya da geri çektiği izinlerin kaydı, kanıt olarak;",
       "kept_invitations": "kişinin gönderdiği ya da kabul ettiği davetlerin kaydı, davetin gönderildiği e-posta adresi de dahil;",
-      "kept_audit": "işlem kayıtları: silme işleminden sonra bir operatör, kişiyle ilgili işlem kayıtlarından ağ adreslerini, tarayıcı bilgilerini ve e-posta adreslerini çıkarır; yöneticilerin kişiyle ilgili yaptığı işlemlerin kayıtları da buna dahildir;",
+      "kept_audit": "işlem kayıtları: silme işleminden sonra bir operatör, kişiyle ilgili bu kapsamdaki işlem kayıtlarından ağ adreslerini, tarayıcı bilgilerini ve e-posta adreslerini çıkarır; yöneticilerin burada kişiyle ilgili yaptığı işlemlerin kayıtları da buna dahildir. Kişinin başka şubelerde ya da kurum düzeyinde yaptığı işlemlerin kayıtları bu talepten etkilenmez;",
       "kept_attribution": "burada bir şeyi kimin oluşturduğuna ya da en son kimin değiştirdiğine dair notlar;",
       "kept_receipt": "bu talep ve makbuzu.",
       "timing": "Silme işlemi talebinizden 24 saat sonra başlar. O zamana kadar kişi talebi kendi veri sayfasından, siz de talebin sayfasından iptal edebilirsiniz. Kişi bu 24 saat içinde bu kapsama yeniden üye olsa bile silme işlemi yine yapılır.",
@@ -264,7 +264,8 @@
     },
     "erasure_page": {
       "title": "Sonlandırılmış bir üyenin verilerini sil",
-      "revoked": "Bu üyelik sonlandırıldı. Artık üyeler arasında listelenmez ve bir üye sayfası yoktur.",
+      "revoked": "Bu sayfa, aşağıda adı geçen üyeliğin silinmesini ister. Sonlandırılmış bir üyelik artık üyeler arasında listelenmez ve bir üye sayfası yoktur.",
+      "membership": "Üyelik",
       "only_revoked": "Silme talebi ancak kişinin bu kapsamda etkin ya da askıda bir üyeliği yokken yapılabilir. Aksi hâlde talep reddedilir ve hiçbir şey değişmez.",
       "missing": "Hiçbir üyelik belirtilmedi. Bu sayfa, bir üyelik sonlandırıldıktan hemen sonra o üyelik için açılır."
     },

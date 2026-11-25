@@ -98,6 +98,8 @@
   "list": {
     "title": "Your requests",
     "empty": "You have not made any requests here yet.",
+    "older": "These are older requests. A new request is asked for from the newest requests, where the page can see what is already waiting.",
+    "newest": "Back to the newest requests",
     "status": "Status",
     "requested": "Requested",
     "runs_after": "Starts after",
@@ -148,8 +150,8 @@
   },
   "last_refusal": {
     "blocked_window": "An operator tried to begin before the waiting time had ended. Your request is still scheduled.",
-    "blocked_hold": "Your request cannot go ahead yet because your data is on hold, for example for an open payment matter. It stays scheduled and you can cancel it.",
-    "blocked_last_administrator": "You are the only administrator of an institution. Another administrator has to be appointed there before this can go ahead. Your request stays scheduled and you can cancel it."
+    "blocked_hold": "When an operator last tried to begin this request, your data was on hold, for example for an open payment matter. The request stays scheduled and you can cancel it.",
+    "blocked_last_administrator": "When an operator last tried to begin this request, you were the only administrator of an institution. Another administrator has to be appointed there before it can go ahead. The request stays scheduled and you can cancel it."
   },
   "failure": {
     "export_too_large": "Your data was too large for one file. Contact the institution for help before you ask again.",

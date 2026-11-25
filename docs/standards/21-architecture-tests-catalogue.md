@@ -6875,15 +6875,23 @@ the phase Status block owns packet state and qualification.
   and native entry and § Retained consent-subject admission.
 - **Type:** frontend source/production canaries. **Kind:** structural.
 - **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and
-  `src/test/public-boundaries.test.ts`, using the production graph and AST
-  analysis in `src/test/public-boundary-analysis.ts`; projection and cursor
-  controls in `src/server/auth/page-preload.test.ts` and
-  `src/server/auth/store-page-preload.test.ts`. Independent development canaries
-  live in `src/test/bff-development-diagnostics.test.ts` and
+  `src/test/public-boundaries.test.ts`, using the production graph and AST analysis in
+  `src/test/public-boundary-analysis.ts`; projection and cursor controls in
+  `src/server/auth/page-preload.test.ts` and
+  `src/server/auth/store-page-preload.test.ts`. Independent development canaries live in
+  `src/test/bff-development-diagnostics.test.ts` and
   `src/test/bff-development-diagnostics-counter.test.ts`; their test-owned process
-  controls live in `src/test/bff-proof-lifeline.test.ts`. The download relay's
-  controls live in `src/server/auth/data-export-download.test.ts` and
-  `src/server/auth/native-data-request-http.test.ts`.
+  controls live in `src/test/bff-proof-lifeline.test.ts`. The download relay's controls
+  live in `src/server/auth/data-export-download.test.ts` and
+  `src/server/auth/native-data-request-http.test.ts`; the person's routes, owner modes
+  and cursor purposes through the real SDK in
+  `src/server/auth/native-data-request-routes.test.ts`,
+  `src/server/auth/native-data-request-client.test.ts` and
+  `src/test/bff-data-request-person-routes.test.ts`, the administrator's in
+  `src/test/bff-data-request-administration-routes.test.ts`, the refusal vocabulary in
+  `src/test/data-request-reasons.test.ts`, and the SDK wrappers' contract in
+  `packages/sdk/src/data-request-server.test.ts` and
+  `packages/sdk/src/data-request-administration-server.test.ts`.
 - **Status:** **Implemented** — frontend boundary, native protocol/canary and
   fixture-output controls named above.
 - **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views;

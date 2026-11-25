@@ -98,7 +98,10 @@ owns how the relay pauses for them).
 
 - A download moves at most about 7.5 MiB a minute: about two minutes at the default
   16 MiB ceiling, about nine at 64 MiB. Raising `DataExport:MaxBytes` lengthens every
-  large download accordingly.
+  large download accordingly. A ticket lasts fifteen minutes, and the download renews
+  it before it ends (at most twice), so a download that shares its visitor address's
+  budget with others can still finish after the first ticket's end; it never outlives
+  the person's session.
 - The retained entry lives five minutes from the start of its sign-in and is never
   extended, so a bundle above about 30 MiB rarely finishes through it; the page states
   when the entry ends, and the person signs in again and starts the download at once.

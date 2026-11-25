@@ -28,6 +28,15 @@ export function dataRequestDisplayState(
     ? 'due'
     : item.status;
 }
+/** The instant a file stopped being readable: the person's page uses the same rule, so both show one date. */
+export function dataRequestUnavailableSince(
+  artifact: Pick<NonNullable<PageDataRequest['artifact']>, 'expiresAt' | 'purgedAt'>,
+): string {
+  return artifact.purgedAt !== null &&
+    Date.parse(artifact.purgedAt) < Date.parse(artifact.expiresAt)
+    ? artifact.purgedAt
+    : artifact.expiresAt;
+}
 /** Only the administrator who filed a request may act on it (the API answers 404 to anyone else). */
 const filedByCaller = (item: Request) => item.origin === 'administrator' && item.requestedByYou;
 /** ADR-0106 § 11: an export until it starts, an erasure until its window ends. */

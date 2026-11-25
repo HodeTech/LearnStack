@@ -315,18 +315,22 @@ export async function preloadPage(
   };
   /**
    * One read per distinct first Membership of a request whose subject may still be current; a subject known to be
-   * Revoked is never read (see `revokedSubject`). Any Membership of a snapshot that another request's read already
-   * named names its subject too, at no further read.
+   * Revoked is never read (see `revokedSubject`). Revoked is terminal, so a request on the same page that froze one of
+   * those Memberships (an export filed before the revocation) is known to be Revoked too, at no read. Any Membership
+   * of a snapshot that another request's read already named names its subject too, at no further read.
    */
   const named = async (items: readonly SubjectDataRequest[]) => {
+    const revoked = new Set(items.filter(revokedSubject).flatMap((item) => item.membershipIds));
+    const knownRevoked = (item: SubjectDataRequest) =>
+      revokedSubject(item) || revoked.has(item.membershipIds[0]!);
     const found = await subjects(
-      items.filter((item) => !revokedSubject(item)).map((item) => item.membershipIds[0]!),
+      items.filter((item) => !knownRevoked(item)).map((item) => item.membershipIds[0]!),
     );
     return items.map((item) =>
       projectRequest(
         item,
         item.membershipIds.map((id) => found.get(id)).find((subject) => subject) ??
-          (revokedSubject(item) ? 'revoked' : null),
+          (knownRevoked(item) ? 'revoked' : null),
       ),
     );
   };

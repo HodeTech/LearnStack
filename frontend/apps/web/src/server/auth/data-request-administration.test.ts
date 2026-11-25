@@ -211,9 +211,9 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
       { kind: 'getOwnCapabilities' },
       { kind: 'getOwnProfile' },
       { kind: 'listDataRequests', limit: 20 },
-      // One read per distinct first Membership, never per request, and none for the administrator's erasure.
+      // One read per distinct first Membership, never per request, none for the administrator's erasure and none for
+      // the tombstone that erasure's snapshot shows to be Revoked (the re-admitted person's export froze it first).
       { kind: 'getMembership', id: memberId },
-      { kind: 'getMembership', id: revokedMember },
       { kind: 'getMembership', id: otherMember },
     ]);
     expect(view.endCursor).toBe('sealed-14');
@@ -227,7 +227,7 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
     expect(view.items.map((item) => item.subject)).toEqual([
       'revoked',
       subject(memberId),
-      // Its tombstone's read was refused; the other request's read of its current Membership names it.
+      // Its tombstone is never read; the other request's read of its current Membership names it.
       subject(otherMember),
       subject(otherMember),
     ]);
@@ -294,6 +294,41 @@ describe('administrator data-request pages: native preparation (ADR-0106 §§ 3,
         typeof item.subject === 'object' ? (item.subject?.membershipId ?? null) : item.subject,
       ),
     ).toEqual([memberId, otherMember, null]);
+  });
+
+  it('does not read a Membership that a request on the same page already shows to be Revoked', async () => {
+    // An administrator filed an export for a member, then revoked the member and asked for the erasure: the erasure's
+    // snapshot lists the tombstone, so the export of the same Membership is known to be Revoked without a refused read
+    // (each of which would be recorded as a denial against the administrator on every view).
+    const erasure = receipt({
+      origin: 'administrator',
+      membershipIds: [revokedMember],
+    });
+    const exported = receipt({
+      id: '019a154b-0000-7000-8000-000000000046',
+      kind: 'export',
+      status: 'completed',
+      executeAt: null,
+      membershipIds: [revokedMember],
+    });
+    const other = receipt({
+      id: '019a154b-0000-7000-8000-000000000047',
+      kind: 'export',
+      status: 'completed',
+      executeAt: null,
+      membershipIds: [otherMember],
+    });
+    const test = fixture({ listDataRequests: page([erasure, exported, other]) });
+    const view = ready(await test.load('/studio/data-requests'), 'data_requests');
+    expect(
+      test
+        .operations()
+        .filter((operation) => operation.kind === 'getMembership')
+        .map((operation) => (operation as { id: string }).id),
+    ).toEqual([otherMember]);
+    expect(
+      view.items.map((item) => (typeof item.subject === 'string' ? item.subject : 'named')),
+    ).toEqual(['revoked', 'revoked', 'named']);
   });
 
   it('keeps a page usable when a subject read is refused, and never fails it for a name', async () => {

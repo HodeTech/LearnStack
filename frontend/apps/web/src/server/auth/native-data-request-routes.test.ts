@@ -299,7 +299,8 @@ describe('one refusal sentence per route and mode, never an API text', () => {
 
 describe('the retained pages reached after a redirect (ADR-0106 § 9)', () => {
   it('follows the 303 of a retained erasure to that group’s page with its notice', async () => {
-    const f = await fixture('entry', [request()]);
+    const listed = [request()];
+    const f = await fixture('entry', listed);
     const filed = await f.run('POST', '/api/auth/entry/data-requests/erasure', {
       csrfToken: f.csrf,
       idempotencyKey: keyFor('follow'),
@@ -309,6 +310,16 @@ describe('the retained pages reached after a redirect (ADR-0106 § 9)', () => {
     const location = filed.headers.get('location') as string;
     expect(location).toBe('/account/data?group=' + organization + '&result=erasure');
     f.retained.mockClear();
+    // The group now lists the erasure the person asked for, which is what the notice describes.
+    listed.splice(
+      0,
+      listed.length,
+      request({
+        kind: 'erasure',
+        status: 'scheduled',
+        executeAt: '2999-01-01T00:00:00.0000000+00:00',
+      }),
+    );
     const page = await f.run('GET', location);
     expect(page.statusCode).toBe(200);
     expect(view(page.html)).toBe('entry');
@@ -333,11 +344,25 @@ describe('the retained pages reached after a redirect (ADR-0106 § 9)', () => {
     expect(f.administration).not.toHaveBeenCalled();
     expect(f.own).not.toHaveBeenCalled();
     expect(f.native.self).not.toHaveBeenCalled();
-    // A result is shown for each closed value and nothing else.
-    for (const result of ['export', 'closure', 'cancelled', 'revoked'] as const)
+    // A result is shown for each closed value, while the list still shows what it says, and nothing else.
+    const matching = {
+      export: request(),
+      closure: request({ kind: 'closure', status: 'scheduled' }),
+      cancelled: request({ status: 'cancelled' }),
+      revoked: request({
+        status: 'completed',
+        artifact: artifact({ readable: false, status: 'expired' }),
+      }),
+    } as const;
+    for (const result of ['export', 'closure', 'cancelled', 'revoked'] as const) {
+      listed.splice(0, listed.length);
+      const empty = (await f.run('GET', '/account/data?group=tenant&result=' + result)).html;
+      expect(empty, result + ' over an empty list').not.toContain(shown(en.result[result]));
+      listed.push(matching[result]);
       expect((await f.run('GET', '/account/data?group=tenant&result=' + result)).html).toContain(
         shown(en.result[result]),
       );
+    }
   });
 
   it.each([
@@ -409,8 +434,6 @@ describe('the retained pages reached after a redirect (ADR-0106 § 9)', () => {
         cursor: 'raw-group-cursor',
       },
     ]);
-    // The same sealed value in another group is still this owner's and purpose's, and the API sees only the group
-    // the request names: the group is part of the query, never of the cursor.
     f.retained.mockImplementationOnce(async () =>
       ok({ items: [], pageInfo: { ...pageInfo, nextCursor: 'raw-scope-cursor', hasNext: true } }),
     );

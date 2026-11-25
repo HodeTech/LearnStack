@@ -18,6 +18,7 @@ import {
   dataRequestLastRefusal,
   dataRequestNextStep,
   dataRequestResultCurrent,
+  dataRequestUnavailableSince,
   dataRequestResultSentence,
   dataRequestRetainedLabel,
   dataRequestStateIcon,
@@ -175,11 +176,7 @@ function Facts({
           </dt>
           <dd>
             <Instant
-              value={
-                artifact.readable || artifact.status === 'expired'
-                  ? artifact.expiresAt
-                  : (artifact.purgedAt ?? artifact.expiresAt)
-              }
+              value={artifact.readable ? artifact.expiresAt : dataRequestUnavailableSince(artifact)}
               locale={locale}
             />
           </dd>
@@ -530,6 +527,9 @@ export function DataRequestErasure({
       ) : (
         <>
           <p>{admin('data_requests.erasure_page.revoked')}</p>
+          <p>
+            {admin('data_requests.erasure_page.membership')}: <code>{view.membershipId}</code>
+          </p>
           <p>{admin('data_requests.erasure.summary')}</p>
           <p>{admin('data_requests.erasure_page.only_revoked')}</p>
           <details className="auth-danger">

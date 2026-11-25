@@ -7,7 +7,12 @@ import type { OwnDataRequest } from '@learnstack/sdk/administration-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DATA_REQUEST_HISTORY_SOURCE } from './data-request-html';
-import { DATA_REQUEST_REFUSALS, dataRequestRefusal } from './native-data-request-http';
+import { DATA_REQUEST_DOCUMENT_PATHS } from './http-paths';
+import {
+  DATA_REQUEST_REFUSALS,
+  dataRequestRefusal,
+  nativeDataRequestTarget,
+} from './native-data-request-http';
 import type { NativeOperationResult } from './native-operation-contract';
 import { dataRequestProofView } from '../../../scripts/data-request-proof-view.mjs';
 import en from '../../i18n/messages/en/data.json';
@@ -178,7 +183,8 @@ describe('the person’s own data-request page in a live session', () => {
   });
 
   it('files with a fresh form key and answers with a redirect to the fixed page', async () => {
-    const f = await fixture('session');
+    const listed: OwnDataRequest[] = [];
+    const f = await fixture('session', listed);
     const key = formKey((await f.run('GET', '/account/data')).html);
     const wire = await f.run('POST', '/api/account/data-requests/export', {
       csrfToken: f.csrf,
@@ -187,6 +193,10 @@ describe('the person’s own data-request page in a live session', () => {
     expect(wire.statusCode).toBe(303);
     expect(wire.headers.get('location')).toBe('/account/data?result=export');
     expect(f.own).toHaveBeenLastCalledWith({ kind: 'createOwnDataExport', idempotencyKey: key });
+    // The notice speaks for the list: before the API lists the request it says nothing, after it the notice is shown.
+    const early = await f.run('GET', '/account/data?result=export');
+    expect(early.html).not.toContain('<div class="notice" role="status">');
+    listed.push(request());
     const done = await f.run('GET', '/account/data?result=export');
     expect(done.html).toContain('<div class="notice" role="status">');
     expect(done.html).toContain('<title>' + en.result.title + ' – ' + en.common.title);
@@ -233,6 +243,94 @@ describe('the person’s own data-request page in a live session', () => {
       kind: 'createOwnAccountClosure',
       idempotencyKey: key,
     });
+  });
+
+  it.each(['session', 'entry'] as const)(
+    'refuses a stray, missing, short or repeated field and a foreign origin on every filing and action route (%s)',
+    async (mode) => {
+      const f = await fixture(mode);
+      const prefix =
+        mode === 'session' ? '/api/account/data-requests/' : '/api/auth/entry/data-requests/';
+      const operations = mode === 'session' ? f.own : f.retained;
+      const key = 'k'.repeat(43);
+      const common = {
+        csrfToken: f.csrf,
+        idempotencyKey: key,
+        ...(mode === 'entry' ? { group: 'tenant' } : {}),
+      };
+      const routes: [string, Record<string, string>][] = [
+        ['export', {}],
+        ['erasure', { confirm: 'erase' }],
+        ['closure', { confirm: 'close', acknowledge: 'no_status' }],
+        ['cancel', { requestId: id, version: '3' }],
+        ['revoke', { requestId: id, version: '3' }],
+      ];
+      for (const [route, extra] of routes) {
+        const valid: Record<string, string> = { ...common, ...extra };
+        const without = (name: string) =>
+          Object.fromEntries(Object.entries(valid).filter(([key_]) => key_ !== name));
+        // The baseline files, so every refusal below is the form's fault and not the fixture's shape.
+        const baseline = operations.mock.calls.length;
+        expect((await f.run('POST', prefix + route, valid)).statusCode, route + ' baseline').toBe(
+          303,
+        );
+        expect(operations.mock.calls.length, route + ' baseline files one operation').toBe(
+          baseline + 1,
+        );
+        const filed = operations.mock.calls.length;
+        const hostile: [string, Record<string, string> | URLSearchParams, number][] = [
+          ['a stray field', { ...valid, tenantId: id }, 400],
+          ['a short key', { ...valid, idempotencyKey: 'short' }, 400],
+          ['a missing key', without('idempotencyKey'), 400],
+          ['a wrong token', { ...valid, csrfToken: 'x'.repeat(43) }, 403],
+          [
+            'a repeated key',
+            new URLSearchParams([...Object.entries(valid), ['idempotencyKey', key]]),
+            400,
+          ],
+        ];
+        for (const [name, form, status] of hostile)
+          expect((await f.run('POST', prefix + route, form)).statusCode, route + ' ' + name).toBe(
+            status,
+          );
+        expect(
+          (await f.run('POST', prefix + route, valid, { origin: 'https://evil.test' })).statusCode,
+          route + ' foreign origin',
+        ).toBe(400);
+        expect(operations.mock.calls.length, route + ' hostile forms call nothing').toBe(filed);
+      }
+    },
+  );
+
+  it('claims exactly the fourteen data-request paths, with or without a query, and nothing near them', () => {
+    // The runtime dispatches by this predicate, so a broader one would hand other routes to the data-request handler.
+    expect(DATA_REQUEST_DOCUMENT_PATHS).toHaveLength(14);
+    for (const path of DATA_REQUEST_DOCUMENT_PATHS) {
+      expect(nativeDataRequestTarget(path), path).toBe(true);
+      expect(
+        nativeDataRequestTarget(path + '?group=tenant&result=export'),
+        path + ' with a query',
+      ).toBe(true);
+      for (const near of [
+        path + '/',
+        path + 'x',
+        path.toUpperCase(),
+        '/x' + path,
+        path + '/extra',
+        path.slice(0, -1),
+      ])
+        expect(nativeDataRequestTarget(near), near).toBe(false);
+    }
+    for (const other of [
+      '/account',
+      '/account/database',
+      '/account/data/',
+      '/api/account/data',
+      '/api/account',
+      '',
+      '/',
+    ])
+      expect(nativeDataRequestTarget(other), other).toBe(false);
   });
 
   it('refuses hostile forms before any operation', async () => {

@@ -19,6 +19,7 @@ import {
   DATA_REQUEST_VOCABULARY,
   dataRequestCancellable,
   dataRequestHistorySource,
+  dataRequestResultCurrent,
   dataRequestState,
   renderDataRequestDocument,
 } from './data-request-html';
@@ -240,7 +241,22 @@ describe('accessible native data-request documents', () => {
   });
 
   it('announces a result without script and keeps errors in an alert', () => {
-    const done = render({ result: 'revoked' });
+    const expired = base({
+      status: 'completed',
+      completedAt: '2026-11-01T10:00:00Z',
+      artifact: {
+        id: '019a154b-0000-7000-8000-0000000000f1',
+        status: 'expired',
+        expiresAt: '2026-11-08T10:00:00Z',
+        purgedAt: null,
+        byteCount: 1536,
+        chunkCount: 1,
+        truncations: [],
+        version: '9',
+        readable: false,
+      },
+    });
+    const done = render({ result: 'revoked', ...listed([expired]) });
     expect(done.querySelector('[role="status"]')?.textContent).toContain(en.result.revoked);
     expect(done.title.startsWith(en.result.title)).toBe(true);
     const failure = new DOMParser().parseFromString(
@@ -255,6 +271,112 @@ describe('accessible native data-request documents', () => {
       '/account/data',
       '/api/auth/entry',
     ]);
+  });
+
+  it('prints a result only while the list still shows what it says', () => {
+    const artifact = (readable: boolean) => ({
+      id: '019a154b-0000-7000-8000-0000000000f1',
+      status: readable ? ('available' as const) : ('expired' as const),
+      expiresAt: '2026-11-30T10:00:00Z',
+      purgedAt: null,
+      byteCount: 1536,
+      chunkCount: 1,
+      truncations: [],
+      version: '9',
+      readable,
+    });
+    const at = '2026-11-23T12:00:00.000Z';
+    const current = {
+      export: base({ status: 'requested' }),
+      erasure: base({ kind: 'erasure', status: 'scheduled', executeAt: '2026-11-24T10:00:00Z' }),
+      closure: base({ kind: 'closure', status: 'scheduled' }),
+      cancelled: base({ status: 'cancelled' }),
+      revoked: base({ status: 'completed', artifact: artifact(false) }),
+    } as const;
+    for (const [result, item] of Object.entries(current) as [
+      keyof typeof current,
+      OwnDataRequest,
+    ][]) {
+      const shown = render({ result, ...listed([item]) });
+      expect(shown.querySelector('[role="status"]')?.textContent, result).toContain(
+        en.result[result],
+      );
+      expect(shown.title.startsWith(en.result.title), result).toBe(true);
+      // A shared, bookmarked or restored address that names a result for a list that does not show it says nothing.
+      const empty = render({ result });
+      expect(empty.querySelector('[role="status"]'), result + ' over an empty list').toBeNull();
+      expect(empty.title.startsWith(en.result.title), result).toBe(false);
+      expect(empty.body.textContent, result).not.toContain(en.result[result]);
+      // The same holds in Turkish and for a retained scope chooser, which has no list to judge by.
+      expect(
+        render({ result }, 'tr').querySelector('[role="status"]'),
+        result + ' (tr)',
+      ).toBeNull();
+    }
+    expect(
+      render({
+        mode: 'entry',
+        scope: null,
+        group: null,
+        requests: null,
+        result: 'closure',
+        scopes: {
+          items: [{ tenantId: '019a154b-0000-7000-8000-0000000000a0', organizationId: null }],
+          pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+        },
+      }).querySelector('[role="status"]'),
+    ).toBeNull();
+    // Requests that moved on no longer match: the window ended, the operator began, the file expired or failed.
+    const stale: [keyof typeof current, OwnDataRequest][] = [
+      [
+        'erasure',
+        base({ kind: 'erasure', status: 'scheduled', executeAt: '2026-11-23T11:00:00Z' }),
+      ],
+      [
+        'erasure',
+        base({ kind: 'erasure', status: 'cancelled', executeAt: '2026-11-24T10:00:00Z' }),
+      ],
+      ['closure', base({ kind: 'closure', status: 'fulfilling' })],
+      ['closure', base({ kind: 'closure', status: 'cancelled' })],
+      ['export', base({ status: 'failed' })],
+      ['export', base({ status: 'completed', artifact: artifact(false) })],
+      ['export', base({ kind: 'erasure', status: 'scheduled', executeAt: '2026-11-24T10:00:00Z' })],
+      ['cancelled', base({ status: 'requested' })],
+      ['revoked', base({ status: 'completed', artifact: artifact(true) })],
+      ['revoked', base({ status: 'requested' })],
+    ];
+    for (const [result, item] of stale) {
+      expect(dataRequestResultCurrent(result, [item], at), result + ' ' + item.status).toBe(false);
+      expect(render({ result, ...listed([item]) }).querySelector('[role="status"]')).toBeNull();
+    }
+    // One matching request among others is enough, and nothing is ever current over no requests.
+    expect(dataRequestResultCurrent('closure', [stale[2]![1], current.closure], at)).toBe(true);
+    for (const result of Object.keys(current) as (keyof typeof current)[])
+      expect(dataRequestResultCurrent(result, [], at)).toBe(false);
+  });
+
+  it('offers no new request on an older page, which cannot see what is already waiting', () => {
+    const waiting = base({ status: 'requested' });
+    const older = render({
+      requests: {
+        items: [waiting],
+        pageInfo: { nextCursor: null, previousCursor: 'prev', hasNext: false, hasPrevious: true },
+      },
+      formKeys: Array.from({ length: 8 }, (_, index) => String(index).repeat(43)),
+    });
+    for (const id of ['export-title', 'erasure-title', 'closure-title'])
+      expect(older.getElementById(id), id).toBeNull();
+    expect(older.body.querySelector('form[action$="/export"]')).toBeNull();
+    expect(older.body.textContent).toContain(en.list.older);
+    const back = [...older.querySelectorAll('a.action')].find(
+      (a) => a.textContent === en.list.newest,
+    );
+    expect(back?.getAttribute('href')).toBe('/account/data');
+    // The newest page keeps its three sections.
+    const newest = render(listed([waiting]));
+    for (const id of ['export-title', 'erasure-title', 'closure-title'])
+      expect(newest.getElementById(id), id).not.toBeNull();
+    expect(newest.body.textContent).not.toContain(en.list.older);
   });
 
   it('derives due and cancellable from the closed status and executeAt only', () => {

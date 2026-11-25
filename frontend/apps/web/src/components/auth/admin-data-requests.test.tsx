@@ -6,9 +6,14 @@ import {
   administratorMayRevoke,
   dataRequestDisplayState,
   dataRequestResultCurrent,
+  dataRequestUnavailableSince as dataRequestAdministratorUnavailableSince,
 } from './admin-data-request-labels';
 import { PreparedAccountPage, accountPageMetadata } from './shell';
-import { dataRequestCancellable, dataRequestState } from '../../server/auth/data-request-html';
+import {
+  dataRequestCancellable,
+  dataRequestState,
+  dataRequestUnavailableSince,
+} from '../../server/auth/data-request-html';
 import { bffAdministrationForm } from '../../server/auth/http-forms';
 import { optionalPreparedPage } from '../../server/auth/page';
 import type {
@@ -568,12 +573,22 @@ describe('Studio data requests: the erasure page of a Revoked Membership (ADR-01
           : 'Sonlandırılmış bir üyenin verilerini sil',
       );
       const text = document.querySelector('.auth-data-requests')!.textContent!;
+      // The page states only what it knows: it files the erasure of the membership its address names, and says what a
+      // revoked membership looks like. It never claims that this one was revoked, because it reads nothing about it.
       expect(text).toContain(
+        locale === 'en'
+          ? 'This page asks for the erasure of the membership named below.'
+          : 'Bu sayfa, aşağıda adı geçen üyeliğin silinmesini ister.',
+      );
+      expect(text).not.toContain(
         locale === 'en' ? 'This membership was revoked.' : 'Bu üyelik sonlandırıldı.',
       );
-      // Nothing about the Membership was read: no name, and no link to a member page that answers 404.
+      // The identifier from the address is shown, so the administrator can match it against the revocation they made.
+      expect(document.querySelector('.auth-data-requests code')?.textContent).toBe(
+        uiMember.membershipId,
+      );
+      // Nothing else about the Membership was read: no name, and no link to a member page that answers 404.
       expect(document.querySelector('a[href^="/studio/members/"]')).toBeNull();
-      expect(document.body.textContent).not.toContain(uiMember.membershipId);
       const [form, ...rest] = forms(document);
       expect(rest).toHaveLength(0);
       expect(form!.getAttribute('action')).toBe('/api/studio/data-request-erasure');
@@ -674,5 +689,29 @@ describe("the administrator's derivations follow the person's page", () => {
     expect(administratorMayRevoke(exported())).toBe(true);
     expect(administratorMayRevoke(exported({ requestedByYou: false }))).toBe(false);
     expect(administratorMayRevoke(exported({ origin: 'self' }))).toBe(false);
+  });
+});
+
+describe('one file, one date on both surfaces', () => {
+  it('shows a file as no longer available since the earlier of its expiry and its revocation', () => {
+    const expiresAt = '2026-11-08T10:00:00.0000000+00:00';
+    const cases = [
+      // Purged three hours after the expiry: the late purge ended nothing, so the expiry is the date.
+      { purgedAt: '2026-11-08T13:00:00.0000000+00:00', expected: expiresAt },
+      // Revoked a day before the expiry: reads stopped then.
+      {
+        purgedAt: '2026-11-07T10:00:00.0000000+00:00',
+        expected: '2026-11-07T10:00:00.0000000+00:00',
+      },
+      // Never purged.
+      { purgedAt: null, expected: expiresAt },
+    ] as const;
+    for (const { purgedAt, expected } of cases) {
+      expect(dataRequestUnavailableSince({ expiresAt, purgedAt }), String(purgedAt)).toBe(expected);
+      expect(
+        dataRequestAdministratorUnavailableSince({ expiresAt, purgedAt }),
+        String(purgedAt),
+      ).toBe(expected);
+    }
   });
 });

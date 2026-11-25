@@ -204,6 +204,37 @@ describe('subject data-request wrappers (ADR-0106 § 9, ADR-0107 § 4)', () => {
     }
   });
 
+  it('carries the Retry-After a 429 or a 503 advertises on a chunk read and a ticket mint', async () => {
+    // The download relay pauses for exactly these seconds: a wrapper that dropped the header would pause the default five
+    // seconds for a 429 and destroy the download for a 503.
+    const advertised = (status: number, code: string, retryAfter: string) => {
+      const refused = problem(status, code);
+      const headers = new Headers(refused.headers);
+      headers.set('Retry-After', retryAfter);
+      return new Response(refused.body, { status, headers });
+    };
+    const { sdk } = sdkWith(
+      advertised(429, 'rate_limited', '7'),
+      advertised(503, 'audit_unavailable', '3'),
+      advertised(429, 'rate_limited', 'soon'),
+    );
+    expect(await sdk.readOwnDataExportChunk(id, ticket, 1)).toMatchObject({
+      kind: 'api-error',
+      status: 429,
+      error: { code: 'rate_limited', retryAfter: 7 },
+    });
+    expect(await sdk.mintOwnDataExportTicket(id)).toMatchObject({
+      kind: 'api-error',
+      status: 503,
+      error: { retryAfter: 3 },
+    });
+    const unusable = await sdk.readOwnDataExportChunk(id, ticket, 1);
+    expect(unusable).toMatchObject({ kind: 'api-error', status: 429 });
+    expect(
+      (unusable as unknown as { error: { retryAfter?: number | null } }).error.retryAfter ?? null,
+    ).toBeNull();
+  });
+
   it('cancels and revokes with If-Match and a key; tickets and chunks carry neither', async () => {
     const receipt = (version: string) => json({ version }, 200, { ETag: '"' + version + '"' });
     const { sdk, transport } = sdkWith(

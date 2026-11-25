@@ -299,7 +299,57 @@ describe('ADR-0107 § 4 download relay', () => {
     expect(out.end).not.toHaveBeenCalled();
   });
 
-  it('aborts on cancellation, on the ticket deadline and on a sink that takes no more', async () => {
+  it.each([
+    ['a conflict', refusal(409, 'data_export_unavailable')],
+    ['a server fault', refusal(500, 'internal_error')],
+    ['a forbidden answer', refusal(403, 'forbidden')],
+  ])('mints no new ticket for %s: only a 404 is resumed', async (_, answer) => {
+    let mints = 0;
+    const mint = async () => {
+      mints += 1;
+      return minted();
+    };
+    const after = sink();
+    expect(
+      await relay({
+        mint,
+        read: async (_t, index) => (index === 1 ? answer : chunk(index)),
+        sink: after,
+      }),
+    ).toEqual({ kind: 'aborted' });
+    expect(mints, 'after the headers').toBe(1);
+    expect(after.abort).toHaveBeenCalledOnce();
+    mints = 0;
+    const before = sink();
+    expect(await relay({ mint, read: async () => answer, sink: before })).toEqual({
+      kind: 'refused',
+      stage: 'chunk',
+      result: answer,
+    });
+    expect(mints, 'before the headers').toBe(1);
+    expect(before.begin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['another chunk count', { chunkCount: 4, byteCount: 3 * full + 1 }],
+    ['another byte count in the same chunk count', { byteCount: 2 * full + 8 }],
+    ['an expiry that is no date', { expiresAt: 'not-a-date' }],
+  ])('refuses a renewal that carries %s, and destroys the connection', async (_, change) => {
+    const out = sink();
+    let mints = 0;
+    expect(
+      await relay({
+        mint: async () => minted(mints++ === 0 ? {} : change),
+        read: async (_ticket, index) => (index === 0 ? chunk(0) : notFound),
+        sink: out,
+      }),
+    ).toEqual({ kind: 'aborted' });
+    expect(out.abort).toHaveBeenCalledOnce();
+    expect(out.end).not.toHaveBeenCalled();
+    expect(mints).toBe(2);
+  });
+
+  it('aborts on cancellation, on the owner’s deadline and on a sink that takes no more', async () => {
     const controller = new AbortController();
     let out = sink();
     expect(
@@ -323,6 +373,7 @@ describe('ADR-0107 § 4 download relay', () => {
         },
         sink: out,
         now: () => time,
+        ownerDeadline: start + 20 * 60 * 1000,
       }),
     ).toEqual({ kind: 'aborted' });
     out = sink('refuse');
@@ -333,23 +384,9 @@ describe('ADR-0107 § 4 download relay', () => {
     expect(out.handed[0]!.every((byte) => byte === 0)).toBe(true);
   });
 
-  it('ends at a ticket expiry earlier than fifteen minutes, and at the owner’s end', async () => {
-    let out = sink();
+  it('ends at the owner’s end, whatever the ticket still allows', async () => {
+    const out = sink();
     let time = start;
-    expect(
-      await relay({
-        mint: async () => minted({ expiresAt: '2026-11-23T12:02:00Z' }),
-        read: async (_ticket, index) => {
-          if (index === 1) time += 3 * 60 * 1000;
-          return chunk(index);
-        },
-        sink: out,
-        now: () => time,
-      }),
-    ).toEqual({ kind: 'aborted' });
-    expect(out.end).not.toHaveBeenCalled();
-    out = sink();
-    time = start;
     expect(
       await relay({
         read: async (_ticket, index) => {
@@ -362,6 +399,147 @@ describe('ADR-0107 § 4 download relay', () => {
       }),
     ).toEqual({ kind: 'aborted' });
     expect(out.end).not.toHaveBeenCalled();
+    // A response whose owner has already ended never starts.
+    expect(
+      await relay({ read: async (_ticket, index) => chunk(index), ownerDeadline: start }),
+    ).toEqual({ kind: 'refused', stage: 'ticket', result: null });
+  });
+});
+
+describe('ADR-0107 § 4 download relay across more than one ticket', () => {
+  const third = 'S'.repeat(42) + 'A';
+  const four = (index: number) =>
+    ok({
+      index,
+      count: 4,
+      bytes: Buffer.alloc(index < 3 ? full : 7, 0x30 + index).toString('base64'),
+    });
+  /** A mint whose ticket always lives fifteen minutes from the clock it is read on. */
+  const mintFrom = (clockOf: () => number, names: string[], extra = {}) => {
+    const minting = { calls: 0 };
+    const mint = async () => {
+      const name = names[Math.min(minting.calls, names.length - 1)]!;
+      minting.calls += 1;
+      return minted({
+        ticket: name,
+        expiresAt: new Date(clockOf() + 15 * 60 * 1000).toISOString(),
+        ...extra,
+      });
+    };
+    return { mint, minting };
+  };
+
+  it('renews the ticket shortly before it ends, so a download outlives one ticket', async () => {
+    const out = sink();
+    let time = start;
+    const { mint, minting } = mintFrom(() => time, [ticket, renewed, third]);
+    const reads: string[] = [];
+    const outcome = await relay({
+      mint,
+      read: async (value, index) => {
+        reads.push(value.slice(-1) === 'A' ? value[0]! + ':' + index : value);
+        // Each chunk leaves less than one pause window on the ticket that read it.
+        time += 14 * 60 * 1000;
+        return chunk(index);
+      },
+      sink: out,
+      now: () => time,
+    });
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(reads).toEqual(['T:0', 'R:1', 'S:2']);
+    expect(minting.calls).toBe(3);
+    expect(Buffer.concat(out.written).equals(bundle())).toBe(true);
+  });
+
+  it('does not mint again while the ticket has more than one pause window left', async () => {
+    const out = sink();
+    let time = start;
+    const { mint, minting } = mintFrom(() => time, [ticket, renewed]);
+    expect(
+      await relay({
+        mint,
+        read: async (_value, index) => {
+          time += 60 * 1000;
+          return chunk(index);
+        },
+        sink: out,
+        now: () => time,
+      }),
+    ).toEqual({ kind: 'completed' });
+    expect(minting.calls).toBe(1);
+  });
+
+  it('renews at most twice ahead of time, and counts those apart from the renewals a 404 forces', async () => {
+    const out = sink();
+    let time = start;
+    const { mint, minting } = mintFrom(() => time, [ticket, renewed, third, 'U'.repeat(42) + 'A'], {
+      chunkCount: 4,
+      byteCount: 3 * full + 7,
+    });
+    const used: string[] = [];
+    let answered404 = false;
+    const outcome = await relay({
+      mint,
+      read: async (value, index) => {
+        used.push(value[0]! + ':' + index);
+        time += 14 * 60 * 1000;
+        // The third ticket was not renewed ahead of time (the cap), so its end is met as a 404 and resumed.
+        if (value === third && index === 3 && !answered404) {
+          answered404 = true;
+          return notFound;
+        }
+        return four(index);
+      },
+      sink: out,
+      now: () => time,
+    });
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(used).toEqual(['T:0', 'R:1', 'S:2', 'S:3', 'U:3']);
+    // The first ticket, two renewals ahead of time and one resume: never more.
+    expect(minting.calls).toBe(4);
+  });
+
+  it('goes on with a ticket that still reads when a renewal made ahead of time is refused', async () => {
+    const out = sink();
+    let time = start;
+    const gone = refusal(409, 'data_export_ticket_limit');
+    let mints = 0;
+    const outcome = await relay({
+      mint: async () => {
+        mints += 1;
+        return mints === 1 ? minted() : gone;
+      },
+      read: async (_value, index) => {
+        if (index === 0) time += 14 * 60 * 1000;
+        return chunk(index);
+      },
+      sink: out,
+      now: () => time,
+    });
+    expect(outcome).toEqual({ kind: 'completed' });
+    // The first ticket and the two attempts ahead of time, none repeated for the refusal.
+    expect(mints).toBe(3);
+  });
+
+  it('answers a renewal ahead of time that is refused after the ticket ended as a failure', async () => {
+    const out = sink();
+    let time = start;
+    const gone = refusal(409, 'data_export_ticket_limit');
+    let mints = 0;
+    const outcome = await relay({
+      mint: async () => {
+        mints += 1;
+        return mints === 1 ? minted() : gone;
+      },
+      read: async (_value, index) => {
+        if (index === 0) time += 16 * 60 * 1000;
+        return chunk(index);
+      },
+      sink: out,
+      now: () => time,
+    });
+    expect(outcome).toEqual({ kind: 'aborted' });
+    expect(out.events).toEqual(['begin:' + (2 * full + 7), 'write', 'abort']);
   });
 });
 
@@ -512,20 +690,9 @@ describe('ADR-0107 § 4 download relay under the API admission budget', () => {
     expect(reads).toEqual(['T0', 'T1', 'R1', 'R2']);
   });
 
-  it('does not take a pause that would reach the deadline: it destroys the connection at once', async () => {
+  it('does not take a pause that would reach the owner’s end: it destroys the connection at once', async () => {
     const now = paced();
-    let out = sink();
-    expect(
-      await relay({
-        mint: async () => minted({ expiresAt: '2026-11-23T12:00:30Z' }),
-        read: async (_ticket, index) => (index === 1 ? limited(40) : chunk(index)),
-        sink: out,
-        now,
-      }),
-    ).toEqual({ kind: 'aborted' });
-    expect(out.events).toEqual(['begin:' + (2 * full + 7), 'write', 'abort']);
-    expect(Date.now()).toBe(start);
-    out = sink();
+    const out = sink();
     expect(
       await relay({
         read: async (_ticket, index) => (index === 1 ? limited(30) : chunk(index)),
@@ -535,6 +702,42 @@ describe('ADR-0107 § 4 download relay under the API admission budget', () => {
       }),
     ).toEqual({ kind: 'aborted' });
     expect(Date.now()).toBe(start);
+  });
+
+  it('renews the ticket after a pause that crossed its end, and goes on with the same index', async () => {
+    const now = paced();
+    const out = sink();
+    const reads: string[] = [];
+    let mints = 0;
+    let limitedOnce = false;
+    const run = relay({
+      // The first ticket ends a hundred seconds in: a forty-second pause leaves less than one pause window on it.
+      mint: async () => {
+        mints += 1;
+        return mints === 1
+          ? minted({ expiresAt: new Date(start + 100_000).toISOString() })
+          : minted({
+              ticket: renewed,
+              expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            });
+      },
+      read: async (value, index) => {
+        reads.push((value === ticket ? 'T' : 'R') + ':' + index);
+        if (index === 1 && !limitedOnce) {
+          limitedOnce = true;
+          return limited(40);
+        }
+        return chunk(index);
+      },
+      sink: out,
+      now,
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(await run).toEqual({ kind: 'completed' });
+    expect(reads).toEqual(['T:0', 'T:1', 'R:1', 'R:2']);
+    expect(mints).toBe(2);
+    expect(Buffer.concat(out.written).equals(bundle())).toBe(true);
   });
 
   it('pauses before the headers too, but refuses cleanly when the first chunk cannot start within a minute', async () => {
@@ -610,14 +813,14 @@ describe('ADR-0107 § 4 download relay against a stalled client', () => {
     expect(out.handed[0]!.every((byte) => byte === 0)).toBe(true);
   });
 
-  it('cuts a pending write at the deadline when that comes first, and a stalled end too', async () => {
+  it('cuts a pending write at the owner’s end when that comes first, and a stalled end too', async () => {
     const now = paced();
     let out = sink('stall');
     const run = relay({
-      mint: async () => minted({ expiresAt: '2026-11-23T12:00:10Z' }),
       read: async (_ticket, index) => chunk(index),
       sink: out,
       now,
+      ownerDeadline: start + 10_000,
     });
     await flush();
     await vi.advanceTimersByTimeAsync(10_000);

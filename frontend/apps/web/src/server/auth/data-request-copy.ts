@@ -86,6 +86,8 @@ export const dataRequestKeys = [
   'closure.back',
   'list.title',
   'list.empty',
+  'list.older',
+  'list.newest',
   'list.status',
   'list.requested',
   'list.runs_after',

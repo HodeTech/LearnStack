@@ -149,6 +149,11 @@ describe('pinned Next / native BFF admission seam', () => {
       '/studio/data-requests/019a154b-0000-7000-8000-000000000041?result=cancelled',
     ],
     [
+      '/api/studio/data-request-revoke',
+      { requestId: '019a154b-0000-7000-8000-000000000041' },
+      '/studio/data-requests/019a154b-0000-7000-8000-000000000041?result=revoked',
+    ],
+    [
       '/api/studio/membership-status',
       { membershipId: '019a154b-0000-7000-8000-000000000011', status: 'Revoked' },
       '/studio/data-requests/erasure?membership=019a154b-0000-7000-8000-000000000011',

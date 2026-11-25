@@ -1282,9 +1282,11 @@ size) before it answers one `attachment` with the bundle's
 policy. It relays one chunk at a time, each after the previous write settled, and
 zeroes each decoded buffer; the native transport zeroes the response bytes it read. A
 refused ticket or first chunk is an ordinary refusal document; any later failure
-destroys the connection, so a short body never completes. Nothing outlives the
-relay's deadline: the ticket's expiry, fifteen minutes, or the end of the owner the
-response is pinned to, whichever is first. The retained entry's owner ends five
+destroys the connection, so a short body never completes. Nothing outlives the end of
+the owner the response is pinned to. A ticket lasts fifteen minutes, but a download is
+not bound to one: the relay mints the next ticket about seventy seconds before the
+current one ends, at most twice, so a download can span about three tickets. The
+retained entry's owner ends five
 minutes after its sign-in began and is never extended: the document states that
 instant once, and the download and the confirmation steps each say they must finish
 before it. The ticket stays inside the relay: never in a URL, header, page or log.
@@ -1299,17 +1301,22 @@ before it. The ticket stays inside the relay: never in a URL, header, page or lo
   download, and the person's next attempt within 15 minutes is refused as the ticket
   limit; a key that left the ring refuses the renewal itself
   (`data_export_unavailable`).
+- **Renewal.** A ticket is renewed ahead of its end, before a read or after a pause that
+  left less than a pause window on it, so a large download behind a shared visitor
+  budget is not cut at fifteen minutes. Renewals (at most two) are counted apart from
+  resumes (at most two), so one download mints at most five tickets. A renewal that is
+  refused while the current ticket still reads does not end the download; the ticket's
+  own end then decides.
 - **Pause.** Every chunk read is one API request under the admission budget of
   [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md): 60 a minute per
   visitor and 600 per physical peer, which for the BFF is the BFF node. A bundle above
-  about 7.5 MiB therefore meets `429`. A `429`, or a `503` that names its
-  `Retry-After`, is a pause, not a failure: the relay waits the advertised seconds (at
-  least one, at most 60, five when a `429` names none) and repeats the same call. A
-  chunk read keeps its index and its ticket, which a refusal at admission or a
-  rolled-back read did not consume; a renewal is minted again. A pause spends no
-  resume. A pause that would reach the deadline is not taken, and before the headers
-  the first chunk must start within one minute, so the person gets the refusal
-  document rather than a long wait.
+  about 7.5 MiB therefore meets `429`. A `429`, or a `503` that names its `Retry-After`,
+  is a pause, not a failure: the relay waits the advertised seconds (at least one, at
+  most 60, five when a `429` names none) and repeats the same call. A chunk read keeps
+  its index and its ticket, which a refusal at admission or a rolled-back read did not
+  consume; a renewal is minted again. A pause spends no resume. A pause that would reach
+  the end of the owner is not taken, and before the headers the first chunk must start
+  within one minute, so the person gets the refusal document rather than a long wait.
 - **Stall.** A write or the end that makes no progress for 60 seconds, or is still
   pending at the deadline, destroys the connection like any failure after the headers:
   a client that stops reading holds no snapshot credit or plaintext beyond it.

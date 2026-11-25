@@ -72,7 +72,7 @@
     "timing": "Silme işlemi talebinizden 24 saat sonra başlar ve o zamana kadar buradan iptal edebilirsiniz. Silme işlemi çalıştıktan sonra işlem kayıtlarındaki son adımı bir operatör tamamlar.",
     "legend": "Silme talebini onaylayın",
     "confirm": "Nelerin silineceğini ve nelerin saklanacağını, silme işlemi başladıktan sonra geri alınamayacağını anlıyorum.",
-    "action": "Silinmesini iste",
+    "action": "Verilerimin silinmesini iste",
     "back": "Verilerimi koru ve geri dön"
   },
   "closure": {
@@ -98,6 +98,8 @@
   "list": {
     "title": "Talepleriniz",
     "empty": "Burada henüz bir talepte bulunmadınız.",
+    "older": "Bunlar daha eski talepler. Yeni bir talep, bekleyen taleplerin görülebildiği en yeni taleplerden yapılır.",
+    "newest": "En yeni taleplere dön",
     "status": "Durum",
     "requested": "Talep tarihi",
     "runs_after": "Şu zamandan sonra başlar",
@@ -148,8 +150,8 @@
   },
   "last_refusal": {
     "blocked_window": "Bir operatör bekleme süresi dolmadan işleme başlamayı denedi. Talebiniz hâlâ planlı durumda.",
-    "blocked_hold": "Verileriniz bekletmeye alındığı için, örneğin açık bir ödeme konusu nedeniyle, talebiniz henüz ilerleyemiyor. Talebiniz planlı olarak kalır ve iptal edebilirsiniz.",
-    "blocked_last_administrator": "Bir kurumun tek yöneticisi sizsiniz. Bu talebin ilerleyebilmesi için orada başka bir yöneticinin atanması gerekiyor. Talebiniz planlı olarak kalır ve iptal edebilirsiniz."
+    "blocked_hold": "Bir operatör bu talebi en son başlatmayı denediğinde verileriniz bekletmeye alınmıştı, örneğin açık bir ödeme konusu nedeniyle. Talebiniz planlı olarak kalır ve iptal edebilirsiniz.",
+    "blocked_last_administrator": "Bir operatör bu talebi en son başlatmayı denediğinde bir kurumun tek yöneticisi sizdiniz. Talebin ilerleyebilmesi için orada başka bir yöneticinin atanması gerekiyor. Talebiniz planlı olarak kalır ve iptal edebilirsiniz."
   },
   "failure": {
     "export_too_large": "Verileriniz tek bir dosyaya sığmayacak kadar büyük. Yeniden istemeden önce yardım için kurumla iletişime geçin.",

@@ -81,6 +81,52 @@ export function dataRequestState(
     ? 'due'
     : item.status;
 }
+/**
+ * The instant an export's file stopped being readable: reads end at the expiry or at a revocation, whichever came first,
+ * and a purge after the expiry, however late its job ran, ended nothing. The administrator's pages use the same rule
+ * (`dataRequestUnavailableSince` in the administrator labels), so one file carries one date on both surfaces.
+ */
+export function dataRequestUnavailableSince(
+  artifact: Pick<NonNullable<OwnDataRequest['artifact']>, 'expiresAt' | 'purgedAt'>,
+): string {
+  return artifact.purgedAt !== null &&
+    Date.parse(artifact.purgedAt) < Date.parse(artifact.expiresAt)
+    ? artifact.purgedAt
+    : artifact.expiresAt;
+}
+/**
+ * Whether a closed result the page was redirected with still describes the list as prepared. The Studio drops its notice
+ * by the same rule (`dataRequestResultCurrent` in the administrator labels), so a request that moved on, or was never
+ * there, is not announced as "recorded". A closure is announced only while it is still waiting for its operator.
+ */
+export function dataRequestResultCurrent(
+  result: NonNullable<DataRequestPage['result']>,
+  items: readonly OwnDataRequest[],
+  preparedAt: string,
+): boolean {
+  switch (result) {
+    case 'export':
+      return items.some(
+        (item) =>
+          item.kind === 'export' &&
+          (item.status === 'requested' ||
+            item.status === 'fulfilling' ||
+            (item.status === 'completed' && item.artifact?.readable === true)),
+      );
+    case 'erasure':
+      return items.some(
+        (item) => item.kind === 'erasure' && dataRequestState(item, preparedAt) === 'scheduled',
+      );
+    case 'closure':
+      return items.some((item) => item.kind === 'closure' && item.status === 'scheduled');
+    case 'cancelled':
+      return items.some((item) => item.status === 'cancelled');
+    case 'revoked':
+      return items.some(
+        (item) => item.kind === 'export' && item.artifact !== null && !item.artifact.readable,
+      );
+  }
+}
 /** ADR-0106 § 11: an export until it starts, an erasure until its window ends, a closure until Begin commits. */
 export function dataRequestCancellable(item: OwnDataRequest, preparedAt: string): boolean {
   if (item.origin === 'closure_fanout') return false;
@@ -311,17 +357,23 @@ export function renderDataRequestDocument(
         : '';
     view = entry ? (group === null ? 'entry_scopes' : 'entry') : 'session';
     historyGroup = group;
+    // The notice is a statement about the list on the page: it is printed only while the list still shows what it says
+    // (a reload, a restored or a shared address keeps the query, and a script-free browser never rewrites it).
+    const shownResult =
+      page.result !== null && dataRequestResultCurrent(page.result, items, page.preparedAt)
+        ? page.result
+        : null;
     const result =
-      page.result === null
+      shownResult === null
         ? ''
         : '<div class="notice" role="status"><h2>' +
           text('result.title') +
           '</h2><p>' +
-          sentence(RESULTS[page.result]) +
+          sentence(RESULTS[shownResult]) +
           '</p></div>';
     // The result notice and its title prefix appear together, only on the documents that show the notice.
     const resultTitle = (base: string) =>
-      page.result === null ? base : phrase('result.title') + ' – ' + base;
+      shownResult === null ? base : phrase('result.title') + ' – ' + base;
     /**
      * The retained entry's owner lives at most five minutes from the start of sign-in and is never extended, so every
      * retained document says so, with the instant it ends and the time that was left when the page was prepared. The
@@ -562,13 +614,7 @@ export function renderDataRequestDocument(
           )
             rows.push('<dt>' + text('list.ended') + '</dt><dd>' + time(item.updatedAt) + '</dd>');
           if (artifact !== null) {
-            // Reads stop at the expiry or at a revocation, whichever came first; a purge after the expiry, however
-            // late its job ran, ended nothing.
-            const unavailableSince =
-              artifact.purgedAt !== null &&
-              Date.parse(artifact.purgedAt) < Date.parse(artifact.expiresAt)
-                ? artifact.purgedAt
-                : artifact.expiresAt;
+            const unavailableSince = dataRequestUnavailableSince(artifact);
             rows.push(
               '<dt>' +
                 (artifact.readable ? text('list.available_until') : text('list.expired_on')) +
@@ -770,55 +816,67 @@ export function renderDataRequestDocument(
           );
         })
         .join('');
+      // The actions look at the list for what is already active, and only the newest page shows that: an older page offers
+      // none of them and points back, rather than inviting a request the API would refuse after a full confirmation.
+      const actionSections = requests.pageInfo.hasPrevious
+        ? '<p>' +
+          text('list.older') +
+          '</p><p><a class="action" href="' +
+          escape(pageHref(group, {})) +
+          '">' +
+          text('list.newest') +
+          '</a></p>'
+        : '<section aria-labelledby="export-title"><h2 id="export-title">' +
+          text('export.title') +
+          '</h2><p>' +
+          text('export.description') +
+          '</p><p>' +
+          text('export.audit_note') +
+          '</p><p>' +
+          text('export.timing') +
+          '</p>' +
+          (exportActive
+            ? '<p>' + text('export.active') + '</p>'
+            : '<form method="post" action="' +
+              scoped +
+              'export">' +
+              fields(true) +
+              '<button type="submit">' +
+              text('export.action') +
+              '</button></form>') +
+          '</section><section aria-labelledby="erasure-title"><h2 id="erasure-title">' +
+          text('erasure.title') +
+          '</h2><p>' +
+          text('erasure.summary') +
+          '</p>' +
+          (active(items, 'erasure')
+            ? '<p>' + text('erasure.active') + '</p>'
+            : '<p><a class="action" href="' +
+              escape(pageHref(group, { step: 'erasure' })) +
+              '">' +
+              text('erasure.start') +
+              '</a></p>') +
+          '</section><section aria-labelledby="closure-title"><h2 id="closure-title">' +
+          text('closure.title') +
+          '</h2><p>' +
+          text('closure.summary') +
+          '</p>' +
+          (active(items, 'closure')
+            ? '<p>' + text('closure.active') + '</p>'
+            : '<p><a class="action" href="' +
+              escape(pageHref(group, { step: 'closure' })) +
+              '">' +
+              text('closure.start') +
+              '</a></p>') +
+          +'</section>';
       body =
         result +
         '<p>' +
         text('common.intro') +
         '</p>' +
         scopeText +
-        '<section aria-labelledby="export-title"><h2 id="export-title">' +
-        text('export.title') +
-        '</h2><p>' +
-        text('export.description') +
-        '</p><p>' +
-        text('export.audit_note') +
-        '</p><p>' +
-        text('export.timing') +
-        '</p>' +
-        (exportActive
-          ? '<p>' + text('export.active') + '</p>'
-          : '<form method="post" action="' +
-            scoped +
-            'export">' +
-            fields(true) +
-            '<button type="submit">' +
-            text('export.action') +
-            '</button></form>') +
-        '</section><section aria-labelledby="erasure-title"><h2 id="erasure-title">' +
-        text('erasure.title') +
-        '</h2><p>' +
-        text('erasure.summary') +
-        '</p>' +
-        (active(items, 'erasure')
-          ? '<p>' + text('erasure.active') + '</p>'
-          : '<p><a class="action" href="' +
-            escape(pageHref(group, { step: 'erasure' })) +
-            '">' +
-            text('erasure.start') +
-            '</a></p>') +
-        '</section><section aria-labelledby="closure-title"><h2 id="closure-title">' +
-        text('closure.title') +
-        '</h2><p>' +
-        text('closure.summary') +
-        '</p>' +
-        (active(items, 'closure')
-          ? '<p>' + text('closure.active') + '</p>'
-          : '<p><a class="action" href="' +
-            escape(pageHref(group, { step: 'closure' })) +
-            '">' +
-            text('closure.start') +
-            '</a></p>') +
-        '</section><section aria-labelledby="list-title"><h2 id="list-title">' +
+        actionSections +
+        '<section aria-labelledby="list-title"><h2 id="list-title">' +
         text('list.title') +
         '</h2>' +
         (items.length

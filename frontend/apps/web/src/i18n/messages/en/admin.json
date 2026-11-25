@@ -254,7 +254,7 @@
       "kept_intro": "Some records have to be kept. They no longer hold the person's name or answers, but they still refer to the person by an internal number:",
       "kept_consent": "the record of the consents they gave or withdrew, kept as evidence;",
       "kept_invitations": "the record of invitations they sent or accepted, including the e-mail address an invitation was sent to;",
-      "kept_audit": "activity records: after the erasure, an operator removes network addresses, browser details and e-mail addresses from the activity records about the person, including records of what administrators did about them;",
+      "kept_audit": "activity records: after the erasure, an operator removes network addresses, browser details and e-mail addresses from the activity records about the person in this scope, including records of what administrators did about them here. Records of what the person did in other branches or at institution level are not changed by this request;",
       "kept_attribution": "notes of who created or last changed something here;",
       "kept_receipt": "this request and its receipt.",
       "timing": "Erasure starts 24 hours after you request it. Until then the person can cancel it on their own data page, and you can cancel it on the request's page. If the person is admitted to this scope again within those 24 hours, the erasure still runs.",
@@ -264,7 +264,8 @@
     },
     "erasure_page": {
       "title": "Erase a revoked member's data",
-      "revoked": "This membership was revoked. It is no longer listed among the members and has no member page.",
+      "revoked": "This page asks for the erasure of the membership named below. A revoked membership is no longer listed among the members and has no member page.",
+      "membership": "Membership",
       "only_revoked": "An erasure can be asked for only while the person has no active or suspended membership in this scope. Otherwise the request is refused and nothing changes.",
       "missing": "No membership was named. This page opens for a membership right after it is revoked."
     },
