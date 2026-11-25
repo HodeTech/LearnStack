@@ -7,7 +7,8 @@ closing step of a global account closure uses. Decided in
 closure's own steps and their operator routes are in
 [Data erasure](data-erasure.md) and the [closure runbook](account-closure.md); this
 document is about the credential. There is **no route of its own**: the credential is
-used by one caller, the closure's Finalize, through one port method.
+used by one caller of the deletion, the closure's Finalize, through one deleting port
+method (`RemoveAsync`).
 
 ## What exists
 
@@ -20,7 +21,7 @@ used by one caller, the closure's Finalize, through one port method.
 | Secret | `KEYCLOAK_ACCOUNT_REMOVAL_SECRET` in the realm's private source; the API reads the same value as `AccountRemoval__ClientSecret` |
 | Calls | One token request, then `DELETE users/{id}` for a canonical lowercase UUID; nothing else |
 | Resilience | `Resilience:accountRemoval`, fixed: no retry, 5-second call ceiling, breaker on, one call at a time |
-| Log | One Warning, event 7125, per refusal, carrying one closed reason code ([below](#reading-a-refusal-in-the-log)) |
+| Log | One Warning, event 7125, per refusal, carrying one closed reason code ([below](#reading-a-refusal-in-the-log)); one Warning, event 7126, per call that did not finish, carrying one closed cause ([below](#reading-an-unfinished-call-in-the-log)) |
 
 The adapter refuses a malformed subject and a missing or unusable secret before any
 request leaves the process, and a token wider than the role before the deletion is
@@ -148,9 +149,12 @@ of `Authentication:Tenant:Issuer`, and `ADMIN` is its admin address:
    `{"error":"User not found"}` (read from the pinned Keycloak, `26.7.5`). A `401` or
    `403` means the token or its role is wrong: repeat the steps above. Any other answer
    (an HTML or empty page, other JSON) means a proxy or gateway in front of the provider
-   answers for it: fix that route before the first closure. The adapter refuses a `404`
-   that is not JSON (`delete_not_found_foreign`), but it cannot tell a gateway's JSON
-   `404` from the provider's own and would report the account absent.
+   answers for it: fix that route before the first closure. The adapter takes a `404` as
+   absence only when it is exactly that answer, and refuses every other `404`
+   (`delete_not_found_foreign`): another type, JSON with another message, a body over
+   256 bytes or a compressed one. A gateway's JSON `404` is refused with it. A Keycloak
+   release that rewords the message is refused the same way, which is why a pin bump
+   runs the integration case that reads the pinned image's answer.
 
 ## Rotate it
 
@@ -194,14 +198,14 @@ each answer does to the closure. The adapter's answers mean:
 
 | Answer | Meaning | What to do |
 |---|---|---|
-| refused | Nothing changed. The secret is missing, unusable or wrong; the client is disabled or broader than `manage-users`; the subject is not a provider user identifier; the provider answered `401`, `403` or another `4xx`; or a `404` came back that is not the provider's own JSON | Read the reason code in the API's log ([below](#reading-a-refusal-in-the-log)), fix that cause, then repeat the step. Repeating without a repair answers the same |
-| unavailable | No deletion was confirmed: the provider was unreachable, it or a hop in front of it answered `5xx`, `429`, `408` or `425`, the breaker is open after repeated faults, or another deletion is in flight | Wait (the breaker closes after its break duration, 30 seconds by default) and repeat. A deletion that had landed is found absent, which is success |
-| uncertain | The deletion may have happened and its answer was lost: a timeout, a connection that failed or broke while the deletion was being sent, or an answer that is not a deletion's | Look the person up in the realm console with the e-mail you confirmed the request against, then repeat the step. A repeat reports the account absent, which is success |
+| refused | Nothing changed. The secret is missing, unusable or wrong; the client is disabled or broader than `manage-users`; the subject is not a provider user identifier; the provider answered `401`, `403` or another `4xx`; or a `404` came back that is not the provider's own `User not found` answer | Read the reason code in the API's log ([below](#reading-a-refusal-in-the-log)), fix that cause, then repeat the step. Repeating without a repair answers the same |
+| unavailable | No deletion was confirmed: the provider was unreachable, it or a hop in front of it answered `5xx`, `429`, `408` or `425`, the breaker is open after repeated faults, or another deletion is in flight | Read the cause in the API's log ([below](#reading-an-unfinished-call-in-the-log)): a certificate or name fault will not clear by waiting. Otherwise wait (the breaker closes after its break duration, 30 seconds by default) and repeat. A deletion that had landed is found absent, which is success |
+| uncertain | The deletion may have happened and its answer was lost: a timeout, a connection that failed or broke while the deletion was being sent, or an answer that is not a deletion's | Look the person up in the realm console with the e-mail you confirmed the request against, then repeat the step. The cause is in the API's log ([below](#reading-an-unfinished-call-in-the-log)). A repeat reports the account absent, which is success |
 
 There are no automatic retries by design: a repeat is the operator's, so a lost answer
 is never hidden behind a quiet success. A missing account is success, but only the
-provider's own answer counts: a `404` that is not JSON is a refusal, because a proxy
-or gateway in front of the provider may be answering for it.
+provider's own answer counts: a `404` that is not its `User not found` JSON is a
+refusal, because a proxy or gateway in front of the provider may be answering for it.
 
 ### Reading a refusal in the log
 
@@ -219,8 +223,34 @@ secret or provider text. The closure's own line (warning 7121) follows it.
 | `delete_unauthorized` | The deletion answered `401` or `403` | The role is missing or the realm differs from the issuer's, or a proxy or firewall in front of the admin path refuses the API: repeat the verification from the API's network position |
 | `delete_redirect` | The deletion answered a redirect, which is never followed | A proxy is redirecting the admin path: fix the route |
 | `delete_rejected` | The deletion answered another `4xx` | Read the provider's own log for the cause |
-| `delete_not_found_foreign` | The deletion answered `404` in a type other than JSON | A proxy or gateway hides the admin path: fix the route (verification step 4) |
+| `delete_not_found_foreign` | The deletion answered `404`, and it is not the provider's own `User not found` JSON: another type, another message, a body over 256 bytes or a compressed one | A proxy or gateway hides the admin path, or the provider's message changed: fix the route (verification step 4) |
 | `unclassified` | A refusal that named no cause: a defect of the adapter | Report it with the log line |
+
+
+### Reading an unfinished call in the log
+
+A call that is neither a success nor a refusal writes one Warning, event 7126, `The
+account removal adapter did not complete the deletion: <code>`, with one of these closed
+codes. The line carries no subject, address, secret or provider text; `<kind>` is one of
+`name_resolution`, `connection`, `secure_connection`, `proxy_tunnel`, `protocol`,
+`invalid_response`, `response_ended` or `other`. A refusal has its own line (event 7125)
+and an unfinished call never has both.
+
+| Code | Answer | Cause | What to do |
+|---|---|---|---|
+| `token_transport_<kind>` | unavailable | The token call failed in transport | `secure_connection` is a certificate the API does not trust or that expired, so renew or trust it; `name_resolution` is a host the API cannot resolve; `connection` is a provider that is down or a closed port. Fix the cause, then repeat |
+| `token_unavailable_5xx`, `token_unavailable_429`, `token_unavailable_408`, `token_unavailable_425` | unavailable | The token endpoint, or a hop in front of it, answered a server fault or a throttle | Wait and repeat; if it persists, check the provider and the gateway |
+| `token_body_transport` | unavailable | The token answer broke while it was being read | Repeat |
+| `token_timeout` | unavailable | The five-second ceiling passed before the deletion was sent | Repeat; if it persists, the provider is slow |
+| `delete_transport_name_resolution`, `delete_transport_secure_connection`, `delete_transport_proxy_tunnel` | unavailable | The deletion failed before anything was written | As for the token call, then repeat |
+| `delete_transport_<kind>` for any other kind | uncertain | The connection failed or broke while the deletion was being sent | Look the person up in the realm console, then repeat |
+| `delete_unavailable_5xx`, `delete_unavailable_429`, `delete_unavailable_408`, `delete_unavailable_425` | unavailable | The provider, or a hop in front of it, answered a server fault or a throttle | Wait and repeat |
+| `delete_answer_unexpected` | uncertain | The deletion answered something that is neither a deletion nor a refusal | Look the person up in the realm console, then repeat |
+| `delete_not_found_body_transport` | unavailable | A `404` answer broke while it was being read | Repeat |
+| `delete_timeout` | uncertain | The five-second ceiling passed after the deletion was handed to the transport | Look the person up in the realm console, then repeat |
+| `breaker_open` | unavailable | The breaker opened after repeated faults and sent nothing | Read the earlier causes, wait for the break duration and repeat |
+| `bulkhead_full` | unavailable | Another deletion is in flight | Repeat |
+| `token_transport_escaped`, `delete_transport_escaped` | unavailable, uncertain | A transport fault no call site classified: a defect of the adapter | Report it with the log line |
 
 ## What is not here
 

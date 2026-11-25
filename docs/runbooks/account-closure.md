@@ -522,8 +522,9 @@ counts the Finalize transactions that committed a result row, a stop at the prov
 included. A Finalize logs warning 7121 when it stops at the provider, warning 7124 when
 the provider port threw (its exception's type only), warning 7125 when the account
 removal adapter refused the deletion (a closed reason code; see its
-[runbook](account-removal-client.md#when-a-closures-last-step-does-not-finish)), error
-7122 for a state no admitted
+[runbook](account-removal-client.md#when-a-closures-last-step-does-not-finish)),
+warning 7126 when it did not complete the call (a closed cause, listed in the same
+runbook), error 7122 for a state no admitted
 path writes, and critical 7123 when a stop's result row could not be written; none names
 the person, a tenant or the ticket. The admission and refusal counters are in
 [Platform operator access](operator-access.md#signals).

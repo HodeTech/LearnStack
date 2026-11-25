@@ -212,9 +212,10 @@ is a closure's fan-out that threw after its Begin committed; see the
 [closure runbook](account-closure.md#a-partial-answer). Events 7121 (Warning, a
 Finalize stopped at the identity provider), 7122 (Error, a state no admitted path
 writes), 7123 (Critical, the result row of such a stop could not be written) and 7124
-(Warning, the provider port threw) are a closure's Finalize, and event 7125 (Warning,
-the account removal adapter refused the deletion, with a closed reason code) is its
-adapter's, see [its runbook](account-removal-client.md); see the
+(Warning, the provider port threw) are a closure's Finalize, and events 7125 (Warning,
+the account removal adapter refused the deletion, with a closed reason code) and 7126
+(Warning, it did not complete the call, with a closed cause) are its adapter's, see
+[its runbook](account-removal-client.md); see the
 [closure runbook](account-closure.md#signals). A refused operator leaves no
 database row; the one exception is an onboarding act an admitted operator had refused
 for a business reason, which writes a `failed` row in the tenant.

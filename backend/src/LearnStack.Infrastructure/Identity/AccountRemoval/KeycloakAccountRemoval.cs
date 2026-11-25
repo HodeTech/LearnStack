@@ -10,6 +10,7 @@ using LearnStack.SharedKernel.Secrets;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using Polly;
+using Polly.CircuitBreaker;
 using Polly.Timeout;
 
 namespace LearnStack.Infrastructure.Identity.AccountRemoval;
@@ -18,9 +19,10 @@ namespace LearnStack.Infrastructure.Identity.AccountRemoval;
 /// ADR-0107 § 7's confined Keycloak adapter. It holds the account-removal client
 /// (<see cref="KeycloakAccountRemovalRoutes.ClientId"/>, <c>manage-users</c> only) alone, takes a fresh client-credentials
 /// token per call, and sends exactly one request: <c>DELETE users/{id}</c> for a canonical user identifier. The client's role
-/// can also create and update users, which is why this class has one deleting method (and a pure preflight), builds no other route and never reads a
-/// response body of the deletion. The subject, the client secret and every provider body or message stay inside this class:
-/// the port sees a closed outcome only, and the only thing logged is one closed reason code per refusal.
+/// can also create and update users, which is why this class has one deleting method (and a pure preflight), builds no other route and
+/// reads no body of the deletion beyond the first 256 bytes of a JSON 404, which it compares and discards. The subject, the client
+/// secret and every provider body or message stay inside this class: the port sees a closed outcome only, and the only thing logged
+/// is one closed reason code per refusal and one closed cause per call that did not finish.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,7 +35,7 @@ namespace LearnStack.Infrastructure.Identity.AccountRemoval;
 /// Outcome map. 204 is <see cref="AccountRemovalOutcome.Removed"/>; a 404 that carries the provider's own JSON answer is
 /// <see cref="AccountRemovalOutcome.Absent"/>. A missing or unusable secret, a malformed subject, a token endpoint that
 /// refuses the client (4xx) or answers a token broader than the confined role, a 401 or 403 on the deletion, a redirect, any
-/// other 4xx and a 404 that is not JSON are <see cref="AccountRemovalOutcome.Refused"/>: nothing changed and repeating
+/// other 4xx and a 404 that is not the provider's own answer are <see cref="AccountRemovalOutcome.Refused"/>: nothing changed and repeating
 /// without repair changes nothing. A 5xx, 429, 408 or 425 on either call, any transport fault on the token call, an open
 /// breaker or a full bulkhead, and a fault on the deletion that surely precedes its write (an unresolved name, a failed TLS
 /// handshake or proxy tunnel) are <see cref="AccountRemovalOutcome.Unavailable"/>: no deletion was confirmed, and a repeat
@@ -44,15 +46,24 @@ namespace LearnStack.Infrastructure.Identity.AccountRemoval;
 /// <para>
 /// A 404 is absence only when it is the provider's own answer. Keycloak 26.7.5 answers a missing user with
 /// <c>Content-Type: application/json</c> and <c>{"error":"User not found"}</c> (<c>AccountRemovalProviderTests</c> reads it
-/// from the pinned image), so the media type alone separates it from a hop in front of the provider that hides the admin path
-/// with an HTML or empty 404; the body is still never read. A hop that answers 404 in JSON is not told apart by status or
-/// type: the runbook's deployment check exercises the deletion route for that.
+/// from the pinned image), and Keycloak's answer for a path it does not route is JSON too (<c>{"error":"HTTP 404 Not Found"}</c>),
+/// as is the unrouted answer of several gateways. The media type therefore separates the provider only from a hop that answers
+/// in HTML, plain text or nothing, and the adapter also reads at most 256 bytes of an uncompressed JSON 404 and takes it as
+/// absence only when it is an object whose <c>error</c> is exactly <c>User not found</c>. Nothing of that body is kept or
+/// logged. A provider release that rewords the message fails closed (<c>delete_not_found_foreign</c>) and
+/// the integration case that reads the pinned image's answer fails first on the pin bump.
 /// </para>
 /// </remarks>
 internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountRemoval, IDisposable
 {
     internal const string SecretKey = "AccountRemoval:ClientSecret";
     private const int TokenLimit = 16 * 1024;
+
+    /// <summary>The most of a 404's body the adapter reads: Keycloak's own answer is 26 bytes.</summary>
+    private const int NotFoundLimit = 256;
+
+    /// <summary>The message of Keycloak's own answer for a user it does not hold (<c>{"error":"User not found"}</c>).</summary>
+    private const string NotFoundMessage = "User not found";
 
     /// <summary>425 Too Early (RFC 8470), which <see cref="HttpStatusCode"/> has no member for.</summary>
     private const HttpStatusCode TooEarly = (HttpStatusCode)425;
@@ -141,13 +152,27 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
             return outcome == AccountRemovalOutcome.Refused ? Refuse(attempt.Refusal) : outcome;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (AccountRemovalProviderException fault) { return fault.Uncertain ? AccountRemovalOutcome.Uncertain : AccountRemovalOutcome.Unavailable; }
+        catch (AccountRemovalProviderException fault) { return Unfinished(fault.Cause, fault.Uncertain); }
         // The pipeline's own elapsed timeout, the backstop and a transport fault that escaped: only the attempt says whether the
-        // deletion may have reached the provider. Breaker and bulkhead rejections never ran the lambda and fall through the
-        // attempt check as unavailable.
+        // deletion may have reached the provider. Breaker and bulkhead rejections never ran the lambda and are unavailable.
         catch (Exception error) when (error is TimeoutRejectedException or OperationCanceledException or HttpRequestException or IOException)
-        { return attempt.DeletionHandedToTransport ? AccountRemovalOutcome.Uncertain : AccountRemovalOutcome.Unavailable; }
-        catch (ExecutionRejectedException) { return AccountRemovalOutcome.Unavailable; }
+        {
+            var handed = attempt.DeletionHandedToTransport;
+            var timedOut = error is TimeoutRejectedException or OperationCanceledException;
+            return Unfinished((handed ? "delete" : "token") + (timedOut ? "_timeout" : "_transport_escaped"), handed);
+        }
+        catch (BrokenCircuitException) { return Unfinished("breaker_open", uncertain: false); }
+        catch (ExecutionRejectedException) { return Unfinished("bulkhead_full", uncertain: false); }
+    }
+
+    /// <summary>
+    /// A call that did not finish: <see cref="AccountRemovalOutcome.Uncertain"/> when the deletion may have been applied, otherwise
+    /// <see cref="AccountRemovalOutcome.Unavailable"/>, with its one closed cause logged and nothing else (no subject, URL or provider text).
+    /// </summary>
+    private AccountRemovalOutcome Unfinished(string cause, bool uncertain)
+    {
+        LogUnfinished(_logger, cause);
+        return uncertain ? AccountRemovalOutcome.Uncertain : AccountRemovalOutcome.Unavailable;
     }
 
     /// <summary>A refusal: the outcome, with its one closed reason code logged and nothing else (no subject, URL or provider text).</summary>
@@ -173,6 +198,10 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
         Message = "The account removal adapter refused the deletion: {Reason}.")]
     private static partial void LogRefused(ILogger logger, string reason);
 
+    [LoggerMessage(EventId = 7126, Level = LogLevel.Warning,
+        Message = "The account removal adapter did not complete the deletion: {Cause}.")]
+    private static partial void LogUnfinished(ILogger logger, string cause);
+
     /// <summary>The bearer token, or null (with the reason on the attempt) when the provider definitively refused the client or issued a broader token.</summary>
     private async Task<string?> TokenAsync(FederationClientSecret secret, Attempt attempt, CancellationToken token)
     {
@@ -187,10 +216,10 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         HttpResponseMessage response;
         try { response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false); }
-        catch (HttpRequestException) { throw new AccountRemovalProviderException(uncertain: false); }
+        catch (HttpRequestException error) { throw new AccountRemovalProviderException(uncertain: false, "token_transport_" + Name(error.HttpRequestError)); }
         using (response)
         {
-            if (IsTransient(response.StatusCode)) throw new AccountRemovalProviderException(uncertain: false);
+            if (IsTransient(response.StatusCode)) throw new AccountRemovalProviderException(uncertain: false, "token_unavailable_" + Label(response.StatusCode));
             if (response.StatusCode != HttpStatusCode.OK) return Declined(attempt, RefusalReason.TokenRefused);
             if (response.Content.Headers.ContentEncoding.Count != 0 || !IsJson(response)
                 || response.Content.Headers.ContentLength > TokenLimit)
@@ -208,8 +237,8 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
                 }
                 return count > TokenLimit ? Declined(attempt, RefusalReason.TokenMalformed) : ParseToken(buffer.AsSpan(0, count), attempt);
             }
-            catch (HttpRequestException) { throw new AccountRemovalProviderException(uncertain: false); }
-            catch (IOException) { throw new AccountRemovalProviderException(uncertain: false); }
+            catch (HttpRequestException) { throw new AccountRemovalProviderException(uncertain: false, "token_body_transport"); }
+            catch (IOException) { throw new AccountRemovalProviderException(uncertain: false, "token_body_transport"); }
             finally { CryptographicOperations.ZeroMemory(buffer); }
         }
     }
@@ -280,21 +309,23 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
         // From here the transport may have written the request: a cancellation or timeout is uncertain, not unavailable.
         attempt.DeletionHandedToTransport = true;
         try { response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false); }
-        catch (HttpRequestException error) { throw new AccountRemovalProviderException(uncertain: !NeverSent(error)); }
+        catch (HttpRequestException error) { throw new AccountRemovalProviderException(!NeverSent(error), "delete_transport_" + Name(error.HttpRequestError)); }
         using (response)
         {
-            // The body of a deletion answer is never read: the status, and for a 404 the media type, are the answer.
+            // The body of a deletion answer is not read, except a 404's first bytes: the status is the answer, and for a 404 the
+            // provider's own JSON message.
             var status = (int)response.StatusCode;
             if (response.StatusCode == HttpStatusCode.NoContent) return AccountRemovalOutcome.Removed;
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                // Absence is the provider's own answer, which is JSON. A 404 in any other type is a hop in front of the provider
-                // (a proxy or gateway that hides the admin path) answering for it: the account was never looked up, so it is not absent.
-                if (IsJson(response)) return AccountRemovalOutcome.Absent;
+                // Absence is the provider's own answer: JSON with its own message. A 404 in any other type, or in JSON that says
+                // anything else, is a hop in front of the provider (a proxy or gateway that hides the admin path) answering for
+                // it: the account was never looked up, so it is not absent.
+                if (await IsProvidersOwnNotFoundAsync(response, token).ConfigureAwait(false)) return AccountRemovalOutcome.Absent;
                 attempt.Refusal = RefusalReason.DeleteNotFoundForeign;
                 return AccountRemovalOutcome.Refused;
             }
-            if (IsTransient(response.StatusCode)) throw new AccountRemovalProviderException(uncertain: false);
+            if (IsTransient(response.StatusCode)) throw new AccountRemovalProviderException(uncertain: false, "delete_unavailable_" + Label(response.StatusCode));
             // A redirect is never followed, and 401, 403 and every other 4xx say the provider will not do this as configured.
             if (status is >= 300 and < 500)
             {
@@ -303,13 +334,65 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
                 return AccountRemovalOutcome.Refused;
             }
             // A 1xx or 2xx that is not the deletion's own answer: it may have been applied, and the answer cannot be trusted.
-            throw new AccountRemovalProviderException(uncertain: true);
+            throw new AccountRemovalProviderException(uncertain: true, "delete_answer_unexpected");
         }
+    }
+
+    /// <summary>
+    /// Whether a 404 is Keycloak's own answer for a user it does not hold: uncompressed JSON of at most
+    /// <see cref="NotFoundLimit"/> bytes, an object whose <c>error</c> is exactly <see cref="NotFoundMessage"/>. A gateway's JSON
+    /// 404 (<c>{"message":"no Route matched"}</c>), Keycloak's own answer for an unrouted path (<c>{"error":"HTTP 404 Not
+    /// Found"}</c>), an oversized or compressed body and anything that does not parse are not. The body is compared and dropped:
+    /// it is never kept, logged or returned. A body that cannot be read to the end is unavailable (no deletion was confirmed).
+    /// </summary>
+    private static async Task<bool> IsProvidersOwnNotFoundAsync(HttpResponseMessage response, CancellationToken token)
+    {
+        if (!IsJson(response) || response.Content.Headers.ContentEncoding.Count != 0
+            || response.Content.Headers.ContentLength > NotFoundLimit)
+            return false;
+        var buffer = new byte[NotFoundLimit + 1];
+        var count = 0;
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+            while (count < buffer.Length)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(count), token).ConfigureAwait(false);
+                if (read == 0) break;
+                count += read;
+            }
+
+            if (count > NotFoundLimit) return false;
+            using var document = JsonDocument.Parse(buffer.AsMemory(0, count), new JsonDocumentOptions { MaxDepth = 4 });
+            return document.RootElement is { ValueKind: JsonValueKind.Object } root
+                && root.TryGetProperty("error", out var message) && message.ValueKind == JsonValueKind.String
+                && string.Equals(message.GetString(), NotFoundMessage, StringComparison.Ordinal);
+        }
+        catch (JsonException) { return false; }
+        catch (HttpRequestException) { throw new AccountRemovalProviderException(uncertain: false, "delete_not_found_body_transport"); }
+        catch (IOException) { throw new AccountRemovalProviderException(uncertain: false, "delete_not_found_body_transport"); }
     }
 
     /// <summary>The provider's own answers are JSON (the token, and Keycloak's 404 for a user it does not hold); the media type is header metadata.</summary>
     private static bool IsJson(HttpResponseMessage response) =>
         string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A status for a log cause: every server fault is one label, the other transient statuses are their number.</summary>
+    private static string Label(HttpStatusCode status) =>
+        (int)status >= 500 ? "5xx" : ((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>A transport error for a log cause: a closed, snake-case name that carries no host, address or message.</summary>
+    private static string Name(HttpRequestError error) => error switch
+    {
+        HttpRequestError.NameResolutionError => "name_resolution",
+        HttpRequestError.ConnectionError => "connection",
+        HttpRequestError.SecureConnectionError => "secure_connection",
+        HttpRequestError.ProxyTunnelError => "proxy_tunnel",
+        HttpRequestError.HttpProtocolError => "protocol",
+        HttpRequestError.InvalidResponse => "invalid_response",
+        HttpRequestError.ResponseEnded => "response_ended",
+        _ => "other",
+    };
 
     /// <summary>
     /// Answers that say the provider or a hop in front of it could not take the request now: a server fault, a throttle (429), a
@@ -366,15 +449,19 @@ internal sealed partial class KeycloakAccountRemoval : IIdentityProviderAccountR
 
 /// <summary>
 /// A closed adapter fault, thrown so the resilience breaker counts it. It carries no provider body, status text, transport
-/// message, subject or secret; the flag says whether the deletion may have been applied.
+/// message, subject or secret; the flag says whether the deletion may have been applied, and the cause is one code of a closed
+/// set the adapter composes from fixed words, a status number and a transport error name (never from provider text).
 /// </summary>
 internal sealed class AccountRemovalProviderException : ProviderException
 {
-    internal AccountRemovalProviderException(bool uncertain)
+    internal AccountRemovalProviderException(bool uncertain, string cause)
         : base("keycloak", "Account removal provider call failed.", isClientError: false)
     {
         Uncertain = uncertain;
+        Cause = cause;
     }
 
     internal bool Uncertain { get; }
+
+    internal string Cause { get; }
 }

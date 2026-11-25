@@ -60,6 +60,15 @@ public sealed class KeycloakAccountRemovalTests
         log.Entries.Should().BeEmpty("success logs nothing");
     }
 
+    [Fact]
+    public async Task A_provider_answer_that_names_more_than_its_error_is_still_the_providers_own_absence()
+    {
+        // A later release may add a field (an error description). The message is the identity of the answer, not the exact bytes.
+        var body = "{\"error\":\"User not found\",\"error_description\":\"the user does not exist\"}";
+        using var adapter = Create(new FakeKeycloak { DeleteStatus = HttpStatusCode.NotFound, DeleteBody = body, DeleteMediaType = "application/json" });
+        (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Absent);
+    }
+
     [Theory]
     [InlineData("text/html", "<html><body>404 Not Found</body></html>")]
     [InlineData("text/html; charset=utf-8", "<h1>Not Found</h1>")]
@@ -68,11 +77,29 @@ public sealed class KeycloakAccountRemovalTests
     [InlineData("application/problem+json", "{\"title\":\"Not Found\"}")]
     [InlineData(null, "")]
     [InlineData(null, "<html>no content type</html>")]
-    public async Task A_404_that_is_not_the_providers_own_json_is_refused_because_a_hop_in_front_may_have_answered(
+    // JSON, but not Keycloak's own message: a gateway's unrouted answer, Keycloak's own answer for a path it does not route,
+    // a reworded message, another type or no usable object at all.
+    [InlineData("application/json", "{\"message\":\"no Route matched with those values\"}")]
+    [InlineData("application/json", "{\"message\":\"Not Found\"}")]
+    [InlineData("application/json", "{\"error\":\"HTTP 404 Not Found\"}")]
+    [InlineData("application/json", "{\"error\":\"user not found\"}")]
+    [InlineData("application/json", "{\"error\":\"User not found.\"}")]
+    [InlineData("application/json", "{\"error\":\"User not found\\u0021\"}")]
+    [InlineData("application/json", "{\"error\":123}")]
+    [InlineData("application/json", "{\"error\":null}")]
+    [InlineData("application/json", "{\"error\":[\"User not found\"]}")]
+    [InlineData("application/json", "{\"detail\":{\"error\":\"User not found\"}}")]
+    [InlineData("application/json", "[\"User not found\"]")]
+    [InlineData("application/json", "\"User not found\"")]
+    [InlineData("application/json", "{\"error\":\"User not found\"")]
+    [InlineData("application/json", "")]
+    [InlineData("application/json", "not json at all")]
+    public async Task A_404_that_is_not_the_providers_own_answer_is_refused_because_a_hop_in_front_may_have_answered(
         string? mediaType, string body)
     {
-        // A proxy or gateway that hides the admin path answers 404 in HTML, plain text or nothing at all. Treated as absence it
-        // would let the closure finish while the account still exists, and nothing in the audit would differ from a true absence.
+        // A proxy or gateway that hides the admin path answers 404 in HTML, plain text, nothing at all or JSON of its own.
+        // Treated as absence it would let the closure finish while the account still exists, and nothing in the audit would
+        // differ from a true absence: Finalize NULLs the subject, so no repeat could find the account again.
         var provider = new FakeKeycloak { DeleteStatus = HttpStatusCode.NotFound, DeleteBody = body, DeleteMediaType = mediaType };
         var log = new CapturingLogger();
         using var adapter = Create(provider, log: log);
@@ -80,6 +107,71 @@ public sealed class KeycloakAccountRemovalTests
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Refused);
         provider.Requests.Should().HaveCount(2, "a refusal is never repeated by the adapter");
         log.Reasons.Should().Equal("delete_not_found_foreign");
+        log.Causes.Should().BeEmpty("a refusal is not an unfinished call");
+    }
+
+    [Theory]
+    [InlineData(false, false, false, "an oversized body with a known length")]
+    [InlineData(true, false, false, "an oversized body of unknown length")]
+    [InlineData(false, true, false, "a compressed body")]
+    [InlineData(true, true, false, "a compressed body of unknown length")]
+    [InlineData(true, false, true, "a body of unknown length that is exactly the limit plus one")]
+    public async Task A_404_whose_json_is_larger_than_the_limit_or_compressed_is_refused_without_reading_past_the_limit(
+        bool unknownLength, bool compressed, bool justOverLimit, string because)
+    {
+        // The message is first and perfectly right; only the size or the encoding makes the body untrustworthy.
+        var padding = new string('x', justOverLimit ? 256 - "{\"error\":\"User not found\",\"p\":\"\"}".Length + 1 : 4096);
+        var body = "{\"error\":\"User not found\",\"p\":\"" + padding + "\"}";
+        var provider = new FakeKeycloak
+        {
+            DeleteStatus = HttpStatusCode.NotFound,
+            DeleteBody = body,
+            DeleteMediaType = "application/json",
+            DeleteUnknownLength = unknownLength,
+            DeleteEncoding = compressed ? "gzip" : null,
+        };
+        var log = new CapturingLogger();
+        using var adapter = Create(provider, log: log);
+
+        (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Refused, because);
+        log.Reasons.Should().Equal("delete_not_found_foreign");
+    }
+
+    [Fact]
+    public async Task A_404_body_of_exactly_the_limit_is_read_and_accepted()
+    {
+        var head = "{\"error\":\"User not found\",\"p\":\"";
+        var body = head + new string('x', 256 - head.Length - 2) + "\"}";
+        body.Length.Should().Be(256, "the premise: the body is exactly the limit");
+        foreach (var unknownLength in new[] { false, true })
+        {
+            using var adapter = Create(new FakeKeycloak
+            {
+                DeleteStatus = HttpStatusCode.NotFound,
+                DeleteBody = body,
+                DeleteMediaType = "application/json",
+                DeleteUnknownLength = unknownLength,
+            });
+            (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Absent, "unknown length: " + unknownLength);
+        }
+    }
+
+    [Fact]
+    public async Task A_404_body_that_cannot_be_read_to_the_end_is_unavailable_not_absent_and_not_a_refusal()
+    {
+        var log = new CapturingLogger();
+        using var adapter = Create(new FakeKeycloak
+        {
+            DeleteStatus = HttpStatusCode.NotFound,
+            DeleteBody = KeycloakNotFound,
+            DeleteMediaType = "application/json",
+            DeleteBodyFaults = true,
+        }, log: log);
+
+        (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable,
+            "no deletion was confirmed and a repeat asks again");
+        log.Reasons.Should().BeEmpty();
+        log.Causes.Should().Equal("delete_not_found_body_transport");
     }
 
     [Theory]
@@ -104,19 +196,20 @@ public sealed class KeycloakAccountRemovalTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.TooManyRequests)]
-    [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.BadGateway)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    [InlineData(HttpStatusCode.RequestTimeout)]
-    [InlineData((HttpStatusCode)425)]
-    public async Task A_server_fault_throttle_or_transient_answer_on_the_deletion_is_unavailable(HttpStatusCode status)
+    [InlineData(HttpStatusCode.TooManyRequests, "delete_unavailable_429")]
+    [InlineData(HttpStatusCode.InternalServerError, "delete_unavailable_5xx")]
+    [InlineData(HttpStatusCode.BadGateway, "delete_unavailable_5xx")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "delete_unavailable_5xx")]
+    [InlineData(HttpStatusCode.RequestTimeout, "delete_unavailable_408")]
+    [InlineData((HttpStatusCode)425, "delete_unavailable_425")]
+    public async Task A_server_fault_throttle_or_transient_answer_on_the_deletion_is_unavailable(HttpStatusCode status, string cause)
     {
         // 408 and 425 are defined as "not processed" (RFC 9110, RFC 8470): repeating is right, and the breaker counts them.
         var log = new CapturingLogger();
         using var adapter = Create(new FakeKeycloak { DeleteStatus = status }, log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
-        log.Entries.Should().BeEmpty("only a refusal is logged");
+        log.Reasons.Should().BeEmpty("an unfinished call is not a refusal");
+        log.Causes.Should().Equal(cause);
     }
 
     [Theory]
@@ -125,22 +218,26 @@ public sealed class KeycloakAccountRemovalTests
     [InlineData(HttpStatusCode.ResetContent)]
     public async Task A_success_that_is_not_the_deletions_own_answer_is_uncertain(HttpStatusCode status)
     {
-        using var adapter = Create(new FakeKeycloak { DeleteStatus = status });
+        var log = new CapturingLogger();
+        using var adapter = Create(new FakeKeycloak { DeleteStatus = status }, log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Uncertain);
+        log.Causes.Should().Equal("delete_answer_unexpected");
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.TooManyRequests)]
-    [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    [InlineData(HttpStatusCode.RequestTimeout)]
-    [InlineData((HttpStatusCode)425)]
-    public async Task A_server_fault_or_throttle_on_the_token_is_unavailable_and_no_deletion_is_sent(HttpStatusCode status)
+    [InlineData(HttpStatusCode.TooManyRequests, "token_unavailable_429")]
+    [InlineData(HttpStatusCode.InternalServerError, "token_unavailable_5xx")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "token_unavailable_5xx")]
+    [InlineData(HttpStatusCode.RequestTimeout, "token_unavailable_408")]
+    [InlineData((HttpStatusCode)425, "token_unavailable_425")]
+    public async Task A_server_fault_or_throttle_on_the_token_is_unavailable_and_no_deletion_is_sent(HttpStatusCode status, string cause)
     {
         var provider = new FakeKeycloak { TokenStatus = status };
-        using var adapter = Create(provider);
+        var log = new CapturingLogger();
+        using var adapter = Create(provider, log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
         provider.Requests.Should().NotContain(request => request.Method == "DELETE");
+        log.Causes.Should().Equal(cause);
     }
 
     [Theory]
@@ -270,30 +367,37 @@ public sealed class KeycloakAccountRemovalTests
     public async Task A_refused_connection_to_the_token_endpoint_is_unavailable_and_nothing_is_deleted()
     {
         var provider = new FakeKeycloak { TokenFault = new HttpRequestException(HttpRequestError.ConnectionError, "connect") };
-        using var adapter = Create(provider);
+        var log = new CapturingLogger();
+        using var adapter = Create(provider, log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
         provider.Requests.Should().NotContain(request => request.Method == "DELETE");
+        log.Causes.Should().Equal("token_transport_connection");
     }
 
     [Theory]
-    [InlineData(HttpRequestError.NameResolutionError)]
-    [InlineData(HttpRequestError.SecureConnectionError)]
-    [InlineData(HttpRequestError.ProxyTunnelError)]
-    public async Task A_fault_that_surely_precedes_the_deletions_write_is_unavailable(HttpRequestError error)
+    [InlineData(HttpRequestError.NameResolutionError, "delete_transport_name_resolution")]
+    [InlineData(HttpRequestError.SecureConnectionError, "delete_transport_secure_connection")]
+    [InlineData(HttpRequestError.ProxyTunnelError, "delete_transport_proxy_tunnel")]
+    public async Task A_fault_that_surely_precedes_the_deletions_write_is_unavailable(HttpRequestError error, string cause)
     {
-        using var adapter = Create(new FakeKeycloak { DeleteFault = () => new HttpRequestException(error, "before-write") });
+        // An expired or untrusted certificate is the secure-connection case: it must be readable in the log, not only as "unavailable".
+        var log = new CapturingLogger();
+        using var adapter = Create(new FakeKeycloak { DeleteFault = () => new HttpRequestException(error, "before-write") }, log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
+        log.Causes.Should().Equal(cause);
     }
 
     [Theory]
-    [InlineData(HttpRequestError.ConnectionError)]
-    [InlineData(HttpRequestError.ResponseEnded)]
-    [InlineData(HttpRequestError.InvalidResponse)]
-    [InlineData(HttpRequestError.Unknown)]
-    public async Task A_connection_lost_or_failed_on_the_deletion_that_may_have_been_written_is_uncertain(HttpRequestError error)
+    [InlineData(HttpRequestError.ConnectionError, "delete_transport_connection")]
+    [InlineData(HttpRequestError.ResponseEnded, "delete_transport_response_ended")]
+    [InlineData(HttpRequestError.InvalidResponse, "delete_transport_invalid_response")]
+    [InlineData(HttpRequestError.Unknown, "delete_transport_other")]
+    public async Task A_connection_lost_or_failed_on_the_deletion_that_may_have_been_written_is_uncertain(HttpRequestError error, string cause)
     {
-        using var adapter = Create(new FakeKeycloak { DeleteFault = () => new HttpRequestException(error, "after-write") });
+        var log = new CapturingLogger();
+        using var adapter = Create(new FakeKeycloak { DeleteFault = () => new HttpRequestException(error, "after-write") }, log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Uncertain);
+        log.Causes.Should().Equal(cause);
     }
 
     [Fact]
@@ -337,30 +441,39 @@ public sealed class KeycloakAccountRemovalTests
         await server;
         observed.Errors.Should().Contain(HttpRequestError.ConnectionError,
             "the premise: the transport reported a connection error for a request whose head the provider had read");
-        log.Entries.Should().BeEmpty("an uncertain answer is not a refusal");
+        log.Reasons.Should().BeEmpty("an uncertain answer is not a refusal");
+        log.Causes.Should().HaveCount(1, "the call that did not finish says why, once");
     }
 
     [Fact]
     public async Task A_timeout_before_the_deletion_is_unavailable_and_after_it_is_uncertain()
     {
         var beforeSend = new FakeKeycloak { TokenHangs = true };
-        using (var adapter = Create(beforeSend, resilience: new Resilience(Timeout(200))))
+        var beforeLog = new CapturingLogger();
+        using (var adapter = Create(beforeSend, resilience: new Resilience(Timeout(200)), log: beforeLog))
             (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable, "the token call never reaches the deletion");
         beforeSend.Requests.Should().NotContain(request => request.Method == "DELETE");
+        beforeLog.Causes.Should().Equal("token_timeout");
 
         var afterSend = new FakeKeycloak { DeleteHangs = true };
-        using (var adapter = Create(afterSend, resilience: new Resilience(Timeout(200))))
+        var afterLog = new CapturingLogger();
+        using (var adapter = Create(afterSend, resilience: new Resilience(Timeout(200)), log: afterLog))
             (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Uncertain, "the deletion was handed to the transport");
         afterSend.Requests.Should().Contain(request => request.Method == "DELETE");
+        afterLog.Causes.Should().Equal("delete_timeout");
     }
 
     [Fact]
     public async Task A_transport_cancellation_that_is_not_the_callers_follows_the_same_phase_rule()
     {
-        using (var adapter = Create(new FakeKeycloak { TokenFault = new TaskCanceledException() }))
+        var tokenLog = new CapturingLogger();
+        using (var adapter = Create(new FakeKeycloak { TokenFault = new TaskCanceledException() }, log: tokenLog))
             (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
-        using (var adapter = Create(new FakeKeycloak { DeleteFault = () => new TaskCanceledException() }))
+        tokenLog.Causes.Should().Equal("token_timeout");
+        var deleteLog = new CapturingLogger();
+        using (var adapter = Create(new FakeKeycloak { DeleteFault = () => new TaskCanceledException() }, log: deleteLog))
             (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Uncertain);
+        deleteLog.Causes.Should().Equal("delete_timeout");
     }
 
     [Fact]
@@ -427,13 +540,15 @@ public sealed class KeycloakAccountRemovalTests
     public async Task A_real_breaker_opens_on_repeated_faults_and_an_open_breaker_never_sends()
     {
         var provider = new FakeKeycloak { DeleteStatus = HttpStatusCode.InternalServerError };
+        var log = new CapturingLogger();
         using var adapter = Create(provider, resilience: Real(("CircuitBreaker:MinimumThroughput", "2"), ("CircuitBreaker:FailureRatio", "1"),
-            ("CircuitBreaker:BreakDurationSeconds", "30")));
+            ("CircuitBreaker:BreakDurationSeconds", "30")), log: log);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
         var sent = provider.Requests.Count;
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable);
         provider.Requests.Should().HaveCount(sent, "an open breaker answers without a request");
+        log.Causes.Should().Equal("delete_unavailable_5xx", "delete_unavailable_5xx", "breaker_open");
     }
 
     [Fact]
@@ -444,8 +559,9 @@ public sealed class KeycloakAccountRemovalTests
         // timeout strategy would rethrow a plain cancellation, the breaker would not count it, and a hanging provider would
         // answer uncertain, five seconds at a time, for ever. Two hangs must open the breaker; the third call never sends.
         var provider = new FakeKeycloak { DeleteHangs = true };
+        var log = new CapturingLogger();
         using var adapter = Create(provider, resilience: Real(("Timeout:TotalSeconds", "5"), ("CircuitBreaker:MinimumThroughput", "2"),
-            ("CircuitBreaker:FailureRatio", "1"), ("CircuitBreaker:BreakDurationSeconds", "30")));
+            ("CircuitBreaker:FailureRatio", "1"), ("CircuitBreaker:BreakDurationSeconds", "30")), log: log);
 
         var calls = await Task.WhenAll(adapter.RemoveAsync(Subject), adapter.RemoveAsync(Subject));
         calls.Should().Equal([AccountRemovalOutcome.Uncertain, AccountRemovalOutcome.Uncertain],
@@ -454,6 +570,7 @@ public sealed class KeycloakAccountRemovalTests
 
         (await adapter.RemoveAsync(Subject)).Should().Be(AccountRemovalOutcome.Unavailable, "the breaker recorded both timeouts");
         provider.Requests.Should().HaveCount(sent, "an open breaker answers without a request");
+        log.Causes.Should().BeEquivalentTo(["delete_timeout", "delete_timeout", "breaker_open"]);
     }
 
     [Fact]
@@ -467,14 +584,16 @@ public sealed class KeycloakAccountRemovalTests
     public async Task A_second_concurrent_call_meets_the_bulkhead_and_is_unavailable_without_a_request()
     {
         var provider = new FakeKeycloak { DeleteHangs = true };
+        var log = new CapturingLogger();
         using var adapter = Create(provider, resilience: Real(("Bulkhead:MaxConcurrency", "1"), ("Bulkhead:QueueLength", "0"),
-            ("Timeout:TotalSeconds", "30")));
+            ("Timeout:TotalSeconds", "30")), log: log);
         var first = adapter.RemoveAsync(Subject);
         await provider.DeleteReached.Task;
         var sent = provider.Requests.Count;
 
         (await adapter.RemoveAsync("1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e")).Should().Be(AccountRemovalOutcome.Unavailable);
         provider.Requests.Should().HaveCount(sent);
+        log.Causes.Should().Equal("bulkhead_full");
 
         provider.ReleaseDelete.SetResult();
         (await first).Should().Be(AccountRemovalOutcome.Removed);
@@ -585,6 +704,10 @@ public sealed class KeycloakAccountRemovalTests
         internal IEnumerable<string> Reasons => Entries.Where(entry => entry.Level == LogLevel.Warning && entry.Event == 7125)
             .Select(entry => entry.Message[(entry.Message.LastIndexOf(": ", StringComparison.Ordinal) + 2)..].TrimEnd('.'));
 
+        /// <summary>The closed cause code of each unfinished-call line (event 7126), taken the same way.</summary>
+        internal IEnumerable<string> Causes => Entries.Where(entry => entry.Level == LogLevel.Warning && entry.Event == 7126)
+            .Select(entry => entry.Message[(entry.Message.LastIndexOf(": ", StringComparison.Ordinal) + 2)..].TrimEnd('.'));
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -645,6 +768,15 @@ public sealed class KeycloakAccountRemovalTests
         /// <summary>The deletion answer's media type; null leaves the answer without a Content-Type header.</summary>
         internal string? DeleteMediaType { get; init; }
         internal Func<Exception>? DeleteFault { get; init; }
+
+        /// <summary>The deletion answer's body carries no Content-Length, as a chunked answer would not.</summary>
+        internal bool DeleteUnknownLength { get; init; }
+
+        /// <summary>The deletion answer's Content-Encoding, when set.</summary>
+        internal string? DeleteEncoding { get; init; }
+
+        /// <summary>Reading the deletion answer's body fails with a transport error after the head was received.</summary>
+        internal bool DeleteBodyFaults { get; init; }
         internal bool DeleteHangs { get; init; }
         internal string? Location { get; init; }
         internal TaskCompletionSource TokenReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -676,20 +808,54 @@ public sealed class KeycloakAccountRemovalTests
                 return new(HttpStatusCode.NoContent);
             }
             if (DeleteFault is { } fault) throw fault();
-            return Answer(DeleteStatus, DeleteBody, DeleteMediaType);
+            return Answer(DeleteStatus, DeleteBody, DeleteMediaType, forDeletion: true);
         }
 
-        private HttpResponseMessage Answer(HttpStatusCode status, string? body = null, string? mediaType = null)
+        private HttpResponseMessage Answer(HttpStatusCode status, string? body = null, string? mediaType = null, bool forDeletion = false)
         {
             var response = new HttpResponseMessage(status);
             if (body is not null)
             {
                 var bytes = Encoding.UTF8.GetBytes(body);
-                response.Content = new ByteArrayContent(bytes);
+                response.Content = forDeletion && DeleteBodyFaults ? new StreamContent(new FaultingStream())
+                    : forDeletion && DeleteUnknownLength ? new UnknownLengthContent(bytes)
+                    : new ByteArrayContent(bytes);
                 if (mediaType is not null) response.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(mediaType);
+                if (forDeletion && DeleteEncoding is not null) response.Content.Headers.ContentEncoding.Add(DeleteEncoding);
             }
             if (Location is not null && (int)status is >= 300 and < 400) response.Headers.Location = new Uri(Location);
             return response;
+        }
+
+        /// <summary>A body that answers with no length, as a chunked response does.</summary>
+        private sealed class UnknownLengthContent(byte[] bytes) : HttpContent
+        {
+            protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => stream.WriteAsync(bytes, 0, bytes.Length);
+
+            protected override bool TryComputeLength(out long length)
+            {
+                length = 0;
+                return false;
+            }
+        }
+
+        /// <summary>A body whose connection breaks on the first read.</summary>
+        private sealed class FaultingStream : Stream
+        {
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override int Read(byte[] buffer, int offset, int count) => throw new IOException("connection reset");
+
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+                throw new IOException("connection reset");
+
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         }
 
         private static HttpResponseMessage Json(string text) =>
