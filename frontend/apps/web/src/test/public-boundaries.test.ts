@@ -745,7 +745,7 @@ describe('ADR-0053 production public boundaries', () => {
       );
       expect(clientBoundaryFindings(graph).some((item) => item.file === probe)).toBe(true);
     }
-  }, 20_000); // Rebuilds the complete TypeScript graph for every planted installer variant.
+  }, 60_000); // Rebuilds the complete TypeScript graph for every planted installer variant; ~4x slower on the hosted runner.
   it('Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport', () => {
     const missingMarker: Finding[] = hasServerOnlyMarker(production.files.get(ADAPTER)!)
       ? []
@@ -952,7 +952,7 @@ describe('ADR-0053 production public boundaries', () => {
         ),
       ).some((item) => item.file === probe),
     ).toBe(true);
-  }, 20_000); // Rebuilds the complete graph for each planted native transport and bundle edge.
+  }, 60_000); // Rebuilds the complete graph for each planted native transport and bundle edge; 24 s on the hosted runner (6 s local) once Step 4 grew the graph.
   it('selected protected RSCs consume prepared pages without creating later IO or framework work', () => {
     const evaluate = createSourceGraphEvaluator();
     clean(
