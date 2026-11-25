@@ -115,6 +115,26 @@ public sealed partial class PlatformOperatorHttpTests
     }
 
     [Fact]
+    public async Task A_Groups_Refusal_Found_After_The_Provider_Step_Says_The_Account_Is_Already_Gone()
+    {
+        // The second transaction found a group pending after the provider deleted the account: the 409 carries the closed
+        // provider answer, so the operator does not read it as "nothing changed" and a repeat finishes the closure.
+        foreach (var provider in new[] { "removed", "absent" })
+        {
+            _closures.FinalizeResult = new ClosureFinalizeResult(
+                ClosureFinalizeOutcome.GroupsPending, "fulfilling", new ClosureFinalizeTally(Served: 3, Ready: 2, Pending: 1, Unserved: 0),
+                Provider: provider);
+
+            var response = await Call(HttpMethod.Post, FinalizePath, Valid(), "{}");
+
+            response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            body.RootElement.GetProperty("errors").GetProperty("groups")[0].GetProperty("params").ToString().Should().Be(
+                "{\"served\":\"3\",\"ready\":\"2\",\"pending\":\"1\",\"unserved\":\"0\",\"provider\":\"" + provider + "\"}");
+        }
+    }
+
+    [Fact]
     public async Task A_Finalize_That_Names_No_Request_Is_Not_Found_And_Naming_No_Real_Request_Never_Calls_The_Owner()
     {
         _closures.FinalizeResult = new ClosureFinalizeResult(ClosureFinalizeOutcome.NotFound);
@@ -184,6 +204,29 @@ public sealed partial class PlatformOperatorHttpTests
             body.RootElement.TryGetProperty("errors", out var errors).Should().Be(reason == "outcome_unknown", reason);
             if (reason == "outcome_unknown") errors.GetProperty("outcome").ToString().Should().Contain("outcome_unknown");
         }
+    }
+
+    [Fact]
+    public async Task An_Audit_Store_That_Fails_After_The_Provider_Step_Is_A_Retryable_503_And_Still_Raises_The_Audit_Alert()
+    {
+        // A MUST row refused at the act's last step arrives wrapped, because the account is already deleted: the answer is the
+        // retryable unavailable, never the audit refusal that says nothing was done, yet the audit store's failure is counted.
+        using var audit = new OperatorCounterListener(PlatformOperatorMetrics.AuditFailureCounterName);
+        using var dataRequests = new OperatorCounterListener(PlatformOperatorMetrics.DataRequestCounterName);
+        _closures.Failure = new OperatorRecoveryUnavailableException(cause: new AuditWriteFailedException("forced"));
+
+        var response = await Call(HttpMethod.Post, FinalizePath, Valid(), "{}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        var text = await response.Content.ReadAsStringAsync();
+        text.Should().NotContain("forced");
+        using var body = JsonDocument.Parse(text);
+        body.RootElement.GetProperty("code").GetString().Should().Be("dependency_unavailable",
+            "the audit refusal says the provider was not asked, which is false here");
+        audit.Calls.Select(call => call.Operation).Should().Equal(["platform.closure.finalize"],
+            "the audit store's failure is the alert's signal whatever the answer is");
+        dataRequests.Calls.Should().Contain(("platform.closure.finalize", "unavailable"));
+        dataRequests.Calls.Should().NotContain(call => call.Outcome == "audit_unavailable");
     }
 
     [Fact]

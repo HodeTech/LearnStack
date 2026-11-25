@@ -28,12 +28,15 @@ namespace LearnStack.Modules.Identity.Infrastructure.DataRequests;
 /// </para>
 /// <para>
 /// <b>Ready.</b> A required group is ready when its newest erasure of the person (an open one first, of any origin) awaits
-/// the privileged step, or completed at or after this closure's Begin, and its frozen Memberships include every Membership
-/// the person holds in the group. Every served group is required; so is an unserved one whose newest erasure is the
-/// closure's own fan-out and still open, because its job began before the group stopped allowing ordinary work, and once the
-/// person is Closed nothing completes a fan-out erasure. The Begin moment is the closure's own update stamp: the guard's
+/// the privileged step, or completed at or after the person's earliest Begin, and its frozen Memberships include every Membership
+/// the person holds in the group. Only a served group is required. An unserved one is never waited for, even when its
+/// fan-out erasure is still open: its job may be dead, nothing re-queues a job in a group that no longer allows ordinary
+/// work and an archive is permanent, so a requirement on it could leave the person Closing for ever. Its group is reported
+/// unserved unless its erasure had reached the privileged step. The Begin moment is the closure's own update stamp: the guard's
 /// Begin arrow wrote it from the database clock and no arrow writes the row again until this act. An erasure completed
-/// before the closure began, by a person admitted again since, never stands in for a fan-out that did not run.
+/// before the person's first Begin, by a person admitted again since, never stands in for a fan-out that did not run; one
+/// completed after it counts for every closure the person has begun, because no Membership is admitted after the User became
+/// Closing.
 /// </para>
 /// <para>
 /// <b>Another act may complete a participant's erasure meanwhile.</b> The operator's erasure completion takes no closure
@@ -94,6 +97,13 @@ public sealed partial class AccountClosureOperatorOperations
     private const string CompleteErasure = """
         UPDATE data_subject_requests SET status = 'completed', result = @result::jsonb, row_version = row_version + 1
         WHERE id = @id AND kind = 'erasure' AND status = 'awaiting_privileged_step' AND row_version = @version
+        """;
+
+    // The earliest Begin among the person's begun closures: the first Begin is what moved the User to Closing, and a Closing
+    // User is admitted to no Membership, so the groups of every later closure are the groups the first one saw.
+    private const string EarliestBegin = """
+        SELECT MIN(updated_at) FROM data_subject_requests
+        WHERE subject_user_id = @subject AND kind = 'closure' AND status = 'fulfilling'
         """;
 
     // A closure of the person, from fulfilling or never begun; the guard admits either only for a Closed person, under
@@ -240,9 +250,11 @@ public sealed partial class AccountClosureOperatorOperations
             return await EndedAsync(handle, id, judged, cancellationToken);
         }
 
-        // 3. Ready: every required group's erasure has run and covers the group. The Begin moment is the closure's own stamp.
+        // 3. Ready: every required group's erasure has run and covers the group. The Begin moment is the closure's own stamp;
+        //    an erasure counts when it completed since the person's earliest Begin (see `FloorAsync`).
         var began = closure.BegunAt ?? throw Defect("fulfilling_closure_without_begin_stamp");
-        var readiness = await ReadinessAsync(handle, request.Subject, began, fences.Groups, cancellationToken);
+        var floor = await FloorAsync(handle, request.Subject, began, cancellationToken);
+        var readiness = await ReadinessAsync(handle, request.Subject, floor, fences.Groups, cancellationToken);
         if (readiness.Tally.Pending > 0)
         {
             return new ClosureFinalizeResult(ClosureFinalizeOutcome.GroupsPending, StatusCode(closure.Status), readiness.Tally);
@@ -301,7 +313,8 @@ public sealed partial class AccountClosureOperatorOperations
             throw Defect("closure_changed_between_transactions");
         }
 
-        var ready = await ReadinessAsync(handle, request.Subject, began, again.Groups, cancellationToken);
+        var ready = await ReadinessAsync(handle, request.Subject, await FloorAsync(handle, request.Subject, began, cancellationToken),
+            again.Groups, cancellationToken);
         if (ready.Tally.Pending > 0)
         {
             const string Token = "groups_pending";
@@ -309,7 +322,8 @@ public sealed partial class AccountClosureOperatorOperations
                 State(("outcome", Token), ("status", "fulfilling"), ("account", "closing"), ("provider", provider),
                     ("groups", Tally(ready.Tally))));
             return new ClosureFinalizeResult(
-                ClosureFinalizeOutcome.GroupsPending, StatusCode(DataRequestStatus.Fulfilling), ready.Tally, Redaction: redaction);
+                ClosureFinalizeOutcome.GroupsPending, StatusCode(DataRequestStatus.Fulfilling), ready.Tally, Redaction: redaction,
+                Provider: provider);
         }
 
         // 7. The account first, because the closure arrows require it Closed; then the participants' erasures, this closure
@@ -356,7 +370,7 @@ public sealed partial class AccountClosureOperatorOperations
         await handle.CommitAsync(CancellationToken.None);
         return new ClosureFinalizeResult(
             ClosureFinalizeOutcome.Finalized, StatusCode(DataRequestStatus.Completed), groups,
-            [.. again.Groups.Where(group => !ready.Served.Contains(group))], redaction, Counts(closureResult));
+            ready.Unserved, redaction, Counts(closureResult));
     }
 
     /// <summary>
@@ -405,12 +419,29 @@ public sealed partial class AccountClosureOperatorOperations
     }
 
     /// <summary>
-    /// Where each participant group stands: the required groups that are ready and the participant erasures awaiting the
-    /// privileged step, which the second transaction completes. Every served group is required. An unserved group needs no
-    /// erasure unless its newest one is the closure's own fan-out and still open: its job began before the group stopped
-    /// allowing ordinary work, and once the person is Closed nothing completes it, so the group stays required until it
-    /// awaits the privileged step. One that reached the privileged step, whatever its origin, is completed with the others,
-    /// since its job ran and its tenant is redacted.
+    /// The moment from which a completed erasure still counts as this closure's: the person's earliest Begin among their begun
+    /// closures, which is at or before this closure's own. A person's own erasure that the operator completes after the first
+    /// Begin and before a later closure's Begin is the erasure of the same groups, because no Membership can be admitted after the
+    /// User became Closing; requiring it to postdate the later Begin would only repeat a tenant erasure that already ran.
+    /// </summary>
+    private static async Task<DateTimeOffset> FloorAsync(
+        IPlatformAdminScopeHandle handle, UserId subject, DateTimeOffset began, CancellationToken cancellationToken)
+    {
+        var earliest = await handle.QueryAsync(
+            EarliestBegin, [new PlatformSqlParameter("subject", subject.Value)],
+            reader => reader.IsDBNull(0) ? (DateTimeOffset?)null : reader.GetFieldValue<DateTimeOffset>(0), cancellationToken);
+        return earliest.Count == 1 && earliest[0] is { } first && first < began ? first : began;
+    }
+
+    /// <summary>
+    /// Where each participant group stands: the required groups that are ready, the participant erasures awaiting the
+    /// privileged step, which the second transaction completes, and the groups whose data this closure did not erase.
+    /// Only a served group is required. An unserved group (its tenant or organization no longer allows ordinary work,
+    /// which an archive makes permanent) is never waited for: nothing can repair its erasure once the group is Archived,
+    /// so a requirement on it could leave the person Closing for ever, and ADR-0107 § 7 says a closure cannot stick. One
+    /// that reached the privileged step, whatever its origin, is completed with the others, since its job ran and its tenant
+    /// is redacted; one whose job is still running or never finished is left as it is, and its group is reported unserved
+    /// with the data it still holds (Phase 11's offboarding owns it).
     /// </summary>
     private async Task<Readiness> ReadinessAsync(
         IPlatformAdminScopeHandle handle, UserId subject, DateTimeOffset began, IReadOnlyList<ClosureParticipantGroup> groups,
@@ -424,16 +455,16 @@ public sealed partial class AccountClosureOperatorOperations
                 cancellationToken))
             .ToDictionary(erasure => erasure.Group);
         var served = participants.Served.ToHashSet();
-        var required = groups.Where(group => served.Contains(group)
-            || (newest.TryGetValue(group, out var erasure) && erasure.Origin == DataRequestOrigin.ClosureFanout && erasure.Open)).ToList();
-        var ready = required.Count(group => newest.TryGetValue(group, out var erasure) && erasure.Covers
+        bool Erased(ClosureParticipantGroup group) => newest.TryGetValue(group, out var erasure) && erasure.Covers
             && (erasure.Status == DataRequestStatus.AwaitingPrivilegedStep
-                || (erasure.Status == DataRequestStatus.Completed && erasure.CompletedDuringClosure)));
+                || (erasure.Status == DataRequestStatus.Completed && erasure.CompletedDuringClosure));
+        var required = groups.Where(served.Contains).ToList();
+        var ready = required.Count(Erased);
+        var kept = groups.Where(group => !served.Contains(group) && !Erased(group)).ToList();
         var awaiting = groups.Where(group => newest.TryGetValue(group, out var erasure)
                 && erasure.Status == DataRequestStatus.AwaitingPrivilegedStep)
             .Select(group => newest[group]).ToList();
-        return new Readiness(
-            new ClosureFinalizeTally(served.Count, ready, required.Count - ready, groups.Count - served.Count), served, awaiting);
+        return new Readiness(new ClosureFinalizeTally(served.Count, ready, required.Count - ready, kept.Count), kept, awaiting);
     }
 
     /// <summary>
@@ -706,7 +737,7 @@ public sealed partial class AccountClosureOperatorOperations
 
     /// <summary>The tallies, the served groups and the participant erasures awaiting the privileged step.</summary>
     private sealed record Readiness(
-        ClosureFinalizeTally Tally, IReadOnlySet<ClosureParticipantGroup> Served, IReadOnlyList<GroupErasure> Awaiting)
+        ClosureFinalizeTally Tally, IReadOnlyList<ClosureParticipantGroup> Unserved, IReadOnlyList<GroupErasure> Awaiting)
     {
         public override string ToString() => nameof(Readiness);
     }

@@ -174,21 +174,15 @@ public sealed partial class AccountClosureStorageTests
                 (SchemaFixture.TenantA, SchemaFixture.OrgA1, arranged.PendingClosureA1, "status='fulfilling'", "Begin"),
                 (SchemaFixture.TenantA, null, arranged.DueClosureA, "status='completed',completed_at=now()", "Finalize"),
                 (SchemaFixture.TenantA, null, fanA, "status='completed',completed_at=now()", "a fan-out's completion"),
+                // A closure is the application's only to cancel: a refusal code it writes is refused, because no application
+                // path writes one and the closure's own record is the platform's (ADR-0107 § 7, hardened in round 2).
+                (SchemaFixture.TenantA, SchemaFixture.OrgA1, arranged.PendingClosureA1, "last_refusal='blocked_hold'", "a refusal code"),
             })
             {
                 await using var transaction = await app.BeginTransactionAsync();
                 await FenceAsync(app, transaction, tenant, organization, PersonA);
                 var refusal = await DataExportTestKit.RefuseAsync(transaction, () => StepAsync(app, transaction, id, set));
                 (refusal.SqlState, refusal.MessageText).Should().Be(("23514", Transition), because);
-            }
-
-            // ADR-0106 § 7's application refusal record admits a code on any scheduled request, a closure's included; no
-            // application path writes one, and the closure's own record is the platform's (flagged for the maintainer).
-            await using (var transaction = await app.BeginTransactionAsync())
-            {
-                await FenceAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1, null);
-                await StepAsync(app, transaction, arranged.PendingClosureA1, "last_refusal='blocked_hold'");
-                await transaction.RollbackAsync();
             }
         }
 

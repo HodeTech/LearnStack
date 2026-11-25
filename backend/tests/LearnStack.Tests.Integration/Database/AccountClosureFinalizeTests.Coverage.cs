@@ -276,6 +276,7 @@ public sealed partial class AccountClosureFinalizeTests
     /// </summary>
     [Theory]
     [InlineData("account_not_closed")]
+    [InlineData("erasure_not_completed")]
     public async Task A_row_changed_under_the_second_transaction_is_a_defect_that_rolls_the_whole_transaction_back(string defect)
     {
         await using var kit = await AccountClosureBeginKit.CreateAsync(schema.Postgres);
@@ -295,6 +296,17 @@ public sealed partial class AccountClosureFinalizeTests
                     armed = false;
                     await kit.SqlAsync($"SET session_replication_role = replica; UPDATE public.users SET status = 'Active' WHERE id = '{world.Person}'");
                 }
+
+                // The erasures are locked by primary key before they are completed: one whose version moved after the
+                // readiness read, under the guards' pause, is neither completed nor accepted, because nothing admitted writes it.
+                if (defect == "erasure_not_completed" && sql.Contains("FOR UPDATE", StringComparison.Ordinal)
+                    && sql.Contains("ANY(@ids)", StringComparison.Ordinal))
+                {
+                    armed = false;
+                    await kit.SqlAsync(
+                        "SET session_replication_role = replica; UPDATE public.data_subject_requests SET row_version = row_version + 1 "
+                        + $"WHERE id = '{world.Erasures[TenantWideA]}'");
+                }
             },
         };
         var removal = new RecordingAccountRemoval();
@@ -308,7 +320,7 @@ public sealed partial class AccountClosureFinalizeTests
         logs.Lines.Should().ContainSingle().Which.Should().StartWith("7122 Error ").And.Contain(defect).And.NotContain(world.Person.ToString("D"));
         removal.Subjects.Should().HaveCount(1);
         var user = await kit.UserAsync(world.Person);
-        (user.Status, user.SubjectPresent).Should().Be(("Active", true),
+        (user.Status, user.SubjectPresent).Should().Be((defect == "account_not_closed" ? "Active" : "Closing", true),
             "the User's move to Closed was rolled back with the rest");
         (await kit.RequestAsync(world.Closure)).Status.Should().Be("fulfilling");
         foreach (var group in Served)

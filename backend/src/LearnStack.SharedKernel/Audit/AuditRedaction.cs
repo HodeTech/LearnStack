@@ -144,7 +144,7 @@ public sealed record AuditRedactionPlan
     /// <see cref="DataRequestLimits.MaximumSnapshotMemberships"/>, the bound an erasure's snapshot already carries and
     /// <see cref="ClosureLimits.MaximumTenantMemberships"/>, which a closure's Begin judges before the person leaves Active.
     /// A pass with that many compares each row with hundreds of identifiers; the executor's filter looks them up as a set,
-    /// so the pass costs what an erasure's does.
+    /// so the pass's cost does not grow with them (about twice an erasure's pass, measured).
     /// </param>
     /// <exception cref="ArgumentException">An identifier is unassigned or a system one, or the Memberships are empty, duplicated or too many.</exception>
     public static AuditRedactionPlan ForClosureTenant(TenantId tenantId, UserId subjectUserId, IEnumerable<Guid> membershipIds)

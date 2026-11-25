@@ -77,9 +77,26 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
                 "the shipped declarations exercise every shape of the grammar");
     }
 
+    /// <summary>
+    /// Each module under each form of the payload filter: the containment form, which a plan of few identifiers runs, and the
+    /// set-lookup form, which a closure pass of 63 or more Memberships runs. Both must find every declared shape (a level-2
+    /// array element, a level-3 member, a changes item and its elements, the upper-case spelling) and select the same rows.
+    /// </summary>
+    public static TheoryData<string, int> LocatorModulesByFilterForm()
+    {
+        var data = new TheoryData<string, int>();
+        foreach (var module in LocatorModules().Cast<object[]>().Select(row => (string)row[0]))
+        {
+            data.Add(module, int.MaxValue);
+            data.Add(module, 1);
+        }
+
+        return data;
+    }
+
     [Theory]
-    [MemberData(nameof(LocatorModules))]
-    public async Task Every_declared_path_of_a_module_is_redacted_for_the_subject_only(string module)
+    [MemberData(nameof(LocatorModulesByFilterForm))]
+    public async Task Every_declared_path_of_a_module_is_redacted_for_the_subject_only(string module, int setLookupFrom)
     {
         var tenant = Guid.CreateVersion7();
         var declarations = Registered.Value.Single(locator => ModuleOf(locator) == module).Redactable;
@@ -91,7 +108,7 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
         await InsertAsync(scope, rows);
         var before = await ReadAsync(scope, rows);
 
-        var report = await RedactAsync(scope, Plan(tenant, DataRequestOrigin.Self, organization: null));
+        var report = await RedactAsync(scope, Plan(tenant, DataRequestOrigin.Self, organization: null), setLookupFrom);
 
         var after = await ReadAsync(scope, rows);
         var own = rows.Where(row => row.Selected).ToList();
@@ -325,8 +342,11 @@ public sealed partial class AuditRedactionCanaryTests(SchemaFixture schema)
         AuditRedactionPlan.ForClosureSentinel(UserId.From(Subject),
             IdentitySubjectKey.FromBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
-    private static async Task<AuditRedactionReport> RedactAsync(Scope scope, AuditRedactionPlan plan) =>
-        await Executor().RedactAsync(plan, Spent(PlatformOperations.ErasureComplete), scope.Connection, scope.Transaction);
+    private static async Task<AuditRedactionReport> RedactAsync(Scope scope, AuditRedactionPlan plan, int? setLookupFrom = null) =>
+        await (setLookupFrom is { } from
+            ? new AuditRedactionExecutor(Registered.Value, AuditRedactionExecutor.BatchRows, AuditRedactionExecutor.BatchBytes,
+                AuditRedactionExecutor.UpdateRows, from)
+            : Executor()).RedactAsync(plan, Spent(PlatformOperations.ErasureComplete), scope.Connection, scope.Transaction);
 
     private static Dictionary<RetainedReferenceKind, long> Retained(AuditRedactionReport report) =>
         report.Retained.ToDictionary(entry => entry.Kind, entry => entry.Count);

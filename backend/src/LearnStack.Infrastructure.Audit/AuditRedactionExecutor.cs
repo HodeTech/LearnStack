@@ -38,7 +38,8 @@ namespace LearnStack.Infrastructure.Audit;
 /// whether a declared path holds one. That test is the redaction itself, so a row is selected for its payload exactly
 /// when the redaction changes its payload. The filter tests the walked strings against the spellings by array
 /// containment for a plan of few identifiers and by a hashed set lookup from <see cref="SetLookupFrom"/> spellings, so a
-/// closure's pass over a tenant where the person holds hundreds of Memberships costs what an erasure's pass costs.
+/// closure's pass over a tenant where the person holds hundreds of Memberships does not grow with them (about twice an
+/// erasure's pass, measured).
 /// </para>
 /// <para>
 /// <b>The sentinel pass (ADR-0108 § 4).</b> A closure's Finalize also reaches the platform sentinel tenant, whose rows
@@ -94,7 +95,8 @@ namespace LearnStack.Infrastructure.Audit;
 /// <b>Bounds.</b> Every statement runs under <see cref="StatementTimeout"/>; a statement that does not finish fails
 /// the act, whose transaction the scope then discards. A selection statement's work grows with the rows and the
 /// decompressed payload bytes of its batch, which both budgets cap, and each <c>UPDATE</c> rewrites at most
-/// <see cref="UpdateRows"/> rows of one batch, so its payload is within the same byte budget; the number of batches, and
+/// <see cref="UpdateRows"/> rows of one batch, so, for a pass that sizes its payload, its payload is within the same byte
+/// budget (the sentinel pass sizes none and is bounded by its row counts alone); the number of batches, and
 /// the act's total time, grow with the tenant's decompressed payload. What the budgets do not cap is one row: a payload column holds at most
 /// <see cref="AuditJson.MaxBytes"/> (256 KiB) before it is elided, so a row is at most about 768 KiB. The budget was
 /// chosen from measurement so a batch stays far inside the timeout (Audit module performance budget).
@@ -142,7 +144,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     /// containment test took 2.1 s at six spellings (an erasure of two Memberships) and grew by about 0.03 s for every
     /// spelling, to 16.7 s at 514 (a closure pass of 256 Memberships), while the set lookup took 4.0 to 5.5 s whatever the
     /// count, its unnest paid on every row. They cross at about 110 spellings, so below this bound the containment test is
-    /// the cheaper, and above it a closure pass costs what a pass of a few identifiers costs.
+    /// the cheaper, and above it a closure pass costs a fixed amount, about twice a pass of a few identifiers.
     /// </remarks>
     public const int SetLookupFrom = 128;
 
@@ -242,8 +244,10 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     // The cheap filter: one level-bounded walk per payload column for a string equal to either canonical spelling of
     // an identifier (the capture writes the lower-case one). It reaches every path the grammar can declare (a
     // property, an element of an array property, a member's property; a changes item's before and after and their
-    // elements) and more, so it only narrows: the rewrite decides. Two forms answer the same question, chosen by the
-    // number of spellings (SetLookupFrom). The containment test asks the walked array for each spelling, so its cost
+    // elements) and more, so it only narrows: the rewrite decides. Two forms ask for the same strings, chosen by the
+    // number of spellings (SetLookupFrom); lax mode unwraps an array a filter meets, so the set form may also keep a row
+    // whose identifier sits one level deeper than the containment form sees it, which costs a rewrite and changes no
+    // answer (a canary runs every declared shape under both forms). The containment test asks the walked array for each spelling, so its cost
     // is the spellings times the strings: the cheapest for an erasure's few identifiers, and about six times the act
     // for a closure pass with 256 Memberships. The set lookup unnests each walked string once and looks it up in the
     // spellings, which the statement is planned with as a constant array that PostgreSQL hashes, so its cost does not
@@ -278,8 +282,8 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
           OR (a.actor_user_id = @subject AND COALESCE(a.metadata -> 'authorization' -> 'memberships', '[]'::jsonb) ?| @memberships), false)
         """;
 
-    // The role, and whether JIT is on for this transaction.
-    private const string EnterSql = "SELECT current_user::text, current_setting('jit') = 'on'";
+    // The role, whether JIT is on for this transaction, and its plan cache mode.
+    private const string EnterSql = "SELECT current_user::text, current_setting('jit') = 'on', current_setting('plan_cache_mode')";
 
     // JIT off for the redaction's own statements, and back on after them when it was on. Their long per-row expressions
     // carry planner estimates far above jit_optimize_above_cost, and compiling them cost more than running them
@@ -289,6 +293,14 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     private const string JitOffSql = "SET LOCAL jit = off";
 
     private const string JitOnSql = "SET LOCAL jit = on";
+
+    // Custom plans for the redaction's own statements. The set-lookup filter is flat only when PostgreSQL plans its array of
+    // spellings as a constant, which it does for the unnamed statement's custom plan; a prepared statement (a connection
+    // string with `Max Auto Prepare`) switches to a generic plan after five executions, where the array is a parameter and
+    // `= ANY` is a linear search again (a 256-Membership pass went from about 22 s back to 76-80 s). Transaction-local, like
+    // the JIT setting, and restored to what the transaction had. The mode is one of PostgreSQL's three words, never text from
+    // a caller, so it is placed into the statement as it was read.
+    private const string CustomPlansSql = "SET LOCAL plan_cache_mode = force_custom_plan";
 
     // One payload column's decompressed size: its stored size when it is stored uncompressed, which pg_column_size
     // reads without detoasting, and the size of the decompressed value when it is compressed. The empty path #> '{}'
@@ -501,7 +513,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         }
 
         var run = new Run(this, plan, platform, work);
-        var jit = await run.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var found = await run.EnterAsync(cancellationToken).ConfigureAwait(false);
         var tally = await run.RedactBatchesAsync(cancellationToken).ConfigureAwait(false);
         List<RetainedReferenceCount> retained =
         [
@@ -515,7 +527,7 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
                 await run.ScalarAsync<long>(UnscopedSql, cancellationToken).ConfigureAwait(false)));
         }
 
-        await run.RestoreAsync(jit, cancellationToken).ConfigureAwait(false);
+        await run.RestoreAsync(found, cancellationToken).ConfigureAwait(false);
         return new AuditRedactionReport(tally.Selected, tally.Redacted, retained);
     }
 
@@ -597,6 +609,9 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
     /// <summary>One end of a batch: a row's key in the batches' order, newest first.</summary>
     private readonly record struct Key(DateTime Timestamp, Guid Id);
 
+    /// <summary>The transaction settings a redaction changes and puts back.</summary>
+    private readonly record struct SessionSettings(bool Jit, string PlanCacheMode);
+
     /// <summary>The counts one redaction accumulates over its batches.</summary>
     private sealed class Tally
     {
@@ -613,10 +628,14 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
         private readonly string _subject = plan.SubjectUserId.Value.ToString("D");
         private readonly string[] _memberships = [.. plan.MembershipIds.Select(membership => membership.ToString("D"))];
 
-        /// <summary>Refuses any role but the platform's, switches JIT off, and returns whether it was on.</summary>
-        public async Task<bool> EnterAsync(CancellationToken cancellationToken)
+        /// <summary>
+        /// Refuses any role but the platform's, switches JIT off and the plan cache to custom plans, and returns the settings
+        /// it found.
+        /// </summary>
+        public async Task<SessionSettings> EnterAsync(CancellationToken cancellationToken)
         {
             bool jit;
+            string planCacheMode;
             await using (var command = Command(EnterSql))
             {
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -627,19 +646,31 @@ public sealed class AuditRedactionExecutor : IAuditRedactor
                 }
 
                 jit = reader.GetBoolean(1);
+                planCacheMode = reader.GetString(2);
             }
 
             await NonQueryAsync(JitOffSql, cancellationToken).ConfigureAwait(false);
-            return jit;
+            await NonQueryAsync(CustomPlansSql, cancellationToken).ConfigureAwait(false);
+            return new SessionSettings(jit, planCacheMode);
         }
 
-        /// <summary>Leaves the transaction's JIT setting as the redaction found it.</summary>
-        public async Task RestoreAsync(bool jit, CancellationToken cancellationToken)
+        /// <summary>Leaves the transaction's JIT and plan cache settings as the redaction found them.</summary>
+        public async Task RestoreAsync(SessionSettings found, CancellationToken cancellationToken)
         {
-            if (jit)
+            if (found.Jit)
             {
                 await NonQueryAsync(JitOnSql, cancellationToken).ConfigureAwait(false);
             }
+
+            // PostgreSQL's three modes; anything else would be a server this executor was never run against.
+            var mode = found.PlanCacheMode switch
+            {
+                "auto" => "auto",
+                "force_generic_plan" => "force_generic_plan",
+                "force_custom_plan" => "force_custom_plan",
+                _ => throw new InvalidOperationException("The transaction's plan cache mode is not one PostgreSQL defines."),
+            };
+            await NonQueryAsync("SET LOCAL plan_cache_mode = " + mode, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task NonQueryAsync(string sql, CancellationToken cancellationToken)

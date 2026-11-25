@@ -285,9 +285,10 @@ group and ends `awaiting_privileged_step`, after which the closure is finalized.
 
 ## An unknown outcome
 
-Repeat the same Begin. If the first landed, the repeat answers `200 resumed` and runs
-the fan-out, which the first never reached; if it did not, nothing of it committed and
-the repeat begins the closure now. A client that never received an answer (a timeout,
+Repeat the same Begin. If the move to Closing landed, the repeat answers `200 resumed`
+and runs the fan-out, which the first never reached; if only a refusal's record landed,
+the repeat answers the same refusal; if nothing landed, the repeat begins the closure
+now. A client that never received an answer (a timeout,
 a gateway error) is in the same position: repeat it.
 
 ## How long it takes
@@ -312,32 +313,35 @@ change and takes the time of a read.
 
 ## When to finalize
 
-Finalize once every required group's erasure has run: the Begin answered
-`complete: true` (or a repeat did), and each group's erasure job has finished, so that
-group's newest erasure of the person awaits its privileged step, or completed after the
-Begin through an [erasure completion](data-erasure.md#complete-an-erasure). The groups'
+Finalize once every required group's erasure has run: the Begin answered `complete:
+true` (or a repeat did), and each group's erasure job has finished, so that group's
+newest erasure of the person awaits its privileged step, or completed after the Begin
+through an [erasure completion](data-erasure.md#complete-an-erasure). The groups'
 erasures, `origin` `closure_fanout` or the person's own adopted one, appear under
 `awaiting_privileged_step` in the [inspection](data-erasure.md#inspect). You need not
 check them one by one: a Finalize before they are ready answers `409` on `errors.groups`
-and changes nothing. Every served group is required. An unserved group needs no erasure,
-unless its group stopped allowing ordinary work after the Begin while its fan-out
-erasure was still running: that erasure stays required until its job reaches the
-privileged step, because nothing completes it once the account is Closed. Such a
-closure stays pending while the group's tenant or organization does not allow work;
-escalate it to the deployment's owner.
+and changes nothing, unless the provider step had already run (the answer then carries
+`params.provider`, see [Finalize](#finalize)). Every served group is required. An
+unserved group is never waited for, even when its group stopped allowing ordinary work
+after the Begin while its fan-out erasure was still running: nothing can re-queue that
+job once the group is Archived, and a closure that waited for it could not finish. Its
+erasure is completed with the others if it had reached the privileged step, and the
+group is then not reported; otherwise the group is reported as unserved, with whatever
+data its job had not yet erased, and an erasure that stays `fulfilling` there is left as
+it is. Finalize after the group's job finished leaves nothing to report.
 
 A required group is not ready while its newest erasure is still `scheduled` or
-`fulfilling`, failed or was cancelled, completed before this closure began (the person
-was admitted to the group again since), or does not hold every Membership the person has
-in the group. Each is repaired by a repeated Begin, whose fan-out starts a new erasure
-or re-queues a dead job, followed by that group's job. A person's own erasure that
-awaits its privileged step but holds fewer Memberships than the person has in the group
-is adopted as it is by the fan-out. The `409` names no group, and the inspection cannot
-be filtered by person, so complete every due erasure of `origin` `self` or
-`administrator` listed under `awaiting_privileged_step` through the
-[erasure completion](data-erasure.md#complete-an-erasure), which is your routine duty
-anyway, then repeat Begin: its fan-out replaces a completed short erasure with a
-fan-out of the whole group.
+`fulfilling`, failed or was cancelled, completed before the person's first closure began
+(the person was admitted to the group again since), or does not hold every Membership
+the person has in the group. Each is repaired by a repeated Begin, whose fan-out starts
+a new erasure or re-queues a dead job, followed by that group's job. A person's own
+erasure that awaits its privileged step but holds fewer Memberships than the person has
+in the group is adopted as it is by the fan-out. The `409` names no group, and the
+inspection cannot be filtered by person, so complete every due erasure of `origin`
+`self` or `administrator` listed under `awaiting_privileged_step` through the [erasure
+completion](data-erasure.md#complete-an-erasure), which is your routine duty anyway,
+then repeat Begin: its fan-out replaces a completed short erasure with a fan-out of the
+whole group.
 
 ## Finalize
 
@@ -398,14 +402,14 @@ completed through the erasure completion's arm, which constrains only its result
 | `404` | No request has that identifier, or the identifier is not a UUID at all |
 | `409`, `errors.kind` = `lockey_data_request_not_closure` | The request is an export or an erasure. Nothing changed |
 | `409`, `errors.status` = `lockey_data_request_closure_not_finalizable` | The closure was never begun (`scheduled`) or was cancelled; `params.cause` is its stored status. Begin it first, or, once another closure of the person is finalized, it is completed with that one |
-| `409`, `errors.groups` = `lockey_data_request_closure_groups_pending` | A required group is not ready: see [When to finalize](#when-to-finalize). `params` holds the closed counts `served`, `ready`, `pending` and `unserved`, and no group is named; `ready` and `pending` count the required groups |
+| `409`, `errors.groups` = `lockey_data_request_closure_groups_pending` | A required group is not ready: see [When to finalize](#when-to-finalize). `params` holds the closed counts `served`, `ready`, `pending` and `unserved`, and no group is named; `ready` and `pending` count the required groups. When `params.provider` is `removed` or `absent`, the second transaction found the group pending after the provider step: the person's account is already gone, the closure stays `fulfilling`, and a repeat finishes it once the group is ready. Without `params.provider` nothing changed |
 | `400` | The request identifier is a UUID but not a UUIDv7 (or is the nil or the sentinel identifier), or the body or the ticket is malformed |
 | `401`, `403`, `413`, `415`, `429` | As in [operator recovery](operator-recovery.md#act) |
 | `503`, `audit_unavailable` | The entry row or the intent row could not be written: the provider was not asked, and nothing of the closure changed. Retry after the delay; error line 7105 is in the API's log |
 | `503`, `dependency_unavailable` | Another act held one of the person's fences for more than three seconds, the database could not be reached, or the result row of the second transaction could not be written after the provider step. Nothing of the closure's state changed, but after the provider step the person's identity-provider account may already be deleted. A redaction that had committed with its intent row is repeated harmlessly, and a repeat that finds the account absent finishes the closure. Retry after the delay; warning 7110 is in the API's log |
 | `503`, `dependency_unavailable` with `errors.provider` | The provider did not delete the account: see [When the provider step does not finish](#when-the-provider-step-does-not-finish) |
 | `503`, `dependency_unavailable` with `errors.outcome` = `lockey_outcome_unknown` | The final commit was sent and its answer was lost: see [An unknown outcome of a Finalize](#an-unknown-outcome-of-a-finalize) |
-| `500` | An unexpected failure or a deployment defect (a missing grant or migration, a state no admitted path writes, which error line 7122 names without the person: a person past the closure's bounds, which Begin refuses, is `participants_beyond_bound` or `redaction_plan_refused`). Nothing of the closure changed since its last commit |
+| `500` | An unexpected failure or a deployment defect (a missing grant or migration, a state no admitted path writes, which error line 7122 names without the person: a person past the closure's bounds, which Begin refuses, is `participants_beyond_bound` or `redaction_plan_refused`). Nothing of the closure changed since its last commit; a Finalize that fails after its provider step (`closure_changed_between_transactions`, `account_not_closed`, `open_closures_beyond_bound`, `erasure_not_completed`) may follow a deleted account, so read the closure before repeating |
 
 ## When the provider step does not finish
 
@@ -440,15 +444,16 @@ client that never received an answer is in the same position.
 
 The answer of a finalization carries closed counts and no person:
 
-- `groups`: `served`, `ready` and `pending` (zero), which count the required groups, an
-  unserved group whose fan-out erasure was still open included, `unserved`,
+- `groups`: `served`, `ready` and `pending` (zero), which count the required groups,
+  `unserved` (the unserved groups whose data this closure did not erase),
   `erasuresCompleted` (the erasures this call completed, not one an erasure completion
   finished meanwhile) and `closuresCompleted` (this closure and every other open one of
   the person).
-- `unservedGroups`: each unserved group by `tenantId` and `organizationId`. Their data
-  stays and is reported; [Phase 11](../roadmap/phase-11-production-hardening.md)
-  offboarding owns it. Their tenants' audit rows were redacted all the same, with no row
-  in those tenants saying so: record the list on your ticket.
+- `unservedGroups`: each unserved group by `tenantId` and `organizationId`, except one
+  whose erasure had reached the privileged step. Their data stays and is reported;
+  [Phase 11](../roadmap/phase-11-production-hardening.md) offboarding owns it. Their
+  tenants' audit rows were redacted all the same, with no row in those tenants saying
+  so: record the list on your ticket.
 - `redaction`: this call's passes summed: the participant `tenants` redacted, the
   `rowsSelected`, the rows changed per column (zero on a repeat, whose earlier attempt's
   intent row holds the counts that changed rows) and the retained references per kind.
@@ -480,9 +485,8 @@ completed with it. Finalizing a closure that was never begun answers `409` on
 - A Finalize that keeps answering `errors.provider` = `lockey_provider_refused` after
   the client was checked, one that still answers `lockey_provider_unavailable` or
   `lockey_provider_outcome_unknown` a day after its first such answer, and a group that
-  stays pending over several repeated Begins and jobs, an unserved one whose fan-out
-  erasure is still open included, are escalations to the deployment's owner, with the
-  request identifier and the `correlationId` of each call.
+  stays pending over several repeated Begins and jobs are escalations to the
+  deployment's owner, with the request identifier and the `correlationId` of each call.
 - A Begin refused on `errors.participants`, and one refused on `errors.provider` while
   the client passes its verification, are escalations to the deployment's owner with
   the request identifier.

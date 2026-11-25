@@ -6835,22 +6835,21 @@ Real PostgreSQL as each role:
 
 ## Account closure storage
 
-**Derives from:**
-[ADR-0107 §§ 7 and 8](../decisions/0107-data-request-fulfillment-and-account-closure.md)
-and [ADR-0072 Amendment 8](../decisions/0072-application-owned-identity-bootstrap.md).
-A global account closure moves a User Active to Closing and Closing to Closed on
+**Derives from:** [ADR-0107 §§ 7 and
+8](../decisions/0107-data-request-fulfillment-and-account-closure.md) and [ADR-0072
+Amendment 8](../decisions/0072-application-owned-identity-bootstrap.md). A global
+account closure moves a User Active to Closing and Closing to Closed on
 `learnstack_platform` in the platform scope, and erases each participant group as the
-application role. The Identity migration `20261123100000_admit_account_closure`
-carries the grants, the trigger exception, the request guard's closure arrows and the
-User status witness below. The forward migration `20261123120000_admit_closure_finalize`
-then replaces the request guard so that Finalize's arrow also takes a closure of the
-subject that was never begun, and grants the request's update stamp; and
+application role. The Identity migration `20261123100000_admit_account_closure` carries
+the grants, the trigger exception, the request guard's closure arrows and the User
+status witness below. The forward migration `20261123120000_admit_closure_finalize` then
+replaces the request guard so that Finalize's arrow also takes a closure of the subject
+that was never begun, and grants the request's update stamp; and
 `20261123130000_harden_closure_request_guard` replaces it once more, so that the
-application role writes no closure that left `scheduled` and asks the subject's status
-only after the snapshot. All three are forward-only, and the head of the Identity chain
-is pinned in `MigrationRollbackTests`.
-Every arrow reads its witnesses in SQL on the
-connection that writes: the subject's User status, the request's own state and the
+application role writes no closure but to cancel a scheduled one and asks the subject's
+status only after the snapshot. All three are forward-only, and the head of the Identity
+chain is pinned in `MigrationRollbackTests`. Every arrow reads its witnesses in SQL on
+the connection that writes: the subject's User status, the request's own state and the
 advisory fences that connection holds. None of them trusts a flag a caller passes.
 
 ### The closure's fences
@@ -6900,9 +6899,10 @@ without its own keys.
 
 **Finalize's reads.** Each reads the person's own rows by the person's indexes:
 `AccountClosureOperatorOperations.ReadinessSql`, each participant group's newest erasure
-of the person with whether it completed at or after the closure's Begin and whether its
-frozen Memberships include every Membership the person holds in the group, through
-`ix_data_subject_requests_subject_user_id` and `ix_memberships_user_id`;
+of the person with whether it completed at or after the person's earliest Begin (the
+first Begin moved the User to Closing, so a later closure's groups are the same ones)
+and whether its frozen Memberships include every Membership the person holds in the
+group, through `ix_data_subject_requests_subject_user_id` and `ix_memberships_user_id`;
 `MembershipsSql`, every Membership of the person by tenant for the tenant passes,
 through `ix_memberships_user_id`, bounded at what an admitted closure can hold
 (`ClosureLimits.MaximumMemberships`, 65,536); and `OpenClosuresSql`, the person's other
@@ -6913,7 +6913,8 @@ left as it is. `AccountClosureFinalizeTests` asks PostgreSQL for the plans of th
 of the acquirer's grouped participant read over thousands of other people's rows in the
 same groups. A begun closure's Begin moment is its own `updated_at`: the Begin arrow
 stamps it from the database clock, and no arrow writes the row again until Finalize
-completes it, because the application role writes no closure that left `scheduled`.
+completes it, because the application role writes no closure but to cancel a scheduled
+one: a write that keeps it scheduled, a refusal code or a later stamp, is refused.
 
 **The last-administrator read.** A closure's Begin judges each participant tenant that
 allows ordinary work with `AccountClosureOperatorOperations.AdministratorStandingSql`:

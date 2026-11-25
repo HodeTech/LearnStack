@@ -303,12 +303,12 @@ public sealed class DataRequestStorageLiteralTests
 
         """;
 
-    /// <summary>The application UPDATE arm's one new refusal: a closure is the application's only while it is scheduled.</summary>
+    /// <summary>The application UPDATE arm's one new refusal: a closure is the application's only to cancel.</summary>
     private const string ClosureIsTheApplicationsOnlyWhileScheduled = """
-            -- A closure is the application's only while it is scheduled (ADR-0107 § 7): the person cancels it, and once it
-            -- leaves scheduled every write of its row is the platform's arrows, so its Begin moment, its result and its
-            -- version change only as Finalize reads them.
-            IF (OLD.kind = 'closure' AND NOT (OLD.status = 'scheduled' AND NEW.status IN ('scheduled','cancelled'))) IS NOT FALSE
+            -- A closure is the application's only to cancel (ADR-0107 § 7): the person cancels a scheduled one, and every other
+            -- write of its row is the platform's arrows, so its Begin moment, its refusal record, its result and its version
+            -- change only as Finalize reads them. An application write that leaves the closure scheduled is refused too.
+            IF (OLD.kind = 'closure' AND NOT (OLD.status = 'scheduled' AND NEW.status = 'cancelled')) IS NOT FALSE
             THEN RAISE EXCEPTION 'Data request transition refused.' USING ERRCODE = '23514'; END IF;
 
         """;

@@ -53,8 +53,8 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 /// </para>
 /// <para>
 /// <b>The hardening's forward migration.</b> <see cref="InstallHardening"/> replaces the guard a third time with two changes
-/// to the application arms: the UPDATE arm refuses every write of a closure's row but one that keeps it <c>scheduled</c> or
-/// cancels it, so a <c>fulfilling</c> closure is the platform's alone, and the INSERT arm asks the subject's status after
+/// to the application arms: the UPDATE arm refuses every write of a closure's row but its cancellation from <c>scheduled</c>,
+/// so a begun closure, and a scheduled one's refusal record and Begin moment, are the platform's alone, and the INSERT arm asks the subject's status after
 /// the snapshot. The constants the earlier migrations applied are unchanged.
 /// </para>
 /// <para>
@@ -792,10 +792,10 @@ internal static class AccountClosureStorageDdl
             THEN RAISE EXCEPTION 'Data request immutable state refused.' USING ERRCODE = '23514'; END IF;
             IF (OLD.status IN ('completed','blocked','failed','cancelled')) IS NOT FALSE
             THEN RAISE EXCEPTION 'Data request is terminal.' USING ERRCODE = '23514'; END IF;
-            -- A closure is the application's only while it is scheduled (ADR-0107 § 7): the person cancels it, and once it
-            -- leaves scheduled every write of its row is the platform's arrows, so its Begin moment, its result and its
-            -- version change only as Finalize reads them.
-            IF (OLD.kind = 'closure' AND NOT (OLD.status = 'scheduled' AND NEW.status IN ('scheduled','cancelled'))) IS NOT FALSE
+            -- A closure is the application's only to cancel (ADR-0107 § 7): the person cancels a scheduled one, and every other
+            -- write of its row is the platform's arrows, so its Begin moment, its refusal record, its result and its version
+            -- change only as Finalize reads them. An application write that leaves the closure scheduled is refused too.
+            IF (OLD.kind = 'closure' AND NOT (OLD.status = 'scheduled' AND NEW.status = 'cancelled')) IS NOT FALSE
             THEN RAISE EXCEPTION 'Data request transition refused.' USING ERRCODE = '23514'; END IF;
             -- Progress only grows, and only while the request is fulfilling (ADR-0107 § 1).
             IF (NEW.progress IS DISTINCT FROM OLD.progress

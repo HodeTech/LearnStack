@@ -46,6 +46,7 @@ public sealed partial class AccountClosureFinalizeTests
 
         stopped.Outcome.Should().Be(ClosureFinalizeOutcome.GroupsPending);
         stopped.Groups.Should().Be(new ClosureFinalizeTally(Served: 3, Ready: 2, Pending: 1, Unserved: 1));
+        stopped.Provider.Should().Be("removed", "the answer says the provider's account is already gone, so it is not 'nothing changed'");
         (await kit.UserAsync(world.Person)).Should().Match<AccountClosureBeginKit.UserRow>(row => row.Status == "Closing" && row.SubjectPresent,
             "nothing of the second transaction committed");
         (await kit.RequestAsync(world.Closure)).Status.Should().Be("fulfilling");

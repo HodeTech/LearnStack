@@ -68,7 +68,7 @@ public sealed partial class PlatformOperatorHttpTests
         begin.GetProperty("responses").GetProperty("409").GetProperty("description").GetString().Should()
             .Contain("errors.participants").And.Contain("errors.provider").And.Contain("Phase 11's data operations");
         var finalize = paths.GetProperty("/api/platform/v1/data-requests/{requestId}/finalize-closure").GetProperty("post");
-        finalize.GetProperty("description").GetString().Should().Contain("User fence alone").And.Contain("stays required");
+        finalize.GetProperty("description").GetString().Should().Contain("User fence alone").And.Contain("is never waited for");
         finalize.GetProperty("responses").GetProperty("503").GetProperty("description").GetString().Should()
             .Contain("the person's account may already be deleted at the provider");
     }

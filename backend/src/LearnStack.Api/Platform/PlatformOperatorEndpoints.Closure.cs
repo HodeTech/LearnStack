@@ -120,7 +120,7 @@ internal static partial class PlatformOperatorEndpoints
                 .WithDescription(
                     "Allowed once every served participant group's newest erasure of the person awaits its privileged step or "
                     + "completed during the closure; a group whose tenant does not allow ordinary work or whose organization is "
-                    + "not Active is unserved and needs none. The first platform transaction takes the person's fences, redacts "
+                    + "not Active is unserved and needs none. The first platform transaction redacts "
                     + "the person's audit rows in every participant tenant and in the platform sentinel tenant, and commits with "
                     + "the intent row that carries the summed counts. The person's identity-provider account is then deleted; a "
                     + "missing account is success. The second transaction takes the fences again, moves the account from Closing "
@@ -128,8 +128,9 @@ internal static partial class PlatformOperatorEndpoints
                     + "privileged step, this closure and every other open closure of the person, and writes the result row under "
                     + "the platform sentinel with the ticket. The first transaction holds the person's User fence alone, so no "
                     + "participant tenant waits for the redaction; the second holds every participant tenant's fence too. A "
-                    + "group made unserved after the Begin whose fan-out erasure is still open stays required until it awaits "
-                    + "its privileged step. A provider that did not delete answers 503 and leaves the closure "
+                    + "group made unserved after the Begin is never waited for, whatever its fan-out erasure is doing: it is "
+                    + "reported unserved unless that erasure had reached its privileged step. A provider that did not delete "
+                    + "answers 503 and leaves the closure "
                     + "fulfilling; every step is idempotent, so a repeat resumes, and a repeat after the act landed answers "
                     + "already_finalized and writes nothing."),
             typeof(ClosureFinalizeResponse));
@@ -245,7 +246,7 @@ internal static partial class PlatformOperatorEndpoints
                 ClosureFinalizeOutcome.NotClosure => ResultProblem(http, Rule("kind", "lockey_data_request_not_closure")),
                 ClosureFinalizeOutcome.NotFinalizable => ResultProblem(
                     http, Rule("status", "lockey_data_request_closure_not_finalizable", result.Status)),
-                ClosureFinalizeOutcome.GroupsPending => ResultProblem(http, GroupsPending(result.Groups!)),
+                ClosureFinalizeOutcome.GroupsPending => ResultProblem(http, GroupsPending(result.Groups!, result.Provider)),
                 ClosureFinalizeOutcome.ProviderRefused => ResultProblem(http, ProviderStopped("lockey_provider_refused")),
                 ClosureFinalizeOutcome.ProviderUnavailable => ResultProblem(http, ProviderStopped("lockey_provider_unavailable")),
                 ClosureFinalizeOutcome.ProviderUncertain => ResultProblem(http, ProviderStopped("lockey_provider_outcome_unknown")),
@@ -278,22 +279,31 @@ internal static partial class PlatformOperatorEndpoints
 
     /// <summary>
     /// A 409 with the closed tallies on <c>errors.groups</c>: how many served groups are ready and pending and how many are
-    /// unserved. No group is named, because a group's tenant and organization are the person's memberships.
+    /// unserved. No group is named, because a group's tenant and organization are the person's memberships. A refusal the
+    /// second transaction found after the provider step also carries <c>provider</c> (<c>removed</c> or <c>absent</c>): the
+    /// person's account is already gone at the provider, so this refusal is not "nothing changed", and a repeat finishes it.
     /// </summary>
-    private static Error GroupsPending(ClosureFinalizeTally tally) => new(
-        new LocalizedMessage("lockey_business_rule_violation"),
-        new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+    private static Error GroupsPending(ClosureFinalizeTally tally, string? provider)
+    {
+        var parameters = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["groups"] = [new LocalizedMessage(
-                "lockey_data_request_closure_groups_pending",
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["served"] = tally.Served.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    ["ready"] = tally.Ready.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    ["pending"] = tally.Pending.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    ["unserved"] = tally.Unserved.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                })],
-        });
+            ["served"] = tally.Served.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["ready"] = tally.Ready.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["pending"] = tally.Pending.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["unserved"] = tally.Unserved.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+        if (provider is not null)
+        {
+            parameters["provider"] = provider;
+        }
+
+        return new Error(
+            new LocalizedMessage("lockey_business_rule_violation"),
+            new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+            {
+                ["groups"] = [new LocalizedMessage("lockey_data_request_closure_groups_pending", parameters)],
+            });
+    }
 
     /// <summary>
     /// A 503 whose reason is the provider's closed outcome on <c>errors.provider</c>: the redaction and its intent row

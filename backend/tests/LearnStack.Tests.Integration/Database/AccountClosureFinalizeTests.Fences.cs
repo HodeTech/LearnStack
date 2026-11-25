@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Modules.Identity.Infrastructure.DataRequests;
@@ -45,9 +44,9 @@ public sealed partial class AccountClosureFinalizeTests
 
             foreach (var tenant in new[] { TenantA, TenantB })
             {
-                var clock = Stopwatch.StartNew();
+                // The writer takes the tenant's key with a two-second lock timeout of its own, so a key the act still held
+                // would fail it loudly; the elapsed time of the whole call (a cold connection included) proves nothing more.
                 await AdmitSomeoneElseAsync(kit, tenant).WaitAsync(TimeSpan.FromSeconds(10));
-                clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2), "the tenant's key was free while the act redacted");
             }
         }
         finally
@@ -109,12 +108,12 @@ public sealed partial class AccountClosureFinalizeTests
     }
 
     /// <summary>
-    /// A branch archived after its fan-out erasure started is unserved, but its erasure is still open: Finalize refuses as
-    /// pending and writes nothing, because once the person is Closed nothing completes a fan-out erasure. Once the erasure
-    /// awaits its privileged step, Finalize completes it with the others.
+    /// A branch archived after its fan-out erasure started is unserved, and its erasure may never finish: its job can be dead
+    /// and nothing re-queues a job in an archived group. Finalize does not wait for it, so the closure cannot stick: the person
+    /// is closed, the branch is reported with the data it still holds, and its erasure is left as it is.
     /// </summary>
     [Fact]
-    public async Task An_unserved_group_whose_fan_out_erasure_is_still_open_keeps_the_closure_pending_until_it_awaits()
+    public async Task An_unserved_group_whose_fan_out_erasure_is_still_open_is_never_waited_for_and_is_reported()
     {
         await using var kit = await AccountClosureBeginKit.CreateAsync(schema.Postgres);
         var person = await kit.PersonAsync();
@@ -126,18 +125,36 @@ public sealed partial class AccountClosureFinalizeTests
         var running = await FanOutErasureAsync(kit, BranchA1, person, branch, awaiting: false);
         await kit.OrganizationStatusAsync(TenantA, SchemaFixture.OrgA1, "Archived");
         var removal = new RecordingAccountRemoval();
-        var admission = Admission();
 
-        var pending = await kit.Owner(removal: removal).FinalizeAsync(admission, closure);
+        var finalized = await kit.Owner(removal: removal).FinalizeAsync(Admission(), closure);
 
-        pending.Outcome.Should().Be(ClosureFinalizeOutcome.GroupsPending);
-        pending.Groups.Should().Be(new ClosureFinalizeTally(Served: 1, Ready: 1, Pending: 1, Unserved: 1),
-            "the archived branch is unserved but its fan-out erasure is open, so it is required");
-        removal.Subjects.Should().BeEmpty();
-        (await kit.AuditAsync(admission.Operator.CorrelationId!)).Select(row => row.Operation).Should().Equal(PlatformAdminScope.EnterOperation);
+        finalized.Outcome.Should().Be(ClosureFinalizeOutcome.Finalized, "a closure that waited for an archived branch could not finish");
+        finalized.Groups.Should().Be(new ClosureFinalizeTally(Served: 1, Ready: 1, Pending: 0, Unserved: 1, ErasuresCompleted: 1, ClosuresCompleted: 1),
+            "the archived branch is not required, and its data is still there");
+        finalized.UnservedGroups.Should().Equal(BranchA1);
+        removal.Subjects.Should().HaveCount(1, "the provider account is deleted");
+        (await RequestStateAsync(kit, BranchA1, running)).Status.Should().Be("fulfilling", "an erasure nothing can finish is left as it is");
+        (await RequestStateAsync(kit, TenantWideA, served)).Status.Should().Be("completed");
+    }
 
-        // Its job finishes, as it would once the branch's work resumed: written by the owner with the guards paused, because an
-        // archived branch takes no ordinary write.
+    /// <summary>
+    /// The same branch, archived after its job reached the privileged step: Finalize completes that erasure with the others,
+    /// and the branch is not reported as kept, because its data was erased.
+    /// </summary>
+    [Fact]
+    public async Task An_unserved_group_whose_fan_out_erasure_awaits_its_privileged_step_is_completed_and_not_reported()
+    {
+        await using var kit = await AccountClosureBeginKit.CreateAsync(schema.Postgres);
+        var person = await kit.PersonAsync();
+        var tenantWide = await kit.MemberAsync(TenantA, null, person, BuiltInRoleKey.Learner);
+        var branch = await kit.MemberAsync(TenantA, SchemaFixture.OrgA1, person, BuiltInRoleKey.Learner);
+        var closure = await kit.ClosureAsync(TenantA, null, person);
+        (await kit.Owner().BeginAsync(AccountClosureBeginKit.Admission(), closure)).Outcome.Should().Be(ClosureBeginOutcome.Begun);
+        var served = await FanOutErasureAsync(kit, TenantWideA, person, tenantWide, awaiting: true);
+        var running = await FanOutErasureAsync(kit, BranchA1, person, branch, awaiting: false);
+        await kit.OrganizationStatusAsync(TenantA, SchemaFixture.OrgA1, "Archived");
+
+        // Its job finishes: written by the owner with the guards paused, because an archived branch takes no ordinary write.
         await kit.SqlAsync($$"""
             SET session_replication_role = replica;
             UPDATE public.data_subject_requests SET status = 'awaiting_privileged_step', result = '{"consent_evidence":1}'::jsonb,
@@ -145,12 +162,12 @@ public sealed partial class AccountClosureFinalizeTests
             WHERE id = '{{running}}'
             """);
 
-        var finalized = await kit.Owner(removal: removal).FinalizeAsync(Admission(), closure);
+        var finalized = await kit.Owner(removal: new RecordingAccountRemoval()).FinalizeAsync(Admission(), closure);
 
         finalized.Outcome.Should().Be(ClosureFinalizeOutcome.Finalized);
-        finalized.Groups.Should().Be(new ClosureFinalizeTally(1, 2, 0, 1, ErasuresCompleted: 2, ClosuresCompleted: 1),
-            "ready counts the required groups, the unserved one whose erasure awaited included");
-        finalized.UnservedGroups.Should().Equal(BranchA1);
+        finalized.Groups.Should().Be(new ClosureFinalizeTally(1, 1, 0, 0, ErasuresCompleted: 2, ClosuresCompleted: 1),
+            "ready counts the required groups; the branch's data was erased, so nothing is reported as kept");
+        finalized.UnservedGroups.Should().BeEmpty();
         (await RequestStateAsync(kit, BranchA1, running)).Status.Should().Be("completed", "no fan-out erasure is stranded");
         (await RequestStateAsync(kit, TenantWideA, served)).Status.Should().Be("completed");
     }

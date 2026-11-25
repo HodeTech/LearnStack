@@ -231,6 +231,25 @@ public sealed partial class PlatformOperatorHttpTests
     }
 
     [Fact]
+    public async Task The_Production_Composition_Registers_Exactly_One_Real_Closure_Fan_Out_Beside_The_Operator_Gate()
+    {
+        // The fan-out is registered where the gate and the executor that build it are, not in persistence alone: a host that
+        // lost the registration would answer every production Begin with "no single fan-out is registered".
+        await using var production = new PlatformOperatorApiFactory(_tenant, _operator, _toggle, grantSubject: Subject,
+            services: registrations =>
+            {
+                registrations.Replace(ServiceDescriptor.Singleton<IPlatformAdminScope>(new RecordingScope()));
+                registrations.Replace(ServiceDescriptor.Singleton(_ => new LearnStack.Infrastructure.Persistence.ApplicationDataSourceLifetime(
+                    "Host=localhost;Port=1;Database=learnstack;Username=learnstack_app")));
+            });
+        using var client = production.CreateClient();
+        await using var resolved = production.Services.CreateAsyncScope();
+
+        resolved.ServiceProvider.GetServices<IClosureFanOut>().Should().ContainSingle()
+            .Which.Should().BeOfType<LearnStack.Modules.Identity.Infrastructure.DataRequests.ClosureFanOut>();
+    }
+
+    [Fact]
     public async Task The_Production_Composition_Resolves_The_Closure_Owner_And_Fails_The_Act_Closed_Without_A_Fan_Out()
     {
         // Production's registrations, with the platform scope recorded and every fan-out removed: the act is refused before

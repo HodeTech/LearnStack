@@ -139,13 +139,14 @@ public enum ClosureFinalizeOutcome
 /// <param name="Served">The groups whose tenant allows ordinary work and whose organization, if any, is Active.</param>
 /// <param name="Ready">
 /// Required groups whose newest erasure of the person awaits the privileged step, or completed during this closure, and
-/// covers every Membership the person holds there. Every served group is required, and so is an unserved group whose
-/// fan-out erasure is still open, because its job started and nothing completes it after the person is Closed.
+/// covers every Membership the person holds there. Only a served group is required: an unserved group is never waited for,
+/// because nothing can repair its erasure once the group is Archived and a closure cannot stick.
 /// </param>
 /// <param name="Pending">Required groups that are not ready.</param>
 /// <param name="Unserved">
-/// Groups whose tenant does not allow ordinary work or whose organization is not Active (<c>unserved_group</c>): their data
-/// stays and Phase 11's offboarding owns it.
+/// Groups whose tenant does not allow ordinary work or whose organization is not Active, and whose data this closure did not
+/// erase (<c>unserved_group</c>): their data stays and Phase 11's offboarding owns it. An unserved group whose erasure had
+/// reached the privileged step, or completed during the closure, is not among them.
 /// </param>
 /// <param name="ErasuresCompleted">The participant erasures this call completed; zero unless it finalized.</param>
 /// <param name="ClosuresCompleted">The person's closure requests this call completed, this one included; zero unless it finalized.</param>
@@ -165,13 +166,19 @@ public sealed record ClosureFinalizeTally(
 /// For a finalization or an earlier one, the closure request's recorded result: the audit log's retained kinds summed over
 /// every pass, and <c>unserved_group</c>.
 /// </param>
+/// <param name="Provider">
+/// <c>removed</c> or <c>absent</c> when the identity provider's account was already deleted (or found missing) before this
+/// answer: a <see cref="ClosureFinalizeOutcome.GroupsPending"/> found by the second transaction carries it, because that
+/// refusal is not "nothing changed". Null when the provider was not asked or the answer is an earlier finalization's.
+/// </param>
 public sealed record ClosureFinalizeResult(
     ClosureFinalizeOutcome Outcome,
     string? Status = null,
     ClosureFinalizeTally? Groups = null,
     IReadOnlyList<ClosureParticipantGroup>? UnservedGroups = null,
     AuditRedactionAggregate? Redaction = null,
-    IReadOnlyDictionary<string, long>? Retained = null);
+    IReadOnlyDictionary<string, long>? Retained = null,
+    string? Provider = null);
 
 /// <summary>
 /// The confined owner of the operator's global account closure acts (ADR-0107 §§ 7 and 8): it consumes the operator's

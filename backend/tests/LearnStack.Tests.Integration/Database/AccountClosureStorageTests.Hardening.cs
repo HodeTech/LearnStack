@@ -52,11 +52,26 @@ public sealed partial class AccountClosureStorageTests
         (await RequestStateAsync(database, SchemaFixture.TenantA, null, arranged.DueClosureA)).Should().Be(begun,
             "nothing the application role sent reached the begun closure");
 
-        // The application's arms that stay: a scheduled closure's own write and its cancellation in its window, and a
-        // fulfilling erasure's result, which is the job's.
+        // A scheduled closure is the person's to cancel and nothing else: any other application write, a refusal code or a
+        // later update stamp (the Begin moment Finalize reads) included, is refused, so Begin and Finalize read what only the
+        // platform's arrows wrote.
+        foreach (var (set, because) in new[]
+        {
+            ("status=status", "a later update stamp on a closure that stays scheduled"),
+            ("last_refusal='blocked_hold'", "a refusal code Begin never decided"),
+            ("result='{\"consent_evidence\":7}'", "a result nobody produced"),
+        })
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await FenceAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1, PersonA);
+            var refusal = await DataExportTestKit.RefuseAsync(transaction, () => StepAsync(app, transaction, arranged.PendingClosureA1, set));
+            (refusal.SqlState, refusal.MessageText).Should().Be(("23514", Transition), because);
+        }
+
+        // The application's arms that stay: a scheduled closure's cancellation in its window, and a fulfilling erasure's
+        // result, which is the job's.
         foreach (var (tenant, organization, id, set) in new (Guid, Guid?, Guid, string)[]
         {
-            (SchemaFixture.TenantA, SchemaFixture.OrgA1, arranged.PendingClosureA1, "status=status"),
             (SchemaFixture.TenantA, SchemaFixture.OrgA1, arranged.PendingClosureA1, "status='cancelled'"),
             (SchemaFixture.TenantA, SchemaFixture.OrgA2, fulfilling, "result='{\"consent_evidence\":7}'"),
         })
