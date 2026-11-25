@@ -275,11 +275,13 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
             .MessageText.Should().Be("Data request transition refused.", "an erasure executes only after its 24-hour window");
         (await RefuseAsync(transaction, () => StepAsync(app, transaction, closure, "status='fulfilling'")))
             .MessageText.Should().Be("Data request transition refused.", "a closure's Begin is an operator act, not the application's");
-        await StepAsync(app, transaction, closure, "last_refusal='blocked_window'");
+        (await RefuseAsync(transaction, () => StepAsync(app, transaction, closure, "last_refusal='blocked_window'")))
+            .MessageText.Should().Be("Data request transition refused.",
+                "a closure is the application's only to cancel: its refusal record is the platform's");
         await StepAsync(app, transaction, closure, "status='cancelled'");
         await StepAsync(app, transaction, erasure, "status='cancelled'");
         (await ScalarAsync<string>(app, transaction, "SELECT string_agg(status||':'||row_version,',' ORDER BY kind) FROM public.data_subject_requests WHERE id IN (@a,@b)",
-            ("a", erasure), ("b", closure))).Should().Be("cancelled:2,cancelled:1");
+            ("a", erasure), ("b", closure))).Should().Be("cancelled:1,cancelled:1");
 
         await FenceAsync(app, transaction, SchemaFixture.TenantB, SchemaFixture.OrgB1, null);
         await StepAsync(app, transaction, BranchB.Request, "status='fulfilling'");
@@ -310,9 +312,10 @@ public sealed class DataRequestStorageTests(SchemaFixture schema)
         })
             (await RefuseAsync(transaction, () => StepAsync(app, transaction, BranchB.Request, set))).ConstraintName.Should().Be(constraint, set);
         await LockAsync(app, transaction, SchemaFixture.TenantB, PersonB, false);
-        var closure = Guid.CreateVersion7();
-        await InsertRequestAsync(app, transaction, closure, SchemaFixture.TenantB, SchemaFixture.OrgB1, PersonB, [BranchMembershipB], "closure");
-        (await RefuseAsync(transaction, () => StepAsync(app, transaction, closure, "last_refusal='blocked_everything'")))
+        // An erasure carries the refusal record: a closure's is the platform's, and the guard refuses the application's write first.
+        var erasure = Guid.CreateVersion7();
+        await InsertRequestAsync(app, transaction, erasure, SchemaFixture.TenantB, SchemaFixture.OrgB1, PersonB, [BranchMembershipB], "erasure");
+        (await RefuseAsync(transaction, () => StepAsync(app, transaction, erasure, "last_refusal='blocked_everything'")))
             .ConstraintName.Should().Be("ck_data_subject_requests_outcome", "a refusal is one of the closed codes");
         (await ScalarAsync<long>(app, transaction, """
             SELECT count(*) FROM public.data_subject_requests WHERE id=@id
