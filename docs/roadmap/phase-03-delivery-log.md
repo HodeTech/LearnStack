@@ -534,7 +534,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0105 acceptance and implementation (2026-11-21)](#adr-0105-acceptance-and-implementation-2026-11-21) — 24 lines
   - [P03-9 merge and delivery closeout (2026-11-21)](#p03-9-merge-and-delivery-closeout-2026-11-21) — 60 lines
   - [ADR-0105 merge and hosted qualification (2026-11-22)](#adr-0105-merge-and-hosted-qualification-2026-11-22) — 57 lines
-- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 1,077 lines
+- [P03-10 — Subject data requests, erasure and global account closure](#p03-10--subject-data-requests-erasure-and-global-account-closure) — 1,079 lines
   - [P03-10 decision package and acceptance (2026-11-22)](#p03-10-decision-package-and-acceptance-2026-11-22) — 71 lines
   - [P03-10 Step 1 — request core and export (2026-11-22)](#p03-10-step-1--request-core-and-export-2026-11-22) — 63 lines
   - [P03-10 Step 1 — review round 1 and its fixes (2026-11-22)](#p03-10-step-1--review-round-1-and-its-fixes-2026-11-22) — 24 lines
@@ -550,7 +550,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-10 Steps 3 and 4 — review round 2 and the usage limit (2026-11-23)](#p03-10-steps-3-and-4--review-round-2-and-the-usage-limit-2026-11-23) — 22 lines
   - [P03-10 — owed ADR amendments and maintainer decisions (2026-11-23)](#p03-10--owed-adr-amendments-and-maintainer-decisions-2026-11-23) — 380 lines
   - [P03-10 Steps 3 and 4 — verification and closeout (2026-11-23)](#p03-10-steps-3-and-4--verification-and-closeout-2026-11-23) — 46 lines
-  - [P03-10 Steps 3 and 4 — review round 2 completed and its fixes (2026-11-26)](#p03-10-steps-3-and-4--review-round-2-completed-and-its-fixes-2026-11-26) — 95 lines
+  - [P03-10 Steps 3 and 4 — review round 2 completed and its fixes (2026-11-26)](#p03-10-steps-3-and-4--review-round-2-completed-and-its-fixes-2026-11-26) — 97 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -26714,6 +26714,8 @@ fixture's two-minute start bound (`KeycloakFixture.cs`,
 `TenantRealmFederationReconciliationTests` failed at 2:01 and the classes sharing the
 fixture after it), which the previous green run's same test had met at 2:17 inside the
 same bound: the head differed from that run only in a frontend test file, so it is a
-host-speed flake at the bound and not this packet's. The full architecture and
-integration suites on the final head are recorded in the closeout entry that follows,
-when they finish.
+host-speed flake at the bound and not this packet's. The same bound failed a Keycloak
+fixture in two more hosted runs, in three of the four runs of this round, so the
+maintainer agreed to raise the fixture's start bound to four minutes (`KeycloakFixture`,
+`InitializeAsync`); the provider-recreation path keeps its two. The hosted CI is the
+full architecture and integration run of the final head.

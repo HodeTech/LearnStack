@@ -67,7 +67,10 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     public async Task InitializeAsync()
     {
         var started = Stopwatch.GetTimestamp();
-        using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        // The hosted runner's Keycloak start sits at this bound under load (the same fixture took 1:59 to 2:17 in a green run and
+        // failed at the old two-minute bound in others), so a start gets four minutes; a Keycloak that does not answer then
+        // is still a failure, only a later one.
+        using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(4));
         var diagnostics = new KeycloakStartupDiagnostics();
         var stage = "certificate";
         diagnostics.Mark(stage);
